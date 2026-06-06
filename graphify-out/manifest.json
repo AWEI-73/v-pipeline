@@ -48,8 +48,8 @@
     "hash": "cc29579f3b73380bb3781dfb44c21dcf"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_dashboard_state.py": {
-    "mtime": 1780672449.993247,
-    "hash": "c7f233e7d938feb0905b26b505338706"
+    "mtime": 1780761913.7160118,
+    "hash": "583b2c076604eedeabef8c1ee5cd2eaf"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_editor_review.py": {
     "mtime": 1780643530.8368764,
@@ -104,8 +104,8 @@
     "hash": "e35c402d9a4c16540096292f950ad3a1"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_runtime.py": {
-    "mtime": 1780760496.575308,
-    "hash": "e386927aa592d92f6e80030b1e103960"
+    "mtime": 1780761873.231789,
+    "hash": "9121bfe8b3a7be0a2b0467e37f745a7e"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_spec_contract.py": {
     "mtime": 1780643530.7273571,
@@ -152,8 +152,8 @@
     "hash": "678eda21cb18f90e04d8b6c876852418"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\dashboard_state.py": {
-    "mtime": 1780720213.4222941,
-    "hash": "a97261859b70667c5504a0903cee7ef7"
+    "mtime": 1780762561.8896492,
+    "hash": "19e6741ae422cdfd08079132ca22cf87"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\editor_review.py": {
     "mtime": 1780564556.626873,
@@ -187,6 +187,10 @@
     "mtime": 1780720140.539,
     "hash": "6dddfcfe9f9b7e2ca1afd5428a496c52"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\node_registry.py": {
+    "mtime": 1780761076.5135083,
+    "hash": "f63b2fc0bc64b8be648a6ac5f665e5f4"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\platform_tools.py": {
     "mtime": 1780710768.8636193,
     "hash": "cfdab03b6a9630a305b9e7212d8331b8"
@@ -196,8 +200,8 @@
     "hash": "05604a2c43ce5f99bb80d981844264cb"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\runtime_orchestrator.py": {
-    "mtime": 1780760467.8769174,
-    "hash": "3db6262336d276e40eb6956022e94b5f"
+    "mtime": 1780762747.289571,
+    "hash": "5a8f505eb375d86bd59aadcc9428037f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\spec_contract.py": {
     "mtime": 1780643487.4126704,

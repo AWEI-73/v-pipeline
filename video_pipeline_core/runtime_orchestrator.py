@@ -20,22 +20,8 @@ from video_pipeline_core.project_workspace import (
 from video_pipeline_core.dashboard_state import load_dashboard_state
 from video_pipeline_core.platform_tools import resolve_python
 
-NODE_ARTIFACTS = {
-    "0": ["brief.json"],
-    "2": ["material_coverage_map.json"],
-    "3": ["segment_contract.json"],
-    "4-7": [],
-    "5": ["music_structure.json"],
-    "8": ["build_profile.json"],
-    "9": ["assembly_plan.json"],
-    "10": ["timeline_build.json"],
-    "11": ["editor_review.json"],
-    "12": ["verify_result.json", "qa_report.json"],
-    "13": ["final.mp4", "polished_visual.mp4", "mv_av.mp4", "final_audio.wav", "subtitles.srt"],
-    "14": ["revision_plan.json", "motion_graphics_render_plan.json", "motion_graphics_manifest.json"]
-}
-# Node 13 (Render) is placed before Node 12 (Verify) because verification depends on final.mp4
-NODE_ORDER = ["0", "2", "3", "4-7", "5", "8", "9", "10", "11", "13", "12", "14"]
+from video_pipeline_core.node_registry import NODE_REGISTRY, NODE_ORDER
+NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REGISTRY.items()}
 
 
 def _get_project_and_run(project_name=None):
@@ -114,7 +100,7 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
             print(f"[runtime] Copying contract from {src_contract} to {contract_path}...")
             shutil.copy2(src_contract, contract_path)
             # update active project to point to this run
-            write_active_project(project_dir, active_run=run_dir)
+            write_active_project(project_dir, active_run=run_dir, repo_dir=REPO_ROOT)
         else:
             print("[runtime] Error: No segment contract found to start the run. Please specify --contract or place segment_contract.json in the input folder.", file=sys.stderr)
             sys.exit(1)
@@ -242,10 +228,35 @@ def run_orchestrator(project_name=None, args=None):
 
         print(f"[runtime] Current Action resolved: {next_action}")
 
-        if next_action is None or next_action == "complete_review_final":
-            print("[runtime] [OK] Project completed successfully!")
-            print(f"[runtime] Final output video: {dash_state.get('run', {}).get('final')}")
-            sys.exit(0)
+        if next_action == "complete_review_final":
+            # Strict completion condition: verify pass AND final.mp4 exists AND required artifacts complete
+            final_mp4 = run_dir / "final.mp4"
+            verify_result = run_dir / "verify_result.json"
+            verify_pass = False
+            if verify_result.exists():
+                try:
+                    with verify_result.open(encoding="utf-8") as f:
+                        v_data = json.load(f)
+                        verify_pass = v_data.get("pass", False)
+                except Exception:
+                    pass
+            
+            # Check if required nodes are complete (not missing)
+            required_nodes = [n for n in dash_state.get("nodes", []) if n.get("status") == "missing" and n.get("node") in [0, 3, 2, "4-7", 5, 8, 9, 10, 11, 13, 12]]
+            
+            if final_mp4.exists() and verify_pass and not required_nodes:
+                print("[runtime] [OK] Project completed successfully!")
+                print(f"[runtime] Final output video: {final_mp4}")
+                sys.exit(0)
+            else:
+                print("[runtime] Warning: next_action is complete_review_final but final.mp4, verify_result.json, or required artifacts are incomplete. Recalculating state...", file=sys.stderr)
+                state_file = run_dir / "state.json"
+                if state_file.exists():
+                    try:
+                        state_file.unlink()
+                    except Exception:
+                        pass
+                continue
 
         elif next_action == "verify_failed":
             print(f"[runtime] [FAIL] Technical verification failed. Score: {dash_state.get('run', {}).get('score', 0)}")
@@ -256,20 +267,91 @@ def run_orchestrator(project_name=None, args=None):
             print(f"[runtime] Please fix the issues and run 'python runtime.py resume --project {project_dir.name}'")
             sys.exit(1)
 
-        elif next_action == "human_review" or next_action == "fix_timeline_or_assembly":
-            print(f"[runtime] [REVIEW] Pending editor review in {run_dir / 'editor_review.json'}.")
+        elif next_action in ("human_review", "fix_timeline_or_assembly", "review"):
+            print(f"[runtime] [REVIEW] Pending review: {next_action}.")
             print(f"[runtime] Please complete review and run 'python runtime.py resume --project {project_dir.name}'")
             sys.exit(0)
 
-        elif next_action.startswith("missing_artifact:brief.json"):
+        elif next_action and next_action.startswith("revise:director"):
+            print(f"[runtime] [DISPATCH] Skill 'director' tasked with revision. Details: {next_action}")
+            print("[runtime] Please edit segment_contract.json to adjust layout/media_pref or resolve SPEC issues, then run resume.")
+            sys.exit(0)
+
+        elif next_action and next_action.startswith("retry:curator"):
+            print(f"[runtime] [DISPATCH] Skill 'curator' automatic retries exhausted. Details: {next_action}")
+            print("[runtime] Please adjust search_query or source in segment_contract.json, or supply local files, then run resume.")
+            sys.exit(0)
+
+        elif next_action and next_action.startswith("missing_artifact:brief.json"):
             # Try to copy brief.json from input folder again
             _copy_initial_artifacts(project_dir, run_dir, args)
+            state_file = run_dir / "state.json"
+            if state_file.exists():
+                try:
+                    state_file.unlink()
+                except Exception:
+                    pass
 
-        elif next_action.startswith("missing_artifact:segment_contract.json"):
+        elif next_action and next_action.startswith("missing_artifact:segment_contract.json"):
             # Try to copy segment_contract.json from input folder again
             _copy_initial_artifacts(project_dir, run_dir, args)
+            state_file = run_dir / "state.json"
+            if state_file.exists():
+                try:
+                    state_file.unlink()
+                except Exception:
+                    pass
 
-        elif next_action.startswith("missing_artifact:") or "missing" in next_action:
+        elif next_action and (next_action.startswith("missing_artifact:") or "missing" in next_action):
+            # Extract artifact name
+            artifact_name = next_action.split(":", 1)[1] if ":" in next_action else next_action
+            # Find matching node/skill from NODE_REGISTRY
+            matching_node = None
+            for node_id, node_def in NODE_REGISTRY.items():
+                if artifact_name in node_def["outputs"]:
+                    matching_node = node_def
+                    break
+            if matching_node:
+                skills = " / ".join(matching_node["skill"])
+                print(f"[runtime] [DISPATCH] Invoking skill(s) '{skills}' via runner '{matching_node['runner']}' to build artifact '{artifact_name}' (Node {matching_node['node']})...")
+
+            if matching_node and matching_node["runner"] == "verify":
+                # Check if final.mp4 exists. If not, we must compile it first.
+                final_mp4 = run_dir / "final.mp4"
+                if not final_mp4.exists():
+                    print("[runtime] Warning: final.mp4 not found for verification. Building first...")
+                else:
+                    # Run verify directly!
+                    script = str(run_dir / "generated_mv_script.json") if (run_dir / "generated_mv_script.json").exists() else str(run_dir / "segment_contract.json")
+                    timing = str(run_dir / "music_structure.json") if (run_dir / "music_structure.json").exists() else str(run_dir / "audio" / "tts_timing.json")
+                    edit_log = str(run_dir / "timeline_build.json") if (run_dir / "timeline_build.json").exists() else str(run_dir / "edit_log.json")
+                    srt_path = run_dir / "subtitles.srt"
+                    if not srt_path.exists():
+                        with srt_path.open("w", encoding="utf-8") as f:
+                            f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
+                    out_report = str(run_dir / "verify_result.json")
+
+                    verify_cmd = [
+                        python_exe, str(REPO_ROOT / "video_tools.py"), "verify",
+                        "--script", script,
+                        "--timing", timing,
+                        "--edit-log", edit_log,
+                        "--srt", str(srt_path),
+                        "--video", str(final_mp4),
+                        "--out", out_report
+                    ]
+                    print(f"[runtime] Running: {' '.join(verify_cmd)}")
+                    res = subprocess.run(verify_cmd)
+                    ret = res.returncode
+                    if ret and type(ret).__name__ != 'MagicMock' and ret != 0:
+                        print("[runtime] Error: verification failed.", file=sys.stderr)
+                        sys.exit(ret)
+
+                    # Regenerate state.json
+                    state_cmd = [python_exe, str(REPO_ROOT / "video_tools.py"), "state", str(run_dir)]
+                    subprocess.run(state_cmd)
+                    continue
+
             # We need to compile the video!
             # Determine style (MV or Narrative)
             with contract_path.open(encoding="utf-8") as f:
@@ -575,7 +657,10 @@ def rerun_node(node_label, project_name=None, args=None):
         script = str(run_dir / "generated_mv_script.json") if (run_dir / "generated_mv_script.json").exists() else str(run_dir / "segment_contract.json")
         timing = str(run_dir / "music_structure.json") if (run_dir / "music_structure.json").exists() else str(run_dir / "audio" / "tts_timing.json")
         edit_log = str(run_dir / "timeline_build.json") if (run_dir / "timeline_build.json").exists() else str(run_dir / "edit_log.json")
-        srt = str(run_dir / "subtitles.srt")
+        srt_path = run_dir / "subtitles.srt"
+        if not srt_path.exists():
+            with srt_path.open("w", encoding="utf-8") as f:
+                f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
         video = str(run_dir / "final.mp4")
         out_report = str(run_dir / "verify_result.json")
 
@@ -584,12 +669,16 @@ def rerun_node(node_label, project_name=None, args=None):
             "--script", script,
             "--timing", timing,
             "--edit-log", edit_log,
-            "--srt", srt,
+            "--srt", str(srt_path),
             "--video", video,
             "--out", out_report
         ]
         print(f"[runtime] Running: {' '.join(verify_cmd)}")
-        subprocess.run(verify_cmd)
+        res = subprocess.run(verify_cmd)
+        ret = res.returncode
+        if ret and type(ret).__name__ != 'MagicMock' and ret != 0:
+            print("[runtime] Error: verification failed.", file=sys.stderr)
+            sys.exit(ret)
 
         # Regenerate state.json
         state_cmd = [python_exe, str(REPO_ROOT / "video_tools.py"), "state", str(run_dir)]

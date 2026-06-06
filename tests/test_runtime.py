@@ -92,7 +92,17 @@ class TestRuntime(unittest.TestCase):
             }
         ]
         
-        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", side_effect=states):
+        call_count = 0
+        def load_state_side_effect(*args, **kwargs):
+            nonlocal call_count
+            res = states[call_count]
+            call_count += 1
+            if call_count == 2:
+                (run_dir / "final.mp4").write_text("dummy video", encoding="utf-8")
+                (run_dir / "verify_result.json").write_text('{"pass": true}', encoding="utf-8")
+            return res
+        
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", side_effect=load_state_side_effect):
             with self.assertRaises(SystemExit) as cm:
                 runtime_orchestrator.run_orchestrator(project_name="fresh_proj", args=MagicMock(contract=None, brief=None, music=None, material_db=None))
             
@@ -118,6 +128,10 @@ class TestRuntime(unittest.TestCase):
     def test_completed_resume_exits_immediately(self):
         project_dir = self._setup_project("complete_proj")
         run_dir = self._setup_run(project_dir)
+        
+        # Write mock files to satisfy strict completion checks
+        (run_dir / "final.mp4").write_text("dummy video", encoding="utf-8")
+        (run_dir / "verify_result.json").write_text('{"pass": true}', encoding="utf-8")
         
         state_data = {
             "run": {"next_action": "complete_review_final", "pass": True, "final": "final.mp4"},
@@ -360,6 +374,34 @@ class TestRuntime(unittest.TestCase):
             
         finally:
             os.chdir(orig_cwd)
+
+    def test_revise_director_exits(self):
+        project_dir = self._setup_project("revise_dir_proj")
+        self._setup_run(project_dir)
+        
+        state_data = {
+            "run": {"next_action": "revise:director:segment_contract.json"},
+            "nodes": [],
+            "findings": []
+        }
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", return_value=state_data):
+            with self.assertRaises(SystemExit) as cm:
+                runtime_orchestrator.run_orchestrator(project_name="revise_dir_proj", args=MagicMock(contract=None, brief=None))
+            self.assertEqual(cm.exception.code, 0)
+
+    def test_retry_curator_exits(self):
+        project_dir = self._setup_project("retry_cur_proj")
+        self._setup_run(project_dir)
+        
+        state_data = {
+            "run": {"next_action": "retry:curator:search_query"},
+            "nodes": [],
+            "findings": []
+        }
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", return_value=state_data):
+            with self.assertRaises(SystemExit) as cm:
+                runtime_orchestrator.run_orchestrator(project_name="retry_cur_proj", args=MagicMock(contract=None, brief=None))
+            self.assertEqual(cm.exception.code, 0)
 
 if __name__ == "__main__":
     unittest.main()

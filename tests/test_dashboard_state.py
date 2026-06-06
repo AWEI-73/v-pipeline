@@ -60,7 +60,7 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertIn("Timeline", node_labels)
             self.assertIn("Editor Review", node_labels)
             self.assertIn("Verify", node_labels)
-            self.assertIn("Render", node_labels)
+            self.assertIn("Render Candidate", node_labels)
             self.assertIn("Revision", node_labels)
 
             # Assert states are done/optional/etc.

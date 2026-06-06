@@ -124,23 +124,21 @@ def load_dashboard_state(workdir):
                     manifest["motion_graphics_manifest"] = f
 
     # Load artifacts safely
-    brief_data = safe_load_json(manifest.get("brief") or "brief.json")
-    contract_data = safe_load_json(manifest.get("canonical_contract") or "segment_contract.json")
-    material_coverage = safe_load_json(manifest.get("material_coverage_map") or "material_coverage_map.json")
-    music_struct_data = safe_load_json(manifest.get("music_structure") or "music_structure.json")
-    profile_data = safe_load_json(manifest.get("build_profile") or "build_profile.json")
-    gen_requests = safe_load_json(manifest.get("generated_asset_requests") or "generated_asset_requests.json")
-    assembly_plan = safe_load_json(manifest.get("assembly_plan") or "assembly_plan.json")
-    timeline_build = safe_load_json(manifest.get("timeline_build") or "timeline_build.json")
-    editor_review = safe_load_json(manifest.get("editor_review") or "editor_review.json")
-    state_data = safe_load_json(manifest.get("state") or "state.json")
-    verify_result = safe_load_json(manifest.get("verify_result") or "qa_report.json")
-    if not verify_result:
-        verify_result = safe_load_json("verify_result.json")
+    brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
+    contract_data = safe_load_json(manifest.get("canonical_contract")) or safe_load_json("segment_contract.json")
+    material_coverage = safe_load_json(manifest.get("material_coverage_map")) or safe_load_json("material_coverage_map.json")
+    music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
+    profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
+    gen_requests = safe_load_json(manifest.get("generated_asset_requests")) or safe_load_json("generated_asset_requests.json")
+    assembly_plan = safe_load_json(manifest.get("assembly_plan")) or safe_load_json("assembly_plan.json")
+    timeline_build = safe_load_json(manifest.get("timeline_build")) or safe_load_json("timeline_build.json")
+    editor_review = safe_load_json(manifest.get("editor_review")) or safe_load_json("editor_review.json")
+    state_data = safe_load_json(manifest.get("state")) or safe_load_json("state.json")
+    verify_result = safe_load_json(manifest.get("verify_result")) or safe_load_json("qa_report.json") or safe_load_json("verify_result.json")
     
-    effects_render_plan = safe_load_json(manifest.get("motion_graphics_render_plan", "motion_graphics_render_plan.json"))
-    effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest", "motion_graphics_manifest.json"))
-    generated_manifest = safe_load_json(manifest.get("generated_asset_manifest", "generated_asset_manifest.json"))
+    effects_render_plan = safe_load_json(manifest.get("motion_graphics_render_plan")) or safe_load_json("motion_graphics_render_plan.json")
+    effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest")) or safe_load_json("motion_graphics_manifest.json")
+    generated_manifest = safe_load_json(manifest.get("generated_asset_manifest")) or safe_load_json("generated_asset_manifest.json")
 
     def generated_request_items(payload):
         if not payload:
@@ -178,288 +176,89 @@ def load_dashboard_state(workdir):
     findings = []
     node_list = []
 
-    # Node 0: Brief
-    n0_status = "done" if brief_data else "missing"
-    node_list.append({
-        "node": 0,
-        "label": "Brief",
-        "skill": "video-workflow",
-        "artifact": "brief.json",
-        "status": n0_status,
-        "reason": "Brief specification exists" if n0_status == "done" else "No brief found"
-    })
-
-    # Node 2: Material Coverage
-    material_source_mode = None
-    if isinstance(contract_data, dict):
-        material_source_mode = contract_data.get("material_source_mode")
-
-    n2_status = "done" if material_coverage else "missing"
-    n2_reason = "Material coverage map exists" if n2_status == "done" else "Material coverage not mapped"
-    if isinstance(material_coverage, dict):
-        weak = material_coverage.get("weak") or material_coverage.get("missing") or material_coverage.get("blocking")
-        if weak:
-            n2_status = "warn"
-            n2_reason = "Coverage has weak/missing material"
-    if material_source_mode == "stock_first":
-        n2_status = "done"
-        n2_reason = "Material coverage map optional (stock_first mode)"
-    node_list.append({
-        "node": 2,
-        "label": "Material Coverage",
-        "skill": "curator / gap-analyzer",
-        "artifact": "material_coverage_map.json",
-        "status": n2_status,
-        "reason": n2_reason
-    })
-
-    # Node 3: Contract
-    n3_status = "done" if contract_data else "missing"
-    node_list.append({
-        "node": 3,
-        "label": "Contract",
-        "skill": "spec-contract",
-        "artifact": "segment_contract.json",
-        "status": n3_status,
-        "reason": f"{len(contract_data)} segments defined" if n3_status == "done" else "Contract not defined"
-    })
-
-    # Node 4-7: Contract Facets
-    facet_keys = ("core", "material_fit", "audio", "text_layer", "visual_style", "editing_grammar")
-    reason_required = ("material_fit", "audio", "text_layer", "visual_style", "editing_grammar")
-    facet_status = "missing"
-    facet_reason = "Contract facets missing"
-    if contract_data:
-        segments = contract_data.get("segments") if isinstance(contract_data, dict) else contract_data
-        segments = segments if isinstance(segments, list) else []
-        if segments:
-            present = 0
-            reason_present = 0
-            total = len(segments) * len(facet_keys)
-            reason_total = len(segments) * len(reason_required)
-            for seg in segments:
-                present += sum(1 for key in facet_keys if key in seg)
-                for key in reason_required:
-                    facet = seg.get(key)
-                    if isinstance(facet, dict) and facet.get("reason"):
-                        reason_present += 1
-            if present == total and reason_present == reason_total:
-                facet_status = "done"
-                facet_reason = "All required contract facets and reasons present"
-            elif present == total:
-                facet_status = "warn"
-                facet_reason = f"Facet reasons incomplete ({reason_present}/{reason_total})"
-            elif present > 0:
-                facet_status = "warn"
-                facet_reason = f"Partial facets present ({present}/{total})"
-    node_list.append({
-        "node": "4-7",
-        "label": "Contract Facets",
-        "skill": "writer / audio-director / effects-director / director / curator",
-        "artifact": "segment_contract.json",
-        "status": facet_status,
-        "reason": facet_reason
-    })
-
-    # Node 5: Audio
-    n5_status = "done" if music_struct_data else "missing"
-    node_list.append({
-        "node": 5,
-        "label": "Audio",
-        "skill": "audio-director",
-        "artifact": "music_structure.json",
-        "status": n5_status,
-        "reason": "Music structure analyzed" if n5_status == "done" else "Audio structure missing"
-    })
-
-    # Node 8: Fallback/Profile
-    n8_status = "missing"
-    n8_reason = "Build profile missing"
-    if profile_data:
-        if profile_data.get("fallback_visual_provider") == "comfyui":
-            n8_status = "blocked"
-            n8_reason = "blocked/deprecated provider comfyui"
-            findings.append({
-                "type": "error",
-                "node": 8,
-                "message": "ComfyUI provider in build profile produces blocked/deprecated finding"
-            })
-        elif gen_request_items:
-            # check if generated manifest exists
-            if not generated_manifest:
-                n8_status = "warn"
-                n8_reason = "wait_for_generated_provider"
-                findings.append({
-                    "type": "warning",
-                    "node": 8,
-                    "message": "Generated requests exist but no generated manifest"
-                })
-            else:
-                n8_status = "done"
-                n8_reason = f"Profile defined, {len(gen_request_items)} generated assets requested"
-        else:
-            n8_status = "done"
-            n8_reason = "Build profile defined"
-            
-    node_list.append({
-        "node": 8,
-        "label": "Fallback/Profile",
-        "skill": "gap-analyzer / generative-director",
-        "artifact": "build_profile.json",
-        "status": n8_status,
-        "reason": n8_reason
-    })
-
-    # Node 9: Assembly
-    n9_status = "done" if assembly_plan else "missing"
-    node_list.append({
-        "node": 9,
-        "label": "Assembly",
-        "skill": "editor",
-        "artifact": "assembly_plan.json",
-        "status": n9_status,
-        "reason": "Assembly plan resolved" if n9_status == "done" else "Assembly plan missing"
-    })
-
-    # Node 10: Timeline
-    n10_status = "missing"
-    n10_reason = "Timeline not built"
-    if timeline_build:
-        # Check if timeline has clips and if any clip lacks trace
-        clips = timeline_build.get("clips", [])
-        if not clips and isinstance(timeline_build, list):
-            clips = timeline_build
-        lacks_trace = False
-        if clips:
-            for clip in clips:
-                if not clip.get("trace"):
-                    lacks_trace = True
-                    break
-        if lacks_trace:
-            n10_status = "warn"
-            n10_reason = "timeline item has no trace"
-            findings.append({
-                "type": "warning",
-                "node": 10,
-                "message": "Timeline item has no trace"
-            })
-        else:
-            n10_status = "done"
-            n10_reason = f"Timeline compiled ({len(clips)} clips)"
-            
-    node_list.append({
-        "node": 10,
-        "label": "Timeline",
-        "skill": "editor",
-        "artifact": "timeline_build.json",
-        "status": n10_status,
-        "reason": n10_reason
-    })
-
-    # Node 11: Editor Review
-    n11_status = "missing"
-    n11_reason = "Editor review pending"
-    if editor_review:
-        decision = editor_review.get("decision")
-        if not decision:
-            status = editor_review.get("status")
-            if status == "pass":
-                decision = "approve"
-            elif status == "warn":
-                decision = "human_review"
-            elif status == "fail":
-                decision = "block"
-        if decision == "approve":
-            n11_status = "done"
-        elif decision in ("auto_fix", "route_change", "human_review"):
-            n11_status = "warn"
-        elif decision in ("rerender", "block"):
-            n11_status = "blocked"
-        n11_reason = editor_review.get("reason") or f"Decision: {decision}"
-        
-    node_list.append({
-        "node": 11,
-        "label": "Editor Review",
-        "skill": "editor_review",
-        "artifact": "editor_review.json",
-        "status": n11_status,
-        "reason": n11_reason
-    })
-
-    # Node 12: Verify
-    n12_status = "missing"
-    n12_reason = "Verification report (verify_result.json) missing"
-    if verify_result:
-        if verify_result.get("pass"):
-            n12_status = "done"
-            n12_reason = f"Technical verify passed (score: {verify_result.get('score', 100)})"
-        else:
-            # check if it's blocked or just warning
-            if verify_result.get("issues"):
-                n12_status = "blocked"
-                n12_reason = f"Blocked: Verify failed (score: {verify_result.get('score', 0)})"
-            else:
-                n12_status = "warn"
-                n12_reason = f"Warn: Verify failed (score: {verify_result.get('score', 0)})"
-    elif state_data:
-        n12_status = "warn"
-        n12_reason = "state.json exists but verify_result.json is missing"
-                
-    node_list.append({
-        "node": 12,
-        "label": "Verify",
-        "skill": "verify",
-        "artifact": "state.json",
-        "status": n12_status,
-        "reason": n12_reason
-    })
-
-    # Node 13: Render
-    n13_status = "done" if final_exists else "missing"
-    node_list.append({
-        "node": 13,
-        "label": "Render",
-        "skill": "editor",
-        "artifact": "final.mp4",
-        "status": n13_status,
-        "reason": "Final video rendered" if n13_status == "done" else "Video not rendered"
-    })
-
-    # Node 14: Revision / Iteration. Motion graphics effects are an optional
-    # BUILD artifact surfaced here as a revision-capable output.
-    n14_status = "optional"
-    n14_reason = "No revision plan required"
+    # Determine effects requirements first
     effects_required = False
     if profile_data:
         effects_required = profile_data.get("effects_enabled", False)
-        
-    if effects_render_plan or effects_manifest:
-        n14_status = "done"
-        n14_reason = "Motion graphics/effects plan resolved"
-    elif effects_required:
-        n14_status = "missing"
-        n14_reason = "Effects enabled but render plan missing"
-        findings.append({
-            "type": "error",
-            "node": 14,
-            "message": "Effects enabled but render plan missing"
-        })
-        
-    node_list.append({
-        "node": 14,
-        "label": "Revision",
-        "skill": "route / editor / verify / dashboard",
-        "artifact": "revision_plan.json",
-        "status": n14_status,
-        "reason": n14_reason
-    })
 
+    # Load registry
+    from video_pipeline_core.node_registry import NODE_REGISTRY, NODE_ORDER
+    
+    # Prepare artifacts dict
+    artifacts = {
+        "brief": brief_data,
+        "contract": contract_data,
+        "material_coverage": material_coverage,
+        "music_structure": music_struct_data,
+        "build_profile": profile_data,
+        "generated_requests": gen_requests,
+        "generated_manifest": generated_manifest,
+        "assembly_plan": assembly_plan,
+        "timeline_build": timeline_build,
+        "editor_review": editor_review,
+        "state": state_data,
+        "verify_result": verify_result,
+        "motion_graphics_render_plan": effects_render_plan,
+        "motion_graphics_manifest": effects_manifest
+    }
+    
     # Determine pass status: Prioritize verify_result if present
     is_pass = False
     if verify_result and "pass" in verify_result:
         is_pass = verify_result["pass"]
     elif state_data and "pass" in state_data:
         is_pass = state_data["pass"]
+
+    # Prepare context
+    context = {
+        "final_exists": final_exists,
+        "effects_required": effects_required,
+        "gen_request_items": gen_request_items,
+        "is_pass": is_pass
+    }
+
+    
+    # Evaluate nodes using registry
+    for node_id in NODE_ORDER:
+        node_def = NODE_REGISTRY[node_id]
+        status, reason = node_def["verify_fn"](workdir, artifacts, context)
+        
+        # Add warnings/errors to findings
+        if node_id == "8" and status == "warn":
+            findings.append({
+                "type": "warning",
+                "node": 8,
+                "message": "Generated requests exist but no generated manifest"
+            })
+        elif node_id == "8" and status == "blocked":
+            findings.append({
+                "type": "error",
+                "node": 8,
+                "message": "ComfyUI provider in build profile produces blocked/deprecated finding"
+            })
+        elif node_id == "10" and status == "warn":
+            findings.append({
+                "type": "warning",
+                "node": 10,
+                "message": "Timeline item has no trace"
+            })
+        elif node_id == "14" and status == "missing":
+            findings.append({
+                "type": "error",
+                "node": 14,
+                "message": "Effects enabled but render plan missing"
+            })
+            
+        node_list.append({
+            "node": int(node_id) if "-" not in node_id else node_id,
+            "label": node_def["label"],
+            "skill": " / ".join(node_def["skill"]),
+            "artifact": node_def["outputs"][0] if node_def["outputs"] else "segment_contract.json", # fallback
+            "status": status,
+            "reason": reason
+        })
+
+
 
     # Normalize next_action
     next_action = None
@@ -477,7 +276,7 @@ def load_dashboard_state(workdir):
         next_action = "wait_for_generated_provider"
     else:
         # Check required missing nodes
-        required_nodes_keys = [0, 2, 3, "4-7", 5, 8, 9, 10, 11, 12, 13]
+        required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, 11, 13, 12]
         if effects_required:
             required_nodes_keys.append(14)
             
