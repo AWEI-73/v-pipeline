@@ -524,7 +524,10 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
                        text=seg_text, segment=s.get("segment"))
         if len(slots) >= a["n_clips"]:
             break
+    for slot in slots:
+        slot["provider"] = "local"
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "local(matched)",
+             "provider": "local",
              "clips_found": len(paths), "n_clips": a["n_clips"],
              "picked_scores": ["matched"] * len(slots) or [GAP]}
     msg = (f"  seg{s.get('segment')} '{vd[:18]}' ← match-mv clip x{len(paths)} → "
@@ -535,21 +538,37 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
 def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None):
     """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch` 可注入測試。"""
     vd = s.get("visual_desc", "")
+    provider = None
     if _fetch is None:
-        import video_tools  # noqa: PLC0415 — lazy(避免循環)
-        _fetch = video_tools.fetch_stock_video
-    stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
-    msgs = []
-    try:
-        got = _fetch(s.get("search_query") or vd, stock, min_dur=0)
-    except Exception as _e:
-        got, _ = None, msgs.append(
-            f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
+        from .vt_stock import fetch_stock_video_with_provider
+        _fetch = fetch_stock_video_with_provider
+        stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
+        msgs = []
+        try:
+            got, provider = _fetch(s.get("search_query") or vd, stock, min_dur=0)
+        except Exception as _e:
+            got, _ = None, msgs.append(
+                f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
+    else:
+        stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
+        msgs = []
+        try:
+            res = _fetch(s.get("search_query") or vd, stock, min_dur=0)
+            if isinstance(res, tuple):
+                got, provider = res
+            else:
+                got = res
+                provider = "pexels" if got else None
+        except Exception as _e:
+            got, _ = None, msgs.append(
+                f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
     slots = []
     if got:
         slots.append({"source": got, "extract_start": 0.0, "extract_dur": round(a["budget"], 3),
-                      "keep_audio": False, "text": seg_text, "segment": s.get("segment")})
+                      "keep_audio": False, "text": seg_text, "segment": s.get("segment"),
+                      "provider": provider or "pexels"})
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "stock",
+             "provider": provider or "pexels" if got else None,
              "clips_found": 1 if got else 0, "n_clips": 1,
              "picked_scores": ["stock" if got else GAP]}
     msgs.append(f"  seg{s.get('segment')} [stock] '{vd[:16]}' q={s.get('search_query')} "
@@ -572,8 +591,9 @@ def _plan_live_segment(s, a, material_root, seg_text, keep_audio, *, model, mat_
         chosen = photos[:a["n_clips"]]
         slots = [{"source": ph, "extract_start": 0.0, "extract_dur": round(a["clip_dur"], 3),
                   "keep_audio": False, "text": seg_text, "segment": s.get("segment"),
-                  "is_photo": True, "kenburns": kb} for ph in chosen]
+                  "is_photo": True, "kenburns": kb, "provider": "local"} for ph in chosen]
         entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "local(photo)",
+                 "provider": "local",
                  "clips_found": len(photos), "n_clips": a["n_clips"],
                  "picked_scores": ["photo"] * len(chosen) or [GAP]}
         msgs.append(f"  seg{s.get('segment')} '{vd[:18]}' [photo] photos={len(photos)} "
@@ -602,8 +622,9 @@ def _plan_live_segment(s, a, material_root, seg_text, keep_audio, *, model, mat_
         start = max(ws, (ws + we) / 2 - take / 2)
         slots.append({"source": cand["source"], "extract_start": round(start, 3),
                       "extract_dur": round(take, 3), "keep_audio": keep_audio,
-                      "text": seg_text, "segment": s.get("segment")})
-    entry = {"segment": s.get("segment"), "visual_desc": vd, "clips_found": len(clips),
+                      "text": seg_text, "segment": s.get("segment"),
+                      "provider": "local"})
+    entry = {"segment": s.get("segment"), "visual_desc": vd, "provider": "local", "clips_found": len(clips),
              "n_clips": a["n_clips"], "picked_scores": scores}
     msgs.append(f"  seg{s.get('segment')} '{vd[:18]}' hint={s.get('material_hint')} "
                 f"clips={len(clips)} picked={scores}")
@@ -775,6 +796,7 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
             "segment": sid, "title": (ps.get("visual_desc") or "")[:30],
             "kind": s.get("kind") or ps.get("source") or "mv",
             "source": ps.get("source") or s.get("source", "local"),
+            "provider": ps.get("provider"),
             "layout": s.get("layout"),
             "status": "blocked" if gap else "done",
             "score": None if gap else len([x for x in picked if x not in (GAP, "stock")]) or None,

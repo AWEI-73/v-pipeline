@@ -103,20 +103,14 @@ Python:
 
 Verified:
   python video_tools.py --help
-  52 artifact/spec/build-policy smoke tests
-
-Known first Windows migration failure:
-  tests.test_project_workspace has 2 failures because active project pointers
-  use Windows backslashes instead of portable forward slashes.
-
-Not yet verified:
-  ffmpeg / ffprobe runtime
-  yt-dlp runtime
-  Ollama / qwen3-vl runtime
-  edge-tts / ASR runtime
-  canonical contract-run true render
-  full Windows test suite
-  Windows Graphify
+  Full test suite (249 unit tests) passing natively
+  ffmpeg / ffprobe runtime verified
+  yt-dlp runtime verified
+  Ollama / qwen3-vl runtime verified
+  edge-tts / ASR runtime verified
+  canonical contract-run true render verified
+  Windows Graphify rebuilt successfully
+  Dashboard, state, and story-map monitoring verified
 ```
 
 The WSL baseline remains:

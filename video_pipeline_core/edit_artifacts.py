@@ -87,6 +87,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
         crop_center = item.get("crop_center") or {}
         clips.append({
             "segment": segment,
+            "provider": item.get("provider"),
             "shot_idx": item.get("slot_index"),
             "source_path": source,
             "original_start_sec": round(original_start, 3),

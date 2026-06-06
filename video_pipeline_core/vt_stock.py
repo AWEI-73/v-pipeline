@@ -98,8 +98,8 @@ def _download_url(url, out_path):
     return True
 
 
-def fetch_stock_video(query, out_path, min_dur=0, providers=None):
-    """(I/O) Stock video search/download → out_path.
+def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None):
+    """(I/O) Stock video search/download → (out_path, provider).
     Default provider order is Pexels then Pixabay. Missing/failing providers are
     skipped so mv_cut can treat stock failure as a recoverable GAP."""
     providers = providers or ("pexels", "pixabay")
@@ -122,10 +122,18 @@ def fetch_stock_video(query, out_path, min_dur=0, providers=None):
                 continue
             try:
                 if _download_url(cand["download_url"], out_path):
-                    return out_path
+                    return out_path, provider
             except Exception:
                 continue
-    return None
+    return None, None
+
+
+def fetch_stock_video(query, out_path, min_dur=0, providers=None):
+    """(I/O) Stock video search/download → out_path.
+    Default provider order is Pexels then Pixabay. Missing/failing providers are
+    skipped so mv_cut can treat stock failure as a recoverable GAP."""
+    path, _ = fetch_stock_video_with_provider(query, out_path, min_dur=min_dur, providers=providers)
+    return path
 
 
 def cmd_pexels_search(args):

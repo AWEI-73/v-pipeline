@@ -10,8 +10,18 @@ from .vt_core import FFMPEG, FFPROBE, run, ToolError, _audio_duration  # noqa: F
 
 def _verify_script_coverage(script, edit_log):
     """維度1: 每個 script segment 是否都有對應的影片段落"""
-    script_segs = {s['segment'] for s in script}
-    edit_segs = {s['segment'] for s in edit_log.get('segments', [])}
+    script_segs = {s['segment'] for s in script if 'segment' in s}
+    
+    segs = []
+    if edit_log and isinstance(edit_log, dict):
+        if "clips" in edit_log:
+            segs = edit_log["clips"]
+        else:
+            segs = edit_log.get("segments", [])
+    elif isinstance(edit_log, list):
+        segs = edit_log
+
+    edit_segs = {s['segment'] for s in segs if isinstance(s, dict) and 'segment' in s}
     missing = script_segs - edit_segs
     score = 100 if not missing else int(100 * (len(script_segs) - len(missing)) / len(script_segs))
     return {
@@ -103,7 +113,23 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
 
 def _verify_subtitle_accuracy(script, srt_path):
     """維度3: SRT 內容 vs script.text 字元重疊率"""
+    # 提取所有 CJK/文字欄位
+    texts = []
+    for s in script:
+        for field in ('text', 'narrative', 'label', 'subtitle'):
+            val = s.get(field)
+            if val and isinstance(val, str):
+                texts.append(val)
+    script_combined = ''.join(texts)
+
+    import string
+    punct = '，。；！？、 ' + string.punctuation
+
     if not os.path.exists(srt_path):
+        import re
+        script_clean = ''.join(c for c in script_combined if c not in punct)
+        if not script_clean:
+            return {"score": 100, "weight": 0.20, "note": "no subtitles expected and srt not found", "fix_target": None}
         return {"score": 0, "weight": 0.20, "note": "srt not found", "fix_target": "subtitle"}
 
     with open(srt_path, encoding='utf-8') as f:
@@ -118,22 +144,36 @@ def _verify_subtitle_accuracy(script, srt_path):
         srt_lines.append(line)
     srt_combined = ''.join(srt_lines)
 
-    script_combined = ''.join(s.get('text', '') for s in script)
+    # 移除 [Music] 等無意義的標記再比對
+    import re
+    srt_clean_no_brackets = re.sub(r'\[[^\]]*\]', '', srt_combined)
+
     # 移除空白和標點以求字元層級比對
-    import string
-    punct = '，。；！？、 ' + string.punctuation
-    srt_clean = ''.join(c for c in srt_combined if c not in punct)
+    srt_clean = ''.join(c for c in srt_clean_no_brackets if c not in punct)
     script_clean = ''.join(c for c in script_combined if c not in punct)
 
     if not script_clean:
-        return {"score": 0, "weight": 0.20, "note": "empty script", "fix_target": "writer"}
+        if not srt_clean:
+            return {
+                "score": 100,
+                "weight": 0.20,
+                "note": "no subtitles expected and none found",
+                "fix_target": None
+            }
+        else:
+            return {
+                "score": 0,
+                "weight": 0.20,
+                "note": f"no subtitles expected but found: {srt_clean[:50]}",
+                "fix_target": "subtitle"
+            }
 
     # 計算重疊：SRT 中有多少字元能在 script 中找到（多重集合 intersection）
     from collections import Counter
     srt_count = Counter(srt_clean)
     script_count = Counter(script_clean)
     overlap = sum((srt_count & script_count).values())
-    ratio = overlap / len(script_clean)
+    ratio = overlap / len(script_clean) if len(script_clean) > 0 else 0
     score = min(100, int(ratio * 100))
     return {
         "score": score,

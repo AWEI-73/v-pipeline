@@ -57,6 +57,18 @@ class VtStockTest(unittest.TestCase):
             result = vt_stock.fetch_stock_video("short clip", Path(d) / "stock.mp4", min_dur=5)
         self.assertIsNone(result)
 
+    def test_fetch_stock_video_with_provider_returns_tuple(self):
+        with tempfile.TemporaryDirectory() as d, \
+             patch("video_pipeline_core.vt_stock._pexels_video_candidates", return_value=[]), \
+             patch("video_pipeline_core.vt_stock._pixabay_video_candidates", return_value=[
+                 {"provider": "pixabay", "download_url": "https://pixabay.example/b.mp4", "duration": 8}
+             ]), \
+             patch("video_pipeline_core.vt_stock._download_url", return_value=True):
+            out = Path(d) / "stock.mp4"
+            result_path, provider = vt_stock.fetch_stock_video_with_provider("clean team", out)
+        self.assertEqual(result_path, out)
+        self.assertEqual(provider, "pixabay")
+
 
 if __name__ == "__main__":
     unittest.main()

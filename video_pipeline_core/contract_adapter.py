@@ -363,6 +363,32 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             if verbose:
                 print(f"[verify] Automatic verification failed: {e}")
 
+    # Compile the final dashboard state and overwrite state.json
+    from . import dashboard_state
+    dash_state = dashboard_state.load_dashboard_state(str(out_path.parent))
+
+    state_json_data = {}
+    if state_path.exists():
+        try:
+            with open(state_path, "r", encoding="utf-8") as f:
+                state_json_data = json.load(f)
+        except Exception:
+            pass
+
+    # Ensure segments providers are updated in state.json segments list
+    state_segments = state_json_data.get("segments", [])
+    dash_segments_map = {seg["segment"]: seg for seg in dash_state.get("segments", [])}
+    for seg_data in state_segments:
+        sid = seg_data.get("segment")
+        if sid in dash_segments_map:
+            prov = dash_segments_map[sid].get("build", {}).get("provider") or dash_segments_map[sid].get("provider")
+            if prov:
+                seg_data["provider"] = prov
+
+    state_json_data["pass"] = dash_state["run"]["pass"]
+    state_json_data["next_action"] = dash_state["run"]["next_action"]
+    _write_json(state_path, state_json_data)
+
     manifest = _manifest(canonical_contract=source, contract_hash=contract_hash,
                          brief=str(brief_path) if brief_path else None,
                          generated_payload=str(generated_payload_path),
@@ -381,9 +407,37 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          state=str(state_path),
                          verify_result=str(verify_report_path) if verify_report_path.exists() else None)
     _write_json(manifest_path, manifest)
-    return {"ok": True, "errors": [], "warnings": v["warnings"], "stage": "run",
-            "result": res, "generated_script": payload, "generated_payload": str(generated_payload_path),
-            "manifest": str(manifest_path), "contract_hash": contract_hash}
+
+    # Return structured results
+    render_ok = out_path.exists()
+    
+    verify_ok = False
+    if verify_report_path.exists():
+        try:
+            with open(verify_report_path, "r", encoding="utf-8") as f:
+                v_res = json.load(f)
+                verify_ok = bool(v_res.get("pass"))
+        except Exception:
+            pass
+
+    workflow_ok = render_ok and verify_ok
+    next_action = dash_state["run"]["next_action"]
+
+    return {
+        "ok": workflow_ok,
+        "render_ok": render_ok,
+        "verify_ok": verify_ok,
+        "workflow_ok": workflow_ok,
+        "next_action": next_action,
+        "errors": [],
+        "warnings": v["warnings"],
+        "stage": "run",
+        "result": res,
+        "generated_script": payload,
+        "generated_payload": str(generated_payload_path),
+        "manifest": str(manifest_path),
+        "contract_hash": contract_hash
+    }
 
 
 if __name__ == "__main__":

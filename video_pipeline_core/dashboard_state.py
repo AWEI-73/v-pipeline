@@ -454,9 +454,18 @@ def load_dashboard_state(workdir):
         "reason": n14_reason
     })
 
+    # Determine pass status: Prioritize verify_result if present
+    is_pass = False
+    if verify_result and "pass" in verify_result:
+        is_pass = verify_result["pass"]
+    elif state_data and "pass" in state_data:
+        is_pass = state_data["pass"]
+
     # Normalize next_action
     next_action = None
-    if state_data and state_data.get("next_action"):
+    if verify_result and verify_result.get("pass") is False:
+        next_action = "verify_failed"
+    elif state_data and state_data.get("next_action"):
         next_action = state_data.get("next_action")
     elif editor_review and editor_review.get("decision") in ("rerender", "block", "human_review"):
         dec = editor_review.get("decision")
@@ -482,8 +491,7 @@ def load_dashboard_state(workdir):
             
     if not next_action:
         # Check if final exists and pass is true
-        t_state = state_data or verify_result
-        if final_exists and t_state and t_state.get("pass"):
+        if final_exists and is_pass:
             next_action = "complete_review_final"
 
     # Compile findings from verify result and state
@@ -569,12 +577,15 @@ def load_dashboard_state(workdir):
             "must_include": s.get("must_include", "")
         }
         
+        # VERIFY Layer
+        qs = qa_score_map.get(seg_id, {})
+
         # BUILD Layer
         ap = assembly_map.get(seg_id, {})
         tb = timeline_map.get(seg_id, {})
         gr = gen_req_map.get(seg_id, {})
         
-        prov = gr.get("provider") or ap.get("provider")
+        prov = tb.get("provider") or qs.get("provider") or gr.get("provider") or ap.get("provider")
         if not prov:
             src_val = s.get("source")
             src_path = tb.get("source_path", "")
@@ -591,9 +602,6 @@ def load_dashboard_state(workdir):
             "timeline_in_out": f"{tb.get('timeline_in_sec', 0):.2f}s - {tb.get('timeline_out_sec', 0):.2f}s" if 'timeline_in_sec' in tb else "",
             "generated_request": gr.get("prompt", "")
         }
-        
-        # VERIFY Layer
-        qs = qa_score_map.get(seg_id, {})
         
         verify = {
             "score": qs.get("score", s.get("score")),
@@ -629,7 +637,7 @@ def load_dashboard_state(workdir):
             "final": final_file if final_exists else None,
             "next_action": next_action,
             "updated": updated_time,
-            "pass": (state_data or verify_result).get("pass") if (state_data or verify_result) else False,
+            "pass": is_pass,
             "build_profile": profile_data or {}
         },
         "nodes": node_list,
