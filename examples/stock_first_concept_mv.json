@@ -1,0 +1,103 @@
+{
+  "brief_ref": "stock_first_concept_brief.json",
+  "style": "mv",
+  "material_source_mode": "stock_first",
+  "story_truth_level": "conceptual",
+  "music": {
+    "brief": "穩定推進、帶希望感的現代節奏",
+    "query": "inspirational corporate cinematic",
+    "source": "yt"
+  },
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "opening",
+        "story_purpose": "用清晨城市建立一日工作開始的氛圍",
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "establishing_aerial",
+        "visual_desc": "清晨城市街道、工作車出發、陽光灑落",
+        "search_query": "city morning work truck sunrise",
+        "fallback_policy": "stock_bridge",
+        "reason": "概念型開場,可用 stock 建立情緒與場景"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "開場用音樂建立節奏"
+      },
+      "text_layer": {
+        "narrative": "新的任務\n從清晨開始",
+        "reason": "建立故事主題"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "fade",
+        "reason": "穩定開場"
+      }
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "montage",
+        "story_purpose": "用快剪呈現現場作業流程與節奏",
+        "timeline_source": "beat",
+        "review_required": false
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "工人操作設備、清潔現場、團隊分工",
+        "search_query": "workers cleaning equipment teamwork",
+        "fallback_policy": "stock_bridge",
+        "reason": "流程展示可用泛用工作與清潔素材支撐故事"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "快剪由音樂推進"
+      },
+      "text_layer": {
+        "label": "現場作業",
+        "reason": "讓觀眾理解段落功能"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "cut",
+        "reason": "建立工作密度"
+      }
+    },
+    {
+      "segment": 3,
+      "core": {
+        "section_role": "closing",
+        "story_purpose": "用完成後的乾淨空間收束任務感",
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "broll_mood",
+        "visual_desc": "乾淨明亮的空間、團隊收工、日落收尾",
+        "search_query": "clean bright space team finished work sunset",
+        "fallback_policy": "stock_bridge",
+        "reason": "概念型收尾,可用 stock 做情緒收束"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "音樂收束"
+      },
+      "text_layer": {
+        "narrative": "完成\n然後前進",
+        "reason": "收尾標語"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "fade",
+        "reason": "保留收尾情緒"
+      }
+    }
+  ]
+}

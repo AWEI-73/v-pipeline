@@ -1,0 +1,1188 @@
+#!/usr/bin/env python3
+"""
+video_tools.py — video_director agent 工具腳本
+用法: python3 video_tools.py <command> [options]
+
+Commands:
+  search      <query> [--limit N]              搜尋 YouTube，回傳 JSON 清單
+  meta        <url>                            取得單支影片 metadata JSON
+  download    <url> [--start HH:MM:SS] [--end HH:MM:SS] [--out filename]
+  probe       <file>                           取得本地影片資訊 JSON
+  cut         <file> --start HH:MM:SS --end HH:MM:SS --out output.mp4
+  concat      <file1> <file2> ... --out output.mp4
+  subtitle    <file> [--language zh] [--out output.srt]   語音轉字幕
+  mksrt       <script.json> [--out output.srt]            從劇本 JSON 生成中文 .srt
+  burnsub     <video> <srt> [--out output.mp4]            把 .srt 燒進影片
+  script-run  <script.json> [--out output.mp4]            劇本驅動全自動剪片
+  title       <file> --text "標題文字" [--out output.mp4]
+  tts         <script.json> [--voice ZH-VOICE] [--outdir DIR]
+              按標點切句 → 每句獨立 TTS → 累加時長 → 合併 + tts_timing.json
+  mix-audio   --voice voice.mp3 [--bgm bgm.mp3] [--bgm-vol 0.10] [--out final_audio.wav]
+              人聲 + BGM 混音（BGM 自動 ducking + 淡入淡出）
+  music-fetch <query> [--source yt] [--max-dur N] [--out music.mp3]
+              抓真實背景音樂（yt-dlp 抽音訊；royalty-free API 留 provider 接縫）
+  srt         <tts_timing.json> [--out subtitles.srt]
+              從 tts_timing.json 生成 phrase-level 時間同步 SRT
+  assemble    --clips clip_list.json --timing tts_timing.json [--out rough_cut.mp4]
+              剪輯師：依 TTS 時長剪每段素材 → scale 1920x1080 → concat
+  merge-final --visual VIDEO --audio AUDIO --subs SRT [--out final.mp4]
+              剪輯師最終組合：把音軌+字幕套到無音軌的視覺上
+  verify      --script S --timing T --edit-log E --srt SRT --video V [--out qa.json]
+              VERIFY：5 維度評分 + fix_target 路由
+  analyze     <video> --query "keywords" [--target-sec N] [--model MODEL]
+              小編：Whisper 轉譯影片 → 找最匹配關鍵字的時間窗口
+  curate      --script S --timing T [--workdir DIR] [--top-n N] [--out clip_list.json]
+              小編全自動：search + download + analyze + 選最佳 → clip_list.json
+  state       <workdir> [--project NAME] [--out state.json]
+              Dashboard：掃 workdir 產出 state.json（節點狀態 + 檔案 + 分數）
+  serve       <workdir> [--port 8765]
+              啟動本地 HTTP server 服務 dashboard.html + workspace 檔案
+  dashboard   <workdir> [--out file.html]
+              產 self-contained dashboard（state 內嵌）→ 直接開檔即可看，免 server
+  ingest-meta <dir> [--out materials_db.json]
+              小編：掃本地素材庫，提取 EXIF/ffprobe/keyframe + classify(機械歸類)，輸出 materials_db.json
+  caption-meta <db> [--model M] [--limit N]
+              小編語意歸類：對素材跑本地 VLM 填 vlm_caption(實際內容)
+  material-map <db> [--out map.md]
+              人看得懂的素材地圖（依資料夾分群 + 可用/caption）
+  match-mv <script> <db> [--out clip_list.json]
+              需求×供給比對：MV 劇本 × materials_db → 每段配 clip + 缺口
+              （vision 評分由 agent 看圖填入，不在此處呼叫 API）
+  rank-local  --db materials_db.json --needs material_needs.json [--out clip_list.json]
+              小編：用 agent 評過分的 db 配對 material_needs，輸出 clip_list.json
+  kenburns    <photo.jpg> --duration N [--direction MODE] [--out video.mp4]
+              照片動畫：把 jpg/png 變成有 Ken Burns 慢推鏡的 1080p 影片
+  pexels-search <query> --type photo|video [--limit N] [--out json]
+              小編擴充：從 Pexels 搜尋照片/影片（需 PEXELS_API_KEY 環境變數）
+  pexels-download <url> [--out file]
+              下載 Pexels 直連 URL（從 pexels-search 結果拿）
+  project-init <name> [--root DIR]
+              建立外部 project workspace，並更新 repo/.project/active.json
+  project-new-run [--project DIR] [--label LABEL]
+              在 active project 建立一次 run 目錄，並更新 active_run
+  contract-adapt <segment_contract.json> [--out generated_mv_script.json]
+              canonical SPEC → legacy runtime payload
+  contract-run <segment_contract.json> --material-db DB --music MP3 --out final.mp4
+              canonical SPEC → adapter → mv_chain → manifest/state artifacts
+  generated-manifest <generated_asset_requests.json> --outputs outputs.json --out generated_asset_manifest.json
+              validate external generated assets and write provider-neutral manifest
+  light-effects-plan <segment_contract.json> --build-profile build_profile.json --out-dir DIR
+              write ffmpeg-safe light effects plan and manifest
+"""
+
+import sys
+import json
+import subprocess
+import argparse
+import os
+import shutil
+import tempfile
+from pathlib import Path
+
+from video_pipeline_core.vt_core import YTDLP, FFMPEG, FFPROBE, run, ToolError, _audio_duration
+
+
+def _load_dotenv(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except FileNotFoundError:
+        pass
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_load_dotenv(os.path.join(_HERE, ".env"))
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+
+
+def die(msg: str):
+    print(json.dumps({"error": msg}), file=sys.stderr)
+    sys.exit(1)
+
+
+# ── commands ─────────────────────────────────────────────────────────────────
+
+def cmd_contract_adapt(args):
+    from video_pipeline_core import contract_adapter
+    result = contract_adapter.adapt_contract_file(
+        args.contract,
+        out_path=args.out,
+        categories_path=args.categories,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_contract_run(args):
+    from video_pipeline_core import contract_adapter
+    result = contract_adapter.run_contract(
+        args.contract,
+        material_db=args.material_db,
+        out_path=args.out,
+        music_path=args.music,
+        mat_dir=args.mat_dir or str(Path(args.out).parent),
+        verbose=not args.quiet,
+        categories_path=args.categories,
+        model_routes_config_path=args.model_routes,
+        build_profile_config_path=args.build_profile,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_generated_manifest(args):
+    from video_pipeline_core import generated_assets
+    manifest = generated_assets.write_generated_asset_manifest_from_outputs(
+        args.requests,
+        args.outputs,
+        args.out,
+        require_files=not args.no_require_files,
+    )
+    artifact_manifest = None
+    if args.artifact_manifest:
+        artifact_manifest = generated_assets.attach_generated_manifest_to_artifact_manifest(
+            args.artifact_manifest,
+            manifest,
+        )
+    print(json.dumps({"ok": True, "generated_asset_manifest": manifest,
+                      "artifact_manifest": artifact_manifest},
+                     ensure_ascii=False, indent=2))
+
+
+def cmd_light_effects_plan(args):
+    from video_pipeline_core import build_profile, light_effects
+    with Path(args.contract).open(encoding="utf-8") as f:
+        contract = json.load(f)
+    profile = build_profile.load_build_profile(args.build_profile)
+    result = light_effects.write_light_effects_artifacts(contract, profile, args.out_dir)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+def cmd_search(args):
+    """搜尋 YouTube，回傳影片清單"""
+    limit = args.limit or 5
+    query = f"ytsearch{limit}:{args.query}"
+    result = run([YTDLP, query, "--dump-json", "--flat-playlist", "--no-warnings"])
+    if result.returncode != 0:
+        raise ToolError(f"yt-dlp search failed: {result.stderr}")
+    items = []
+    for line in result.stdout.strip().splitlines():
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+            items.append({
+                "id": d.get("id"),
+                "title": d.get("title"),
+                "url": d.get("url") or f"https://www.youtube.com/watch?v={d.get('id')}",
+                "duration": d.get("duration"),
+                "channel": d.get("channel") or d.get("uploader"),
+                "view_count": d.get("view_count"),
+                "description": (d.get("description") or "")[:200],
+            })
+        except json.JSONDecodeError:
+            continue
+    print(json.dumps(items, ensure_ascii=False, indent=2))
+
+
+def cmd_meta(args):
+    """取得單支影片 metadata"""
+    result = run([YTDLP, args.url, "--dump-json", "--no-warnings", "--no-download"])
+    if result.returncode != 0:
+        raise ToolError(f"yt-dlp meta failed: {result.stderr}")
+    d = json.loads(result.stdout)
+    out = {
+        "id": d.get("id"),
+        "title": d.get("title"),
+        "url": args.url,
+        "duration": d.get("duration"),
+        "channel": d.get("channel") or d.get("uploader"),
+        "upload_date": d.get("upload_date"),
+        "view_count": d.get("view_count"),
+        "like_count": d.get("like_count"),
+        "description": (d.get("description") or "")[:500],
+        "tags": d.get("tags", [])[:10],
+        "chapters": d.get("chapters") or [],
+    }
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+def cmd_download(args):
+    """下載影片（可指定時間區間）"""
+    out_path = args.out or "downloaded.mp4"
+    cmd = [YTDLP, args.url, "-o", out_path, "--no-warnings", "--merge-output-format", "mp4",
+           "--ffmpeg-location", str(Path(FFMPEG).parent)]
+
+    if args.start or args.end:
+        start = args.start or "0"
+        end = args.end or "inf"
+        cmd += ["--download-sections", f"*{start}-{end}"]
+        cmd += ["--force-keyframes-at-cuts"]
+
+    result = run(cmd, capture=False)
+    if result.returncode != 0:
+        raise ToolError("yt-dlp download failed")
+    size = Path(out_path).stat().st_size if Path(out_path).exists() else 0
+    print(json.dumps({"status": "ok", "file": out_path, "size_bytes": size}))
+
+
+def cmd_probe(args):
+    """取得本地影片資訊"""
+    result = run([
+        FFPROBE, "-v", "quiet", "-print_format", "json",
+        "-show_format", "-show_streams", args.file
+    ])
+    if result.returncode != 0:
+        raise ToolError(f"ffprobe failed: {result.stderr}")
+    d = json.loads(result.stdout)
+    fmt = d.get("format", {})
+    streams = d.get("streams", [])
+    video = next((s for s in streams if s.get("codec_type") == "video"), {})
+    audio = next((s for s in streams if s.get("codec_type") == "audio"), {})
+    print(json.dumps({
+        "file": args.file,
+        "duration_sec": float(fmt.get("duration", 0)),
+        "size_bytes": int(fmt.get("size", 0)),
+        "video": {
+            "codec": video.get("codec_name"),
+            "width": video.get("width"),
+            "height": video.get("height"),
+            "fps": video.get("r_frame_rate"),
+        },
+        "audio": {
+            "codec": audio.get("codec_name"),
+            "sample_rate": audio.get("sample_rate"),
+            "channels": audio.get("channels"),
+        },
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_cut(args):
+    """裁剪影片片段"""
+    out = args.out or "cut_output.mp4"
+    cmd = [FFMPEG, "-y", "-i", args.file]
+    if args.start:
+        cmd += ["-ss", args.start]
+    if args.end:
+        cmd += ["-to", args.end]
+    cmd += ["-c", "copy", out]
+    result = run(cmd)
+    if result.returncode != 0:
+        raise ToolError(f"ffmpeg cut failed: {result.stderr}")
+    print(json.dumps({"status": "ok", "file": out}))
+
+
+def _get_resolution(fpath: str):
+    """回傳 (width, height) 或 None"""
+    r = run([FFPROBE, "-v", "quiet", "-print_format", "json", "-show_streams", fpath])
+    if r.returncode != 0:
+        return None
+    d = json.loads(r.stdout)
+    v = next((s for s in d.get("streams", []) if s.get("codec_type") == "video"), {})
+    w, h = v.get("width"), v.get("height")
+    return (w, h) if w and h else None
+
+
+def cmd_concat(args):
+    """串接多個影片（自動統一解析度至最大尺寸）"""
+    out = args.out or "concat_output.mp4"
+
+    # 偵測所有素材的解析度
+    resolutions = [_get_resolution(f) for f in args.files]
+    valid = [r for r in resolutions if r]
+    target_w = max(r[0] for r in valid) if valid else 1920
+    target_h = max(r[1] for r in valid) if valid else 1080
+    need_scale = any(r != (target_w, target_h) for r in valid)
+
+    files_to_concat = list(args.files)
+
+    if need_scale:
+        scaled = []
+        for i, fpath in enumerate(args.files):
+            res = resolutions[i]
+            if res == (target_w, target_h):
+                scaled.append(fpath)
+            else:
+                scaled_path = fpath.replace(".mp4", f"_scaled{target_w}x{target_h}.mp4")
+                scale_cmd = [
+                    FFMPEG, "-y", "-i", fpath,
+                    "-vf", f"scale={target_w}:{target_h}",
+                    "-c:v", "libx264", "-crf", "23", "-c:a", "copy",
+                    scaled_path,
+                ]
+                r = run(scale_cmd)
+                if r.returncode != 0:
+                    raise ToolError(f"scale failed for {fpath}: {r.stderr}")
+                scaled.append(scaled_path)
+        files_to_concat = scaled
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        for fpath in files_to_concat:
+            abs_path = str(Path(fpath).resolve())
+            f.write(f"file '{abs_path}'\n")
+        list_file = f.name
+
+    cmd = [FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", list_file, "-c", "copy", out]
+    result = run(cmd)
+    os.unlink(list_file)
+
+    # 清掉自動 scale 的暫存檔
+    if need_scale:
+        for fpath in files_to_concat:
+            if "_scaled" in fpath and Path(fpath).exists():
+                os.unlink(fpath)
+
+    if result.returncode != 0:
+        raise ToolError(f"ffmpeg concat failed: {result.stderr}")
+    print(json.dumps({"status": "ok", "file": out, "resolution": f"{target_w}x{target_h}"}))
+
+
+def cmd_subtitle(args):
+    """用 faster-whisper 產生字幕 .srt"""
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        raise ToolError("faster-whisper 未安裝，請執行: pip3 install faster-whisper --break-system-packages")
+
+    out = args.out or (Path(args.file).stem + ".srt")
+    lang = args.language or None
+    model = WhisperModel("base", device="cpu", compute_type="int8")
+    segments, info = model.transcribe(args.file, language=lang, beam_size=5)
+
+    def fmt_ts(seconds: float) -> str:
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = seconds % 60
+        return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+
+    lines = []
+    for i, seg in enumerate(segments, 1):
+        lines.append(str(i))
+        lines.append(f"{fmt_ts(seg.start)} --> {fmt_ts(seg.end)}")
+        lines.append(seg.text.strip())
+        lines.append("")
+
+    Path(out).write_text("\n".join(lines), encoding="utf-8")
+    print(json.dumps({"status": "ok", "file": out, "language": info.language}))
+
+
+def cmd_validate(args):
+    """劇本模糊消除 — 在 script-run 之前檢查劇本品質
+
+    檢查項目（阻塞 error / 警告 warning / 通過 ok）：
+    ┌──────────────────────────────┬──────────┬─────────────────┐
+    │ 項目                         │ error    │ warning         │
+    ├──────────────────────────────┼──────────┼─────────────────┤
+    │ search_query 詞數            │ < 2 詞   │ 2 詞            │
+    │ search_query 過於泛用        │ 純單詞   │ 缺年份/地點限定  │
+    │ duration_sec                 │ < 5s     │ 5–8s 或 > 90s  │
+    │ 字幕閱讀速度（中文字/秒）    │ > 8 字/s │ 5–8 字/s       │
+    │ text 欄位空白                │ —        │ 無字幕警告      │
+    │ search_query 段落間重複      │ 完全同   │ —               │
+    │ 總段落數                     │ < 2 段   │ —               │
+    └──────────────────────────────┴──────────┴─────────────────┘
+
+    輸出 JSON：
+    {
+      "status": "ok" | "warning" | "error",
+      "can_run": true | false,
+      "issues": [...],
+      "summary": "..."
+    }
+    """
+    src = Path(args.script)
+    if not src.exists():
+        raise ToolError(f"找不到劇本檔：{args.script}")
+    raw = json.loads(src.read_text(encoding="utf-8"))
+    # 支援 {style, segments} wrapper 或純 segments list
+    segments = raw.get("segments", []) if isinstance(raw, dict) else raw
+    top_bgm = raw.get("bgm") if isinstance(raw, dict) else None
+    top_style = (raw.get("style") if isinstance(raw, dict) else None)
+
+    issues = []
+
+    def add(seg_idx, field, level, message, suggestion=""):
+        issues.append({
+            "segment": seg_idx,
+            "field": field,
+            "level": level,
+            "message": message,
+            "suggestion": suggestion,
+        })
+
+    # ── 整體結構 ──────────────────────────────────────────────
+    if len(segments) < 2:
+        add(0, "structure", "error",
+            f"劇本只有 {len(segments)} 段，無法構成完整影片",
+            "至少需要 2 段（開頭 + 結尾）")
+    _GRADES = set(GRADE_PRESETS)
+    _MOODS = set(BGM_MOODS)
+    _TRANS = {"fade", "wipeleft", "wiperight", "wipeup", "wipedown", "slideleft",
+              "slideright", "slideup", "slidedown", "circleopen", "circleclose",
+              "dissolve", "smoothleft", "smoothright", "radial", "diagtl", "diagtr",
+              "diagbl", "diagbr", "cut"}
+    _STYLES = {"narrative", "mv", "promo"}
+    if isinstance(top_bgm, dict):
+        # 真曲抓取：{"query": "...", "source": "yt"} → music-fetch 解析
+        if not (top_bgm.get("query") or top_bgm.get("mood")):
+            add(0, "bgm", "error", "bgm 物件需要 query 或 mood 欄位",
+                '例：{"query": "lofi calm piano", "source": "yt"}')
+    elif top_bgm and top_bgm not in _MOODS and not Path(top_bgm).exists():
+        add(0, "bgm", "error", f"未知 bgm 情境：「{top_bgm}」",
+            f"請用 {'/'.join(sorted(_MOODS))}、檔案路徑、或 {{\"query\":...}} 抓真曲")
+    if top_style and top_style not in _STYLES:
+        add(0, "style", "error", f"未知 style：「{top_style}」", f"請用 {'/'.join(sorted(_STYLES))}")
+
+    # 檢查 search_query 是否有重複
+    queries = [s.get("search_query", "").strip().lower() for s in segments]
+    for i, q in enumerate(queries):
+        for j, q2 in enumerate(queries):
+            if i < j and q and q == q2:
+                add(i + 1, "search_query", "error",
+                    f"段落 {i+1} 與段落 {j+1} 的 search_query 完全相同",
+                    "請使用不同的搜尋詞，否則會下載到同一支影片")
+
+    # ── 逐段檢查 ─────────────────────────────────────────────
+    for i, seg in enumerate(segments):
+        idx = seg.get("segment", i + 1)
+
+        # effects/style 值域檢查（grade/transition/style 打錯字會讓 render 崩）
+        fx = seg.get("effects") or {}
+        if fx.get("grade") and fx["grade"] not in _GRADES:
+            add(idx, "grade", "error", f"未知 grade：「{fx['grade']}」（別跟 bgm 情境搞混）",
+                f"請用 {'/'.join(sorted(_GRADES))}")
+        if fx.get("transition") and fx["transition"] not in _TRANS:
+            add(idx, "transition", "error", f"未知 transition：「{fx['transition']}」",
+                "見 ALLOWED_TRANSITIONS（fade/slide*/wipe*/circle*/dissolve/radial/cut…）")
+        if seg.get("style") and seg["style"] not in _STYLES:
+            add(idx, "style", "error", f"未知段落 style：「{seg['style']}」", f"請用 {'/'.join(sorted(_STYLES))}")
+        if seg.get("layout") and seg["layout"] not in ("collage", "framed", "montage"):
+            add(idx, "layout", "error", f"未知 layout：「{seg['layout']}」", "請用 collage / framed / montage")
+
+        # 片頭/片尾段（kind=title）、學員自有素材（source=local）：不搜素材，跳過 search_query 檢查
+        if seg.get("kind") == "title" or seg.get("source") == "local":
+            if seg.get("source") == "local" and not seg.get("file") and not seg.get("local_file"):
+                add(idx, "file", "error", "source=local 但缺 file 路徑", "請指定學員素材檔路徑")
+            continue
+
+        # search_query — 中文優先（Pexels/Pixabay 加 zh-TW locale 對中文命中良好）
+        query = seg.get("search_query", "").strip()
+        has_cjk = any("一" <= c <= "鿿" for c in query)
+        if not query:
+            add(idx, "search_query", "error",
+                "search_query 欄位空白",
+                "請填入搜尋關鍵字（中文料理／場景名最直接，如『胡椒餅』『鐵板料理』）")
+        elif has_cjk:
+            # 中文：以字數判斷，不用空白切詞（中文沒有詞邊界）
+            cjk_chars = sum(1 for c in query if "一" <= c <= "鿿")
+            if cjk_chars < 2:
+                add(idx, "search_query", "warning",
+                    f"search_query 過短：「{query}」",
+                    "建議用具體的料理名或場景（如『鐵板料理』『夜市 人潮』）")
+            # 詞太多會稀釋命中（如『胡椒餅 炭烤 夜市』反而搜不準）
+            if len(query.split()) >= 3:
+                add(idx, "search_query", "warning",
+                    f"search_query 詞數偏多：「{query}」",
+                    "中文搜尋用 1–2 個核心關鍵字最準，太多詞會稀釋結果")
+        else:
+            words = query.split()
+            if len(words) < 2:
+                add(idx, "search_query", "error",
+                    f"search_query 只有 {len(words)} 個詞：「{query}」",
+                    "英文過於泛用，請加入主題或限定詞；或改用中文關鍵字")
+            vague_terms = {"ai", "video", "news", "latest", "new", "best", "top",
+                           "technology", "tech", "world", "people", "life"}
+            if set(w.lower() for w in words) <= vague_terms:
+                add(idx, "search_query", "error",
+                    f"search_query 全是泛用詞：「{query}」",
+                    "請加入具體主題，或改用中文料理／場景關鍵字")
+
+        # duration_sec
+        duration = float(seg.get("duration_sec", 0))
+        if duration < 5:
+            add(idx, "duration_sec", "error",
+                f"duration_sec = {duration}s，過短無法支撐段落",
+                "建議最少 8 秒，一般段落 15–30 秒")
+        elif duration <= 8:
+            add(idx, "duration_sec", "warning",
+                f"duration_sec = {duration}s，偏短",
+                "建議至少 10 秒以讓觀眾看清楚字幕和畫面")
+        elif duration > 90:
+            add(idx, "duration_sec", "warning",
+                f"duration_sec = {duration}s，單段超過 90 秒",
+                "建議拆成多段，或確認 YouTube 素材有足夠長度")
+
+        # 字幕閱讀速度
+        text = seg.get("text", "").strip()
+        if not text:
+            add(idx, "text", "warning",
+                "text 欄位空白，這段不會有中文字幕",
+                "如果這段需要字幕，請填入旁白文字")
+        else:
+            # 中文字符數 / 秒（去除標點）
+            import unicodedata
+            zh_chars = sum(1 for c in text
+                           if unicodedata.category(c).startswith("L")
+                           and "一" <= c <= "鿿")
+            if duration > 0:
+                cps = zh_chars / duration  # chars per second
+                if cps > 8:
+                    add(idx, "text", "error",
+                        f"字幕閱讀速度 {cps:.1f} 字/秒（{zh_chars} 字 / {duration}s），觀眾來不及讀",
+                        "建議縮短文字到 {:.0f} 字以內，或延長 duration_sec".format(duration * 6))
+                elif cps > 5:
+                    add(idx, "text", "warning",
+                        f"字幕閱讀速度 {cps:.1f} 字/秒，偏快",
+                        "中文字幕舒適速度為 3–5 字/秒")
+
+    # ── 統計 ─────────────────────────────────────────────────
+    errors   = [x for x in issues if x["level"] == "error"]
+    warnings = [x for x in issues if x["level"] == "warning"]
+    can_run  = len(errors) == 0
+
+    if not issues:
+        overall = "ok"
+        summary = f"✅ 全部 {len(segments)} 段通過，無問題"
+    elif errors:
+        overall = "error"
+        summary = (f"❌ {len(errors)} 個阻塞問題、{len(warnings)} 個警告 — "
+                   f"請修正後再執行 script-run")
+    else:
+        overall = "warning"
+        summary = (f"⚠️  {len(warnings)} 個警告（不阻塞）— "
+                   f"可直接執行 script-run，但建議確認")
+
+    print(json.dumps({
+        "status": overall,
+        "can_run": can_run,
+        "segments_total": len(segments),
+        "errors": len(errors),
+        "warnings": len(warnings),
+        "issues": issues,
+        "summary": summary,
+    }, ensure_ascii=False, indent=2))
+
+
+def _fmt_srt_ts(seconds: float) -> str:
+    """秒數轉 SRT 時間戳格式 HH:MM:SS,mmm"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
+
+
+def cmd_mksrt(args):
+    """從劇本 JSON 生成中文 .srt 字幕檔
+
+    劇本 JSON 格式（陣列）：
+    [
+      {"start": 0,  "end": 15, "text": "台灣軍隊展開新式步槍訓練"},
+      {"start": 15, "end": 45, "text": "艾布蘭戰車在竹北展開城市機動演練"},
+      ...
+    ]
+    start/end 單位為秒。
+    """
+    src = Path(args.script)
+    if not src.exists():
+        raise ToolError(f"找不到劇本檔：{args.script}")
+    segments = json.loads(src.read_text(encoding="utf-8"))
+    out = args.out or src.with_suffix(".srt").name
+
+    lines = []
+    for i, seg in enumerate(segments, 1):
+        start = float(seg.get("start", 0))
+        end   = float(seg.get("end",   start + 3))
+        text  = str(seg.get("text", "")).strip()
+        if not text:
+            continue
+        lines.append(str(i))
+        lines.append(f"{_fmt_srt_ts(start)} --> {_fmt_srt_ts(end)}")
+        lines.append(text)
+        lines.append("")
+
+    Path(out).write_text("\n".join(lines), encoding="utf-8")
+    print(json.dumps({"status": "ok", "file": out, "count": len(segments)}))
+
+
+def cmd_burnsub(args):
+    """把 .srt 字幕燒進影片（支援中文，自動尋找 CJK 字型）
+
+    優先使用系統已有的 CJK 字型，找不到就用預設字型（英文可正常顯示）。
+    """
+    from video_pipeline_core.platform_tools import resolve_font
+    out = args.out or Path(args.video).stem + "_subbed.mp4"
+    srt = str(Path(args.srt).resolve())
+
+    font_path = resolve_font()
+
+    # 用 fontsdir 讓 ffmpeg 找到字型，force_style 指定字型名稱
+    srt_escaped = srt.replace("\\", "\\\\").replace(":", "\\:")
+    font_dir    = str(Path(font_path).parent)
+    font_name   = Path(font_path).stem   # e.g. wqy-microhei or msjh
+    # D3 字幕美學：加粗 + 半透明投影（與 merge-final 一致）
+    style = ("FontSize=24,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
+             "BackColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1.5,Spacing=0.5,MarginV=40")
+    vf = f"subtitles='{srt_escaped}':fontsdir='{font_dir}':force_style='FontName={font_name},{style}'"
+
+    cmd = [FFMPEG, "-y", "-i", args.video, "-vf", vf,
+           "-c:v", "libx264", "-crf", "23", "-c:a", "copy", out]
+    result = run(cmd)
+
+    if result.returncode != 0:
+        raise ToolError(f"burnsub failed: {result.stderr}")
+    print(json.dumps({"status": "ok", "file": out, "font_used": font_path}))
+
+
+def cmd_script_run(args):
+    """劇本驅動全自動剪片
+
+    劇本 JSON 格式（陣列，每段代表一個影片片段）：
+    [
+      {
+        "segment": 1,
+        "title": "開頭",
+        "search_query": "taiwan rifle training",
+        "duration_sec": 15,
+        "text": "台灣軍隊展開新式步槍訓練計畫"
+      },
+      {
+        "segment": 2,
+        "title": "中段",
+        "search_query": "taiwan abrams tank drill hsinchu",
+        "duration_sec": 30,
+        "text": "艾布蘭戰車在竹北展開黎明前城市機動演練"
+      },
+      ...
+    ]
+
+    執行步驟：
+    1. 對每段 search_query 搜尋 YouTube，選第一個結果
+    2. 下載前 duration_sec 秒
+    3. Concat 所有片段
+    4. 依 text 欄位生成中文 .srt（時間點由 duration_sec 累加計算）
+    5. 燒進字幕
+    6. 輸出成片
+    """
+    src = Path(args.script)
+    if not src.exists():
+        raise ToolError(f"找不到劇本檔：{args.script}")
+    segments = json.loads(src.read_text(encoding="utf-8"))
+    out = args.out or src.stem + "_final.mp4"
+    workdir = src.parent
+
+    # ── 模糊消除：先跑 validate，有 error 就擋 ────────────────
+    import types as _types, io as _io
+    val_args = _types.SimpleNamespace(script=str(src))
+    _buf = _io.StringIO()
+    _orig = sys.stdout
+    sys.stdout = _buf
+    cmd_validate(val_args)
+    sys.stdout = _orig
+    val_result = json.loads(_buf.getvalue())
+
+    if val_result["errors"] > 0:
+        print(json.dumps({
+            "status": "blocked",
+            "reason": "劇本模糊消除未通過，請修正以下問題再執行",
+            "validation": val_result,
+        }, ensure_ascii=False, indent=2))
+        sys.exit(1)
+    elif val_result["warnings"] > 0:
+        print(f"[script-run] ⚠️  {val_result['warnings']} 個警告：{val_result['summary']}",
+              file=sys.stderr)
+    else:
+        print(f"[script-run] ✅ 劇本驗證通過", file=sys.stderr)
+    # ─────────────────────────────────────────────────────────
+
+    print(f"[script-run] 開始執行劇本，共 {len(segments)} 段", file=sys.stderr)
+
+    # ── Step 1-2：每段搜尋 + 下載 ───────────────────────────────────────────
+    clip_files = []
+    for seg in segments:
+        idx      = seg.get("segment", len(clip_files) + 1)
+        query    = seg.get("search_query", "")
+        duration = float(seg.get("duration_sec", 15))
+        end_ts   = f"00:00:{int(duration):02d}"
+
+        print(f"[script-run] 段落 {idx}：搜尋 '{query}'", file=sys.stderr)
+
+        # 搜尋，取第一個結果
+        r = run([YTDLP, f"ytsearch1:{query}", "--dump-json", "--flat-playlist", "--no-warnings"])
+        if r.returncode != 0 or not r.stdout.strip():
+            raise ToolError(f"段落 {idx} 搜尋失敗：{query}")
+        hit = json.loads(r.stdout.strip().splitlines()[0])
+        vid_id  = hit.get("id")
+        vid_url = hit.get("url") or f"https://www.youtube.com/watch?v={vid_id}"
+        print(f"[script-run] 段落 {idx}：找到 [{hit.get('title')}]", file=sys.stderr)
+
+        # 下載指定長度片段
+        clip_path = str(workdir / f"_script_seg_{idx:02d}.mp4")
+        dl_cmd = [
+            YTDLP, vid_url,
+            "-o", clip_path,
+            "--no-warnings",
+            "--merge-output-format", "mp4",
+            "--ffmpeg-location", str(Path(FFMPEG).parent),
+            "--download-sections", f"*0-{int(duration)}",
+            "--force-keyframes-at-cuts",
+        ]
+        r = run(dl_cmd, capture=False)
+        if r.returncode != 0:
+            raise ToolError(f"段落 {idx} 下載失敗：{vid_url}")
+        clip_files.append(clip_path)
+
+    # ── Step 3：Concat ────────────────────────────────────────────────────────
+    print("[script-run] 串接所有片段...", file=sys.stderr)
+    concat_path = str(workdir / "_script_concat.mp4")
+
+    # 解析度統一（複用 concat 邏輯）
+    import types
+    concat_args = types.SimpleNamespace(files=clip_files, out=concat_path)
+    # 暫時重導向 stdout 避免 concat 的 JSON 輸出干擾
+    import io
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+    cmd_concat(concat_args)
+    sys.stdout = old_stdout
+
+    # ── Step 4：生成中文 .srt ────────────────────────────────────────────────
+    print("[script-run] 生成中文字幕...", file=sys.stderr)
+    srt_data = []
+    cursor = 0.0
+    for seg in segments:
+        duration = float(seg.get("duration_sec", 15))
+        text     = seg.get("text", "").strip()
+        if text:
+            srt_data.append({"start": cursor, "end": cursor + duration, "text": text})
+        cursor += duration
+
+    srt_path = str(workdir / "_script_subtitles.srt")
+    srt_lines = []
+    for i, s in enumerate(srt_data, 1):
+        srt_lines.append(str(i))
+        srt_lines.append(f"{_fmt_srt_ts(s['start'])} --> {_fmt_srt_ts(s['end'])}")
+        srt_lines.append(s["text"])
+        srt_lines.append("")
+    Path(srt_path).write_text("\n".join(srt_lines), encoding="utf-8")
+
+    # ── Step 5：燒字幕 ────────────────────────────────────────────────────────
+    print("[script-run] 燒進字幕...", file=sys.stderr)
+    burnsub_args = types.SimpleNamespace(video=concat_path, srt=srt_path, out=out)
+    sys.stdout = io.StringIO()
+    cmd_burnsub(burnsub_args)
+    sys.stdout = old_stdout
+
+    # ── 清暫存 ────────────────────────────────────────────────────────────────
+    for f in clip_files:
+        if Path(f).exists():
+            Path(f).unlink()
+    for f in [concat_path, srt_path]:
+        if Path(f).exists():
+            Path(f).unlink()
+
+    total_sec = sum(float(s.get("duration_sec", 15)) for s in segments)
+    print(json.dumps({
+        "status": "ok",
+        "file": out,
+        "segments": len(segments),
+        "total_sec": total_sec,
+        "subtitles": srt_path,
+    }, ensure_ascii=False))
+
+
+def cmd_title(args):
+    """在影片上疊加標題文字"""
+    out = args.out or "titled_output.mp4"
+    text = args.text.replace("'", "\\'")
+    vf = (
+        f"drawtext=text='{text}'"
+        ":fontsize=48"
+        ":fontcolor=white"
+        ":box=1:boxcolor=black@0.5:boxborderw=10"
+        ":x=(w-text_w)/2:y=40"
+    )
+    cmd = [FFMPEG, "-y", "-i", args.file, "-vf", vf, "-c:a", "copy", out]
+    result = run(cmd)
+    if result.returncode != 0:
+        raise ToolError(f"ffmpeg title overlay failed: {result.stderr}")
+    print(json.dumps({"status": "ok", "file": out}))
+
+
+# ── audio/subtitle 已解耦到 vt_audio.py;re-export 保持 video_tools.X + CLI 不變 ──
+from video_pipeline_core.vt_audio import (  # noqa: F401,E402
+    cmd_tts, cmd_mix_audio, cmd_srt, cmd_gen_bgm, cmd_music_fetch, _music_ytdlp_cmd,
+)
+
+
+# ── editor 已解耦到 vt_editor.py;re-export 保持 video_tools.X + CLI 不變 ──
+from video_pipeline_core.vt_editor import cmd_assemble, cmd_merge_final  # noqa: F401,E402
+
+
+# ── VERIFY 已解耦到 vt_verify.py;re-export 保持 video_tools.X + CLI 不變 ──
+from video_pipeline_core.vt_verify import cmd_verify  # noqa: F401,E402
+
+
+# ── 舊版小編已隔離到 vt_curate_legacy.py;re-export 保持 CLI 不變(legacy,待淘汰)──
+from video_pipeline_core.vt_curate_legacy import cmd_analyze, cmd_curate, cmd_rank_local  # noqa: F401,E402
+
+
+# ── dashboard 已解耦到 vt_dashboard.py;re-export 保持 video_tools.X + CLI 不變 ──
+from video_pipeline_core.vt_dashboard import cmd_state, cmd_serve, cmd_dashboard, cmd_story_map  # noqa: F401,E402
+
+
+# ── local materials ingest（小編擴充：本地素材庫）─────────────────────────
+
+# ── 小編素材模組已解耦到 curator.py;re-export 保持 video_tools.X 與 CLI 不變 ──
+from video_pipeline_core.curator import (  # noqa: F401,E402
+    PHOTO_EXTS, VIDEO_EXTS, classify_asset, _parse_res, _classify_entry,
+    caption_asset, format_material_map, match_script_to_material,
+    _caption_match_score, _ingest_work_dirs,
+    cmd_ingest_meta, cmd_caption_meta, cmd_material_map, cmd_match_mv,
+)
+
+
+# ── 特效師已解耦到 vt_effects.py;re-export 保持 video_tools.X 與 CLI 不變 ──
+from video_pipeline_core.vt_effects import (  # noqa: F401,E402
+    cmd_kenburns, cmd_grade, cmd_title_card, cmd_title_sequence,
+    cmd_collage, cmd_montage,
+)
+
+
+# ── stock 來源已解耦到 vt_stock.py;re-export 保持 video_tools.X(含 mv_cut 用的 fetch_stock_video)與 CLI 不變 ──
+from video_pipeline_core.vt_stock import (  # noqa: F401,E402
+    fetch_stock_video, cmd_pexels_search, cmd_pexels_download,
+)
+
+
+# ── project workspace（repo 外 project/run 整理）─────────────────────────────
+from video_pipeline_core.project_workspace import cmd_project_init, cmd_project_new_run  # noqa: F401,E402
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="video_tools — agent 影片工具")
+    sub = parser.add_subparsers(dest="command")
+
+    p_search = sub.add_parser("search")
+    p_search.add_argument("query")
+    p_search.add_argument("--limit", type=int, default=5)
+
+    p_meta = sub.add_parser("meta")
+    p_meta.add_argument("url")
+
+    p_dl = sub.add_parser("download")
+    p_dl.add_argument("url")
+    p_dl.add_argument("--start")
+    p_dl.add_argument("--end")
+    p_dl.add_argument("--out")
+
+    p_probe = sub.add_parser("probe")
+    p_probe.add_argument("file")
+
+    p_cut = sub.add_parser("cut")
+    p_cut.add_argument("file")
+    p_cut.add_argument("--start")
+    p_cut.add_argument("--end")
+    p_cut.add_argument("--out")
+
+    p_concat = sub.add_parser("concat")
+    p_concat.add_argument("files", nargs="+")
+    p_concat.add_argument("--out")
+
+    p_sub = sub.add_parser("subtitle")
+    p_sub.add_argument("file")
+    p_sub.add_argument("--language")
+    p_sub.add_argument("--out")
+
+    p_title = sub.add_parser("title")
+    p_title.add_argument("file")
+    p_title.add_argument("--text", required=True)
+    p_title.add_argument("--out")
+
+    p_mksrt = sub.add_parser("mksrt")
+    p_mksrt.add_argument("script", help="劇本 JSON 路徑")
+    p_mksrt.add_argument("--out")
+
+    p_burnsub = sub.add_parser("burnsub")
+    p_burnsub.add_argument("video")
+    p_burnsub.add_argument("srt")
+    p_burnsub.add_argument("--out")
+
+    p_validate = sub.add_parser("validate")
+    p_validate.add_argument("script", help="劇本 JSON 路徑")
+
+    p_script_run = sub.add_parser("script-run")
+    p_script_run.add_argument("script", help="劇本 JSON 路徑")
+    p_script_run.add_argument("--out")
+
+    p_tts = sub.add_parser("tts")
+    p_tts.add_argument("script", help="劇本 JSON 路徑")
+    p_tts.add_argument("--voice", help="預設 zh-TW-HsiaoChenNeural")
+    p_tts.add_argument("--outdir", help="輸出目錄，預設 tts_out")
+
+    p_mix = sub.add_parser("mix-audio")
+    p_mix.add_argument("--voice", required=True, help="人聲檔案（mp3/wav）")
+    p_mix.add_argument("--bgm", help="背景音樂檔案（可選）")
+    p_mix.add_argument("--bgm-vol", type=float, dest="bgm_vol",
+                       help="BGM 音量 0.0~1.0，預設 0.10（--duck 時 0.28）")
+    p_mix.add_argument("--duck", action="store_true",
+                       help="sidechain ducking：人聲說話時自動壓低音樂（比固定音量專業）")
+    p_mix.add_argument("--out", help="輸出檔案，預設 final_audio.wav")
+
+    p_srt = sub.add_parser("srt")
+    p_srt.add_argument("timing", help="tts_timing.json 路徑（音控師 tts 指令輸出）")
+    p_srt.add_argument("--out", help="輸出 SRT 路徑，預設 subtitles.srt")
+
+    p_asm = sub.add_parser("assemble")
+    p_asm.add_argument("--clips", required=True, help="clip_list.json 路徑（小編輸出）")
+    p_asm.add_argument("--timing", required=True, help="tts_timing.json 路徑")
+    p_asm.add_argument("--out", help="輸出影片，預設 rough_cut.mp4")
+
+    p_mf = sub.add_parser("merge-final")
+    p_mf.add_argument("--visual", required=True, help="無音軌的視覺影片（assemble 輸出）")
+    p_mf.add_argument("--audio", required=True, help="最終音軌（mix-audio 輸出）")
+    p_mf.add_argument("--subs", required=True, help="字幕 SRT（srt 輸出）")
+    p_mf.add_argument("--out", help="輸出最終影片，預設 final.mp4")
+
+    p_vrf = sub.add_parser("verify")
+    p_vrf.add_argument("--script", required=True, help="script.json")
+    p_vrf.add_argument("--timing", required=True, help="tts_timing.json")
+    p_vrf.add_argument("--edit-log", required=True, dest="edit_log",
+                       help="rough_cut_edit_log.json（assemble 輸出）")
+    p_vrf.add_argument("--srt", required=True, help="subtitles.srt")
+    p_vrf.add_argument("--video", required=True, help="成片 final.mp4")
+    p_vrf.add_argument("--threshold", type=float, help="通過分數，預設 80")
+    p_vrf.add_argument("--out", help="輸出 qa_report.json")
+
+    p_anz = sub.add_parser("analyze")
+    p_anz.add_argument("video", help="影片檔路徑")
+    p_anz.add_argument("--query", required=True, help="關鍵字（英文效果較好）")
+    p_anz.add_argument("--target-sec", type=float, dest="target_sec",
+                       help="目標窗口長度（秒），預設 20")
+    p_anz.add_argument("--language", help="hint：en / zh，省略則自動偵測")
+    p_anz.add_argument("--model", help="Whisper 模型，預設 base")
+
+    p_cur = sub.add_parser("curate")
+    p_cur.add_argument("--script", required=True, help="script.json")
+    p_cur.add_argument("--timing", required=True, help="tts_timing.json")
+    p_cur.add_argument("--workdir", help="工作目錄，預設 curate_out")
+    p_cur.add_argument("--top-n", type=int, dest="top_n",
+                       help="每段分析 N 個候選取最佳，預設 1")
+    p_cur.add_argument("--out", help="輸出 clip_list.json")
+
+    p_st = sub.add_parser("state")
+    p_st.add_argument("workdir", help="掃描的工作目錄")
+    p_st.add_argument("--project", help="專案名稱（預設 workdir 名）")
+    p_st.add_argument("--out", help="輸出 state.json 路徑（預設 workdir/state.json）")
+
+    p_db = sub.add_parser("dashboard")
+    p_db.add_argument("workdir", help="含 state.json 的輸出目錄")
+    p_db.add_argument("--out", help="輸出 HTML 路徑（預設 workdir/dashboard_view.html）")
+
+    p_sm = sub.add_parser("story-map")
+    p_sm.add_argument("workdir", help="含 state.json 的輸出目錄")
+    p_sm.add_argument("--out", help="輸出 HTML 路徑（預設 workdir/story_map_view.html）")
+
+    p_sv = sub.add_parser("serve")
+    p_sv.add_argument("workdir", help="要服務的工作目錄")
+    p_sv.add_argument("--port", type=int, help="HTTP port，預設 8765")
+
+    p_ig = sub.add_parser("ingest-meta")
+    p_ig.add_argument("src", help="本地素材根目錄")
+    p_ig.add_argument("--out", help="輸出 materials_db.json 路徑")
+    p_ig.add_argument("--work-dir", dest="work_dir",
+                      help="衍生檔(.converted/.keyframes)目錄;預設=db 所在目錄(不污染來源)")
+
+    p_cm = sub.add_parser("caption-meta")
+    p_cm.add_argument("db", help="materials_db.json")
+    p_cm.add_argument("--model", help="VLM 模型（預設 qwen3-vl:4b-instruct）")
+    p_cm.add_argument("--limit", type=int, help="最多 caption 幾個（測試用）")
+
+    p_mm = sub.add_parser("material-map")
+    p_mm.add_argument("db", help="materials_db.json")
+    p_mm.add_argument("--out", help="輸出地圖 .md 路徑")
+
+    p_mv = sub.add_parser("match-mv")
+    p_mv.add_argument("script", help="MV 劇本 json")
+    p_mv.add_argument("db", help="materials_db.json")
+    p_mv.add_argument("--out", help="輸出 clip_list.json")
+
+    p_rl = sub.add_parser("rank-local")
+    p_rl.add_argument("--db", required=True, help="materials_db.json")
+    p_rl.add_argument("--needs", required=True, help="material_needs.json")
+    p_rl.add_argument("--out", help="輸出 clip_list.json")
+
+    p_kb = sub.add_parser("kenburns")
+    p_kb.add_argument("photo", help="輸入照片 jpg/png")
+    p_kb.add_argument("--duration", type=float, required=True, help="輸出影片時長秒")
+    p_kb.add_argument("--direction",
+                      help="zoom-in / zoom-out / pan-left / pan-right / random，預設 zoom-in")
+    p_kb.add_argument("--out", help="輸出影片路徑")
+
+    p_psr = sub.add_parser("pexels-search")
+    p_psr.add_argument("query", help="搜尋關鍵字（英文較佳）")
+    p_psr.add_argument("--type", required=True, choices=['photo', 'video'])
+    p_psr.add_argument("--limit", type=int, help="預設 10")
+    p_psr.add_argument("--out", help="輸出 JSON 路徑（可選）")
+
+    p_pdl = sub.add_parser("pexels-download")
+    p_pdl.add_argument("url", help="download_url（從 pexels-search 拿）")
+    p_pdl.add_argument("--out", help="輸出檔案路徑")
+
+    p_grade = sub.add_parser("grade")
+    p_grade.add_argument("input", help="輸入影片")
+    p_grade.add_argument("--preset", help="dusk/night/fire/warm/cool/neutral")
+    p_grade.add_argument("--out", help="輸出影片路徑")
+
+    p_tc = sub.add_parser("title-card")
+    p_tc.add_argument("input", help="輸入影片（疊字卡於開頭）")
+    p_tc.add_argument("--text", required=True, help="主標題")
+    p_tc.add_argument("--subtitle", help="副標題（可選）")
+    p_tc.add_argument("--hold", type=float, help="標題停留秒數（預設 2.5）")
+    p_tc.add_argument("--size", type=int, help="主標字級（預設 96）")
+    p_tc.add_argument("--out", help="輸出影片路徑")
+
+    p_ts = sub.add_parser("title-sequence")
+    p_ts.add_argument("--text", required=True, help="主標題")
+    p_ts.add_argument("--subtitle", help="副標題（可選）")
+    p_ts.add_argument("--duration", type=float, required=True, help="片段時長秒")
+    p_ts.add_argument("--anim", help="slide-up（預設）/ fade")
+    p_ts.add_argument("--size", type=int, help="主標字級（預設 120）")
+    p_ts.add_argument("--bg", help="底色 hex（預設 0x0d0d1a 深藍黑）")
+    p_ts.add_argument("--out", help="輸出影片路徑")
+
+    p_gb = sub.add_parser("gen-bgm")
+    p_gb.add_argument("--mood", help="calm/warm/emotional/energetic/tense/bright/night")
+    p_gb.add_argument("--duration", type=float, help="秒數（預設 60，會被 loop）")
+    p_gb.add_argument("--out", help="輸出路徑（預設 bgm/<mood>.mp3）")
+
+    p_mu = sub.add_parser("music-fetch")
+    p_mu.add_argument("query", help="音樂搜尋詞，如「lofi calm piano instrumental」")
+    p_mu.add_argument("--source", help="yt（預設，yt-dlp 抽音訊）/ jamendo（需 client_id，未啟用）")
+    p_mu.add_argument("--max-dur", type=float, dest="max_dur",
+                      help="只接受短於此秒數的結果（避免抓到 1 小時混音）")
+    p_mu.add_argument("--out", help="輸出 mp3 路徑（預設 music_<source>.mp3）")
+
+    p_col = sub.add_parser("collage")
+    p_col.add_argument("--images", nargs="+", required=True, help="2-4 張照片路徑")
+    p_col.add_argument("--duration", type=float, required=True, help="時長秒")
+    p_col.add_argument("--bg", help="底色 hex（預設 0x0d0d1a）")
+    p_col.add_argument("--out", help="輸出影片路徑")
+
+    p_mon = sub.add_parser("montage")
+    p_mon.add_argument("--images", nargs="+", required=True, help="2-8 張照片路徑（快切輪播）")
+    p_mon.add_argument("--duration", type=float, required=True, help="總時長秒")
+    p_mon.add_argument("--out", help="輸出影片路徑")
+
+    p_prj = sub.add_parser("project-init")
+    p_prj.add_argument("name", help="專案名稱，會轉成 slug 作為外部資料夾名")
+    p_prj.add_argument("--root", help="外部 project root，預設 ~/video_pipeline_projects")
+
+    p_run = sub.add_parser("project-new-run")
+    p_run.add_argument("--project", help="project 目錄；省略則讀 repo/.project/active.json")
+    p_run.add_argument("--label", help="run 名稱後綴，如 first-cut / baseline")
+
+    p_ca = sub.add_parser("contract-adapt")
+    p_ca.add_argument("contract", help="canonical segment_contract.json")
+    p_ca.add_argument("--out", help="輸出 generated_mv_script.json")
+    p_ca.add_argument("--categories", help="material categories JSON")
+
+    p_cr = sub.add_parser("contract-run")
+    p_cr.add_argument("contract", help="canonical segment_contract.json")
+    p_cr.add_argument("--categories", help="material categories JSON")
+    p_cr.add_argument("--material-db", required=True, help="materials_db.json")
+    p_cr.add_argument("--music", required=True, help="music/audio path")
+    p_cr.add_argument("--out", required=True, help="輸出 final.mp4")
+    p_cr.add_argument("--mat-dir", help="material/render work dir")
+    p_cr.add_argument("--model-routes", help="model routes override JSON")
+    p_cr.add_argument("--build-profile", help="build profile override JSON")
+    p_cr.add_argument("--quiet", action="store_true")
+
+    p_gm = sub.add_parser("generated-manifest")
+    p_gm.add_argument("requests", help="generated_asset_requests.json")
+    p_gm.add_argument("--outputs", required=True, help="provider/manual generated outputs JSON")
+    p_gm.add_argument("--out", required=True, help="output generated_asset_manifest.json")
+    p_gm.add_argument("--artifact-manifest", help="artifact_manifest.json to update")
+    p_gm.add_argument("--no-require-files", action="store_true",
+                      help="do not require output files to exist")
+
+    p_le = sub.add_parser("light-effects-plan")
+    p_le.add_argument("contract", help="canonical segment_contract.json")
+    p_le.add_argument("--build-profile", required=True, help="build_profile.json")
+    p_le.add_argument("--out-dir", required=True, help="output directory for light effects artifacts")
+
+    args = parser.parse_args()
+
+    dispatch = {
+        "search":      cmd_search,
+        "meta":        cmd_meta,
+        "download":    cmd_download,
+        "probe":       cmd_probe,
+        "cut":         cmd_cut,
+        "concat":      cmd_concat,
+        "subtitle":    cmd_subtitle,
+        "mksrt":       cmd_mksrt,
+        "burnsub":     cmd_burnsub,
+        "validate":    cmd_validate,
+        "script-run":  cmd_script_run,
+        "title":       cmd_title,
+        "tts":         cmd_tts,
+        "mix-audio":   cmd_mix_audio,
+        "srt":         cmd_srt,
+        "assemble":    cmd_assemble,
+        "merge-final": cmd_merge_final,
+        "verify":      cmd_verify,
+        "analyze":     cmd_analyze,
+        "curate":      cmd_curate,
+        "state":       cmd_state,
+        "serve":       cmd_serve,
+        "dashboard":   cmd_dashboard,
+        "story-map":   cmd_story_map,
+        "ingest-meta": cmd_ingest_meta,
+        "caption-meta": cmd_caption_meta,
+        "material-map": cmd_material_map,
+        "match-mv":     cmd_match_mv,
+        "rank-local":  cmd_rank_local,
+        "kenburns":      cmd_kenburns,
+        "pexels-search": cmd_pexels_search,
+        "pexels-download": cmd_pexels_download,
+        "grade":         cmd_grade,
+        "title-card":    cmd_title_card,
+        "title-sequence": cmd_title_sequence,
+        "gen-bgm":       cmd_gen_bgm,
+        "music-fetch":   cmd_music_fetch,
+        "collage":       cmd_collage,
+        "montage":       cmd_montage,
+        "project-init":   cmd_project_init,
+        "project-new-run": cmd_project_new_run,
+        "contract-adapt": cmd_contract_adapt,
+        "contract-run":   cmd_contract_run,
+        "generated-manifest": cmd_generated_manifest,
+        "light-effects-plan": cmd_light_effects_plan,
+    }
+
+    if not args.command or args.command not in dispatch:
+        parser.print_help()
+        sys.exit(1)
+
+    try:
+        dispatch[args.command](args)
+    except ToolError as e:
+        die(str(e))
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc(), file=sys.stderr)
+        die(f"unexpected error: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()

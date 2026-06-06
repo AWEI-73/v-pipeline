@@ -1,0 +1,11 @@
+{
+  "video_type": "event_recap",
+  "spec_start_mode": "material_first",
+  "can_reshoot": false,
+  "fallback_policy": "stock_bridge",
+  "review_level": "normal",
+  "audience": "員工與眷屬",
+  "target_length": "2-3 minutes",
+  "tone": "歡樂、溫馨、回顧",
+  "must_include": ["開場全景", "闖關活動", "大合照"]
+}

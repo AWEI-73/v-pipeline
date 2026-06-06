@@ -1,0 +1,18 @@
+{
+  "_note": "knowledge 題材詞彙(可換)。多為 stock/生成 illustrative,非真實事件 → 故意打 narration/tts 範式邊界。",
+  "genre": "knowledge",
+  "categories": [
+    {"id": "concept_broll", "label": "概念 B-roll", "description": "illustrative 概念畫面(可 stock/生成)",
+     "typical_audio": "voiceover", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "找對應概念的 stock/生成畫面,不需真實人物"},
+    {"id": "diagram_or_chart", "label": "圖表/示意", "description": "解釋用圖表或動畫示意",
+     "typical_audio": "voiceover", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "做或找解釋圖表/示意圖"},
+    {"id": "demo_action", "label": "操作示範", "description": "步驟操作示範畫面",
+     "typical_audio": "voiceover", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "拍或找步驟操作示範"},
+    {"id": "presenter", "label": "講者", "description": "主講者出鏡",
+     "typical_audio": "voiceover", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "拍講者出鏡片段"}
+  ]
+}

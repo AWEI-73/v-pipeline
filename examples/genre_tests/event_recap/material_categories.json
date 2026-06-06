@@ -1,0 +1,21 @@
+{
+  "_note": "event_recap 題材的地圖規範詞彙(可換)。測:換 vocab 是否就能換題材。",
+  "genre": "event_recap",
+  "categories": [
+    {"id": "venue_establishing", "label": "場地全景", "description": "活動場地開場全景",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "開場拍場地全景/布置,建立活動規模"},
+    {"id": "booth_games", "label": "闖關/攤位活動", "description": "闖關、攤位、遊戲互動",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "拍各攤位互動與參與動態,要熱鬧"},
+    {"id": "candid_family", "label": "眷屬抓拍", "description": "員工與家人的自然互動",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "抓親子/家庭自然笑容瞬間,不擺拍"},
+    {"id": "stage_performance", "label": "舞台表演", "description": "舞台節目/表演",
+     "typical_audio": "diegetic", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "拍表演高潮與觀眾反應,留原音"},
+    {"id": "group_photo", "label": "大合照", "description": "全體合影",
+     "typical_audio": "music", "identity_sensitive": true, "proof_critical": false,
+     "collection_instructions": "全體入鏡清晰合照,收尾用"}
+  ]
+}

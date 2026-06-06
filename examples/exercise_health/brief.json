@@ -1,0 +1,11 @@
+{
+  "video_type": "knowledge",
+  "spec_start_mode": "material_first",
+  "can_reshoot": false,
+  "fallback_policy": "stock_bridge",
+  "review_level": "normal",
+  "audience": "general public interested in fitness and wellbeing; social/web viewers",
+  "target_length": "~5 minutes",
+  "tone": "energetic, uplifting, motivational, music-driven montage",
+  "must_include": []
+}

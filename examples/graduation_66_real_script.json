@@ -1,0 +1,20 @@
+{
+  "style": "mv",
+  "music": {"brief": "熱血激昂、進行曲感、適合結訓回顧", "query": "inspirational cinematic orchestral uplifting", "source": "yt", "max_dur": 240},
+  "segments": [
+    {"segment": 1, "kind": "opening", "visual_desc": "校園晨景空拍、訓練基地全貌",
+     "material_hint": "空拍", "weight": 1.2, "needs_review": true},
+    {"segment": 2, "layout": "montage", "pace": "fast", "visual_desc": "拖拉電纜實作訓練",
+     "material_hint": "拖拉電纜", "label": "拖拉電纜作業", "audio_role": "music"},
+    {"segment": 3, "layout": "montage", "pace": "fast", "visual_desc": "高空換桿作業",
+     "material_hint": "換桿", "label": "換桿作業", "audio_role": "music"},
+    {"segment": 4, "hold": true, "visual_desc": "主任對學員勉勵致詞",
+     "material_hint": "主任勉勵", "audio_role": "duck", "keep_audio": true, "subtitle": "auto",
+     "name_super": {"text": "訓練所主任", "title": ""}, "weight": 1.5},
+    {"segment": 5, "layout": "montage", "pace": "fast", "visual_desc": "班級日常上課與互動",
+     "material_hint": "班級日常", "label": "班級日常", "audio_role": "music"},
+    {"segment": 6, "visual_desc": "傳承精神字卡", "narrative": "傳承精技\n篤學不倦"},
+    {"segment": 7, "kind": "closing", "media": "photo", "visual_desc": "全體大合照",
+     "material_hint": "大合照", "must_include": "大合照", "weight": 1.3, "needs_review": true}
+  ]
+}

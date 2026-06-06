@@ -1,0 +1,341 @@
+{
+  "style": "mv",
+  "bgm": "warm",
+  "segments": [
+    {
+      "segment": 1,
+      "title": "片頭",
+      "kind": "title",
+      "title_sequence": {
+        "text": "把今天變成出發",
+        "subtitle": "GRADUATION JOURNEY",
+        "anim": "fade"
+      },
+      "duration_sec": 7,
+      "text": "有些結束，不是句點，而是下一段路的起點。"
+    },
+    {
+      "segment": 2,
+      "title": "清晨抵達",
+      "media_pref": "photo",
+      "search_query": "校園 清晨",
+      "visual_desc": "清晨的校園或訓練中心外觀，陽光剛照進建築入口，空氣乾淨明亮",
+      "effects": {
+        "grade": "warm",
+        "transition": "fade"
+      },
+      "duration_sec": 17,
+      "text": "第一天走進這裡時，很多人心裡其實沒有答案。只是帶著一點期待，還有一點緊張，先把門推開。那時候還不知道，這扇門後面會有挑戰，也會有陪伴。"
+    },
+    {
+      "segment": 3,
+      "title": "教室亮起",
+      "media_pref": "photo",
+      "search_query": "教室 陽光",
+      "visual_desc": "明亮教室裡整齊的桌椅與白板，窗邊有自然光灑進來",
+      "effects": {
+        "grade": "neutral",
+        "transition": "dissolve"
+      },
+      "duration_sec": 13,
+      "text": "一張張空桌子，很快就變成每天固定的位置。陌生的教室，也慢慢有了熟悉的聲音。"
+    },
+    {
+      "segment": 4,
+      "title": "第一堂課",
+      "media_pref": "photo",
+      "search_query": "講師 簡報",
+      "visual_desc": "講師在教室前方說明簡報，學生專注聽課，畫面像職業訓練或工作坊",
+      "effects": {
+        "grade": "neutral",
+        "transition": "wipeleft"
+      },
+      "duration_sec": 14,
+      "text": "第一堂課不只是學知識，也是在練習相信自己。聽不懂的地方，後來都成了最想弄懂的起點。"
+    },
+    {
+      "segment": 5,
+      "title": "筆記與提問",
+      "media_pref": "photo",
+      "search_query": "筆記 手",
+      "visual_desc": "手在筆記本上寫字，旁邊有講義、筆電或課堂資料，畫面聚焦在學習細節",
+      "effects": {
+        "grade": "warm",
+        "transition": "dissolve"
+      },
+      "duration_sec": 12,
+      "text": "那些密密麻麻的筆記，記下的不只是重點，還有每一次追上進度時，心裡安靜的踏實。"
+    },
+    {
+      "segment": 6,
+      "title": "小組討論",
+      "media_pref": "photo",
+      "search_query": "團隊 討論",
+      "visual_desc": "幾個人在桌邊討論專案，桌上有筆記、便利貼和筆電，氣氛專注但合作",
+      "layout": "montage",
+      "montage_n": 6,
+      "effects": {
+        "grade": "warm",
+        "transition": "radial"
+      },
+      "duration_sec": 17,
+      "text": "後來我們開始分組，開始討論，開始把一個人的疑問攤在桌上，變成一群人一起解決的題目。有人負責整理，有人負責追問，也有人把氣氛重新拉回來。"
+    },
+    {
+      "segment": 7,
+      "title": "示範操作",
+      "media_pref": "photo",
+      "search_query": "電腦 示範",
+      "visual_desc": "講師或教練示範電腦操作，旁邊的人看著螢幕學習，呈現技能訓練場景",
+      "effects": {
+        "grade": "neutral",
+        "transition": "circleopen"
+      },
+      "duration_sec": 13,
+      "text": "有些技巧，看起來只是一個步驟；真正做起來，才知道每個細節都需要被理解。"
+    },
+    {
+      "segment": 8,
+      "title": "練習開始",
+      "media_pref": "photo",
+      "search_query": "筆電 學習",
+      "visual_desc": "桌面上的筆電正在工作，旁邊有咖啡、筆記和學習材料，畫面有專注感",
+      "effects": {
+        "grade": "warm",
+        "transition": "fade"
+      },
+      "duration_sec": 13,
+      "text": "練習一開始總是卡住。可是每一次重新整理思路、再試一次，都是把能力往前推一點。"
+    },
+    {
+      "segment": 9,
+      "title": "失敗的版本",
+      "media_pref": "photo",
+      "search_query": "電腦 錯誤",
+      "visual_desc": "電腦螢幕上有錯誤訊息或複雜工作畫面，桌邊的人正在思考問題",
+      "effects": {
+        "grade": "cool",
+        "transition": "dissolve"
+      },
+      "duration_sec": 15,
+      "text": "也有很多次，結果沒有照計畫發生。那些失敗的版本，當時很挫折，回頭看卻是最重要的練習。"
+    },
+    {
+      "segment": 10,
+      "title": "夜晚整理",
+      "media_pref": "photo",
+      "search_query": "夜晚 筆電",
+      "visual_desc": "夜晚桌燈下的筆電與筆記，畫面安靜，像課後整理資料或準備報告",
+      "effects": {
+        "grade": "dusk",
+        "transition": "wipeleft"
+      },
+      "duration_sec": 17,
+      "text": "有時候，真正的進步發生在課後。把今天的混亂整理完，明天就能用更清楚的方式再出發。那些安靜的晚上，讓白天的課程變成真正屬於自己的能力。"
+    },
+    {
+      "segment": 11,
+      "title": "互相幫忙",
+      "media_pref": "photo",
+      "search_query": "同學 筆電",
+      "visual_desc": "兩三個人在筆電旁互相說明問題，手指向螢幕，氣氛像同學互助學習",
+      "layout": "montage",
+      "montage_n": 5,
+      "effects": {
+        "grade": "warm",
+        "transition": "radial"
+      },
+      "duration_sec": 17,
+      "text": "幸好一路上不是一個人。有人提醒方向，有人補上觀點，也有人在最卡的時候說，再試一次。很多答案不是自己想出來的，而是在討論裡一起長出來的。"
+    },
+    {
+      "segment": 12,
+      "title": "突破",
+      "media_pref": "photo",
+      "search_query": "團隊 擊掌",
+      "visual_desc": "團隊完成任務後擊掌或微笑，畫面有突破問題後的輕鬆和成就感",
+      "effects": {
+        "grade": "warm",
+        "transition": "circleopen"
+      },
+      "duration_sec": 14,
+      "text": "某一天，原本複雜的東西突然通了。那一刻才明白，累積不是沒有聲音，只是需要時間抵達。"
+    },
+    {
+      "segment": 13,
+      "title": "成果準備",
+      "media_pref": "photo",
+      "search_query": "簡報 準備",
+      "visual_desc": "團隊圍著筆電整理簡報，桌上有紙張和便利貼，像成果發表前的準備",
+      "layout": "montage",
+      "montage_n": 6,
+      "effects": {
+        "grade": "neutral",
+        "transition": "dissolve"
+      },
+      "duration_sec": 17,
+      "text": "到了成果發表前，每個人都把這段時間學到的東西，整理成能被看見、也能被說清楚的樣子。從架構、流程到細節，每一次修改都是為了讓作品更完整。"
+    },
+    {
+      "segment": 14,
+      "title": "登台前",
+      "media_pref": "photo",
+      "search_query": "簡報 登台",
+      "visual_desc": "發表者站在投影幕或會議室前準備，手中有講稿或簡報控制器",
+      "effects": {
+        "grade": "warm",
+        "transition": "fade"
+      },
+      "duration_sec": 13,
+      "text": "站上台前，緊張還是會來。但這一次，緊張裡多了一份準備好的底氣。"
+    },
+    {
+      "segment": 15,
+      "title": "成果發表",
+      "media_pref": "photo",
+      "search_query": "簡報 發表",
+      "visual_desc": "學生或團隊在會議室或教室裡對觀眾發表簡報，投影幕在背景",
+      "effects": {
+        "grade": "neutral",
+        "transition": "wipeleft"
+      },
+      "duration_sec": 16,
+      "text": "輪到我們說明的時候，畫面、數據、流程和故事都連在一起。那不只是報告，是這段路的總整理。"
+    },
+    {
+      "segment": 16,
+      "title": "觀眾與回饋",
+      "media_pref": "photo",
+      "search_query": "觀眾 鼓掌",
+      "visual_desc": "觀眾在教室或會議室聽簡報，有人點頭或鼓掌，氣氛正式但溫暖",
+      "effects": {
+        "grade": "warm",
+        "transition": "dissolve"
+      },
+      "duration_sec": 13,
+      "text": "台下的回饋，讓努力有了回音。被理解的那一刻，很多辛苦都變得值得。"
+    },
+    {
+      "segment": 17,
+      "title": "作品展示",
+      "media_pref": "photo",
+      "search_query": "專案 展示",
+      "visual_desc": "桌上或螢幕上展示專案成果，旁邊有人介紹作品，畫面像成果展",
+      "layout": "collage",
+      "montage_n": 6,
+      "effects": {
+        "grade": "neutral",
+        "transition": "radial"
+      },
+      "duration_sec": 16,
+      "text": "每一份作品背後，都藏著很多看不見的修正。今天被展示的，是最後版本，也是無數次重來的集合。"
+    },
+    {
+      "segment": 18,
+      "title": "頒發證書",
+      "media_pref": "photo",
+      "search_query": "證書 頒發",
+      "visual_desc": "頒發證書或結業證明的正式場景，手接過證書，背景有人微笑",
+      "effects": {
+        "grade": "warm",
+        "transition": "circleopen"
+      },
+      "duration_sec": 17,
+      "text": "拿到證書的瞬間，紙張本身很輕，代表的卻很重。那是時間、努力和沒有放棄的證明。它提醒我們，曾經以為很遠的終點，真的可以一步一步走到。"
+    },
+    {
+      "segment": 19,
+      "title": "掌聲",
+      "media_pref": "photo",
+      "search_query": "掌聲 典禮",
+      "visual_desc": "人群在典禮或發表會中鼓掌，畫面明亮，充滿祝賀與完成感",
+      "effects": {
+        "grade": "warm",
+        "transition": "fade"
+      },
+      "duration_sec": 12,
+      "text": "掌聲響起時，我們知道這不是完美的人生答案，而是一段真的走完的路。"
+    },
+    {
+      "segment": 20,
+      "title": "合照時刻",
+      "media_pref": "photo",
+      "search_query": "畢業 合照",
+      "visual_desc": "一群人在結業或畢業場合合照，大家面向鏡頭微笑，畫面像紀念照",
+      "layout": "montage",
+      "montage_n": 5,
+      "effects": {
+        "grade": "warm",
+        "transition": "dissolve"
+      },
+      "duration_sec": 17,
+      "text": "合照把大家留在同一個畫面裡。多年以後再看，或許會想起，那時我們都正在努力變成更好的自己。也會想起，有一群人曾經在同一段時間裡，互相見證。"
+    },
+    {
+      "segment": 21,
+      "title": "走廊告別",
+      "media_pref": "photo",
+      "search_query": "校園 走廊",
+      "visual_desc": "人在校園或訓練中心走廊離開的背影，光線從窗邊照進來，有告別感",
+      "effects": {
+        "grade": "dusk",
+        "transition": "wipeleft"
+      },
+      "duration_sec": 14,
+      "text": "離開教室時，走廊好像比第一天短了一點。不是路變短了，是我們已經不再站在原地。"
+    },
+    {
+      "segment": 22,
+      "title": "回憶快剪",
+      "media_pref": "photo",
+      "search_query": "學習 回憶",
+      "visual_desc": "學習、討論、筆記、笑容與教室片段組成的回憶感畫面，像畢業影片快剪",
+      "layout": "collage",
+      "montage_n": 8,
+      "effects": {
+        "grade": "warm",
+        "transition": "radial"
+      },
+      "duration_sec": 17,
+      "text": "回想這段時間，記得的不只是哪一天學會了什麼，也記得那些一起趕進度、一起笑出來的瞬間。學習讓我們變強，而這些片段讓這段旅程有了溫度。"
+    },
+    {
+      "segment": 23,
+      "title": "城市夜色",
+      "media_pref": "photo",
+      "search_query": "城市 夜晚",
+      "visual_desc": "夜晚城市街道與燈光，人們在街上移動，像從結業現場走向新的生活",
+      "effects": {
+        "grade": "dusk",
+        "transition": "fade"
+      },
+      "duration_sec": 14,
+      "text": "結訓之後，城市還是很大，問題也不會突然變少。但我們已經多了一套面對它的方法。"
+    },
+    {
+      "segment": 24,
+      "title": "新的方向",
+      "media_pref": "photo",
+      "search_query": "道路 日出",
+      "visual_desc": "清晨日出下的道路或人行步道，畫面開闊，有向前出發的感覺",
+      "effects": {
+        "grade": "warm",
+        "transition": "circleopen"
+      },
+      "duration_sec": 17,
+      "text": "所以今天不是告別學習，而是把學會的東西帶出去。下一段路，換我們用自己的方式走。帶著作品、帶著朋友，也帶著重新開始的勇氣。"
+    },
+    {
+      "segment": 25,
+      "title": "片尾",
+      "kind": "title",
+      "title_sequence": {
+        "text": "謝謝一起走到這裡",
+        "subtitle": "SEE YOU ON THE NEXT ROAD",
+        "anim": "fade"
+      },
+      "duration_sec": 8,
+      "text": "願每一次抵達，都成為下一次出發的勇氣。"
+    }
+  ]
+}

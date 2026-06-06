@@ -1,0 +1,67 @@
+{
+  "_note": "結訓 MV v0 範例（無旁白、beat 驅動）。展示兩種段型：快剪 montage+音樂 / 長官隊呼長段+原音+人名。material_hint 對應素材資料夾名。",
+  "style": "mv",
+  "music": { "brief": "熱血 激昂 instrumental 結訓 prideful", "source": "yt", "max_dur": 240 },
+  "segments": [
+    {
+      "segment": 1,
+      "kind": "opening",
+      "title": "開場",
+      "visual_desc": "開訓典禮，全體學員整齊列隊集合於操場",
+      "material_hint": "公安早會",
+      "high_weight": true,
+      "needs_review": true,
+      "audio_role": "music"
+    },
+    {
+      "segment": 2,
+      "title": "課堂日常",
+      "visual_desc": "學員在教室上課、專注聽講與筆記的日常",
+      "material_hint": "班級日常生活",
+      "layout": "montage",
+      "pace": "fast",
+      "audio_role": "music"
+    },
+    {
+      "segment": 3,
+      "title": "戶外實作",
+      "visual_desc": "學員戶外協力拖拉電纜，團隊合作的實作訓練",
+      "material_hint": "拖拉電纜",
+      "layout": "montage",
+      "pace": "fast",
+      "audio_role": "music"
+    },
+    {
+      "segment": 4,
+      "title": "所長致詞（必放）",
+      "visual_desc": "所長對全體學員致詞勉勵",
+      "material_hint": "必放項目/所長看填志願",
+      "must_include": "必放項目",
+      "hold": true,
+      "keep_audio": true,
+      "audio_role": "duck",
+      "needs_review": true,
+      "name_super": { "text": "○○○", "title": "所長" }
+    },
+    {
+      "segment": 5,
+      "title": "班隊呼（原音高潮）",
+      "visual_desc": "班級齊聲喊隊呼，士氣高昂",
+      "material_hint": "隊呼",
+      "hold": true,
+      "keep_audio": true,
+      "audio_role": "diegetic"
+    },
+    {
+      "segment": 6,
+      "kind": "closing",
+      "title": "結訓合照",
+      "visual_desc": "結訓大合照，全體學員歡呼合影",
+      "material_hint": "大合照",
+      "high_weight": true,
+      "needs_review": true,
+      "keep_audio": true,
+      "audio_role": "diegetic"
+    }
+  ]
+}

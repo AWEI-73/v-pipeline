@@ -1,0 +1,2614 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Pipeline V1 Control Panel (Light Theme)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg-darkest: #f8fafc;
+    --bg-dark: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --border-color: #cbd5e1;
+    --border-glow: rgba(99, 102, 241, 0.15);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    
+    --color-done: #15803d;
+    --color-done-glow: rgba(21, 128, 61, 0.2);
+    --color-done-text: #166534;
+    
+    --color-warn: #b45309;
+    --color-warn-glow: rgba(180, 83, 9, 0.2);
+    --color-warn-text: #92400e;
+    
+    --color-blocked: #b91c1c;
+    --color-blocked-glow: rgba(185, 28, 28, 0.2);
+    --color-blocked-text: #991b1b;
+    
+    --color-missing: #4b5563;
+    --color-missing-glow: rgba(75, 85, 99, 0.2);
+    --color-missing-text: #374151;
+    
+    --color-optional: #6d28d9;
+    --color-optional-glow: rgba(109, 40, 217, 0.2);
+    --color-optional-text: #5b21b6;
+    
+    --layer-spec-bg: #faf5ff;
+    --layer-spec-border: #f3e8ff;
+    --layer-spec-text: #701a75;
+    
+    --layer-build-bg: #ecfeff;
+    --layer-build-border: #cffafe;
+    --layer-build-text: #083344;
+    
+    --layer-verify-bg: #f0fdf4;
+    --layer-verify-border: #dcfce7;
+    --layer-verify-text: #064e3b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: var(--bg-darkest);
+    color: var(--text-primary);
+    padding: 24px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* Header Design */
+  header {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    font-size: 28px;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    padding: 2px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #0f172a;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .highlight {
+    color: #2563eb;
+    font-weight: 600;
+  }
+  .run-facts {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .fact-item {
+    display: flex;
+    flex-direction: column;
+  }
+  .fact-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .fact-val {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .fact-val a {
+    color: #2563eb;
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(37, 99, 235, 0.4);
+    transition: all 0.2s ease;
+  }
+  .fact-val a:hover {
+    color: #1d4ed8;
+    border-bottom-style: solid;
+  }
+
+  /* Badge System */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+    border: 1px solid transparent;
+  }
+  .badge.pass { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+  .badge.fail { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .badge.done { background: #dcfce7; color: var(--color-done-text); border-color: #bbf7d0; }
+  .badge.warn { background: #fef3c7; color: var(--color-warn-text); border-color: #fde68a; }
+  .badge.blocked { background: #fee2e2; color: var(--color-blocked-text); border-color: #fca5a5; }
+  .badge.missing { background: #f3f4f6; color: var(--color-missing-text); border-color: #e5e7eb; }
+  .badge.optional { background: #f3e8ff; color: var(--color-optional-text); border-color: #e9d5ff; }
+
+  /* Sub-header (Build Profile Summary & BGM Player) */
+  .sub-header {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .profile-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .profile-title {
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+  .profile-chip {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 2px 8px;
+    color: var(--text-secondary);
+  }
+  .profile-chip strong {
+    color: var(--text-primary);
+  }
+  .bgm-player-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Next Action Banner */
+  .next-action-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 5px solid #7c3aed;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  .next-action-card.done { border-left-color: #16a34a; }
+  .next-action-card.wait { border-left-color: #ea580c; }
+  .next-action-card.review { border-left-color: #dc2626; }
+  
+  .next-action-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .next-action-badge {
+    background: #7c3aed;
+    color: white;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .next-action-card.done .next-action-badge { background: #16a34a; }
+  .next-action-card.wait .next-action-badge { background: #ea580c; }
+  .next-action-card.review .next-action-badge { background: #dc2626; }
+  
+  .next-action-text {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  
+  /* Workspace Grid */
+  .workspace {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1024px) {
+    .workspace {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .column-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Node Checklist Rail (Screenshot Aligned - Light Theme) */
+  .rail-column {
+    display: flex;
+    flex-direction: column;
+  }
+  .node-rail {
+    position: relative;
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  /* Contiguous timeline line */
+  .node-rail::before {
+    content: '';
+    position: absolute;
+    left: 96px; /* Center of the line column */
+    top: 36px;
+    bottom: 36px;
+    width: 2px;
+    background: #e2e8f0;
+    z-index: 1;
+  }
+  .node-rail-item {
+    display: flex;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    z-index: 2;
+    transition: all 0.2s ease;
+  }
+  .node-left-meta {
+    width: 65px;
+    text-align: right;
+    padding-right: 12px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .node-num-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .node-skill-short {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-dot-wrapper {
+    width: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .node-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    border: 3px solid var(--bg-dark);
+    box-shadow: 0 0 0 1px #cbd5e1;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* Active states and status coloring */
+  .node-rail-item[data-status="done"] .node-dot { background: var(--color-done); box-shadow: 0 0 0 1px var(--color-done), 0 0 6px var(--color-done-glow); }
+  .node-rail-item[data-status="warn"] .node-dot { background: var(--color-warn); box-shadow: 0 0 0 1px var(--color-warn), 0 0 6px var(--color-warn-glow); }
+  .node-rail-item[data-status="blocked"] .node-dot { background: var(--color-blocked); box-shadow: 0 0 0 1px var(--color-blocked), 0 0 6px var(--color-blocked-glow); }
+  .node-rail-item[data-status="missing"] .node-dot { background: #94a3b8; box-shadow: 0 0 0 1px #94a3b8; }
+  .node-rail-item[data-status="optional"] .node-dot { background: var(--color-optional); box-shadow: 0 0 0 1px var(--color-optional), 0 0 6px var(--color-optional-glow); }
+  
+  .node-rail-item.active .node-dot {
+    transform: scale(1.4);
+    border-color: #4f46e5;
+  }
+
+  .node-rail-card {
+    flex-grow: 1;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-left: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+  }
+  .node-rail-item:hover .node-rail-card {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+  .node-rail-item.active .node-rail-card {
+    background: rgba(79, 70, 229, 0.05);
+    border-color: #4f46e5;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1);
+  }
+  .node-rail-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  
+  /* Details Panel Column */
+  .details-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Node Details Card Specifics */
+  .node-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 14px;
+  }
+  .node-num-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(79, 70, 229, 0.1);
+    color: #4f46e5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+  .node-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .node-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .meta-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .meta-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .meta-val {
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .io-list {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .io-item strong {
+    color: var(--text-secondary);
+  }
+
+  /* Code Command Box */
+  .command-box {
+    margin-top: 18px;
+  }
+  .command-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  pre {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    position: relative;
+  }
+  code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    color: #f8fafc;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .copy-btn {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .copy-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+  }
+
+  /* Findings Box */
+  .findings-box {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .findings-box strong {
+    color: var(--color-blocked-text);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .finding-bullet {
+    margin-left: 14px;
+    color: var(--text-primary);
+  }
+
+  /* QA Grid Details */
+  .qa-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 20px;
+    align-items: center;
+  }
+  @media (max-width: 600px) {
+    .qa-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .qa-score-main {
+    text-align: center;
+    border-right: 1px solid #e2e8f0;
+    padding-right: 20px;
+  }
+  @media (max-width: 600px) {
+    .qa-score-main {
+      border-right: none;
+      padding-right: 0;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 14px;
+    }
+  }
+  .qa-score-num {
+    font-size: 48px;
+    font-weight: 800;
+    color: #2563eb;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .qa-score-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .qa-details {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .qa-details p {
+    margin-bottom: 8px;
+  }
+  .qa-details strong {
+    color: var(--text-primary);
+  }
+  .qa-dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .qa-dim-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .qa-dim-lbl {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .qa-dim-val {
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .qa-dim-val.high { color: var(--color-done); }
+  .qa-dim-val.mid { color: var(--color-warn); }
+  .qa-dim-val.low { color: var(--color-blocked); }
+
+  /* 3-Layer Segment Timeline Section */
+  .segments-section {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 10px;
+  }
+  .section-header h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+  .legend-dot.spec { background: #c084fc; }
+  .legend-dot.build { background: #22d3ee; }
+  .legend-dot.verify { background: #34d399; }
+
+  .segments-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .segment-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.2s ease;
+  }
+  .segment-card:hover {
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+  }
+  .segment-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 10px;
+  }
+  .segment-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .segment-meta {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-secondary);
+  }
+  .segment-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .segment-layer {
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    border: 1px solid transparent;
+  }
+  .segment-layer.spec {
+    background: var(--layer-spec-bg);
+    border-color: var(--layer-spec-border);
+    color: var(--layer-spec-text);
+  }
+  .segment-layer.build {
+    background: var(--layer-build-bg);
+    border-color: var(--layer-build-border);
+    color: var(--layer-build-text);
+  }
+  .segment-layer.verify {
+    background: var(--layer-verify-bg);
+    border-color: var(--layer-verify-border);
+    color: var(--layer-verify-text);
+  }
+  .layer-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 10px;
+    text-transform: uppercase;
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 12px;
+    vertical-align: middle;
+  }
+  .segment-layer.spec .layer-tag { background: #f3e8ff; color: #8b5cf6; }
+  .segment-layer.build .layer-tag { background: #cffafe; color: #0891b2; }
+  .segment-layer.verify .layer-tag { background: #dcfce7; color: #16a34a; }
+  
+  .segment-layer-content {
+    display: inline-block;
+    vertical-align: middle;
+    width: calc(100% - 70px);
+  }
+  .inline-chip {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(0,0,0,0.03);
+    margin-right: 6px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .inline-chip.highlight-chip {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+    font-weight: 600;
+  }
+  .inline-chip.success-chip {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+
+  /* NLE Timeline Component Style */
+  .nle-timeline-section {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    color: #f8fafc;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+  }
+  .nle-timeline-section h2 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #94a3b8;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+  }
+  .nle-ruler {
+    display: flex;
+    height: 24px;
+    border-bottom: 1px solid #475569;
+    position: relative;
+    margin-left: 100px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #94a3b8;
+  }
+  .ruler-mark {
+    position: absolute;
+    border-left: 1px solid #475569;
+    height: 8px;
+    bottom: 0;
+    padding-left: 4px;
+    transform: translateX(-50%);
+  }
+  .nle-tracks-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .nle-track {
+    display: flex;
+    height: 40px;
+    background: #0f172a;
+    border-radius: 6px;
+    position: relative;
+    border: 1px solid #334155;
+    overflow: hidden;
+  }
+  .nle-track-label {
+    width: 100px;
+    background: #1e293b;
+    border-right: 1px solid #334155;
+    font-size: 10px;
+    font-weight: 700;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    z-index: 5;
+    flex-shrink: 0;
+  }
+  .nle-track-timeline {
+    position: relative;
+    flex-grow: 1;
+    height: 100%;
+  }
+  .nle-block {
+    position: absolute;
+    height: 84%;
+    top: 8%;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    transition: all 0.2s;
+  }
+  .nle-block:hover {
+    filter: brightness(1.15);
+    transform: scaleY(1.02);
+  }
+  .nle-block.video { background: #3b82f6; }
+  .nle-block.text-overlay { background: #8b5cf6; }
+  .nle-block.audio-bgm { background: #10b981; }
+  
+  .nle-block-subtext {
+    font-size: 8px;
+    opacity: 0.8;
+    font-weight: 400;
+  }
+  
+  .nle-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    z-index: 10;
+    left: 100px; /* Offset matching the track label width */
+    pointer-events: none;
+    transition: left 0.1s linear;
+  }
+  .nle-playhead::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    border-width: 6px 6px 0;
+    border-style: solid;
+    border-color: #ef4444 transparent transparent;
+  }
+
+  /* NLE Workspace Layout */
+  .nle-workspace-grid {
+    display: grid;
+    grid-template-columns: 60% 40%;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) {
+    .nle-workspace-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .nle-panel-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+    color: #f8fafc;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 420px;
+  }
+  .nle-panel-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+  }
+  
+  /* Storyboard-Material Alignment Map Section (Light Theme) */
+  .material-alignment-section {
+    background: var(--bg-card);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  .material-alignment-section h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .alignment-segment-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-top: 16px;
+    padding: 20px;
+    transition: all 0.25s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  .alignment-segment-card:hover {
+    border-color: #6366f1;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05);
+  }
+  .alignment-segment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+  .alignment-segment-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .alignment-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 24px;
+  }
+  @media (max-width: 900px) {
+    .alignment-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* Left column - Specs */
+  .alignment-spec-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .alignment-spec-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dashed #f1f5f9;
+  }
+  .alignment-spec-row:last-child {
+    border-bottom: none;
+  }
+  .alignment-spec-lbl {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4f46e5;
+    background: rgba(79, 70, 229, 0.06);
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    min-width: 120px;
+    text-align: center;
+  }
+  .alignment-spec-val {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.4;
+    flex-grow: 1;
+  }
+  
+  /* Right column - Scanned Materials */
+  .alignment-materials-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .alignment-material-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .alignment-material-item:hover {
+    border-color: #6366f1;
+    background: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.08);
+  }
+  .alignment-material-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-grow: 1;
+    margin-right: 8px;
+  }
+  .alignment-material-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+  .alignment-material-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .active-clip-badge {
+    background: #22c55e;
+    color: #ffffff;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .material-category-badge {
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+  .material-category-badge.raw_stock { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+  .material-category-badge.rendered_segment { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  .material-category-badge.user_upload { background: #f3e8ff; color: #6d28d9; border: 1px solid #e9d5ff; }
+  .material-category-badge.narration_text { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+  .material-category-badge.label_text { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+  /* Aspect ratio preview container */
+  .video-aspect-container {
+    width: 100%;
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000000;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #334155;
+    position: relative;
+    min-height: 200px;
+    transition: all 0.3s ease;
+  }
+  /* Aspect classes */
+  .aspect-16-9 { aspect-ratio: 16/9; max-width: 100%; height: auto; }
+  .aspect-9-16 { aspect-ratio: 9/16; max-height: 240px; width: auto; }
+  .aspect-1-1 { aspect-ratio: 1/1; max-height: 240px; width: auto; }
+
+  /* LUT/Filter classes on video */
+  .lut-normal { filter: none; }
+  .lut-warm { filter: sepia(0.25) contrast(1.05) saturate(1.2) brightness(0.95); }
+  .lut-cool { filter: hue-rotate(10deg) saturate(0.85) contrast(1.02) brightness(0.98); }
+  .lut-mono { filter: grayscale(1) contrast(1.15) brightness(0.95); }
+
+  /* Editing adjust panel */
+  .editing-controls-panel {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    background: #0f172a;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .control-label {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .nle-select, .nle-slider {
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #f8fafc;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+  }
+  .nle-select:focus {
+    border-color: #6366f1;
+  }
+
+  /* Track controllers eye/speaker icons */
+  .track-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .track-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.15s;
+    outline: none;
+  }
+  .track-btn:hover {
+    background: rgba(255,255,255,0.05);
+    color: #cbd5e1;
+  }
+  .track-btn.active {
+    color: #ef4444; /* red active indicator */
+  }
+  .track-btn.muted {
+    color: #ef4444;
+  }
+  .track-hidden {
+    opacity: 0.15 !important;
+    filter: blur(1px);
+    pointer-events: none;
+  }
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    outline: none;
+    user-select: none;
+  }
+  .legacy-details summary:hover {
+    color: var(--text-secondary);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  th {
+    background: #f8fafc;
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+  td.reason {
+    color: var(--color-warn-text);
+    font-weight: 500;
+  }
+  .fix-badge {
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+  }
+  .fix-badge.material { color: #1d4ed8; }
+  .fix-badge.spec { color: #6d28d9; }
+  .fix-badge.human { color: #b91c1c; }
+
+  /* Active Pipeline Findings Box */
+  .findings-section {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  .findings-section h2 {
+    font-size: 14px;
+    color: var(--color-blocked-text);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .findings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .global-finding-item {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid var(--color-blocked);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .global-finding-item.warning {
+    border-left-color: var(--color-warn);
+    background: #fef3c7;
+    border-color: #fde68a;
+  }
+  .finding-node-lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,0,0,0.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 8px;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 36px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid #e2e8f0;
+    padding-top: 16px;
+  }
+
+  .empty {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">🎬</div>
+      <div>
+        <h1>Video Pipeline V1 Control Panel</h1>
+        <p class="subtitle">Workspace: <span id="project-name" class="highlight">—</span></p>
+      </div>
+    </div>
+    <div>
+      <a id="nav-story-map" href="story_map.html" style="text-decoration: none; padding: 8px 16px; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2); transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 12px -1px rgba(99, 102, 241, 0.35)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px -1px rgba(99, 102, 241, 0.2)';">🗺️ 故事地圖 (Story Map)</a>
+    </div>
+    <div class="run-facts">
+      <div class="fact-item">
+        <div class="fact-label">Final Video Output</div>
+        <div class="fact-val" id="final-video-link">Pending</div>
+      </div>
+      <div class="fact-item">
+        <div class="fact-label">Verify Status</div>
+        <div><span id="pass" class="badge badge-lg pass">—</span></div>
+      </div>
+      <div class="fact-item">
+        <div class="fact-label">Last Updated</div>
+        <div class="fact-val" id="updated-time">never</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Demo Notice Banner -->
+  <div id="demo-banner" style="display:none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; font-weight: 500; line-height: 1.4;">
+    💡 <strong>展示預覽模式：</strong> 找不到本機的 <code>state.json</code>。目前顯示內建的模擬資料 (ETF 與理財分析主題) 用於控制台介面展示。要載入實際運作資料，請於終端機執行 <code>python3 video_tools.py serve &lt;工作目錄&gt;</code> 後以 http 協定開啟。
+  </div>
+
+  <!-- Build Settings Sub-Header + BGM Preview Audio Player -->
+  <div class="sub-header">
+    <div class="profile-group">
+      <span class="profile-title">Build Profile:</span>
+      <span class="profile-chip">Mode: <strong id="profile-mode">—</strong></span>
+      <span class="profile-chip">Provider: <strong id="profile-provider">—</strong></span>
+      <span class="profile-chip">Graphics: <strong id="profile-graphics">—</strong></span>
+      <span class="profile-chip">Effects: <strong id="profile-effects">—</strong></span>
+    </div>
+    <div class="bgm-player-area" id="bgm-player-container">
+      <!-- Music Audio Player rendered dynamically -->
+    </div>
+  </div>
+
+  <!-- Suggested Command Banner -->
+  <div class="next-action-card" id="next-action-container">
+    <div class="next-action-title-row">
+      <div class="next-action-badge">Next Action</div>
+      <div class="next-action-text" id="next-action-val">Loading state...</div>
+    </div>
+    <div class="next-action-command-box" id="next-action-cmd-box" style="display:none; margin-top: 10px;">
+      <div class="command-box-header">
+        <span>Suggested Command</span>
+        <button class="copy-btn" onclick="copyText('next-action-cmd')">Copy</button>
+      </div>
+      <pre><code id="next-action-cmd"></code></pre>
+    </div>
+  </div>
+
+  <div class="workspace">
+    <!-- Left Column: Checklist Rail -->
+    <div class="rail-column">
+      <h2 class="column-title">Workflow Progress Rail</h2>
+      <div class="node-rail" id="node-rail">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Right Column: Node Details & QA & Final Video Player -->
+    <div class="details-column">
+      <div class="card" id="node-details-card">
+        <div class="node-detail-header">
+          <div>
+            <span class="node-num-badge" id="detail-node-id">Node —</span>
+            <h2 class="node-title" id="detail-node-title">Select a Node</h2>
+          </div>
+          <div><span class="badge" id="detail-node-status">done</span></div>
+        </div>
+        
+        <div class="node-detail-body">
+          <p class="node-desc" id="detail-node-desc">Click on any node in the left rail to view inputs, outputs, findings, and rerun commands.</p>
+          
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="meta-label">Responsible Skill</div>
+              <div class="meta-val" id="detail-node-skill">—</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Primary Output</div>
+              <div class="meta-val" id="detail-node-artifact">—</div>
+            </div>
+          </div>
+          
+          <div class="io-list">
+            <div class="io-item">
+              <strong>Inputs:</strong> <span id="detail-node-inputs">—</span>
+            </div>
+            <div class="io-item">
+              <strong>Outputs:</strong> <span id="detail-node-outputs">—</span>
+            </div>
+          </div>
+          
+          <div class="findings-box" id="detail-findings-box" style="display:none;">
+            <strong>Node Findings:</strong>
+            <div id="detail-findings-content"></div>
+          </div>
+          
+          <div class="command-box" id="detail-command-box" style="display:none;">
+            <div class="command-box-header">
+              <span>Rerun Command</span>
+              <button class="copy-btn" onclick="copyText('detail-command')">Copy</button>
+            </div>
+            <pre><code id="detail-command"></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Note: Final Video Composition Player has been relocated to the bottom NLE Editing Suite -->
+
+      <!-- QA Card -->
+      <div class="card">
+        <h2 class="card-title">Technical QA Assessment</h2>
+        <div class="qa-grid">
+          <div class="qa-score-main">
+            <div class="qa-score-num" id="qa-score">0.0</div>
+            <div class="qa-score-label">Weighted Score</div>
+          </div>
+          <div class="qa-details">
+            <p>Content Alignment: <strong id="qa-alignment">—</strong></p>
+            <p>Audio Pairing: <strong id="qa-audio-pairing">—</strong></p>
+            <div class="qa-dimensions-grid" id="qa-dimensions">
+              <!-- Dimensions dynamically loaded -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Findings/Issues Panel -->
+  <section class="findings-section" id="findings-section" style="display:none;">
+    <h2>Active Pipeline Issues & Warnings</h2>
+    <div class="findings-list" id="findings-list">
+      <!-- Warnings go here -->
+    </div>
+  </section>
+
+
+  <!-- Unified Professional NLE Video Editor -->
+  <section class="nle-timeline-section">
+    <h2>🎞️ Professional NLE Video Editor (專業剪輯工作區)</h2>
+    <p class="subtitle" style="color: #94a3b8; font-size: 12px; margin-bottom: 18px; margin-top: -12px;">
+      提供畫面比例、濾鏡與音軌混音參數控制。影片播放時紅色時間指針會自動同步在軌道上滑動。
+    </p>
+
+    <!-- NLE Upper Split Screen -->
+    <div class="nle-workspace-grid">
+      <!-- Left Column: Final Video composition player (60%) -->
+      <div class="nle-panel-card" style="min-height: 320px;">
+        <div class="nle-panel-title">📺 Final Composition Preview (影片畫面預覽)</div>
+        <div class="video-aspect-container" id="video-player-aspect-wrapper" style="flex-grow: 1;">
+          <video id="final-video-player" controls style="max-height: 320px; width: 100%; height: 100%; object-fit: contain; display: block;" class="lut-normal" preload="metadata"></video>
+          <img id="nle-image-preview" style="display: none; max-height: 320px; width: 100%; height: 100%; object-fit: contain; background: #000000; border-radius: 6px;" class="lut-normal" />
+          <div id="video-placeholder" style="display:none; color:#64748b; font-style:italic;">等待渲染出片...</div>
+        </div>
+      </div>
+
+      <!-- Right Column: NLE Controls and active meta (40%) -->
+      <div class="nle-panel-card" style="min-height: 320px;">
+        <div class="nle-panel-title">🎛️ Parameters Panel (剪輯與混音參數調整)</div>
+        
+        <div class="editing-controls-panel" style="grid-template-columns: 1fr; gap: 16px; background: transparent; border: none; padding: 0; margin-top: 0; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;">
+          <div class="control-group">
+            <span class="control-label">Aspect Ratio (預覽比例縮放)</span>
+            <select class="nle-select" id="nle-aspect-select" onchange="changeAspectRatio()" style="width: 100%; padding: 6px;">
+              <option value="16-9">🎬 16:9 橫式寬螢幕 (Landscape)</option>
+              <option value="9-16">📱 9:16 直式短影音 (Portrait)</option>
+              <option value="1-1">⬜ 1:1 正方形社交片 (Square)</option>
+            </select>
+          </div>
+          
+          <div class="control-group">
+            <span class="control-label">Color LUT (畫面濾鏡套用)</span>
+            <select class="nle-select" id="nle-lut-select" onchange="changeLutFilter()" style="width: 100%; padding: 6px;">
+              <option value="normal">原色無濾鏡 (Normal)</option>
+              <option value="warm">暖陽復古風格 (Warm)</option>
+              <option value="cool">冷調北歐風格 (Cool)</option>
+              <option value="mono">經典黑白膠卷 (Monochrome)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <span class="control-label">Playback Speed (播放速度倍率)</span>
+            <select class="nle-select" id="nle-speed-select" onchange="changePlaybackSpeed()" style="width: 100%; padding: 6px;">
+              <option value="0.5">0.5x 慢速播放</option>
+              <option value="1.0" selected>1.0x 正常速度</option>
+              <option value="1.5">1.5x 快速預覽</option>
+              <option value="2.0">2.0x 極速預覽</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <span class="control-label">BGM Mix Ratio (背景音樂大小聲)</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="range" class="nle-slider" id="bgm-volume-slider" min="0" max="100" value="50" style="flex-grow:1; height:4px; accent-color:#6366f1;" oninput="adjustBgmVolume()">
+              <span style="font-size:11px; font-family:monospace; min-width:32px; text-align:right; color: #cbd5e1;" id="bgm-vol-val">50%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline (Full Width) -->
+    <div class="timeline-container" style="position: relative; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 0; margin-top: 10px;">
+      <!-- Timeline Playhead Indicator -->
+      <div class="nle-playhead" id="nle-playhead"></div>
+      
+      <!-- Time Ruler Marks -->
+      <div class="nle-ruler" id="nle-ruler"></div>
+      
+      <div class="nle-tracks-container" id="nle-tracks-container">
+        <!-- Track Video V1 -->
+        <div class="nle-track">
+          <div class="nle-track-label" style="display:flex; justify-content:space-between; align-items:center; width:100px;">
+            <span>🎬 VIDEO V1</span>
+            <div class="track-controls">
+              <button class="track-btn active" id="btn-toggle-video" onclick="toggleTrackVisibility('video')" title="隱藏/顯示視軌">👁️</button>
+            </div>
+          </div>
+          <div class="nle-track-timeline" id="nle-track-video" style="left:100px; width:calc(100% - 100px);"></div>
+        </div>
+        
+        <!-- Track Text Overlay T1 -->
+        <div class="nle-track">
+          <div class="nle-track-label" style="display:flex; justify-content:space-between; align-items:center; width:100px;">
+            <span>💬 TEXT T1</span>
+            <div class="track-controls">
+              <button class="track-btn active" id="btn-toggle-text" onclick="toggleTrackVisibility('text')" title="隱藏/顯示字軌">👁️</button>
+            </div>
+          </div>
+          <div class="nle-track-timeline" id="nle-track-text" style="left:100px; width:calc(100% - 100px);"></div>
+        </div>
+        
+        <!-- Track Audio Music A1 -->
+        <div class="nle-track">
+          <div class="nle-track-label" style="display:flex; justify-content:space-between; align-items:center; width:100px;">
+            <span>🎵 AUDIO A1</span>
+            <div class="track-controls">
+              <button class="track-btn" id="btn-mute-audio" onclick="toggleTrackMute('audio')" title="靜音音軌">🔊</button>
+            </div>
+          </div>
+          <div class="nle-track-timeline" id="nle-track-audio" style="left:100px; width:calc(100% - 100px);"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3-Layer Timeline Section -->
+  <section class="segments-section">
+    <div class="section-header">
+      <h2>3-Layer Segment Timeline (分段階層明細)</h2>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot spec"></span> SPEC (Storyboard & Text)</span>
+        <span class="legend-item"><span class="legend-dot build"></span> BUILD (Media Output & Timeline)</span>
+        <span class="legend-item"><span class="legend-dot verify"></span> VERIFY (QA Score & Fixes)</span>
+      </div>
+    </div>
+    
+    <div class="segments-timeline" id="segments-timeline">
+      <!-- Segments dynamic -->
+    </div>
+    
+    <details class="legacy-details">
+      <summary>▸ Tabular View (Raw Segment Data)</summary>
+      <div id="segments-table-container"></div>
+    </details>
+  </section>
+
+  <footer id="footer-text">Reading route state.json every 5 seconds</footer>
+
+<script>
+let stateData = null;
+let activeNodeId = 8; // Default active node is Fallback/Profile
+
+// Financial ETF theme DEMO state used as fallback to avoid CORS / missing data blank screens
+const DEMO_STATE = {
+  "run": {
+    "project": "demo_financial_etf_importance",
+    "workdir": "/home/lio730309/video_pipeline/stock_first_run",
+    "final": "stock_first_run/final.mp4",
+    "next_action": "wait_for_generated_provider",
+    "updated": "2026-06-05T12:50:45",
+    "pass": true,
+    "build_profile": {
+      "render_profile": "stock_first",
+      "fallback_visual_provider": "pexels",
+      "motion_graphics_backend": "ffmpeg",
+      "effects_enabled": false
+    }
+  },
+  "nodes": [
+    { "node": 0, "label": "Brief", "skill": "video-workflow", "artifact": "brief.json", "status": "done", "reason": "Brief specification exists" },
+    { "node": 3, "label": "Contract", "skill": "spec-contract", "artifact": "segment_contract.json", "status": "done", "reason": "3 segments defined" },
+    { "node": 5, "label": "Audio", "skill": "audio-director", "artifact": "music_structure.json", "status": "done", "reason": "Music structure analyzed" },
+    { "node": 8, "label": "Fallback/Profile", "skill": "gap-analyzer / generative-director", "artifact": "build_profile.json", "status": "warn", "reason": "Generated requests exist in profile but manifest is pending" },
+    { "node": 9, "label": "Assembly", "skill": "editor", "artifact": "assembly_plan.json", "status": "done", "reason": "Assembly plan resolved" },
+    { "node": 10, "label": "Timeline", "skill": "editor", "artifact": "timeline_build.json", "status": "done", "reason": "Timeline compiled (3 clips)" },
+    { "node": 11, "label": "Editor Review", "skill": "editor_review", "artifact": "editor_review.json", "status": "missing", "reason": "Decision: None" },
+    { "node": 12, "label": "Verify", "skill": "verify", "artifact": "state.json", "status": "done", "reason": "Technical verify passed" },
+    { "node": 13, "label": "Render", "skill": "editor", "artifact": "final.mp4", "status": "done", "reason": "Final video rendered" },
+    { "node": 14, "label": "Effects", "skill": "effects-director", "artifact": "motion_graphics_render_plan.json", "status": "optional", "reason": "Effects disabled in profile" }
+  ],
+  "segments": [
+    {
+      "segment": 1,
+      "title": "ETF 理財的重要性",
+      "status": "done",
+      "score": 95,
+      "source": "stock",
+      "layout": "split",
+      "kind": "opening",
+      "spec": {
+        "title": "ETF 理財的重要性",
+        "story_purpose": "強調 ETF 對於現代小資族理財的便利性、低門檻以及分散單一個股風險的關鍵優勢。",
+        "visual_desc": "高空俯瞰清晨繁華的城市商務區，陽光穿過雲層灑在街道上，展現宏觀理財氛圍。",
+        "audio": { "role": "music" },
+        "text": "小資理財首選：透過 ETF 輕鬆分散投資風險",
+        "must_include": "理財"
+      },
+      "build": {
+        "provider": "pexels",
+        "selected_source": "stock_first_run/mvstock_1.mp4",
+        "timeline_in_out": "0.00s - 21.68s",
+        "generated_request": ""
+      },
+      "verify": {
+        "score": 95,
+        "status": "done",
+        "finding": "",
+        "next_action": ""
+      }
+    },
+    {
+      "segment": 2,
+      "title": "技術指標之於進出場關聯",
+      "status": "done",
+      "score": 88,
+      "source": "stock",
+      "layout": "montage",
+      "kind": "stock",
+      "spec": {
+        "title": "技術指標之於進出場關聯",
+        "story_purpose": "解釋如何使用基本技術分析指標 (例如均線黃金交叉、KD值低檔超賣) 作為 ETF 分批佈局的參考依據。",
+        "visual_desc": "在乾淨的室內辦公桌上，多螢幕顯示股票分析線圖，技術指標交錯變化。",
+        "audio": { "role": "music" },
+        "text": "搭配技術分析均線指標，尋找合適的分批買點",
+        "must_include": "指標"
+      },
+      "build": {
+        "provider": "pexels",
+        "selected_source": "stock_first_run/mvstock_2.mp4",
+        "timeline_in_out": "21.68s - 38.35s",
+        "generated_request": ""
+      },
+      "verify": {
+        "score": 88,
+        "status": "done",
+        "finding": "",
+        "next_action": ""
+      }
+    },
+    {
+      "segment": 3,
+      "title": "長期穩健資產累積",
+      "status": "done",
+      "score": 92,
+      "source": "stock",
+      "layout": "split",
+      "kind": "closing",
+      "spec": {
+        "title": "長期穩健資產累積",
+        "story_purpose": "提倡長期存股策略，展示時間的複利力量，引導觀眾建立長期投資觀念並邁向財務自由。",
+        "visual_desc": "溫暖日落光線照耀下，雙手護著一株正在土壤中發芽成長的綠色幼苗，象徵資產複利增長。",
+        "audio": { "role": "music" },
+        "text": "堅守投資紀律，讓時間幫你放大資產複利成長",
+        "must_include": "資產"
+      },
+      "build": {
+        "provider": "pexels",
+        "selected_source": "stock_first_run/mvstock_3.mp4",
+        "timeline_in_out": "38.35s - 60.02s",
+        "generated_request": ""
+      },
+      "verify": {
+        "score": 92,
+        "status": "done",
+        "finding": "",
+        "next_action": ""
+      }
+    }
+  ],
+  "next_action": "wait_for_generated_provider",
+  "findings": [
+    { "type": "warning", "node": 8, "message": "Generated asset requests exist in build_profile, but generated_asset_manifest.json has not been found yet." }
+  ],
+  "artifacts": {
+    "manifest": {
+      "music": "bgm/energetic.mp3"
+    }
+  },
+  "materials": [
+    { "name": "mvstock_1.mp4", "path": "stock_first_run/mvstock_1.mp4", "category": "raw_stock", "segment": 1, "size_bytes": 24195732 },
+    { "name": "mvseg_000.mp4", "path": "stock_first_run/mvseg_000.mp4", "category": "rendered_segment", "segment": 1, "size_bytes": 1948482 },
+    { "name": "nar_0.txt", "path": "stock_first_run/nar_0.txt", "category": "narration_text", "segment": 1, "size_bytes": 28 },
+    { "name": "mvstock_2.mp4", "path": "stock_first_run/mvstock_2.mp4", "category": "raw_stock", "segment": 2, "size_bytes": 5734646 },
+    { "name": "mvseg_001.mp4", "path": "stock_first_run/mvseg_001.mp4", "category": "rendered_segment", "segment": 2, "size_bytes": 5124456 },
+    { "name": "lbl_1.txt", "path": "stock_first_run/lbl_1.txt", "category": "label_text", "segment": 2, "size_bytes": 12 },
+    { "name": "mvstock_3.mp4", "path": "stock_first_run/mvstock_3.mp4", "category": "raw_stock", "segment": 3, "size_bytes": 5734646 },
+    { "name": "mvseg_002.mp4", "path": "stock_first_run/mvseg_002.mp4", "category": "rendered_segment", "segment": 3, "size_bytes": 4238049 },
+    { "name": "nar_2.txt", "path": "stock_first_run/nar_2.txt", "category": "narration_text", "segment": 3, "size_bytes": 19 },
+    { "name": "seg2_user.png", "path": "student_uploads/seg2_user.png", "category": "user_upload", "segment": 2, "size_bytes": 450000 }
+  ]
+};
+
+const NODE_METADATA = {
+  0: {
+    inputs: "none (initial creative step)",
+    outputs: "brief.json (project meta, theme, outlines)",
+    desc: "Defines the fundamental brief details, including project goals, theme, narration direction, and outline constraints."
+  },
+  3: {
+    inputs: "brief.json",
+    outputs: "segment_contract.json (storyboard, layout preference, audio script per segment)",
+    desc: "Specifies story purpose, visual cues, must-include elements, audio layout policies, and narration subtitle content for each segment."
+  },
+  5: {
+    inputs: "segment_contract.json",
+    outputs: "music_structure.json (audio layout analysis, beat counts)",
+    desc: "Extracts or generates audio structures, detects beats, sets clip duration expectations, and identifies section lengths."
+  },
+  8: {
+    inputs: "segment_contract.json",
+    outputs: "build_profile.json (visual sources, models, parameters), generated_asset_requests.json (optional generator cues)",
+    desc: "Determines asset pipeline layout, priority sources (e.g. stock first), resolves visual fallbacks, and outputs generator requests."
+  },
+  9: {
+    inputs: "segment_contract.json, build_profile.json",
+    outputs: "assembly_plan.json (selected clips, match ratios, requirements check)",
+    desc: "Finds and locks visual assets from local repositories or catalogs matching segment keywords, scoring clip matching rules."
+  },
+  10: {
+    inputs: "assembly_plan.json, build_profile.json, generated_asset_manifest.json (optional)",
+    outputs: "timeline_build.json (precise clip edit lists, transitions, overlays)",
+    desc: "Builds absolute edits, adjusts source boundaries (in/out points), handles layout ratios, and overlays text/effects."
+  },
+  11: {
+    inputs: "timeline_build.json",
+    outputs: "editor_review.json (edit approval, visual checks)",
+    desc: "Reviews trace gaps, ensures clip validity, and approves/flags segments before rendering."
+  },
+  12: {
+    inputs: "final.mp4, timeline_build.json",
+    outputs: "state.json, qa_report.json, verify_result.json",
+    desc: "Validates technical rendering, measures text visibility, checks audio pairings, and grades video output quality."
+  },
+  13: {
+    inputs: "timeline_build.json, motion_graphics_manifest.json (optional)",
+    outputs: "final.mp4 (rendered high-definition video)",
+    desc: "Fuses audio tracks, cuts visual clips, applies overlays, and encodes the final video."
+  },
+  14: {
+    inputs: "build_profile.json, timeline_build.json",
+    outputs: "motion_graphics_render_plan.json, motion_graphics_manifest.json (optional)",
+    desc: "Applies motion typography templates, subtitles rendering, and transitions overlays."
+  }
+};
+
+async function load() {
+  if (window.__STATE__) return window.__STATE__;
+  try {
+    const r = await fetch(`state.json?_=${Date.now()}`);
+    if (!r.ok) throw new Error(r.status);
+    document.getElementById('demo-banner').style.display = 'none';
+    return await r.json();
+  } catch (e) { 
+    console.warn("Could not load local state.json, loading built-in DEMO_STATE fallback.");
+    document.getElementById('demo-banner').style.display = 'block';
+    return DEMO_STATE; 
+  }
+}
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function fmtT(t) {
+  if (t == null) return '—';
+  const m = Math.floor(t/60), s = Math.round(t%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function copyText(id) {
+  const codeEl = document.getElementById(id);
+  if (!codeEl) return;
+  const txt = codeEl.innerText || codeEl.textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    alert("Command copied!");
+  }).catch(err => {
+    console.error("Failed to copy text: ", err);
+  });
+}
+
+function getNodeCommand(nodeId, workdir) {
+  const wd = workdir || '<workdir>';
+  switch(Number(nodeId)) {
+    case 0:
+      return `python3 video_pipeline.py --brief brief.json --out ${wd}`;
+    case 3:
+      return `python3 spec_contract.py --brief brief.json --out ${wd}`;
+    case 5:
+      return `python3 video_tools.py audio ${wd}`;
+    case 8:
+      return `python3 video_tools.py profile ${wd}\n# Or to run generated asset builder:\npython3 generated_assets.py --workdir ${wd}`;
+    case 9:
+      return `python3 video_tools.py assembly ${wd}`;
+    case 10:
+      return `python3 video_tools.py timeline ${wd}`;
+    case 11:
+      return `python3 editor_review.py ${wd}`;
+    case 12:
+      return `python3 video_tools.py verify ${wd}`;
+    case 13:
+      return `python3 video_tools.py render ${wd}`;
+    case 14:
+      return `python3 motion_graphics.py ${wd}`;
+    default:
+      return '';
+  }
+}
+
+function getNextActionDisplay(na, workdir) {
+  const wd = workdir || '<workdir>';
+  if (!na) {
+    return {
+      label: "✅ Complete — All nodes passing, final render ready",
+      cmd: "",
+      cls: "done"
+    };
+  }
+  
+  if (na.startsWith("await_material")) {
+    return {
+      label: "⏳ Awaiting Material — Add user uploads or local clips",
+      cmd: `cp <source_file> ${wd}/student_uploads/segN_user.jpg\npython3 video_tools.py verify ${wd}`,
+      cls: "wait"
+    };
+  }
+  
+  if (na.startsWith("wait_for_generated_provider")) {
+    return {
+      label: "🧪 Pending Generative Assets — Run generative director",
+      cmd: `python3 generated_assets.py --workdir ${wd}`,
+      cls: "wait"
+    };
+  }
+
+  if (na.startsWith("fix_timeline_or_assembly")) {
+    return {
+      label: "🔁 Editor Review Blocked — Review edits or assembly rules",
+      cmd: `python3 video_tools.py assembly ${wd}\npython3 video_tools.py timeline ${wd}`,
+      cls: "review"
+    };
+  }
+  
+  if (na.startsWith("route_by_verify_findings") || na.startsWith("missing_artifact")) {
+    return {
+      label: `⚠️ Pipeline Warning / Gap: ${na}`,
+      cmd: `python3 video_tools.py verify ${wd}`,
+      cls: "review"
+    };
+  }
+  
+  return {
+    label: `👉 Next Step: ${na}`,
+    cmd: `python3 video_tools.py verify ${wd}`,
+    cls: "review"
+  };
+}
+
+function selectNode(nodeId) {
+  activeNodeId = nodeId;
+  renderNodeDetails();
+  
+  // Highlight active element in checklist rail
+  document.querySelectorAll('.node-rail-item').forEach(item => {
+    if (Number(item.getAttribute('data-node-id')) === nodeId) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+function renderNodeDetails() {
+  if (!stateData) return;
+  const nodes = stateData.nodes || [];
+  const node = nodes.find(n => n.node === activeNodeId) || nodes[0];
+  if (!node) return;
+
+  const metadata = NODE_METADATA[node.node] || { inputs: "—", outputs: "—", desc: "—" };
+
+  document.getElementById('detail-node-id').textContent = `Node ${node.node}`;
+  document.getElementById('detail-node-title').textContent = node.label;
+  document.getElementById('detail-node-skill').textContent = node.skill;
+  document.getElementById('detail-node-artifact').textContent = node.artifact;
+  document.getElementById('detail-node-desc').textContent = metadata.desc;
+  
+  document.getElementById('detail-node-inputs').textContent = metadata.inputs;
+  document.getElementById('detail-node-outputs').textContent = metadata.outputs;
+  
+  // Render status badge
+  const badge = document.getElementById('detail-node-status');
+  badge.textContent = node.status;
+  badge.className = `badge ${node.status}`;
+
+  // Render command box
+  const cmd = getNodeCommand(node.node, stateData.run.workdir);
+  const cmdBox = document.getElementById('detail-command-box');
+  if (cmd) {
+    document.getElementById('detail-command').textContent = cmd;
+    cmdBox.style.display = 'block';
+  } else {
+    cmdBox.style.display = 'none';
+  }
+
+  // Node findings filtering
+  const findings = stateData.findings || [];
+  const nodeFindings = findings.filter(f => Number(f.node) === node.node);
+  const findingsBox = document.getElementById('detail-findings-box');
+  if (nodeFindings.length > 0) {
+    document.getElementById('detail-findings-content').innerHTML = nodeFindings.map(f => 
+      `<div class="finding-bullet">• ${esc(f.message)}</div>`
+    ).join('');
+    findingsBox.style.display = 'block';
+  } else if (node.status === "warn" || node.status === "blocked") {
+    document.getElementById('detail-findings-content').innerHTML = `<div class="finding-bullet">• ${esc(node.reason)}</div>`;
+    findingsBox.style.display = 'block';
+  } else {
+    findingsBox.style.display = 'none';
+  }
+}
+
+function renderNodesRail(nodes) {
+  const el = document.getElementById('node-rail');
+  if (!nodes || !nodes.length) {
+    el.innerHTML = '<div class="empty">No nodes found</div>';
+    return;
+  }
+
+  el.innerHTML = nodes.map(n => {
+    const isActive = n.node === activeNodeId ? 'active' : '';
+    const statusText = n.status === 'done' ? '✓ done' : n.status;
+    return `
+      <div class="node-rail-item ${isActive}" data-node-id="${n.node}" data-status="${n.status}" onclick="selectNode(${n.node})">
+        <div class="node-left-meta">
+          <span class="node-num-text">Node ${n.node}</span>
+          <span class="node-skill-short" title="${esc(n.skill)}">${esc(n.skill)}</span>
+        </div>
+        <div class="node-dot-wrapper">
+          <span class="node-dot"></span>
+        </div>
+        <div class="node-rail-card">
+          <span class="node-rail-title">${esc(n.label)}</span>
+          <span class="badge ${n.status}">${esc(statusText)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTimeline(segs) {
+  const el = document.getElementById('segments-timeline');
+  if (!segs || !segs.length) {
+    el.innerHTML = '<div class="empty">No segments defined</div>';
+    return;
+  }
+
+  el.innerHTML = segs.map(s => {
+    // SPEC Layer (Text focuses: Purpose, Narration text, constraints)
+    const spec = s.spec || {};
+    const specTags = [];
+    if (s.layout) specTags.push(`<span class="inline-chip">Layout Pref: ${esc(s.layout)}</span>`);
+    if (spec.must_include) specTags.push(`<span class="inline-chip highlight-chip">★ Must Include: ${esc(spec.must_include)}</span>`);
+    if (spec.audio && spec.audio.role) specTags.push(`<span class="inline-chip">🔊 Audio Role: ${esc(spec.audio.role)}</span>`);
+    if (s.kind) specTags.push(`<span class="inline-chip">Kind: ${esc(s.kind)}</span>`);
+
+    // BUILD Layer (Product focuses: video timelines, timing, actual file paths, playable players)
+    const build = s.build || {};
+    const buildTags = [];
+    if (build.provider) buildTags.push(`<span class="inline-chip">Provider: ${esc(build.provider)}</span>`);
+    if (build.timeline_in_out) buildTags.push(`<span class="inline-chip">Timeline: ${esc(build.timeline_in_out)}</span>`);
+    if (s.dur) buildTags.push(`<span class="inline-chip">Duration: ${esc(s.dur)}s</span>`);
+    if (s.start != null) buildTags.push(`<span class="inline-chip">Start: ${esc(s.start)}s</span>`);
+    if (build.generated_request) buildTags.push(`<span class="inline-chip highlight-chip">Gen Prompt: "${esc(build.generated_request)}"</span>`);
+
+    // Dynamic Video player rendering
+    let videoPreview = '';
+    if (build.selected_source) {
+      const src = build.selected_source;
+      const fileLower = src.toLowerCase();
+      if (fileLower.endsWith('.mp4') || fileLower.endsWith('.webm') || fileLower.endsWith('.ogg')) {
+        videoPreview = `
+          <div style="margin-top: 10px;">
+            <video controls src="${esc(src)}" style="max-height: 200px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1; background: #000000;" preload="metadata"></video>
+          </div>
+        `;
+      } else if (fileLower.endsWith('.png') || fileLower.endsWith('.jpg') || fileLower.endsWith('.jpeg') || fileLower.endsWith('.gif')) {
+        videoPreview = `
+          <div style="margin-top: 10px;">
+            <img src="${esc(src)}" style="max-height: 200px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1;" />
+          </div>
+        `;
+      } else {
+        videoPreview = `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">File format preview unsupported: <code>${esc(src)}</code></div>`;
+      }
+    } else {
+      videoPreview = `<div style="font-size: 11px; color: var(--color-warn-text); font-style: italic; margin-top: 4px;">No visual output compiled for this segment.</div>`;
+    }
+
+    // VERIFY Layer (Verification focuses: QA scores, audit outcomes, fix tasks)
+    const verify = s.verify || {};
+    const verifyTags = [];
+    if (verify.score != null) {
+      const isHigh = verify.score >= 90;
+      verifyTags.push(`<span class="inline-chip ${isHigh ? 'success-chip' : 'inline-chip'}">QA: ${verify.score}</span>`);
+    }
+    if (verify.finding) verifyTags.push(`<span class="inline-chip highlight-chip">Finding: ${esc(verify.finding)}</span>`);
+    if (verify.next_action) verifyTags.push(`<span class="inline-chip highlight-chip">Fix Target: ${esc(verify.next_action)}</span>`);
+
+    return `
+      <div class="segment-card">
+        <div class="segment-card-header">
+          <span class="segment-title">Segment ${s.segment}: ${esc(spec.title || s.title || `Seg ${s.segment}`)}</span>
+          <span class="segment-meta">Asset Source: <code>${esc(build.selected_source || 'pending')}</code></span>
+        </div>
+        <div class="segment-layers">
+          <div class="segment-layer spec">
+            <span class="layer-tag">SPEC</span>
+            <div class="segment-layer-content">
+              <strong>Narration / Story Purpose:</strong> ${esc(spec.story_purpose || spec.text || '—')}
+              ${specTags.length ? `<div style="margin-top: 6px;">${specTags.join('')}</div>` : ''}
+            </div>
+          </div>
+          <div class="segment-layer build">
+            <span class="layer-tag">BUILD</span>
+            <div class="segment-layer-content">
+              <strong>Timeline Product Output:</strong>
+              ${videoPreview}
+              ${buildTags.length ? `<div style="margin-top: 8px;">${buildTags.join('')}</div>` : ''}
+            </div>
+          </div>
+          <div class="segment-layer verify">
+            <span class="layer-tag">VERIFY</span>
+            <div class="segment-layer-content">
+              <strong>Verification Audit:</strong> <span class="badge ${verify.status || s.status}">${verify.status || s.status}</span>
+              ${verifyTags.length ? `<div style="margin-top: 6px;">${verifyTags.join('')}</div>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Render NLE Timeline
+function renderNleTimeline(segs, totalDur) {
+  const videoTrack = document.getElementById('nle-track-video');
+  const textTrack = document.getElementById('nle-track-text');
+  const audioTrack = document.getElementById('nle-track-audio');
+  const ruler = document.getElementById('nle-ruler');
+  
+  if (!segs || !segs.length) return;
+  
+  // Calculate total duration
+  let calculatedTotal = 0;
+  segs.forEach(s => {
+    if (s.dur == null) {
+      s.dur = 15; // default 15s for visual timeline block
+    }
+    if (s.start == null) {
+      s.start = calculatedTotal;
+    }
+    calculatedTotal = s.start + s.dur;
+  });
+  
+  const total = totalDur || calculatedTotal || 60;
+  
+  // 1. Render Ruler Marks
+  ruler.innerHTML = '';
+  const interval = total > 120 ? 20 : (total > 60 ? 10 : 5);
+  for (let t = 0; t <= total; t += interval) {
+    const pct = (t / total) * 100;
+    ruler.innerHTML += `
+      <div class="ruler-mark" style="left: ${pct}%">${t}s</div>
+    `;
+  }
+  
+  // 2. Render Video blocks V1
+  videoTrack.innerHTML = segs.map(s => {
+    const leftPct = (s.start / total) * 100;
+    const widthPct = (s.dur / total) * 100;
+    const clipName = s.build?.selected_source ? s.build.selected_source.split('/').pop() : 'pending.mp4';
+    return `
+      <div class="nle-block video" style="left: ${leftPct}%; width: ${widthPct}%;" title="Seg ${s.segment}: ${esc(s.title)}" onclick="seekVideoTo(${s.start}); highlightSegmentCard(${s.segment});">
+        Seg ${s.segment}: ${esc(s.title || 'Untitled')}
+        <span class="nle-block-subtext">🎬 ${esc(clipName)} (${s.dur.toFixed(1)}s)</span>
+      </div>
+    `;
+  }).join('');
+  
+  // 3. Render Text blocks T1
+  textTrack.innerHTML = segs.map(s => {
+    const leftPct = (s.start / total) * 100;
+    const widthPct = (s.dur / total) * 100;
+    const spec = s.spec || {};
+    const textVal = spec.text || spec.narrative || '';
+    if (!textVal) return ''; // skip if no overlay text
+    
+    return `
+      <div class="nle-block text-overlay" style="left: ${leftPct}%; width: ${widthPct}%;" title="Text Overlay: ${esc(textVal)}" onclick="seekVideoTo(${s.start}); highlightSegmentCard(${s.segment});">
+        💬 "${esc(textVal)}"
+        <span class="nle-block-subtext">Subtitle Overlay</span>
+      </div>
+    `;
+  }).join('');
+  
+  // 4. Render BGM Audio block A1
+  const bgmName = (stateData.artifacts?.manifest?.music || 'energetic.mp3').split('/').pop();
+  audioTrack.innerHTML = `
+    <div class="nle-block audio-bgm" style="left: 0%; width: 100%;" title="BGM: ${esc(bgmName)}">
+      🎵 BGM: ${esc(bgmName)}
+      <span class="nle-block-subtext">Audio Track (Spans full length)</span>
+    </div>
+  `;
+}
+
+// Render Story-Material Alignment Map
+function getMaterialIcon(category, name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const isVideo = ['mp4', 'webm', 'mov', 'avi'].includes(ext);
+  const isImage = ['png', 'jpg', 'jpeg', 'gif'].includes(ext);
+  
+  if (category === 'raw_stock') return '🎬';
+  if (category === 'rendered_segment') return '🎞️';
+  if (category === 'narration_text') return '🎙️';
+  if (category === 'label_text') return '🏷️';
+  if (category === 'user_upload') {
+    if (isVideo) return '📹';
+    if (isImage) return '🖼️';
+    return '📁';
+  }
+  return '📄';
+}
+
+function renderMaterialAlignmentMap(segs, materials) {
+  const container = document.getElementById('material-alignment-container');
+  if (!container) return;
+  if (!segs || !segs.length) {
+    container.innerHTML = '<div class="empty" style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px 0;">目前無可用段落資料</div>';
+    return;
+  }
+  
+  container.innerHTML = segs.map(s => {
+    const spec = s.spec || {};
+    
+    // Filter materials matching this segment ID
+    const segMaterials = (materials || []).filter(m => Number(m.segment) === s.segment);
+    
+    // Spec items
+    const mustIncludeTag = spec.must_include ? `
+      <div class="alignment-spec-row">
+        <div class="alignment-spec-lbl">Must Include (核心元素)</div>
+        <div class="alignment-spec-val"><span class="inline-chip highlight-chip">${esc(spec.must_include)}</span></div>
+      </div>
+    ` : '';
+    const layoutTag = s.layout ? `
+      <div class="alignment-spec-row">
+        <div class="alignment-spec-lbl">Layout Pref (排版樣式)</div>
+        <div class="alignment-spec-val"><span class="inline-chip">${esc(s.layout)}</span></div>
+      </div>
+    ` : '';
+    
+    // Materials list
+    let materialsListMarkup = '';
+    if (segMaterials.length === 0) {
+      materialsListMarkup = '<div style="color: var(--text-muted); font-style: italic; font-size: 11px; padding: 12px; text-align: center; border: 1px dashed #e2e8f0; border-radius: 8px;">目錄中無匹配此故事段落之素材檔案。</div>';
+    } else {
+      materialsListMarkup = segMaterials.map(m => {
+        const sizeMb = (m.size_bytes / (1024 * 1024)).toFixed(2);
+        const isActive = s.build && s.build.selected_source === m.path;
+        const activeBadge = isActive ? '<span class="active-clip-badge">✓ Active (採用中)</span>' : '';
+        const icon = getMaterialIcon(m.category, m.name);
+        
+        return `
+          <div class="alignment-material-item" onclick="previewMaterial('${esc(m.path)}')" title="點擊預覽此素材">
+            <div class="alignment-material-info">
+              <span class="alignment-material-name">${icon} ${esc(m.name)}</span>
+              <div class="alignment-material-meta">
+                Size: <strong>${sizeMb} MB</strong> | Type: <span class="material-category-badge ${esc(m.category)}">${esc(m.category.replace('_', ' '))}</span>
+              </div>
+            </div>
+            ${activeBadge}
+          </div>
+        `;
+      }).join('');
+    }
+    
+    return `
+      <div class="alignment-segment-card">
+        <div class="alignment-segment-header">
+          <span class="alignment-segment-title">Segment ${s.segment}: ${esc(spec.title || s.title || `Seg ${s.segment}`)}</span>
+          <span class="badge ${s.status}">${esc(s.status === 'done' ? '✓ done' : s.status)}</span>
+        </div>
+        <div class="alignment-grid">
+          <!-- Left Column: Storyboard Spec -->
+          <div class="alignment-spec-col">
+            <div class="alignment-spec-row">
+              <div class="alignment-spec-lbl">Story Purpose (故事目的)</div>
+              <div class="alignment-spec-val">${esc(spec.story_purpose || '—')}</div>
+            </div>
+            <div class="alignment-spec-row">
+              <div class="alignment-spec-lbl">Visual Cue (畫面描述)</div>
+              <div class="alignment-spec-val">${esc(spec.visual_desc || '—')}</div>
+            </div>
+            <div class="alignment-spec-row">
+              <div class="alignment-spec-lbl">Narration Subtitle (旁白字幕)</div>
+              <div class="alignment-spec-val" style="font-weight: 500; color: #1e293b;"><em>"${esc(spec.text || '—')}"</em></div>
+            </div>
+            ${mustIncludeTag}
+            ${layoutTag}
+          </div>
+          
+          <!-- Right Column: Scanned Materials -->
+          <div class="alignment-materials-col">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+              <span>📂</span> Matched Workspace Files (資料夾匹配檔案):
+            </div>
+            ${materialsListMarkup}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Jump player timeline to specific second
+function seekVideoTo(sec) {
+  const player = document.getElementById('final-video-player');
+  if (player && !isNaN(sec)) {
+    player.currentTime = sec;
+    player.play().catch(() => {});
+  }
+}
+
+// Scroll to and highlight a segment card when clicked on timeline block
+function highlightSegmentCard(segId) {
+  const cards = document.querySelectorAll('.segment-card');
+  cards.forEach(card => {
+    const headerText = card.querySelector('.segment-title').textContent;
+    if (headerText.includes(`Segment ${segId}:`)) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.borderColor = '#4f46e5';
+      card.style.boxShadow = '0 0 15px rgba(79, 70, 229, 0.3)';
+      setTimeout(() => {
+        card.style.borderColor = '';
+        card.style.boxShadow = '';
+      }, 2000);
+    }
+  });
+}
+
+// Load material preview directly in final player or as image preview
+function previewMaterial(path) {
+  const finalPlayer = document.getElementById('final-video-player');
+  const imgPreview = document.getElementById('nle-image-preview');
+  const placeholder = document.getElementById('video-placeholder');
+  
+  if (!path) return;
+  const fileLower = path.toLowerCase();
+  
+  if (fileLower.endsWith('.mp4') || fileLower.endsWith('.webm') || fileLower.endsWith('.ogg')) {
+    if (imgPreview) imgPreview.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'none';
+    if (finalPlayer) {
+      finalPlayer.style.display = 'block';
+      finalPlayer.src = path;
+      finalPlayer.play().catch(() => {});
+    }
+  } else if (fileLower.endsWith('.png') || fileLower.endsWith('.jpg') || fileLower.endsWith('.jpeg') || fileLower.endsWith('.gif')) {
+    if (finalPlayer) {
+      finalPlayer.pause();
+      finalPlayer.style.display = 'none';
+    }
+    if (placeholder) placeholder.style.display = 'none';
+    if (imgPreview) {
+      imgPreview.style.display = 'block';
+      imgPreview.src = path;
+    }
+  } else {
+    alert("Unsupported file preview format: " + path);
+  }
+}
+
+// Aspect ratio modifier
+function changeAspectRatio() {
+  const wrapper = document.getElementById('video-player-aspect-wrapper');
+  const sel = document.getElementById('nle-aspect-select').value;
+  wrapper.className = "video-aspect-container"; // reset
+  wrapper.classList.add('aspect-' + sel);
+}
+
+// Color filter LUT modifier
+function changeLutFilter() {
+  const player = document.getElementById('final-video-player');
+  const imgPreview = document.getElementById('nle-image-preview');
+  const sel = document.getElementById('nle-lut-select').value;
+  
+  if (player) {
+    player.className = ""; // reset
+    player.classList.add('lut-' + sel);
+  }
+  if (imgPreview) {
+    imgPreview.className = ""; // reset
+    imgPreview.classList.add('lut-' + sel);
+  }
+}
+
+// Playback speed rate modifier
+function changePlaybackSpeed() {
+  const player = document.getElementById('final-video-player');
+  const sel = document.getElementById('nle-speed-select').value;
+  player.playbackRate = parseFloat(sel);
+}
+
+// Volume mixing slider control
+function adjustBgmVolume() {
+  const slider = document.getElementById('bgm-volume-slider');
+  const volVal = document.getElementById('bgm-vol-val');
+  const vol = parseFloat(slider.value);
+  volVal.textContent = vol + '%';
+  
+  const bgmAudio = document.querySelector('#bgm-player-container audio');
+  if (bgmAudio) {
+    bgmAudio.volume = vol / 100;
+  }
+}
+
+// Track visibility toggler
+let trackVis = { video: true, text: true };
+function toggleTrackVisibility(track) {
+  trackVis[track] = !trackVis[track];
+  const btn = document.getElementById('btn-toggle-' + track);
+  const player = document.getElementById('final-video-player');
+  const timelineTrack = document.getElementById('nle-track-' + track);
+  
+  if (trackVis[track]) {
+    btn.classList.add('active');
+    btn.textContent = '👁️';
+    if (timelineTrack) timelineTrack.classList.remove('track-hidden');
+    if (track === 'video' && player) player.style.opacity = '1';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '🕶️';
+    if (timelineTrack) timelineTrack.classList.add('track-hidden');
+    if (track === 'video' && player) player.style.opacity = '0';
+  }
+}
+
+// Track mute toggler
+let trackMute = { audio: false };
+function toggleTrackMute(track) {
+  trackMute[track] = !trackMute[track];
+  const btn = document.getElementById('btn-mute-' + track);
+  const bgmAudio = document.querySelector('#bgm-player-container audio');
+  
+  if (trackMute[track]) {
+    btn.classList.add('muted');
+    btn.textContent = '🔇';
+    if (track === 'audio' && bgmAudio) bgmAudio.muted = true;
+  } else {
+    btn.classList.remove('muted');
+    btn.textContent = '🔊';
+    if (track === 'audio' && bgmAudio) bgmAudio.muted = false;
+  }
+}
+
+function render(s) {
+  if (!s) return;
+  stateData = s;
+
+  const imgPreview = document.getElementById('nle-image-preview');
+  if (imgPreview) imgPreview.style.display = 'none';
+
+  // Update navigation link for self-contained compiles
+  const navLink = document.getElementById('nav-story-map');
+  if (navLink) {
+    const isSelfContained = window.__STATE__ || window.location.pathname.endsWith('_view.html');
+    if (isSelfContained) {
+      navLink.href = 'story_map_view.html';
+    } else {
+      navLink.href = 'story_map.html';
+    }
+  }
+
+  // Header Values
+  document.getElementById('project-name').textContent = s.run.project || '—';
+  document.getElementById('updated-time').textContent = s.run.updated || '—';
+  
+  const passEl = document.getElementById('pass');
+  passEl.textContent = s.run.pass ? '✅ PASS' : '❌ NOT PASSING';
+  passEl.className = `badge ${s.run.pass ? 'pass' : 'fail'}`;
+
+  const finalVideoEl = document.getElementById('final-video-link');
+  const finalPlayer = document.getElementById('final-video-player');
+  const videoPlaceholder = document.getElementById('video-placeholder');
+  
+  if (s.run.final) {
+    const filename = s.run.final.split('/').pop().split('\\').pop();
+    finalVideoEl.innerHTML = `<a href="${esc(s.run.final)}" target="_blank">🎥 ${esc(filename)}</a>`;
+    
+    // Only set src if changed to avoid interruption
+    const currentSrc = finalPlayer.getAttribute('src');
+    const newSrc = esc(s.run.final);
+    if (currentSrc !== newSrc) {
+      finalPlayer.src = newSrc;
+    }
+    finalPlayer.style.display = 'block';
+    if (videoPlaceholder) videoPlaceholder.style.display = 'none';
+  } else {
+    finalVideoEl.innerHTML = `<em>Pending Render</em>`;
+    finalPlayer.style.display = 'none';
+    if (videoPlaceholder) videoPlaceholder.style.display = 'block';
+  }
+
+  // Build Profile Summary
+  const profile = s.run.build_profile || {};
+  document.getElementById('profile-mode').textContent = profile.render_profile || '—';
+  document.getElementById('profile-provider').textContent = profile.fallback_visual_provider || '—';
+  document.getElementById('profile-graphics').textContent = profile.motion_graphics_backend || '—';
+  document.getElementById('profile-effects').textContent = profile.effects_enabled ? 'Enabled' : 'Disabled';
+
+  // Dynamic BGM Player
+  const bgmAudio = s.artifacts && s.artifacts.manifest && s.artifacts.manifest.music;
+  const bgmContainer = document.getElementById('bgm-player-container');
+  if (bgmAudio) {
+    bgmContainer.innerHTML = `
+      <span class="profile-title">BGM Audio:</span>
+      <audio controls src="${esc(bgmAudio)}" style="height: 30px; width: 200px; outline: none; border-radius: 4px; vertical-align: middle;"></audio>
+    `;
+    bgmContainer.style.display = 'flex';
+  } else {
+    bgmContainer.innerHTML = '';
+    bgmContainer.style.display = 'none';
+  }
+
+  // Next Action Banner
+  const naInfo = getNextActionDisplay(s.next_action, s.run.workdir);
+  const naContainer = document.getElementById('next-action-container');
+  naContainer.className = `next-action-card ${naInfo.cls}`;
+  document.getElementById('next-action-val').textContent = naInfo.label;
+
+  const naCmdBox = document.getElementById('next-action-cmd-box');
+  if (naInfo.cmd) {
+    document.getElementById('next-action-cmd').textContent = naInfo.cmd;
+    naCmdBox.style.display = 'block';
+  } else {
+    naCmdBox.style.display = 'none';
+  }
+
+  // Node rail & detail
+  renderNodesRail(s.nodes);
+  renderNodeDetails();
+
+  // QA breakdown details
+  const qa = (s.artifacts && s.artifacts.verify_result && s.artifacts.verify_result.qa) || (s.dashboard && s.dashboard.qa) || {};
+  document.getElementById('qa-score').textContent = qa.score != null ? Number(qa.score).toFixed(1) : '—';
+  document.getElementById('qa-alignment').textContent = qa.content_alignment != null ? qa.content_alignment : '—';
+  document.getElementById('qa-audio-pairing').textContent = qa.audio_pairing != null ? qa.audio_pairing : '—';
+
+  // QA dimensions
+  const dims = qa.dimensions || {};
+  const dimsEl = document.getElementById('qa-dimensions');
+  const dimsEntries = Object.entries(dims);
+  if (dimsEntries.length > 0) {
+    dimsEl.innerHTML = dimsEntries.map(([k, v]) => {
+      const scoreVal = v.score != null ? v.score : v;
+      const scoreClsName = scoreVal >= 90 ? 'high' : scoreVal >= 60 ? 'mid' : 'low';
+      return `
+        <div class="qa-dim-card">
+          <div class="qa-dim-lbl">${esc(k.replace(/_/g, ' '))}</div>
+          <div class="qa-dim-val ${scoreClsName}">${scoreVal}</div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    dimsEl.innerHTML = '';
+  }
+
+  // Global Warnings & Issues section
+  const findings = s.findings || [];
+  const findingsSect = document.getElementById('findings-section');
+  if (findings.length > 0) {
+    findingsSect.style.display = 'block';
+    document.getElementById('findings-list').innerHTML = findings.map(f => {
+      const isWarn = f.type === 'warning';
+      return `
+        <div class="global-finding-item ${isWarn ? 'warning' : 'blocked'}">
+          <div>
+            <span class="finding-node-lbl">Node ${f.node}</span>
+            <span>${esc(f.message)}</span>
+          </div>
+          <span class="badge ${isWarn ? 'warn' : 'blocked'}">${f.type}</span>
+        </div>
+      `;
+    }).join('');
+  } else {
+    findingsSect.style.display = 'none';
+  }
+
+  // Story-Material Map Alignment Block (Separate block)
+  renderMaterialAlignmentMap(s.segments, s.materials);
+
+  // NLE Timeline (Capsule & Tracks)
+  const totalDur = s.total_dur || (s.dashboard && s.dashboard.total_dur);
+  renderNleTimeline(s.segments, totalDur);
+
+  // Bind playhead tracking to the Final Video Player
+  if (finalPlayer) {
+    // Remove old listeners to avoid multiple binds on refresh
+    const newPlayer = finalPlayer.cloneNode(true);
+    finalPlayer.parentNode.replaceChild(newPlayer, finalPlayer);
+    
+    newPlayer.addEventListener('timeupdate', () => {
+      const dur = newPlayer.duration || totalDur || 60;
+      const current = newPlayer.currentTime;
+      const pct = (current / dur) * 100;
+      
+      const playhead = document.getElementById('nle-playhead');
+      if (playhead) {
+        playhead.style.left = `calc(100px + ${pct}% - 100px * ${current / dur})`;
+      }
+
+      // Highlight active segment under playhead
+      let activeSeg = null;
+      let calculatedTotal = 0;
+      s.segments.forEach(sg => {
+        const d = sg.dur || 15;
+        const st = sg.start != null ? sg.start : calculatedTotal;
+        calculatedTotal = st + d;
+        if (current >= st && current <= calculatedTotal) {
+          activeSeg = sg.segment;
+        }
+      });
+      
+      document.querySelectorAll('.nle-block.video').forEach(block => {
+        const title = block.getAttribute('title') || '';
+        if (activeSeg && title.startsWith(`Seg ${activeSeg}:`)) {
+          block.style.boxShadow = '0 0 12px #ffffff, inset 0 1px 0 rgba(255,255,255,0.2)';
+          block.style.borderColor = '#ffffff';
+        } else {
+          block.style.boxShadow = '';
+          block.style.borderColor = '';
+        }
+      });
+    });
+  }
+
+  // 3-Layer Timeline
+  renderTimeline(s.segments);
+
+  // Tabular Legacy View
+  const segs = s.segments || [];
+  const tableContainer = document.getElementById('segments-table-container');
+  if (segs.length > 0) {
+    tableContainer.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Segment</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Source</th>
+            <th>Layout</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Fix Class</th>
+            <th>Audit Log</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${segs.map(g => `
+            <tr>
+              <td>${g.segment}</td>
+              <td>${esc(g.title || g.spec?.title || '')}</td>
+              <td>${esc(g.kind || '')}</td>
+              <td>${esc(g.source || '')}</td>
+              <td>${esc(g.layout || '')}</td>
+              <td><span class="badge ${g.status}">${g.status}</span></td>
+              <td>${g.score != null ? g.score : '—'}</td>
+              <td>${g.fix_class ? `<span class="fix-badge ${g.fix_class}">${g.fix_class} → ${g.fix_target || '—'}</span>` : '—'}</td>
+              <td class="reason">${esc(g.block_reason || '')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else {
+    tableContainer.innerHTML = '<div class="empty">No tabular details available</div>';
+  }
+}
+
+async function tick() {
+  const data = await load();
+  if (data) {
+    render(data);
+  }
+}
+
+// Initial Run
+tick();
+
+// Auto-refresh only if not in static embedded mode (window.__STATE__ is not defined)
+if (!window.__STATE__) {
+  setInterval(tick, 5000);
+}
+</script>
+</body>
+</html>

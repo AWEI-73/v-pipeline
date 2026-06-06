@@ -1,0 +1,17 @@
+{
+  "video_type": "graduation_mv",
+  "spec_start_mode": "script_first",
+  "can_reshoot": true,
+  "fallback_policy": "reshoot_first",
+  "review_level": "high",
+  "audience": "learners, managers, and internal archive viewers",
+  "target_length": "3-5 minutes",
+  "tone": "energetic, formal, commemorative",
+  "must_include": [
+    "director or senior leader",
+    "team chant",
+    "group photo",
+    "hands-on training",
+    "closing blessing"
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "style": "mv",
+  "bgm": "calm",
+  "segments": [
+    {
+      "segment": 1,
+      "title": "片頭",
+      "kind": "title",
+      "title_sequence": {
+        "text": "理財與 ETF 全攻略",
+        "subtitle": "用技術分析掌握勝率",
+        "anim": "fade"
+      },
+      "duration_sec": 5,
+      "text": "學會理財，是現代人掌握財富主動權的第一步。"
+    },
+    {
+      "segment": 2,
+      "title": "理財的重要",
+      "media_pref": "photo",
+      "search_query": "wealth accumulation progress",
+      "visual_desc": "極簡特寫：一個沙漏中裝滿發光的金幣，金幣隨著時間緩慢流下，背景是溫暖且柔和的微光",
+      "duration_sec": 7,
+      "text": "只靠存錢無法抵禦通膨，理財是讓資產持續增值的關鍵。"
+    },
+    {
+      "segment": 3,
+      "title": "什麼是 ETF",
+      "media_pref": "photo",
+      "search_query": "diversified stock index globe",
+      "visual_desc": "緊湊特寫：一個精緻的透明發光魔方，每個刻面上都顯示著不同的股市指數代碼，冷色調高科技感",
+      "duration_sec": 7,
+      "text": "而 ETF 即指數股票型基金，讓你一次買進一籃子優質標的。"
+    },
+    {
+      "segment": 4,
+      "title": "ETF 分散風險",
+      "media_pref": "photo",
+      "search_query": "financial shield security",
+      "visual_desc": "象徵構圖：一個由金色發光線條織成的防護罩保護著一棵小嫩芽，代表穩健與安全感，微距鏡頭",
+      "duration_sec": 7,
+      "text": "透過分散投資，它能有效降低單一個股暴跌帶來的風險。"
+    },
+    {
+      "segment": 5,
+      "title": "技術面的關聯",
+      "media_pref": "photo",
+      "search_query": "stock chart moving average screen",
+      "visual_desc": "螢幕特寫：發光的股票日K線圖表，上面疊加著平滑的黃金交叉均線，綠色與紅色的線條對比強烈",
+      "duration_sec": 7,
+      "text": "除了長期持有，結合技術分析，能幫我們看懂市場趨勢。"
+    },
+    {
+      "segment": 6,
+      "title": "波段進場點",
+      "media_pref": "photo",
+      "search_query": "trading desk candle chart focus",
+      "visual_desc": "視角特寫：交易員桌面上多個螢幕顯示著即時K線圖與量能柱狀圖，前景散落著筆記本與發光的平板電腦",
+      "duration_sec": 7,
+      "text": "利用均線與成交量，我們可以更精準地判斷波段的進場與加碼時機。"
+    },
+    {
+      "segment": 7,
+      "title": "穩健與精準結合",
+      "media_pref": "photo",
+      "search_query": "financial balance gear precision",
+      "visual_desc": "機械特寫：金色與銀色的精密齒輪互相嚙合，齒輪中刻有貨幣符號與趨勢向上折線，精準運作的工業風",
+      "duration_sec": 7,
+      "text": "將 ETF 的穩健配置，與技術指標的精準進場結合，能大幅提高投資勝率。"
+    },
+    {
+      "segment": 8,
+      "title": "結尾",
+      "kind": "title",
+      "title_sequence": {
+        "text": "理財，從現在開始",
+        "subtitle": "精準理財 • 穩健致富",
+        "anim": "slide-up"
+      },
+      "duration_sec": 5,
+      "text": "現在就開始規劃，用科學方法建立你的財富系統。"
+    }
+  ]
+}

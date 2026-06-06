@@ -1,0 +1,66 @@
+# ── secrets (never commit) ───────────────────────────────────────────────────
+.env
+
+# ── run outputs (media / per-run artifacts) ──────────────────────────────────
+*.mp4
+*.wav
+*.mp3
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+
+# run logs
+*.log
+
+# per-run JSON artifacts (regenerated each run)
+nightmarket/audio/
+nightmarket/materials/
+nightmarket/prepick_thumbs/
+nightmarket/picks.json
+nightmarket/candidates.json
+nightmarket/precompose_gate.json
+nightmarket/edit_log.json
+nightmarket/qa_report.json
+nightmarket/content_qa.json
+nightmarket/final.mp4
+nightmarket/polished_visual.mp4
+nightmarket/subtitles.srt
+
+coffee_v2/
+
+# per-run output dirs (regenerated; only the source script.json matters)
+*_out/
+runs/
+tmp_runs/
+video_pipeline_projects/
+
+# local project pointer; real project data lives outside the repo
+.project/
+
+# NTFS alternate-data-stream marker (Windows download artifact)
+*Zone.Identifier
+
+# local ComfyUI side-project WIP (kept out of this repo's commits)
+comfy_client.py
+test_comfy.py
+install_comfy.ps1
+txt2img_workflow.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.graphify_python
+
+# graphify staging / temp
+.graphify_*.json
+.graphify_*.txt
+graphify-out/cache/
+
+# ── keep in git (design + knowledge graph outputs) ───────────────────────────
+# roadmap.md, HANDOFF.md, skills/*.md, design/*.md — tracked by default
+# nightmarket/script.json, nightmarket/decision_log.example.json — tracked
+# graphify-out/GRAPH_REPORT.md, graph.json, graph.html — tracked (handoff value)
+_fullpool/

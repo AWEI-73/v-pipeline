@@ -1,0 +1,51 @@
+{
+  "_note": "通用結訓 MV E2E：故事開場(Pexels 橋段)→ 紀實(真學員素材 local)→ ending(Pexels)。激勵音樂。展示三源混合 + 兩段型(montage+音樂 / 主任勉勵·隊呼 hold+原音)。",
+  "style": "mv",
+  "music": { "brief": "inspiring uplifting cinematic motivational graduation 激勵 熱血 instrumental", "source": "yt", "max_dur": 180 },
+  "segments": [
+    {
+      "segment": 1, "kind": "opening", "source": "stock",
+      "search_query": "sunrise over mountains hopeful cinematic",
+      "visual_desc": "日出晨光、充滿希望的開場空鏡",
+      "narrative": "傳承精技 篤學不倦",
+      "high_weight": true, "needs_review": true, "audio_role": "music"
+    },
+    {
+      "segment": 2, "source": "local", "material_hint": "班級日常生活",
+      "layout": "montage", "pace": "fast",
+      "visual_desc": "學員在教室上課、專注學習的日常",
+      "audio_role": "music"
+    },
+    {
+      "segment": 3, "source": "local", "material_hint": "拖拉電纜",
+      "layout": "montage", "pace": "fast",
+      "visual_desc": "學員戶外協力拖拉電纜、團隊合作的實作訓練",
+      "label": "電纜佈設實作", "audio_role": "music"
+    },
+    {
+      "segment": 4, "source": "local", "material_hint": "公安體感",
+      "layout": "montage", "pace": "fast",
+      "visual_desc": "學員進行公安體感與技能演練",
+      "audio_role": "music"
+    },
+    {
+      "segment": 5, "source": "local", "material_hint": "主任勉勵",
+      "must_include": "主任勉勵", "hold": true, "keep_audio": true,
+      "visual_desc": "主任在台上對學員勉勵講話",
+      "audio_role": "duck", "needs_review": true, "subtitle": "auto",
+      "name_super": { "text": "○○○", "title": "主任" }
+    },
+    {
+      "segment": 6, "source": "local", "material_hint": "優良班隊呼範例",
+      "hold": true, "keep_audio": true,
+      "visual_desc": "班級齊聲喊隊呼、士氣高昂",
+      "label": "班隊呼", "subtitle": "auto", "audio_role": "diegetic"
+    },
+    {
+      "segment": 7, "kind": "closing", "source": "stock",
+      "search_query": "team success celebration bright future",
+      "visual_desc": "邁向未來、團隊成功慶祝的收尾意象",
+      "high_weight": true, "needs_review": true, "audio_role": "music"
+    }
+  ]
+}

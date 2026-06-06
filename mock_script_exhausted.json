@@ -1,0 +1,18 @@
+[
+  {
+    "segment": 1,
+    "title": "溫暖小貓",
+    "media_pref": "photo",
+    "search_query": "cute sleeping kitten fluffy warm light",
+    "duration_sec": 5,
+    "text": "一隻溫暖的小貓正甜甜地睡著，陽光灑在她柔順的毛髮上。"
+  },
+  {
+    "segment": 2,
+    "title": "無人深空",
+    "media_pref": "video",
+    "search_query": "xyzlmnopgarbagequerythatwillreturnabsolutelyzeroresults",
+    "duration_sec": 5,
+    "text": "在最深最遠的夜空中，只有一片虛無。"
+  }
+]

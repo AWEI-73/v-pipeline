@@ -1,0 +1,55 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "music": {"brief": "輕快、溫馨", "query": "happy upbeat family event", "source": "yt"},
+  "segments": [
+    {
+      "segment": 1,
+      "core": {"section_role": "opening", "story_purpose": "開場全景帶出家庭日的規模與氣氛",
+               "timeline_source": "fixed", "review_required": true},
+      "material_fit": {"category": "venue_establishing", "visual_desc": "活動場地開場全景",
+                       "material_hint": "全景", "must_include": "開場全景",
+                       "collection_instructions": "拍場地全景/布置", "fallback_policy": "stock_bridge",
+                       "reason": "開場高權重"},
+      "audio": {"role": "music", "reason": "開場音樂定調"},
+      "text_layer": {"narrative": "2026 家庭日", "reason": "片頭點題"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "緩起"}
+    },
+    {
+      "segment": 2,
+      "core": {"section_role": "montage", "story_purpose": "快剪闖關活動展示熱鬧",
+               "timeline_source": "beat", "review_required": false},
+      "material_fit": {"category": "booth_games", "visual_desc": "闖關攤位活動",
+                       "material_hint": "闖關", "must_include": "闖關活動",
+                       "collection_instructions": "拍攤位互動動態", "fallback_policy": "stock_bridge",
+                       "reason": "活動主體"},
+      "audio": {"role": "music", "reason": "快剪由音樂帶"},
+      "text_layer": {"label": "闖關闖關", "reason": "標註活動"},
+      "visual_style": {"layout": "montage", "pace": "fast", "reason": "快剪熱鬧"}
+    },
+    {
+      "segment": 3,
+      "core": {"section_role": "montage", "story_purpose": "眷屬抓拍堆疊溫馨感",
+               "timeline_source": "beat", "review_required": false},
+      "material_fit": {"category": "candid_family", "visual_desc": "員工與家人互動抓拍",
+                       "material_hint": "家庭", "collection_instructions": "抓親子自然笑容",
+                       "fallback_policy": "stock_bridge", "reason": "情感堆疊"},
+      "audio": {"role": "music", "reason": "音樂主導"},
+      "text_layer": "none",
+      "visual_style": {"layout": "montage", "pace": "fast", "reason": "情緒蒙太奇"}
+    },
+    {
+      "segment": 4,
+      "core": {"section_role": "closing", "story_purpose": "大合照收尾",
+               "timeline_source": "fixed", "review_required": true},
+      "material_fit": {"category": "group_photo", "visual_desc": "全體大合照",
+                       "material_hint": "大合照", "must_include": "大合照",
+                       "collection_instructions": "全體入鏡清晰合照", "fallback_policy": "stock_bridge",
+                       "reason": "收尾必放,identity-sensitive"},
+      "audio": {"role": "music", "reason": "收束情緒"},
+      "text_layer": {"narrative": "明年見", "reason": "收尾"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "緩收"}
+    }
+  ]
+}

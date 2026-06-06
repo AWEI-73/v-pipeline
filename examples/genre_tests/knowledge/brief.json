@@ -1,0 +1,11 @@
+{
+  "video_type": "knowledge",
+  "spec_start_mode": "script_first",
+  "can_reshoot": false,
+  "fallback_policy": "generated_first",
+  "review_level": "normal",
+  "audience": "一般大眾",
+  "target_length": "60-90 seconds",
+  "tone": "清楚、專業、易懂",
+  "must_include": []
+}

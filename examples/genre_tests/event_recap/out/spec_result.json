@@ -1,0 +1,112 @@
+{
+  "genre": "event_recap",
+  "node_0_1_brief_validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "node_3_contract_validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [
+      "[montage] 高權重/必放/原音段建議 core.review_required=true"
+    ]
+  },
+  "node_8_fallback_per_segment": [
+    {
+      "segment": 1,
+      "category": "venue_establishing",
+      "selected_route": "dashboard_review",
+      "review_required": true
+    },
+    {
+      "segment": 2,
+      "category": "booth_games",
+      "selected_route": "dashboard_review",
+      "review_required": true
+    },
+    {
+      "segment": 3,
+      "category": "candid_family",
+      "selected_route": "stock_bridge",
+      "review_required": false
+    },
+    {
+      "segment": 4,
+      "category": "group_photo",
+      "selected_route": "dashboard_review",
+      "review_required": true
+    }
+  ],
+  "adapter_generated_mv_script": {
+    "style": "mv",
+    "segments": [
+      {
+        "segment": 1,
+        "_from_contract": 1,
+        "visual_desc": "活動場地開場全景",
+        "needs_review": true,
+        "weight": 1.3,
+        "kind": "opening",
+        "material_hint": "全景",
+        "must_include": "開場全景",
+        "pace": "hold",
+        "hold": true,
+        "audio_role": "music",
+        "narrative": "2026 家庭日"
+      },
+      {
+        "segment": 2,
+        "_from_contract": 2,
+        "visual_desc": "闖關攤位活動",
+        "needs_review": false,
+        "weight": 1.0,
+        "material_hint": "闖關",
+        "must_include": "闖關活動",
+        "layout": "montage",
+        "pace": "fast",
+        "audio_role": "music",
+        "label": "闖關闖關"
+      },
+      {
+        "segment": 3,
+        "_from_contract": 3,
+        "visual_desc": "員工與家人互動抓拍",
+        "needs_review": false,
+        "weight": 1.0,
+        "material_hint": "家庭",
+        "layout": "montage",
+        "pace": "fast",
+        "audio_role": "music"
+      },
+      {
+        "segment": 4,
+        "_from_contract": 4,
+        "visual_desc": "全體大合照",
+        "needs_review": true,
+        "weight": 1.3,
+        "kind": "closing",
+        "material_hint": "大合照",
+        "must_include": "大合照",
+        "pace": "hold",
+        "hold": true,
+        "audio_role": "music",
+        "narrative": "明年見"
+      }
+    ],
+    "music": {
+      "brief": "輕快、溫馨",
+      "query": "happy upbeat family event",
+      "source": "yt"
+    }
+  },
+  "mv_script_validation": {
+    "can_run": true,
+    "status": "warning",
+    "errors": []
+  },
+  "generality_boundary_findings": [
+    "video_type=event_recap:非已調校題材(僅 graduation_mv 跑通過)。"
+  ],
+  "spec_end_verdict": "SPEC 端全通(含 adapter→既有鏈)"
+}

@@ -1,0 +1,44 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "narrative",
+  "music": {"brief": "輕柔背景、不搶旁白", "query": "calm background", "source": "yt"},
+  "segments": [
+    {
+      "segment": 1,
+      "core": {"section_role": "opening", "story_purpose": "用 hook 引入主題",
+               "timeline_source": "tts", "review_required": true},
+      "material_fit": {"category": "concept_broll", "visual_desc": "主題概念開場畫面",
+                       "material_hint": "concept", "collection_instructions": "找對應主題的 stock/生成 B-roll",
+                       "fallback_policy": "generated_first", "reason": "概念性,非真實事件"},
+      "audio": {"role": "duck", "voiceover_policy": "tts", "original_audio_policy": "drop",
+                "music_intent": "輕柔墊底", "reason": "旁白為主、音樂壓低(narration 範式)"},
+      "text_layer": {"subtitle": "from_voiceover", "reason": "旁白轉字幕"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "配合旁白節奏"}
+    },
+    {
+      "segment": 2,
+      "core": {"section_role": "montage", "story_purpose": "用圖表解釋第一個重點",
+               "timeline_source": "tts", "review_required": false},
+      "material_fit": {"category": "diagram_or_chart", "visual_desc": "重點一的解釋圖表",
+                       "material_hint": "diagram", "collection_instructions": "做/找解釋圖表",
+                       "fallback_policy": "generated_first", "reason": "解釋性"},
+      "audio": {"role": "duck", "voiceover_policy": "tts", "music_intent": "墊底",
+                "reason": "旁白主導"},
+      "text_layer": {"label": "重點一", "subtitle": "from_voiceover", "reason": "標題+旁白字幕"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "配合講解"}
+    },
+    {
+      "segment": 3,
+      "core": {"section_role": "closing", "story_purpose": "總結與行動呼籲",
+               "timeline_source": "tts", "review_required": false},
+      "material_fit": {"category": "concept_broll", "visual_desc": "總結概念畫面",
+                       "material_hint": "concept", "collection_instructions": "找收尾概念畫面",
+                       "fallback_policy": "generated_first", "reason": "收尾"},
+      "audio": {"role": "duck", "voiceover_policy": "tts", "music_intent": "收束",
+                "reason": "旁白收尾"},
+      "text_layer": {"narrative": "了解更多", "reason": "CTA"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "收束"}
+    }
+  ]
+}

@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Pipeline Story Map (故事劇情線與素材地圖)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg-darkest: #f8fafc;
+    --bg-dark: #ffffff;
+    --bg-card: #ffffff;
+    --border-color: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    
+    --color-done: #15803d;
+    --color-done-bg: rgba(21, 128, 61, 0.1);
+    --color-done-text: #166534;
+    
+    --color-warn: #b45309;
+    --color-warn-bg: rgba(180, 83, 9, 0.1);
+    --color-warn-text: #92400e;
+    
+    --color-blocked: #b91c1c;
+    --color-blocked-bg: rgba(185, 28, 28, 0.1);
+    --color-blocked-text: #991b1b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: var(--bg-darkest);
+    color: var(--text-primary);
+    padding: 24px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* Header */
+  header {
+    background: var(--bg-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    font-size: 28px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    padding: 2px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #0f172a;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .highlight {
+    color: #4f46e5;
+    font-weight: 600;
+  }
+  .nav-btn {
+    text-decoration: none;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: var(--text-primary);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav-btn:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+
+  /* Horizontal Storyline Graph Container */
+  .storyline-section {
+    background: var(--bg-card);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  .section-title-row {
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .section-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .storyline-graph-outer {
+    width: 100%;
+    overflow-x: auto;
+    padding: 160px 0 20px 0; /* Add top padding to clear space for tooltips */
+    border-radius: 8px;
+    background: #faf5ff; /* Subtle purple-tinted landscape background */
+    border: 1px solid #f3e8ff;
+    position: relative;
+  }
+  
+  .storyline-track {
+    position: relative;
+    display: inline-flex;
+    gap: 36px; /* Spacing between compact nodes */
+    padding: 20px 40px;
+    min-width: 100%;
+    align-items: flex-start;
+  }
+
+  /* Hidden original line since we now connect with flowchart arrows */
+  .storyline-line {
+    display: none;
+  }
+
+  /* Compact Flowchart Node Card */
+  .story-node {
+    position: relative;
+    width: 170px;
+    height: 76px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #cbd5e1; /* Elegant left border showing status */
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
+    flex-shrink: 0;
+    user-select: none;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);
+  }
+  
+  /* Status border colors */
+  .story-node.status-done { border-left-color: #10b981; border-color: #a7f3d0; }
+  .story-node.status-warn { border-left-color: #f59e0b; border-color: #fef08a; }
+  .story-node.status-blocked { border-left-color: #ef4444; border-color: #fca5a5; }
+
+  /* Active State styling */
+  .story-node.active {
+    border-color: #4f46e5;
+    background: rgba(79, 70, 229, 0.01);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  }
+  .story-node.active.status-done { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+  .story-node.active.status-warn { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+  .story-node.active.status-blocked { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+
+  /* Hover scaling */
+  .story-node:hover {
+    transform: translateY(-2px);
+    border-color: #6366f1;
+    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.1);
+  }
+
+  /* Arrow connector between cards */
+  .story-node::after {
+    content: '➔';
+    position: absolute;
+    right: -24px; /* Positioned in the middle of the 36px gap */
+    top: 50%;
+    transform: translateY(-50%);
+    color: #cbd5e1;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .story-node:hover::after {
+    color: #818cf8;
+    transform: translateY(-50%) scale(1.1);
+  }
+  .story-node:last-child::after {
+    display: none;
+  }
+
+  /* Node Header details */
+  .story-node-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+  
+  /* Segment Badge */
+  .segment-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .story-node.status-done .segment-badge { background: var(--color-done-bg); color: var(--color-done-text); }
+  .story-node.status-warn .segment-badge { background: var(--color-warn-bg); color: var(--color-warn-text); }
+  .story-node.status-blocked .segment-badge { background: var(--color-blocked-bg); color: var(--color-blocked-text); }
+
+  /* Layout/Kind Badge */
+  .layout-badge {
+    font-size: 8px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+  }
+
+  /* Card Title */
+  .story-node-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin: 4px 0;
+    text-align: left;
+    width: 100%;
+  }
+
+  /* Card Footer */
+  .story-node-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+  
+  .materials-count {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 500;
+  }
+  
+  .status-pill {
+    font-weight: 700;
+    text-transform: lowercase;
+  }
+  .story-node.status-done .status-pill { color: #10b981; }
+  .story-node.status-warn .status-pill { color: #d97706; }
+  .story-node.status-blocked .status-pill { color: #ef4444; }
+
+  /* Tooltip box styling */
+  .story-node-tooltip {
+    position: absolute;
+    bottom: calc(100% + 12px); /* Position above the node circle */
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    width: 240px;
+    background: #0f172a; /* Sleek dark tooltip */
+    color: #f8fafc;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+    max-height: 140px;
+    overflow-y: auto;
+  }
+  /* Tooltip arrow */
+  .story-node-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+  }
+  .story-node:hover .story-node-tooltip,
+  .story-node.active .story-node-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  .story-node:hover .story-node-tooltip {
+    z-index: 101; /* Hovered card tooltip draws on top of active card tooltip */
+  }
+
+  /* Badge styling */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge.done { background: var(--color-done-bg); color: var(--color-done-text); }
+  .badge.warn { background: var(--color-warn-bg); color: var(--color-warn-text); }
+  .badge.blocked { background: var(--color-blocked-bg); color: var(--color-blocked-text); }
+
+  /* Details Workspace Layout */
+  .workspace-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 900px) {
+    .workspace-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Specs list styled inside left card */
+  .spec-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .spec-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px dashed #f1f5f9;
+  }
+  .spec-row:last-child {
+    border-bottom: none;
+  }
+  .spec-lbl {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4f46e5;
+    background: rgba(79, 70, 229, 0.06);
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    min-width: 140px;
+    text-align: center;
+  }
+  .spec-val {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.5;
+    flex-grow: 1;
+  }
+
+  /* Right column materials & previewer */
+  .material-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .materials-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .material-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .material-item:hover {
+    border-color: #6366f1;
+    background: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.08);
+  }
+  .material-item.active {
+    border-color: #4f46e5;
+    background: rgba(79, 70, 229, 0.01);
+  }
+  .material-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-grow: 1;
+    margin-right: 8px;
+  }
+  .material-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+  .material-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .active-badge {
+    background: #22c55e;
+    color: #ffffff;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+  }
+  .category-badge {
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .category-badge.raw_stock { background: #dbeafe; color: #1e40af; }
+  .category-badge.rendered_segment { background: #dcfce7; color: #15803d; }
+  .category-badge.user_upload { background: #f3e8ff; color: #6d28d9; }
+  .category-badge.narration_text { background: #ffedd5; color: #c2410c; }
+  .category-badge.label_text { background: #fef3c7; color: #b45309; }
+
+  /* Media Previewer Area */
+  .preview-box {
+    background: #0f172a;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    padding: 16px;
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    color: #94a3b8;
+  }
+  .preview-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    z-index: 5;
+  }
+  .preview-placeholder {
+    font-style: italic;
+    font-size: 13px;
+  }
+  .preview-media-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .preview-video {
+    max-height: 220px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+  .preview-img {
+    max-height: 220px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+  .preview-text {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    color: #f8fafc;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 16px;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    text-align: left;
+  }
+
+  .inline-chip {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(0,0,0,0.03);
+    margin-right: 6px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .inline-chip.highlight-chip {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+    font-weight: 600;
+  }
+  .empty {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">🗺️</div>
+      <div>
+        <h1>Storyboard & Material Alignment Map</h1>
+        <p class="subtitle">Workspace: <span id="project-name" class="highlight">—</span></p>
+      </div>
+    </div>
+    <div>
+      <a id="nav-control-panel" href="dashboard.html" class="nav-btn">⚙️ 控制台 (Control Panel)</a>
+    </div>
+  </header>
+
+  <!-- Storyline Node Graph -->
+  <section class="storyline-section">
+    <div class="section-title-row">
+      <h2 class="section-title">🎬 Horizontally Connected Storyline (劇情故事線地圖)</h2>
+      <p class="section-desc">點擊下方故事節點 (Segments)，可於細部區塊中比對腳本規格 (Spec) 與匹配素材 (Materials)。</p>
+    </div>
+
+    <div class="storyline-graph-outer">
+      <div class="storyline-track">
+        <div class="storyline-line"></div>
+        <div id="storyline-nodes" style="display: contents;">
+          <!-- Segment nodes rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Details Workspace Layout -->
+  <div class="workspace-layout">
+    <!-- Left Column: Storyboard Spec Details -->
+    <div class="card">
+      <h2 class="card-title">📖 Creative Spec Alignment (劇本規格細節)</h2>
+      <div class="spec-col" id="spec-details-container">
+        <div class="empty">請點選上方故事節點來顯示腳本規格。</div>
+      </div>
+    </div>
+
+    <!-- Right Column: Materials and Dynamic Previewer -->
+    <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 class="card-title">📂 Workspace Materials & Live Preview (匹配素材與即時預覽)</h2>
+      
+      <div class="material-col">
+        <div class="materials-list" id="materials-list-container">
+          <div class="empty">無匹配素材資料</div>
+        </div>
+        
+        <div class="preview-box">
+          <div class="preview-title">📺 Live Asset Previewer</div>
+          <div class="preview-media-container" id="preview-media-container">
+            <span class="preview-placeholder">點選上方素材檔案以在此處即時預覽內容</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let stateData = null;
+let activeSegId = 1; // Default segment
+
+// Financial ETF theme DEMO state used as fallback to avoid CORS / missing data blank screens
+const DEMO_STATE = {
+  "run": {
+    "project": "demo_financial_etf_importance",
+    "workdir": "/home/lio730309/video_pipeline/stock_first_run",
+    "final": "stock_first_run/final.mp4",
+    "next_action": "wait_for_generated_provider",
+    "updated": "2026-06-05T12:50:45",
+    "pass": true
+  },
+  "segments": [
+    {
+      "segment": 1,
+      "title": "ETF 理財的重要性",
+      "status": "done",
+      "source": "stock",
+      "layout": "split",
+      "kind": "opening",
+      "spec": {
+        "title": "ETF 理財的重要性",
+        "story_purpose": "強調 ETF 對於現代小資族理財的便利性、低門檻以及分散單一個股風險的關鍵優勢。",
+        "visual_desc": "高空俯瞰清晨繁華的城市商務區，陽光穿過雲層灑在街道上，展現宏觀理財氛圍。",
+        "text": "小資理財首選：透過 ETF 輕鬆分散投資風險",
+        "must_include": "理財"
+      },
+      "build": {
+        "selected_source": "stock_first_run/mvstock_1.mp4"
+      }
+    },
+    {
+      "segment": 2,
+      "title": "技術指標之於進出場關聯",
+      "status": "done",
+      "source": "stock",
+      "layout": "montage",
+      "kind": "stock",
+      "spec": {
+        "title": "技術指標之於進出場關聯",
+        "story_purpose": "解釋如何使用基本技術分析指標 (例如均線黃金交叉、KD值低檔超賣) 作為 ETF 分批佈局的參考依據。",
+        "visual_desc": "在乾淨的室內辦公桌上，多螢幕顯示股票分析線圖，技術指標交錯變化。",
+        "text": "搭配技術分析均線指標，尋找合適的分批買點",
+        "must_include": "指標"
+      },
+      "build": {
+        "selected_source": "student_uploads/seg2_user.png"
+      }
+    },
+    {
+      "segment": 3,
+      "title": "長期穩健資產累積",
+      "status": "done",
+      "source": "stock",
+      "layout": "split",
+      "kind": "closing",
+      "spec": {
+        "title": "長期穩健資產累積",
+        "story_purpose": "提倡長期存股策略，展示時間的複利力量，引導觀眾建立長期投資觀念並邁向財務自由。",
+        "visual_desc": "溫暖日落光線照耀下，雙手護著一株正在土壤中發芽成長的綠色幼苗，象徵資產複利增長。",
+        "text": "堅守投資紀律，讓時間幫你放大資產複利成長",
+        "must_include": "資產"
+      },
+      "build": {
+        "selected_source": "stock_first_run/mvstock_3.mp4"
+      }
+    }
+  ],
+  "materials": [
+    { "name": "mvstock_1.mp4", "path": "stock_first_run/mvstock_1.mp4", "category": "raw_stock", "segment": 1, "size_bytes": 24195732 },
+    { "name": "mvseg_000.mp4", "path": "stock_first_run/mvseg_000.mp4", "category": "rendered_segment", "segment": 1, "size_bytes": 1948482 },
+    { "name": "nar_0.txt", "path": "stock_first_run/nar_0.txt", "category": "narration_text", "segment": 1, "size_bytes": 28 },
+    { "name": "mvstock_2.mp4", "path": "stock_first_run/mvstock_2.mp4", "category": "raw_stock", "segment": 2, "size_bytes": 5734646 },
+    { "name": "mvseg_001.mp4", "path": "stock_first_run/mvseg_001.mp4", "category": "rendered_segment", "segment": 2, "size_bytes": 5124456 },
+    { "name": "lbl_1.txt", "path": "stock_first_run/lbl_1.txt", "category": "label_text", "segment": 2, "size_bytes": 12 },
+    { "name": "mvstock_3.mp4", "path": "stock_first_run/mvstock_3.mp4", "category": "raw_stock", "segment": 3, "size_bytes": 5734646 },
+    { "name": "mvseg_002.mp4", "path": "stock_first_run/mvseg_002.mp4", "category": "rendered_segment", "segment": 3, "size_bytes": 4238049 },
+    { "name": "nar_2.txt", "path": "stock_first_run/nar_2.txt", "category": "narration_text", "segment": 3, "size_bytes": 19 },
+    { "name": "seg2_user.png", "path": "student_uploads/seg2_user.png", "category": "user_upload", "segment": 2, "size_bytes": 450000 }
+  ]
+};
+
+async function load() {
+  if (window.__STATE__) return window.__STATE__;
+  try {
+    const r = await fetch(`state.json?_=${Date.now()}`);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch (e) {
+    console.warn("Could not load state.json, fallback to DEMO_STATE");
+    return DEMO_STATE;
+  }
+}
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function getMaterialIcon(category, name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const isVideo = ['mp4', 'webm', 'mov', 'avi'].includes(ext);
+  const isImage = ['png', 'jpg', 'jpeg', 'gif'].includes(ext);
+  
+  if (category === 'raw_stock') return '🎬';
+  if (category === 'rendered_segment') return '🎞️';
+  if (category === 'narration_text') return '🎙️';
+  if (category === 'label_text') return '🏷️';
+  if (category === 'user_upload') {
+    if (isVideo) return '📹';
+    if (isImage) return '🖼️';
+    return '📁';
+  }
+  return '📄';
+}
+
+function selectSegmentNode(segId) {
+  activeSegId = Number(segId);
+  
+  // Highlight node graph
+  document.querySelectorAll('.story-node').forEach(node => {
+    if (Number(node.getAttribute('data-seg')) === activeSegId) {
+      node.classList.add('active');
+    } else {
+      node.classList.remove('active');
+    }
+  });
+
+  renderSegmentDetails();
+}
+
+function renderNodes(segs) {
+  const nodesContainer = document.getElementById('storyline-nodes');
+  if (!segs || !segs.length) {
+    nodesContainer.innerHTML = '<div class="empty">無可用段落</div>';
+    return;
+  }
+
+  nodesContainer.innerHTML = segs.map(s => {
+    const spec = s.spec || {};
+    const isActive = s.segment === activeSegId ? 'active' : '';
+    const statusClass = s.status ? `status-${s.status}` : '';
+    const statusText = s.status === 'done' ? '✓ done' : s.status;
+    const badgeClass = s.status === 'done' ? 'done' : (s.status === 'warn' ? 'warn' : 'blocked');
+    const displayTitle = spec.title || s.title || `Seg ${s.segment}`;
+    
+    // Count materials matched for this segment
+    const materialsCount = (stateData && stateData.materials)
+      ? stateData.materials.filter(m => Number(m.segment) === s.segment).length
+      : 0;
+
+    return `
+      <div class="story-node ${isActive} ${statusClass}" data-seg="${s.segment}" onclick="selectSegmentNode(${s.segment})">
+        <!-- Hover Tooltip -->
+        <div class="story-node-tooltip">
+          <div style="font-weight: 800; font-size: 13px; color: #818cf8; border-bottom: 1px solid #334155; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span>Seg ${s.segment}: ${esc(displayTitle)}</span>
+            <span class="badge ${badgeClass}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">${esc(statusText)}</span>
+          </div>
+          <div style="margin-top: 4px;">
+            <strong style="color: #cbd5e1; font-size: 11px;">故事目的 (Purpose):</strong>
+            <p style="color: #94a3b8; font-size: 11px; margin-top: 2px; line-height: 1.4;">${esc(spec.story_purpose || '—')}</p>
+          </div>
+          <div style="margin-top: 6px; border-top: 1px dashed #334155; padding-top: 6px;">
+            <strong style="color: #cbd5e1; font-size: 11px;">畫面描述 (Visual):</strong>
+            <p style="color: #94a3b8; font-size: 11px; margin-top: 2px; line-height: 1.4; font-style: italic;">${esc(spec.visual_desc || '—')}</p>
+          </div>
+        </div>
+
+        <!-- Card Header -->
+        <div class="story-node-header">
+          <span class="segment-badge">Seg ${s.segment}</span>
+          <span class="layout-badge" title="${esc(s.layout || s.kind || 'stock')}">${esc(s.layout || s.kind || 'stock')}</span>
+        </div>
+
+        <!-- Card Body -->
+        <div class="story-node-title" title="${esc(displayTitle)}">
+          ${esc(displayTitle)}
+        </div>
+
+        <!-- Card Footer -->
+        <div class="story-node-footer">
+          <span class="materials-count">📁 ${materialsCount} assets</span>
+          <span class="status-pill">${esc(statusText)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSegmentDetails() {
+  if (!stateData) return;
+  const segs = stateData.segments || [];
+  const s = segs.find(sg => sg.segment === activeSegId);
+  const specDetails = document.getElementById('spec-details-container');
+  const materialsList = document.getElementById('materials-list-container');
+  const previewContainer = document.getElementById('preview-media-container');
+
+  if (!s) {
+    specDetails.innerHTML = '<div class="empty">請點選上方故事節點來顯示腳本規格。</div>';
+    materialsList.innerHTML = '<div class="empty">無匹配素材資料</div>';
+    return;
+  }
+
+  const spec = s.spec || {};
+  const build = s.build || {};
+  
+  // 1. Render Left Column Specs
+  const mustIncludeRow = spec.must_include ? `
+    <div class="spec-row">
+      <div class="spec-lbl">Must Include (核心元素)</div>
+      <div class="spec-val"><span class="inline-chip highlight-chip">${esc(spec.must_include)}</span></div>
+    </div>
+  ` : '';
+  const layoutRow = s.layout ? `
+    <div class="spec-row">
+      <div class="spec-lbl">Layout Pref (排版樣式)</div>
+      <div class="spec-val"><span class="inline-chip">${esc(s.layout)}</span></div>
+    </div>
+  ` : '';
+  
+  specDetails.innerHTML = `
+    <div class="spec-row">
+      <div class="spec-lbl">Story Segment Title</div>
+      <div class="spec-val" style="font-weight: 700; color: #1e293b;">${esc(spec.title || s.title || `Seg ${s.segment}`)}</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-lbl">Story Purpose (故事目的)</div>
+      <div class="spec-val">${esc(spec.story_purpose || '—')}</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-lbl">Visual Cue (畫面描述)</div>
+      <div class="spec-val">${esc(spec.visual_desc || '—')}</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-lbl">Narration Subtitle (旁白字幕)</div>
+      <div class="spec-val" style="font-weight: 500; color: #1e293b;"><em>"${esc(spec.text || '—')}"</em></div>
+    </div>
+    ${mustIncludeRow}
+    ${layoutRow}
+  `;
+
+  // 2. Render Right Column Materials List
+  const segMaterials = (stateData.materials || []).filter(m => Number(m.segment) === s.segment);
+  
+  if (segMaterials.length === 0) {
+    materialsList.innerHTML = '<div style="color: var(--text-muted); font-style: italic; font-size: 12px; padding: 12px; text-align: center; border: 1px dashed #e2e8f0; border-radius: 8px; width: 100%;">目錄中無匹配此故事段落之素材檔案。</div>';
+  } else {
+    materialsList.innerHTML = segMaterials.map(m => {
+      const sizeMb = (m.size_bytes / (1024 * 1024)).toFixed(2);
+      const isActive = build.selected_source === m.path;
+      const activeBadge = isActive ? '<span class="active-badge">✓ Active (採用中)</span>' : '';
+      const icon = getMaterialIcon(m.category, m.name);
+      
+      return `
+        <div class="material-item ${isActive ? 'active' : ''}" onclick="previewMaterial('${esc(m.path)}', ${s.segment})">
+          <div class="material-info">
+            <span class="material-name">${icon} ${esc(m.name)}</span>
+            <div class="material-meta">
+              Size: <strong>${sizeMb} MB</strong> | Type: <span class="category-badge ${esc(m.category)}">${esc(m.category.replace('_', ' '))}</span>
+            </div>
+          </div>
+          ${activeBadge}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Clear preview container on segment change
+  previewContainer.innerHTML = '<span class="preview-placeholder">點選上方素材檔案以在此處即時預覽內容</span>';
+}
+
+function previewMaterial(path, segId) {
+  const previewContainer = document.getElementById('preview-media-container');
+  if (!path) return;
+  const fileLower = path.toLowerCase();
+  
+  if (fileLower.endsWith('.mp4') || fileLower.endsWith('.webm') || fileLower.endsWith('.ogg')) {
+    previewContainer.innerHTML = `<video class="preview-video" controls src="${esc(path)}" autoplay></video>`;
+  } else if (fileLower.endsWith('.png') || fileLower.endsWith('.jpg') || fileLower.endsWith('.jpeg') || fileLower.endsWith('.gif')) {
+    previewContainer.innerHTML = `<img class="preview-img" src="${esc(path)}" />`;
+  } else if (fileLower.endsWith('.txt')) {
+    // Attempt to fetch, fallback to state specs for offline compatibility
+    fetch(path)
+      .then(r => {
+        if (!r.ok) throw new Error();
+        return r.text();
+      })
+      .then(txt => {
+        previewContainer.innerHTML = `<pre class="preview-text">📄 File Path: ${esc(path)}\n\n${esc(txt)}</pre>`;
+      })
+      .catch(() => {
+        // Fallback offline content
+        if (!stateData) return;
+        const seg = stateData.segments.find(sg => sg.segment === segId);
+        let contentText = "（此 txt 檔案內容尚無快照，可於 served 模式下讀取真實內容）";
+        if (seg && seg.spec) {
+          if (fileLower.includes('nar')) {
+            contentText = `旁白內容備份 (from Spec)：\n\n"${seg.spec.text || '—'}"`;
+          } else if (fileLower.includes('lbl')) {
+            contentText = `字卡內容備份 (from Spec)：\n\n"${seg.spec.label || '—'}"`;
+          }
+        }
+        previewContainer.innerHTML = `<pre class="preview-text">📄 File Path: ${esc(path)} (Offline Fallback)\n\n${esc(contentText)}</pre>`;
+      });
+  } else {
+    previewContainer.innerHTML = `<span class="preview-placeholder">此檔案類型暫不支援即時預覽：<code>${esc(path)}</code></span>`;
+  }
+}
+
+function render(s) {
+  if (!s) return;
+  stateData = s;
+
+  // Header Values
+  document.getElementById('project-name').textContent = s.run.project || '—';
+  
+  // Navigation back link handler
+  const navLink = document.getElementById('nav-control-panel');
+  if (navLink) {
+    const isSelfContained = window.__STATE__ || window.location.pathname.endsWith('_view.html');
+    if (isSelfContained) {
+      navLink.href = 'dashboard_view.html';
+    } else {
+      navLink.href = 'dashboard.html';
+    }
+  }
+
+  // Render Horizontal Storyline Nodes
+  renderNodes(s.segments);
+  selectSegmentNode(activeSegId);
+}
+
+async function tick() {
+  const data = await load();
+  if (data) {
+    render(data);
+  }
+}
+
+// Initial Run
+tick();
+
+// Auto-refresh only if not in static embedded mode (window.__STATE__ is not defined)
+if (!window.__STATE__) {
+  setInterval(tick, 5000);
+}
+</script>
+</body>
+</html>

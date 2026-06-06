@@ -1,0 +1,102 @@
+{
+  "genre": "knowledge",
+  "node_0_1_brief_validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [
+      "建議補 must_include(缺則下游 SPEC 易變猜測)"
+    ]
+  },
+  "node_3_contract_validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [
+      "[closing] 高權重/必放/原音段建議 core.review_required=true"
+    ]
+  },
+  "node_8_fallback_per_segment": [
+    {
+      "segment": 1,
+      "category": "concept_broll",
+      "selected_route": "dashboard_review",
+      "review_required": true
+    },
+    {
+      "segment": 2,
+      "category": "diagram_or_chart",
+      "selected_route": "stock_bridge",
+      "review_required": false
+    },
+    {
+      "segment": 3,
+      "category": "concept_broll",
+      "selected_route": "dashboard_review",
+      "review_required": true
+    }
+  ],
+  "adapter_generated_mv_script": {
+    "style": "narrative",
+    "segments": [
+      {
+        "segment": 1,
+        "_from_contract": 1,
+        "visual_desc": "主題概念開場畫面",
+        "needs_review": true,
+        "weight": 1.3,
+        "kind": "opening",
+        "material_hint": "concept",
+        "pace": "hold",
+        "hold": true,
+        "audio_role": "duck",
+        "keep_audio": true,
+        "subtitle": "from_voiceover"
+      },
+      {
+        "segment": 2,
+        "_from_contract": 2,
+        "visual_desc": "重點一的解釋圖表",
+        "needs_review": false,
+        "weight": 1.0,
+        "material_hint": "diagram",
+        "pace": "hold",
+        "hold": true,
+        "audio_role": "duck",
+        "keep_audio": true,
+        "label": "重點一",
+        "subtitle": "from_voiceover"
+      },
+      {
+        "segment": 3,
+        "_from_contract": 3,
+        "visual_desc": "總結概念畫面",
+        "needs_review": false,
+        "weight": 1.3,
+        "kind": "closing",
+        "material_hint": "concept",
+        "pace": "hold",
+        "hold": true,
+        "audio_role": "duck",
+        "keep_audio": true,
+        "narrative": "了解更多"
+      }
+    ],
+    "music": {
+      "brief": "輕柔背景、不搶旁白",
+      "query": "calm background",
+      "source": "yt"
+    }
+  },
+  "mv_script_validation": {
+    "can_run": true,
+    "status": "warning",
+    "errors": []
+  },
+  "generality_boundary_findings": [
+    "video_type=knowledge:非已調校題材(僅 graduation_mv 跑通過)。",
+    "timeline_source=tts 出現於 seg[1, 2, 3]:adapter(contract_to_mv_script)不讀 timeline_source → 仍生成 beat-driven MV payload。narration/tts 引擎未接 = BUILD 邊界。",
+    "voiceover_policy 出現於 seg[1, 2, 3]:MV adapter 不消費 voiceover → 旁白會掉。",
+    "style=narrative:MV chain 假設 style=mv;narrative 需另一條 BUILD。",
+    "subtitle=from_voiceover(seg[1, 2]):需先有旁白才能轉字幕,MV 線無此來源。"
+  ],
+  "spec_end_verdict": "SPEC 端全通(含 adapter→既有鏈)"
+}

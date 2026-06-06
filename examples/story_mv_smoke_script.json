@@ -1,0 +1,90 @@
+{
+  "style": "mv",
+  "bgm": "night",
+  "segments": [
+    {
+      "segment": 1,
+      "title": "片頭",
+      "kind": "title",
+      "title_sequence": {
+        "text": "雨夜便利商店",
+        "subtitle": "MIDNIGHT LIGHT",
+        "anim": "fade"
+      },
+      "duration_sec": 6,
+      "text": "有些夜晚，是靠一盞燈撐過去的。"
+    },
+    {
+      "segment": 2,
+      "title": "雨中的街口",
+      "media_pref": "video",
+      "search_query": "雨夜 街道",
+      "visual_desc": "夜晚下雨的城市街道，路面反光，車燈與霓虹在雨水中閃爍",
+      "style": "narrative",
+      "effects": {
+        "grade": "cool",
+        "transition": "fade"
+      },
+      "duration_sec": 14,
+      "text": "雨下得很慢，卻把整座城市都淋安靜了。他站在街口，像是剛從一場失敗裡走出來。"
+    },
+    {
+      "segment": 3,
+      "title": "便利商店的燈",
+      "media_pref": "photo",
+      "search_query": "便利商店 夜晚",
+      "visual_desc": "夜晚街角的便利商店，明亮玻璃窗，店內白色燈光照到濕漉漉的人行道",
+      "style": "narrative",
+      "effects": {
+        "grade": "neutral",
+        "transition": "dissolve"
+      },
+      "duration_sec": 12,
+      "text": "街角的便利商店還亮著。那一格白色的光，像在告訴他，今晚還不必急著崩潰。"
+    },
+    {
+      "segment": 4,
+      "title": "熱咖啡",
+      "media_pref": "photo",
+      "search_query": "熱咖啡 手",
+      "visual_desc": "一雙手握著熱咖啡紙杯，杯口冒著熱氣，背景是夜晚室內燈光",
+      "effects": {
+        "grade": "warm",
+        "transition": "wipeleft"
+      },
+      "duration_sec": 12,
+      "text": "他買了一杯熱咖啡，掌心慢慢回溫。那些說不出口的委屈，也終於有地方暫時放下。",
+      "layout": "montage",
+      "montage_n": 5
+    },
+    {
+      "segment": 5,
+      "title": "玻璃倒影",
+      "media_pref": "photo",
+      "search_query": "玻璃 倒影",
+      "visual_desc": "夜晚玻璃窗上的人物倒影，窗外有雨滴與模糊城市燈光",
+      "effects": {
+        "grade": "dusk",
+        "transition": "radial"
+      },
+      "duration_sec": 12,
+      "text": "玻璃上映著他的臉，也映著雨。他忽然發現，自己沒有想像中那麼孤單。",
+      "layout": "montage",
+      "montage_n": 5
+    },
+    {
+      "segment": 6,
+      "title": "天快亮了",
+      "media_pref": "video",
+      "search_query": "雨後 街道",
+      "visual_desc": "雨後清晨的城市街道，天空微亮，地面仍有積水反光",
+      "style": "narrative",
+      "effects": {
+        "grade": "warm",
+        "transition": "circleopen"
+      },
+      "duration_sec": 14,
+      "text": "走出店門時，雨已經小了。天邊慢慢亮起來，他知道，今天還是可以重新開始。"
+    }
+  ]
+}
