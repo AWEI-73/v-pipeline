@@ -58,7 +58,7 @@ Current Windows baseline:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-All Windows unit tests: 249 tests pass (100% success)
+All Windows unit tests: 255 tests pass (100% success)
 Windows project_workspace focused verification: pass (paths normalized to POSIX style)
 Full native video runtime: verified (W5 canonical no-effects E2E completed successfully)
 Dashboard, state, and story-map monitoring: verified (W6 completed successfully)

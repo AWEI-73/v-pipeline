@@ -1,16 +1,16 @@
 # Graph Report - video_pipeline  (2026-06-06)
 
 ## Corpus Check
-- 58 files · ~86,171 words
+- 58 files · ~86,282 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 919 nodes · 1323 edges · 75 communities (46 shown, 29 thin omitted)
+- 920 nodes · 1325 edges · 77 communities (46 shown, 31 thin omitted)
 - Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 116 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9492a710`
+- Built from commit: `628f9cb0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -87,13 +87,15 @@
 - [[_COMMUNITY_Community 69|Community 69]]
 - [[_COMMUNITY_Community 70|Community 70]]
 - [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Community 73|Community 73]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `ToolError` - 54 edges
 2. `run()` - 22 edges
 3. `pipeline()` - 18 edges
 4. `run_tool()` - 16 edges
-5. `ContractToMvScriptTest` - 15 edges
+5. `ContractToMvScriptTest` - 16 edges
 6. `ValidateSegmentContractTest` - 15 edges
 7. `load_dashboard_state()` - 14 edges
 8. `run_mv()` - 13 edges
@@ -112,7 +114,7 @@
 - `ResolveExecutableTest` --uses--> `ToolError`  [INFERRED]
   tests/test_platform_tools.py → video_pipeline_core/vt_core.py
 
-## Communities (75 total, 29 thin omitted)
+## Communities (77 total, 31 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.05
@@ -151,14 +153,14 @@ Cohesion: 0.15
 Nodes (22): adapt_contract_file(), _apply_stock_first_if_enabled(), contract_to_mv_script(), _hash_file(), _hash_json(), _load_category_ids(), _manifest(), contract_adapter.py — canonical-first runtime adapter(see roadmap.md).  公開 SPEC (+14 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.13
-Nodes (19): cmd_verify(), _now_iso(), vt_verify.py — VERIFY(品管:5 維技術 QA + 內容對齊),從 video_tools 解耦。 共用原語取自 vt_core,避免循環匯, 維度3: SRT 內容 vs script.text 字元重疊率, 維度1: 每個 script segment 是否都有對應的影片段落, 維度5: 解析度、framerate、有音軌、有視軌、無黑幀, VERIFY：對成片做 5 維度評分 + 路由修正指示, 維度4: 音量是否在合理範圍 (-30dB ~ -6dB peak, -25dB ~ -14dB mean) (+11 more)
+Cohesion: 0.12
+Nodes (19): Find a CJK font file for ffmpeg drawtext / subtitle burning.      Returns the ab, resolve_font(), cmd_gen_bgm(), 合成一段情境氛圍墊樂（placeholder）。真曲可直接覆蓋 bgm/<mood>.mp3。, _audio_duration(), 用 ffprobe 取得媒體長度(秒)。共用底層原語。, cmd_collage(), cmd_grade() (+11 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.11
-Nodes (7): GridDurationsTest, MusicMixTest, PlanMvTest, MV-cut increment ①: beat → cut_grid (timeline:beat driver).  Pure-function tests, RunMvArtifactTest, ShotMidpointsTest, SrtTsTest
+Cohesion: 0.13
+Nodes (19): cmd_verify(), _now_iso(), vt_verify.py — VERIFY(品管:5 維技術 QA + 內容對齊),從 video_tools 解耦。 共用原語取自 vt_core,避免循環匯, 維度3: SRT 內容 vs script.subtitle 字元重疊率, 維度1: 每個 script segment 是否都有對應的影片段落, 維度5: 解析度、framerate、有音軌、有視軌、無黑幀, VERIFY：對成片做 5 維度評分 + 路由修正指示, 維度4: 音量是否在合理範圍 (-30dB ~ -6dB peak, -25dB ~ -14dB mean) (+11 more)
 
-### Community 11 - "Community 11"
+### Community 12 - "Community 12"
 Cohesion: 0.15
 Nodes (7): BuildBlockStateTest, FixClassMapTest, FixTaxonomyAlignmentTest, BUILD recoverable blocks + VERIFY fix_class taxonomy (material/spec/human).  A p, 錯誤分類單一真相:vt_core 與 video_pipeline 的 fix_class→target 必須一致     (收斂時 video_pipelin, RecoverableBuildErrorTest, _state()
 
@@ -171,32 +173,32 @@ Cohesion: 0.24
 Nodes (16): _cmd_init(), _cmd_new_run(), cmd_project_init(), cmd_project_new_run(), create_run_dir(), default_project_root(), init_project(), main() (+8 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.13
-Nodes (15): cmd_gen_bgm(), cmd_mix_audio(), cmd_music_fetch(), cmd_srt(), cmd_tts(), _fmt_srt_time(), _music_ytdlp_cmd(), vt_audio.py — audio-director(TTS/混音/BGM/music-fetch)+ subtitle-director(SRT), 從 (+7 more)
-
-### Community 16 - "Community 16"
 Cohesion: 0.22
 Nodes (15): _allows_generated(), attach_generated_manifest_to_artifact_manifest(), build_generated_asset_requests(), _is_identity_or_proof(), _items(), _load_json(), generated_assets.py — generated fallback request/manifest artifacts.  This modul, Validate externally generated outputs and write generated_asset_manifest.json. (+7 more)
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.13
 Nodes (16): beats_to_cut_grid(), detect_shots(), filter_shots(), fixed_windows(), _is_image(), _merge_short_spans(), Clean a shot list (contiguous (start, end) spans from detect_shots):     fold sh, Window a continuous take into candidate spans (the RIGHT primitive for raw     s (+8 more)
 
-### Community 18 - "Community 18"
+### Community 17 - "Community 17"
 Cohesion: 0.18
 Nodes (15): cmd_analyze(), cmd_curate(), cmd_rank_local(), _filter_candidates(), _find_best_window(), vt_curate_legacy.py — 舊版小編(whisper analyze / pexels-search curate / rank-local)。, 小編：Whisper 轉譯 + 找最匹配 query 的時間窗口, 過濾掉太短/太長/talking-head/news (+7 more)
 
-### Community 19 - "Community 19"
+### Community 18 - "Community 18"
 Cohesion: 0.17
 Nodes (15): cmd_pexels_download(), cmd_pexels_search(), _download_url(), fetch_stock_video(), fetch_stock_video_with_provider(), _pexels_request(), _pexels_video_candidates(), _pixabay_video_candidates() (+7 more)
 
+### Community 19 - "Community 19"
+Cohesion: 0.13
+Nodes (6): MusicMixTest, MV-cut increment ①: beat → cut_grid (timeline:beat driver).  Pure-function tests, RunMvArtifactTest, ShotMidpointsTest, ShotStatsTest, SrtTsTest
+
 ### Community 20 - "Community 20"
-Cohesion: 0.14
-Nodes (6): Longform Duration Policy — TTS actual duration must drive material selection and, Validity filter must key off the real TTS target, not script duration_sec., Too-short video must be recoverable, never abort., SegTargetLenTest, VideoCandidateFilterTest, VideoFillPlanTest
+Cohesion: 0.15
+Nodes (13): cmd_mix_audio(), cmd_music_fetch(), cmd_srt(), cmd_tts(), _fmt_srt_time(), _music_ytdlp_cmd(), vt_audio.py — audio-director(TTS/混音/BGM/music-fetch)+ subtitle-director(SRT), 從, 混合人聲 + BGM：BGM 降到指定音量，含淡入淡出 (+5 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.18
-Nodes (13): _audio_duration(), 用 ffprobe 取得媒體長度(秒)。共用底層原語。, cmd_collage(), cmd_grade(), cmd_kenburns(), cmd_montage(), cmd_title_sequence(), vt_effects.py — 特效師(色彩分級/字卡/Ken Burns/拼貼/蒙太奇),從 video_tools 解耦。 共用原語取自 vt_core,避 (+5 more)
+Cohesion: 0.14
+Nodes (6): Longform Duration Policy — TTS actual duration must drive material selection and, Validity filter must key off the real TTS target, not script duration_sec., Too-short video must be recoverable, never abort., SegTargetLenTest, VideoCandidateFilterTest, VideoFillPlanTest
 
 ### Community 22 - "Community 22"
 Cohesion: 0.26
@@ -235,50 +237,50 @@ Cohesion: 0.35
 Nodes (9): Core library modules for the video pipeline.  Root-level files stay focused on C, apply_stock_first_route(), build_stock_first_route(), _can_use_stock(), stock_first.py — stock-first MVP routing artifact.  This is the Node 2 -> Node 8, _segment_query(), _stock_first_enabled(), _story_truth_level() (+1 more)
 
 ### Community 33 - "Community 33"
-Cohesion: 0.2
-Nodes (9): Find a CJK font file for ffmpeg drawtext / subtitle burning.      Returns the ab, resolve_font(), cmd_assemble(), cmd_merge_final(), vt_editor.py — 剪輯師(assemble + merge-final,檔案層級組裝),從 video_tools 解耦 (= editor ski, 剪輯師：依 TTS 時長剪每段素材 → 統一 1920x1080 → concat。      輸入：       clip_list.json   小編產出，, 剪輯師最終組合：把音軌 + 字幕套到無音軌的視覺上。      輸入：       --visual  rough_cut.mp4（assemble 的輸出，純, cmd_title_card() (+1 more)
-
-### Community 34 - "Community 34"
 Cohesion: 0.31
 Nodes (3): _args(), route.py MV mode (roadmap #7 route↔MV).  These cover the dispatch/report logic w, RouteMvTest
 
-### Community 35 - "Community 35"
+### Community 34 - "Community 34"
 Cohesion: 0.39
 Nodes (8): build_light_effects_plan(), _profile_enabled(), light_effects.py - ffmpeg-safe light effects plan runner.  This module turns can, _segment_id(), _segment_operations(), _text_ops(), _write_json(), write_light_effects_artifacts()
 
-### Community 40 - "Community 40"
+### Community 39 - "Community 39"
 Cohesion: 0.39
 Nodes (7): call_ollama_full(), main(), Map (primary, related) verdicts → 0-100 content-alignment score (D3).      Grade, Score content alignment by matching the image against a Chinese VISUAL     descr, rubric_score(), score_segment(), yn()
 
-### Community 41 - "Community 41"
+### Community 40 - "Community 40"
 Cohesion: 0.46
 Nodes (7): _backend_for(), build_motion_graphics_render_plan(), _finding(), motion_graphics.py — Node 14 effects contract scaffold.  The core edit flow shou, validate_motion_graphics_contract(), _write_json(), write_motion_graphics_artifacts()
 
-### Community 42 - "Community 42"
+### Community 41 - "Community 41"
 Cohesion: 0.36
 Nodes (7): build_music_structure(), _density_hint(), _fmt_mmss(), music_structure.py — V3 P1 music timing artifact.  Turn detected tempo/beats int, Pure builder: tempo/beats -> normalized music_structure.json shape., Detect beats and write music_structure.json. Detector is injectable for tests., write_music_structure()
 
-### Community 48 - "Community 48"
+### Community 46 - "Community 46"
 Cohesion: 0.52
 Nodes (6): default_build_profile(), load_build_profile(), build_profile.py — BUILD-layer tool/provider profile artifact.  The canonical se, validate_build_profile(), _validate_choice(), write_build_profile()
 
-### Community 49 - "Community 49"
+### Community 47 - "Community 47"
 Cohesion: 0.48
 Nodes (5): default_model_routes(), load_model_routes(), model_routing.py — model route artifact for agent-driven video workflow.  This m, _validate_routes(), write_model_routes()
 
-### Community 50 - "Community 50"
+### Community 48 - "Community 48"
 Cohesion: 0.29
 Nodes (7): _asr_srt(), _burn_asr_subtitle(), (I/O) faster-whisper 轉錄 clip 原音 → SRT(時間軸相對 clip)。回 srt 或 None。     model_size 預, (I/O) faster-whisper 轉錄 clip 原音 → SRT(時間軸相對 clip)。回 srt 或 None。     model_size 預, (I/O) 對講話段 clip 跑 ASR → 燒演講字幕(CJK)。回 subbed 路徑或 None。, (I/O) 對講話段 clip 跑 ASR → 燒演講字幕(CJK)。回 subbed 路徑或 None。, _srt_ts()
 
-### Community 59 - "Community 59"
+### Community 57 - "Community 57"
 Cohesion: 0.53
 Nodes (5): _finding(), _overlap(), editor_review.py — Node 11/12 lightweight clip review checks.  These checks are, review_timeline_build(), write_editor_review()
 
-### Community 60 - "Community 60"
+### Community 58 - "Community 58"
 Cohesion: 0.33
 Nodes (6): filter_static_windows(), _parse_freeze_ratio(), 純函式:從 ffmpeg freezedetect stderr 算「凍結秒數佔窗比例」(0~1)。     解析 freeze_start/freeze_en, (I/O) 跑 freezedetect 於 [start,start+dur] → 回凍結比例(0~1)。失敗回 0(視為動態,不誤殺)。, 純邏輯(ratio 可注入測試):丟掉「凍結比例 >= max_static」的窗。     全被丟 → 回原 windows(寧可送 VLM 也不要 0 候選, window_static_ratio()
 
-### Community 66 - "Community 66"
+### Community 59 - "Community 59"
+Cohesion: 0.33
+Nodes (5): cmd_assemble(), cmd_merge_final(), vt_editor.py — 剪輯師(assemble + merge-final,檔案層級組裝),從 video_tools 解耦 (= editor ski, 剪輯師：依 TTS 時長剪每段素材 → 統一 1920x1080 → concat。      輸入：       clip_list.json   小編產出，, 剪輯師最終組合：把音軌 + 字幕套到無音軌的視覺上。      輸入：       --visual  rough_cut.mp4（assemble 的輸出，純
+
+### Community 65 - "Community 65"
 Cohesion: 0.5
 Nodes (5): audio_qa(), build_mv_state(), 純函式:MV 音訊搭配 QA(verify 的音訊維度,roadmap #6)。     檢查原音/音樂編排一致性——抓「該保留原音卻沒保留→被音樂蓋掉」這類, 純函式:MV 音訊搭配 QA(verify 的音訊維度,roadmap #6)。     檢查原音/音樂編排一致性——抓「該保留原音卻沒保留→被音樂蓋掉」這類, 把 MV 段落寫成 dashboard 認得的 state.json(放在 out_path 同目錄)。     純函式 → state dict;附帶寫檔。每
 
@@ -289,12 +291,12 @@ Nodes (4): cmd_mksrt(), _fmt_srt_ts(), 秒數轉 SRT 時間戳格式 HH:MM:SS,mm
 ## Knowledge Gaps
 - **227 isolated node(s):** `MV 模式:route 驅動 canonical adapter 或 legacy mv_chain,寫 state.json 到 outdir。     (旁`, `印 MV state 的人工複核點(gap/必放/bookend)= 人在迴圈的接點。`, `找學員素材 seg{n}_user.* 或 seg{n}.*（圖或影片）。`, `MV 派工:無 state→跑 mv_chain;有 state→依 next_action 報告複核點。     MV 缺口(gap/必放/bookend)需`, `Minimal .env loader (no external deps). KEY=VALUE per line; '#' comments.     D` (+222 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **29 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **31 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ToolError` connect `Community 5` to `Community 0`, `Community 33`, `Community 3`, `Community 4`, `Community 6`, `Community 71`, `Community 7`, `Community 8`, `Community 9`, `Community 15`, `Community 18`, `Community 19`, `Community 21`, `Community 25`, `Community 27`, `Community 28`?**
+- **Why does `ToolError` connect `Community 5` to `Community 0`, `Community 3`, `Community 4`, `Community 6`, `Community 71`, `Community 7`, `Community 8`, `Community 9`, `Community 59`, `Community 10`, `Community 17`, `Community 18`, `Community 20`, `Community 25`, `Community 27`, `Community 28`?**
   _High betweenness centrality (0.172) - this node is a cross-community bridge._
 - **Why does `resolve_temp_dir()` connect `Community 8` to `Community 24`, `Community 25`, `Community 27`, `Community 6`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._

@@ -11,7 +11,7 @@ from .vt_core import FFMPEG, FFPROBE, run, ToolError, _audio_duration  # noqa: F
 def _verify_script_coverage(script, edit_log):
     """維度1: 每個 script segment 是否都有對應的影片段落"""
     script_segs = {s['segment'] for s in script if 'segment' in s}
-    
+
     segs = []
     if edit_log and isinstance(edit_log, dict):
         if "clips" in edit_log:
@@ -37,14 +37,14 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
     tts_durs = {}
     if timing and isinstance(timing, dict) and "segments" in timing:
         tts_durs = {s['segment']: s['duration_sec'] for s in timing['segments']}
-    
+
     segs = []
     if edit_log and isinstance(edit_log, dict):
         if "clips" in edit_log:
             segs = edit_log["clips"]
         else:
             segs = edit_log.get("segments", [])
-            
+
     issues = []
     total = 0
     passed = 0
@@ -52,15 +52,15 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
         seg = s.get('segment')
         if seg is None:
             continue
-            
+
         expected = tts_durs.get(seg)
         if expected is None:
             expected = s.get('target_duration_sec') or s.get('duration_sec') or s.get('tts_target_sec')
         if expected is None:
             continue
-            
+
         total += 1
-        
+
         # 嘗試探測實際生成的段落片段時長
         actual = None
         if video_path:
@@ -71,16 +71,16 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
                     actual = _audio_duration(seg_file)
                 except Exception:
                     pass
-                    
+
         if actual is None:
             actual = s.get('actual_sec') or s.get('duration_sec') or 0
-            
+
         diff_ms = abs(actual - expected) * 1000
         if diff_ms < threshold_ms:
             passed += 1
         else:
             issues.append({"segment": seg, "diff_ms": round(diff_ms, 1)})
-            
+
     # 全體成片總時長驗證
     if video_path and os.path.exists(video_path):
         try:
@@ -112,11 +112,11 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
 
 
 def _verify_subtitle_accuracy(script, srt_path):
-    """維度3: SRT 內容 vs script.text 字元重疊率"""
-    # 提取所有 CJK/文字欄位
+    """維度3: SRT 內容 vs script.subtitle 字元重疊率"""
+    # 提取所有 subtitle / text (字幕) 欄位
     texts = []
     for s in script:
-        for field in ('text', 'narrative', 'label', 'subtitle'):
+        for field in ('subtitle', 'text'):
             val = s.get(field)
             if val and isinstance(val, str):
                 texts.append(val)

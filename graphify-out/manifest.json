@@ -40,8 +40,8 @@
     "hash": "6670559d37f4f335795902f0b59a25b8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_contract_adapter.py": {
-    "mtime": 1780720232.3739922,
-    "hash": "23872072b5df49a5d0387b87eecc6168"
+    "mtime": 1780757423.0640922,
+    "hash": "cc29579f3b73380bb3781dfb44c21dcf"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_dashboard_state.py": {
     "mtime": 1780672449.993247,
@@ -120,8 +120,8 @@
     "hash": "75f6347f67b1abf9b72e69610cc37922"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_verify.py": {
-    "mtime": 1780720197.1557057,
-    "hash": "3796c086ca62103bb0cfe3f9fe2cd5d4"
+    "mtime": 1780757423.0760133,
+    "hash": "fe5a610988bb09b2b7b1d06a682e18d0"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\__init__.py": {
     "mtime": 1780280512.9502642,
@@ -224,8 +224,8 @@
     "hash": "07de9d29b4c12513c60da6a5e7e6a7fe"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\vt_verify.py": {
-    "mtime": 1780720106.7508876,
-    "hash": "3dee2587ff3ca2795acb1e70e1dc44af"
+    "mtime": 1780757423.0908413,
+    "hash": "6967967dc9d11f35ef4ca86ee47c11a8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\__init__.py": {
     "mtime": 1780643433.6266773,
@@ -236,16 +236,16 @@
     "hash": "65a1f444db2859e08463700e1f06e1f3"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\HANDOFF_CURRENT.md": {
-    "mtime": 1780719450.7726736,
-    "hash": "9f783da677ae5660c5a079e6e3655f29"
+    "mtime": 1780757423.1156883,
+    "hash": "b3972351bb7d55aa17bfab1fa0e8b0c4"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\README.md": {
     "mtime": 1780672693.251786,
     "hash": "f3ad8dc7d49cfcfde21d3427ab069d55"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\roadmap.md": {
-    "mtime": 1780712484.2039218,
-    "hash": "2731f79edb5a9103cf416333ccf1c6ca"
+    "mtime": 1780757423.1057758,
+    "hash": "a91c7ffac0a70984d514aea06e4b76a0"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\RUNBOOK.md": {
     "mtime": 1780672711.2909014,
@@ -284,8 +284,8 @@
     "hash": "788ae2b7480702bbe06ba6c470044d08"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\windows-native-migration-spec.md": {
-    "mtime": 1780720061.5037622,
-    "hash": "99b63c49647184aab320281a26fbd6ad"
+    "mtime": 1780757423.1156883,
+    "hash": "5cec835e8d3d1489d2379b8941e0e0d7"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-05-29-content-qa-pipeline-integration.md": {
     "mtime": 1780671532.6565087,

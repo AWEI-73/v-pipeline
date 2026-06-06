@@ -345,6 +345,52 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(requests["provider_priority"][0], "antigravity")
             self.assertEqual(requests["items"][0]["segment"], 1)
 
+    def test_run_contract_failsafe_on_verification_failure(self):
+        contract = {
+            "style": "mv",
+            "segments": [self._seg(segment=1), self._seg(segment=2)],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+                Path(out_path).write_bytes(b"mp4")
+                (Path(out_path).parent / "state.json").write_text(json.dumps({
+                    "pass": True,
+                    "next_action": "complete_review_final",
+                    "segments": [{"segment": 1, "visual_desc": "test"}]
+                }), encoding="utf-8")
+                return {"final": out_path, "plan": [{"segment": 1, "source": out_path, "extract_dur": 1.0}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "structure": {"sections": []}}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                result = ca.run_contract(
+                    contract,
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertFalse(result["workflow_ok"])
+            self.assertTrue(result["render_ok"])
+            self.assertFalse(result["verify_ok"])
+            self.assertEqual(result["next_action"], "verify_failed")
+
+            state_data = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertFalse(state_data["pass"])
+            self.assertEqual(state_data["next_action"], "verify_failed")
+
 
 if __name__ == "__main__":
     unittest.main()

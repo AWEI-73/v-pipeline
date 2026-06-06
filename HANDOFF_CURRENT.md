@@ -57,7 +57,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 249 tests pass (100% success)
+Full test suite: 255 tests pass (100% success)
 ```
 
 ## Latest Graphify
@@ -109,4 +109,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows baseline: `249 tests OK` (100% success).
+Current Windows baseline: `255 tests OK` (100% success).

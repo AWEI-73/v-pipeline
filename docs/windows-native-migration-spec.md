@@ -103,7 +103,7 @@ Python:
 
 Verified:
   python video_tools.py --help
-  Full test suite (249 unit tests) passing natively
+  Full test suite (255 unit tests) passing natively
   ffmpeg / ffprobe runtime verified
   yt-dlp runtime verified
   Ollama / qwen3-vl runtime verified
