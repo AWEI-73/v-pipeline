@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json, sys
-proj = sys.argv[1] if len(sys.argv) > 1 else "/home/lio730309/video_pipeline/nightmarket"
+proj = sys.argv[1] if len(sys.argv) > 1 else "nightmarket"
 p = json.load(open(f"{proj}/picks.json"))
 print(f"mode: {p.get('_mode')}, vlm_model: {p.get('_vlm_model')}\n")
 print(f"{'seg':<4} {'pick':<5} {'rejected':<12} vlm_verdicts (top3 by text score)")

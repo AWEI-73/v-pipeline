@@ -22,22 +22,74 @@ def _verify_script_coverage(script, edit_log):
     }
 
 
-def _verify_duration_fit(timing, edit_log, threshold_ms=300):
-    """維度2: 影片段落時長 vs TTS 時長，差值 < threshold"""
-    tts_durs = {s['segment']: s['duration_sec'] for s in timing.get('segments', [])}
+def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
+    """維度2: 影片段落時長 vs 預期時長，差值 < threshold"""
+    tts_durs = {}
+    if timing and isinstance(timing, dict) and "segments" in timing:
+        tts_durs = {s['segment']: s['duration_sec'] for s in timing['segments']}
+    
+    segs = []
+    if edit_log and isinstance(edit_log, dict):
+        if "clips" in edit_log:
+            segs = edit_log["clips"]
+        else:
+            segs = edit_log.get("segments", [])
+            
     issues = []
     total = 0
     passed = 0
-    for s in edit_log.get('segments', []):
-        seg = s['segment']
-        if seg not in tts_durs:
+    for s in segs:
+        seg = s.get('segment')
+        if seg is None:
             continue
+            
+        expected = tts_durs.get(seg)
+        if expected is None:
+            expected = s.get('target_duration_sec') or s.get('duration_sec') or s.get('tts_target_sec')
+        if expected is None:
+            continue
+            
         total += 1
-        diff_ms = abs(s['actual_sec'] - tts_durs[seg]) * 1000
+        
+        # 嘗試探測實際生成的段落片段時長
+        actual = None
+        if video_path:
+            idx = s.get('shot_idx') if s.get('shot_idx') is not None else (seg - 1)
+            seg_file = os.path.join(os.path.dirname(video_path), f"mvseg_{idx:03d}.mp4")
+            if os.path.exists(seg_file):
+                try:
+                    actual = _audio_duration(seg_file)
+                except Exception:
+                    pass
+                    
+        if actual is None:
+            actual = s.get('actual_sec') or s.get('duration_sec') or 0
+            
+        diff_ms = abs(actual - expected) * 1000
         if diff_ms < threshold_ms:
             passed += 1
         else:
             issues.append({"segment": seg, "diff_ms": round(diff_ms, 1)})
+            
+    # 全體成片總時長驗證
+    if video_path and os.path.exists(video_path):
+        try:
+            actual_total = _audio_duration(video_path)
+            expected_total = sum(
+                tts_durs.get(s['segment'], s.get('target_duration_sec') or s.get('duration_sec') or s.get('tts_target_sec') or 0)
+                for s in segs if s.get('segment') is not None
+            )
+            diff_total_ms = abs(actual_total - expected_total) * 1000
+            if diff_total_ms >= threshold_ms:
+                issues.append({
+                    "segment": "final_video",
+                    "note": f"實際成片時長 ({actual_total:.3f}s) 與預期總時長 ({expected_total:.3f}s) 差值 ({diff_total_ms:.1f}ms) 超過閾值 ({threshold_ms}ms)"
+                })
+                passed = max(0, passed - 1)
+                total = max(1, total)
+        except Exception:
+            pass
+
     score = int(100 * passed / total) if total else 0
     return {
         "score": score,
@@ -178,12 +230,14 @@ def cmd_verify(args):
             raise ToolError(f"{label} file not found: {path}")
 
     with open(args.script, encoding="utf-8") as f: script = json.load(f)
+    if isinstance(script, dict) and "segments" in script:
+        script = script["segments"]
     with open(args.timing, encoding="utf-8") as f: timing = json.load(f)
     with open(args.edit_log, encoding="utf-8") as f: edit_log = json.load(f)
 
     dims = {
         "script_coverage":   _verify_script_coverage(script, edit_log),
-        "duration_fit":      _verify_duration_fit(timing, edit_log),
+        "duration_fit":      _verify_duration_fit(timing, edit_log, video_path=args.video),
         "subtitle_accuracy": _verify_subtitle_accuracy(script, args.srt),
         "audio_levels":      _verify_audio_levels(args.video),
         "technical_quality": _verify_technical_quality(args.video),

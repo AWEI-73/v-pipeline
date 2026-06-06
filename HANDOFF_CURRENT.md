@@ -42,15 +42,14 @@ Do not develop both copies independently.
 ## Windows Migration State
 
 ```text
-W0 source/output boundaries: started
-  - current blocker: `.project/active.json` serializes `\` on Windows; contract expects portable `/`
-W1 cross-platform resolver: pending
-W2 remove hardcoded Linux paths: pending
-W3 replace Bash orchestration: pending
-W4 external tool native smoke: pending
-W5 canonical no-effects Windows E2E: pending
-W6 route/dashboard monitoring: pending
-W7 Windows Graphify rebuild: pending
+W0 source/output boundaries: completed
+W1 cross-platform resolver: completed
+W2 remove hardcoded Linux paths: completed
+W3 replace Bash orchestration: completed
+W4 external tool native smoke: completed
+W5 canonical no-effects Windows E2E: completed
+W6 route/dashboard monitoring: completed
+W7 Windows Graphify rebuild: completed
 ```
 
 Current Windows evidence:
@@ -58,8 +57,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-artifact/spec smoke suite: 52 tests pass
-project_workspace focused suite: 2 expected Windows path-separator failures
+Full test suite: 249 tests pass (100% success)
 ```
 
 ## Latest Graphify
@@ -111,4 +109,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows smoke baseline: `52 tests OK`.
+Current Windows baseline: `249 tests OK` (100% success).

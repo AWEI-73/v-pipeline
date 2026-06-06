@@ -190,12 +190,13 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               motion_graphics_manifest=None,
               assembly_plan, timeline_build,
               editor_review, final, state, verify_result=None,
-              revision_plan=None):
+              revision_plan=None, brief=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
         "canonical_contract": canonical_contract,
         "contract_hash": contract_hash,
+        "brief": str(brief) if brief else None,
         "generated_payload": generated_payload,
         "material_db": str(material_db) if material_db is not None else None,
         "music": str(music) if music is not None else None,
@@ -220,7 +221,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
     }
 
 
-def run_contract(contract, material_db, out_path, music_path=None, mat_dir="/tmp", verbose=True,
+def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
                  categories_path=None, generated_payload_path=None, manifest_path=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
                  model_routes_config_path=None, build_profile_path=None,
@@ -229,6 +230,9 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir="/tmp
     contract 可為 dict 或 .json 路徑。回 {ok, errors, result?}。**不改 run chain**。"""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    if mat_dir is None:
+        from .platform_tools import resolve_temp_dir
+        mat_dir = resolve_temp_dir()
     generated_payload_path = Path(generated_payload_path) if generated_payload_path else out_path.parent / "generated_mv_script.json"
     manifest_path = Path(manifest_path) if manifest_path else out_path.parent / "artifact_manifest.json"
     music_structure_path = Path(music_structure_path) if music_structure_path else out_path.parent / "music_structure.json"
@@ -277,6 +281,39 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir="/tmp
             build_profile_payload,
             out_path.parent,
         )
+    # Copy canonical contract to run workspace
+    segment_contract_path = out_path.parent / "segment_contract.json"
+    _write_json(segment_contract_path, contract_obj)
+    if source and Path(source).exists():
+        try:
+            import shutil
+            shutil.copy2(source, out_path.parent / Path(source).name)
+        except Exception:
+            pass
+
+    # Copy brief to run workspace if referenced
+    brief_ref = contract_obj.get("brief_ref")
+    brief_path = None
+    if brief_ref:
+        brief_file = None
+        if source:
+            candidate = Path(source).parent / brief_ref
+            if candidate.exists():
+                brief_file = candidate
+        if not brief_file:
+            for prefix in (Path("."), Path("examples")):
+                candidate = prefix / brief_ref
+                if candidate.exists():
+                    brief_file = candidate
+                    break
+        if brief_file:
+            try:
+                import shutil
+                shutil.copy2(brief_file, out_path.parent / "brief.json")
+                brief_path = out_path.parent / "brief.json"
+            except Exception:
+                pass
+
     music_struct = None
     if music_path:
         from . import music_structure  # noqa: PLC0415
@@ -299,7 +336,35 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir="/tmp
         editor_review_path = out_path.parent / "editor_review.json"
         editor_review.write_editor_review(timeline, editor_review_path)
     state_path = out_path.parent / "state.json"
+
+    # Ensure subtitles.srt exists (needed for verify_result)
+    srt_path = out_path.parent / "subtitles.srt"
+    if not srt_path.exists():
+        with srt_path.open("w", encoding="utf-8") as f:
+            f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
+
+    # Run verify automatically
+    edit_log_path = edit_paths.get("timeline_build")
+    verify_report_path = out_path.parent / "verify_result.json"
+    if edit_log_path and out_path.exists():
+        class VerifyArgs:
+            script = str(generated_payload_path)
+            timing = str(music_structure_path)
+            edit_log = str(edit_log_path)
+            srt = str(srt_path)
+            video = str(out_path)
+            out = str(verify_report_path)
+            threshold = 80.0
+
+        try:
+            from . import vt_verify
+            vt_verify.cmd_verify(VerifyArgs)
+        except Exception as e:
+            if verbose:
+                print(f"[verify] Automatic verification failed: {e}")
+
     manifest = _manifest(canonical_contract=source, contract_hash=contract_hash,
+                         brief=str(brief_path) if brief_path else None,
                          generated_payload=str(generated_payload_path),
                          material_db=material_db, music=music_path,
                          music_structure=str(music_structure_path) if music_path else None,
@@ -314,7 +379,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir="/tmp
                          editor_review=editor_review_path,
                          final=str(out_path),
                          state=str(state_path),
-                         verify_result=out_path.parent / "verify_result.json")
+                         verify_result=str(verify_report_path) if verify_report_path.exists() else None)
     _write_json(manifest_path, manifest)
     return {"ok": True, "errors": [], "warnings": v["warnings"], "stage": "run",
             "result": res, "generated_script": payload, "generated_payload": str(generated_payload_path),

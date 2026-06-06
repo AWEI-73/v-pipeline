@@ -124,17 +124,17 @@ def load_dashboard_state(workdir):
                     manifest["motion_graphics_manifest"] = f
 
     # Load artifacts safely
-    brief_data = safe_load_json(manifest.get("brief", "brief.json"))
-    contract_data = safe_load_json(manifest.get("canonical_contract", "segment_contract.json"))
-    material_coverage = safe_load_json(manifest.get("material_coverage_map", "material_coverage_map.json"))
-    music_struct_data = safe_load_json(manifest.get("music_structure", "music_structure.json"))
-    profile_data = safe_load_json(manifest.get("build_profile", "build_profile.json"))
-    gen_requests = safe_load_json(manifest.get("generated_asset_requests", "generated_asset_requests.json"))
-    assembly_plan = safe_load_json(manifest.get("assembly_plan", "assembly_plan.json"))
-    timeline_build = safe_load_json(manifest.get("timeline_build", "timeline_build.json"))
-    editor_review = safe_load_json(manifest.get("editor_review", "editor_review.json"))
-    state_data = safe_load_json(manifest.get("state", "state.json"))
-    verify_result = safe_load_json(manifest.get("verify_result", "qa_report.json"))
+    brief_data = safe_load_json(manifest.get("brief") or "brief.json")
+    contract_data = safe_load_json(manifest.get("canonical_contract") or "segment_contract.json")
+    material_coverage = safe_load_json(manifest.get("material_coverage_map") or "material_coverage_map.json")
+    music_struct_data = safe_load_json(manifest.get("music_structure") or "music_structure.json")
+    profile_data = safe_load_json(manifest.get("build_profile") or "build_profile.json")
+    gen_requests = safe_load_json(manifest.get("generated_asset_requests") or "generated_asset_requests.json")
+    assembly_plan = safe_load_json(manifest.get("assembly_plan") or "assembly_plan.json")
+    timeline_build = safe_load_json(manifest.get("timeline_build") or "timeline_build.json")
+    editor_review = safe_load_json(manifest.get("editor_review") or "editor_review.json")
+    state_data = safe_load_json(manifest.get("state") or "state.json")
+    verify_result = safe_load_json(manifest.get("verify_result") or "qa_report.json")
     if not verify_result:
         verify_result = safe_load_json("verify_result.json")
     
@@ -190,6 +190,10 @@ def load_dashboard_state(workdir):
     })
 
     # Node 2: Material Coverage
+    material_source_mode = None
+    if isinstance(contract_data, dict):
+        material_source_mode = contract_data.get("material_source_mode")
+
     n2_status = "done" if material_coverage else "missing"
     n2_reason = "Material coverage map exists" if n2_status == "done" else "Material coverage not mapped"
     if isinstance(material_coverage, dict):
@@ -197,6 +201,9 @@ def load_dashboard_state(workdir):
         if weak:
             n2_status = "warn"
             n2_reason = "Coverage has weak/missing material"
+    if material_source_mode == "stock_first":
+        n2_status = "done"
+        n2_reason = "Material coverage map optional (stock_first mode)"
     node_list.append({
         "node": 2,
         "label": "Material Coverage",
@@ -354,6 +361,14 @@ def load_dashboard_state(workdir):
     n11_reason = "Editor review pending"
     if editor_review:
         decision = editor_review.get("decision")
+        if not decision:
+            status = editor_review.get("status")
+            if status == "pass":
+                decision = "approve"
+            elif status == "warn":
+                decision = "human_review"
+            elif status == "fail":
+                decision = "block"
         if decision == "approve":
             n11_status = "done"
         elif decision in ("auto_fix", "route_change", "human_review"):
@@ -373,20 +388,22 @@ def load_dashboard_state(workdir):
 
     # Node 12: Verify
     n12_status = "missing"
-    n12_reason = "Verification not run"
-    if state_data or verify_result:
-        t_state = state_data or verify_result
-        if t_state.get("pass"):
+    n12_reason = "Verification report (verify_result.json) missing"
+    if verify_result:
+        if verify_result.get("pass"):
             n12_status = "done"
-            n12_reason = f"Technical verify passed (score: {t_state.get('qa', {}).get('score', 100)})"
+            n12_reason = f"Technical verify passed (score: {verify_result.get('score', 100)})"
         else:
             # check if it's blocked or just warning
-            if t_state.get("blocking") or t_state.get("next_action") == "await_material":
+            if verify_result.get("issues"):
                 n12_status = "blocked"
-                n12_reason = f"Blocked: {t_state.get('next_action') or 'Verify failed'}"
+                n12_reason = f"Blocked: Verify failed (score: {verify_result.get('score', 0)})"
             else:
                 n12_status = "warn"
-                n12_reason = f"Warn: {t_state.get('next_action') or 'Verify failed'}"
+                n12_reason = f"Warn: Verify failed (score: {verify_result.get('score', 0)})"
+    elif state_data:
+        n12_status = "warn"
+        n12_reason = "state.json exists but verify_result.json is missing"
                 
     node_list.append({
         "node": 12,
@@ -557,10 +574,21 @@ def load_dashboard_state(workdir):
         tb = timeline_map.get(seg_id, {})
         gr = gen_req_map.get(seg_id, {})
         
+        prov = gr.get("provider") or ap.get("provider")
+        if not prov:
+            src_val = s.get("source")
+            src_path = tb.get("source_path", "")
+            if src_val == "stock" or "mvstock_" in str(src_path):
+                prov = "pexels"
+            elif src_val == "local":
+                prov = "local"
+            else:
+                prov = profile_data.get("fallback_visual_provider") if profile_data else "pexels"
+
         build = {
-            "provider": gr.get("provider", ap.get("provider", profile_data.get("fallback_visual_provider") if profile_data else "pexels")),
+            "provider": prov,
             "selected_source": tb.get("source_path", tb.get("file", s.get("file", ""))),
-            "timeline_in_out": f"{tb.get('timeline_in', 0):.2f}s - {tb.get('timeline_out', 0):.2f}s" if 'timeline_in' in tb else "",
+            "timeline_in_out": f"{tb.get('timeline_in_sec', 0):.2f}s - {tb.get('timeline_out_sec', 0):.2f}s" if 'timeline_in_sec' in tb else "",
             "generated_request": gr.get("prompt", "")
         }
         
