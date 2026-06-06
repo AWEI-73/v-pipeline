@@ -4,8 +4,8 @@
     "hash": "ce5481b7e2e55b6537dc338ab33a265c"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\runtime.py": {
-    "mtime": 1780759570.885789,
-    "hash": "ab7f120b591a58f9d8488c70c6575970"
+    "mtime": 1780760432.929487,
+    "hash": "c7378fe3fcb278e692ada33e92229e43"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\run_with_ollama.py": {
     "mtime": 1780710785.5176077,
@@ -103,6 +103,10 @@
     "mtime": 1780672940.0710404,
     "hash": "e35c402d9a4c16540096292f950ad3a1"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_runtime.py": {
+    "mtime": 1780760496.575308,
+    "hash": "e386927aa592d92f6e80030b1e103960"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_spec_contract.py": {
     "mtime": 1780643530.7273571,
     "hash": "0d25c98fa488bd8a3c60097733c3ab06"
@@ -190,6 +194,10 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\project_workspace.py": {
     "mtime": 1780711502.4300554,
     "hash": "05604a2c43ce5f99bb80d981844264cb"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\runtime_orchestrator.py": {
+    "mtime": 1780760467.8769174,
+    "hash": "3db6262336d276e40eb6956022e94b5f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\spec_contract.py": {
     "mtime": 1780643487.4126704,
