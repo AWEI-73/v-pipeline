@@ -133,6 +133,7 @@ def cmd_contract_run(args):
         categories_path=args.categories,
         model_routes_config_path=args.model_routes,
         build_profile_config_path=args.build_profile,
+        creator_profile_path=getattr(args, "creator_profile", None),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
@@ -1200,6 +1201,8 @@ def main():
     p_cr.add_argument("--mat-dir", help="material/render work dir")
     p_cr.add_argument("--model-routes", help="model routes override JSON")
     p_cr.add_argument("--build-profile", help="build profile override JSON")
+    p_cr.add_argument("--creator-profile", dest="creator_profile",
+                      help="creator_profile.json — fills build defaults (brief overrides)")
     p_cr.add_argument("--quiet", action="store_true")
 
     p_gm = sub.add_parser("generated-manifest")

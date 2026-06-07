@@ -192,7 +192,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               editor_review, final, state, verify_result=None,
               revision_plan=None, brief=None,
               timeline_invariants=None, broll_audit=None, caption_audit=None,
-              keyframe_grid=None, visual_audit=None):
+              keyframe_grid=None, visual_audit=None,
+              creator_profile=None, creator_profile_applied=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
@@ -225,6 +226,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "caption_audit": str(caption_audit) if caption_audit else None,
         "keyframe_grid": str(keyframe_grid) if keyframe_grid else None,
         "visual_audit": str(visual_audit) if visual_audit else None,
+        "creator_profile": str(creator_profile) if creator_profile else None,
+        "creator_profile_applied": str(creator_profile_applied) if creator_profile_applied else None,
     }
 
 
@@ -311,11 +314,46 @@ def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None
     return written
 
 
+def _apply_creator_profile(out_dir, creator_profile_path, brief_dict, build_profile_payload, verbose=True):
+    """Apply creator-profile defaults (P2) and record what was applied.
+
+    brief always overrides creator defaults. Creator editing defaults fill build
+    profile policy only where it left them null. Writes creator_profile.json (copy)
+    and creator_profile_applied.json. Returns {creator_profile, creator_profile_applied}.
+    """
+    from . import creator_profile as _cp  # noqa: PLC0415
+    profile = _cp.load_creator_profile(creator_profile_path)
+    resolved = _cp.resolve_defaults(profile, brief_dict or {})
+
+    # Fill build_profile broll policy nulls from resolved editing defaults.
+    policy = build_profile_payload.setdefault("broll_policy", {"target_ratio": None, "max_source_repeats": None})
+    if policy.get("target_ratio") is None and resolved["resolved"].get("broll_ratio_target") is not None:
+        policy["target_ratio"] = resolved["resolved"]["broll_ratio_target"]
+    if policy.get("max_source_repeats") is None and resolved["resolved"].get("max_source_repeats") is not None:
+        policy["max_source_repeats"] = resolved["resolved"]["max_source_repeats"]
+
+    out_dir = Path(out_dir)
+    cp_path = out_dir / "creator_profile.json"
+    _cp.write_creator_profile(cp_path, profile)
+    applied_path = out_dir / "creator_profile_applied.json"
+    _write_json(applied_path, {
+        "artifact_role": "creator_profile_applied",
+        "version": 1,
+        "resolved": resolved["resolved"],
+        "sources": resolved["sources"],
+        "applied": resolved["applied"],
+    })
+    if verbose:
+        print(f"[creator_profile] applied defaults: {resolved['applied']}")
+    return {"creator_profile": str(cp_path), "creator_profile_applied": str(applied_path)}
+
+
 def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
                  categories_path=None, generated_payload_path=None, manifest_path=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
                  model_routes_config_path=None, build_profile_path=None,
-                 build_profile_config_path=None, generated_asset_requests_path=None):
+                 build_profile_config_path=None, generated_asset_requests_path=None,
+                 creator_profile_path=None):
     """(I/O) canonical-first 入口:驗 contract → 轉 flat → 既有 mv_chain 執行。
     contract 可為 dict 或 .json 路徑。回 {ok, errors, result?}。**不改 run chain**。"""
     out_path = Path(out_path)
@@ -355,6 +393,18 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     model_routing.write_model_routes(model_routes_path, model_routes)
     from . import build_profile  # noqa: PLC0415
     build_profile_payload = build_profile.load_build_profile(build_profile_config_path)
+    creator_profile_paths = {}
+    if creator_profile_path and Path(creator_profile_path).exists():
+        brief_dict = None
+        brief_candidate = out_path.parent / "brief.json"
+        if brief_candidate.exists():
+            try:
+                with brief_candidate.open(encoding="utf-8") as bf:
+                    brief_dict = json.load(bf)
+            except Exception:
+                brief_dict = None
+        creator_profile_paths = _apply_creator_profile(
+            out_path.parent, creator_profile_path, brief_dict, build_profile_payload, verbose=verbose)
     build_profile.write_build_profile(build_profile_path, build_profile_payload)
     from . import generated_assets  # noqa: PLC0415
     generated_assets.write_generated_asset_requests(
@@ -512,7 +562,9 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          broll_audit=audit_paths.get("broll_audit"),
                          caption_audit=audit_paths.get("caption_audit"),
                          keyframe_grid=audit_paths.get("keyframe_grid"),
-                         visual_audit=audit_paths.get("visual_audit"))
+                         visual_audit=audit_paths.get("visual_audit"),
+                         creator_profile=creator_profile_paths.get("creator_profile"),
+                         creator_profile_applied=creator_profile_paths.get("creator_profile_applied"))
     _write_json(manifest_path, manifest)
 
     # Return structured results

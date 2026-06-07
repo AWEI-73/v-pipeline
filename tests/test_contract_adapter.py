@@ -192,11 +192,63 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "caption_audit",
                 "keyframe_grid",
                 "visual_audit",
+                "creator_profile",
+                "creator_profile_applied",
             ):
                 self.assertIn(optional_key, manifest)
                 self.assertIsNone(manifest[optional_key])
             self.assertTrue((outdir / "assembly_plan.json").exists())
             self.assertTrue((outdir / "timeline_build.json").exists())
+
+    def test_run_contract_applies_creator_profile_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            creator = Path(d) / "creator_profile.json"
+            creator.write_text(json.dumps({
+                "profile_version": 1,
+                "editing_defaults": {"broll_ratio_target": 0.4, "max_source_repeats": 2},
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+                Path(out_path).write_bytes(b"mp4")
+                state = Path(out_path).parent / "state.json"
+                state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
+                return {"final": out_path, "state": str(state),
+                        "plan": [{"segment": 1, "source": "a.mp4", "extract_start": 0,
+                                  "extract_dur": 1.5, "slot_index": 0, "slot_dur": 1.5}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path)}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    creator_profile_path=creator,
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            # creator defaults flow into build_profile broll policy
+            bp = json.loads((outdir / "build_profile.json").read_text(encoding="utf-8"))
+            self.assertEqual(bp["broll_policy"]["target_ratio"], 0.4)
+            self.assertEqual(bp["broll_policy"]["max_source_repeats"], 2)
+            # lineage recorded + indexed in manifest
+            applied = json.loads((outdir / "creator_profile_applied.json").read_text(encoding="utf-8"))
+            self.assertIn("broll_ratio_target", applied["applied"])
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["creator_profile"], str(outdir / "creator_profile.json"))
+            self.assertEqual(manifest["creator_profile_applied"], str(outdir / "creator_profile_applied.json"))
 
     def test_run_contract_auto_generates_audits_when_enabled(self):
         with tempfile.TemporaryDirectory() as d:

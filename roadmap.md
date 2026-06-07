@@ -110,8 +110,10 @@ P1-B visual evidence                                              [Completed 202
   keyframe grid/contact sheet     -> keyframe_grid.jpg (Node 12, ffmpeg)
   optional configured VLM audit   -> visual_audit.json (Node 12, mechanical + optional VLM)
 
-P2 creator_profile.json                                          [Not started]
-  only after P1 acceptance
+P2 creator_profile.json                                          [Completed 2026-06-08]
+  creator_profile.py + creator-profile CLI; brief always overrides creator
+  defaults; contract-run --creator-profile fills build_profile broll policy and
+  writes creator_profile_applied.json lineage (indexed in manifest)
 
 P3 optional CapCut draft backend                                 [Deferred]
   separate design review required; never a canonical MVP dependency

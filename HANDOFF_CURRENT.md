@@ -59,7 +59,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 320 tests pass (100% success)  # 255 baseline + 56 P1 + 9 P1.5 auto-wire tests
+Full test suite: 331 tests pass (100% success)  # 255 baseline + 56 P1 + 9 P1.5 + 11 P2 tests
 ```
 
 ## P1 Verification Tool Pack State (2026-06-07)
@@ -71,6 +71,8 @@ caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/1
 keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg; fails loudly if no frames)
 visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12)  done (mechanical; optional VLM)
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
+P2 creator_profile: creator_profile.py + creator-profile CLI; brief overrides creator defaults;
+  contract-run --creator-profile fills build_profile broll_policy + writes creator_profile_applied.json (manifest-indexed)
 P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)
 One-click smoke (all tools on, real video): 5/5 artifacts written in one pass; broll fail->curator; keyframe_grid ~80 KB
 Graphify: REBUILT 2026-06-08 (source-only) after P1/P1.5 — see graphify-out/
@@ -148,4 +150,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows baseline: `320 tests OK` (100% success; 255 + 56 P1 + 9 P1.5 auto-wire tests).
+Current Windows baseline: `331 tests OK` (100% success; 255 + 56 P1 + 9 P1.5 + 11 P2 tests).
