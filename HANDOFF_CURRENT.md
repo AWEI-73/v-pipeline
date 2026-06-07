@@ -73,7 +73,21 @@ visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12) 
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
 P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)
 One-click smoke (all tools on, real video): 5/5 artifacts written in one pass; broll fail->curator; keyframe_grid ~80 KB
-Graphify: NOT rebuilt yet (deferred until P1 boundaries settle, per plan Task 10)
+Graphify: REBUILT 2026-06-08 (source-only) after P1/P1.5 — see graphify-out/
+```
+
+## Latest Graphify (2026-06-08, post P1/P1.5)
+
+Source-only rebuild (excludes run outputs/media/_fullpool/archives and the
+external video-autopilot-kit-main/ reference clone):
+
+```text
+121 source files (73 code + 48 docs) · ~94,734 words
+1346 nodes · 1992 edges · 115 communities
+extraction: AST (1108 code nodes) + 3 semantic doc subagents (240 nodes)
+P1 modules + integration captured; hyperedge "P1 Verification Tool Pack (Node 11/12)" present
+god nodes still: ToolError(56), run(), load_dashboard_state(), pipeline(), run_tool(), _audio_duration()
+new god node: "Video Autopilot Tool Integration Spec" (14 edges) — P1 work is well-connected
 ```
 
 ### Codex review (2026-06-07) — findings addressed in P1.5

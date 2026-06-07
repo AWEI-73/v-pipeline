@@ -133,6 +133,11 @@ Codex review's main gap ("the canonical build chain should self-produce audit
 evidence"). Full Windows suite: 320 tests OK. Remaining P2-level follow-up:
 future-proof `timeline_invariants` for non-`clips` timeline shapes.
 
+Graphify rebuilt 2026-06-08 (source-only) after P1/P1.5 settled: 1346 nodes,
+1992 edges, 115 communities from 121 source files; the P1 verification tool pack
+and its Node 11/12 integration are captured (dedicated hyperedge present).
+Outputs in `graphify-out/`. Next milestone: P2 creator_profile.json.
+
 Constraints:
 
 ```text
