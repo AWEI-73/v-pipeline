@@ -106,6 +106,15 @@ class AuditCliFfmpegTest(unittest.TestCase):
         self.assertTrue(os.path.exists(out))
         self.assertGreater(os.path.getsize(out), 0)
 
+    def test_keyframe_grid_cmd_fails_on_unreadable_input(self):
+        bogus = os.path.join(self.tmp, "not_a_video.mp4")
+        Path(bogus).write_text("this is not a video", encoding="utf-8")
+        out = os.path.join(self.tmp, "empty_grid.jpg")
+        args = SimpleNamespace(video=bogus, out=out, samples=4, columns=2)
+        with self.assertRaises(video_tools.ToolError):
+            video_tools.cmd_keyframe_grid(args)
+        self.assertFalse(os.path.exists(out) and os.path.getsize(out) > 0)
+
     def test_visual_audit_cmd_mechanical(self):
         out = os.path.join(self.tmp, "visual_audit.json")
         grid = os.path.join(self.tmp, "keyframe_grid.jpg")

@@ -227,6 +227,11 @@ def cmd_keyframe_grid(args):
         columns=getattr(args, "columns", None) or 4,
     )
     print(json.dumps(meta, ensure_ascii=False, indent=2))
+    out = Path(args.out)
+    if meta.get("sample_count", 0) <= 0 or not out.exists() or out.stat().st_size == 0:
+        raise ToolError(
+            f"keyframe-grid produced no usable frames from {args.video} "
+            "(unreadable/zero-duration video?)")
 
 
 def cmd_visual_audit(args):
