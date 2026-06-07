@@ -289,7 +289,7 @@ NODE_REGISTRY = {
         "skill": ["editor_review"],
         "runner": "editor_review",
         "inputs": ["timeline_build.json"],
-        "outputs": ["editor_review.json"],
+        "outputs": ["editor_review.json", "timeline_invariants.json", "broll_audit.json", "caption_audit.json"],
         "verify_fn": verify_editor_review,
         "description": "Editor review decision"
     },
@@ -309,7 +309,7 @@ NODE_REGISTRY = {
         "skill": ["verify"],
         "runner": "verify",
         "inputs": ["final.mp4"],
-        "outputs": ["verify_result.json", "qa_report.json"],
+        "outputs": ["verify_result.json", "qa_report.json", "keyframe_grid.jpg", "visual_audit.json"],
         "verify_fn": verify_verify,
         "description": "QA verify report"
     },

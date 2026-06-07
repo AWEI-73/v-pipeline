@@ -187,6 +187,11 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "motion_graphics_render_plan",
                 "motion_graphics_manifest",
                 "revision_plan",
+                "timeline_invariants",
+                "broll_audit",
+                "caption_audit",
+                "keyframe_grid",
+                "visual_audit",
             ):
                 self.assertIn(optional_key, manifest)
                 self.assertIsNone(manifest[optional_key])

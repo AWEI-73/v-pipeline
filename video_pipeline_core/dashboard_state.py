@@ -140,6 +140,35 @@ def load_dashboard_state(workdir):
     effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest")) or safe_load_json("motion_graphics_manifest.json")
     generated_manifest = safe_load_json(manifest.get("generated_asset_manifest")) or safe_load_json("generated_asset_manifest.json")
 
+    # P1 verification tool pack (optional VERIFY evidence, not SPEC truth)
+    timeline_invariants = safe_load_json(manifest.get("timeline_invariants")) or safe_load_json("timeline_invariants.json")
+    broll_audit = safe_load_json(manifest.get("broll_audit")) or safe_load_json("broll_audit.json")
+    caption_audit = safe_load_json(manifest.get("caption_audit")) or safe_load_json("caption_audit.json")
+    visual_audit = safe_load_json(manifest.get("visual_audit")) or safe_load_json("visual_audit.json")
+    keyframe_grid_rel = manifest.get("keyframe_grid") or "keyframe_grid.jpg"
+    _kg_abs = keyframe_grid_rel if os.path.isabs(keyframe_grid_rel) else os.path.join(workdir, keyframe_grid_rel)
+    keyframe_grid_present = os.path.exists(_kg_abs)
+
+    audit_data = {
+        "timeline_invariants": timeline_invariants,
+        "broll_audit": broll_audit,
+        "caption_audit": caption_audit,
+        "visual_audit": visual_audit,
+    }
+    audit_evidence = {
+        role: (manifest.get(role) or f"{role}.json")
+        for role in ("timeline_invariants", "broll_audit", "caption_audit", "visual_audit")
+    }
+    # node ownership: 11 = editor review, 12 = verify
+    NODE_AUDIT_MAP = {
+        11: ["timeline_invariants", "broll_audit", "caption_audit"],
+        12: ["caption_audit", "keyframe_grid", "visual_audit"],
+    }
+    AUDIT_PRIMARY_NODE = {
+        "timeline_invariants": 11, "broll_audit": 11, "caption_audit": 11,
+        "keyframe_grid": 12, "visual_audit": 12,
+    }
+
     def generated_request_items(payload):
         if not payload:
             return []
@@ -249,16 +278,56 @@ def load_dashboard_state(workdir):
                 "message": "Effects enabled but render plan missing"
             })
             
+        node_int = int(node_id) if "-" not in node_id else node_id
+        node_audits = []
+        for role in NODE_AUDIT_MAP.get(node_int, []):
+            if role == "keyframe_grid":
+                if keyframe_grid_present:
+                    node_audits.append({"role": "keyframe_grid", "pass": None,
+                                        "evidence": keyframe_grid_rel})
+                continue
+            data = audit_data.get(role)
+            if data:
+                node_audits.append({
+                    "role": role,
+                    "pass": data.get("pass"),
+                    "next_action": data.get("next_action"),
+                    "evidence": audit_evidence[role],
+                })
+
         node_list.append({
-            "node": int(node_id) if "-" not in node_id else node_id,
+            "node": node_int,
             "label": node_def["label"],
             "skill": " / ".join(node_def["skill"]),
             "artifact": node_def["outputs"][0] if node_def["outputs"] else "segment_contract.json", # fallback
             "status": status,
-            "reason": reason
+            "reason": reason,
+            "audits": node_audits,
         })
 
 
+
+    # Surface P1 audit findings (failing -> error, warn-only -> warning)
+    for role, data in audit_data.items():
+        if not data:
+            continue
+        node_owner = AUDIT_PRIMARY_NODE[role]
+        if data.get("pass") is False:
+            findings.append({
+                "type": "error",
+                "node": node_owner,
+                "artifact": role,
+                "message": f"{role} failed: {data.get('next_action') or 'see findings'}",
+            })
+        else:
+            sub = data.get("findings") or data.get("mechanical_findings") or []
+            if any((f.get("level") in ("warn", "fail")) for f in sub):
+                findings.append({
+                    "type": "warning",
+                    "node": node_owner,
+                    "artifact": role,
+                    "message": f"{role} reported advisory findings",
+                })
 
     # Normalize next_action
     next_action = None
@@ -452,7 +521,12 @@ def load_dashboard_state(workdir):
             "timeline_build": timeline_build,
             "editor_review": editor_review,
             "verify_result": verify_result,
-            "state": state_data
+            "state": state_data,
+            "timeline_invariants": timeline_invariants,
+            "broll_audit": broll_audit,
+            "caption_audit": caption_audit,
+            "visual_audit": visual_audit,
+            "keyframe_grid": keyframe_grid_rel if keyframe_grid_present else None,
         },
         "next_action": next_action,
         "findings": findings

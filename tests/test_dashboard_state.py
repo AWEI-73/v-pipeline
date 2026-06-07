@@ -223,6 +223,71 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(state["segments"][0]["segment"], 1)
             self.assertEqual(state["segments"][0]["verify"]["status"], "blocked")
 
+    def test_audit_artifacts_surface_under_node_11_and_12(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            manifest = {
+                "timeline_build": "timeline_build.json",
+                "editor_review": "editor_review.json",
+                "timeline_invariants": "timeline_invariants.json",
+                "broll_audit": "broll_audit.json",
+                "visual_audit": "visual_audit.json",
+            }
+            (workdir / "artifact_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            (workdir / "timeline_build.json").write_text(json.dumps([]), encoding="utf-8")
+            (workdir / "editor_review.json").write_text(json.dumps({"decision": "approve"}), encoding="utf-8")
+            (workdir / "timeline_invariants.json").write_text(json.dumps({
+                "artifact_role": "timeline_invariants", "version": 1, "pass": False,
+                "checks": [{"name": "clip_trace_present", "status": "fail",
+                            "affected_segments": [2], "details": "missing trace"}],
+                "next_action": "fix_timeline_or_assembly",
+            }), encoding="utf-8")
+            (workdir / "broll_audit.json").write_text(json.dumps({
+                "artifact_role": "broll_audit", "version": 1, "pass": True,
+                "metrics": {"broll_ratio": 0.4, "unique_source_ratio": 1.0, "max_source_repeats": 1},
+                "findings": [], "next_action": None,
+            }), encoding="utf-8")
+            (workdir / "visual_audit.json").write_text(json.dumps({
+                "artifact_role": "visual_audit", "version": 1, "pass": True,
+                "grid": "keyframe_grid.jpg", "samples": [{"timestamp_sec": 1.0, "cell": 1}],
+                "mechanical_findings": [], "model_review": None, "next_action": None,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            # artifacts section indexes the audits
+            self.assertFalse(state["artifacts"]["timeline_invariants"]["pass"])
+            self.assertTrue(state["artifacts"]["visual_audit"]["pass"])
+
+            nodes_by_label = {n["label"]: n for n in state["nodes"]}
+            er = nodes_by_label["Editor Review"]
+            roles_11 = {a["role"] for a in er.get("audits", [])}
+            self.assertIn("timeline_invariants", roles_11)
+            self.assertIn("broll_audit", roles_11)
+
+            verify_node = nodes_by_label["Verify"]
+            roles_12 = {a["role"] for a in verify_node.get("audits", [])}
+            self.assertIn("visual_audit", roles_12)
+
+            # failing audit surfaces a finding tagged to its node
+            failing = [f for f in state["findings"]
+                       if f.get("artifact") == "timeline_invariants"]
+            self.assertTrue(failing)
+            self.assertEqual(failing[0]["node"], 11)
+            self.assertEqual(failing[0]["type"], "error")
+
+    def test_no_audit_artifacts_keeps_nodes_clean(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "editor_review.json").write_text(
+                json.dumps({"decision": "approve"}), encoding="utf-8")
+            state = load_dashboard_state(str(workdir))
+            nodes_by_label = {n["label"]: n for n in state["nodes"]}
+            # no audits present -> empty audits list, no audit findings
+            self.assertEqual(nodes_by_label["Editor Review"].get("audits", []), [])
+            self.assertEqual(
+                [f for f in state["findings"] if "artifact" in f], [])
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

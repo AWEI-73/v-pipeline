@@ -190,7 +190,9 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               motion_graphics_manifest=None,
               assembly_plan, timeline_build,
               editor_review, final, state, verify_result=None,
-              revision_plan=None, brief=None):
+              revision_plan=None, brief=None,
+              timeline_invariants=None, broll_audit=None, caption_audit=None,
+              keyframe_grid=None, visual_audit=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
@@ -218,6 +220,11 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "state": str(state),
         "verify_result": str(verify_result) if verify_result else None,
         "revision_plan": str(revision_plan) if revision_plan else None,
+        "timeline_invariants": str(timeline_invariants) if timeline_invariants else None,
+        "broll_audit": str(broll_audit) if broll_audit else None,
+        "caption_audit": str(caption_audit) if caption_audit else None,
+        "keyframe_grid": str(keyframe_grid) if keyframe_grid else None,
+        "visual_audit": str(visual_audit) if visual_audit else None,
     }
 
 
