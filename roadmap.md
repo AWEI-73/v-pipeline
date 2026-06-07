@@ -122,9 +122,16 @@ P1 status: implemented as focused `video_pipeline_core` modules with thin
 `keyframe-grid`, `visual-audit`), optional `artifact_manifest.json` keys,
 Node 11/12 dashboard evidence, and a pure `runtime_orchestrator.resolve_audit_route`
 consumer. Mechanical-only verify works without Ollama; policy is parameterized
-(no creator keyword map baked in). Full Windows suite: 311 tests OK. Graphify
-rebuild intentionally deferred until P1 boundaries settle. See
-`docs/build-tool-runner-spec.md` P1 section.
+(no creator keyword map baked in). Graphify rebuild intentionally deferred until
+P1 boundaries settle. See `docs/build-tool-runner-spec.md` P1 section.
+
+P1.5 (auto-wire, 2026-06-07): `contract-run` now auto-produces the enabled audit
+artifacts in a single build pass, gated by `build_profile.verification_tools`
+(default OFF, so existing runs are unchanged). `caption-audit` reads a real
+`subtitles.srt`; `keyframe-grid` fails loudly on empty output. This closes the
+Codex review's main gap ("the canonical build chain should self-produce audit
+evidence"). Full Windows suite: 320 tests OK. Remaining P2-level follow-up:
+future-proof `timeline_invariants` for non-`clips` timeline shapes.
 
 Constraints:
 

@@ -257,19 +257,40 @@ Integration:
 - Runtime: `runtime_orchestrator.resolve_audit_route` consumes audit findings
   and routes the smallest affected node/skill; it runs no audit algorithm and is
   inert when no audit findings exist.
+- Auto-generation (P1.5): `contract_adapter.run_contract` calls `_write_p1_audits`
+  after build/render. It produces the deterministic audits from `timeline_build`
+  + `subtitles.srt`, and `keyframe_grid` + mechanical `visual_audit` from
+  `final.mp4`. Gated by `build_profile.verification_tools` (all OFF by default).
+
+Enable per project in `build_profile.json`:
+
+```json
+{
+  "verification_tools": {"timeline_invariants": true, "broll_audit": true,
+    "caption_audit": true, "keyframe_grid": true, "visual_audit": true},
+  "broll_policy": {"target_ratio": null, "max_source_repeats": null},
+  "keyframe_grid": {"sample_count": 12, "columns": 4}
+}
+```
 
 Policy is parameterized (build_profile / creator profile / brief). No creator
 keyword map or preferred ratio is baked in. Mechanical-only verify works without
 Ollama; the optional VLM reviewer takes provider/model lineage from model routes.
+`caption-audit` reads a real `subtitles.srt` (`--srt`) or a caption-events JSON.
+`keyframe-grid` fails loudly when no frames can be extracted.
 
 Acceptance evidence (2026-06-07):
 
-- Full Windows suite: `311 tests OK`.
-- Real Render Candidate smoke: `keyframe_grid.jpg` (4x2, 8 samples, ~58 KB),
-  `visual_audit.json` mechanical-only `pass` with `model_review: null`.
+- Full Windows suite: `320 tests OK`.
+- Disabled by default: a standard run produces no audit artifacts (manifest keys
+  null); existing behavior unchanged.
+- One-click smoke with all tools enabled (real 5s video): all five artifacts
+  written from a single build pass; `broll_audit` correctly fails to `curator`
+  on a reused source; `keyframe_grid.jpg` is a real ~80 KB image;
+  `visual_audit` mechanical `pass` with `model_review: null`.
 - Deterministic bundle smoke: timeline-audit must-include failure routes to
-  `fix_timeline_or_assembly`; broll-audit flags `max_source_repeats`;
-  caption-audit excludes name supers from subtitle overlap.
+  `fix_timeline_or_assembly`; caption-audit excludes name supers from subtitle
+  overlap and parses SRT cues.
 
 ## Agent Work Rules
 

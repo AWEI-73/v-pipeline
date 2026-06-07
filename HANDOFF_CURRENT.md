@@ -59,7 +59,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 311 tests pass (100% success)  # 255 baseline + 56 P1 verification-pack tests
+Full test suite: 320 tests pass (100% success)  # 255 baseline + 56 P1 + 9 P1.5 auto-wire tests
 ```
 
 ## P1 Verification Tool Pack State (2026-06-07)
@@ -67,12 +67,22 @@ Full test suite: 311 tests pass (100% success)  # 255 baseline + 56 P1 verificat
 ```text
 timeline_invariants.py / timeline-audit  -> timeline_invariants.json  (Node 11)  done
 broll_audit.py         / broll-audit     -> broll_audit.json          (Node 11)  done
-caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/12) done
-keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg)
+caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/12) done (reads subtitles.srt via --srt)
+keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg; fails loudly if no frames)
 visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12)  done (mechanical; optional VLM)
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
-Real Render Candidate smoke: keyframe_grid.jpg 4x2/8 samples ~58 KB; visual_audit mechanical pass
+P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)
+One-click smoke (all tools on, real video): 5/5 artifacts written in one pass; broll fail->curator; keyframe_grid ~80 KB
 Graphify: NOT rebuilt yet (deferred until P1 boundaries settle, per plan Task 10)
+```
+
+### Codex review (2026-06-07) — findings addressed in P1.5
+
+```text
+[P1] contract-run did not auto-produce audits  -> FIXED (build_profile.verification_tools, default OFF)
+[P2] caption-audit didn't read subtitles.srt   -> FIXED (parse_srt + --srt)
+[P2] keyframe-grid too lenient on empty output  -> FIXED (CLI fails when no frames)
+[P2] timeline_invariants shape narrow (items/tracks) -> deferred future-proofing; current canonical shape is clips
 ```
 
 ## Latest Graphify
@@ -124,4 +134,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows baseline: `311 tests OK` (100% success; 255 + 56 P1 verification-pack tests).
+Current Windows baseline: `320 tests OK` (100% success; 255 + 56 P1 + 9 P1.5 auto-wire tests).
