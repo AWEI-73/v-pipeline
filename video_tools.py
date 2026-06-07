@@ -248,6 +248,15 @@ def cmd_visual_audit(args):
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
 
 
+def cmd_capcut_draft(args):
+    """P3 (optional): write a provider-neutral CapCut draft manifest from a timeline."""
+    from video_pipeline_core import capcut_backend
+    timeline = _load_json(args.timeline)
+    res = capcut_backend.write_draft_manifest(
+        timeline, args.out, project_name=getattr(args, "project", None))
+    print(json.dumps(res["manifest"], ensure_ascii=False, indent=2))
+
+
 def cmd_creator_profile(args):
     """P2: manage creator_profile.json (stable creator/channel defaults)."""
     from video_pipeline_core import creator_profile
@@ -1258,6 +1267,12 @@ def main():
     p_va.add_argument("--samples", type=int, default=12, help="number of keyframes")
     p_va.add_argument("--columns", type=int, default=4, help="grid columns")
 
+    # --- P3 optional CapCut backend ---
+    p_ccd = sub.add_parser("capcut-draft")
+    p_ccd.add_argument("timeline", help="timeline_build.json")
+    p_ccd.add_argument("--out", required=True, help="capcut_draft_manifest.json output")
+    p_ccd.add_argument("--project", default=None, help="project name")
+
     # --- P2 creator profile ---
     p_cp = sub.add_parser("creator-profile")
     p_cp.add_argument("profile", nargs="?", default=None,
@@ -1320,6 +1335,7 @@ def main():
         "keyframe-grid":   cmd_keyframe_grid,
         "visual-audit":    cmd_visual_audit,
         "creator-profile": cmd_creator_profile,
+        "capcut-draft":    cmd_capcut_draft,
     }
 
     if not args.command or args.command not in dispatch:
