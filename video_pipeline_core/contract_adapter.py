@@ -228,6 +228,89 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
     }
 
 
+def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None,
+                     srt_path=None, final_video=None, contract_obj=None, verbose=True):
+    """Generate enabled P1 verification artifacts after build/render.
+
+    Gated entirely by ``build_profile.verification_tools`` (default all OFF), so a
+    standard run produces nothing here and behaves exactly as before. Returns a
+    dict of {artifact_role: path} for the artifacts actually written.
+    """
+    from . import build_profile as _bp  # noqa: PLC0415
+    tools = _bp.verification_tools(build_profile_payload)
+    if not any(tools.values()):
+        return {}
+
+    out_dir = Path(out_dir)
+    written = {}
+
+    timeline = None
+    if timeline_build_path and Path(timeline_build_path).exists():
+        try:
+            with open(timeline_build_path, encoding="utf-8") as f:
+                timeline = json.load(f)
+        except Exception:
+            timeline = None
+
+    segments = []
+    if isinstance(contract_obj, dict):
+        segments = contract_obj.get("segments") or []
+    elif isinstance(contract_obj, list):
+        segments = contract_obj
+    must_include = [s.get("segment") for s in segments
+                    if isinstance(s, dict) and s.get("must_include")]
+
+    if tools["timeline_invariants"] and timeline is not None:
+        from . import timeline_invariants  # noqa: PLC0415
+        p = out_dir / "timeline_invariants.json"
+        timeline_invariants.write_timeline_invariants(
+            timeline, p, must_include_segments=must_include or None)
+        written["timeline_invariants"] = str(p)
+
+    if tools["broll_audit"] and timeline is not None:
+        from . import broll_audit  # noqa: PLC0415
+        policy = build_profile_payload.get("broll_policy") or {}
+        p = out_dir / "broll_audit.json"
+        broll_audit.write_broll_audit(
+            timeline, p,
+            target_ratio=policy.get("target_ratio"),
+            max_source_repeats=policy.get("max_source_repeats"))
+        written["broll_audit"] = str(p)
+
+    if tools["caption_audit"] and srt_path and Path(srt_path).exists():
+        from . import caption_audit  # noqa: PLC0415
+        try:
+            events = caption_audit.parse_srt(Path(srt_path).read_text(encoding="utf-8"))
+            p = out_dir / "caption_audit.json"
+            caption_audit.write_caption_audit(events, p)
+            written["caption_audit"] = str(p)
+        except Exception as e:
+            if verbose:
+                print(f"[audit] caption_audit skipped: {e}")
+
+    if (tools["keyframe_grid"] or tools["visual_audit"]) and final_video and Path(final_video).exists():
+        from . import keyframe_grid as _kg  # noqa: PLC0415
+        kg_policy = build_profile_payload.get("keyframe_grid") or {}
+        grid_path = out_dir / "keyframe_grid.jpg"
+        try:
+            meta = _kg.generate_keyframe_grid(
+                str(final_video), str(grid_path),
+                sample_count=kg_policy.get("sample_count", 12),
+                columns=kg_policy.get("columns", 4))
+            if tools["keyframe_grid"] and meta.get("sample_count", 0) > 0:
+                written["keyframe_grid"] = str(grid_path)
+            if tools["visual_audit"]:
+                from . import visual_audit  # noqa: PLC0415
+                p = out_dir / "visual_audit.json"
+                visual_audit.write_visual_audit(meta, p)
+                written["visual_audit"] = str(p)
+        except Exception as e:
+            if verbose:
+                print(f"[audit] keyframe_grid/visual_audit skipped: {e}")
+
+    return written
+
+
 def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
                  categories_path=None, generated_payload_path=None, manifest_path=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
@@ -370,6 +453,18 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             if verbose:
                 print(f"[verify] Automatic verification failed: {e}")
 
+    # P1 verification tool pack (gated by build_profile.verification_tools; OFF by
+    # default so this is inert for standard runs). Written before dashboard state
+    # so Node 11/12 surface the evidence in the same run.
+    audit_paths = _write_p1_audits(
+        out_path.parent, build_profile_payload,
+        timeline_build_path=edit_paths.get("timeline_build"),
+        srt_path=srt_path,
+        final_video=out_path if out_path.exists() else None,
+        contract_obj=contract_obj,
+        verbose=verbose,
+    )
+
     # Compile the final dashboard state and overwrite state.json
     from . import dashboard_state
     dash_state = dashboard_state.load_dashboard_state(str(out_path.parent))
@@ -412,7 +507,12 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          editor_review=editor_review_path,
                          final=str(out_path),
                          state=str(state_path),
-                         verify_result=str(verify_report_path) if verify_report_path.exists() else None)
+                         verify_result=str(verify_report_path) if verify_report_path.exists() else None,
+                         timeline_invariants=audit_paths.get("timeline_invariants"),
+                         broll_audit=audit_paths.get("broll_audit"),
+                         caption_audit=audit_paths.get("caption_audit"),
+                         keyframe_grid=audit_paths.get("keyframe_grid"),
+                         visual_audit=audit_paths.get("visual_audit"))
     _write_json(manifest_path, manifest)
 
     # Return structured results

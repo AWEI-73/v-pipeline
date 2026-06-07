@@ -197,6 +197,61 @@ class ContractToMvScriptTest(unittest.TestCase):
                 self.assertIsNone(manifest[optional_key])
             self.assertTrue((outdir / "assembly_plan.json").exists())
             self.assertTrue((outdir / "timeline_build.json").exists())
+
+    def test_run_contract_auto_generates_audits_when_enabled(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            # build_profile with the deterministic verification tools enabled
+            profile_cfg = Path(d) / "build_profile.cfg.json"
+            profile_cfg.write_text(json.dumps({
+                "build_profile_version": 1,
+                "verification_tools": {
+                    "timeline_invariants": True,
+                    "broll_audit": True,
+                    "caption_audit": True,
+                },
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+                Path(out_path).write_bytes(b"mp4")
+                state = Path(out_path).parent / "state.json"
+                state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
+                return {"final": out_path, "state": str(state),
+                        "plan": [{"segment": 1, "source": "a.mp4", "extract_start": 0,
+                                  "extract_dur": 1.5, "slot_index": 0, "slot_dur": 1.5}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path)}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    build_profile_config_path=profile_cfg,
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            # deterministic audits produced and indexed
+            for role in ("timeline_invariants", "broll_audit", "caption_audit"):
+                self.assertTrue((outdir / f"{role}.json").exists(), f"{role}.json missing")
+                self.assertEqual(manifest[role], str(outdir / f"{role}.json"))
+            # ffmpeg-dependent tools were left disabled -> still null
+            self.assertIsNone(manifest["keyframe_grid"])
+            self.assertIsNone(manifest["visual_audit"])
+            audit = json.loads((outdir / "timeline_invariants.json").read_text(encoding="utf-8"))
+            self.assertEqual(audit["artifact_role"], "timeline_invariants")
             self.assertTrue((outdir / "editor_review.json").exists())
             self.assertTrue((outdir / "model_routes.json").exists())
 
