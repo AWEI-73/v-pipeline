@@ -24,6 +24,38 @@ from video_pipeline_core.node_registry import NODE_REGISTRY, NODE_ORDER
 NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REGISTRY.items()}
 
 
+_AUDIT_NODE = {
+    "timeline_invariants": "11", "broll_audit": "11", "caption_audit": "11",
+    "keyframe_grid": "12", "visual_audit": "12",
+}
+
+
+def resolve_audit_route(dash_state):
+    """Consume P1 audit findings and route to the smallest affected node/skill.
+
+    Pure consumer: reads the deterministic audit artifacts already loaded into the
+    dashboard state; it does not run any audit algorithm. Returns the route for the
+    earliest (smallest node) blocking audit, or None when nothing is blocking.
+    """
+    findings = [f for f in (dash_state.get("findings") or [])
+                if f.get("type") == "error" and f.get("artifact") in _AUDIT_NODE]
+    if not findings:
+        return None
+    findings.sort(key=lambda f: (f.get("node") or 99, f.get("artifact")))
+    chosen = findings[0]
+    artifact = chosen["artifact"]
+    node_id = _AUDIT_NODE[artifact]
+    node_def = NODE_REGISTRY.get(node_id, {})
+    audit = (dash_state.get("artifacts") or {}).get(artifact) or {}
+    return {
+        "artifact": artifact,
+        "node": node_id,
+        "skill": " / ".join(node_def.get("skill", [])),
+        "next_action": audit.get("next_action"),
+        "message": chosen.get("message", f"{artifact} reported a blocking finding"),
+    }
+
+
 def _get_project_and_run(project_name=None):
     """Resolve project directory and active/latest run directory, honoring project_root."""
     active_path = _repo_project_dir(REPO_ROOT) / "active.json"
@@ -227,6 +259,18 @@ def run_orchestrator(project_name=None, args=None):
         next_action = dash_state.get("run", {}).get("next_action") or dash_state.get("next_action")
 
         print(f"[runtime] Current Action resolved: {next_action}")
+
+        # P1 verification tool pack: a failing deterministic/visual audit must not
+        # be silently completed. Disabled tools produce no audit findings, so this
+        # is inert for existing runs.
+        audit_route = resolve_audit_route(dash_state)
+        if audit_route and next_action in (None, "complete_review_final"):
+            print(f"[runtime] [AUDIT] Blocking finding from '{audit_route['artifact']}' "
+                  f"(Node {audit_route['node']} / {audit_route['skill']}): {audit_route['message']}")
+            print(f"[runtime] [DISPATCH] Route: {audit_route['next_action'] or 'human review'}. "
+                  f"Fix the smallest affected node and run "
+                  f"'python runtime.py resume --project {project_dir.name}'.")
+            sys.exit(0)
 
         if next_action == "complete_review_final":
             # Strict completion condition: verify pass AND final.mp4 exists AND required artifacts complete

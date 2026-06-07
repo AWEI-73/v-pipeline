@@ -403,5 +403,92 @@ class TestRuntime(unittest.TestCase):
                 runtime_orchestrator.run_orchestrator(project_name="retry_cur_proj", args=MagicMock(contract=None, brief=None))
             self.assertEqual(cm.exception.code, 0)
 
+class TestAuditRouting(unittest.TestCase):
+    def test_resolve_audit_route_none_when_no_audit_findings(self):
+        dash_state = {"findings": [{"type": "error", "message": "unrelated"}],
+                      "artifacts": {}}
+        self.assertIsNone(runtime_orchestrator.resolve_audit_route(dash_state))
+
+    def test_resolve_audit_route_picks_smallest_affected_node(self):
+        dash_state = {
+            "findings": [
+                {"type": "error", "node": 12, "artifact": "visual_audit",
+                 "message": "visual_audit failed"},
+                {"type": "error", "node": 11, "artifact": "timeline_invariants",
+                 "message": "timeline_invariants failed"},
+            ],
+            "artifacts": {
+                "timeline_invariants": {"pass": False, "next_action": "fix_timeline_or_assembly"},
+                "visual_audit": {"pass": False, "next_action": "node_13_rerender"},
+            },
+        }
+        route = runtime_orchestrator.resolve_audit_route(dash_state)
+        self.assertIsNotNone(route)
+        self.assertEqual(route["artifact"], "timeline_invariants")
+        self.assertEqual(route["node"], "11")
+        self.assertEqual(route["next_action"], "fix_timeline_or_assembly")
+        self.assertIn("editor_review", route["skill"])
+
+
+class TestRuntimeAuditIntegration(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.root_path = Path(self.tmp_dir.name)
+        self.repo_dir = self.root_path / "repo"
+        self.projects_dir = self.root_path / "projects"
+        self.repo_dir.mkdir(parents=True, exist_ok=True)
+        self.projects_dir.mkdir(parents=True, exist_ok=True)
+        self.repo_root_patcher = patch("video_pipeline_core.runtime_orchestrator.REPO_ROOT", self.repo_dir)
+        self.repo_root_patcher.start()
+        self.default_root_patcher = patch("video_pipeline_core.project_workspace.default_project_root", return_value=self.projects_dir)
+        self.default_root_patcher.start()
+        self.python_patcher = patch("video_pipeline_core.runtime_orchestrator.resolve_python", return_value="dummy_python")
+        self.python_patcher.start()
+
+    def tearDown(self):
+        self.python_patcher.stop()
+        self.default_root_patcher.stop()
+        self.repo_root_patcher.stop()
+        self.tmp_dir.cleanup()
+
+    def test_failing_audit_blocks_completion(self):
+        import io
+        from contextlib import redirect_stdout
+        from video_pipeline_core.project_workspace import init_project, create_run_dir
+
+        proj_info = init_project("audit_proj", root=self.projects_dir, repo_dir=self.repo_dir)
+        project_dir = Path(proj_info["project_dir"])
+        (project_dir / "input" / "segment_contract.json").write_text(
+            json.dumps({"style": "mv", "segments": [{"segment": 1, "source": "stock"}]}),
+            encoding="utf-8")
+        (project_dir / "input" / "brief.json").write_text(
+            json.dumps({"title": "Audit"}), encoding="utf-8")
+        run_info = create_run_dir(project_dir, label="audit-run", repo_dir=self.repo_dir)
+        run_dir = Path(run_info["run_dir"])
+        (run_dir / "final.mp4").write_text("dummy", encoding="utf-8")
+        (run_dir / "verify_result.json").write_text('{"pass": true}', encoding="utf-8")
+
+        # Verify passes, but a deterministic timeline audit failed -> must not complete.
+        state_data = {
+            "run": {"next_action": "complete_review_final", "pass": True, "final": "final.mp4"},
+            "nodes": [],
+            "findings": [{"type": "error", "node": 11, "artifact": "timeline_invariants",
+                          "message": "timeline_invariants failed: fix_timeline_or_assembly"}],
+            "artifacts": {"timeline_invariants": {"pass": False,
+                                                  "next_action": "fix_timeline_or_assembly"}},
+        }
+        buf = io.StringIO()
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", return_value=state_data):
+            with redirect_stdout(buf):
+                with self.assertRaises(SystemExit) as cm:
+                    runtime_orchestrator.run_orchestrator(
+                        project_name="audit_proj",
+                        args=MagicMock(contract=None, brief=None, music=None, material_db=None))
+        out = buf.getvalue()
+        self.assertEqual(cm.exception.code, 0)
+        self.assertNotIn("completed successfully", out)
+        self.assertIn("timeline_invariants", out)
+
+
 if __name__ == "__main__":
     unittest.main()
