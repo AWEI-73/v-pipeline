@@ -247,6 +247,20 @@ def cmd_visual_audit(args):
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
 
 
+def cmd_creator_profile(args):
+    """P2: manage creator_profile.json (stable creator/channel defaults)."""
+    from video_pipeline_core import creator_profile
+    if getattr(args, "init", False):
+        path = creator_profile.write_creator_profile(args.out)
+        print(json.dumps({"ok": True, "creator_profile": path}, ensure_ascii=False, indent=2))
+        return
+    profile = (creator_profile.load_creator_profile(args.profile)
+               if getattr(args, "profile", None) else creator_profile.default_creator_profile())
+    brief = _load_json(args.brief) if getattr(args, "brief", None) else {}
+    result = creator_profile.resolve_defaults(profile, brief)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_search(args):
     """搜尋 YouTube，回傳影片清單"""
     limit = args.limit or 5
@@ -1241,6 +1255,14 @@ def main():
     p_va.add_argument("--samples", type=int, default=12, help="number of keyframes")
     p_va.add_argument("--columns", type=int, default=4, help="grid columns")
 
+    # --- P2 creator profile ---
+    p_cp = sub.add_parser("creator-profile")
+    p_cp.add_argument("profile", nargs="?", default=None,
+                      help="creator_profile.json to resolve (omit with --init)")
+    p_cp.add_argument("--init", action="store_true", help="write a default creator_profile.json")
+    p_cp.add_argument("--out", default="creator_profile.json", help="output path for --init")
+    p_cp.add_argument("--brief", default=None, help="brief.json to overlay (brief overrides profile)")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -1294,6 +1316,7 @@ def main():
         "caption-audit":   cmd_caption_audit,
         "keyframe-grid":   cmd_keyframe_grid,
         "visual-audit":    cmd_visual_audit,
+        "creator-profile": cmd_creator_profile,
     }
 
     if not args.command or args.command not in dispatch:

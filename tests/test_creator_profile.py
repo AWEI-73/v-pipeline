@@ -82,5 +82,40 @@ class ResolveDefaultsTest(unittest.TestCase):
         self.assertEqual(out["applied"], [])
 
 
+class CreatorProfileCliTest(unittest.TestCase):
+    def test_init_writes_default_profile(self):
+        import video_tools
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as d:
+            out = str(Path(d) / "creator_profile.json")
+            video_tools.cmd_creator_profile(
+                SimpleNamespace(init=True, out=out, profile=None, brief=None))
+            saved = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(saved["artifact_role"], "creator_profile")
+
+    def test_resolve_against_brief(self):
+        import io
+        import video_tools
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as d:
+            prof = Path(d) / "creator_profile.json"
+            prof.write_text(json.dumps({
+                "profile_version": 1,
+                "platform_defaults": {"platform": "youtube"},
+                "editing_defaults": {"max_source_repeats": 2},
+            }), encoding="utf-8")
+            brief = Path(d) / "brief.json"
+            brief.write_text(json.dumps({"platform": "tiktok"}), encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                video_tools.cmd_creator_profile(
+                    SimpleNamespace(init=False, out=None, profile=str(prof), brief=str(brief)))
+            out = json.loads(buf.getvalue())
+            self.assertEqual(out["resolved"]["platform"], "tiktok")
+            self.assertEqual(out["sources"]["platform"], "brief")
+            self.assertIn("max_source_repeats", out["applied"])
+
+
 if __name__ == "__main__":
     unittest.main()
