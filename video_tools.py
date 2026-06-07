@@ -166,6 +166,75 @@ def cmd_light_effects_plan(args):
     result = light_effects.write_light_effects_artifacts(contract, profile, args.out_dir)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
+def _load_json(path):
+    with Path(path).open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def cmd_timeline_audit(args):
+    """P1 Node 11: deterministic timeline_build invariants audit."""
+    from video_pipeline_core import timeline_invariants
+    timeline = _load_json(args.timeline)
+    kwargs = {}
+    if getattr(args, "expected_duration", None) is not None:
+        kwargs["expected_duration_sec"] = args.expected_duration
+    if getattr(args, "must_include", None):
+        kwargs["must_include_segments"] = list(args.must_include)
+    result = timeline_invariants.write_timeline_invariants(timeline, args.out, **kwargs)
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_broll_audit(args):
+    """P1 Node 11: B-roll ratio / repeated-source audit."""
+    from video_pipeline_core import broll_audit
+    timeline = _load_json(args.timeline)
+    kwargs = {}
+    if getattr(args, "target_ratio", None) is not None:
+        kwargs["target_ratio"] = args.target_ratio
+    if getattr(args, "max_source_repeats", None) is not None:
+        kwargs["max_source_repeats"] = args.max_source_repeats
+    result = broll_audit.write_broll_audit(timeline, args.out, **kwargs)
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_caption_audit(args):
+    """P1 Node 11/12: caption gap/overlap/reading-speed audit."""
+    from video_pipeline_core import caption_audit
+    data = _load_json(args.captions)
+    captions = data.get("captions") if isinstance(data, dict) else data
+    kwargs = {}
+    if getattr(args, "max_gap_sec", None) is not None:
+        kwargs["max_gap_sec"] = args.max_gap_sec
+    if getattr(args, "max_cps", None) is not None:
+        kwargs["max_chars_per_sec"] = args.max_cps
+    result = caption_audit.write_caption_audit(captions or [], args.out, **kwargs)
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_keyframe_grid(args):
+    """P1 Node 12: deterministic keyframe grid / contact sheet."""
+    from video_pipeline_core import keyframe_grid
+    meta = keyframe_grid.generate_keyframe_grid(
+        args.video, args.out,
+        sample_count=getattr(args, "samples", None) or 12,
+        columns=getattr(args, "columns", None) or 4,
+    )
+    print(json.dumps(meta, ensure_ascii=False, indent=2))
+
+
+def cmd_visual_audit(args):
+    """P1 Node 12: keyframe-grid generation + mechanical visual audit."""
+    from video_pipeline_core import keyframe_grid, visual_audit
+    grid_path = getattr(args, "grid", None) or str(Path(args.out).with_name("keyframe_grid.jpg"))
+    meta = keyframe_grid.generate_keyframe_grid(
+        args.video, grid_path,
+        sample_count=getattr(args, "samples", None) or 12,
+        columns=getattr(args, "columns", None) or 4,
+    )
+    result = visual_audit.write_visual_audit(meta, args.out)
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
 def cmd_search(args):
     """搜尋 YouTube，回傳影片清單"""
     limit = args.limit or 5
@@ -1120,6 +1189,44 @@ def main():
     p_le.add_argument("--build-profile", required=True, help="build_profile.json")
     p_le.add_argument("--out-dir", required=True, help="output directory for light effects artifacts")
 
+    # --- P1 verification tool pack ---
+    p_ta = sub.add_parser("timeline-audit")
+    p_ta.add_argument("timeline", help="timeline_build.json")
+    p_ta.add_argument("--out", required=True, help="timeline_invariants.json output")
+    p_ta.add_argument("--expected-duration", type=float, dest="expected_duration",
+                      default=None, help="expected timeline duration (sec) from brief/contract")
+    p_ta.add_argument("--must-include", type=int, nargs="*", dest="must_include",
+                      default=None, help="must-include segment ids")
+
+    p_ba = sub.add_parser("broll-audit")
+    p_ba.add_argument("timeline", help="timeline_build.json")
+    p_ba.add_argument("--out", required=True, help="broll_audit.json output")
+    p_ba.add_argument("--target-ratio", type=float, dest="target_ratio",
+                      default=None, help="max acceptable b-roll ratio (policy)")
+    p_ba.add_argument("--max-source-repeats", type=int, dest="max_source_repeats",
+                      default=None, help="max reuse count for a single source (policy)")
+
+    p_capa = sub.add_parser("caption-audit")
+    p_capa.add_argument("captions", help="caption events JSON (list or {captions:[...]})")
+    p_capa.add_argument("--out", required=True, help="caption_audit.json output")
+    p_capa.add_argument("--max-gap-sec", type=float, dest="max_gap_sec",
+                        default=None, help="flag uncaptioned gaps over this many sec")
+    p_capa.add_argument("--max-cps", type=float, dest="max_cps",
+                        default=None, help="max reading speed in chars per second")
+
+    p_kg = sub.add_parser("keyframe-grid")
+    p_kg.add_argument("video", help="render candidate video")
+    p_kg.add_argument("--out", required=True, help="keyframe_grid.jpg output")
+    p_kg.add_argument("--samples", type=int, default=12, help="number of keyframes")
+    p_kg.add_argument("--columns", type=int, default=4, help="grid columns")
+
+    p_va = sub.add_parser("visual-audit")
+    p_va.add_argument("video", help="render candidate video")
+    p_va.add_argument("--out", required=True, help="visual_audit.json output")
+    p_va.add_argument("--grid", default=None, help="keyframe_grid.jpg output path")
+    p_va.add_argument("--samples", type=int, default=12, help="number of keyframes")
+    p_va.add_argument("--columns", type=int, default=4, help="grid columns")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -1168,6 +1275,11 @@ def main():
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
         "light-effects-plan": cmd_light_effects_plan,
+        "timeline-audit": cmd_timeline_audit,
+        "broll-audit":     cmd_broll_audit,
+        "caption-audit":   cmd_caption_audit,
+        "keyframe-grid":   cmd_keyframe_grid,
+        "visual-audit":    cmd_visual_audit,
     }
 
     if not args.command or args.command not in dispatch:
