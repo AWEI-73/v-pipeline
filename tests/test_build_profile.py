@@ -43,6 +43,23 @@ class BuildProfileTest(unittest.TestCase):
         profile["verification_tools"]["timeline_invariants"] = True
         build_profile.validate_build_profile(profile)  # must not raise
 
+    def test_render_backend_defaults_to_ffmpeg_unattended(self):
+        profile = build_profile.default_build_profile()
+        self.assertEqual(profile["render_backend"], "ffmpeg")
+        self.assertFalse(profile["requires_human_or_computer_use"])
+
+    def test_capcut_backend_is_allowed(self):
+        profile = build_profile.default_build_profile()
+        profile["render_backend"] = "capcut_draft"
+        profile["requires_human_or_computer_use"] = True
+        build_profile.validate_build_profile(profile)  # must not raise
+
+    def test_unknown_render_backend_rejected(self):
+        profile = build_profile.default_build_profile()
+        profile["render_backend"] = "premiere"
+        with self.assertRaises(ValueError):
+            build_profile.validate_build_profile(profile)
+
     def test_load_override_preserves_unspecified_defaults(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "build_profile.json"

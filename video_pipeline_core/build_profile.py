@@ -19,6 +19,10 @@ ALLOWED_VISUAL_PROVIDERS = {
 }
 ALLOWED_FALLBACK_MODES = {"stock_video", "generated_image", "generated_video", "text_bridge"}
 ALLOWED_MOTION_BACKENDS = {"ffmpeg_libass", "html_playwright", "remotion", "mlt", "blender"}
+# P3: optional Node 13 render-candidate backends. ffmpeg stays the canonical
+# unattended MVP backend; the others are opt-in and may require a human/Computer
+# Use step (CapCut GUI export, etc.).
+ALLOWED_RENDER_BACKENDS = {"ffmpeg", "capcut_draft", "remotion", "html_playwright"}
 
 
 DEFAULT_BUILD_PROFILE = {
@@ -32,6 +36,9 @@ DEFAULT_BUILD_PROFILE = {
     "motion_graphics_backend": "ffmpeg_libass",
     "model_routes": "model_routes.json",
     "quality_baseline": "no_effects_quality",
+    # P3: Node 13 render-candidate backend. Default ffmpeg = fully unattended.
+    "render_backend": "ffmpeg",
+    "requires_human_or_computer_use": False,
     # P1 verification tool pack. Default OFF so existing runs are unchanged;
     # enable per project to make contract-run auto-produce audit evidence.
     "verification_tools": {
@@ -80,6 +87,8 @@ def validate_build_profile(profile):
     _validate_choice(profile, "fallback_visual_provider", ALLOWED_VISUAL_PROVIDERS)
     _validate_choice(profile, "fallback_visual_mode", ALLOWED_FALLBACK_MODES)
     _validate_choice(profile, "motion_graphics_backend", ALLOWED_MOTION_BACKENDS)
+    if "render_backend" in profile:
+        _validate_choice(profile, "render_backend", ALLOWED_RENDER_BACKENDS)
     priority = profile.get("provider_priority")
     if not isinstance(priority, list) or not priority:
         raise ValueError("provider_priority must be non-empty list")
