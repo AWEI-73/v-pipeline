@@ -200,8 +200,15 @@ def cmd_broll_audit(args):
 def cmd_caption_audit(args):
     """P1 Node 11/12: caption gap/overlap/reading-speed audit."""
     from video_pipeline_core import caption_audit
-    data = _load_json(args.captions)
-    captions = data.get("captions") if isinstance(data, dict) else data
+    srt = getattr(args, "srt", None)
+    captions_path = getattr(args, "captions", None)
+    if srt:
+        captions = caption_audit.parse_srt(Path(srt).read_text(encoding="utf-8"))
+    elif captions_path:
+        data = _load_json(captions_path)
+        captions = data.get("captions") if isinstance(data, dict) else data
+    else:
+        raise ToolError("caption-audit requires a captions JSON path or --srt")
     kwargs = {}
     if getattr(args, "max_gap_sec", None) is not None:
         kwargs["max_gap_sec"] = args.max_gap_sec
@@ -1207,7 +1214,9 @@ def main():
                       default=None, help="max reuse count for a single source (policy)")
 
     p_capa = sub.add_parser("caption-audit")
-    p_capa.add_argument("captions", help="caption events JSON (list or {captions:[...]})")
+    p_capa.add_argument("captions", nargs="?", default=None,
+                        help="caption events JSON (list or {captions:[...]}); omit when using --srt")
+    p_capa.add_argument("--srt", default=None, help="subtitles.srt to audit directly")
     p_capa.add_argument("--out", required=True, help="caption_audit.json output")
     p_capa.add_argument("--max-gap-sec", type=float, dest="max_gap_sec",
                         default=None, help="flag uncaptioned gaps over this many sec")

@@ -14,10 +14,45 @@ Source: technique inspired by https://github.com/Hao0321/video-autopilot-kit
 (MIT); reimplemented for this project's artifact contracts.
 """
 import json
+import re
 from pathlib import Path
 
 # Caption kinds that represent actual reading-track subtitles.
 _DEFAULT_SUBTITLE_KINDS = ("subtitle", "narrative")
+
+_SRT_TIME = re.compile(
+    r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*"
+    r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})"
+)
+
+
+def _srt_seconds(h, m, s, ms):
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
+
+
+def parse_srt(text, *, kind="subtitle"):
+    """Parse an SRT subtitle file into caption events.
+
+    Returns ``[{start_sec, end_sec, text, kind}]``. SRT carries only reading-track
+    subtitles, so every cue is tagged as ``subtitle`` (labels/name supers live in
+    the script/timeline, never in the SRT, so they cannot be mistaken here).
+    """
+    events = []
+    for block in re.split(r"\n\s*\n", (text or "").strip()):
+        lines = [ln for ln in block.splitlines() if ln.strip() != ""]
+        tc_idx = next((i for i, ln in enumerate(lines) if "-->" in ln), None)
+        if tc_idx is None:
+            continue
+        match = _SRT_TIME.search(lines[tc_idx])
+        if not match:
+            continue
+        g = match.groups()
+        start = _srt_seconds(*g[0:4])
+        end = _srt_seconds(*g[4:8])
+        text_body = " ".join(lines[tc_idx + 1:]).strip()
+        events.append({"start_sec": start, "end_sec": end,
+                       "text": text_body, "kind": kind})
+    return events
 
 
 def _finding(check, level, message, *, fix_class="spec", affected=None,

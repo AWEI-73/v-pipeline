@@ -83,6 +83,34 @@ class CaptionAuditTest(unittest.TestCase):
         result = ca.audit_captions(captions)
         self.assertEqual(result["metrics"]["overlap_count"], 1)
 
+    def test_parse_srt_basic(self):
+        srt = (
+            "1\n00:00:00,000 --> 00:00:03,000\n第一句\n\n"
+            "2\n00:00:03,500 --> 00:00:05,000\n第二句\n"
+        )
+        events = ca.parse_srt(srt)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["kind"], "subtitle")
+        self.assertAlmostEqual(events[0]["start_sec"], 0.0)
+        self.assertAlmostEqual(events[0]["end_sec"], 3.0)
+        self.assertEqual(events[0]["text"], "第一句")
+        self.assertAlmostEqual(events[1]["start_sec"], 3.5)
+
+    def test_parse_srt_multiline_text_joined(self):
+        srt = "1\n00:00:01,000 --> 00:00:02,000\n行一\n行二\n"
+        events = ca.parse_srt(srt)
+        self.assertEqual(len(events), 1)
+        self.assertIn("行一", events[0]["text"])
+        self.assertIn("行二", events[0]["text"])
+
+    def test_srt_then_audit_catches_overlap(self):
+        srt = (
+            "1\n00:00:00,000 --> 00:00:03,000\n句一\n\n"
+            "2\n00:00:02,000 --> 00:00:04,000\n句二\n"
+        )
+        result = ca.audit_captions(ca.parse_srt(srt))
+        self.assertEqual(result["metrics"]["overlap_count"], 1)
+
     def test_writer_outputs_stable_json(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "caption_audit.json"

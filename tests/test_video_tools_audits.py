@@ -71,6 +71,21 @@ class AuditCliTest(unittest.TestCase):
             self.assertEqual(saved["metrics"]["overlap_count"], 1)
 
 
+    def test_caption_audit_cmd_reads_srt(self):
+        with tempfile.TemporaryDirectory() as d:
+            srt = os.path.join(d, "subtitles.srt")
+            out = os.path.join(d, "caption_audit.json")
+            Path(srt).write_text(
+                "1\n00:00:00,000 --> 00:00:03,000\n句一\n\n"
+                "2\n00:00:02,000 --> 00:00:04,000\n句二\n",
+                encoding="utf-8")
+            args = SimpleNamespace(captions=None, srt=srt, out=out,
+                                   max_gap_sec=None, max_cps=None)
+            video_tools.cmd_caption_audit(args)
+            saved = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(saved["metrics"]["overlap_count"], 1)
+
+
 @unittest.skipUnless(_ffmpeg_available(), "ffmpeg not available")
 class AuditCliFfmpegTest(unittest.TestCase):
     def setUp(self):
