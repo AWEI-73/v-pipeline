@@ -64,3 +64,6 @@ graphify-out/cache/
 # nightmarket/script.json, nightmarket/decision_log.example.json — tracked
 # graphify-out/GRAPH_REPORT.md, graph.json, graph.html — tracked (handoff value)
 _fullpool/
+
+# external MIT reference clone — technique reference only, never a runtime dep
+video-autopilot-kit-main/

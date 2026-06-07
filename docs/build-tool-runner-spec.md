@@ -233,6 +233,44 @@ Verify:
 Render dashboard/story-map from a canonical run and confirm Node 8-14 reflect
 manifest artifacts rather than inferred file guesses.
 
+## P1 Verification Tool Pack (implemented 2026-06-07)
+
+Deterministic editing-quality evidence at Node 11/12. See
+`docs/video-autopilot-tool-integration-spec.md`. All artifacts are optional
+VERIFY evidence, never SPEC truth, and are inert when not produced.
+
+| Runner | Module | CLI | Artifact | Owner Node | Status |
+|---|---|---|---|---|---|
+| Timeline invariants | `timeline_invariants.py` | `timeline-audit` | `timeline_invariants.json` | 11 | implemented |
+| B-roll/repetition audit | `broll_audit.py` | `broll-audit` | `broll_audit.json` | 11 | implemented |
+| Caption timing audit | `caption_audit.py` | `caption-audit` | `caption_audit.json` | 11/12 | implemented |
+| Keyframe grid | `keyframe_grid.py` | `keyframe-grid` | `keyframe_grid.jpg` | 12 | implemented (ffmpeg) |
+| Visual audit | `visual_audit.py` | `visual-audit` | `visual_audit.json` | 12 | implemented (mechanical; optional VLM) |
+
+Integration:
+
+- Manifest: optional keys added to `artifact_manifest.json` (null by default).
+- Dashboard: audits attached as evidence on Node 11/12 with pass/warn/fail
+  findings (`dashboard_state.load_dashboard_state`).
+- Node registry: audit artifacts listed in Node 11/12 `outputs` for lifecycle
+  cleanup; `outputs[0]` unchanged.
+- Runtime: `runtime_orchestrator.resolve_audit_route` consumes audit findings
+  and routes the smallest affected node/skill; it runs no audit algorithm and is
+  inert when no audit findings exist.
+
+Policy is parameterized (build_profile / creator profile / brief). No creator
+keyword map or preferred ratio is baked in. Mechanical-only verify works without
+Ollama; the optional VLM reviewer takes provider/model lineage from model routes.
+
+Acceptance evidence (2026-06-07):
+
+- Full Windows suite: `311 tests OK`.
+- Real Render Candidate smoke: `keyframe_grid.jpg` (4x2, 8 samples, ~58 KB),
+  `visual_audit.json` mechanical-only `pass` with `model_review: null`.
+- Deterministic bundle smoke: timeline-audit must-include failure routes to
+  `fix_timeline_or_assembly`; broll-audit flags `max_source_repeats`;
+  caption-audit excludes name supers from subtitle overlap.
+
 ## Agent Work Rules
 
 - Do not make `segment_contract.json` provider-specific.

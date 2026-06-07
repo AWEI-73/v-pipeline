@@ -82,6 +82,61 @@ Do not rebuild Graphify before the Windows runtime boundaries stabilize. The
 existing WSL graph remains a historical architecture reference, not the current
 Windows source-of-truth graph.
 
+## 2026-06-07 Active Direction: Editing and VERIFY Tool Pack
+
+Approved integration reference:
+
+```text
+https://github.com/Hao0321/video-autopilot-kit
+```
+
+The external MIT-licensed repository is a technique/tool reference, not a new
+workflow owner. The canonical implementation spec and execution plan are:
+
+```text
+docs/video-autopilot-tool-integration-spec.md
+docs/superpowers/plans/2026-06-07-video-autopilot-tool-integration.md
+```
+
+Implementation order:
+
+```text
+P1-A deterministic audits                                         [Completed 2026-06-07]
+  timeline invariants      -> timeline_invariants.json (Node 11)
+  B-roll ratio/repetition  -> broll_audit.json (Node 11)
+  caption gap/overlap      -> caption_audit.json (Node 11/12)
+
+P1-B visual evidence                                              [Completed 2026-06-07]
+  keyframe grid/contact sheet     -> keyframe_grid.jpg (Node 12, ffmpeg)
+  optional configured VLM audit   -> visual_audit.json (Node 12, mechanical + optional VLM)
+
+P2 creator_profile.json                                          [Not started]
+  only after P1 acceptance
+
+P3 optional CapCut draft backend                                 [Deferred]
+  separate design review required; never a canonical MVP dependency
+```
+
+P1 status: implemented as focused `video_pipeline_core` modules with thin
+`video_tools.py` CLI shims (`timeline-audit`, `broll-audit`, `caption-audit`,
+`keyframe-grid`, `visual-audit`), optional `artifact_manifest.json` keys,
+Node 11/12 dashboard evidence, and a pure `runtime_orchestrator.resolve_audit_route`
+consumer. Mechanical-only verify works without Ollama; policy is parameterized
+(no creator keyword map baked in). Full Windows suite: 311 tests OK. Graphify
+rebuild intentionally deferred until P1 boundaries settle. See
+`docs/build-tool-runner-spec.md` P1 section.
+
+Constraints:
+
+```text
+Node 11/12 own P1 evidence and findings
+all outputs are explicit artifacts indexed by artifact_manifest.json
+segment_contract.json remains provider/backend neutral
+CapCut and Computer Use remain optional
+mechanical-only Verify must work without Ollama
+do not copy author-specific keyword maps or creator preferences
+```
+
 ## 2026-06-05 Current Canonical State
 
 ### 一句話版本

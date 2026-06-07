@@ -5,6 +5,7 @@ Updated: 2026-06-06
 This file is the clean resume anchor when `HANDOFF.md` contains older encoded
 notes. Read this first, then `roadmap.md`,
 `docs/windows-native-migration-spec.md`, `docs/build-tool-runner-spec.md`,
+`docs/video-autopilot-tool-integration-spec.md`,
 `README.md`, and `RUNBOOK.md`.
 
 ## Active Development Location
@@ -37,6 +38,7 @@ Do not develop both copies independently.
 - VLM policy: `qwen3-vl:4b-instruct` only for gate, content QA, and retry.
 - Generated provider policy: Antigravity / assistant_imagegen / codex_imagegen preferred; ComfyUI is deprecated/disabled unless explicitly isolated.
 - BUILD runner policy: tool choices live in `build_profile.json`; runner work must write explicit artifacts and manifest entries. See `docs/build-tool-runner-spec.md`.
+- Editing/VERIFY tool integration: P1 verification tool pack implemented (2026-06-07). Deterministic audits + keyframe grid + mechanical/optional-VLM visual audit at Node 11/12. CapCut/Computer Use remain optional and unbuilt. P2 creator_profile and P3 CapCut backend not started. See `docs/build-tool-runner-spec.md` P1 section and `docs/video-autopilot-tool-integration-spec.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
 - Migration policy: move from WSL to Windows in small verified steps. See `docs/windows-native-migration-spec.md`.
 
 ## Windows Migration State
@@ -57,7 +59,20 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 255 tests pass (100% success)
+Full test suite: 311 tests pass (100% success)  # 255 baseline + 56 P1 verification-pack tests
+```
+
+## P1 Verification Tool Pack State (2026-06-07)
+
+```text
+timeline_invariants.py / timeline-audit  -> timeline_invariants.json  (Node 11)  done
+broll_audit.py         / broll-audit     -> broll_audit.json          (Node 11)  done
+caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/12) done
+keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg)
+visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12)  done (mechanical; optional VLM)
+manifest/dashboard/registry/runtime integration: done (audits inert when absent)
+Real Render Candidate smoke: keyframe_grid.jpg 4x2/8 samples ~58 KB; visual_audit mechanical pass
+Graphify: NOT rebuilt yet (deferred until P1 boundaries settle, per plan Task 10)
 ```
 
 ## Latest Graphify
@@ -109,4 +124,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows baseline: `255 tests OK` (100% success).
+Current Windows baseline: `311 tests OK` (100% success; 255 + 56 P1 verification-pack tests).
