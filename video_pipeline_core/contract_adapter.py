@@ -193,7 +193,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               revision_plan=None, brief=None,
               timeline_invariants=None, broll_audit=None, caption_audit=None,
               keyframe_grid=None, visual_audit=None,
-              creator_profile=None, creator_profile_applied=None):
+              creator_profile=None, creator_profile_applied=None,
+              capcut_draft_manifest=None, capcut_export_manifest=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
@@ -228,6 +229,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "visual_audit": str(visual_audit) if visual_audit else None,
         "creator_profile": str(creator_profile) if creator_profile else None,
         "creator_profile_applied": str(creator_profile_applied) if creator_profile_applied else None,
+        "capcut_draft_manifest": str(capcut_draft_manifest) if capcut_draft_manifest else None,
+        "capcut_export_manifest": str(capcut_export_manifest) if capcut_export_manifest else None,
     }
 
 
@@ -515,6 +518,25 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         verbose=verbose,
     )
 
+    # P3 optional CapCut backend: only when explicitly selected. ffmpeg stays the
+    # canonical unattended path, so this is inert by default. Writes a
+    # provider-neutral draft manifest; the real .draft + GUI export are a
+    # human/Computer-Use step recorded separately and verified by Node 12.
+    capcut_paths = {}
+    if build_profile_payload.get("render_backend") == "capcut_draft" and edit_paths.get("timeline_build"):
+        try:
+            with open(edit_paths["timeline_build"], encoding="utf-8") as f:
+                _tl = json.load(f)
+            from . import capcut_backend  # noqa: PLC0415
+            cc_path = out_path.parent / "capcut_draft_manifest.json"
+            capcut_backend.write_draft_manifest(_tl, cc_path, project_name=out_path.parent.name)
+            capcut_paths["capcut_draft_manifest"] = str(cc_path)
+            if verbose:
+                print("[capcut] wrote provider-neutral draft manifest (GUI export remains a human/CU gate)")
+        except Exception as e:
+            if verbose:
+                print(f"[capcut] draft manifest skipped: {e}")
+
     # Compile the final dashboard state and overwrite state.json
     from . import dashboard_state
     dash_state = dashboard_state.load_dashboard_state(str(out_path.parent))
@@ -564,7 +586,8 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          keyframe_grid=audit_paths.get("keyframe_grid"),
                          visual_audit=audit_paths.get("visual_audit"),
                          creator_profile=creator_profile_paths.get("creator_profile"),
-                         creator_profile_applied=creator_profile_paths.get("creator_profile_applied"))
+                         creator_profile_applied=creator_profile_paths.get("creator_profile_applied"),
+                         capcut_draft_manifest=capcut_paths.get("capcut_draft_manifest"))
     _write_json(manifest_path, manifest)
 
     # Return structured results

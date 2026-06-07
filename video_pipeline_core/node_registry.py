@@ -299,9 +299,9 @@ NODE_REGISTRY = {
         "skill": ["editor"],
         "runner": "compiler",
         "inputs": ["timeline_build.json", "editor_review.json"],
-        "outputs": ["final.mp4", "polished_visual.mp4", "mv_av.mp4", "final_audio.wav", "subtitles.srt"],
+        "outputs": ["final.mp4", "polished_visual.mp4", "mv_av.mp4", "final_audio.wav", "subtitles.srt", "capcut_draft_manifest.json", "capcut_export_manifest.json"],
         "verify_fn": verify_render,
-        "description": "Final video render"
+        "description": "Final video render (ffmpeg canonical; optional capcut_draft backend)"
     },
     "12": {
         "node": "12",

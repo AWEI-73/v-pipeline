@@ -115,8 +115,12 @@ P2 creator_profile.json                                          [Completed 2026
   defaults; contract-run --creator-profile fills build_profile broll policy and
   writes creator_profile_applied.json lineage (indexed in manifest)
 
-P3 optional CapCut draft backend                                 [Deferred]
-  separate design review required; never a canonical MVP dependency
+P3 optional CapCut draft backend                                 [Scaffolding 2026-06-08]
+  version-independent framework built (build_profile.render_backend,
+  capcut_backend.py: provider-neutral draft manifest + export-as-render-candidate,
+  human/CU gate, Node 12 verify required). Real proprietary .draft serialization
+  deferred — CapCut not installed; see docs/decisions/2026-06-08-p3-capcut-optional-backend.md.
+  ffmpeg remains canonical; never a core dependency.
 ```
 
 P1 status: implemented as focused `video_pipeline_core` modules with thin

@@ -38,7 +38,7 @@ Do not develop both copies independently.
 - VLM policy: `qwen3-vl:4b-instruct` only for gate, content QA, and retry.
 - Generated provider policy: Antigravity / assistant_imagegen / codex_imagegen preferred; ComfyUI is deprecated/disabled unless explicitly isolated.
 - BUILD runner policy: tool choices live in `build_profile.json`; runner work must write explicit artifacts and manifest entries. See `docs/build-tool-runner-spec.md`.
-- Editing/VERIFY tool integration: P1 verification tool pack implemented (2026-06-07). Deterministic audits + keyframe grid + mechanical/optional-VLM visual audit at Node 11/12. CapCut/Computer Use remain optional and unbuilt. P2 creator_profile and P3 CapCut backend not started. See `docs/build-tool-runner-spec.md` P1 section and `docs/video-autopilot-tool-integration-spec.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
+- Editing/VERIFY tool integration: P1 (verification tool pack, Node 11/12), P1.5 (auto-wire into contract-run), P2 (creator_profile), and P3 (optional CapCut backend scaffolding) all implemented 2026-06-07/08. ffmpeg stays canonical; CapCut real `.draft` serialization deferred (not installed). See `docs/build-tool-runner-spec.md`, `docs/video-autopilot-tool-integration-spec.md`, and `docs/decisions/2026-06-08-p3-capcut-optional-backend.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
 - Migration policy: move from WSL to Windows in small verified steps. See `docs/windows-native-migration-spec.md`.
 
 ## Windows Migration State
@@ -59,7 +59,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 331 tests pass (100% success)  # 255 baseline + 56 P1 + 9 P1.5 + 11 P2 tests
+Full test suite: 342 tests pass (100% success)  # 255 + 56 P1 + 9 P1.5 + 11 P2 + 11 P3 tests
 ```
 
 ## P1 Verification Tool Pack State (2026-06-07)
@@ -71,6 +71,10 @@ caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/1
 keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg; fails loudly if no frames)
 visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12)  done (mechanical; optional VLM)
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
+P3 capcut (optional): build_profile.render_backend (default ffmpeg) + capcut_backend.py — provider-neutral
+  capcut_draft_manifest + export-as-render-candidate (accepted=False, Node 12 verify required, human/CU gate).
+  Real .draft serialization DEFERRED (CapCut not installed); ffmpeg stays canonical. capcut-draft CLI; contract-run
+  emits draft only when render_backend=capcut_draft. See docs/decisions/2026-06-08-p3-capcut-optional-backend.md
 P2 creator_profile: creator_profile.py + creator-profile CLI; brief overrides creator defaults;
   contract-run --creator-profile fills build_profile broll_policy + writes creator_profile_applied.json (manifest-indexed)
 P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)
@@ -150,4 +154,4 @@ python -m unittest discover -s tests -v
 ```
 
 Latest WSL full-suite reference: `236 tests OK`.
-Current Windows baseline: `331 tests OK` (100% success; 255 + 56 P1 + 9 P1.5 + 11 P2 tests).
+Current Windows baseline: `342 tests OK` (100% success; 255 + 56 P1 + 9 P1.5 + 11 P2 + 11 P3 tests).

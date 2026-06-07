@@ -194,11 +194,62 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "visual_audit",
                 "creator_profile",
                 "creator_profile_applied",
+                "capcut_draft_manifest",
+                "capcut_export_manifest",
             ):
                 self.assertIn(optional_key, manifest)
                 self.assertIsNone(manifest[optional_key])
             self.assertTrue((outdir / "assembly_plan.json").exists())
             self.assertTrue((outdir / "timeline_build.json").exists())
+
+    def test_run_contract_emits_capcut_draft_when_backend_selected(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            profile_cfg = Path(d) / "build_profile.cfg.json"
+            profile_cfg.write_text(json.dumps({
+                "build_profile_version": 1,
+                "render_backend": "capcut_draft",
+                "requires_human_or_computer_use": True,
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+                Path(out_path).write_bytes(b"mp4")
+                state = Path(out_path).parent / "state.json"
+                state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
+                return {"final": out_path, "state": str(state),
+                        "plan": [{"segment": 1, "source": "a.mp4", "extract_start": 0,
+                                  "extract_dur": 1.5, "slot_index": 0, "slot_dur": 1.5}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path)}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    build_profile_config_path=profile_cfg,
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            self.assertTrue((outdir / "capcut_draft_manifest.json").exists())
+            draft = json.loads((outdir / "capcut_draft_manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue(draft["requires_human_or_computer_use"])
+            self.assertEqual(draft["draft_serialization"]["status"], "pending")
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["capcut_draft_manifest"], str(outdir / "capcut_draft_manifest.json"))
+            # ffmpeg final.mp4 is still the canonical render
+            self.assertEqual(manifest["final"], str(outdir / "final.mp4"))
 
     def test_run_contract_applies_creator_profile_defaults(self):
         with tempfile.TemporaryDirectory() as d:
