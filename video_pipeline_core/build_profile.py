@@ -32,7 +32,33 @@ DEFAULT_BUILD_PROFILE = {
     "motion_graphics_backend": "ffmpeg_libass",
     "model_routes": "model_routes.json",
     "quality_baseline": "no_effects_quality",
+    # P1 verification tool pack. Default OFF so existing runs are unchanged;
+    # enable per project to make contract-run auto-produce audit evidence.
+    "verification_tools": {
+        "timeline_invariants": False,
+        "broll_audit": False,
+        "caption_audit": False,
+        "keyframe_grid": False,
+        "visual_audit": False,
+    },
+    "broll_policy": {"target_ratio": None, "max_source_repeats": None},
+    "keyframe_grid": {"sample_count": 12, "columns": 4},
 }
+
+VERIFICATION_TOOL_NAMES = (
+    "timeline_invariants", "broll_audit", "caption_audit",
+    "keyframe_grid", "visual_audit",
+)
+
+
+def verification_tools(profile):
+    """Return the enabled-state of each P1 verification tool.
+
+    Missing keys default to False so older profiles (and partial overrides) read
+    safely without enabling anything.
+    """
+    vt = (profile or {}).get("verification_tools") or {}
+    return {name: bool(vt.get(name, False)) for name in VERIFICATION_TOOL_NAMES}
 
 
 def default_build_profile():

@@ -16,6 +16,33 @@ class BuildProfileTest(unittest.TestCase):
         self.assertIn("assistant_imagegen", profile["provider_priority"])
         self.assertNotIn("comfyui", profile["provider_priority"])
 
+    def test_verification_tools_default_off(self):
+        profile = build_profile.default_build_profile()
+        vt = profile["verification_tools"]
+        self.assertEqual(set(vt), {"timeline_invariants", "broll_audit",
+                                   "caption_audit", "keyframe_grid", "visual_audit"})
+        self.assertTrue(all(v is False for v in vt.values()))
+        self.assertEqual(profile["keyframe_grid"], {"sample_count": 12, "columns": 4})
+        self.assertEqual(profile["broll_policy"],
+                         {"target_ratio": None, "max_source_repeats": None})
+
+    def test_verification_tools_helper_defaults_missing_to_false(self):
+        # a profile missing the key, or with a partial dict, is read safely
+        self.assertEqual(
+            build_profile.verification_tools({}),
+            {"timeline_invariants": False, "broll_audit": False,
+             "caption_audit": False, "keyframe_grid": False, "visual_audit": False},
+        )
+        partial = {"verification_tools": {"timeline_invariants": True}}
+        got = build_profile.verification_tools(partial)
+        self.assertTrue(got["timeline_invariants"])
+        self.assertFalse(got["broll_audit"])
+
+    def test_profile_with_verification_tools_validates(self):
+        profile = build_profile.default_build_profile()
+        profile["verification_tools"]["timeline_invariants"] = True
+        build_profile.validate_build_profile(profile)  # must not raise
+
     def test_load_override_preserves_unspecified_defaults(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "build_profile.json"
