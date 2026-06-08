@@ -16,10 +16,134 @@ Source: concept inspired by https://github.com/Hao0321/video-autopilot-kit
 (MIT) capcut helpers; reimplemented generically, no proprietary format or
 author-specific code copied.
 """
+import copy
 import json
+import uuid
 from pathlib import Path
 
 _EXPORT_METHODS = ("human", "computer_use")
+
+# CapCut stores all times in microseconds.
+_US = 1_000_000
+
+
+def _us(seconds):
+    return int(round(float(seconds or 0) * _US))
+
+
+def _new_id():
+    return str(uuid.uuid4()).upper()
+
+
+def _material_bucket_index(materials):
+    """Map every material id -> the bucket (list key) it lives in."""
+    index = {}
+    for bucket, items in materials.items():
+        if isinstance(items, list):
+            for m in items:
+                if isinstance(m, dict) and m.get("id"):
+                    index[m["id"]] = bucket
+    return index
+
+
+def build_capcut_draft(skeleton, timeline, *, project_name=None):
+    """Build a real CapCut draft dict by cloning a skeleton draft per clip.
+
+    ``skeleton`` is a real ``draft_content.json`` (one CapCut-generated project)
+    used as the structural template — this is the robust approach the reference
+    kit uses, because a from-scratch draft would have to reproduce CapCut's whole
+    UUID-linked material graph. For each clip we clone the template video material
+    and segment (plus the segment's ``extra_material_refs`` siblings), assign fresh
+    UUIDs, and set source/target time ranges in microseconds.
+
+    Validation note: the generated draft must still be opened in CapCut to confirm
+    it loads (the format is version-specific and undocumented).
+    """
+    draft = copy.deepcopy(skeleton)
+    materials = draft.setdefault("materials", {})
+    clips = timeline.get("clips") if isinstance(timeline, dict) else (timeline or [])
+
+    # Locate the first video track + its template segment + template material.
+    video_track = next((t for t in draft.get("tracks", []) if t.get("type") == "video"), None)
+    if video_track is None or not video_track.get("segments"):
+        raise ValueError("skeleton has no video track/segment to use as a template")
+    tmpl_seg = copy.deepcopy(video_track["segments"][0])
+    vids = materials.get("videos") or []
+    tmpl_mat = copy.deepcopy(vids[0]) if vids else None
+    if tmpl_mat is None:
+        raise ValueError("skeleton has no video material to use as a template")
+
+    bucket_index = _material_bucket_index(materials)
+
+    # Reset the video track + video material bucket; we rebuild them per clip.
+    materials["videos"] = []
+    new_segments = []
+    cursor = 0
+
+    for i, clip in enumerate(clips):
+        dur = _us(clip.get("duration_sec"))
+        src_in = _us(clip.get("start_sec") or clip.get("source_in_sec") or 0)
+
+        mat = copy.deepcopy(tmpl_mat)
+        mat["id"] = _new_id()
+        mat["path"] = (clip.get("source_path") or clip.get("file") or "").replace("\\", "/")
+        mat["duration"] = dur
+        mat["material_name"] = Path(mat["path"]).name if mat["path"] else mat.get("material_name", "")
+        materials["videos"].append(mat)
+
+        seg = copy.deepcopy(tmpl_seg)
+        seg["id"] = _new_id()
+        seg["material_id"] = mat["id"]
+        # Clone each extra-material sibling so the segment is self-contained.
+        new_refs = []
+        for ref in tmpl_seg.get("extra_material_refs", []):
+            bucket = bucket_index.get(ref)
+            if not bucket:
+                continue
+            src_mat = next((m for m in skeleton["materials"][bucket] if m.get("id") == ref), None)
+            if src_mat is None:
+                continue
+            clone = copy.deepcopy(src_mat)
+            clone["id"] = _new_id()
+            materials.setdefault(bucket, []).append(clone)
+            new_refs.append(clone["id"])
+        seg["extra_material_refs"] = new_refs
+        seg["source_timerange"] = {"start": src_in, "duration": dur}
+        seg["target_timerange"] = {"start": cursor, "duration": dur}
+        seg["render_index"] = i
+        new_segments.append(seg)
+        cursor += dur
+
+    video_track["segments"] = new_segments
+    draft["duration"] = cursor
+    draft["id"] = _new_id()
+    if project_name is not None:
+        draft["name"] = project_name
+    return draft
+
+
+def write_capcut_draft(skeleton_path, timeline, project_dir, *, project_name=None):
+    """Write a real CapCut draft folder (draft_content.json + sync) from a skeleton.
+
+    Returns the paths written. The draft folder name is the project name; drop it
+    under CapCut's ``com.lveditor.draft`` root to open it in CapCut.
+    """
+    skeleton = json.loads(Path(skeleton_path).read_text(encoding="utf-8"))
+    project_dir = Path(project_dir)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    name = project_name or project_dir.name
+    draft = build_capcut_draft(skeleton, timeline, project_name=name)
+
+    # CapCut writes compact JSON; mismatched copies cause silent rollback, so we
+    # write the canonical content + info copy with matching bytes.
+    blob = json.dumps(draft, ensure_ascii=False, separators=(",", ":"))
+    written = []
+    for fname in ("draft_content.json", "draft_info.json"):
+        p = project_dir / fname
+        p.write_text(blob, encoding="utf-8")
+        written.append(str(p))
+    return {"ok": True, "project_dir": str(project_dir), "written": written,
+            "clip_count": len(draft["tracks"][0]["segments"]) if draft.get("tracks") else 0}
 
 
 def _clips(timeline):

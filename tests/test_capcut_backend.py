@@ -80,6 +80,98 @@ class ExportManifestTest(unittest.TestCase):
             self.assertEqual(saved["export_method"], "computer_use")
 
 
+def _skeleton():
+    """Minimal but structurally real CapCut draft skeleton (1 video segment)."""
+    return {
+        "id": "OLD-DRAFT-ID",
+        "duration": 1_000_000,
+        "fps": 30.0,
+        "name": "skeleton",
+        "canvas_config": {"ratio": "original", "width": 1920, "height": 1080, "background": None},
+        "materials": {
+            "videos": [{"id": "V1", "path": "old.mp4", "duration": 1_000_000,
+                        "type": "video", "width": 1920, "height": 1080,
+                        "material_name": "old"}],
+            "speeds": [{"id": "SP1", "type": "speed", "speed": 1.0}],
+            "canvases": [{"id": "CV1", "type": "canvas_color"}],
+            "sound_channel_mappings": [{"id": "SC1"}],
+            "vocal_separations": [{"id": "VS1"}],
+        },
+        "tracks": [
+            {"type": "video", "segments": [{
+                "id": "SEG1", "material_id": "V1",
+                "extra_material_refs": ["SP1", "CV1", "SC1", "VS1"],
+                "source_timerange": {"start": 0, "duration": 1_000_000},
+                "target_timerange": {"start": 0, "duration": 1_000_000},
+                "render_index": 0,
+            }]},
+            {"type": "sticker", "segments": [{"id": "ST1"}]},
+        ],
+    }
+
+
+class CapcutDraftWriterTest(unittest.TestCase):
+    def test_build_draft_injects_clips_with_microsecond_timeranges(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline(), project_name="coffee")
+        vids = draft["materials"]["videos"]
+        self.assertEqual(len(vids), 2)
+        # paths + durations (us) set from clips
+        self.assertEqual(vids[0]["path"], "a.mp4")
+        self.assertEqual(vids[0]["duration"], 3_000_000)
+        self.assertEqual(vids[1]["duration"], 2_000_000)
+        # unique material ids
+        self.assertNotEqual(vids[0]["id"], vids[1]["id"])
+
+        segs = draft["tracks"][0]["segments"]
+        self.assertEqual(len(segs), 2)
+        # sequential timeline placement
+        self.assertEqual(segs[0]["target_timerange"], {"start": 0, "duration": 3_000_000})
+        self.assertEqual(segs[1]["target_timerange"], {"start": 3_000_000, "duration": 2_000_000})
+        # source in-point honored (clip 2 starts at 5s)
+        self.assertEqual(segs[1]["source_timerange"]["start"], 5_000_000)
+        # segment links to its own material
+        self.assertEqual(segs[0]["material_id"], vids[0]["id"])
+        # top-level duration = sum
+        self.assertEqual(draft["duration"], 5_000_000)
+        self.assertEqual(draft["name"], "coffee")
+
+    def test_extra_material_refs_are_cloned_unique(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        segs = draft["tracks"][0]["segments"]
+        refs0 = set(segs[0]["extra_material_refs"])
+        refs1 = set(segs[1]["extra_material_refs"])
+        # each segment got its own cloned siblings (no sharing, no template ids)
+        self.assertEqual(len(refs0), 4)
+        self.assertTrue(refs0.isdisjoint(refs1))
+        self.assertNotIn("SP1", refs0)
+        # cloned siblings actually exist in the materials buckets
+        all_ids = {m["id"] for b in draft["materials"].values()
+                   if isinstance(b, list) for m in b}
+        self.assertTrue(refs0 <= all_ids)
+
+    def test_sticker_track_preserved(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        types = [t["type"] for t in draft["tracks"]]
+        self.assertIn("sticker", types)
+
+    def test_write_draft_project_round_trip(self):
+        with tempfile.TemporaryDirectory() as d:
+            skel = Path(d) / "skeleton.json"
+            skel.write_text(json.dumps(_skeleton()), encoding="utf-8")
+            proj = Path(d) / "test_p3"
+            res = cc.write_capcut_draft(skel, _timeline(), proj, project_name="test_p3")
+            self.assertEqual(res["clip_count"], 2)
+            content = json.loads((proj / "draft_content.json").read_text(encoding="utf-8"))
+            info = json.loads((proj / "draft_info.json").read_text(encoding="utf-8"))
+            self.assertEqual(content["duration"], 5_000_000)
+            self.assertEqual(content, info)  # synced copies match
+
+    def test_skeleton_without_video_track_raises(self):
+        bad = {"materials": {"videos": []}, "tracks": []}
+        with self.assertRaises(ValueError):
+            cc.build_capcut_draft(bad, _timeline())
+
+
 class CapcutCliTest(unittest.TestCase):
     def test_capcut_draft_cmd(self):
         import video_tools
