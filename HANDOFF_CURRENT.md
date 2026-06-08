@@ -62,6 +62,45 @@ video_tools.py --help: pass
 Full test suite: 342 tests pass (100% success)  # 255 + 56 P1 + 9 P1.5 + 11 P2 + 11 P3 tests
 ```
 
+## IN PROGRESS — P3 CapCut real draft (resume here) (2026-06-08)
+
+State: P3 CapCut serializer is built and unit-tested; awaiting visual confirmation
+that a generated draft opens in CapCut. ffmpeg remains canonical and unaffected.
+
+```text
+DONE:
+  - capcut_backend.build_capcut_draft / write_capcut_draft: clone a real
+    draft_content.json skeleton, inject our timeline clips (per-clip: clone video
+    material + segment + extra_material_refs siblings w/ fresh UUIDs; microsecond
+    source/target timeranges; sequential layout). 12 unit tests green.
+  - Installed CapCut confirmed: AppData/Local/CapCut, draft root
+    User Data/Projects/com.lveditor.draft, format new_version 171.0.0 (us time units).
+  - Generated a REAL draft from the user's own 0608 skeleton:
+      project: hermes_p3_demo (3 real clips from coffee run mvseg_000/001/002.mp4)
+      written: <draft root>/hermes_p3_demo/draft_content.json + draft_info.json
+  - Registered it in <draft root>/root_meta_info.json (all_draft_store + draft_ids)
+    so it shows on CapCut's home list. BACKUP: root_meta_info.json.hermesbak
+    (CapCut was fully closed via Stop-Process before editing the meta).
+
+PENDING (next step):
+  - User opens CapCut and confirms hermes_p3_demo appears and the timeline shows
+    3 clips. (Agent screenshots mask CapCut content, so a human/Computer-Use must
+    eyeball it.)
+  - If it opens correctly: wire write_capcut_draft into contract-run when
+    render_backend=capcut_draft (replace the provider-neutral manifest with a real
+    draft), and COMMIT a sanitized skeleton template into the repo so other
+    agents/machines don't depend on the user's personal 0608 draft.
+  - If it fails: iterate on meta registration / draft fields (CapCut format is
+    undocumented + version-specific; expect a few cycles).
+
+GUARDRAILS:
+  - Editing draft JSON or root_meta_info requires CapCut fully quit (8 processes;
+    minimize-to-tray means closing the window is NOT enough).
+  - Export stays a human/Computer-Use gate; exported mp4 must pass Node 12 verify.
+  - capcut_backend serializer is plain repo code — usable by any agent/human, not
+    bound to a session. Only GUI export needs Computer Use capability.
+```
+
 ## P1 Verification Tool Pack State (2026-06-07)
 
 ```text
