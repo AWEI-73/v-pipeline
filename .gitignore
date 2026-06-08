@@ -67,3 +67,6 @@ _fullpool/
 
 # external MIT reference clone — technique reference only, never a runtime dep
 video-autopilot-kit-main/
+
+# Local Understand Anything graph cache
+.understand-anything/

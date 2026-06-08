@@ -86,12 +86,11 @@ PENDING (next step):
   - User opens CapCut and confirms hermes_p3_demo appears and the timeline shows
     3 clips. (Agent screenshots mask CapCut content, so a human/Computer-Use must
     eyeball it.)
-  - If it opens correctly: wire write_capcut_draft into contract-run when
-    render_backend=capcut_draft (replace the provider-neutral manifest with a real
-    draft), and COMMIT a sanitized skeleton template into the repo so other
-    agents/machines don't depend on the user's personal 0608 draft.
-  - If it fails: iterate on meta registration / draft fields (CapCut format is
-    undocumented + version-specific; expect a few cycles).
+  - Run the CapCut E2E verification loop:
+    1. Run `contract-run` with `render_backend=capcut_draft` to generate the CapCut draft (already wired).
+    2. Export `capcut_exported.mp4` from CapCut GUI (human/CU gate).
+    3. Run the new `capcut-finalize` command to mix BGM, add outro card, and generate `final.mp4` (wired).
+    4. Run `verify` command on the finalized video.
 
 GUARDRAILS:
   - Editing draft JSON or root_meta_info requires CapCut fully quit (8 processes;

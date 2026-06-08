@@ -257,6 +257,22 @@ def cmd_capcut_draft(args):
     print(json.dumps(res["manifest"], ensure_ascii=False, indent=2))
 
 
+def cmd_capcut_finalize(args):
+    """P3: finalize CapCut exported video by mixing BGM and adding outro card."""
+    from video_pipeline_core import capcut_backend
+    stats = capcut_backend.finalize_export(
+        capcut_export_mp4=args.video,
+        final_mp4=args.out,
+        bgm_path=args.bgm,
+        outro_title=args.outro_title,
+        outro_address=args.outro_address,
+        outro_extra=getattr(args, "outro_extra", None),
+        bgm_volume=args.bgm_vol if args.bgm_vol is not None else 0.25,
+    )
+    print(json.dumps({"ok": True, "stats": stats}, ensure_ascii=False, indent=2))
+
+
+
 def cmd_creator_profile(args):
     """P2: manage creator_profile.json (stable creator/channel defaults)."""
     from video_pipeline_core import creator_profile
@@ -1273,6 +1289,16 @@ def main():
     p_ccd.add_argument("--out", required=True, help="capcut_draft_manifest.json output")
     p_ccd.add_argument("--project", default=None, help="project name")
 
+    p_ccf = sub.add_parser("capcut-finalize")
+    p_ccf.add_argument("--video", required=True, help="CapCut exported video (capcut_exported.mp4)")
+    p_ccf.add_argument("--out", required=True, help="output final video path (final.mp4)")
+    p_ccf.add_argument("--bgm", required=True, help="BGM file path")
+    p_ccf.add_argument("--outro-title", required=True, dest="outro_title", help="Outro card title line")
+    p_ccf.add_argument("--outro-address", required=True, dest="outro_address", help="Outro card address line")
+    p_ccf.add_argument("--outro-extra", dest="outro_extra", help="Outro card extra line (optional)")
+    p_ccf.add_argument("--bgm-vol", type=float, dest="bgm_vol", default=0.25, help="BGM volume (default: 0.25)")
+
+
     # --- P2 creator profile ---
     p_cp = sub.add_parser("creator-profile")
     p_cp.add_argument("profile", nargs="?", default=None,
@@ -1336,6 +1362,7 @@ def main():
         "visual-audit":    cmd_visual_audit,
         "creator-profile": cmd_creator_profile,
         "capcut-draft":    cmd_capcut_draft,
+        "capcut-finalize": cmd_capcut_finalize,
     }
 
     if not args.command or args.command not in dispatch:
