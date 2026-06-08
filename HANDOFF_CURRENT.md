@@ -62,42 +62,34 @@ video_tools.py --help: pass
 Full test suite: 342 tests pass (100% success)  # 255 + 56 P1 + 9 P1.5 + 11 P2 + 11 P3 tests
 ```
 
-## IN PROGRESS — P3 CapCut real draft (resume here) (2026-06-08)
+## COMPLETED — E2E Verify: ffmpeg + CapCut (2026-06-08)
 
-State: P3 CapCut serializer is built and unit-tested; awaiting visual confirmation
-that a generated draft opens in CapCut. ffmpeg remains canonical and unaffected.
+Both render paths verified end-to-end on the `coffee` baseline run.
 
 ```text
-DONE:
-  - capcut_backend.build_capcut_draft / write_capcut_draft: clone a real
-    draft_content.json skeleton, inject our timeline clips (per-clip: clone video
-    material + segment + extra_material_refs siblings w/ fresh UUIDs; microsecond
-    source/target timeranges; sequential layout). 12 unit tests green.
-  - Installed CapCut confirmed: AppData/Local/CapCut, draft root
-    User Data/Projects/com.lveditor.draft, format new_version 171.0.0 (us time units).
-  - Generated a REAL draft from the user's own 0608 skeleton:
-      project: hermes_p3_demo (3 real clips from coffee run mvseg_000/001/002.mp4)
-      written: <draft root>/hermes_p3_demo/draft_content.json + draft_info.json
-  - Registered it in <draft root>/root_meta_info.json (all_draft_store + draft_ids)
-    so it shows on CapCut's home list. BACKUP: root_meta_info.json.hermesbak
-    (CapCut was fully closed via Stop-Process before editing the meta).
+ffmpeg path (canonical, default):
+  final.mp4 → verify score 92.5 PASS
+  P1 audit pack (5/5 PASS):
+    timeline_invariants.json  — clip trace, duration, overlap, target match
+    keyframe_grid.jpg         — 12 samples, 中文字幕無亂碼
+    caption_audit.json        — 0 gap / 0 overlap / 0 too-fast
+    broll_audit.json          — broll_ratio=0, unique_source=1.0
+    visual_audit.json         — 0 mechanical findings
+  Known: audio_levels 50 (max 0.0dB 偏大聲) — tunable via --bgm-vol
 
-PENDING (next step):
-  - User opens CapCut and confirms hermes_p3_demo appears and the timeline shows
-    3 clips. (Agent screenshots mask CapCut content, so a human/Computer-Use must
-    eyeball it.)
-  - Run the CapCut E2E verification loop:
-    1. Run `contract-run` with `render_backend=capcut_draft` to generate the CapCut draft (already wired).
-    2. Export `capcut_exported.mp4` from CapCut GUI (human/CU gate).
-    3. Run the new `capcut-finalize` command to mix BGM, add outro card, and generate `final.mp4` (wired).
-    4. Run `verify` command on the finalized video.
+CapCut path (optional, render_backend=capcut_draft):
+  hermes_p3_demo draft loaded in CapCut ✓
+  User exported capcut_exported.mp4 from CapCut GUI ✓
+  capcut-finalize (BGM 20% + outro card) → final_capcut.mp4 ✓
+  visual_audit PASS, keyframe_grid generated ✓
+  CapCut export is always a human/CU gate (no CLI export).
 
-GUARDRAILS:
-  - Editing draft JSON or root_meta_info requires CapCut fully quit (8 processes;
-    minimize-to-tray means closing the window is NOT enough).
-  - Export stays a human/Computer-Use gate; exported mp4 must pass Node 12 verify.
-  - capcut_backend serializer is plain repo code — usable by any agent/human, not
-    bound to a session. Only GUI export needs Computer Use capability.
+CLI commands verified:
+  video_tools.py capcut-finalize --video X --out Y --bgm Z --outro-title --outro-address
+  video_tools.py verify / timeline-audit / keyframe-grid / caption-audit / broll-audit / visual-audit
+
+Decision log: docs/decisions/2026-06-08-e2e-verify-capcut-finalize.md
+Commit: 4d0c96c
 ```
 
 ## P1 Verification Tool Pack State (2026-06-07)
