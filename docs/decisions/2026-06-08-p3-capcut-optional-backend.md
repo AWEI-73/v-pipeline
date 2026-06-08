@@ -1,6 +1,8 @@
 # 2026-06-08 — P3: CapCut as an optional render backend
 
-Status: accepted (scaffolding); real `.draft` serialization deferred (version-gated)
+Status: accepted (scaffolding); real `.draft` serialization now implemented — see
+`2026-06-08-p3-capcut-draft-serializer.md` (CapCut v171 installed; clone-skeleton
+serializer built). The "deferred" note below applied only while CapCut was absent.
 
 ## Context
 
