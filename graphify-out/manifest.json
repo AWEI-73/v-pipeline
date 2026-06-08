@@ -24,16 +24,28 @@
     "hash": "cb175aa25ef6ee545691e932260b2743"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_tools.py": {
-    "mtime": 1780711835.7270627,
-    "hash": "471c0be29613c556de67583e48bf3e47"
+    "mtime": 1780872482.8408744,
+    "hash": "5763a7f496d9b66a73f30ac3515fc001"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_broll_audit.py": {
+    "mtime": 1780845193.4117284,
+    "hash": "547e6a5a855b258e5b5336c44501f81a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_build_profile.py": {
-    "mtime": 1780643530.7472699,
-    "hash": "866f93644fcbf96bd05cb9104ec17e90"
+    "mtime": 1780872353.4412096,
+    "hash": "d2157843740f19c96bb27d678e355707"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_build_recoverable.py": {
     "mtime": 1780643530.816964,
     "hash": "6a572157a1b22633886659aafbd991ae"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_capcut_backend.py": {
+    "mtime": 1780885602.1452973,
+    "hash": "c79dceab8f21d827394732ca7a458734"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_caption_audit.py": {
+    "mtime": 1780847151.4479394,
+    "hash": "28d3f41d9c3d97bd3f06eeac329de4b6"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_classify_asset.py": {
     "mtime": 1780710696.7921915,
@@ -44,12 +56,16 @@
     "hash": "6670559d37f4f335795902f0b59a25b8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_contract_adapter.py": {
-    "mtime": 1780757423.0640922,
-    "hash": "cc29579f3b73380bb3781dfb44c21dcf"
+    "mtime": 1780872602.4925437,
+    "hash": "8b16eda940fdc59d545c3cd0ab9eaff5"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_creator_profile.py": {
+    "mtime": 1780871539.3752484,
+    "hash": "fdbdb23dbc8f79b27977b1966a8fbca8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_dashboard_state.py": {
-    "mtime": 1780761913.7160118,
-    "hash": "583b2c076604eedeabef8c1ee5cd2eaf"
+    "mtime": 1780845780.929268,
+    "hash": "71b0dd63ae8e535e1b9b38dded24b298"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_editor_review.py": {
     "mtime": 1780643530.8368764,
@@ -62,6 +78,10 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_generated_assets.py": {
     "mtime": 1780706696.5994067,
     "hash": "0d5bf62ce4567eae32cafb279abc2410"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_keyframe_grid.py": {
+    "mtime": 1780845359.2489543,
+    "hash": "90d98ebcf5f124bd172a11a22143dd6d"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_light_effects.py": {
     "mtime": 1780707146.2430372,
@@ -104,8 +124,8 @@
     "hash": "e35c402d9a4c16540096292f950ad3a1"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_runtime.py": {
-    "mtime": 1780761873.231789,
-    "hash": "9121bfe8b3a7be0a2b0467e37f745a7e"
+    "mtime": 1780846040.202602,
+    "hash": "bc1afd4d625dc204ccf6e73fb9a2e7ec"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_spec_contract.py": {
     "mtime": 1780643530.7273571,
@@ -115,13 +135,25 @@
     "mtime": 1780643530.886658,
     "hash": "f3fa5ad0b0cb16e06fa5c77401c6c449"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_timeline_invariants.py": {
+    "mtime": 1780845053.8050215,
+    "hash": "9ce041481f7ad921450d9dae5c65157f"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_pipeline_state.py": {
     "mtime": 1780280336.714795,
     "hash": "ee92f257f15be6fe6ab2f8c08d3e3368"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_tools_audits.py": {
+    "mtime": 1780847227.9008093,
+    "hash": "9394c80e822a5d85a40a1fa9f5743acd"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_tools_state.py": {
     "mtime": 1780641416.4554384,
     "hash": "ecdc4dae0c720014360684ef95d32253"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_visual_audit.py": {
+    "mtime": 1780845458.1533687,
+    "hash": "c5b2eb5a6921112e8e5ab25d8ade4ba2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_stock.py": {
     "mtime": 1780720194.5453992,
@@ -135,25 +167,149 @@
     "mtime": 1780280512.9502642,
     "hash": "68b329da9893e34099c7d8ad5cb9c940"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\config.example.py": {
+    "mtime": 1780812671.1666539,
+    "hash": "508d20b46ffe29ed43d1048f2884983b"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\audit.py": {
+    "mtime": 1780812671.1951094,
+    "hash": "6ef9b3e45a07adca29e65590511565f3"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\broll_audit.py": {
+    "mtime": 1780812671.208083,
+    "hash": "343061821c8b1a8e67582db46ac0c71e"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\caption_broll_matcher.py": {
+    "mtime": 1780812671.22594,
+    "hash": "6fc970199d4ba7cecd0d8d10de32045b"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\draft_io.py": {
+    "mtime": 1780812671.2374587,
+    "hash": "4d4755113eaf870f79e3a4f0e7999f17"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\effects.py": {
+    "mtime": 1780812671.24702,
+    "hash": "f90fffc75fb8428083267df0ea4db3ae"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\invariants.py": {
+    "mtime": 1780812671.257926,
+    "hash": "f59da762ca4f994d10c0d2f41eadc67f"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\mute.py": {
+    "mtime": 1780812671.2671802,
+    "hash": "c00276b5b6d2652e4b02d241f63d6baa"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\paths.py": {
+    "mtime": 1780812671.2785695,
+    "hash": "37e90f3e023a2f434af63854259c1db2"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\post_export.py": {
+    "mtime": 1780812671.2908375,
+    "hash": "8fd17744b97be097a4fb21f015da0ef5"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\process.py": {
+    "mtime": 1780812671.2990952,
+    "hash": "e9a94336138e904e6625d78b794ac223"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\subtitle_corrections.py": {
+    "mtime": 1780812671.3098087,
+    "hash": "7f353babaf14f6adc5cdebecd1c7283b"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\text_style.py": {
+    "mtime": 1780812671.3212385,
+    "hash": "e3bbe41641d7807fc084f4bce2d45860"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\capcut_helpers\\__init__.py": {
+    "mtime": 1780812671.1875038,
+    "hash": "474057ff614e019e27038e589188368f"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\asset_scanner.py": {
+    "mtime": 1780812671.3488605,
+    "hash": "682af4659dfc7baee23a72d700f358ee"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\audit.py": {
+    "mtime": 1780812671.3596659,
+    "hash": "1c3662e1652dd839d94e5163dbcf69ca"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\audit_report.py": {
+    "mtime": 1780812671.3675573,
+    "hash": "bc85d1a6af93dbc2dc19821582f8899a"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\constants.py": {
+    "mtime": 1780812671.3791015,
+    "hash": "e766177be34a367f87e6fa3234d1793b"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\effects.py": {
+    "mtime": 1780812671.3913815,
+    "hash": "e3d5f3dd3853699de04c042250b0c270"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\frame_audit.py": {
+    "mtime": 1780812671.4006147,
+    "hash": "85c26d5b6b03d8bf1bab6f3e1d65d082"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\helpers.py": {
+    "mtime": 1780812671.4099426,
+    "hash": "792476f22a6c2da74a5e748775a4ddef"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\pipeline.py": {
+    "mtime": 1780812671.4164412,
+    "hash": "22532adbb544195c4e6ada2e4de93f3f"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\quality_check.py": {
+    "mtime": 1780812671.4297972,
+    "hash": "10bf735e3d69e02ad682de951200efd4"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\scene_audit.py": {
+    "mtime": 1780812671.4395218,
+    "hash": "f0e58c4a815111718d65c4abb4cdf505"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\screen_rec_cleaner.py": {
+    "mtime": 1780812671.4493191,
+    "hash": "c047d03a861e19606d622d10c400e08e"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\text_overlay.py": {
+    "mtime": 1780812671.4599302,
+    "hash": "d6a8d4491b7d6f5770e667742d36bfe9"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\src\\silent_vlog_maker\\__init__.py": {
+    "mtime": 1780812671.3396606,
+    "hash": "87a075ac0fc90cd84e9fcd12d1be1196"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\broll_audit.py": {
+    "mtime": 1780845170.1172209,
+    "hash": "8e71a28fdb84f5be01dad201716df556"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\build_profile.py": {
-    "mtime": 1780632024.8629708,
-    "hash": "e4bd22aa60baed84604c0f9831c22b51"
+    "mtime": 1780872377.109934,
+    "hash": "464f9f80d939ea7929b23e2d76649a57"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\capcut_backend.py": {
+    "mtime": 1780885610.536302,
+    "hash": "22155784ea272377ac4354a525ce2bf7"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\caption_audit.py": {
+    "mtime": 1780847163.6300545,
+    "hash": "76f1e23425172cd810eb540828b32776"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\content_qa.py": {
     "mtime": 1780710713.0506363,
     "hash": "3db2e8e47bff5ceab4dbe3a1c8f8a0a9"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\contract_adapter.py": {
-    "mtime": 1780720414.5585392,
-    "hash": "2569b94f98a490a9c6c061b9a7b285b0"
+    "mtime": 1780884909.2215369,
+    "hash": "f11fccbe3febb2af113325074f8fafc0"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\creator_profile.py": {
+    "mtime": 1780871498.3688862,
+    "hash": "a0aaa272ad074edffabaf14f8e924f62"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\curator.py": {
     "mtime": 1780643487.3827772,
     "hash": "678eda21cb18f90e04d8b6c876852418"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\dashboard_state.py": {
-    "mtime": 1780762561.8896492,
-    "hash": "19e6741ae422cdfd08079132ca22cf87"
+    "mtime": 1780845847.6924634,
+    "hash": "e9b411351f53bfa3d38a4c0ebec7d8b1"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\editor_review.py": {
     "mtime": 1780564556.626873,
@@ -166,6 +322,10 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\generated_assets.py": {
     "mtime": 1780706726.9896505,
     "hash": "cb2070da90d90b2b7e8e003cfe2d8128"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\keyframe_grid.py": {
+    "mtime": 1780845380.603959,
+    "hash": "5090ca5bb538af816e67f664ff52a606"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\light_effects.py": {
     "mtime": 1780707022.0020363,
@@ -188,8 +348,8 @@
     "hash": "6dddfcfe9f9b7e2ca1afd5428a496c52"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\node_registry.py": {
-    "mtime": 1780761076.5135083,
-    "hash": "f63b2fc0bc64b8be648a6ac5f665e5f4"
+    "mtime": 1780872576.6382055,
+    "hash": "cc83abb2bd0b3773f0789e3c3139913e"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\platform_tools.py": {
     "mtime": 1780710768.8636193,
@@ -200,8 +360,8 @@
     "hash": "05604a2c43ce5f99bb80d981844264cb"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\runtime_orchestrator.py": {
-    "mtime": 1780762747.289571,
-    "hash": "5a8f505eb375d86bd59aadcc9428037f"
+    "mtime": 1780846065.389687,
+    "hash": "bdd4ab8d5bea612185c69626f6ef28d5"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\spec_contract.py": {
     "mtime": 1780643487.4126704,
@@ -210,6 +370,14 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\stock_first.py": {
     "mtime": 1780643487.4226346,
     "hash": "abcc2811acc1b3cede8217887d436974"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\timeline_invariants.py": {
+    "mtime": 1780845085.8415554,
+    "hash": "dfbf907551a3f40aec306c4a12936a96"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\visual_audit.py": {
+    "mtime": 1780845477.2986999,
+    "hash": "d8674415aeead6b38746502fc905e311"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\vt_audio.py": {
     "mtime": 1780711462.7056034,
@@ -252,20 +420,24 @@
     "hash": "65a1f444db2859e08463700e1f06e1f3"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\HANDOFF_CURRENT.md": {
-    "mtime": 1780757423.1156883,
-    "hash": "b3972351bb7d55aa17bfab1fa0e8b0c4"
+    "mtime": 1780882638.7986808,
+    "hash": "6148637634cb710c2c062419c39cc39c"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\README.md": {
     "mtime": 1780672693.251786,
     "hash": "f3ad8dc7d49cfcfde21d3427ab069d55"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\roadmap.md": {
-    "mtime": 1780757423.1057758,
-    "hash": "a91c7ffac0a70984d514aea06e4b76a0"
+    "mtime": 1780872650.6512117,
+    "hash": "12b89272ed61a579766a12493f5db4e5"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\RUNBOOK.md": {
     "mtime": 1780672711.2909014,
     "hash": "f766d50e151f3456b9e761b672c82fb2"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\THIRD_PARTY_NOTICES.md": {
+    "mtime": 1780846193.949911,
+    "hash": "926f099dab4ded7e09a1f3595a8f837d"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\design\\ffmpeg-pitfalls-reference.md": {
     "mtime": 1780029247.6309154,
@@ -292,12 +464,20 @@
     "hash": "8db9b39932de45b49a0542eae16de7b1"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\build-tool-runner-spec.md": {
-    "mtime": 1780707212.4035742,
-    "hash": "eb31c3f2f3da0c29e8c4639649fc3478"
+    "mtime": 1780847466.5448427,
+    "hash": "0dbad4ad06619409b7cd72cdbeee74db"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\capcut-pipeline-integration-design.md": {
+    "mtime": 1780885168.9347453,
+    "hash": "5ba79ba4b6d413efb9565fe94218723f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\dashboard-node-skill-output-spec.md": {
     "mtime": 1780672520.2772794,
     "hash": "788ae2b7480702bbe06ba6c470044d08"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\video-autopilot-tool-integration-spec.md": {
+    "mtime": 1780801013.6095483,
+    "hash": "ed645db064c9f333623b9043fa63a247"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\windows-native-migration-spec.md": {
     "mtime": 1780757423.1156883,
@@ -347,9 +527,21 @@
     "mtime": 1780704960.8607752,
     "hash": "b63d63860f2a04afb4930e567e989480"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-08-p3-capcut-draft-serializer.md": {
+    "mtime": 1780884153.2204313,
+    "hash": "8d35bdf78decfecdfbfe2949f2100442"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-08-p3-capcut-optional-backend.md": {
+    "mtime": 1780884167.7945817,
+    "hash": "d9f320ff47bd1864894bc85fc98c660a"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-01-video-route-skill-project.md": {
     "mtime": 1780388221.3060067,
     "hash": "58a67734c2e949d0c46c11646a4ef6f1"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-07-video-autopilot-tool-integration.md": {
+    "mtime": 1780801013.6121724,
+    "hash": "f1a76a30cfede339603503ebbf91963c"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\examples\\genre_tests\\GENERALITY_REVIEW.md": {
     "mtime": 1780559922.9847279,
@@ -419,6 +611,50 @@
     "mtime": 1780552260.943915,
     "hash": "89e18a3c5920d5bef2ed0eb83b7426e6"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\CHANGELOG.md": {
+    "mtime": 1780812671.119545,
+    "hash": "63a9932f807b24aed85b83919ce6beb4"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\README.en.md": {
+    "mtime": 1780812671.1353948,
+    "hash": "d1b810e02ba9e248f824c2b80d939043"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\README.md": {
+    "mtime": 1780812671.1413302,
+    "hash": "fdfbfb03ba454160b77f7340ef9df801"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\SETUP.en.md": {
+    "mtime": 1780812671.1481793,
+    "hash": "62318ab1f8810782fe3242ae75fcebf0"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\SETUP.md": {
+    "mtime": 1780812671.1562603,
+    "hash": "f28d7362023aab53d0ba354346676698"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\algorithm_context.template.md": {
+    "mtime": 1780812671.51066,
+    "hash": "d888fc97692cf05af7fd71074bb7d093"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\brand_profile.template.md": {
+    "mtime": 1780812671.5171506,
+    "hash": "768c311b5b7972fd1aa10f9bed530cc4"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\community_mobilization.template.md": {
+    "mtime": 1780812671.5243907,
+    "hash": "12ad4ada30f7036b23e03d7aa3156581"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\content_pipeline.template.md": {
+    "mtime": 1780812671.5319498,
+    "hash": "96c097f161dff18e3f62423cf5a9e6f6"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\voice_profile.template.md": {
+    "mtime": 1780812671.538031,
+    "hash": "db4388177dc216b0679e73b1b3ac2ce0"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video-autopilot-kit-main\\templates\\your_context.template.md": {
+    "mtime": 1780812671.5432565,
+    "hash": "e73b3d23427d9cc24bc9ecc696493ad8"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\dashboard.html": {
     "mtime": 1780640879.1013765,
     "hash": "7f48c9d7f57c61a2a1296d9574f446c2"
@@ -426,6 +662,14 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\story_map.html": {
     "mtime": 1780640764.9151578,
     "hash": "088de08fb204efed398d89b470d4b6cf"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\templates\\0608\\draft_cover.jpg": {
+    "mtime": 1780884655.1870394,
+    "hash": "beb66f4636f5715218e2e7eb13484b25"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\templates\\0608\\Timelines\\0352DFB0-487D-42ef-AFC2-CCEB39FC9309\\draft_cover.jpg": {
+    "mtime": 1780884655.1870394,
+    "hash": "beb66f4636f5715218e2e7eb13484b25"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\bgm.webm": {
     "mtime": 1780711308.8786051,

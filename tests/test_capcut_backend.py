@@ -187,5 +187,74 @@ class CapcutCliTest(unittest.TestCase):
             self.assertTrue(saved["requires_human_or_computer_use"])
 
 
+class CapcutHelpersTest(unittest.TestCase):
+    def test_mute_all_video_segments(self):
+        draft = _skeleton()
+        # Ensure it has a video track and segment
+        segs = draft["tracks"][0]["segments"]
+        self.assertEqual(len(segs), 1)
+        # Apply mute
+        cc.mute_all_video_segments(draft)
+        
+        # Verify segment volume and last_nonzero_volume
+        self.assertEqual(segs[0]["volume"], 0.0)
+        self.assertEqual(segs[0]["last_nonzero_volume"], 0.0)
+        
+        # Verify material has_audio and has_sound_separated
+        mat = draft["materials"]["videos"][0]
+        self.assertFalse(mat.get("has_audio", True))
+        self.assertTrue(mat.get("has_sound_separated", False))
+
+    def test_apply_text_preset(self):
+        draft = _skeleton()
+        # Add a text track and text material
+        draft["tracks"].append({
+            "type": "text",
+            "segments": [{
+                "id": "TSEG1",
+                "material_id": "TMAT1",
+                "extra_material_refs": []
+            }]
+        })
+        draft["materials"]["texts"] = [{
+            "id": "TMAT1",
+            "font_path": "",
+            "text_color": "",
+            "content": json.dumps({
+                "text": "Hello 中文",
+                "styles": []
+            })
+        }]
+        
+        # Apply preset
+        cc.apply_text_preset(draft, 0, preset_name="white_outline_black")
+        
+        # Check text material fields
+        mat = draft["materials"]["texts"][0]
+        self.assertEqual(mat["text_color"], "#ffffff")
+        self.assertEqual(mat["border_color"], "#000000")
+        
+        # Check content styles
+        co = json.loads(mat["content"])
+        self.assertEqual(co["styles"][0]["size"], 15)
+        self.assertEqual(co["styles"][0]["fill"]["content"]["solid"]["color"], [1, 1, 1])
+
+    def test_parse_silencedetect(self):
+        # 1) 末段 silence 跑到 EOF
+        stderr = "[silencedetect @ 0x55] silence_start: 165.381\n"
+        res = cc._parse_silencedetect(stderr, 171.711)
+        self.assertEqual(res, 165.381)
+
+        # 2) 末段 silence 有 end 但緊貼 total
+        stderr = "silence_start: 100.0\nsilence_end: 171.5 | silence_duration: 71.5\n"
+        res = cc._parse_silencedetect(stderr, 171.711)
+        self.assertEqual(res, 100.0)
+
+        # 3) 中段 silence 後人聲又恢復
+        stderr = "silence_start: 50.0\nsilence_end: 52.0 | silence_duration: 2.0\n"
+        res = cc._parse_silencedetect(stderr, 171.711)
+        self.assertEqual(res, 171.711)
+
+
 if __name__ == "__main__":
     unittest.main()

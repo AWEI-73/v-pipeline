@@ -533,9 +533,23 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             capcut_paths["capcut_draft_manifest"] = str(cc_path)
             if verbose:
                 print("[capcut] wrote provider-neutral draft manifest (GUI export remains a human/CU gate)")
+            
+            # Wire real CapCut draft writer using sanitized repo skeleton
+            skeleton_path = Path(__file__).parent / "templates" / "0608" / "draft_content.json"
+            if skeleton_path.exists():
+                capcut_draft_root = Path.home() / "AppData" / "Local" / "CapCut" / "User Data" / "Projects" / "com.lveditor.draft"
+                capcut_project_dir = capcut_draft_root / out_path.parent.name
+                cc_res = capcut_backend.write_capcut_draft(
+                    str(skeleton_path), _tl, str(capcut_project_dir), project_name=out_path.parent.name
+                )
+                if cc_res.get("ok") and verbose:
+                    print(f"[capcut] wrote real CapCut draft folder to {capcut_project_dir}")
+            else:
+                if verbose:
+                    print(f"[capcut] warning: skeleton template not found at {skeleton_path}")
         except Exception as e:
             if verbose:
-                print(f"[capcut] draft manifest skipped: {e}")
+                print(f"[capcut] draft manifest/folder generation skipped: {e}")
 
     # Compile the final dashboard state and overwrite state.json
     from . import dashboard_state
