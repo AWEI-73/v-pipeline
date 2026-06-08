@@ -289,7 +289,7 @@ NODE_REGISTRY = {
         "skill": ["editor_review"],
         "runner": "editor_review",
         "inputs": ["timeline_build.json"],
-        "outputs": ["editor_review.json", "timeline_invariants.json", "broll_audit.json", "caption_audit.json", "blueprint_coverage.json", "treatment_audit.json"],
+        "outputs": ["editor_review.json", "timeline_invariants.json", "broll_audit.json", "caption_audit.json", "blueprint_coverage.json", "treatment_audit.json", "visual_fatigue_audit.json"],
         "verify_fn": verify_editor_review,
         "description": "Editor review decision"
     },

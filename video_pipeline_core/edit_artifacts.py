@@ -195,4 +195,14 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
             with audit_path.open("w", encoding="utf-8") as f:
                 json.dump(audit, f, ensure_ascii=False, indent=2)
             result["treatment_audit"] = str(audit_path)
+
+        # Node 11 visual-fatigue audit (opt-in: only when an editing_policy is set,
+        # so runs without the editorial layer are unaffected).
+        if editing_policy:
+            from . import visual_fatigue  # noqa: PLC0415
+            vfa = visual_fatigue.audit_visual_fatigue(assembly, timeline, editing_policy)
+            vfa_path = out_dir / "visual_fatigue_audit.json"
+            with vfa_path.open("w", encoding="utf-8") as f:
+                json.dump(vfa, f, ensure_ascii=False, indent=2)
+            result["visual_fatigue_audit"] = str(vfa_path)
     return result
