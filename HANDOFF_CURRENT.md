@@ -1,5 +1,9 @@
 # Current Handoff: Hermes Video Pipeline
 
+> **2026-06-08 active work:** the editorial soul layer (narrative blueprint +
+> material treatment + editing-intent). For a full-takeover-ready handoff of that
+> work see **`HANDOFF_EDITORIAL.md`**. This file remains the convergence/runtime anchor.
+
 Updated: 2026-06-06
 
 This file is the clean resume anchor when `HANDOFF.md` contains older encoded
