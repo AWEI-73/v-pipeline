@@ -78,5 +78,19 @@ class TestValidateEditorialDesign(unittest.TestCase):
         self.assertTrue(any("blocked path pattern" in err for err in res["errors"]))
 
 
+class TestDeriveEditingPolicy(unittest.TestCase):
+    """Test deriving editing policy from editorial design."""
+
+    def test_derive_editing_policy(self):
+        from video_pipeline_core.editorial_design import derive_editing_policy
+        d = default_editorial_design()
+        d["video_mode"] = "rhythmic_mv"
+        d["still_image_strategy"]["max_static_hold_sec"] = 4.2
+        policy = derive_editing_policy(d)
+        self.assertEqual(policy["default_mode"], "rhythmic_mv")
+        self.assertEqual(policy["max_still_hold_sec"], 4.2)
+        self.assertEqual(policy["effects_intensity"], "restrained")
+
+
 if __name__ == "__main__":
     unittest.main()

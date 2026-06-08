@@ -122,6 +122,8 @@ def load_dashboard_state(workdir):
                     manifest["motion_graphics_render_plan"] = f
                 elif f == "motion_graphics_manifest.json":
                     manifest["motion_graphics_manifest"] = f
+                elif f == "editorial_qa.json":
+                    manifest["editorial_qa"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
@@ -147,6 +149,7 @@ def load_dashboard_state(workdir):
     visual_audit = safe_load_json(manifest.get("visual_audit")) or safe_load_json("visual_audit.json")
     treatment_audit = safe_load_json(manifest.get("treatment_audit")) or safe_load_json("treatment_audit.json")
     visual_fatigue_audit = safe_load_json(manifest.get("visual_fatigue_audit")) or safe_load_json("visual_fatigue_audit.json")
+    editorial_qa = safe_load_json(manifest.get("editorial_qa")) or safe_load_json("editorial_qa.json")
     keyframe_grid_rel = manifest.get("keyframe_grid") or "keyframe_grid.jpg"
     _kg_abs = keyframe_grid_rel if os.path.isabs(keyframe_grid_rel) else os.path.join(workdir, keyframe_grid_rel)
     keyframe_grid_present = os.path.exists(_kg_abs)
@@ -158,22 +161,23 @@ def load_dashboard_state(workdir):
         "visual_audit": visual_audit,
         "treatment_audit": treatment_audit,
         "visual_fatigue_audit": visual_fatigue_audit,
+        "editorial_qa": editorial_qa,
     }
     audit_evidence = {
         role: (manifest.get(role) or f"{role}.json")
         for role in ("timeline_invariants", "broll_audit", "caption_audit", "visual_audit",
-                     "treatment_audit", "visual_fatigue_audit")
+                     "treatment_audit", "visual_fatigue_audit", "editorial_qa")
     }
     # node ownership: 11 = editor review, 12 = verify
     NODE_AUDIT_MAP = {
         11: ["timeline_invariants", "broll_audit", "caption_audit", "treatment_audit",
              "visual_fatigue_audit"],
-        12: ["caption_audit", "keyframe_grid", "visual_audit"],
+        12: ["caption_audit", "keyframe_grid", "visual_audit", "editorial_qa"],
     }
     AUDIT_PRIMARY_NODE = {
         "timeline_invariants": 11, "broll_audit": 11, "caption_audit": 11,
         "keyframe_grid": 12, "visual_audit": 12, "treatment_audit": 11,
-        "visual_fatigue_audit": 11,
+        "visual_fatigue_audit": 11, "editorial_qa": 12,
     }
 
     def generated_request_items(payload):
@@ -533,6 +537,7 @@ def load_dashboard_state(workdir):
             "broll_audit": broll_audit,
             "caption_audit": caption_audit,
             "visual_audit": visual_audit,
+            "editorial_qa": editorial_qa,
             "keyframe_grid": keyframe_grid_rel if keyframe_grid_present else None,
         },
         "next_action": next_action,

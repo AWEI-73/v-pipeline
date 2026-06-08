@@ -173,3 +173,43 @@ def validate_editorial_design(d: dict) -> dict:
         "errors": errors,
         "warnings": warnings,
     }
+
+
+def derive_editing_policy(editorial_design: dict) -> dict:
+    """Derive editing_policy dict from an editorial_design configuration."""
+    mode = editorial_design.get("video_mode") or "warm_documentary"
+    still_strat = editorial_design.get("still_image_strategy") or {}
+    max_still_hold = still_strat.get("max_static_hold_sec", 5.0)
+
+    return {
+        "default_mode": mode,
+        "min_shots_per_segment": 2,
+        "min_shots_per_visual_function": 1,
+        "target_shot_sec_by_mode": {
+            "warm_documentary": [4.0, 8.0],
+            "story_documentary": [3.0, 8.0],
+            "rhythmic_mv": [1.5, 4.0],
+            "training_recap": [2.5, 6.0],
+        },
+        "max_single_source_sec_by_mode": {
+            "warm_documentary": 12.0,
+            "story_documentary": 10.0,
+            "rhythmic_mv": 6.0,
+            "training_recap": 8.0,
+        },
+        "max_still_hold_sec_by_mode": {
+            "warm_documentary": 7.0,
+            "story_documentary": 6.0,
+            "rhythmic_mv": 3.0,
+            "training_recap": 4.0,
+        },
+        "source_reuse": {
+            "max_reuse_per_run": 2,
+            "reuse_cooldown_sec": 25.0,
+        },
+        "transition_policy": "motivated_only",
+        "still_image_motion_required": True,
+        "max_still_hold_sec": max_still_hold,
+        "effects_intensity": editorial_design.get("effects_strategy", {}).get("intensity", "restrained"),
+        "transition_style": editorial_design.get("transition_philosophy", {}).get("style", "motivated"),
+    }

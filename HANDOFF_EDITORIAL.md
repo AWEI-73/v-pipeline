@@ -1,5 +1,12 @@
 # HANDOFF — Editorial Soul Layer (full-takeover ready)
 
+> **STATUS 2026-06-08:** the editorial layer is now **fully wired** — Tasks 4/5
+> (editorial_qa, shot_slots) and the shared-file wiring (A: editing_policy in
+> build_profile; B: blueprint-compile CLI; C: editorial_qa/shot_slots into Node 12/9)
+> all landed. Full suite **453 OK**. For the consolidated conceptual map read
+> **`docs/editorial-layer.md`**. The task descriptions below are kept as historical
+> reference (and for Task D beat-grid polish, if pursued).
+
 Updated: 2026-06-08. This document is self-contained: any agent (Gemini/Codex/Claude)
 can continue the editorial-layer work from here, including the shared-file wiring.
 

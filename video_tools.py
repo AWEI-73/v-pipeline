@@ -304,6 +304,23 @@ def cmd_blueprint_coverage(args):
         sys.exit(1)
 
 
+def cmd_blueprint_compile(args):
+    """Compile a narrative blueprint markdown file into structured JSON."""
+    src = Path(args.blueprint)
+    if not src.exists():
+        raise ToolError(f"找不到 blueprint 檔案：{args.blueprint}")
+    from video_pipeline_core.blueprint_compile import compile_blueprint_md
+    md_text = src.read_text(encoding="utf-8")
+    try:
+        blueprint_json = compile_blueprint_md(md_text)
+    except Exception as e:
+        raise ToolError(f"編譯 blueprint 失敗: {e}")
+    out = args.out or src.with_suffix(".json").name
+    Path(out).write_text(json.dumps(blueprint_json, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"status": "ok", "file": out}))
+
+
+
 def cmd_creator_profile(args):
     """P2: manage creator_profile.json (stable creator/channel defaults)."""
     from video_pipeline_core import creator_profile
@@ -1337,6 +1354,11 @@ def main():
     p_bp.add_argument("contract", help="segment_contract.json")
     p_bp.add_argument("--out", default=None, help="blueprint_coverage.json output (optional)")
 
+    p_bpc = sub.add_parser("blueprint-compile")
+    p_bpc.add_argument("blueprint", help="blueprint.md 路徑")
+    p_bpc.add_argument("--out", help="輸出 JSON 路徑")
+
+
     # --- P2 creator profile ---
     p_cp = sub.add_parser("creator-profile")
     p_cp.add_argument("profile", nargs="?", default=None,
@@ -1400,6 +1422,7 @@ def main():
         "visual-audit":    cmd_visual_audit,
         "creator-profile": cmd_creator_profile,
         "blueprint-coverage": cmd_blueprint_coverage,
+        "blueprint-compile": cmd_blueprint_compile,
         "capcut-draft":    cmd_capcut_draft,
         "capcut-finalize": cmd_capcut_finalize,
     }

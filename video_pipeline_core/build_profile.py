@@ -50,6 +50,7 @@ DEFAULT_BUILD_PROFILE = {
     },
     "broll_policy": {"target_ratio": None, "max_source_repeats": None},
     "keyframe_grid": {"sample_count": 12, "columns": 4},
+    "editing_policy": None,
 }
 
 VERIFICATION_TOOL_NAMES = (

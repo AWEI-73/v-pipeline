@@ -28,7 +28,7 @@ NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REG
 _AUDIT_NODE = {
     "timeline_invariants": "11", "broll_audit": "11", "caption_audit": "11",
     "keyframe_grid": "12", "visual_audit": "12", "treatment_audit": "11",
-    "visual_fatigue_audit": "11",
+    "visual_fatigue_audit": "11", "editorial_qa": "12",
 }
 
 
@@ -170,12 +170,28 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
     # 3. Copy narrative blueprint (WHY layer, optional) if present
     blueprint_path = run_dir / "blueprint.json"
     if not blueprint_path.exists():
+        found = False
         for cand in (Path(args.contract).parent / "blueprint.json" if args.contract else None,
                      project_dir / "input" / "blueprint.json"):
             if cand and cand.exists():
                 print(f"[runtime] Copying blueprint from {cand} to {blueprint_path}...")
                 shutil.copy2(cand, blueprint_path)
+                found = True
                 break
+        if not found:
+            for cand_md in (Path(args.contract).parent / "blueprint.md" if args.contract else None,
+                            project_dir / "input" / "blueprint.md"):
+                if cand_md and cand_md.exists():
+                    print(f"[runtime] Compiling blueprint from {cand_md} to {blueprint_path}...")
+                    try:
+                        from .blueprint_compile import compile_blueprint_md
+                        md_text = cand_md.read_text(encoding="utf-8")
+                        compiled = compile_blueprint_md(md_text)
+                        with blueprint_path.open("w", encoding="utf-8") as f:
+                            json.dump(compiled, f, ensure_ascii=False, indent=2)
+                        break
+                    except Exception as e:
+                        print(f"[runtime] Warning: Failed to compile {cand_md}: {e}", file=sys.stderr)
 
 
 def _resolve_music_path(project_dir, run_dir, contract_path, args):

@@ -722,6 +722,23 @@ def run_mv(script, material_root, out_path, music_path=None,
             slots, entry, msgs = _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio)
         elif s.get("source") == "stock" and stack_items:
             slots, entry, msgs = _plan_stock_stack_segment(s, a, mat_dir, stack_items)
+            # Snapping stack still cut times to actual music beat grid timestamps
+            if _beats:
+                current_time = sum(sl.get("extract_dur", 0.0) for sl in plan)
+                # Find the closest beat index to current_time
+                k = min(range(len(_beats)), key=lambda idx: abs(_beats[idx] - current_time))
+                for i, sl in enumerate(slots):
+                    if k + i + 1 < len(_beats):
+                        if i == 0:
+                            dur = _beats[k + 1] - current_time
+                        else:
+                            dur = _beats[k + i + 1] - _beats[k + i]
+                        if dur > 0.1:
+                            sl["extract_dur"] = round(dur, 3)
+                        else:
+                            sl["extract_dur"] = round(_beats[k + i + 1] - _beats[k + i], 3)
+                    else:
+                        sl["extract_dur"] = round(a["clip_dur"], 3)
         elif s.get("source") == "stock":
             slots, entry, msgs = _plan_stock_segment(s, a, seg_text, mat_dir)
         else:

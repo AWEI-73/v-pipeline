@@ -50,10 +50,31 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
     contract_hash = contract_hash or script.get("_contract_hash")
     music_sections = (music_structure or {}).get("sections") or []
     default_music_anchor = music_sections[0].get("name") if music_sections else None
+    
+    beats = (music_structure or {}).get("beats") or []
+    total_dur = beats[-1] if beats else 0.0
+    segs = script.get("segments", [])
+    weights = [max(0.1, float(s["weight"])) if s.get("weight") is not None else 1.0
+               for s in segs]
+    wsum = sum(weights) or 1.0
+    
+    current_time = 0.0
+    seg_timings = []
+    for s, w in zip(segs, weights):
+        budget = total_dur * w / wsum
+        start = current_time
+        end = current_time + budget
+        seg_timings.append((start, end))
+        current_time = end
+
     segments = []
-    for seg in script.get("segments", []):
+    for idx, seg in enumerate(segs):
         text = {k: seg.get(k) for k in ("label", "narrative", "subtitle", "name_super")
                 if seg.get(k) is not None}
+        
+        start_t, end_t = seg_timings[idx]
+        seg_beats = [b for b in beats if start_t - 0.01 <= b <= end_t + 0.01]
+
         entry = {
             "segment": seg.get("segment"),
             "contract_segment": seg.get("_from_contract"),
@@ -62,6 +83,7 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
             "audio_role": seg.get("audio_role"),
             "text_layer": text or "none",
             "needs_review": bool(seg.get("needs_review")),
+            "beat_grid": seg_beats,
             "candidate_policy": {
                 "required_traits": [seg["material_hint"]] if seg.get("material_hint") else [],
                 "reject_traits": [],
@@ -77,7 +99,15 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
                 }],
             },
         }
-        entry.update(_resolve_seg_treatment(seg, music_structure, editing_policy))
+        treatment_info = _resolve_seg_treatment(seg, music_structure, editing_policy)
+        entry.update(treatment_info)
+        if seg.get("sequence_grammar"):
+            try:
+                from . import shot_slots  # noqa: PLC0415
+                n_req = treatment_info.get("n_required")
+                entry["shot_slots"] = shot_slots.expand_shot_slots(seg, n_required=n_req)
+            except Exception:
+                pass
         segments.append(entry)
     return {
         "assembly_plan_version": 1,
@@ -163,6 +193,126 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
     }
 
 
+def write_editorial_qa(out_dir, editing_policy=None):
+    """Run editorial QA check and write editorial_qa.json to out_dir."""
+    if not editing_policy:
+        return None
+    out_dir = Path(out_dir)
+    
+    # 1. brief.json
+    brief_data = {}
+    for p in [out_dir / "brief.json", out_dir.parent / "brief.json", out_dir.parent / "input" / "brief.json"]:
+        if p.exists():
+            try:
+                with p.open(encoding="utf-8") as f:
+                    brief_data = json.load(f)
+                break
+            except Exception:
+                pass
+
+    # 2. blueprint.json
+    blueprint_data = {}
+    for p in [out_dir / "blueprint.json", out_dir.parent / "blueprint.json", out_dir.parent / "input" / "blueprint.json"]:
+        if p.exists():
+            try:
+                with p.open(encoding="utf-8") as f:
+                    blueprint_data = json.load(f)
+                break
+            except Exception:
+                pass
+
+    # 3. assembly_plan.json
+    assembly_data = {}
+    p_assembly = out_dir / "assembly_plan.json"
+    if p_assembly.exists():
+        try:
+            with p_assembly.open(encoding="utf-8") as f:
+                assembly_data = json.load(f)
+        except Exception:
+            pass
+
+    # 4. timeline_build.json
+    timeline_data = {}
+    p_timeline = out_dir / "timeline_build.json"
+    if p_timeline.exists():
+        try:
+            with p_timeline.open(encoding="utf-8") as f:
+                timeline_data = json.load(f)
+        except Exception:
+            pass
+
+    # 5. treatment_audit.json
+    treatment_data = {}
+    p_treatment = out_dir / "treatment_audit.json"
+    if p_treatment.exists():
+        try:
+            with p_treatment.open(encoding="utf-8") as f:
+                treatment_data = json.load(f)
+        except Exception:
+            pass
+
+    # 6. visual_fatigue_audit.json
+    fatigue_data = {}
+    p_fatigue = out_dir / "visual_fatigue_audit.json"
+    if p_fatigue.exists():
+        try:
+            with p_fatigue.open(encoding="utf-8") as f:
+                fatigue_data = json.load(f)
+        except Exception:
+            pass
+
+    # 7. blueprint_coverage.json
+    coverage_data = {}
+    p_coverage = out_dir / "blueprint_coverage.json"
+    if p_coverage.exists():
+        try:
+            with p_coverage.open(encoding="utf-8") as f:
+                coverage_data = json.load(f)
+        except Exception:
+            pass
+
+    # 8. verify_result.json
+    verify_data = {}
+    p_verify = out_dir / "verify_result.json"
+    if p_verify.exists():
+        try:
+            with p_verify.open(encoding="utf-8") as f:
+                verify_data = json.load(f)
+        except Exception:
+            pass
+
+    # contract (can find from assembly_plan or contract_adapter/segment_contract.json)
+    contract_data = {}
+    for p in [out_dir / "segment_contract.json", out_dir.parent / "segment_contract.json", out_dir.parent / "input" / "segment_contract.json"]:
+        if p.exists():
+            try:
+                with p.open(encoding="utf-8") as f:
+                    contract_data = json.load(f)
+                break
+            except Exception:
+                pass
+
+    artifacts = {
+        "brief": brief_data,
+        "blueprint": blueprint_data,
+        "contract": contract_data,
+        "assembly_plan": assembly_data,
+        "timeline_build": timeline_data,
+        "treatment_audit": treatment_data,
+        "visual_fatigue_audit": fatigue_data,
+        "blueprint_coverage": coverage_data,
+        "verify_result": verify_data,
+    }
+
+    from . import editorial_qa  # noqa: PLC0415
+    qa_report = editorial_qa.review_editorial(artifacts)
+    
+    qa_path = out_dir / "editorial_qa.json"
+    with qa_path.open("w", encoding="utf-8") as f:
+        json.dump(qa_report, f, ensure_ascii=False, indent=2)
+    return str(qa_path)
+
+
 def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=None,
                          editing_policy=None):
     """Write assembly_plan.json and optionally timeline_build.json.
@@ -205,4 +355,11 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
             with vfa_path.open("w", encoding="utf-8") as f:
                 json.dump(vfa, f, ensure_ascii=False, indent=2)
             result["visual_fatigue_audit"] = str(vfa_path)
+
+        # Node 12 editorial QA (opt-in: only when editing_policy is set)
+        if editing_policy:
+            qa_path = write_editorial_qa(out_dir, editing_policy)
+            if qa_path:
+                result["editorial_qa"] = qa_path
     return result
+

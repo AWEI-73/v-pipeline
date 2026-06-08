@@ -68,6 +68,12 @@ def contract_to_mv_script(contract):
             flat["editing_intent"] = seg["editing_intent"]
         if seg.get("material_treatment"):
             flat["material_treatment"] = seg["material_treatment"]
+        if seg.get("sequence_grammar"):
+            flat["sequence_grammar"] = seg["sequence_grammar"]
+        if seg.get("pacing"):
+            flat["pacing"] = seg["pacing"]
+        if seg.get("still_image_policy"):
+            flat["still_image_policy"] = seg["still_image_policy"]
         if section:
             flat["section_role"] = section
         # 來源 / 媒材
@@ -202,7 +208,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               timeline_invariants=None, broll_audit=None, caption_audit=None,
               keyframe_grid=None, visual_audit=None,
               creator_profile=None, creator_profile_applied=None,
-              capcut_draft_manifest=None, capcut_export_manifest=None):
+              capcut_draft_manifest=None, capcut_export_manifest=None,
+              editorial_design=None, editorial_qa=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
@@ -239,6 +246,8 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "creator_profile_applied": str(creator_profile_applied) if creator_profile_applied else None,
         "capcut_draft_manifest": str(capcut_draft_manifest) if capcut_draft_manifest else None,
         "capcut_export_manifest": str(capcut_export_manifest) if capcut_export_manifest else None,
+        "editorial_design": str(editorial_design) if editorial_design else None,
+        "editorial_qa": str(editorial_qa) if editorial_qa else None,
     }
 
 
@@ -404,6 +413,32 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     model_routing.write_model_routes(model_routes_path, model_routes)
     from . import build_profile  # noqa: PLC0415
     build_profile_payload = build_profile.load_build_profile(build_profile_config_path)
+
+    editorial_design_path = None
+    editorial_design_payload = None
+    ed_path_dest = out_path.parent / "editorial_design.json"
+    if ed_path_dest.exists():
+        try:
+            with ed_path_dest.open(encoding="utf-8") as f:
+                editorial_design_payload = json.load(f)
+            editorial_design_path = ed_path_dest
+        except Exception:
+            pass
+    if not editorial_design_payload and source:
+        ed_path_src = Path(source).parent / "editorial_design.json"
+        if ed_path_src.exists():
+            try:
+                with ed_path_src.open(encoding="utf-8") as f:
+                    editorial_design_payload = json.load(f)
+                import shutil
+                shutil.copy2(ed_path_src, ed_path_dest)
+                editorial_design_path = ed_path_dest
+            except Exception:
+                pass
+
+    if editorial_design_payload:
+        from .editorial_design import derive_editing_policy
+        build_profile_payload["editing_policy"] = derive_editing_policy(editorial_design_payload)
     creator_profile_paths = {}
     if creator_profile_path and Path(creator_profile_path).exists():
         brief_dict = None
@@ -527,6 +562,16 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         verbose=verbose,
     )
 
+    # Reload / update editorial_qa.json if editing_policy is active to incorporate final verify_result/audits
+    editorial_qa_path = edit_paths.get("editorial_qa")
+    if build_profile_payload.get("editing_policy"):
+        try:
+            from . import edit_artifacts
+            editorial_qa_path = edit_artifacts.write_editorial_qa(out_path.parent, build_profile_payload["editing_policy"])
+        except Exception as e:
+            if verbose:
+                print(f"[editorial_qa] failed to update editorial_qa: {e}")
+
     # P3 optional CapCut backend: only when explicitly selected. ffmpeg stays the
     # canonical unattended path, so this is inert by default. Writes a
     # provider-neutral draft manifest; the real .draft + GUI export are a
@@ -610,7 +655,9 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          visual_audit=audit_paths.get("visual_audit"),
                          creator_profile=creator_profile_paths.get("creator_profile"),
                          creator_profile_applied=creator_profile_paths.get("creator_profile_applied"),
-                         capcut_draft_manifest=capcut_paths.get("capcut_draft_manifest"))
+                         capcut_draft_manifest=capcut_paths.get("capcut_draft_manifest"),
+                         editorial_design=str(editorial_design_path) if editorial_design_path else None,
+                         editorial_qa=editorial_qa_path)
     _write_json(manifest_path, manifest)
 
     # Return structured results
