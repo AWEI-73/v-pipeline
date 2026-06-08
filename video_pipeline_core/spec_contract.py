@@ -110,6 +110,16 @@ def validate_segment_contract(contract, categories=None):
         elif ts not in TIMELINE_SOURCES:
             err(f"core.timeline_source='{ts}' 非法(可:{'/'.join(TIMELINE_SOURCES)})")
 
+        # blueprint_ref(選配,WHY 層追溯):有就驗形狀(str 或 list[str]);
+        # 真正的「ref 是否指到存在的 beat / beat 是否被實現」由 blueprint.beat_coverage 跨檔守門
+        bref = core.get("blueprint_ref")
+        if bref is not None:
+            ok_shape = (isinstance(bref, str) and bref.strip()) or (
+                isinstance(bref, list) and bref
+                and all(isinstance(r, str) and r.strip() for r in bref))
+            if not ok_shape:
+                err("core.blueprint_ref 形狀非法(應為非空 beat id 字串或字串陣列)")
+
         # material_fit(素材撐的視覺段需 visual_desc+reason;純文字/title 段可 material_fit:none)
         if mat:
             if not mat.get("visual_desc"):

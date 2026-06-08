@@ -444,10 +444,23 @@ def render_mv(plan, music_path, out_path, mat_dir=None):
 
 # ── 劇本驅動跑全鏈（run_mv）─────────────────────────────────────────────────
 
-def allocate_segments(segments, total_dur, fast_clip=1.5):
+def _stack_items(s):
+    """Return the enumeration item list when a segment opts into a photo stack
+    (material_treatment.treatment=photo_stack_beat or editing_intent.content_pattern
+    =enumeration with declared items), else None. Opt-in: absent => unchanged."""
+    mt = s.get("material_treatment") or {}
+    ei = s.get("editing_intent") or {}
+    is_stack = mt.get("treatment") == "photo_stack_beat" or ei.get("content_pattern") == "enumeration"
+    items = mt.get("items") or []
+    return list(items) if (is_stack and items) else None
+
+
+def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
     """純函式:把音樂總長分給各段 → 每段幾個 clip、每 clip 多長。
     montage/pace:fast → 多個快剪(~fast_clip 秒,預設 1.5≈66 期中位 1.47);
     hold/opening/closing/title/單圖 → 1 個長 clip。
+    photo_stack_beat(列舉)→ n_clips = 項目數,每張 ≈ `stack_shot_sec`(對拍快堆疊,
+    不平分整段預算),所以列舉段是「1 拍 1 張」的快剪而非長 hold。
     **pacing 調勻**:段可宣告 `weight`(預設 1.0=等分)讓 hold(隊呼長 hold)拿更多時間,
     montage 維持快剪。回傳 [{segment, n_clips, clip_dur, budget}]。"""
     n = len(segments)
@@ -463,8 +476,14 @@ def allocate_segments(segments, total_dur, fast_clip=1.5):
         is_fast = (s.get("layout") == "montage") or (s.get("pace") == "fast")
         single = bool(s.get("hold")) or kind in ("opening", "closing", "title") or not is_fast
         n_clips = 1 if single else max(1, round(budget / fast_clip))
+        stack = _stack_items(s)
+        if stack:                       # 列舉:每項一張、每張 ≈ 一拍(beat-fast)
+            n_clips = max(1, len(stack))
+            clip_dur = round(stack_shot_sec, 3)
+        else:
+            clip_dur = round(budget / n_clips, 3)
         out.append({"segment": s.get("segment"), "n_clips": n_clips,
-                    "clip_dur": round(budget / n_clips, 3), "budget": round(budget, 3)})
+                    "clip_dur": clip_dur, "budget": round(budget, 3)})
     return out
 
 
@@ -576,6 +595,39 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None):
     return slots, entry, msgs
 
 
+def _plan_stock_stack_segment(s, a, mat_dir, items, _fetch_photo=None):
+    """photo_stack_beat 列舉段:每個項目抓一張 stock 照片 → N 個帶『品名 label』的
+    still slot(per-item label)。抓不到 → 該項 GAP,不炸(可恢復)。`_fetch_photo` 可注入測試。"""
+    if _fetch_photo is None:
+        from .vt_stock import fetch_stock_photo as _fetch_photo
+    vd = s.get("visual_desc", "")
+    base_q = s.get("search_query") or vd
+    slots, scores, msgs = [], [], []
+    for i, item in enumerate(items):
+        out = os.path.join(mat_dir, f"mvstack_{s.get('segment')}_{i}.jpg")
+        q = (f"{base_q} {item}").strip()
+        got, provider = None, None
+        try:
+            got, provider = _fetch_photo(q, out)
+        except Exception as _e:
+            msgs.append(f"  seg{s.get('segment')} [stack] '{item}' fetch 失敗(→GAP): {str(_e)[:40]}")
+        if got:
+            slots.append({"source": got, "extract_start": 0.0,
+                          "extract_dur": round(a["clip_dur"], 3), "keep_audio": False,
+                          "text": {"label": str(item)}, "segment": s.get("segment"),
+                          "is_photo": True, "kenburns": True,
+                          "provider": provider or "pexels-photo"})
+            scores.append("stack")
+        else:
+            scores.append(GAP)
+    entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "stock(stack)",
+             "provider": "pexels-photo", "clips_found": len(slots), "n_clips": len(items),
+             "treatment": "photo_stack_beat", "picked_scores": scores or [GAP]}
+    msgs.append(f"  seg{s.get('segment')} [stack] {len(slots)}/{len(items)} stills "
+                f"items={items}")
+    return slots, entry, msgs
+
+
 def _plan_live_segment(s, a, material_root, seg_text, keep_audio, *, model, mat_dir,
                        max_clips_per_seg, windows_per_clip, min_score, prefilter_static):
     """live 段:find_clips/photos → (照片 still) 或 (開窗→靜止預篩→VLM 評分→必放選段)。"""
@@ -652,8 +704,10 @@ def run_mv(script, material_root, out_path, music_path=None,
     total_dur = _beats[-1] if _beats else 0
     vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
 
-    # 2) 時長分配
-    alloc = allocate_segments(segs, total_dur)
+    # 2) 時長分配(列舉堆疊用「一拍」長度 → 對拍快剪)
+    beat_sec = (60.0 / _tempo) if _tempo else 0.8
+    stack_shot_sec = max(0.4, min(beat_sec, 1.2))
+    alloc = allocate_segments(segs, total_dur, stack_shot_sec=stack_shot_sec)
     clip_by_seg = {as_["segment"]: as_ for as_ in (clip_list or {}).get("assignments", [])}
 
     # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry
@@ -663,8 +717,11 @@ def run_mv(script, material_root, out_path, music_path=None,
                           or s.get("audio_role") in ("duck", "diegetic"))
         seg_text = {"label": s.get("label"), "name_super": s.get("name_super"),
                     "subtitle": s.get("subtitle"), "narrative": s.get("narrative")}  # 編劇文字層
+        stack_items = _stack_items(s)
         if clip_list is not None and s.get("source") != "stock":
             slots, entry, msgs = _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio)
+        elif s.get("source") == "stock" and stack_items:
+            slots, entry, msgs = _plan_stock_stack_segment(s, a, mat_dir, stack_items)
         elif s.get("source") == "stock":
             slots, entry, msgs = _plan_stock_segment(s, a, seg_text, mat_dir)
         else:

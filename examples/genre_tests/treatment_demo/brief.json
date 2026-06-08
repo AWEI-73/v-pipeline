@@ -1,0 +1,11 @@
+{
+  "video_type": "mv",
+  "spec_start_mode": "stock_first",
+  "can_reshoot": false,
+  "fallback_policy": "stock_bridge",
+  "review_level": "low",
+  "audience": "external",
+  "target_length": "30 seconds",
+  "tone": "warm, calm",
+  "_note": "Treatment-grammar demo: a calm opening, an enumeration of three coffee-bean origins (photo_stack_beat), and a calm close. Buildable from common Pexels stock."
+}

@@ -1,0 +1,37 @@
+{
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "material_source_mode": "stock_first",
+  "story_truth_level": "conceptual",
+  "music": {"brief": "warm", "query": "warm acoustic instrumental", "source": "yt"},
+  "segments": [
+    {
+      "segment": 1,
+      "core": {"section_role": "opening", "story_purpose": "用一杯咖啡開場定調", "timeline_source": "fixed", "review_required": true},
+      "editing_intent": {"content_pattern": "emotional", "visual_variety_priority": "low"},
+      "material_fit": {"category": "coffee_open", "visual_desc": "窗邊一杯咖啡的開場", "search_query": "cup of coffee window morning", "fallback_policy": "stock_bridge", "reason": "情緒開場單張長 hold"},
+      "audio": {"role": "music", "reason": "音樂定調"},
+      "text_layer": {"narrative": "今天的咖啡", "reason": "點題"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "緩起"}
+    },
+    {
+      "segment": 2,
+      "core": {"section_role": "montage", "story_purpose": "介紹今天的豆子來自三個產地", "timeline_source": "beat", "review_required": false},
+      "editing_intent": {"content_pattern": "enumeration", "visual_variety_priority": "high"},
+      "material_treatment": {"treatment": "photo_stack_beat", "items": ["Ethiopia", "Colombia", "Guatemala"], "label_per_item": true, "reason": "列舉三產地,照片堆疊對拍,每張帶產地名"},
+      "material_fit": {"category": "coffee_beans", "visual_desc": "三種產地咖啡豆特寫", "search_query": "coffee beans origin close up", "fallback_policy": "stock_bridge", "reason": "列舉段用泛用豆子特寫堆疊"},
+      "audio": {"role": "music", "reason": "快剪由音樂帶"},
+      "text_layer": {"label": "產地", "reason": "標註列舉"},
+      "visual_style": {"layout": "montage", "pace": "fast", "reason": "列舉快剪"}
+    },
+    {
+      "segment": 3,
+      "core": {"section_role": "closing", "story_purpose": "收在完成的一杯", "timeline_source": "fixed", "review_required": true},
+      "editing_intent": {"content_pattern": "emotional", "visual_variety_priority": "low"},
+      "material_fit": {"category": "coffee_done", "visual_desc": "完成的一杯咖啡收尾", "search_query": "finished cup of coffee warm light", "fallback_policy": "stock_bridge", "reason": "情緒收尾單張"},
+      "audio": {"role": "music", "reason": "收束"},
+      "text_layer": {"narrative": "剛剛好", "reason": "收尾"},
+      "visual_style": {"layout": "single", "pace": "hold", "reason": "緩收"}
+    }
+  ]
+}

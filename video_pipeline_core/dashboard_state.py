@@ -145,6 +145,7 @@ def load_dashboard_state(workdir):
     broll_audit = safe_load_json(manifest.get("broll_audit")) or safe_load_json("broll_audit.json")
     caption_audit = safe_load_json(manifest.get("caption_audit")) or safe_load_json("caption_audit.json")
     visual_audit = safe_load_json(manifest.get("visual_audit")) or safe_load_json("visual_audit.json")
+    treatment_audit = safe_load_json(manifest.get("treatment_audit")) or safe_load_json("treatment_audit.json")
     keyframe_grid_rel = manifest.get("keyframe_grid") or "keyframe_grid.jpg"
     _kg_abs = keyframe_grid_rel if os.path.isabs(keyframe_grid_rel) else os.path.join(workdir, keyframe_grid_rel)
     keyframe_grid_present = os.path.exists(_kg_abs)
@@ -154,19 +155,21 @@ def load_dashboard_state(workdir):
         "broll_audit": broll_audit,
         "caption_audit": caption_audit,
         "visual_audit": visual_audit,
+        "treatment_audit": treatment_audit,
     }
     audit_evidence = {
         role: (manifest.get(role) or f"{role}.json")
-        for role in ("timeline_invariants", "broll_audit", "caption_audit", "visual_audit")
+        for role in ("timeline_invariants", "broll_audit", "caption_audit", "visual_audit",
+                     "treatment_audit")
     }
     # node ownership: 11 = editor review, 12 = verify
     NODE_AUDIT_MAP = {
-        11: ["timeline_invariants", "broll_audit", "caption_audit"],
+        11: ["timeline_invariants", "broll_audit", "caption_audit", "treatment_audit"],
         12: ["caption_audit", "keyframe_grid", "visual_audit"],
     }
     AUDIT_PRIMARY_NODE = {
         "timeline_invariants": 11, "broll_audit": 11, "caption_audit": 11,
-        "keyframe_grid": 12, "visual_audit": 12,
+        "keyframe_grid": 12, "visual_audit": 12, "treatment_audit": 11,
     }
 
     def generated_request_items(payload):

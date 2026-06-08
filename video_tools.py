@@ -79,6 +79,14 @@ import shutil
 import tempfile
 from pathlib import Path
 
+if sys.platform == "win32":
+    import io
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (AttributeError, io.UnsupportedOperation):
+        pass
+
 from video_pipeline_core.vt_core import YTDLP, FFMPEG, FFPROBE, run, ToolError, _audio_duration
 
 
@@ -271,6 +279,29 @@ def cmd_capcut_finalize(args):
     )
     print(json.dumps({"ok": True, "stats": stats}, ensure_ascii=False, indent=2))
 
+
+
+def cmd_blueprint_coverage(args):
+    """WHY layer: two-way narrative blueprint gate (beats <-> segments).
+
+    Exits non-zero when a beat is unrealized (dropped_beat) or a segment cites a
+    missing beat (invalid_ref), so it can act as a build gate.
+    """
+    from video_pipeline_core import blueprint as bp_mod
+    blueprint = _load_json(args.blueprint)
+    contract = _load_json(args.contract)
+    v = bp_mod.validate_blueprint(blueprint)
+    if not v["ok"]:
+        print(json.dumps({"ok": False, "stage": "validate_blueprint", **v},
+                         ensure_ascii=False, indent=2))
+        sys.exit(2)
+    if args.out:
+        result = bp_mod.write_blueprint_coverage(blueprint, contract, args.out)
+    else:
+        result = bp_mod.beat_coverage(blueprint, contract)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result["pass"]:
+        sys.exit(1)
 
 
 def cmd_creator_profile(args):
@@ -940,6 +971,7 @@ def cmd_title(args):
 # ── audio/subtitle 已解耦到 vt_audio.py;re-export 保持 video_tools.X + CLI 不變 ──
 from video_pipeline_core.vt_audio import (  # noqa: F401,E402
     cmd_tts, cmd_mix_audio, cmd_srt, cmd_gen_bgm, cmd_music_fetch, _music_ytdlp_cmd,
+    BGM_MOODS,
 )
 
 
@@ -973,7 +1005,7 @@ from video_pipeline_core.curator import (  # noqa: F401,E402
 # ── 特效師已解耦到 vt_effects.py;re-export 保持 video_tools.X 與 CLI 不變 ──
 from video_pipeline_core.vt_effects import (  # noqa: F401,E402
     cmd_kenburns, cmd_grade, cmd_title_card, cmd_title_sequence,
-    cmd_collage, cmd_montage,
+    cmd_collage, cmd_montage, GRADE_PRESETS,
 )
 
 
@@ -1299,6 +1331,12 @@ def main():
     p_ccf.add_argument("--bgm-vol", type=float, dest="bgm_vol", default=0.25, help="BGM volume (default: 0.25)")
 
 
+    # --- WHY layer: narrative blueprint gate ---
+    p_bp = sub.add_parser("blueprint-coverage")
+    p_bp.add_argument("blueprint", help="blueprint.json (thesis + beats[])")
+    p_bp.add_argument("contract", help="segment_contract.json")
+    p_bp.add_argument("--out", default=None, help="blueprint_coverage.json output (optional)")
+
     # --- P2 creator profile ---
     p_cp = sub.add_parser("creator-profile")
     p_cp.add_argument("profile", nargs="?", default=None,
@@ -1361,6 +1399,7 @@ def main():
         "keyframe-grid":   cmd_keyframe_grid,
         "visual-audit":    cmd_visual_audit,
         "creator-profile": cmd_creator_profile,
+        "blueprint-coverage": cmd_blueprint_coverage,
         "capcut-draft":    cmd_capcut_draft,
         "capcut-finalize": cmd_capcut_finalize,
     }

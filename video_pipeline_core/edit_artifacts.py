@@ -8,7 +8,44 @@ import json
 from pathlib import Path
 
 
-def build_assembly_plan(script, *, music_structure=None, contract_hash=None):
+def _resolve_seg_treatment(seg, music_structure, editing_policy):
+    """Opt-in material treatment for a script segment.
+
+    Only segments that declare editing_intent.content_pattern or an explicit
+    material_treatment get a treatment block; everything else is left untouched so
+    existing runs are unaffected. Returns a dict to merge into the plan segment, or
+    {} when the segment opts out.
+    """
+    ei = seg.get("editing_intent") or {}
+    mt = seg.get("material_treatment") or {}
+    if not ei.get("content_pattern") and not mt.get("treatment"):
+        return {}
+    try:
+        from . import material_treatment  # noqa: PLC0415
+    except Exception:
+        return {}
+    beats = (music_structure or {}).get("beats") or []
+    beat_count = len(beats) if beats else 8
+    seg_view = {
+        "editing_intent": ei,
+        "material_treatment": mt,
+        "core": {"section_role": seg.get("section_role") or seg.get("kind")},
+        "pacing": seg.get("pacing"),
+        "duration_sec": seg.get("duration_sec"),
+    }
+    resolved = material_treatment.resolve_treatment(seg_view, beat_count, editing_policy)
+    items = mt.get("items") or []
+    return {
+        "treatment": resolved["treatment"],
+        "n_required": resolved["n_required"],
+        "items": items,
+        "label_per_item": bool(mt.get("label_per_item")),
+        "lane_plan": resolved["lane_plan"],
+        "treatment_reason": resolved["reason"],
+    }
+
+
+def build_assembly_plan(script, *, music_structure=None, contract_hash=None, editing_policy=None):
     """Build Node 9 assembly_plan from generated MV payload."""
     contract_hash = contract_hash or script.get("_contract_hash")
     music_sections = (music_structure or {}).get("sections") or []
@@ -17,7 +54,7 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None):
     for seg in script.get("segments", []):
         text = {k: seg.get(k) for k in ("label", "narrative", "subtitle", "name_super")
                 if seg.get(k) is not None}
-        segments.append({
+        entry = {
             "segment": seg.get("segment"),
             "contract_segment": seg.get("_from_contract"),
             "story_purpose": seg.get("visual_desc"),
@@ -39,7 +76,9 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None):
                     "selection_reason": seg.get("visual_desc"),
                 }],
             },
-        })
+        }
+        entry.update(_resolve_seg_treatment(seg, music_structure, editing_policy))
+        segments.append(entry)
     return {
         "assembly_plan_version": 1,
         "contract_hash": contract_hash,
@@ -124,11 +163,18 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
     }
 
 
-def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=None):
-    """Write assembly_plan.json and optionally timeline_build.json."""
+def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=None,
+                         editing_policy=None):
+    """Write assembly_plan.json and optionally timeline_build.json.
+
+    When any segment opted into a material treatment, also writes
+    treatment_audit.json (Node 11), comparing the declared treatment against the
+    rendered timeline. Inert (not written) when no segment declared a treatment.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    assembly = build_assembly_plan(script, music_structure=music_structure)
+    assembly = build_assembly_plan(script, music_structure=music_structure,
+                                   editing_policy=editing_policy)
     assembly_path = out_dir / "assembly_plan.json"
     with assembly_path.open("w", encoding="utf-8") as f:
         json.dump(assembly, f, ensure_ascii=False, indent=2)
@@ -140,4 +186,13 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
         with timeline_path.open("w", encoding="utf-8") as f:
             json.dump(timeline, f, ensure_ascii=False, indent=2)
         result["timeline_build"] = str(timeline_path)
+
+        # Node 11 treatment-fit audit (opt-in: only when a segment declared a treatment)
+        if any(s.get("treatment") for s in assembly.get("segments", [])):
+            from . import treatment_audit  # noqa: PLC0415
+            audit = treatment_audit.audit_treatment(assembly, timeline)
+            audit_path = out_dir / "treatment_audit.json"
+            with audit_path.open("w", encoding="utf-8") as f:
+                json.dump(audit, f, ensure_ascii=False, indent=2)
+            result["treatment_audit"] = str(audit_path)
     return result

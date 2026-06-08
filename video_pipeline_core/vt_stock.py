@@ -136,6 +136,44 @@ def fetch_stock_video(query, out_path, min_dur=0, providers=None):
     return path
 
 
+def _pexels_photo_candidates(query, limit=10):
+    """Return normalized Pexels photo download URLs (largest landscape first)."""
+    has_cjk = any('一' <= ch <= '鿿' for ch in (query or ""))
+    params = {"query": query, "per_page": limit, "orientation": "landscape"}
+    if has_cjk:
+        params["locale"] = "zh-TW"
+    data = _pexels_request("/v1/search", params)
+    out = []
+    for p in data.get("photos", []):
+        src = p.get("src") or {}
+        url = src.get("large2x") or src.get("large") or src.get("original")
+        if url:
+            out.append({"provider": "pexels", "download_url": url,
+                        "width": p.get("width"), "height": p.get("height")})
+    return out
+
+
+def fetch_stock_photo(query, out_path):
+    """(I/O) Stock photo search/download → (out_path, provider) or (None, None).
+
+    Pexels only (Pixabay photo API not wired). Failure is recoverable: the caller
+    treats a missing photo as a GAP. Used by the photo_stack_beat treatment.
+    """
+    try:
+        candidates = _pexels_photo_candidates(query)
+    except Exception:
+        return None, None
+    for cand in candidates:
+        if not cand.get("download_url"):
+            continue
+        try:
+            if _download_url(cand["download_url"], out_path):
+                return out_path, "pexels-photo"
+        except Exception:
+            continue
+    return None, None
+
+
 def cmd_pexels_search(args):
     """搜 Pexels 照片或影片"""
     media_type = args.type

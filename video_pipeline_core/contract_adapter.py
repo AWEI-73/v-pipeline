@@ -62,6 +62,14 @@ def contract_to_mv_script(contract):
         # kind:只對 mv_cut 特殊處理的 bookend/title 設;montage 交給 layout/pace
         if section in ("opening", "closing", "title"):
             flat["kind"] = section
+        # WHY/treatment passthrough(opt-in):把 content_pattern / 顯式 treatment /
+        # section_role 帶到 BUILD,讓 Node 9 能解析素材處理文法。無宣告則完全不帶。
+        if seg.get("editing_intent"):
+            flat["editing_intent"] = seg["editing_intent"]
+        if seg.get("material_treatment"):
+            flat["material_treatment"] = seg["material_treatment"]
+        if section:
+            flat["section_role"] = section
         # 來源 / 媒材
         if seg.get("source"):
             flat["source"] = seg["source"]
@@ -470,6 +478,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         out_dir=out_path.parent,
         music_structure=(music_struct or {}).get("structure"),
         render_plan=res.get("plan") if isinstance(res, dict) else None,
+        editing_policy=(build_profile_payload or {}).get("editing_policy"),
     )
     editor_review_path = None
     if edit_paths.get("timeline_build"):

@@ -1,0 +1,9 @@
+{
+  "_note": "treatment_demo category vocabulary",
+  "genre": "concept_stock",
+  "categories": [
+    {"id": "coffee_open", "label": "Coffee Opening", "description": "窗邊一杯咖啡的開場", "identity_sensitive": false, "proof_critical": false, "typical_audio": "music"},
+    {"id": "coffee_beans", "label": "Coffee Beans", "description": "咖啡豆產地特寫(列舉)", "identity_sensitive": false, "proof_critical": false, "typical_audio": "music"},
+    {"id": "coffee_done", "label": "Finished Coffee", "description": "完成的一杯咖啡收尾", "identity_sensitive": false, "proof_critical": false, "typical_audio": "music"}
+  ]
+}

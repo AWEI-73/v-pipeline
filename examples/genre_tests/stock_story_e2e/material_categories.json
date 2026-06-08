@@ -1,0 +1,24 @@
+{
+  "_note": "Stock-safe conceptual vocabulary for 'A Barista's Morning'. ALL categories are identity_sensitive=false and proof_critical=false — this is the stock-safe case, so conceptual must_include + stock_bridge fallback is legitimate (no honesty-rule violation). Test: swapping this vocab should swap the genre without touching the chain.",
+  "genre": "stock_story_e2e",
+  "categories": [
+    {"id": "city_dawn", "label": "City at Dawn", "description": "Empty city streets at sunrise, soft light",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Wide establishing of a quiet city waking up; warm low sun"},
+    {"id": "cafe_ambient", "label": "Cafe Ambient", "description": "Cafe interior, steam, machines warming up, ambient room tone",
+     "typical_audio": "diegetic", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Room tone + espresso machine hiss; keep original audio for atmosphere"},
+    {"id": "hands_craft", "label": "Hands at Work", "description": "Close-up hands grinding, tamping, pouring coffee",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Tight close-ups of the craft; montage-friendly fast cuts"},
+    {"id": "pour_detail", "label": "Pour Detail", "description": "Slow pour / latte art / crema close-up",
+     "typical_audio": "duck", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Hero pour shot; brief diegetic pour sound ducked under music"},
+    {"id": "people_walking", "label": "People Walking", "description": "Anonymous people walking, street life, customers arriving",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Backs/silhouettes only, no recognizable faces; montage filler"},
+    {"id": "finished_cup", "label": "Finished Cup", "description": "The finished cup of coffee on a counter, warm resolution",
+     "typical_audio": "music", "identity_sensitive": false, "proof_critical": false,
+     "collection_instructions": "Hold on the finished cup; closing beat, warm window light"}
+  ]
+}

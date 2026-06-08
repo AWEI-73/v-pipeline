@@ -1,0 +1,14 @@
+{
+  "artifact_role": "narrative_blueprint",
+  "version": 1,
+  "thesis": "用心做好的一個安靜早晨,本身就是一件完整的小事。",
+  "intended_feeling": "warm, calm, quietly proud",
+  "mode_hint": "warm_documentary",
+  "beats": [
+    {"id": "B1", "role": "setup",   "summary": "城市與一家咖啡店一起醒來", "intended_feeling": "still, anticipatory", "prose_ref": "Big Story ¶1"},
+    {"id": "B2", "role": "develop", "summary": "手藝:磨豆、填壓、注水,以及人流回到城市", "intended_feeling": "focused, building", "prose_ref": "Big Story ¶2"},
+    {"id": "B3", "role": "turn",    "summary": "那一杯完美的慢動作注水", "intended_feeling": "peak, held breath", "prose_ref": "Big Story ¶3"},
+    {"id": "B4", "role": "resolve", "summary": "窗邊一杯完成的咖啡,溫暖收束", "intended_feeling": "complete, warm rest", "prose_ref": "Big Story ¶4"}
+  ],
+  "anti_goals": ["不要企業廣告式的浮誇", "不要假裝這是某家真實店的事件"]
+}

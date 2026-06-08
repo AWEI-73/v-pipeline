@@ -20,13 +20,14 @@ from video_pipeline_core.project_workspace import (
 from video_pipeline_core.dashboard_state import load_dashboard_state
 from video_pipeline_core.platform_tools import resolve_python
 
+from video_pipeline_core import blueprint as blueprint_gate
 from video_pipeline_core.node_registry import NODE_REGISTRY, NODE_ORDER
 NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REGISTRY.items()}
 
 
 _AUDIT_NODE = {
     "timeline_invariants": "11", "broll_audit": "11", "caption_audit": "11",
-    "keyframe_grid": "12", "visual_audit": "12",
+    "keyframe_grid": "12", "visual_audit": "12", "treatment_audit": "11",
 }
 
 
@@ -165,6 +166,16 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
             print(f"[runtime] Copying brief from {src_brief} to {brief_path}...")
             shutil.copy2(src_brief, brief_path)
 
+    # 3. Copy narrative blueprint (WHY layer, optional) if present
+    blueprint_path = run_dir / "blueprint.json"
+    if not blueprint_path.exists():
+        for cand in (Path(args.contract).parent / "blueprint.json" if args.contract else None,
+                     project_dir / "input" / "blueprint.json"):
+            if cand and cand.exists():
+                print(f"[runtime] Copying blueprint from {cand} to {blueprint_path}...")
+                shutil.copy2(cand, blueprint_path)
+                break
+
 
 def _resolve_music_path(project_dir, run_dir, contract_path, args):
     """Find BGM or fetch it automatically if missing."""
@@ -260,6 +271,20 @@ def run_orchestrator(project_name=None, args=None):
 
         print(f"[runtime] Current Action resolved: {next_action}")
 
+        # WHY layer: narrative blueprint gate. Inert when no blueprint.json exists.
+        # A dropped/invalid beat is a SPEC-level problem -> route to director, never
+        # let a run that lost a promised story beat reach completion.
+        bp_cov = blueprint_gate.check_run(run_dir)
+        if bp_cov is not None and not bp_cov.get("pass"):
+            print("[runtime] [BLUEPRINT] Narrative gate failed (blueprint_coverage.json):")
+            for f in bp_cov.get("findings", []):
+                if f.get("level") == "error":
+                    print(f"  - [{f.get('check')}] {f.get('message')}")
+            print(f"[runtime] [DISPATCH] Skill 'director' must fix segment_contract "
+                  f"blueprint_ref / coverage, then run "
+                  f"'python runtime.py resume --project {project_dir.name}'.")
+            sys.exit(0)
+
         # P1 verification tool pack: a failing deterministic/visual audit must not
         # be silently completed. Disabled tools produce no audit findings, so this
         # is inert for existing runs.
@@ -329,6 +354,12 @@ def run_orchestrator(project_name=None, args=None):
         elif next_action and next_action.startswith("missing_artifact:brief.json"):
             # Try to copy brief.json from input folder again
             _copy_initial_artifacts(project_dir, run_dir, args)
+            # If the brief still cannot be found, stop instead of looping forever.
+            if not (run_dir / "brief.json").exists():
+                print("[runtime] [WAIT] No brief.json found (input/brief.json, --brief, "
+                      "or contract brief_ref). Provide one, then run "
+                      f"'python runtime.py resume --project {project_dir.name}'.")
+                sys.exit(0)
             state_file = run_dir / "state.json"
             if state_file.exists():
                 try:
@@ -410,13 +441,24 @@ def run_orchestrator(project_name=None, args=None):
                     sys.exit(1)
                 material_db = _resolve_material_db_path(project_dir, run_dir, args)
 
-                # Check for categories
-                categories = str(REPO_ROOT / "examples" / "material_categories.json")
-                if not os.path.exists(categories):
-                    # check in project input
-                    cand = project_dir / "input" / "material_categories.json"
+                # Resolve categories, preferring the contract/project-specific
+                # vocabulary over the global default. The contract declares its
+                # own map via categories_ref; the global examples map is only a
+                # last-resort fallback (it does not know project-specific
+                # category words and would reject them at validate_contract).
+                cat_ref = contract.get("categories_ref") or "material_categories.json"
+                cat_candidates = [
+                    run_dir / cat_ref,
+                    project_dir / "input" / cat_ref,
+                    run_dir / "material_categories.json",
+                    project_dir / "input" / "material_categories.json",
+                    REPO_ROOT / "examples" / "material_categories.json",
+                ]
+                categories = None
+                for cand in cat_candidates:
                     if cand.exists():
                         categories = str(cand)
+                        break
 
                 print(f"[runtime] Launching contract-run compile for MV style...")
                 cmd = [
@@ -427,7 +469,7 @@ def run_orchestrator(project_name=None, args=None):
                     "--out", str(run_dir / "final.mp4"),
                     "--mat-dir", str(run_dir)
                 ]
-                if os.path.exists(categories):
+                if categories and os.path.exists(categories):
                     cmd += ["--categories", categories]
 
                 print(f"[runtime] Running: {' '.join(cmd)}")

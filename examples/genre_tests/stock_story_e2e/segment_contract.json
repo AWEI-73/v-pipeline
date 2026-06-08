@@ -1,0 +1,235 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "material_source_mode": "stock_first",
+  "story_truth_level": "conceptual",
+  "music": {
+    "brief": "warm, hopeful, quietly building morning groove",
+    "query": "warm hopeful acoustic morning instrumental",
+    "source": "yt"
+  },
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "opening",
+        "story_purpose": "用清晨空城建立『一座城市與一家咖啡店正在醒來』的氛圍,定下溫暖而安靜的基調",
+        "blueprint_ref": ["B1"],
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "city_dawn",
+        "visual_desc": "清晨無人的城市街道、低斜陽光灑在路面、店家鐵門剛拉開",
+        "search_query": "empty city street sunrise golden hour",
+        "collection_instructions": "Wide establishing of a quiet city at sunrise, warm low sun",
+        "fallback_policy": "stock_bridge",
+        "reason": "概念型開場,可用泛用清晨城市 stock 建立情緒;非身份/證據敏感,刻意不設 must_include 讓 stock 合法補位(must_include 會被 honesty guard 擋下 stock,見 TEST_CASE.md C4)"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "開場用音樂定調,建立溫暖節奏"
+      },
+      "text_layer": {
+        "narrative": "城市醒來的時候\n咖啡也醒了",
+        "reason": "全螢幕敘事卡點題,建立故事主題"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "fade",
+        "reason": "穩定長鏡開場,讓觀眾進入情緒"
+      },
+      "editing_grammar": {
+        "role": "hero",
+        "beat_alignment": "none",
+        "compressibility": "locked",
+        "reason": "開場 hero 鏡,固定時長不可壓縮,須複核"
+      }
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "establishing",
+        "story_purpose": "進到咖啡店內部,機器暖機、蒸氣升起,用現場原音建立空間真實感",
+        "blueprint_ref": ["B1"],
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "cafe_ambient",
+        "visual_desc": "咖啡店內部、義式機器暖機、蒸氣與晨光、空間室內音",
+        "search_query": "coffee shop interior morning steam espresso machine",
+        "fallback_policy": "stock_bridge",
+        "reason": "氛圍建立段,可用泛用咖啡店內景 stock;保留原音強化臨場"
+      },
+      "audio": {
+        "role": "diegetic",
+        "reason": "保留咖啡機暖機與室內原音,建立空間真實感(走 audio_qa / 原音保留路徑)"
+      },
+      "text_layer": {
+        "none": true,
+        "reason": "純氛圍空間段,刻意留白讓原音主導,不放任何文字"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "cut",
+        "reason": "靜定觀察空間,讓原音與光線說話"
+      },
+      "editing_grammar": {
+        "role": "mood",
+        "beat_alignment": "none",
+        "compressibility": "flexible",
+        "reason": "氛圍段,原音優先,時長可微調"
+      }
+    },
+    {
+      "segment": 3,
+      "core": {
+        "section_role": "montage",
+        "story_purpose": "用快剪呈現手沖/磨豆/填壓的手部特寫,堆疊『手藝』的密度與節奏",
+        "blueprint_ref": ["B2"],
+        "timeline_source": "beat",
+        "review_required": false
+      },
+      "material_fit": {
+        "category": "hands_craft",
+        "visual_desc": "手部特寫:磨豆、填壓、手沖注水、擦拭把手",
+        "search_query": "barista hands grinding tamping coffee close up",
+        "fallback_policy": "stock_bridge",
+        "reason": "流程展示可用泛用手藝特寫 stock 支撐;快剪段,可由音樂節拍驅動切點"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "快剪由音樂節拍推進,切點對齊 beat grid"
+      },
+      "text_layer": {
+        "label": "每天清晨的儀式",
+        "reason": "下三分之一標籤,點出段落功能而不搶畫面"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "cut",
+        "reason": "快剪建立手藝密度與工作節奏"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "beat_alignment": "music",
+        "compressibility": "flexible",
+        "reason": "蒙太奇支撐段,切點對齊音樂節拍,可壓縮"
+      }
+    },
+    {
+      "segment": 4,
+      "core": {
+        "section_role": "climax",
+        "story_purpose": "英雄注水鏡:慢動作沖煮/拉花特寫,情緒高點,短暫保留沖煮聲做點綴",
+        "blueprint_ref": ["B3"],
+        "timeline_source": "beat",
+        "review_required": false
+      },
+      "material_fit": {
+        "category": "pour_detail",
+        "visual_desc": "慢動作注水、crema 浮現、拉花成形特寫",
+        "search_query": "slow motion coffee pour latte art crema close up",
+        "fallback_policy": "stock_bridge",
+        "reason": "高潮 hero 鏡可用泛用慢動作沖煮 stock;沖煮聲短暫 duck 在音樂下做點綴"
+      },
+      "audio": {
+        "role": "duck",
+        "reason": "沖煮/注水原音短暫 duck 在音樂下(側鏈),強化高點而不蓋過主旋律"
+      },
+      "text_layer": {
+        "none": true,
+        "reason": "高潮 hero 鏡刻意留白讓畫面與沖煮聲說話;subtitle:auto 需真人語音來源,純 stock 無原聲可轉錄,故不在此段走 ASR(見 TEST_CASE.md C5)"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "cut",
+        "reason": "單一 hero 鏡頭放慢呼吸,鎖住情緒高點"
+      },
+      "editing_grammar": {
+        "role": "hero",
+        "beat_alignment": "emotion",
+        "compressibility": "locked",
+        "reason": "情緒高點 hero 鏡,鎖定不可壓縮,切點對齊情緒"
+      }
+    },
+    {
+      "segment": 5,
+      "core": {
+        "section_role": "montage",
+        "story_purpose": "顧客陸續抵達、店內開始有人流,把個人手藝接回城市的日常",
+        "blueprint_ref": ["B2"],
+        "timeline_source": "beat",
+        "review_required": false
+      },
+      "material_fit": {
+        "category": "people_walking",
+        "visual_desc": "匿名顧客走進店內、街上人流剪影、背影與腳步",
+        "search_query": "people walking street cafe customers silhouette",
+        "fallback_policy": "stock_bridge",
+        "reason": "連接性人流段,可用泛用匿名背影/剪影 stock;非身份敏感,快剪由音樂帶"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "回到音樂主導,推進到收尾"
+      },
+      "text_layer": "none",
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "cut",
+        "reason": "人流快剪,把個人故事接回城市日常"
+      },
+      "editing_grammar": {
+        "role": "bridge",
+        "beat_alignment": "music",
+        "compressibility": "expendable",
+        "reason": "橋接段,缺料可壓縮甚至捨棄,切點對齊音樂"
+      }
+    },
+    {
+      "segment": 6,
+      "core": {
+        "section_role": "closing",
+        "story_purpose": "鏡頭收在窗邊一杯完成的咖啡,溫暖窗光,收束『一杯咖啡的早晨』",
+        "blueprint_ref": ["B4"],
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "finished_cup",
+        "visual_desc": "窗邊吧台上一杯完成的咖啡、溫暖晨光、熱氣緩緩上升",
+        "search_query": "finished cup of coffee on counter window warm light",
+        "collection_instructions": "Hold on the finished cup, warm window light, closing beat",
+        "fallback_policy": "stock_bridge",
+        "reason": "概念型收尾,可用泛用成品咖啡 stock 做情緒收束;非身份/證據敏感,刻意不設 must_include 讓 stock 合法補位(見 TEST_CASE.md C4)"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "音樂收束,情緒回到溫暖安靜"
+      },
+      "text_layer": {
+        "narrative": "一杯咖啡\n一個剛剛好的早晨",
+        "reason": "全螢幕收尾標語,呼應開場主題"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "fade",
+        "reason": "固定長鏡收尾,保留收束情緒"
+      },
+      "editing_grammar": {
+        "role": "mood",
+        "beat_alignment": "thematic",
+        "compressibility": "locked",
+        "reason": "收尾 mood 鏡,主題收束,固定不可壓縮,須複核"
+      }
+    }
+  ]
+}

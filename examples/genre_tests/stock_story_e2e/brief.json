@@ -1,0 +1,12 @@
+{
+  "video_type": "mv",
+  "spec_start_mode": "stock_first",
+  "can_reshoot": false,
+  "fallback_policy": "stock_bridge",
+  "review_level": "low",
+  "audience": "external",
+  "target_length": "60 seconds",
+  "tone": "warm, hopeful, quietly cinematic",
+  "must_include": ["a fresh morning opening", "a finished cup of coffee resolution"],
+  "_note": "Stock-first conceptual MV: 'A Barista's Morning'. Buildable purely from common Pexels stock. No identity-sensitive or proof-critical material. spec_start_mode/video_type intentionally match examples/stock_first_concept_brief.json (the working stock-first pattern) rather than the stricter validate_brief enums; Node 0 verify_brief only checks presence."
+}
