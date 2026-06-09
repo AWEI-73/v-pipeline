@@ -112,6 +112,34 @@ def dur(path):
         '-of', 'default=noprint_wrappers=1:nokey=1', path]).decode().strip())
 
 
+def extract_tiled_frames(src, duration, out_path, num_samples=3, start_offset=0.0):
+    import tempfile
+    duration = float(duration or 0)
+    if duration <= 0 or num_samples <= 0:
+        return
+    timestamps = [start_offset + duration * (i + 0.5) / num_samples for i in range(num_samples)]
+    with tempfile.TemporaryDirectory() as tmp:
+        frame_paths = []
+        cell_width, cell_height = 480, 270
+        scale_vf = f"scale={cell_width}:{cell_height}:force_original_aspect_ratio=decrease," \
+                   f"pad={cell_width}:{cell_height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        for i, ts in enumerate(timestamps):
+            frame = os.path.join(tmp, f"seq_{i:03d}.jpg")
+            r = subprocess.run([
+                FFMPEG, "-y", "-ss", f"{ts:.3f}", "-i", str(src),
+                "-frames:v", "1", "-q:v", "2", "-vf", scale_vf, frame
+            ], capture_output=True)
+            if r.returncode == 0 and os.path.exists(frame):
+                frame_paths.append(frame)
+        if frame_paths:
+            tile_cols = len(frame_paths)
+            tile_rows = 1
+            subprocess.run([
+                FFMPEG, "-y", "-framerate", "1", "-i", os.path.join(tmp, "seq_%03d.jpg"),
+                "-vf", f"tile={tile_cols}x{tile_rows}", "-frames:v", "1", str(out_path)
+            ], capture_output=True)
+
+
 def probe_video(path):
     """Return dict with pix_fmt, color_range, avg_frame_rate, width, height, duration."""
     out = subprocess.check_output([
@@ -1012,18 +1040,45 @@ def compose_and_qa(script, seg_paths, actual_dur, xfade, outdir, script_path,
     # 否則美學調色（如 dusk 變紅）會跟 visual_desc 的顏色描述打架、壓低分數。
     vprint("  [9] thumbnails (base segments, pre-effects)", verbose)
     mat_dir = f"{outdir}/materials"
+    # Build a quick lookup: segment id → script entry (for layout check)
+    script_by_seg = {s["segment"]: s for s in script}
     cursor = 0
     for sd in timing["segments"]:
         n = sd["segment"]
+        seg_dur = sd["duration_sec"]
+        out_frame_path = f"{outdir}/final_frame_{n}.jpg"
         base = f"{mat_dir}/seg{n}.mp4"
         if os.path.exists(base):
-            src, mid = base, dur(base) / 2
+            src = base
+            offset = 0.0
         else:
-            src, mid = final, cursor + sd["duration_sec"] / 2
-        cursor += sd["duration_sec"]
-        subprocess.run([FFMPEG, '-y', '-ss', f"{mid:.3f}", '-i', src,
-                        '-frames:v', '1', '-update', '1', '-q:v', '2',
-                        f"{outdir}/final_frame_{n}.jpg"], capture_output=True)
+            src = final
+            offset = cursor
+
+        # For montage/collage segments, tile 3~5 representative keyframes
+        seg_script = script_by_seg.get(n, {})
+        layout = seg_script.get("layout")
+        tiled = False
+        if layout in ("montage", "collage") and seg_dur > 0:
+            num_samples = 5 if seg_dur >= 8 else 3
+            try:
+                extract_tiled_frames(src, seg_dur, out_frame_path,
+                                     num_samples=num_samples,
+                                     start_offset=offset)
+                if os.path.exists(out_frame_path):
+                    tiled = True
+                    vprint(f"    seg{n} [{layout}] tiled {num_samples} frames", verbose)
+            except Exception as e:
+                vprint(f"    seg{n} [{layout}] tiling failed ({e}), fallback to single frame", verbose)
+
+        # Fallback: single midpoint frame (default for non-montage segments)
+        if not tiled:
+            mid = (offset + seg_dur / 2) if src == final else dur(base) / 2
+            subprocess.run([FFMPEG, '-y', '-ss', f"{mid:.3f}", '-i', src,
+                            '-frames:v', '1', '-update', '1', '-q:v', '2',
+                            out_frame_path], capture_output=True)
+
+        cursor += seg_dur
 
     vprint("  [10] verify (technical)", verbose)
     run_tool(["verify", "--script", script_path,

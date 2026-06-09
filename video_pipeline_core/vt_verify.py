@@ -168,17 +168,14 @@ def _verify_subtitle_accuracy(script, srt_path):
                 "fix_target": "subtitle"
             }
 
-    # 計算重疊：SRT 中有多少字元能在 script 中找到（多重集合 intersection）
-    from collections import Counter
-    srt_count = Counter(srt_clean)
-    script_count = Counter(script_clean)
-    overlap = sum((srt_count & script_count).values())
-    ratio = overlap / len(script_clean) if len(script_clean) > 0 else 0
+    # 計算相似度：使用 difflib.SequenceMatcher (編輯距離比對)
+    from difflib import SequenceMatcher
+    ratio = SequenceMatcher(None, script_clean, srt_clean).ratio()
     score = min(100, int(ratio * 100))
     return {
         "score": score,
         "weight": 0.20,
-        "note": f"overlap {overlap}/{len(script_clean)} chars ({ratio*100:.1f}%)",
+        "note": f"similarity ratio: {ratio*100:.1f}%",
         "fix_target": None if score >= 90 else "subtitle",
     }
 
