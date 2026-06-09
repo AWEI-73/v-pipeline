@@ -220,7 +220,7 @@ def _verify_audio_levels(video_path):
     }
 
 
-def _verify_technical_quality(video_path):
+def _verify_technical_quality(video_path, expected_w=1920, expected_h=1080, expected_fps=30):
     """維度5: 解析度、framerate、有音軌、有視軌、無黑幀"""
     res = subprocess.run([
         FFPROBE, '-v', 'error', '-show_entries',
@@ -240,19 +240,19 @@ def _verify_technical_quality(video_path):
     if not has_a: score -= 30; notes.append("no audio stream")
     if v:
         w, h = v.get('width'), v.get('height')
-        if (w, h) != (1920, 1080):
-            score -= 20; notes.append(f"resolution {w}x{h} (expected 1920x1080)")
-        # framerate check (應該是 30fps)
+        if (w, h) != (expected_w, expected_h):
+            score -= 20; notes.append(f"resolution {w}x{h} (expected {expected_w}x{expected_h})")
+        # framerate check
         fr = v.get('r_frame_rate', '0/1')
         try:
             num, den = fr.split('/')
             fps = float(num) / float(den)
-            if abs(fps - 30) > 1:
-                score -= 10; notes.append(f"framerate {fps:.2f} (expected 30)")
+            if abs(fps - expected_fps) > 1:
+                score -= 10; notes.append(f"framerate {fps:.2f} (expected {expected_fps})")
         except (ValueError, ZeroDivisionError):
             pass
     if not notes:
-        notes = ["streams OK, 1920x1080 30fps"]
+        notes = [f"streams OK, {expected_w}x{expected_h} {expected_fps}fps"]
     return {
         "score": max(0, score),
         "weight": 0.15,
@@ -275,12 +275,42 @@ def cmd_verify(args):
     with open(args.timing, encoding="utf-8") as f: timing = json.load(f)
     with open(args.edit_log, encoding="utf-8") as f: edit_log = json.load(f)
 
+    # 嘗試載入 build_profile.json 取得預期解析度與影格率
+    expected_w, expected_h, expected_fps = 1920, 1080, 30
+    profile_path = None
+    candidates = []
+    if args.script:
+        candidates.append(os.path.join(os.path.dirname(args.script), "build_profile.json"))
+    if args.out:
+        candidates.append(os.path.join(os.path.dirname(args.out), "build_profile.json"))
+        candidates.append(os.path.join(args.out, "build_profile.json"))
+    candidates.append("build_profile.json")
+
+    for path_candidate in candidates:
+        if path_candidate and os.path.exists(path_candidate):
+            profile_path = path_candidate
+            break
+
+    if profile_path:
+        try:
+            with open(profile_path, encoding="utf-8") as f:
+                profile_data = json.load(f)
+                if isinstance(profile_data, dict):
+                    if "target_width" in profile_data:
+                        expected_w = int(profile_data["target_width"])
+                    if "target_height" in profile_data:
+                        expected_h = int(profile_data["target_height"])
+                    if "target_fps" in profile_data:
+                        expected_fps = int(profile_data["target_fps"])
+        except Exception:
+            pass
+
     dims = {
         "script_coverage":   _verify_script_coverage(script, edit_log),
         "duration_fit":      _verify_duration_fit(timing, edit_log, video_path=args.video),
         "subtitle_accuracy": _verify_subtitle_accuracy(script, args.srt),
         "audio_levels":      _verify_audio_levels(args.video),
-        "technical_quality": _verify_technical_quality(args.video),
+        "technical_quality": _verify_technical_quality(args.video, expected_w, expected_h, expected_fps),
     }
 
     # 加權總分

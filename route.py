@@ -34,7 +34,7 @@ _VIDEO_EXT = {"mp4", "mov", "mkv", "webm", "m4v"}
 
 
 def _load_state(outdir):
-    p = f"{outdir}/state.json"
+    p = os.path.join(outdir, "state.json")
     if not os.path.exists(p):
         return None
     with open(p, encoding="utf-8") as f:
@@ -154,6 +154,13 @@ def main():
     work_script = args.script
 
     if args.mv:
+        try:
+            import librosa
+            import soundfile
+        except ImportError as e:
+            print(f"[route:mv] ⚠️ 缺少 MV 模式必要的音訊處理套件: {e}")
+            print("   請先執行 `pip install librosa soundfile` 以啟用 MV 模式。")
+            return 1
         return _route_mv(args)
 
     for rnd in range(1, args.max_rounds + 1):
@@ -181,7 +188,7 @@ def main():
                     by_id[n]["source"] = "local"
                     by_id[n]["file"] = os.path.abspath(f)
                     print(f"[route] seg{n} 學員素材到位 → source=local ({os.path.basename(f)})")
-                work_script = f"{args.out}/script_routed.json"
+                work_script = os.path.join(args.out, "script_routed.json")
                 with open(work_script, "w") as fh:
                     json.dump(wrapper, fh, ensure_ascii=False, indent=2)
                 _run_pipeline(work_script, args.out,
