@@ -1,0 +1,6 @@
+{
+  "B1_dawn":  { "content_pattern": "establishing", "pace": "calm", "category": "broll_mood", "material_hint": "烘焙坊清晨", "visual_desc": "晨光斜落檯面、薄麵粉、爐火微光、還沒翻牌的營業中", "transition": "dissolve", "emphasis": "mood", "text_layer": { "label": "清晨" } },
+  "B2_craft": { "content_pattern": "enumeration", "pace": "fast", "category": "hands_on_training", "material_hint": "手部揉捏麵團", "visual_desc": "揉、壓、整形、撒粉的手部特寫", "items": ["揉麵團", "整形", "撒粉"], "text_layer": { "label": "手作" } },
+  "B3_oven":  { "content_pattern": "process", "pace": "fast", "category": "hands_on_training", "material_hint": "烤箱烘烤過程", "visual_desc": "送進烤箱、上色、爐門打開出爐的金黃蒸氣", "steps": ["送進烤箱", "烘烤上色", "出爐"], "emphasis": "hero", "text_layer": { "label": "出爐" } },
+  "B4_share": { "content_pattern": "emotional", "pace": "calm", "category": "recreation", "material_hint": "大合照與切麵包", "visual_desc": "剝開麵包、遞出、咬下第一口的笑容，店內暖光", "text_layer": { "label": "手作溫度，分享幸福" } }
+}

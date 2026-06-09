@@ -73,3 +73,5 @@ video-autopilot-kit-main/
 
 # vendored understand-anything tool (external repo, has node_modules)
 Understand-Anything-main/
+
+scratch/

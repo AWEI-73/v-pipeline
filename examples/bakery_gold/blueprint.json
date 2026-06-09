@@ -1,0 +1,18 @@
+{
+  "artifact_role": "narrative_blueprint",
+  "version": 1,
+  "thesis": "天還沒亮就開始的揉捏與等待，是這條街的溫度；當麵包出爐、被剝開分享的那一刻，所有的辛苦都變成了幸福。",
+  "intended_feeling": "warm, inviting, quietly proud",
+  "mode_hint": "warm_documentary",
+  "beats": [
+    { "id": "B1_dawn", "role": "setup", "summary": "清晨的烘焙坊醒來：晨光、麵粉、爐火微光，安靜定場", "intended_feeling": "still, anticipatory", "weight": 1.0, "prose_ref": "Big Story B1" },
+    { "id": "B2_craft", "role": "develop", "summary": "手作：揉/壓/整形/撒粉，越剪越快的手藝montage", "intended_feeling": "focused, building", "weight": 1.2, "prose_ref": "Big Story B2" },
+    { "id": "B3_oven", "role": "turn", "summary": "出爐瞬間：金黃蒸氣，停半拍的高光", "intended_feeling": "peak, satisfying", "weight": 1.3, "prose_ref": "Big Story B3" },
+    { "id": "B4_share", "role": "resolve", "summary": "分享：剝開、遞出、咬下第一口，暖光收尾＋標語", "intended_feeling": "warm, joyful", "weight": 1.3, "prose_ref": "Big Story B4" }
+  ],
+  "anti_goals": [
+    "不要像庫存廣告那樣冰冷、泛用",
+    "不要呆照長停，也不要快到看不清麵包",
+    "30 秒緊湊，不灌水"
+  ]
+}

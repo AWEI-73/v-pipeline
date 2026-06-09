@@ -6,7 +6,36 @@ All functions are pure (no I/O, no print).
 """
 from __future__ import annotations
 
+import re
 from typing import Any
+
+_KNOWN_MODES = ("promo", "rhythmic_mv", "training_recap", "story_documentary", "warm_documentary")
+
+
+def _parse_target_sec(v) -> float | None:
+    """Parse a brief target_length like '30 seconds' / '2 minutes' / 30 into seconds."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).lower()
+    m = re.search(r"([\d.]+)", s)
+    if not m:
+        return None
+    n = float(m.group(1))
+    return n * 60 if ("min" in s or "分" in s) else n
+
+
+def _infer_mode(brief: dict) -> str | None:
+    vt = f"{brief.get('video_type','')} {brief.get('mode','')}".lower()
+    for k in _KNOWN_MODES:
+        if k in vt or k.replace("_", " ") in vt:
+            return k
+    if "promo" in vt:
+        return "promo"
+    if "mv" in vt:
+        return "rhythmic_mv"
+    return None
 
 
 def review_editorial(artifacts: dict) -> dict:
@@ -163,6 +192,28 @@ def review_editorial(artifacts: dict) -> dict:
             "route": "editor",
         })
         dims["artifact_consistency"] -= 20
+
+    # 6. Gold-calibrated pacing review gate (Node 12). Mechanical verify is blind to
+    #    pacing — this measures the real timeline shot-length profile vs the gold band
+    #    per mode and folds the score into pacing_fit. Inert when no timeline clips.
+    tb_clips = timeline_build.get("clips") or timeline_build.get("segments")
+    if tb_clips:
+        try:
+            from . import pacing_review as _pr  # noqa: PLC0415
+            _mode = (modes_found[0] if modes_found else None) or _infer_mode(brief) or "warm_documentary"
+            _target = _parse_target_sec(brief.get("target_length"))
+            pr_res = _pr.review_pacing(timeline_build, mode=_mode, target_sec=_target)
+            for pf in pr_res.get("findings", []):
+                findings.append({
+                    "level": "fail" if pf.get("level") == "error" else "warn",
+                    "dimension": "pacing_fit",
+                    "message": f"From pacing_review: {pf.get('message', '')}",
+                    "route": pf.get("route", "editor"),
+                })
+            # gold-calibrated pacing score caps the pacing_fit dimension
+            dims["pacing_fit"] = min(dims["pacing_fit"], int(pr_res.get("score", 100)))
+        except Exception:
+            pass
 
     # Clamp all dimension scores between 0 and 100
     for k in dims:

@@ -1,0 +1,227 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "opening",
+        "story_purpose": "晨光斜落檯面、薄麵粉、爐火微光、還沒翻牌的營業中",
+        "blueprint_ref": "B1_dawn",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "broll_mood",
+        "visual_desc": "晨光斜落檯面、薄麵粉、爐火微光、還沒翻牌的營業中",
+        "reason": "實現 setup beat：清晨的烘焙坊醒來：晨光、麵粉、爐火微光，安靜定場",
+        "material_hint": "烘焙坊清晨"
+      },
+      "editing_intent": {
+        "content_pattern": "establishing"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "detail",
+          "establish"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "dissolve",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "mood",
+        "reason": "氛圍鋪陳"
+      },
+      "text_layer": {
+        "label": "清晨",
+        "reason": "段落文字標示"
+      }
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "develop",
+        "story_purpose": "揉、壓、整形、撒粉的手部特寫",
+        "blueprint_ref": "B2_craft",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "揉、壓、整形、撒粉的手部特寫",
+        "reason": "實現 develop beat：手作：揉/壓/整形/撒粉，越剪越快的手藝montage",
+        "material_hint": "手部揉捏麵團"
+      },
+      "editing_intent": {
+        "content_pattern": "enumeration"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "action",
+          "detail"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "beat_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "手作",
+        "reason": "段落文字標示"
+      },
+      "material_treatment": {
+        "treatment": "photo_stack_beat",
+        "items": [
+          "揉麵團",
+          "整形",
+          "撒粉"
+        ],
+        "label_per_item": true
+      }
+    },
+    {
+      "segment": 3,
+      "core": {
+        "section_role": "climax",
+        "story_purpose": "送進烤箱、上色、爐門打開出爐的金黃蒸氣",
+        "blueprint_ref": "B3_oven",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "送進烤箱、上色、爐門打開出爐的金黃蒸氣",
+        "reason": "實現 turn beat：出爐瞬間：金黃蒸氣，停半拍的高光",
+        "material_hint": "烤箱烘烤過程"
+      },
+      "editing_intent": {
+        "content_pattern": "process"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "detail",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "beat_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "hero",
+        "reason": "情緒/動作高點，給足篇幅"
+      },
+      "text_layer": {
+        "label": "出爐",
+        "reason": "段落文字標示"
+      },
+      "material_treatment": {
+        "treatment": "stepped_sequence",
+        "steps": [
+          "送進烤箱",
+          "烘烤上色",
+          "出爐"
+        ]
+      }
+    },
+    {
+      "segment": 4,
+      "core": {
+        "section_role": "closing",
+        "story_purpose": "剝開麵包、遞出、咬下第一口的笑容，店內暖光",
+        "blueprint_ref": "B4_share",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "recreation",
+        "visual_desc": "剝開麵包、遞出、咬下第一口的笑容，店內暖光",
+        "reason": "實現 resolve beat：分享：剝開、遞出、咬下第一口，暖光收尾＋標語",
+        "material_hint": "大合照與切麵包"
+      },
+      "editing_intent": {
+        "content_pattern": "emotional"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "detail",
+          "reaction"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "direct_cut",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "手作溫度，分享幸福",
+        "reason": "段落文字標示"
+      }
+    }
+  ]
+}
