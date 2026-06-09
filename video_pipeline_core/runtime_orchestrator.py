@@ -106,6 +106,47 @@ def _get_project_and_run(project_name=None):
         sys.exit(1)
 
     return project_dir, run_dir
+def check_ready_for_build_gate(run_dir):
+    """Validate editorial design against allowed strategies (ready_for_build gate)."""
+    run_dir = Path(run_dir)
+    design_path = run_dir / "editorial_design.json"
+    if not design_path.exists():
+        return
+    try:
+        with design_path.open(encoding="utf-8") as f:
+            design = json.load(f)
+    except Exception as e:
+        print(f"[runtime] [GATE] Warning: Failed to parse editorial_design.json: {e}", file=sys.stderr)
+        return
+
+    errors = []
+
+    # 1. Subtitle placement validation
+    sub_strategy = design.get("subtitle_strategy") or {}
+    placement = sub_strategy.get("placement")
+    if placement and placement not in ("bottom_safe", "top_safe", "hidden"):
+        errors.append(f"Invalid subtitle placement: '{placement}'. Must be 'bottom_safe', 'top_safe', or 'hidden'.")
+
+    # 2. Narration mode validation
+    nar_strategy = design.get("narration_strategy") or {}
+    mode = nar_strategy.get("mode")
+    if mode and mode not in ("voiceover", "none", "captions_only"):
+        errors.append(f"Invalid narration mode: '{mode}'. Must be 'voiceover', 'none', or 'captions_only'.")
+
+    # 3. Expressive effects validation
+    fx_strategy = design.get("effects_strategy") or {}
+    allowed = fx_strategy.get("allowed_roles") or []
+    for fx in allowed:
+        if fx in ("3d_render", "blender_physics", "advanced_vfx"):
+            errors.append(f"Expressive effect '{fx}' is not supported by current CapCut/effects profile.")
+
+    if errors:
+        print("[runtime] [GATE] ready_for_build gate check FAILED:", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
+        sys.exit(1)
+    else:
+        print("[runtime] [GATE] ready_for_build gate check PASSED.")
 
 
 def _copy_initial_artifacts(project_dir, run_dir, args):
@@ -126,7 +167,7 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
             else:
                 # Look for any json in input/
                 jsons = list((project_dir / "input").glob("*.json"))
-                jsons = [j for j in jsons if j.name not in ("materials_db.json", "brief.json")]
+                jsons = [j for j in jsons if j.name not in ("materials_db.json", "brief.json", "blueprint.json", "editorial_design.json", "creator_profile.json", "decisions.json", "material_categories.json")]
                 if len(jsons) == 1:
                     src_contract = jsons[0]
 
@@ -136,8 +177,162 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
             # update active project to point to this run
             write_active_project(project_dir, active_run=run_dir, repo_dir=REPO_ROOT)
         else:
-            print("[runtime] Error: No segment contract found to start the run. Please specify --contract or place segment_contract.json in the input folder.", file=sys.stderr)
-            sys.exit(1)
+            # Check if we can bootstrap from blueprint.md, blueprint.json, or brief.json
+            blueprint_md = project_dir / "input" / "blueprint.md"
+            blueprint_json = project_dir / "input" / "blueprint.json"
+            brief_json = project_dir / "input" / "brief.json"
+            if blueprint_md.exists() or blueprint_json.exists() or brief_json.exists():
+                print("[runtime] segment_contract.json missing. Attempting to bootstrap Greenfield SPEC...")
+                write_active_project(project_dir, active_run=run_dir, repo_dir=REPO_ROOT)
+                
+                # A) Compile blueprint if blueprint.md exists but blueprint.json doesn't
+                compiled_blueprint = None
+                blueprint_json_path = run_dir / "blueprint.json"
+                if not blueprint_json_path.exists():
+                    if (project_dir / "input" / "blueprint.json").exists():
+                        shutil.copy2(project_dir / "input" / "blueprint.json", blueprint_json_path)
+                    elif (project_dir / "input" / "blueprint.md").exists():
+                        try:
+                            from .blueprint_compile import compile_blueprint_md
+                            md_text = (project_dir / "input" / "blueprint.md").read_text(encoding="utf-8")
+                            compiled_blueprint = compile_blueprint_md(md_text)
+                            with blueprint_json_path.open("w", encoding="utf-8") as f:
+                                json.dump(compiled_blueprint, f, ensure_ascii=False, indent=2)
+                            print("[runtime] Compiled blueprint.md -> blueprint.json")
+                        except Exception as e:
+                            print(f"[runtime] Error compiling blueprint.md: {e}", file=sys.stderr)
+                
+                # Load compiled blueprint if we haven't already
+                if not compiled_blueprint and blueprint_json_path.exists():
+                    try:
+                        with blueprint_json_path.open(encoding="utf-8") as f:
+                            compiled_blueprint = json.load(f)
+                    except Exception:
+                        pass
+
+                # B) Generate default editorial_design.json if it doesn't exist
+                design_path = run_dir / "editorial_design.json"
+                if not design_path.exists():
+                    if (project_dir / "input" / "editorial_design.json").exists():
+                        shutil.copy2(project_dir / "input" / "editorial_design.json", design_path)
+                    else:
+                        from .editorial_design import default_editorial_design
+                        design_data = default_editorial_design(compiled_blueprint)
+                        with design_path.open("w", encoding="utf-8") as f:
+                            json.dump(design_data, f, ensure_ascii=False, indent=2)
+                        print("[runtime] Generated default editorial_design.json")
+                
+                # C) Copy or generate brief.json
+                brief_path = run_dir / "brief.json"
+                if not brief_path.exists():
+                    if (project_dir / "input" / "brief.json").exists():
+                        shutil.copy2(project_dir / "input" / "brief.json", brief_path)
+                    else:
+                        tone = (compiled_blueprint or {}).get("intended_feeling") or "warm_reflective"
+                        video_type = (compiled_blueprint or {}).get("mode_hint") or "mv"
+                        brief_data = {
+                            "video_type": video_type,
+                            "spec_start_mode": "script_first",
+                            "can_reshoot": True,
+                            "fallback_policy": "reshoot_first",
+                            "review_level": "high",
+                            "audience": "general audience",
+                            "target_length": "2 minutes",
+                            "tone": tone,
+                            "must_include": []
+                        }
+                        with brief_path.open("w", encoding="utf-8") as f:
+                            json.dump(brief_data, f, ensure_ascii=False, indent=2)
+                        print("[runtime] Generated default brief.json")
+
+                # C2) Soul-layer compile (preferred): if a decisions.json is supplied,
+                #     compile a density-correct contract from blueprint + per-beat
+                #     editorial decisions. Inert when no decisions.json — block D below
+                #     then runs the thin bootstrap fallback. If this writes the contract,
+                #     block D is skipped (its guard sees the file now exists).
+                if not contract_path.exists() and compiled_blueprint:
+                    _dec_path = next((c for c in (project_dir / "input" / "decisions.json",
+                                                  run_dir / "decisions.json") if c.exists()), None)
+                    if _dec_path:
+                        try:
+                            from .blueprint_to_contract import compile_contract
+                            with _dec_path.open(encoding="utf-8") as f:
+                                _decisions = json.load(f)
+                            shutil.copy2(_dec_path, run_dir / "decisions.json")
+                            _compiled = compile_contract(compiled_blueprint, _decisions)
+                            with contract_path.open("w", encoding="utf-8") as f:
+                                json.dump(_compiled, f, ensure_ascii=False, indent=2)
+                            print("[runtime] Compiled segment_contract.json from blueprint.json + "
+                                  f"decisions.json ({len(_compiled['segments'])} segments, soul layer)")
+                        except Exception as e:
+                            print(f"[runtime] Error compiling contract from decisions.json: {e}; "
+                                  "falling back to bootstrap.", file=sys.stderr)
+
+                # D) Generate segment_contract.json from blueprint beats
+                if not contract_path.exists():
+                    beats = (compiled_blueprint or {}).get("beats") or [{"id": "b1", "role": "opening", "summary": "opening scene"}]
+                    segments = []
+                    for idx, beat in enumerate(beats):
+                        role = beat.get("role") or "montage"
+                        is_montage = role == "montage"
+                        segments.append({
+                            "segment": idx + 1,
+                            "core": {
+                                "section_role": role,
+                                "story_purpose": beat.get("summary") or "Scene",
+                                "timeline_source": "beat" if is_montage else "fixed",
+                                "review_required": True,
+                                "blueprint_ref": beat.get("id")
+                            },
+                            "material_fit": {
+                                "category": "establishing_aerial" if idx == 0 else "hands_on_training",
+                                "visual_desc": beat.get("summary") or "Scene",
+                                "material_hint": beat.get("id") or "scene",
+                                "required_traits": [],
+                                "reject_traits": [],
+                                "must_include": None,
+                                "collection_instructions": f"Collect footage for: {beat.get('summary') or 'Scene'}",
+                                "fallback_policy": "reshoot_first",
+                                "reason": "bootstrapped from blueprint"
+                            },
+                            "audio": {
+                                "role": "music",
+                                "music_intent": "background",
+                                "original_audio_policy": "drop",
+                                "voiceover_policy": "none",
+                                "reason": "bootstrapped"
+                            },
+                            "text_layer": {
+                                "label": (beat.get("summary") or "Scene")[:30],
+                                "reason": "bootstrapped"
+                            },
+                            "visual_style": {
+                                "layout": "montage" if is_montage else "single",
+                                "pace": "fast" if is_montage else "hold",
+                                "transition": "cut" if is_montage else "fade",
+                                "color_grade": "neutral",
+                                "effects": [],
+                                "reason": "bootstrapped"
+                            }
+                        })
+                    
+                    contract_data = {
+                        "brief_ref": "brief.json",
+                        "categories_ref": "material_categories.json",
+                        "style": "mv",
+                        "music": {"brief": "warm background", "query": "warm background lofi", "source": "yt"},
+                        "segments": segments
+                    }
+                    with contract_path.open("w", encoding="utf-8") as f:
+                        json.dump(contract_data, f, ensure_ascii=False, indent=2)
+                    print("[runtime] Generated segment_contract.json from blueprint beats")
+
+                # E) Check the ready_for_build gate!
+                check_ready_for_build_gate(run_dir)
+
+            else:
+                print("[runtime] Error: No segment contract found to start the run. Please specify --contract or place segment_contract.json in the input folder.", file=sys.stderr)
+                sys.exit(1)
 
     # 2. Copy brief
     brief_path = run_dir / "brief.json"
@@ -172,7 +367,7 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
     if not blueprint_path.exists():
         found = False
         for cand in (Path(args.contract).parent / "blueprint.json" if args.contract else None,
-                     project_dir / "input" / "blueprint.json"):
+                      project_dir / "input" / "blueprint.json"):
             if cand and cand.exists():
                 print(f"[runtime] Copying blueprint from {cand} to {blueprint_path}...")
                 shutil.copy2(cand, blueprint_path)
@@ -444,7 +639,184 @@ def run_orchestrator(project_name=None, args=None):
                     subprocess.run(state_cmd)
                     continue
 
+            elif matching_node and matching_node["runner"] == "curator":
+                # Curator runner (Node 2 Material Coverage)
+                print(f"[runtime] [CURATOR] Generating material coverage map for {run_dir}...")
+                if not contract_path.exists():
+                    print("[runtime] Error: segment_contract.json not found for curator.", file=sys.stderr)
+                    sys.exit(1)
+                with contract_path.open(encoding="utf-8") as f:
+                    contract_data = json.load(f)
+
+                material_db_path = run_dir / "materials_db.json"
+                if not material_db_path.exists():
+                    input_mat_dir = project_dir / "input" / "materials"
+                    raw_mat_dir = run_dir / "materials" / "raw"
+                    materials_dir = None
+                    if input_mat_dir.exists() and any(input_mat_dir.iterdir()):
+                        materials_dir = input_mat_dir
+                    elif raw_mat_dir.exists() and any(raw_mat_dir.iterdir()):
+                        materials_dir = raw_mat_dir
+                    
+                    if materials_dir:
+                        print(f"[runtime] Ingesting materials from {materials_dir}...")
+                        from video_pipeline_core.curator import cmd_ingest_meta
+                        class IngestArgs:
+                            src = str(materials_dir)
+                            out = str(material_db_path)
+                            work_dir = str(run_dir)
+                        cmd_ingest_meta(IngestArgs)
+                    else:
+                        if contract_data.get("material_source_mode") == "stock_first":
+                            print("[runtime] stock_first mode active, writing empty materials database.")
+                            with material_db_path.open("w", encoding="utf-8") as f:
+                                json.dump({"files": []}, f, ensure_ascii=False, indent=2)
+                        else:
+                            print(f"[runtime] [WAIT] No materials found. Please place raw materials under {input_mat_dir} or {raw_mat_dir} and run resume.")
+                            sys.exit(0)
+
+                with material_db_path.open(encoding="utf-8") as f:
+                    db_data = json.load(f)
+
+                from video_pipeline_core.curator import match_script_to_material
+                from video_pipeline_core.contract_adapter import contract_to_mv_script
+                flat_contract = contract_to_mv_script(contract_data)
+                segments = flat_contract.get("segments", [])
+                match_res = match_script_to_material(segments, db_data.get("files", []))
+
+                gaps = match_res.get("gaps", [])
+                missing = [g for g in gaps if g.get("must_include")]
+                weak = [g for g in gaps if not g.get("must_include")]
+                blocking = missing
+
+                coverage_map = {
+                    "covered": [a for a in match_res.get("assignments", []) if not a.get("gap")],
+                    "weak": weak,
+                    "missing": missing,
+                    "blocking": blocking,
+                }
+
+                coverage_map_path = run_dir / "material_coverage_map.json"
+                with coverage_map_path.open("w", encoding="utf-8") as f:
+                    json.dump(coverage_map, f, ensure_ascii=False, indent=2)
+                print(f"[runtime] Saved material coverage map to {coverage_map_path}")
+
+                if blocking and contract_data.get("material_source_mode") != "stock_first":
+                    state_file = run_dir / "state.json"
+                    state_json_data = {}
+                    if state_file.exists():
+                        try:
+                            with state_file.open(encoding="utf-8") as sf:
+                                state_json_data = json.load(sf)
+                        except Exception:
+                            pass
+                    state_json_data["blocking"] = blocking
+                    state_json_data["next_action"] = "await_material"
+                    with state_file.open("w", encoding="utf-8") as sf:
+                        json.dump(state_json_data, sf, ensure_ascii=False, indent=2)
+
+                    print(f"[runtime] [WAIT] Awaiting missing must-include materials:")
+                    for b in blocking:
+                        print(f"  - seg{b.get('segment')}: {b.get('reason')}")
+                    sys.exit(0)
+
+                # Regenerate state.json
+                state_cmd = [python_exe, str(REPO_ROOT / "video_tools.py"), "state", str(run_dir)]
+                subprocess.run(state_cmd)
+                continue
+
             # We need to compile the video!
+            # If render_backend is capcut_draft, do CapCut finalization instead!
+            build_profile_path = run_dir / "build_profile.json"
+            build_profile = {}
+            if build_profile_path.exists():
+                try:
+                    with build_profile_path.open(encoding="utf-8") as f:
+                        build_profile = json.load(f)
+                except Exception:
+                    pass
+            
+            if build_profile.get("render_backend") == "capcut_draft":
+                print(f"[runtime] [FINALIZE] CapCut backend detected. Finalizing export...")
+                music_file = _resolve_music_path(project_dir, run_dir, contract_path, args)
+                if not music_file:
+                    print("[runtime] Error: No background music file resolved. Please specify --music or place bgm.mp3 in the input directory.", file=sys.stderr)
+                    sys.exit(1)
+                
+                # Resolve outro defaults (title, address, extra, BGM volume) from brief and creator profile
+                brief_path = run_dir / "brief.json"
+                brief_data = {}
+                if brief_path.exists():
+                    try:
+                        with brief_path.open(encoding="utf-8") as f:
+                            brief_data = json.load(f)
+                    except Exception:
+                        pass
+
+                creator_profile_path = run_dir / "creator_profile.json"
+                if not creator_profile_path.exists():
+                    creator_profile_path = project_dir / "input" / "creator_profile.json"
+                creator_profile_data = {}
+                if creator_profile_path.exists():
+                    try:
+                        with creator_profile_path.open(encoding="utf-8") as f:
+                            creator_profile_data = json.load(f)
+                    except Exception:
+                        pass
+
+                outro_defaults = creator_profile_data.get("outro_defaults") or {}
+                
+                outro_title = brief_data.get("outro_title") or outro_defaults.get("title") or "Thank you for watching!"
+                outro_address = brief_data.get("outro_address") or outro_defaults.get("address") or "Visit our website!"
+                outro_extra = brief_data.get("outro_extra") or outro_defaults.get("extra") or ""
+                bgm_volume = brief_data.get("bgm_vol") or brief_data.get("bgm_volume") or outro_defaults.get("bgm_vol") or outro_defaults.get("bgm_volume") or 0.25
+
+                cmd = [
+                    python_exe, str(REPO_ROOT / "video_tools.py"), "capcut-finalize",
+                    "--video", str(run_dir / "capcut_exported.mp4"),
+                    "--out", str(run_dir / "final.mp4"),
+                    "--bgm", str(music_file),
+                    "--outro-title", outro_title,
+                    "--outro-address", outro_address,
+                    "--bgm-vol", str(bgm_volume)
+                ]
+                if outro_extra:
+                    cmd += ["--outro-extra", outro_extra]
+
+                print(f"[runtime] Running: {' '.join(cmd)}")
+                res = subprocess.run(cmd)
+                if res.returncode != 0:
+                    print("[runtime] Error: CapCut finalization failed.", file=sys.stderr)
+                    sys.exit(res.returncode)
+                
+                # Run audits after generating final.mp4
+                from video_pipeline_core.contract_adapter import _write_p1_audits
+                print("[runtime] Running P1 verification audits...")
+                with contract_path.open(encoding="utf-8") as f:
+                    contract = json.load(f)
+                _write_p1_audits(
+                    run_dir,
+                    build_profile,
+                    timeline_build_path=str(run_dir / "timeline_build.json"),
+                    srt_path=str(run_dir / "subtitles.srt"),
+                    final_video=str(run_dir / "final.mp4"),
+                    contract_obj=contract,
+                    verbose=True
+                )
+                
+                # Regenerate editorial_qa.json
+                if build_profile.get("editing_policy"):
+                    try:
+                        from video_pipeline_core import edit_artifacts
+                        edit_artifacts.write_editorial_qa(run_dir, build_profile["editing_policy"])
+                    except Exception as e:
+                        print(f"[runtime] failed to update editorial_qa: {e}")
+
+                # Regenerate state.json
+                state_cmd = [python_exe, str(REPO_ROOT / "video_tools.py"), "state", str(run_dir)]
+                subprocess.run(state_cmd)
+                continue
+
             # Determine style (MV or Narrative)
             with contract_path.open(encoding="utf-8") as f:
                 contract = json.load(f)
@@ -507,6 +879,13 @@ def run_orchestrator(project_name=None, args=None):
                 if res.returncode != 0:
                     print("[runtime] Error: narrative compilation failed.", file=sys.stderr)
                     sys.exit(res.returncode)
+
+        elif next_action == "await_capcut_export":
+            print("[runtime] [WAIT] Awaiting CapCut manual export...")
+            print(f"Please open CapCut, export the project as 'capcut_exported.mp4', and place it in:")
+            print(f"  {run_dir}")
+            print("Then run resume to finalize compilation.")
+            sys.exit(0)
 
         elif next_action == "await_material":
             # Check for arrived uploads matching blocked segments

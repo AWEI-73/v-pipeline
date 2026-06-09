@@ -367,6 +367,16 @@ def load_dashboard_state(workdir):
                 break
         if missing_node:
             next_action = f"missing_artifact:{missing_node['artifact']}"
+
+    if next_action == "missing_artifact:final.mp4":
+        if profile_data and isinstance(profile_data, dict) and profile_data.get("render_backend") == "capcut_draft":
+            draft_manifest_present = False
+            capcut_exported_present = False
+            if os.path.isdir(workdir):
+                draft_manifest_present = os.path.exists(os.path.join(workdir, "capcut_draft_manifest.json"))
+                capcut_exported_present = os.path.exists(os.path.join(workdir, "capcut_exported.mp4"))
+            if draft_manifest_present and not capcut_exported_present:
+                next_action = "await_capcut_export"
             
     if not next_action:
         # Check if final exists and pass is true

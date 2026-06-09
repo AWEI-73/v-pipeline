@@ -75,6 +75,54 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
         start_t, end_t = seg_timings[idx]
         seg_beats = [b for b in beats if start_t - 0.01 <= b <= end_t + 0.01]
 
+        # Resolve segment-level raw facets
+        raw_audio = seg.get("raw_audio") or {}
+        raw_vis = seg.get("raw_visual_style") or {}
+        raw_txt = seg.get("raw_text_layer") or {}
+        if not isinstance(raw_txt, dict):
+            raw_txt = {}
+        
+        # Narration
+        narr_mode = raw_audio.get("mode") or raw_audio.get("role") or "none"
+        narr_src = raw_audio.get("source") or ("tts" if narr_mode == "voiceover" else "none")
+        narr_duck = bool(raw_audio.get("duck_music") or raw_audio.get("role") in ("duck", "diegetic"))
+        if editing_policy:
+            policy_ns = editing_policy.get("narration_strategy") or {}
+            if narr_mode == "none" and policy_ns.get("mode"):
+                narr_mode = policy_ns.get("mode")
+            if narr_duck is None or raw_audio.get("duck_music") is None:
+                narr_duck = bool(policy_ns.get("duck_under_speech", True))
+
+        # Subtitles
+        sub_mode = raw_txt.get("mode") or ("full_subtitle" if seg.get("subtitle") else "none")
+        sub_placement = raw_txt.get("placement") or "bottom_safe"
+        sub_avoid = raw_txt.get("avoid") or []
+        if editing_policy:
+            policy_ss = editing_policy.get("subtitle_strategy") or {}
+            if sub_placement == "bottom_safe" and policy_ss.get("placement"):
+                sub_placement = policy_ss.get("placement")
+            if not sub_avoid and policy_ss.get("avoid"):
+                sub_avoid = policy_ss.get("avoid")
+
+        # Music
+        mus_section = seg.get("music_anchor") or default_music_anchor or "none"
+        mus_mood = raw_audio.get("mood") or "none"
+        mus_intensity = raw_audio.get("intensity") or "medium"
+        if editing_policy:
+            policy_ms = editing_policy.get("music_strategy") or {}
+            if mus_mood == "none" and policy_ms.get("mode"):
+                mus_mood = policy_ms.get("mode")
+
+        # Effects
+        fx_intensity = raw_vis.get("effects_intensity") or "none"
+        fx_allowed = raw_vis.get("allowed_effects_roles") or []
+        if editing_policy:
+            policy_es = editing_policy.get("effects_strategy") or {}
+            if fx_intensity == "none" and policy_es.get("intensity"):
+                fx_intensity = policy_es.get("intensity")
+            if not fx_allowed and policy_es.get("allowed_roles"):
+                fx_allowed = policy_es.get("allowed_roles")
+
         entry = {
             "segment": seg.get("segment"),
             "contract_segment": seg.get("_from_contract"),
@@ -98,23 +146,155 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
                     "selection_reason": seg.get("visual_desc"),
                 }],
             },
+            "execution_plan": {
+                "narration": {
+                    "mode": narr_mode,
+                    "source": narr_src,
+                    "duck_music": narr_duck,
+                },
+                "subtitles": {
+                    "mode": sub_mode,
+                    "placement": sub_placement,
+                    "avoid": sub_avoid,
+                },
+                "music": {
+                    "section": mus_section,
+                    "mood": mus_mood,
+                    "intensity": mus_intensity,
+                },
+                "effects": {
+                    "intensity": fx_intensity,
+                    "allowed_roles": fx_allowed,
+                }
+            }
         }
         treatment_info = _resolve_seg_treatment(seg, music_structure, editing_policy)
         entry.update(treatment_info)
+        
         if seg.get("sequence_grammar"):
             try:
                 from . import shot_slots  # noqa: PLC0415
+                import math  # noqa: PLC0415
                 n_req = treatment_info.get("n_required")
+                # Density-aware (lexicon §3): a fast/montage segment must fill its time
+                # budget at the target pace, not cap at the function-list length. Without
+                # this a fast 70s chapter renders ~6 shots (~12s each) instead of a real
+                # montage. Only fires for fast/montage segments that declare pacing.
+                pacing = seg.get("pacing") or {}
+                pref = pacing.get("preferred_shot_sec")
+                is_fast = seg.get("pace") == "fast" or seg.get("layout") == "montage"
+                if is_fast and pref:
+                    upper = pref[1] if isinstance(pref, (list, tuple)) and len(pref) >= 2 else float(pref)
+                    budget = end_t - start_t
+                    if upper and budget > 0:
+                        n_density = max(1, math.ceil(budget / float(upper)))
+                        n_req = max(int(n_req or 1), n_density)
                 entry["shot_slots"] = shot_slots.expand_shot_slots(seg, n_required=n_req)
             except Exception:
                 pass
+        
+        # Resolve segment-level transition_plan between slots
+        slots = entry.get("shot_slots") or []
+        seg_trans_plan = []
+        trans_type = seg.get("transition_philosophy") or raw_vis.get("transition_type") or "direct_cut"
+        for s_idx in range(len(slots) - 1):
+            from_slot = slots[s_idx]["slot"]
+            to_slot = slots[s_idx + 1]["slot"]
+            seg_trans_plan.append({
+                "from_slot": from_slot,
+                "to_slot": to_slot,
+                "type": trans_type,
+                "reason": f"slot sequence transition: {from_slot} -> {to_slot}"
+            })
+        entry["transition_plan"] = seg_trans_plan
         segments.append(entry)
+
+    # Compile root-level execution_plan lists
+    narration_tasks = []
+    subtitle_tasks = []
+    effects_tasks = []
+    
+    # Compile music_sections mapping
+    sections_map = {}
+    for entry in segments:
+        seg_num = entry["segment"]
+        mus_sec = entry["execution_plan"]["music"]["section"]
+        if mus_sec and mus_sec != "none":
+            if mus_sec not in sections_map:
+                sections_map[mus_sec] = []
+            sections_map[mus_sec].append(seg_num)
+    
+    music_sections_list = []
+    for ms in music_sections:
+        name = ms.get("name")
+        music_sections_list.append({
+            "section": name,
+            "segments": sections_map.get(name, [])
+        })
+    for name, seg_nums in sections_map.items():
+        if not any(ms["section"] == name for ms in music_sections_list):
+            music_sections_list.append({
+                "section": name,
+                "segments": seg_nums
+            })
+
+    for entry, seg in zip(segments, segs):
+        seg_num = entry["segment"]
+        exec_plan = entry["execution_plan"]
+        
+        # Narration task
+        narr_text = seg.get("narrative") or seg.get("subtitle") or ""
+        if narr_text and exec_plan["narration"]["mode"] != "none":
+            narration_tasks.append({
+                "segment": seg_num,
+                "text": narr_text,
+                "mode": exec_plan["narration"]["mode"],
+                "source": exec_plan["narration"]["source"]
+            })
+            
+        # Subtitle task
+        sub_text = seg.get("subtitle")
+        if sub_text and exec_plan["subtitles"]["mode"] != "none":
+            subtitle_tasks.append({
+                "segment": seg_num,
+                "text": sub_text,
+                "placement": exec_plan["subtitles"]["placement"]
+            })
+            
+        # Effects task
+        if exec_plan["effects"]["intensity"] != "none" or exec_plan["effects"]["allowed_roles"]:
+            effects_tasks.append({
+                "segment": seg_num,
+                "intensity": exec_plan["effects"]["intensity"],
+                "allowed_roles": exec_plan["effects"]["allowed_roles"]
+            })
+
+    # Root-level transition_plan
+    root_trans_plan = []
+    for s_idx in range(len(segments) - 1):
+        from_seg = segments[s_idx]["segment"]
+        to_seg = segments[s_idx + 1]["segment"]
+        trans_type = script.get("transition_philosophy") or "direct_cut"
+        root_trans_plan.append({
+            "from_segment": from_seg,
+            "to_segment": to_seg,
+            "type": trans_type,
+            "reason": f"segment boundary transition: {from_seg} -> {to_seg}"
+        })
+
     return {
         "assembly_plan_version": 1,
         "contract_hash": contract_hash,
         "music_section": {
             "source": "music_structure.json" if music_structure else None,
             "sections": [s.get("name") for s in music_sections],
+        },
+        "execution_plan": {
+            "narration_tasks": narration_tasks,
+            "subtitle_tasks": subtitle_tasks,
+            "music_sections": music_sections_list,
+            "effects_tasks": effects_tasks,
+            "transition_plan": root_trans_plan
         },
         "segments": segments,
     }
@@ -179,6 +359,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "audio_policy": _audio_policy(item),
             "transition": item.get("transition") or "cut",
             "text_overlay": item.get("text") or "none",
+            "still_treatment": item.get("still_treatment"),
             "trace": {
                 "segment_contract_segment": segment,
                 "assembly_plan_segment": segment,

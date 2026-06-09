@@ -2,12 +2,13 @@
 
 > **2026-06-08 active work:** the editorial soul layer (narrative blueprint +
 > material treatment + editing-intent). For a full-takeover-ready handoff of that
-> work see **`HANDOFF_EDITORIAL.md`**. This file remains the convergence/runtime anchor.
+> work see **`archive/HANDOFF_EDITORIAL.md`** (tasks done) and the live overview
+> `docs/editorial-layer.md`. This file remains the convergence/runtime anchor.
 
 Updated: 2026-06-06
 
-This file is the clean resume anchor when `HANDOFF.md` contains older encoded
-notes. Read this first, then `roadmap.md`,
+This file is the clean resume anchor (older WSL-era notes are archived at
+`archive/HANDOFF.md`). Read this first, then `roadmap.md`,
 `docs/windows-native-migration-spec.md`, `docs/build-tool-runner-spec.md`,
 `docs/video-autopilot-tool-integration-spec.md`,
 `README.md`, and `RUNBOOK.md`.

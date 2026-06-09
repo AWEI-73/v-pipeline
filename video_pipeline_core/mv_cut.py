@@ -337,8 +337,8 @@ def _photo_vf(dur, kenburns=True):
     frames = max(1, round((dur or 1.0) * 30))
     # 先上採樣到 4K 再 zoompan 置中緩推,避免低解析照片放大鋸齒/抖動
     return ("scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,"
-            f"zoompan=z='min(zoom+0.0008,1.25)':x='iw/2-(iw/zoom/2)':"
-            f"y='ih/2-(ih/zoom/2)':d={frames}:s=1920x1080:fps=30,"
+            f"zoompan=z='min(zoom+0.0008,1.25)':x='trunc(iw/2-(iw/zoom/2))':"
+            f"y='trunc(ih/2-(ih/zoom/2))':d={frames}:s=1920x1080:fps=30,"
             "setsar=1,format=yuv420p")
 
 
@@ -517,7 +517,8 @@ def _windows_from_clip(path, n_clips, clip_dur, keep_audio, text=None, segment=N
         return []
     if _is_image(path):   # 照片 bookend:1 張 = 1 still slot
         return [{"source": path, "extract_start": 0.0, "extract_dur": round(clip_dur, 3),
-                 "keep_audio": False, "text": text, "segment": segment, "is_photo": True}]
+                 "keep_audio": False, "text": text, "segment": segment, "is_photo": True,
+                 "still_treatment": {"mode": "slow_push", "reason": "default_pan_zoom"}}]
     slots = []
     shots = detect_shots(path)
     wins = fixed_windows(shots[0][1] if shots else 0, win=max(2.0, clip_dur))
@@ -686,7 +687,7 @@ def _plan_live_segment(s, a, material_root, seg_text, keep_audio, *, model, mat_
 def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
-           verbose=True):
+           verbose=True, skip_render=False):
     """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
@@ -753,7 +754,10 @@ def run_mv(script, material_root, out_path, music_path=None,
         for m in msgs:
             vp(m)
     # 4) render(audio_role:keep_audio 段保留原音 + 音樂墊底)
-    render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir)
+    if not skip_render:
+        render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir)
+    else:
+        vp("[mv_cut] skip_render is True. Skipping render_mv_audio.")
     # 5) 寫 state.json 給 dashboard(node-timeline 可視化:SPEC+選段+缺口)
     try:
         build_mv_state(script, per_seg, out_path, music_path=music_path, plan=plan)
@@ -926,7 +930,7 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
     return state
 
 
-def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True):
+def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True, skip_render=False):
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
     把 curator 理解(caption)+ 比對 + 渲染串成一條;render 吃 match 結果,不 live 重評。
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
@@ -943,7 +947,7 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
             tag = GAP if as_["gap"] else f"{as_['picks'][0]['score']}"
             print(f"  [match] seg{as_['segment']} [{tag}] {as_['visual_desc'][:16]}")
     res = run_mv(script, None, out_path, music_path=music_path,
-                 clip_list=matched, mat_dir=mat_dir, verbose=verbose)
+                 clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render)
     res["match"] = matched
     return res
 

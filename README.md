@@ -72,11 +72,11 @@ pipeline only as `source=generated` material files plus metadata.
 
 ## Start Here
 
-Read these files in order:
+`docs/INDEX.md` is the canonical doc map (current vs historical). Then read in order:
 
 1. `HANDOFF_CURRENT.md` - clean current alignment snapshot and resume anchor
 2. `roadmap.md` - current state and next project phases
-3. `design/video-route-skill-project.md` - architecture, boundaries, material source contract
+3. `docs/editorial-layer.md` - editorial "soul" layer (blueprint → contract → render)
 4. `docs/dashboard-node-skill-output-spec.md` - dashboard/node/skill/output contract
 5. `skills/route.md` - route dispatcher contract
 6. `RUNBOOK.md` - local execution details

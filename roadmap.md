@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline — Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-06
+updated: 2026-06-08
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -10,9 +10,277 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 
 > 本文件是專案唯一長期 roadmap。過去的 `REVIEW_REPORT*`、`video_pipeline_architect_review.md`
 > 與 `HANDOFF_NEXT_SESSION.md` 的有效結論已整合到這裡；後續 agent 優先讀本檔、
-> `HANDOFF.md`、`RUNBOOK.md`、`README.md`。
+> `HANDOFF_CURRENT.md`、`RUNBOOK.md`、`README.md`。
 
 ---
+
+## 2026-06-08 Active Direction: Converge One Complete Pipeline
+
+The next work is **pipeline convergence**, not more tool expansion. Treat this
+section as the current source of truth for Claude/Hermes/Codex implementation.
+Older roadmap sections are historical context unless they directly support this
+convergence work.
+
+Both render paths have passed E2E:
+
+```text
+ffmpeg canonical path:
+  SPEC -> contract-run/runtime -> final.mp4 -> VERIFY/P1 audits -> PASS
+
+CapCut optional finishing path:
+  SPEC -> contract-run/runtime -> real CapCut draft -> human/CU GUI export
+  -> capcut-finalize -> final video -> VERIFY/P1 audits -> PASS
+```
+
+The remaining problem is not whether the tools can work. The problem is that the
+workflow is still spread across too many partially connected entrypoints. The
+goal is one coherent, repeatable run chain from SPEC to final verified output.
+
+### Target MVP Flow
+
+```text
+Node 0  Brief / interactive SPEC
+-> Node 3  segment_contract.json
+-> Node 2  material coverage / material requirements
+-> Node 4-7 contract facets: story, sound, effects, subtitles
+-> Node 8  build_profile.json
+-> Node 9  assembly_plan.json
+-> Node 10 timeline_build.json
+-> Node 11 editor_review + deterministic audits
+-> Node 13 render candidate
+   -> ffmpeg path: final.mp4
+   -> CapCut path: draft folder -> capcut_exported.mp4 -> capcut-finalize
+-> Node 12 verify_result + P1 audit pack
+-> Node 14 revision only when verify/audit fails
+```
+
+### Priority Order For Claude / Agents
+
+Do these in order. Do not start Remotion, HTML/Playwright, Blender, or new
+provider work before this list is complete.
+
+#### C0. SPEC Entry And Execution-Readiness Gate
+
+Review:
+The canonical public SPEC is `segment_contract.json`, but the complete route must
+start from an interactive brief and remove ambiguity before BUILD. Runtime must
+not silently invent missing story/material/audio/effects/subtitle decisions.
+The editing-quality contract for this step is
+`docs/editing-intent-sequence-grammar-spec.md`.
+That spec also defines Node 12 `editorial_qa.json`, reviewed by the main flow
+agent/strong model rather than a subagent.
+
+Build:
+- Define one supported greenfield entry:
+
+```text
+interactive brief
+-> editorial_design.json
+-> brief.json
+-> segment_contract.json
+-> contract validation
+-> material requirements / coverage
+-> build_profile.json
+-> ready_for_build
+```
+
+- Keep `segment_contract.json` provider/backend neutral.
+- Record unresolved questions and required human decisions explicitly.
+- Convert Pre-SPEC editorial choices into BUILD-consumable plans, not just
+  descriptive prose.
+- Produce an execution-readiness result before runtime enters BUILD:
+
+```text
+ready_for_build = true | false
+blocking = [...]
+next_action = revise:director | await_material | ready
+```
+
+- Ensure each segment has enough executable intent:
+  - story purpose / content;
+  - required or acceptable material;
+  - text/subtitle/narration intent;
+  - audio intent;
+  - effects intent or explicit `none`;
+  - fallback policy;
+  - verification-sensitive requirements.
+
+Verify:
+- One general SPEC example reaches `ready_for_build=true`.
+- One intentionally ambiguous example is blocked with actionable questions.
+- Contract validation remains independent of ffmpeg/CapCut/provider selection.
+
+#### C1. Runtime Route Unification
+
+Review:
+Runtime can resume, rerun, compile, verify, and handle some material/generated
+provider waits. CapCut export/finalize must become a first-class route instead
+of a hidden manual step.
+
+Build:
+- Add a route for `render_backend=capcut_draft`.
+- After `contract-run` writes the CapCut draft, runtime should pause clearly:
+
+```text
+next_action = await_capcut_export
+expected artifact = capcut_exported.mp4
+instruction = open CapCut, export to this run folder, then resume
+```
+
+- On resume, if `capcut_exported.mp4` exists:
+  - write/update `capcut_export_manifest.json`;
+  - run `video_tools.py capcut-finalize`;
+  - produce the canonical post-CapCut final artifact;
+  - continue to Node 12 verify.
+
+Verify:
+- Unit test `await_capcut_export` with and without `capcut_exported.mp4`.
+- Regression test that the default ffmpeg path is unchanged.
+- Focused smoke on the `coffee` run.
+
+#### C2. Artifact Contract Cleanup
+
+Review:
+Artifacts exist, but final naming must be strict across ffmpeg and CapCut so
+agents do not guess which file is final.
+
+Build:
+Define one run artifact contract:
+
+```text
+final.mp4                  canonical accepted final candidate
+capcut_exported.mp4        raw GUI export, never accepted directly
+capcut_finalized.mp4       optional post-CapCut intermediate if needed
+capcut_export_manifest.json
+artifact_manifest.json     indexes all of the above
+state.json                 carries pass/next_action
+```
+
+If `capcut-finalize` writes a different name today, either standardize it or
+record it explicitly in `artifact_manifest.json` and dashboard state.
+
+Verify:
+- Manifest tests assert both render paths expose the same final artifact surface.
+- Dashboard state shows which backend produced the final.
+
+#### C3. Node / Skill / Runtime Alignment
+
+Review:
+Node registry is good enough, but CapCut introduced a human/CU gate that should
+be visible as a controlled Node 13 route.
+
+Build:
+- Keep Node 13 as `Render Candidate`.
+- Treat CapCut GUI export as a Node 13 sub-state, not a new core node unless
+  absolutely necessary.
+- Make dashboard/runtime show:
+
+```text
+Node 13: Render Candidate
+  backend: ffmpeg | capcut_draft
+  status: running | awaiting_export | exported | finalized
+  artifacts: capcut_draft_manifest, capcut_export_manifest, final.mp4
+```
+
+Verify:
+- `runtime.py status --project coffee` makes the next action obvious.
+- No hidden manual step should be required outside the status text/runbook.
+
+#### C4. One Runbook
+
+Review:
+The project has many historical documents. Claude and Hermes need one current
+runbook for the MVP, not a search exercise.
+
+Build:
+Update `RUNBOOK.md` with exactly these flows:
+
+```text
+Flow A: ffmpeg default
+  project-init -> project-new-run -> runtime resume -> verify
+
+Flow B: CapCut finishing
+  build_profile.render_backend=capcut_draft
+  runtime resume -> open CapCut -> export capcut_exported.mp4
+  runtime resume -> capcut-finalize -> verify
+
+Flow C: rerun / revision
+  rerun node -> verify failed -> fix smallest affected node -> resume
+```
+
+Verify:
+- Commands are copy/pasteable on Windows PowerShell.
+- Do not use WSL paths except as reference notes.
+
+#### C5. Dashboard Minimum Control Surface
+
+Review:
+Dashboard should remain read-first. This is not a cinematic director UI.
+
+Build:
+Add only controls/status needed for the converged MVP:
+
+```text
+current project/run
+active backend
+node status
+next_action
+open key artifacts
+CapCut export instruction when awaiting_export
+verify score and audit findings
+editorial_qa summary and routed findings
+```
+
+Do not add cinematic shot controls, Remotion controls, Blender controls, or
+large parameter panels.
+
+Verify:
+- Dashboard generated from ffmpeg run and CapCut run.
+- Text makes the next action clear without reading JSON.
+
+#### C6. Graphify / Understand Anything Hygiene
+
+Review:
+Graphify is the project map; Understand Anything is useful exploration output.
+Neither should pollute the canonical source tree unless intentionally curated.
+
+Build:
+- Keep `graphify-out/` only as the accepted project map.
+- Decide whether `.understand-anything/` is ignored local exploration output or
+  curated into stable docs.
+- Do not commit UA cache/intermediate files by default.
+
+Verify:
+- `git status --short` should not show accidental knowledge-cache output.
+- If graphify is stale after convergence changes, update it once after code is
+  stable.
+
+### Explicit Non-Goals During Convergence
+
+```text
+Remotion backend
+HTML/Playwright render backend
+Blender / AE / heavy 3D effects
+new cinematic director UI
+new provider-specific SPEC fields
+new generated-image provider architecture
+large dashboard redesign
+```
+
+### Definition Of Done
+
+Convergence is complete when:
+
+```text
+1. A new project can start from SPEC and reach PASS via ffmpeg.
+2. The same or representative project can reach PASS via CapCut finishing.
+3. runtime.py status/resume/rerun explains every next_action.
+4. artifact_manifest.json is complete for both paths.
+5. dashboard shows backend, artifacts, verify, and next action.
+6. RUNBOOK.md has copy/paste Windows commands.
+7. Full unit suite passes.
+8. HANDOFF_CURRENT.md points to this convergence state.
+```
 
 ## 2026-06-06 Active Direction: Windows Native Migration
 

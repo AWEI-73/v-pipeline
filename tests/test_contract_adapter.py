@@ -141,7 +141,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
             music.write_bytes(b"fake")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 state = Path(out_path).parent / "state.json"
                 state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
@@ -217,7 +217,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "requires_human_or_computer_use": True,
             }), encoding="utf-8")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 state = Path(out_path).parent / "state.json"
                 state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
@@ -265,7 +265,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "editing_defaults": {"broll_ratio_target": 0.4, "max_source_repeats": 2},
             }), encoding="utf-8")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 state = Path(out_path).parent / "state.json"
                 state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
@@ -320,7 +320,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 },
             }), encoding="utf-8")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 state = Path(out_path).parent / "state.json"
                 state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
@@ -379,7 +379,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "effects_enabled": True,
             }), encoding="utf-8")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
                 return {"final": out_path, "plan": []}
@@ -426,7 +426,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
             music.write_bytes(b"fake")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
                 return {"final": out_path, "plan": []}
@@ -477,7 +477,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "provider_priority": ["antigravity", "assistant_imagegen"],
             }), encoding="utf-8")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
                 return {"final": out_path, "plan": []}
@@ -520,7 +520,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
             music.write_bytes(b"fake")
 
-            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True):
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 (Path(out_path).parent / "state.json").write_text(json.dumps({
                     "pass": True,

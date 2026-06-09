@@ -142,6 +142,7 @@ def cmd_contract_run(args):
         model_routes_config_path=args.model_routes,
         build_profile_config_path=args.build_profile,
         creator_profile_path=getattr(args, "creator_profile", None),
+        skip_render=getattr(args, "skip_render", False),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
@@ -318,6 +319,35 @@ def cmd_blueprint_compile(args):
     out = args.out or src.with_suffix(".json").name
     Path(out).write_text(json.dumps(blueprint_json, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "file": out}))
+
+
+def cmd_blueprint_to_contract(args):
+    """Compile blueprint.json + per-beat decisions.json -> segment_contract.json.
+
+    The director skill writes a compact decisions table (content_pattern + key
+    imagery/pace per beat); this fills the mechanical lexicon half deterministically
+    so weights/beat_ref/density fields are always wired correctly. Validates output
+    and the two-way beat gate; exits non-zero on either failure.
+    """
+    from video_pipeline_core import blueprint_to_contract as b2c
+    from video_pipeline_core import spec_contract, blueprint as bp_mod
+    blueprint = _load_json(args.blueprint)
+    decisions = _load_json(args.decisions)
+    music = _load_json(args.music) if getattr(args, "music", None) else None
+    try:
+        contract = b2c.compile_contract(blueprint, decisions, music=music)
+    except Exception as e:
+        raise ToolError(f"編譯 contract 失敗: {e}")
+    v = spec_contract.validate_segment_contract(contract)
+    cov = bp_mod.beat_coverage(blueprint, contract)
+    out = args.out or "segment_contract.json"
+    Path(out).write_text(json.dumps(contract, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"status": "ok", "file": out, "segments": len(contract["segments"]),
+                      "valid": v.get("ok", v.get("valid")), "beat_coverage_pass": cov["pass"],
+                      "dropped": cov["dropped"], "invalid_refs": cov["invalid_refs"]},
+                     ensure_ascii=False, indent=2))
+    if not (v.get("ok", v.get("valid")) and cov["pass"]):
+        sys.exit(1)
 
 
 
@@ -1278,6 +1308,8 @@ def main():
     p_cr.add_argument("--creator-profile", dest="creator_profile",
                       help="creator_profile.json — fills build defaults (brief overrides)")
     p_cr.add_argument("--quiet", action="store_true")
+    p_cr.add_argument("--skip-render", action="store_true", dest="skip_render",
+                      help="Skip the ffmpeg rendering step (e.g. for capcut_draft backend)")
 
     p_gm = sub.add_parser("generated-manifest")
     p_gm.add_argument("requests", help="generated_asset_requests.json")
@@ -1358,6 +1390,12 @@ def main():
     p_bpc.add_argument("blueprint", help="blueprint.md 路徑")
     p_bpc.add_argument("--out", help="輸出 JSON 路徑")
 
+    p_b2c = sub.add_parser("blueprint-to-contract")
+    p_b2c.add_argument("blueprint", help="blueprint.json (thesis + beats[])")
+    p_b2c.add_argument("decisions", help="decisions.json (per-beat editorial decisions)")
+    p_b2c.add_argument("--music", default=None, help="music dict json (optional)")
+    p_b2c.add_argument("--out", default="segment_contract.json", help="輸出 segment_contract.json")
+
 
     # --- P2 creator profile ---
     p_cp = sub.add_parser("creator-profile")
@@ -1423,6 +1461,7 @@ def main():
         "creator-profile": cmd_creator_profile,
         "blueprint-coverage": cmd_blueprint_coverage,
         "blueprint-compile": cmd_blueprint_compile,
+        "blueprint-to-contract": cmd_blueprint_to_contract,
         "capcut-draft":    cmd_capcut_draft,
         "capcut-finalize": cmd_capcut_finalize,
     }

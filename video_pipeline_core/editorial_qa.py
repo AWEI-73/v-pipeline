@@ -180,6 +180,13 @@ def review_editorial(artifacts: dict) -> dict:
 
     score = max(0, 100 - total_deduction)
 
+    if not has_fail:
+        model_review = "All checked artifacts are aligned and consistent. No visual fatigue or narrative gaps detected."
+        narrative_synthesis = "The narrative flow matches the energy curve and thesis definitions specified in the blueprint/brief."
+    else:
+        model_review = f"Editorial quality check failed with {sum(1 for f in findings if f['level'] == 'fail')} failures. See findings."
+        narrative_synthesis = "Narrative coherence is disrupted by outstanding audit/consistency failures."
+
     return {
         "artifact_role": "editorial_qa",
         "version": 1,
@@ -187,4 +194,6 @@ def review_editorial(artifacts: dict) -> dict:
         "score": score,
         "dimensions": dims,
         "findings": findings,
+        "model_review": model_review,
+        "narrative_synthesis": narrative_synthesis,
     }

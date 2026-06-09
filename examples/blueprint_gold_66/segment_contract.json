@@ -1,0 +1,622 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "opening",
+        "story_purpose": "學員低頭手寫實習報告，筆尖特寫、窗光、未收的行李",
+        "blueprint_ref": "B1_setup",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "daily_life",
+        "visual_desc": "學員低頭手寫實習報告，筆尖特寫、窗光、未收的行李",
+        "reason": "實現 setup beat：回憶啟航：手寫實習報告、慢而安靜的開場，落在『人生的0.66』",
+        "material_hint": "班級日常生活"
+      },
+      "editing_intent": {
+        "content_pattern": "establishing"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "detail",
+          "establish"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "dissolve",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "mood",
+        "reason": "氛圍鋪陳"
+      },
+      "text_layer": {
+        "label": "人生的 0.66",
+        "reason": "段落文字標示"
+      },
+      "effects_required": [
+        "kinetic_title"
+      ]
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "develop",
+        "story_purpose": "晨操隊列口令，所長主持工安宣誓全班覆誦",
+        "blueprint_ref": "B2_discipline",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "safety_activity",
+        "visual_desc": "晨操隊列口令，所長主持工安宣誓全班覆誦",
+        "reason": "實現 develop beat：晨操與所長週一工安宣誓，留現場原音",
+        "material_hint": "公安早會",
+        "must_include": "所長早會宣誓",
+        "collection_instructions": "需收集本人原素材：所長早會宣誓（不可替代）"
+      },
+      "editing_intent": {
+        "content_pattern": "testimony"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          6,
+          12
+        ],
+        "max_meaningful_shot_sec": 12
+      },
+      "audio": {
+        "role": "duck",
+        "original_audio_policy": "keep",
+        "reason": "保留現場原音，音樂讓位"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "direct_cut",
+        "reason": "留白長鏡，給情緒空間"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "工安早會",
+        "subtitle": "auto",
+        "reason": "段落文字標示"
+      },
+      "_honesty": "real_material_only"
+    },
+    {
+      "segment": 3,
+      "core": {
+        "section_role": "develop",
+        "story_purpose": "剪鐵線、打繩結、洗礙子的手部特寫",
+        "blueprint_ref": "B3_basics",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "剪鐵線、打繩結、洗礙子的手部特寫",
+        "reason": "實現 develop beat：基本技能：剪鐵線/打繩結/洗礙子的手部特寫快切堆疊",
+        "material_hint": "洗礙子"
+      },
+      "editing_intent": {
+        "content_pattern": "enumeration"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "action",
+          "detail"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "beat_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "基本技能",
+        "reason": "段落文字標示"
+      },
+      "material_treatment": {
+        "treatment": "photo_stack_beat",
+        "items": [
+          "剪鐵線",
+          "打繩結",
+          "洗礙子"
+        ],
+        "label_per_item": true
+      }
+    },
+    {
+      "segment": 4,
+      "core": {
+        "section_role": "develop",
+        "story_purpose": "裝桿、登鐵塔、高空拉線，安全扣環與礙子特寫",
+        "blueprint_ref": "B4_credentials",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "裝桿、登鐵塔、高空拉線，安全扣環與礙子特寫",
+        "reason": "實現 develop beat：證照檢定：裝桿/登鐵塔/高空拉線，沉穩、器材特寫",
+        "material_hint": "換桿"
+      },
+      "editing_intent": {
+        "content_pattern": "process"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "detail",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "direct_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "證照檢定",
+        "reason": "段落文字標示"
+      },
+      "material_treatment": {
+        "treatment": "stepped_sequence",
+        "steps": [
+          "裝桿",
+          "登鐵塔",
+          "高空拉線"
+        ]
+      }
+    },
+    {
+      "segment": 5,
+      "core": {
+        "section_role": "climax",
+        "story_purpose": "爬桿、拖拉電纜、高空換耐張懸垂礙子，團隊協作",
+        "blueprint_ref": "B5_field_work",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "hands_on_training",
+        "visual_desc": "爬桿、拖拉電纜、高空換耐張懸垂礙子，團隊協作",
+        "reason": "實現 turn beat：現場實務引擎全開：拖纜/換礙子快切堆疊，接線那刻留白兩秒",
+        "material_hint": "拖拉電纜"
+      },
+      "editing_intent": {
+        "content_pattern": "action"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "detail",
+          "action",
+          "detail",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "diegetic",
+        "original_audio_policy": "keep",
+        "reason": "口令/金屬聲/現場"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "beat_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "hero",
+        "reason": "情緒/動作高點，給足篇幅"
+      },
+      "text_layer": {
+        "label": "現場實務",
+        "reason": "段落文字標示"
+      },
+      "effects_required": [
+        "split_screen"
+      ]
+    },
+    {
+      "segment": 6,
+      "core": {
+        "section_role": "develop",
+        "story_purpose": "運動會衝刺、桌球、捐血、慶生會切蛋糕的歡笑",
+        "blueprint_ref": "B6_fellowship",
+        "review_required": true,
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "category": "recreation",
+        "visual_desc": "運動會衝刺、桌球、捐血、慶生會切蛋糕的歡笑",
+        "reason": "實現 develop beat：課餘時光：運動會/桌球/捐血/慶生，亮快暖的歡樂montage",
+        "material_hint": "慶生會"
+      },
+      "editing_intent": {
+        "content_pattern": "action"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "detail",
+          "action",
+          "detail",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          1.5,
+          4
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "fast",
+        "transition": "beat_cut",
+        "reason": "快剪堆疊出密度"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "勵進活動",
+        "reason": "段落文字標示"
+      }
+    },
+    {
+      "segment": 7,
+      "core": {
+        "section_role": "climax",
+        "story_purpose": "主任勉勵叮嚀特寫，穿插學員拼搏高光",
+        "blueprint_ref": "B7_charge",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "speech",
+        "visual_desc": "主任勉勵叮嚀特寫，穿插學員拼搏高光",
+        "reason": "實現 turn beat：主任期勉：穩定特寫+原音，穿插學員高光",
+        "material_hint": "主任勉勵",
+        "must_include": "主任期勉",
+        "collection_instructions": "需收集本人原素材：主任期勉（不可替代）"
+      },
+      "editing_intent": {
+        "content_pattern": "testimony"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "action",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          6,
+          12
+        ],
+        "max_meaningful_shot_sec": 12
+      },
+      "audio": {
+        "role": "duck",
+        "original_audio_policy": "keep",
+        "reason": "主任講話時音樂讓位"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "direct_cut",
+        "reason": "留白長鏡，給情緒空間"
+      },
+      "editing_grammar": {
+        "role": "hero",
+        "reason": "情緒/動作高點，給足篇幅"
+      },
+      "text_layer": {
+        "label": "主任勉勵",
+        "subtitle": "auto",
+        "reason": "段落文字標示"
+      },
+      "_honesty": "real_material_only"
+    },
+    {
+      "segment": 8,
+      "core": {
+        "section_role": "resolve",
+        "story_purpose": "全班坐滿球場的大合照，鏡頭緩拉定住",
+        "blueprint_ref": "B8_graduation",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "group_photo",
+        "visual_desc": "全班坐滿球場的大合照，鏡頭緩拉定住",
+        "reason": "實現 resolve beat：榮耀結訓：全班大合照緩拉定住、長hold，浮字『感謝有您』",
+        "material_hint": "各班團體照&導師",
+        "must_include": "各班合照",
+        "collection_instructions": "需收集本人原素材：各班合照（不可替代）"
+      },
+      "editing_intent": {
+        "content_pattern": "proof"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "detail",
+          "result"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          6,
+          12
+        ],
+        "max_meaningful_shot_sec": 12
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "dissolve",
+        "reason": "留白長鏡，給情緒空間"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "66期養成班 感謝有您",
+        "reason": "段落文字標示"
+      },
+      "effects_required": [
+        "sparkle_title"
+      ],
+      "_honesty": "real_material_only"
+    },
+    {
+      "segment": 9,
+      "core": {
+        "section_role": "resolve",
+        "story_purpose": "學員回頭對導師笑、手搭肩、走廊並肩背影",
+        "blueprint_ref": "B9_gratitude",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "daily_life",
+        "visual_desc": "學員回頭對導師笑、手搭肩、走廊並肩背影",
+        "reason": "實現 resolve beat：感謝有你：師生情誼的真實慢鏡",
+        "material_hint": "感謝導師",
+        "must_include": "感謝導師",
+        "collection_instructions": "需收集本人原素材：感謝導師（不可替代）"
+      },
+      "editing_intent": {
+        "content_pattern": "emotional"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "detail",
+          "reaction"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "音樂襯底為主"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "dissolve",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "感謝有你",
+        "reason": "段落文字標示"
+      }
+    },
+    {
+      "segment": 10,
+      "core": {
+        "section_role": "resolve",
+        "story_purpose": "行李拉鍊、關門、拖行李走向巴士、空拍緩升收營區",
+        "blueprint_ref": "B10_outro",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "broll_mood",
+        "visual_desc": "行李拉鍊、關門、拖行李走向巴士、空拍緩升收營區",
+        "reason": "實現 resolve beat：離開營區：行李/揮別/巴士/空拍緩收，無對白",
+        "material_hint": "66期學長空拍影片"
+      },
+      "editing_intent": {
+        "content_pattern": "establishing"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "detail",
+          "establish"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "music",
+        "original_audio_policy": "drop",
+        "reason": "舒緩收尾，無對白"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "dissolve",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "label": "離開營區",
+        "reason": "段落文字標示"
+      }
+    },
+    {
+      "segment": 11,
+      "core": {
+        "section_role": "closing",
+        "story_purpose": "滾動卡片帶出各班導師名字職稱與照片",
+        "blueprint_ref": "B11_teachers",
+        "review_required": true,
+        "timeline_source": "fixed"
+      },
+      "material_fit": {
+        "category": "group_photo",
+        "visual_desc": "滾動卡片帶出各班導師名字職稱與照片",
+        "reason": "實現 resolve beat：彩蛋致謝：滾動卡片逐一介紹各班導師（名字/照片）",
+        "material_hint": "感謝導師"
+      },
+      "editing_intent": {
+        "content_pattern": "identity"
+      },
+      "sequence_grammar": {
+        "required_functions": [
+          "establish",
+          "detail"
+        ]
+      },
+      "pacing": {
+        "preferred_shot_sec": [
+          4,
+          8
+        ]
+      },
+      "audio": {
+        "role": "duck",
+        "original_audio_policy": "keep",
+        "reason": "保留現場原音，音樂讓位"
+      },
+      "visual_style": {
+        "layout": "single",
+        "pace": "fast",
+        "transition": "graphic_bridge",
+        "reason": "沉穩但持續切換，溫而不滯"
+      },
+      "editing_grammar": {
+        "role": "support",
+        "reason": "輔助、墊節奏"
+      },
+      "text_layer": {
+        "name_super": {
+          "text": "各班導師",
+          "title": "特別致謝"
+        },
+        "subtitle": "auto",
+        "reason": "段落文字標示"
+      },
+      "effects_required": [
+        "scrolling_cards",
+        "pip_portrait"
+      ],
+      "_honesty": "real_material_only"
+    }
+  ]
+}

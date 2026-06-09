@@ -45,12 +45,10 @@ WIRED (live in runtime):
                               -> treatment_audit.json -> dashboard_state/_AUDIT_NODE (node 11)
   photo-stack renderer        mv_cut (_stack_items/allocate_segments/_plan_stock_stack_segment)
   visual_fatigue audit        edit_artifacts emits visual_fatigue_audit.json (opt-in on editing_policy)
-
-NOT WIRED (modules exist + tested, integration pending):
-  editorial_design.py         default/validate exist; NOT fed into build_profile yet
-  blueprint_compile.py        compile_blueprint_md exists; no CLI / Node 0A producer
-  editorial_qa (Node 12)      module not written yet (Task 4)
-  shot_slots expansion (Node 9) module not written yet (Task 5)
+  editorial_design.py         fed into build_profile as editing_policy when present
+  blueprint_compile.py        CLI blueprint-compile / pre-SPEC compiler wired in Node 0A
+  editorial_qa (Node 12)      editorial_qa review wired and active on run
+  shot_slots expansion (Node 9) shot_slots expansion wired and active
 ```
 
 ## 3. The reusable AUDIT-WIRING recipe (follow exactly)

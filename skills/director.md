@@ -182,6 +182,79 @@ mood ↔ style 對應建議：
 **compressibility:** `locked`(不可縮/丟/重排,需 review)/ `flexible`(min-max 內可縮)/ `expendable`(吃緊時先丟)。
 > 鐵則:剪輯/timeline agent 可優化長度,但**不得靜默降級 hero/proof/identity 段或拿掉 breathing room** → 要 route 到 review。
 
+## Node 3 翻譯：blueprint prose → segment_contract（soul 層，2026-06-08）
+
+> **這是把「有靈魂的藍圖」變成「引擎讀得懂的 contract」的那一棒。** 上游 `blueprint-interview`
+> 產出 `blueprint.md`(soul) + `blueprint.json`(index)；導演**讀 prose**，照
+> `docs/imagery-to-edit-lexicon-spec.md`（意象→剪輯對照表）翻成 `segment_contract.json`。
+> 翻譯是決定論的，不是再創作——你是字典的執行者，不是第二個編劇。
+
+**鐵則（直接針對之前的失敗）：**
+
+```
+❌ 1 beat = 1 segment = 1 material_hint = 1 clip  ← 這就是幻燈片，禁止。
+✅ 一個 beat 依 weight 與密度語感，展開成「一段多 shot_slots」或「拆成數個 segment」。
+   重頭戲(weight 高、越切越快) → 多鏡；帶過的 → 少鏡。但每段都 >1 鏡，除非
+   emotional/establishing 且有 still treatment 撐住。
+```
+
+**逐 beat 翻譯程序（照 lexicon 五欄）：**
+
+1. 讀 beat 的 prose（不是讀 summary 標籤），抓出意象/節奏/聲音/情緒落點。
+2. **情緒型態** → `editing_intent.content_pattern`（lexicon §1）；testimony/proof/identity 落 🔒。
+3. **結構** → `sequence_grammar.required_functions`（lexicon §2，例：action 段＝establish/action/detail/result）。
+4. **節奏** → `pacing.preferred_shot_sec` + `visual_style.pace`（lexicon §3，密度語感→fast/[1.5,4]）。
+5. **原音** → `audio.role` + `original_audio_policy`（lexicon §4，「他說/口令/現場聲」→keep）。
+6. **文字/靜照/轉場** → `text_layer` / `material_treatment` / `transition`（lexicon §5/§5b）。
+7. **篇幅** → 用 `blueprint.json.beats[].weight` 決定該 beat 的段數/總時長佔比與 shot_slots 數。
+8. **追蹤閘** → 每個 segment 寫 `core.blueprint_ref`（指回 beat id）。
+   - forward：每段都要指到真實 beat（否則 orphan_segment）。
+   - backward：每個 beat 至少被一段實現（否則 dropped_beat = 阻擋）。
+9. **範圍邊界** → 偵測到真特效語感（手寫動畫/粒子/雙畫面/PiP）→ 標 `effects_required`，
+   route effects-director，誠實告知非自動可達（lexicon §6b）。
+
+**走一遍（B5「現場實務」prose → contract）：**
+
+prose：「爬桿、拖纜、高空換礙子，一張張快切疊上來——汗順著手套滴下、金屬撞擊、口令此起彼落，
+配樂往上推；然後線接上的那一下，畫面停住安靜兩秒，只剩風。那兩秒就是驕傲。」(weight 2.0)
+
+```json
+{
+  "segment": 5,
+  "core": { "section_role": "turn", "story_purpose": "現場實務：快切堆疊後在接線那刻留白",
+            "blueprint_ref": "B5_field_work", "review_required": true },
+  "editing_intent": { "content_pattern": "action", "effects_intensity": "restrained" },
+  "sequence_grammar": { "required_functions": ["establish","action","detail","action","detail","result"],
+                        "exit_function": "bridge_to_next_chapter" },
+  "pacing": { "preferred_shot_sec": [1.5, 4], "max_meaningful_shot_sec": 10,
+              "allow_long_hold_when": ["story_payoff"] },
+  "visual_style": { "pace": "fast", "transition": "beat_cut" },
+  "audio": { "role": "diegetic", "original_audio_policy": "keep", "reason": "口令/金屬聲/現場" },
+  "text_layer": { "label": "現場實務" },
+  "material_treatment": { "treatment": "video_primary" }
+}
+```
+
+weight 2.0 + fast → 這段 shot_slots 展開到 ~6 鏡（不是 1 支 clip）；result 配 long hold（「安靜兩秒」）。
+每一格都指得回 prose 某個字＝忠實翻譯，零再創作。
+
+> 此節與舊「MV 劇本 schema」相容並行：舊欄位(visual_desc/material_hint/layout/pace)是執行細節，
+> 新增的 editing_intent/sequence_grammar/pacing/blueprint_ref 是 soul 層，由 lexicon 翻出。
+> 引擎消費者：`material_treatment.resolve_treatment` + `shot_slots.expand_shot_slots`（已存在）。
+
+**一步收斂（不用手刻整份 JSON）：** 翻譯的機械半邊已收斂成 compiler。導演只寫一份精簡的
+逐 beat 判斷 `decisions.json`（每段 `content_pattern` + 關鍵畫面/節奏/audio/must_include），跑：
+
+```powershell
+python video_tools.py blueprint-to-contract blueprint.json decisions.json --out segment_contract.json
+```
+
+compiler（`video_pipeline_core/blueprint_to_contract.py`）自動補：lexicon 預設（functions/
+pace 三檔 fast|calm|hold→preferred_shot_sec / treatment）、`editing_grammar.role` 擺在
+**segment 層**（不放進 core，否則 weight 會被靜默丟掉）、honesty 守門、`blueprint_ref` 接線、
+`timeline_source`/各 facet `reason`；並驗 `validate_segment_contract` + 雙向 beat 閘，
+任一不過 exit≠0。範例見 `examples/blueprint_gold_66/{blueprint.json,decisions.json}`。
+
 ## 與其他 Skill 的銜接
 
 - **上游**：編劇 [writer.md](writer.md)（內容欄位）。

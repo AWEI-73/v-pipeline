@@ -32,6 +32,10 @@ class TestEditorialQa(unittest.TestCase):
         self.assertEqual(len(res["findings"]), 0)
         for val in res["dimensions"].values():
             self.assertEqual(val, 100)
+        self.assertIn("model_review", res)
+        self.assertIn("narrative_synthesis", res)
+        self.assertTrue(isinstance(res["model_review"], str))
+        self.assertTrue(isinstance(res["narrative_synthesis"], str))
 
     def test_review_editorial_mode_inconsistency(self):
         artifacts = {

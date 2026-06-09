@@ -87,5 +87,48 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(timeline["clips"][0]["crop"]["source"], "vlm_subject")
 
 
+    def test_build_assembly_plan_compiles_execution_and_transition_plans(self):
+        script = {
+            "_contract_hash": "sha256:abc",
+            "segments": [{
+                "segment": 1,
+                "_from_contract": 1,
+                "visual_desc": "校園晨景",
+                "audio_role": "music",
+                "label": "開場",
+                "pace": "hold",
+                "subtitle": "Hello world",
+                "raw_audio": {
+                    "mode": "voiceover",
+                    "source": "tts",
+                    "duck_music": True,
+                    "mood": "happy"
+                },
+                "raw_visual_style": {
+                    "effects_intensity": "expressive",
+                    "allowed_effects_roles": ["emphasis"]
+                },
+                "raw_text_layer": {
+                    "mode": "full_subtitle",
+                    "placement": "lower_third",
+                    "avoid": ["logo"]
+                }
+            }]
+        }
+        plan = ea.build_assembly_plan(script, music_structure={"sections": [{"name": "Intro"}]})
+        self.assertIn("execution_plan", plan)
+        ep = plan["execution_plan"]
+        self.assertEqual(len(ep["narration_tasks"]), 1)
+        self.assertEqual(ep["narration_tasks"][0]["text"], "Hello world")
+        self.assertEqual(len(ep["subtitle_tasks"]), 1)
+        self.assertEqual(ep["subtitle_tasks"][0]["placement"], "lower_third")
+        
+        seg = plan["segments"][0]
+        self.assertIn("execution_plan", seg)
+        self.assertEqual(seg["execution_plan"]["narration"]["mode"], "voiceover")
+        self.assertEqual(seg["execution_plan"]["subtitles"]["placement"], "lower_third")
+        self.assertEqual(seg["execution_plan"]["effects"]["intensity"], "expressive")
+
+
 if __name__ == "__main__":
     unittest.main()

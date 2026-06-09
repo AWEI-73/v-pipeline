@@ -56,6 +56,18 @@ This is the main thesis of the story. It spans multiple sentences. But only the 
         # Anti-goals validation
         self.assertEqual(res["anti_goals"], ["Avoid generic pop music.", "Do not use shaky stock videos."])
 
+    def test_thesis_with_decimal_not_truncated(self):
+        # Regression: a "." inside a number (0.66%) must not split the thesis.
+        md_text = """
+# Thesis
+人生的 0.66% 是一段用汗水攀爬的紮實路程。我們在此寫下感謝。
+
+# Big Story
+- [B1|setup] 開場。
+"""
+        res = compile_blueprint_md(md_text)
+        self.assertEqual(res["thesis"], "人生的 0.66% 是一段用汗水攀爬的紮實路程。")
+
     def test_missing_thesis_raises_error(self):
         md_text = """
 Mode: rhythmic_mv

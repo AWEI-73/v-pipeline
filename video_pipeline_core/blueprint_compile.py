@@ -81,7 +81,8 @@ def compile_blueprint_md(md_text: str) -> dict:
     thesis_text = " ".join([l.strip() for l in thesis_lines if l.strip()])
     if thesis_text:
         # Split into sentences by . or ! or ? or 。 or ！ or ？
-        sentences = re.split(r"([.!?。！？]\s*)", thesis_text)
+        # A bare "." between digits (e.g. "0.66%") is NOT a sentence break.
+        sentences = re.split(r"((?:(?<!\d)\.(?!\d)|[!?。！？])\s*)", thesis_text)
         if len(sentences) >= 2:
             thesis = sentences[0].strip() + sentences[1].strip()
         elif sentences:

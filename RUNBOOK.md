@@ -1,7 +1,7 @@
 # Hermes Video Pipeline v2 — RUNBOOK
 
 How to trigger every external API / model and run the pipeline reproducibly.
-All commands run **inside WSL (Ubuntu-24.04)** as user `lio730309`.
+All commands are designed to run **directly on Windows native** (using PowerShell or CMD), with WSL (Ubuntu-24.04) supported as a secondary option.
 
 ## 0. One-time setup
 
@@ -138,9 +138,9 @@ Warns on Chinese `search_query` (D2 — use English visual concept, put intent i
 
 ## 5. Regression tests
 
-```bash
-cd ~/video_pipeline
-python3 -m unittest discover -s tests -v   # 222 expected
+```powershell
+cd C:\Users\user\Desktop\video_pipeline
+$env:PYTHONUTF8=1; python -m unittest discover -s tests -v   # 453 expected
 ```
 
 ## 6. Known issues / troubleshooting

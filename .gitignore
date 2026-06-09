@@ -70,3 +70,6 @@ video-autopilot-kit-main/
 
 # Local Understand Anything graph cache
 .understand-anything/
+
+# vendored understand-anything tool (external repo, has node_modules)
+Understand-Anything-main/

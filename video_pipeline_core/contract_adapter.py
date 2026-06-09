@@ -104,6 +104,9 @@ def contract_to_mv_script(contract):
             for k in ("label", "narrative", "subtitle", "name_super"):
                 if txt.get(k):
                     flat[k] = txt[k]
+        flat["raw_audio"] = aud
+        flat["raw_visual_style"] = vis
+        flat["raw_text_layer"] = txt
         out_segs.append(flat)
 
     script = {"style": contract.get("style", "mv") if isinstance(contract, dict) else "mv",
@@ -373,7 +376,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
                  model_routes_config_path=None, build_profile_path=None,
                  build_profile_config_path=None, generated_asset_requests_path=None,
-                 creator_profile_path=None):
+                 creator_profile_path=None, skip_render=False):
     """(I/O) canonical-first 入口:驗 contract → 轉 flat → 既有 mv_chain 執行。
     contract 可為 dict 或 .json 路徑。回 {ok, errors, result?}。**不改 run chain**。"""
     out_path = Path(out_path)
@@ -505,8 +508,9 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         from . import music_structure  # noqa: PLC0415
         music_struct = music_structure.write_music_structure(
             music_path, music_structure_path, every_n_beats=every_n_beats)
+    effective_skip_render = skip_render or (build_profile_payload.get("render_backend") == "capcut_draft")
     res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
-                          mat_dir=mat_dir, verbose=verbose)
+                          mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render)
     from . import edit_artifacts  # noqa: PLC0415
     edit_paths = edit_artifacts.write_edit_artifacts(
         payload,

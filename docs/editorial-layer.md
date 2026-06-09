@@ -155,5 +155,8 @@ python runtime.py run --project <slug>
 
 - Field shapes & node-by-node Build/Verify: the three specs in §intro.
 - Why each decision: `docs/decisions/2026-06-08-editorial-soul-layer-and-treatment-grammar.md`.
-- Resume/handoff anchor: `HANDOFF_EDITORIAL.md` (this overview is the conceptual map;
-  the handoff is the task/operational map).
+- Resume/handoff anchor: `archive/HANDOFF_EDITORIAL.md` (original task list, now done;
+  this overview is the conceptual map).
+- Prose→edit translation: `docs/imagery-to-edit-lexicon-spec.md` (the deterministic
+  意象→enum table) + `skills/blueprint-interview.md` (elicitation) +
+  `video_pipeline_core/blueprint_to_contract.py` (the compiler).

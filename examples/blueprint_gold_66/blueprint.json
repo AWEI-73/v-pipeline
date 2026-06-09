@@ -1,0 +1,26 @@
+{
+  "artifact_role": "narrative_blueprint",
+  "version": 1,
+  "thesis": "人生的 0.66% 是一段用汗水攀爬、用安全立身、用技術立足的紮實路程；它在一生裡短得幾乎可以忽略，卻重得讓人一輩子記得。我們在這裡寫下回憶，也寫下感謝。",
+  "intended_feeling": "warm, quietly proud",
+  "mode_hint": "warm_documentary",
+  "beats": [
+    { "id": "B1_setup", "role": "setup", "summary": "回憶啟航：手寫實習報告、慢而安靜的開場，落在『人生的0.66』", "intended_feeling": "still, anticipatory", "weight": 1.0, "prose_ref": "Big Story B1" },
+    { "id": "B2_discipline", "role": "develop", "summary": "晨操與所長週一工安宣誓，留現場原音", "intended_feeling": "focused, solemn", "weight": 1.3, "prose_ref": "Big Story B2" },
+    { "id": "B3_basics", "role": "develop", "summary": "基本技能：剪鐵線/打繩結/洗礙子的手部特寫快切堆疊", "intended_feeling": "active, building", "weight": 1.2, "prose_ref": "Big Story B3" },
+    { "id": "B4_credentials", "role": "develop", "summary": "證照檢定：裝桿/登鐵塔/高空拉線，沉穩、器材特寫", "intended_feeling": "tense, focused", "weight": 1.2, "prose_ref": "Big Story B4" },
+    { "id": "B5_field_work", "role": "turn", "summary": "現場實務引擎全開：拖纜/換礙子快切堆疊，接線那刻留白兩秒", "intended_feeling": "peak, proud", "weight": 2.0, "prose_ref": "Big Story B5" },
+    { "id": "B6_fellowship", "role": "develop", "summary": "課餘時光：運動會/桌球/捐血/慶生，亮快暖的歡樂montage", "intended_feeling": "warm, joyful", "weight": 1.3, "prose_ref": "Big Story B6" },
+    { "id": "B7_charge", "role": "turn", "summary": "主任期勉：穩定特寫+原音，穿插學員高光", "intended_feeling": "emotional, proud", "weight": 1.8, "prose_ref": "Big Story B7" },
+    { "id": "B8_graduation", "role": "resolve", "summary": "榮耀結訓：全班大合照緩拉定住、長hold，浮字『感謝有您』", "intended_feeling": "complete, proud", "weight": 1.5, "prose_ref": "Big Story B8" },
+    { "id": "B9_gratitude", "role": "resolve", "summary": "感謝有你：師生情誼的真實慢鏡", "intended_feeling": "warm, emotional", "weight": 1.0, "prose_ref": "Big Story B9" },
+    { "id": "B10_outro", "role": "resolve", "summary": "離開營區：行李/揮別/巴士/空拍緩收，無對白", "intended_feeling": "warm, nostalgic", "weight": 1.2, "prose_ref": "Big Story B10" },
+    { "id": "B11_teachers", "role": "resolve", "summary": "彩蛋致謝：滾動卡片逐一介紹各班導師（名字/照片）", "intended_feeling": "warm, appreciative", "weight": 1.0, "prose_ref": "Big Story B11" }
+  ],
+  "anti_goals": [
+    "避免冗長、無音樂節奏的呆板操作畫面",
+    "特效不要誇張，維持實務現場的莊嚴與專業",
+    "不准用 stock/生成頂替所長/主任本人、各班合照、指名導師（誠實守門）",
+    "不要把每段壓成等速幻燈片——重頭戲給夠密度，安靜處敢留白"
+  ]
+}
