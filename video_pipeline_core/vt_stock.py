@@ -86,16 +86,29 @@ def _pixabay_video_candidates(query, limit=10):
     return candidates
 
 
-def _download_url(url, out_path):
+def _download_url(url, out_path, retries=2, backoff_sec=3.0):
+    """Download with transient-failure retries. A single DNS hiccup
+    (getaddrinfo failed) killed a whole 7-segment narrative run at seg4
+    (city-day v1, 2026-06-10) — long runs make transient network errors a
+    certainty, so the downloader absorbs them instead of the pipeline."""
+    import time
     import urllib.request
-    req = urllib.request.Request(url, headers={"User-Agent": "video_director/1.0"})
-    with urllib.request.urlopen(req, timeout=120) as resp, open(out_path, "wb") as f:
-        while True:
-            chunk = resp.read(65536)
-            if not chunk:
-                break
-            f.write(chunk)
-    return True
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "video_director/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as resp, open(out_path, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            return True
+        except Exception as e:  # transient DNS/socket/HTTP — back off and retry
+            last_err = e
+            if attempt < retries:
+                time.sleep(backoff_sec * (attempt + 1))
+    raise last_err
 
 
 def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None, skip=0):
