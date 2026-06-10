@@ -115,7 +115,11 @@ def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None):
             candidates = search(query)
         except Exception:
             continue
-        for cand in sorted(candidates, key=lambda c: -(c.get("duration") or 0)):
+        # Provider APIs return candidates in relevance order — keep it. Duration is
+        # only an eligibility filter (>= min_dur), never the ranking: sorting
+        # longest-first let an off-topic 58s clip beat on-topic 10s clips
+        # (the "robot dance" failure, ai-video run 2026-06-10).
+        for cand in candidates:
             if min_dur and (cand.get("duration") or 0) < min_dur:
                 continue
             if not cand.get("download_url"):

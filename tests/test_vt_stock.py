@@ -57,6 +57,52 @@ class VtStockTest(unittest.TestCase):
             result = vt_stock.fetch_stock_video("short clip", Path(d) / "stock.mp4", min_dur=5)
         self.assertIsNone(result)
 
+    def test_fetch_stock_video_prefers_relevance_order_over_duration(self):
+        """Regression: candidates arrive in API relevance order; the first eligible
+        one must win even when a later (less relevant) candidate is much longer
+        (the ai-video 'robot dance' failure)."""
+        seen = []
+
+        def fake_download(url, out_path):
+            seen.append(url)
+            Path(out_path).write_bytes(b"video")
+            return True
+
+        with tempfile.TemporaryDirectory() as d, \
+             patch("video_pipeline_core.vt_stock._pexels_video_candidates", return_value=[
+                 {"provider": "pexels", "download_url": "https://pexels.example/on-topic-short.mp4", "duration": 12},
+                 {"provider": "pexels", "download_url": "https://pexels.example/off-topic-long.mp4", "duration": 58},
+             ]), \
+             patch("video_pipeline_core.vt_stock._pixabay_video_candidates", return_value=[]), \
+             patch("video_pipeline_core.vt_stock._download_url", fake_download):
+            out = Path(d) / "stock.mp4"
+            result = vt_stock.fetch_stock_video("team workspace discussion", out, min_dur=5)
+        self.assertEqual(result, out)
+        self.assertEqual(seen, ["https://pexels.example/on-topic-short.mp4"])
+
+    def test_fetch_stock_video_skips_too_short_then_takes_next_relevant(self):
+        """min_dur stays an eligibility filter: skip too-short candidates but keep
+        relevance order among the eligible rest."""
+        seen = []
+
+        def fake_download(url, out_path):
+            seen.append(url)
+            Path(out_path).write_bytes(b"video")
+            return True
+
+        with tempfile.TemporaryDirectory() as d, \
+             patch("video_pipeline_core.vt_stock._pexels_video_candidates", return_value=[
+                 {"provider": "pexels", "download_url": "https://pexels.example/too-short.mp4", "duration": 3},
+                 {"provider": "pexels", "download_url": "https://pexels.example/next-relevant.mp4", "duration": 10},
+                 {"provider": "pexels", "download_url": "https://pexels.example/longest.mp4", "duration": 60},
+             ]), \
+             patch("video_pipeline_core.vt_stock._pixabay_video_candidates", return_value=[]), \
+             patch("video_pipeline_core.vt_stock._download_url", fake_download):
+            out = Path(d) / "stock.mp4"
+            result = vt_stock.fetch_stock_video("bright office", out, min_dur=5)
+        self.assertEqual(result, out)
+        self.assertEqual(seen, ["https://pexels.example/next-relevant.mp4"])
+
     def test_fetch_stock_video_with_provider_returns_tuple(self):
         with tempfile.TemporaryDirectory() as d, \
              patch("video_pipeline_core.vt_stock._pexels_video_candidates", return_value=[]), \
