@@ -722,10 +722,26 @@ def _plan_live_segment(s, a, material_root, seg_text, keep_audio, *, model, mat_
     return slots, entry, msgs
 
 
+def trim_beats_to_target(beats, target_sec):
+    """純函式:把 beat 列裁到 target 內(取最後一個 <= target 的 beat,保持對拍)。
+
+    音樂長度只該定「節奏」,不該定「總長」——brief 的 target_length 才是總長
+    (ai-video soul-v5:122.9s 音樂把 45s 的片撐成 123s,8 個 pacing fail 全由此
+    連鎖)。target 無效/不小於音樂長度時原樣返回。至少保留 2 個 beat。"""
+    if not beats or not target_sec or target_sec <= 0:
+        return list(beats or [])
+    if target_sec >= beats[-1]:
+        return list(beats)
+    kept = [b for b in beats if b <= target_sec]
+    if len(kept) < 2:
+        kept = list(beats[:2])
+    return kept
+
+
 def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
-           verbose=True, skip_render=False):
+           verbose=True, skip_render=False, target_sec=None):
     """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
@@ -740,8 +756,14 @@ def run_mv(script, material_root, out_path, music_path=None,
     if not music_path:
         raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
     _tempo, _beats = detect_beats(music_path)
+    music_dur = _beats[-1] if _beats else 0
+    _beats = trim_beats_to_target(_beats, target_sec)
     total_dur = _beats[-1] if _beats else 0
-    vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
+    if target_sec and total_dur < music_dur:
+        vp(f"[music] {os.path.basename(music_path)} {round(music_dur,1)}s tempo={round(_tempo)} "
+           f"→ trimmed to target {round(total_dur,1)}s (brief target_length)")
+    else:
+        vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
 
     # 2) 時長分配(列舉堆疊用「一拍」長度 → 對拍快剪)
     beat_sec = (60.0 / _tempo) if _tempo else 0.8
@@ -785,8 +807,27 @@ def run_mv(script, material_root, out_path, music_path=None,
                 s, a, material_root, seg_text, keep_audio, model=model, mat_dir=mat_dir,
                 max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
                 min_score=min_score, prefilter_static=prefilter_static)
+        reason_str = None
+        for r_path in [
+            lambda: s.get("material_fit", {}).get("reason"),
+            lambda: s.get("visual_style", {}).get("reason"),
+            lambda: s.get("editing_grammar", {}).get("reason"),
+            lambda: s.get("text_layer", {}).get("reason"),
+            lambda: s.get("reason")
+        ]:
+            try:
+                val = r_path()
+                if val and isinstance(val, str) and val.strip():
+                    reason_str = val.strip()
+                    break
+            except Exception:
+                pass
+
         for sl in slots:                 # slot_index 在這裡統一順序指派
             sl["slot_index"] = len(plan)
+            if reason_str:
+                sl.setdefault("shot_reason", reason_str)
+                sl.setdefault("reason", reason_str)
             plan.append(sl)
         per_seg.append(entry)
         for m in msgs:
@@ -970,7 +1011,8 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
     return state
 
 
-def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True, skip_render=False):
+def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
+             skip_render=False, target_sec=None):
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
     把 curator 理解(caption)+ 比對 + 渲染串成一條;render 吃 match 結果,不 live 重評。
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
@@ -987,7 +1029,8 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
             tag = GAP if as_["gap"] else f"{as_['picks'][0]['score']}"
             print(f"  [match] seg{as_['segment']} [{tag}] {as_['visual_desc'][:16]}")
     res = run_mv(script, None, out_path, music_path=music_path,
-                 clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render)
+                 clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render,
+                 target_sec=target_sec)
     res["match"] = matched
     return res
 

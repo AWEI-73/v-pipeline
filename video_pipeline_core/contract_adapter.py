@@ -110,6 +110,10 @@ def contract_to_mv_script(contract):
         flat["raw_audio"] = aud
         flat["raw_visual_style"] = vis
         flat["raw_text_layer"] = txt
+        flat["material_fit"] = mat
+        flat["editing_grammar"] = eg
+        flat["visual_style"] = vis
+        flat["text_layer"] = txt
         out_segs.append(flat)
 
     script = {"style": contract.get("style", "mv") if isinstance(contract, dict) else "mv",
@@ -511,9 +515,24 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         from . import music_structure  # noqa: PLC0415
         music_struct = music_structure.write_music_structure(
             music_path, music_structure_path, every_n_beats=every_n_beats)
+
+    # brief.target_length caps the timeline: music length sets the rhythm, the
+    # brief sets the runtime. Without this a 123s track stretches a 45s film to
+    # 123s and every pacing gate downstream fails (ai-video soul-v5).
+    target_sec = None
+    brief_for_target = out_path.parent / "brief.json"
+    if brief_for_target.exists():
+        try:
+            with brief_for_target.open(encoding="utf-8") as bf:
+                from .editorial_qa import _parse_target_sec  # noqa: PLC0415
+                target_sec = _parse_target_sec(json.load(bf).get("target_length"))
+        except Exception:
+            target_sec = None
+
     effective_skip_render = skip_render or (build_profile_payload.get("render_backend") == "capcut_draft")
     res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
-                          mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render)
+                          mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render,
+                          target_sec=target_sec)
     from . import edit_artifacts  # noqa: PLC0415
     edit_paths = edit_artifacts.write_edit_artifacts(
         payload,
@@ -540,8 +559,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             with open(timeline_build_file, encoding="utf-8") as f:
                 tb_data = json.load(f)
             clips = tb_data.get("clips", [])
-            lines = []
-            idx = 1
+            merged_entries = []
             for clip in clips:
                 # timeline_build's text_overlay is usually a plain string (the
                 # subtitle text, or "none"); the dict shape comes from
@@ -557,24 +575,34 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                 if text:
                     t_in = clip.get("timeline_in_sec", 0.0)
                     t_out = clip.get("timeline_out_sec", 0.0)
-                    
-                    def _fmt_ts(sec):
-                        h = int(sec // 3600)
-                        m = int((sec % 3600) // 60)
-                        s = int(sec % 60)
-                        ms = int(round((sec - int(sec)) * 1000))
-                        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-                        
-                    lines.append(str(idx))
-                    lines.append(f"{_fmt_ts(t_in)} --> {_fmt_ts(t_out)}")
-                    lines.append(text)
-                    lines.append("")
-                    idx += 1
+                    if merged_entries and merged_entries[-1]["text"] == text:
+                        merged_entries[-1]["t_out"] = max(merged_entries[-1]["t_out"], t_out)
+                    else:
+                        merged_entries.append({
+                            "t_in": t_in,
+                            "t_out": t_out,
+                            "text": text
+                        })
+
+            def _fmt_ts(sec):
+                h = int(sec // 3600)
+                m = int((sec % 3600) // 60)
+                s = int(sec % 60)
+                ms = int(round((sec - int(sec)) * 1000))
+                return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+            lines = []
+            for idx, entry in enumerate(merged_entries, 1):
+                lines.append(str(idx))
+                lines.append(f"{_fmt_ts(entry['t_in'])} --> {_fmt_ts(entry['t_out'])}")
+                lines.append(entry["text"])
+                lines.append("")
+
             if lines:
                 with open(srt_path, "w", encoding="utf-8") as f:
                     f.write("\n".join(lines))
                 written_srt = True
-                print(f"[runtime] Generated subtitles.srt from timeline_build ({idx-1} entries)")
+                print(f"[runtime] Generated subtitles.srt from timeline_build ({len(merged_entries)} entries)")
         except Exception as e:
             print(f"[runtime] Warning: failed to build subtitles.srt: {e}", file=sys.stderr)
             

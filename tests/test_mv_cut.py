@@ -605,6 +605,31 @@ class AllocateSegmentsTest(unittest.TestCase):
         self.assertEqual(a[0]["n_clips"], 10)           # 15 / 1.5 unchanged
 
 
+class TrimBeatsToTargetTest(unittest.TestCase):
+    """Music length sets rhythm, brief target sets runtime (soul-v5: a 122.9s
+    track stretched a 45s film to 123s and cascaded 8 pacing fails)."""
+
+    BEATS = [0.0, 0.5, 1.0, 10.0, 20.0, 30.0, 44.6, 45.2, 60.0, 122.9]
+
+    def test_no_target_returns_all(self):
+        self.assertEqual(mv_cut.trim_beats_to_target(self.BEATS, None), self.BEATS)
+        self.assertEqual(mv_cut.trim_beats_to_target(self.BEATS, 0), self.BEATS)
+
+    def test_target_caps_at_last_beat_within(self):
+        out = mv_cut.trim_beats_to_target(self.BEATS, 45.0)
+        self.assertEqual(out[-1], 44.6)          # last beat <= 45, stays on the grid
+
+    def test_target_longer_than_music_unchanged(self):
+        self.assertEqual(mv_cut.trim_beats_to_target(self.BEATS, 300.0), self.BEATS)
+
+    def test_tiny_target_keeps_two_beats(self):
+        out = mv_cut.trim_beats_to_target(self.BEATS, 0.2)
+        self.assertEqual(len(out), 2)
+
+    def test_empty_beats(self):
+        self.assertEqual(mv_cut.trim_beats_to_target([], 45.0), [])
+
+
 class ValidateMvScriptTest(unittest.TestCase):
     def _ok_script(self):
         return {"style": "mv", "music": {"brief": "熱血"},

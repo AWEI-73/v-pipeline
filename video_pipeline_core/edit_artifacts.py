@@ -371,6 +371,9 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
                 "segment_contract_segment": segment,
                 "assembly_plan_segment": segment,
             },
+            "shot_reason": item.get("shot_reason") or item.get("reason"),
+            "reason": item.get("reason"),
+            "cut_reason": item.get("cut_reason"),
         })
         cursor = timeline_out
     return {

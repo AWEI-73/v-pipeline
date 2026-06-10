@@ -43,16 +43,19 @@ def review_timeline_build(timeline, *, duration_tolerance_sec=0.5,
         duplicate_footage = True
         for prev in clips[:i]:
             if _overlap(clip, prev):
-                overlap_free = False
+                is_exact_dup = (clip.get("start_sec") == prev.get("start_sec") and 
+                                clip.get("end_sec") == prev.get("end_sec"))
                 duplicate_footage = False
-                findings.append(_finding(
-                    "overlap_free", "fail",
-                    f"source overlaps previous segment {prev.get('segment')}",
-                ))
                 findings.append(_finding(
                     "duplicate_footage", "warn",
                     f"same source range reused near segment {prev.get('segment')}",
                 ))
+                if not is_exact_dup:
+                    overlap_free = False
+                    findings.append(_finding(
+                        "overlap_free", "fail",
+                        f"source overlaps previous segment {prev.get('segment')}",
+                    ))
                 break
 
         stitch_gap = clip.get("stitch_gap_sec")
