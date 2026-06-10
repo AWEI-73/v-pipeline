@@ -424,10 +424,11 @@ def render_mv(plan, music_path, out_path, mat_dir=None):
             segs.append(seg)
     if not segs:
         raise ToolError("render_mv: no segments rendered")
-    listf = os.path.join(mat_dir, "mv_concat.txt")
+    listf = os.path.normpath(os.path.join(mat_dir, "mv_concat.txt"))
     with open(listf, "w") as f:
         for s in segs:
-            f.write(f"file '{os.path.abspath(s)}'\n")   # 絕對路徑:避免 concat 相對路徑雙重前綴
+            clean_path = os.path.abspath(s).replace('\\', '/')
+            f.write(f"file '{clean_path}'\n")   # 絕對路徑:避免 concat 相對路徑雙重前綴
     visual = os.path.join(mat_dir, "mv_visual.mp4")
     subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
                     "-c:v", "libx264", "-preset", "medium", "-crf", "20",
@@ -808,9 +809,11 @@ def _burn_asr_subtitle(seg_mp4, mat_dir, idx):
     if not _asr_srt(seg_mp4, srt):
         return None
     out = os.path.join(mat_dir, f"mvseg_{idx:03d}_sub.mp4")
-    vf = f"subtitles='{srt}'"
+    srt_escaped = srt.replace("\\", "\\\\").replace(":", "\\:")
+    vf = f"subtitles='{srt_escaped}'"
     if _CJK_FONT:
-        vf += (f":fontsdir='{os.path.dirname(_CJK_FONT)}':force_style="
+        font_dir = os.path.dirname(_CJK_FONT).replace("\\", "/").replace(":", "\\:")
+        vf += (f":fontsdir='{font_dir}':force_style="
                f"'FontName={os.path.splitext(os.path.basename(_CJK_FONT))[0]},"
                f"FontSize=20,Bold=1,Outline=2,Shadow=1,MarginV=60'")
     r = subprocess.run([FFMPEG, "-y", "-i", seg_mp4, "-vf", vf, "-c:v", "libx264",
@@ -1041,12 +1044,13 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
             segs.append(seg)
     if not segs:
         raise ToolError("render_mv_audio: no segments rendered")
-    listf = os.path.join(mat_dir, "mv_concat.txt")
+    listf = os.path.normpath(os.path.join(mat_dir, "mv_concat.txt"))
     with open(listf, "w") as f:
         for s in segs:
             # ⚠️ 用絕對路徑:ffmpeg concat 把相對 entry 解析成「相對 list 檔所在目錄」,
             # mat_dir 是相對路徑時會變成 mat_dir/mat_dir/... 雙重前綴而開不了檔。
-            f.write(f"file '{os.path.abspath(s)}'\n")
+            clean_path = os.path.abspath(s).replace('\\', '/')
+            f.write(f"file '{clean_path}'\n")
     av = os.path.join(mat_dir, "mv_av.mp4")
     subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
                     "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",

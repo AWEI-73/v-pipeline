@@ -388,6 +388,14 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
                     except Exception as e:
                         print(f"[runtime] Warning: Failed to compile {cand_md}: {e}", file=sys.stderr)
 
+    # 4. Copy build_profile.json if present
+    bp_dest = run_dir / "build_profile.json"
+    if not bp_dest.exists():
+        bp_src = project_dir / "input" / "build_profile.json"
+        if bp_src.exists():
+            print(f"[runtime] Copying build_profile from {bp_src} to {bp_dest}...")
+            shutil.copy2(bp_src, bp_dest)
+
 
 def _resolve_music_path(project_dir, run_dir, contract_path, args):
     """Find BGM or fetch it automatically if missing."""
@@ -860,6 +868,9 @@ def run_orchestrator(project_name=None, args=None):
                 ]
                 if categories and os.path.exists(categories):
                     cmd += ["--categories", categories]
+                build_prof_path = run_dir / "build_profile.json"
+                if build_prof_path.exists():
+                    cmd += ["--build-profile", str(build_prof_path)]
 
                 print(f"[runtime] Running: {' '.join(cmd)}")
                 res = subprocess.run(cmd)

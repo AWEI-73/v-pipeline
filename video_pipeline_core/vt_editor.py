@@ -93,10 +93,11 @@ def cmd_assemble(args):
         })
 
     # concat 所有段
-    concat_list = os.path.join(workdir, "concat.txt")
+    concat_list = os.path.normpath(os.path.join(workdir, "concat.txt"))
     with open(concat_list, 'w', encoding="utf-8") as f:
         for cf in cut_files:
-            f.write(f"file '{os.path.abspath(cf)}'\n")
+            clean_path = os.path.abspath(cf).replace('\\', '/')
+            f.write(f"file '{clean_path}'\n")
     res = run([
         FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", concat_list,
         "-c", "copy", out
@@ -153,7 +154,7 @@ def cmd_merge_final(args):
 
     subs_path = str(Path(args.subs).resolve())
     subs_escaped = subs_path.replace("\\", "\\\\").replace(":", "\\:")
-    font_dir = str(Path(font_path).parent).replace("\\", "/")
+    font_dir = str(Path(font_path).parent).replace("\\", "/").replace(":", "\\:")
     font_name = Path(font_path).stem
 
     # D3 字幕美學：加粗 + 柔和投影提升質感與在雜亂畫面上的可讀性

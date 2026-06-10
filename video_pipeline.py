@@ -83,7 +83,7 @@ def atomic_write_json(path, obj):
 def run_tool(args, verbose=False):
     res = subprocess.run([_PYTHON, TOOLS, *args], capture_output=True, text=True)
     if res.returncode != 0:
-        raise RuntimeError(f"tool {args[0]} failed: {(res.stderr or '')[:600]}")
+        raise RuntimeError(f"tool {args[0]} failed (code {res.returncode}):\nSTDOUT: {res.stdout.strip()}\nSTDERR: {res.stderr.strip()}")
     vprint(f"  [tool {args[0]}] ok", verbose)
     return res.stdout
 

@@ -543,7 +543,7 @@ def cmd_concat(args):
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
         for fpath in files_to_concat:
-            abs_path = str(Path(fpath).resolve())
+            abs_path = str(Path(fpath).resolve()).replace('\\', '/')
             f.write(f"file '{abs_path}'\n")
         list_file = f.name
 
@@ -842,7 +842,7 @@ def cmd_burnsub(args):
 
     # 用 fontsdir 讓 ffmpeg 找到字型，force_style 指定字型名稱
     srt_escaped = srt.replace("\\", "\\\\").replace(":", "\\:")
-    font_dir    = str(Path(font_path).parent)
+    font_dir    = str(Path(font_path).parent).replace("\\", "/").replace(":", "\\:")
     font_name   = Path(font_path).stem   # e.g. wqy-microhei or msjh
     # D3 字幕美學：加粗 + 半透明投影（與 merge-final 一致）
     style = ("FontSize=24,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
@@ -989,6 +989,8 @@ def cmd_script_run(args):
         srt_lines.append(s["text"])
         srt_lines.append("")
     Path(srt_path).write_text("\n".join(srt_lines), encoding="utf-8")
+    dest_srt = workdir / "subtitles.srt"
+    Path(dest_srt).write_text("\n".join(srt_lines), encoding="utf-8")
 
     # ── Step 5：燒字幕 ────────────────────────────────────────────────────────
     print("[script-run] 燒進字幕...", file=sys.stderr)

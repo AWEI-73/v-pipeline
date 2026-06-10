@@ -176,6 +176,8 @@ def compile_contract(
         }
         if d.get("material_hint"):
             material_fit["material_hint"] = d["material_hint"]
+        if d.get("search_query"):
+            material_fit["search_query"] = d["search_query"]
         if d.get("must_include"):
             material_fit["must_include"] = d["must_include"]
             material_fit["collection_instructions"] = (

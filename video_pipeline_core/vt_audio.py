@@ -86,17 +86,18 @@ def cmd_tts(args):
             })
 
         # 合併音訊
-        concat_list = os.path.join(outdir, "concat.txt")
+        concat_list = os.path.normpath(os.path.join(outdir, "concat.txt"))
         with open(concat_list, 'w', encoding="utf-8") as f:
             for af in all_audio:
-                f.write(f"file '{os.path.abspath(af)}'\n")
+                clean_path = os.path.abspath(af).replace('\\', '/')
+                f.write(f"file '{clean_path}'\n")
         voice_out = os.path.join(outdir, "voice.mp3")
         res = subprocess.run([
             FFMPEG, '-y', '-f', 'concat', '-safe', '0', '-i', concat_list,
             '-c', 'copy', voice_out
         ], capture_output=True)
         if res.returncode != 0:
-            raise ToolError(f"audio concat failed: {res.stderr.decode()[:300]}")
+            raise ToolError(f"audio concat failed: {res.stderr.decode(errors='ignore')}")
 
         total = _audio_duration(voice_out)
         timing["total_duration_sec"] = round(total, 3)
@@ -160,14 +161,14 @@ def cmd_mix_audio(args):
             f"[1:a]{bfin},volume={dvol},{bfade}[bgmraw];"
             f"[0:a]{vfade}[v];[v]asplit=2[v1][vkey];"
             f"[bgmraw][vkey]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=350[bgmduck];"
-            f"[v1][bgmduck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+            f"[v1][bgmduck]amix=inputs=2:duration=first:dropout_transition=0,"
             f"alimiter=limit=0.95,aresample=48000[mixed]"
         )
     else:
         fc = (
             f"[1:a]{bfin},volume={bgm_vol},{bfade}[bgm];"
             f"[0:a]{vfade}[v];"
-            f"[v][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+            f"[v][bgm]amix=inputs=2:duration=first:dropout_transition=0,"
             f"alimiter=limit=0.95,aresample=48000[mixed]"
         )
 
@@ -281,7 +282,7 @@ def cmd_gen_bgm(args):
     for f in freqs:
         inputs += ["-f", "lavfi", "-i", f"sine=frequency={f}:duration={d}"]
     n = len(freqs)
-    mix = "".join(f"[{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=1"
+    mix = "".join(f"[{i}]" for i in range(n)) + f"amix=inputs={n}"
     fc = (f"{mix},tremolo=f={trem}:d=0.4,lowpass=f={lp},"
           f"aecho=0.8:0.6:60|110:0.3|0.2,alimiter=limit=0.9")
     cmd = [FFMPEG, "-y", *inputs, "-filter_complex", fc,

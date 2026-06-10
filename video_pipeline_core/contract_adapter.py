@@ -104,6 +104,9 @@ def contract_to_mv_script(contract):
             for k in ("label", "narrative", "subtitle", "name_super"):
                 if txt.get(k):
                     flat[k] = txt[k]
+            flat["text"] = txt.get("narrative") or txt.get("subtitle") or ""
+        else:
+            flat["text"] = ""
         flat["raw_audio"] = aud
         flat["raw_visual_style"] = vis
         flat["raw_text_layer"] = txt
@@ -530,7 +533,52 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
 
     # Ensure subtitles.srt exists (needed for verify_result)
     srt_path = out_path.parent / "subtitles.srt"
-    if not srt_path.exists():
+    written_srt = False
+    timeline_build_file = edit_paths.get("timeline_build")
+    if timeline_build_file and os.path.exists(timeline_build_file):
+        try:
+            with open(timeline_build_file, encoding="utf-8") as f:
+                tb_data = json.load(f)
+            clips = tb_data.get("clips", [])
+            lines = []
+            idx = 1
+            for clip in clips:
+                # timeline_build's text_overlay is usually a plain string (the
+                # subtitle text, or "none"); the dict shape comes from
+                # assembly_plan-style text layers. Accept both.
+                text_overlay = clip.get("text_overlay")
+                if isinstance(text_overlay, dict):
+                    text = (text_overlay.get("narrative") or text_overlay.get("subtitle")
+                            or text_overlay.get("label") or "").strip()
+                elif isinstance(text_overlay, str) and text_overlay.strip().lower() != "none":
+                    text = text_overlay.strip()
+                else:
+                    text = ""
+                if text:
+                    t_in = clip.get("timeline_in_sec", 0.0)
+                    t_out = clip.get("timeline_out_sec", 0.0)
+                    
+                    def _fmt_ts(sec):
+                        h = int(sec // 3600)
+                        m = int((sec % 3600) // 60)
+                        s = int(sec % 60)
+                        ms = int(round((sec - int(sec)) * 1000))
+                        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+                        
+                    lines.append(str(idx))
+                    lines.append(f"{_fmt_ts(t_in)} --> {_fmt_ts(t_out)}")
+                    lines.append(text)
+                    lines.append("")
+                    idx += 1
+            if lines:
+                with open(srt_path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(lines))
+                written_srt = True
+                print(f"[runtime] Generated subtitles.srt from timeline_build ({idx-1} entries)")
+        except Exception as e:
+            print(f"[runtime] Warning: failed to build subtitles.srt: {e}", file=sys.stderr)
+            
+    if not written_srt and not srt_path.exists():
         with srt_path.open("w", encoding="utf-8") as f:
             f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
 
