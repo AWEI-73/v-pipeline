@@ -38,9 +38,18 @@ description: 小編 Skill。搜尋 YouTube、下載素材、Whisper 轉譯找最
 > ③ `generated`（外部生成素材 provider 補 stock ceiling，優先 Antigravity / assistant_imagegen，核心 repo 只接成品）。
 > `ingest-meta`/`rank-local` 是 local 源的批次整理工具。
 
----
-
-## 工具位置
+> **🔴 search_query 撰寫規範(2026-06-10,ai-video 實案教訓)**
+> stock 搜尋吃**具體物理場景的名詞**,抽象詞是 CG-bait——`hologram` / `abstract` /
+> `data stream` / `digital network` 這類詞回傳的多是黑底發光線條的 3D 渲染動畫,
+> 整段會黑壓壓,與「溫暖/真摯」類 tone 直接打架。規則:
+> 1. **寫看得見的東西**:人、動作、場所、物件(`bright office team discussion`、
+>    `hands typing laptop warm light`),不寫概念(`innovation`、`future technology`)。
+> 2. **把 tone 塞進 query**:亮度/時段/情緒詞(`bright`、`warm`、`sunlit`、`golden hour`)
+>    對 stock 庫有效,能直接過濾暗沉素材。
+> 3. **抽象概念段落**先想「這個概念的物理代理畫面是什麼」再下 query;真的沒有物理代理
+>    → 走 `generated`(交 generative-director),不要硬搜 stock。
+> 4. 引擎已改為**相關性優先**(API 排序),時長只是資格門檻——但 query 歪了,
+>    再好的排序也救不回來;query 品質是小編的責任。
 
 ```
 /home/lio730309/.hermes/profiles/video_director/workspace/video_tools.py
