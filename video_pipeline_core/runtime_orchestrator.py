@@ -563,7 +563,21 @@ def run_orchestrator(project_name=None, args=None):
 
         elif next_action and next_action.startswith("revise:director"):
             print(f"[runtime] [DISPATCH] Skill 'director' tasked with revision. Details: {next_action}")
-            print("[runtime] Please edit segment_contract.json to adjust layout/media_pref or resolve SPEC issues, then run resume.")
+            # Feed the agent the exact SPEC findings — don't make it dig for them.
+            sr_path = run_dir / "spec_review.json"
+            if sr_path.exists():
+                try:
+                    with sr_path.open(encoding="utf-8") as f:
+                        sr = json.load(f)
+                    for b in (sr.get("blocking") or []):
+                        print(f"  [BLOCKING] {b.get('message')}")
+                        if b.get("fix"):
+                            print(f"             fix: {b['fix']}")
+                    for w in (sr.get("warnings") or []):
+                        print(f"  [warn] {w.get('message')}")
+                except Exception:
+                    pass
+            print("[runtime] Please edit segment_contract.json to resolve the SPEC issues above, then run resume.")
             sys.exit(0)
 
         elif next_action and next_action.startswith("retry:curator"):

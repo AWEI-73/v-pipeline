@@ -108,5 +108,64 @@ class WarningRulesTest(unittest.TestCase):
         self.assertIn("soul_without_editorial_design", self._rules(r))
 
 
+class PerfunctorySpecTest(unittest.TestCase):
+    """Anti-laziness: copy-paste contracts (soul-v3/v5 signature) must be caught.
+    Single signals warn; >=3 co-occurring signals on a >=4-seg film block."""
+
+    def _lazy_contract(self, n=5):
+        # the soul-v5 signature: identical pacing, duplicated desc/query, "r" reasons
+        return {"segments": [
+            _seg(segment=i + 1,
+                 material_fit={"visual_desc": "團隊", "search_query": "team work",
+                               "reason": "r"},
+                 pacing={"preferred_shot_sec": [4, 8]})
+            for i in range(n)
+        ]}
+
+    def test_full_laziness_blocks(self):
+        r = review_spec(self._lazy_contract(), BRIEF, has_editorial_design=True)
+        self.assertFalse(r["ready_for_build"])
+        rules = [b["rule"] for b in r["blocking"]]
+        self.assertIn("perfunctory_spec", rules)
+        self.assertGreaterEqual(len(r["stats"]["laziness_signals"]), 3)
+
+    def test_single_signal_only_warns(self):
+        # identical pacing everywhere, but desc/query/reasons are real → warn only
+        contract = {"segments": [
+            _seg(segment=i + 1,
+                 material_fit={"visual_desc": f"工程師在明亮辦公室{i}號桌前專注除錯",
+                               "search_query": f"bright office engineer desk {i}",
+                               "reason": f"第{i}段需要具體工作畫面支撐論點"},
+                 pacing={"preferred_shot_sec": [4, 8]})
+            for i in range(5)
+        ]}
+        r = review_spec(contract, BRIEF, has_editorial_design=True)
+        self.assertTrue(r["ready_for_build"])
+        self.assertIn("uniform_pacing", [w["rule"] for w in r["warnings"]])
+
+    def test_differentiated_spec_has_no_laziness_signals(self):
+        pacings = [{"preferred_shot_sec": [6, 12]}, {"preferred_shot_sec": [2, 4]},
+                   {"preferred_shot_sec": [3, 6]}, {"preferred_shot_sec": [1.5, 4]},
+                   {"preferred_shot_sec": [6, 12]}]
+        contract = {"segments": [
+            _seg(segment=i + 1,
+                 material_fit={"visual_desc": f"第{i}段specific畫面描述含主體與光線",
+                               "search_query": f"distinct scene {i} warm light",
+                               "reason": f"段{i}的設計依據:服務該段故事功能"},
+                 audio={"role": "music", "reason": f"段{i}配樂墊底不搶戲"},
+                 visual_style={"layout": "single", "pace": "fast",
+                               "reason": f"段{i}節奏服務內容密度"},
+                 pacing=pacings[i])
+            for i in range(5)
+        ]}
+        r = review_spec(contract, BRIEF, has_editorial_design=True)
+        self.assertTrue(r["ready_for_build"])
+        self.assertEqual(r["stats"]["laziness_signals"], [])
+
+    def test_small_contract_never_blocks_on_laziness(self):
+        r = review_spec(self._lazy_contract(n=3), BRIEF, has_editorial_design=True)
+        self.assertTrue(r["ready_for_build"])  # signals warn, but n<4 → no block
+
+
 if __name__ == "__main__":
     unittest.main()

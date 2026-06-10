@@ -203,6 +203,26 @@ class DashboardStateSpecTest(unittest.TestCase):
             messages = [f["message"] for f in state["findings"]]
             self.assertIn("ComfyUI provider in build profile produces blocked/deprecated finding", messages)
 
+    def test_text_layer_none_string_satisfies_facet_reason(self):
+        """The string 'none' IS the explicit text_layer declaration (留白也是顯式
+        設計) — it must not leave the facet gate stuck at warn forever."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            seg = {
+                "segment": 1,
+                "core": {"section_role": "develop"},
+                "material_fit": {"visual_desc": "x", "reason": "r"},
+                "audio": {"role": "music", "reason": "r"},
+                "text_layer": "none",
+                "visual_style": {"layout": "single", "pace": "hold", "reason": "r"},
+                "editing_grammar": {"role": "filler", "reason": "r"},
+            }
+            (workdir / "segment_contract.json").write_text(
+                json.dumps({"segments": [seg]}), encoding="utf-8")
+            state = load_dashboard_state(str(workdir))
+            facets = next(n for n in state["nodes"] if str(n["node"]) == "4-7")
+            self.assertEqual(facets["status"], "done", facets["reason"])
+
     def test_soul_declared_without_editing_policy_produces_warning_finding(self):
         """Soul fields in the contract with an inactive editing_policy must surface
         a finding — the guards (visual_fatigue/editorial_qa) silently skip otherwise."""

@@ -26,6 +26,19 @@ Rules (each one is a real incident, not speculation):
   W4 soul w/o design      — editing_intent declared but no editorial_design.json:
                             visual_fatigue/editorial_qa silently skip (soul-v3)
 
+Perfunctory-SPEC detection (anti-laziness; soul-v3/v5 were copy-paste contracts:
+4/5 identical content_patterns, 5/5 identical pacing, identical seq_grammar —
+and the facet gate passed them because it only counts field PRESENCE):
+  W5 uniform_pacing       — every segment declares the exact same pacing: no
+                            rhythm design (bookends should hold longer than montage)
+  W6 weak/dup visual_desc — too short to give VLM/stock matching anything, or
+                            duplicated across segments (same picture twice)
+  W7 trivial_reasons      — reasons are design rationale, not format filler:
+                            mostly-identical or placeholder-length reasons
+  W8 duplicate_search_query — same query on multiple segments → same stock clip
+  B4 perfunctory_spec     — >=3 of the above co-occur on a >=4-segment film:
+                            this is a template fill, not a design → blocking
+
 Pure (no I/O, no print).
 """
 from __future__ import annotations
@@ -174,6 +187,89 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
                        "concepts with no physical proxy go to the generated route",
             })
 
+    # --- Perfunctory-SPEC detection (W5-W8, B4) -------------------------------
+    laziness_signals = []
+    n = len(segs)
+
+    if n >= 4:
+        # W5: identical pacing on every segment = no rhythm design
+        import json as _json  # noqa: PLC0415
+        pacings = [seg.get("pacing") for seg in segs]
+        if all(p for p in pacings) and len({_json.dumps(p, sort_keys=True) for p in pacings}) == 1:
+            laziness_signals.append("uniform_pacing")
+            warnings.append({
+                "rule": "uniform_pacing",
+                "message": f"all {n} segments declare the exact same pacing — bookends "
+                           "should hold longer than montage middles; identical pacing "
+                           "everywhere is template fill, not rhythm design (soul-v5)",
+                "fix": "differentiate pacing by section_role (opening/closing hold "
+                       "longer; develop/climax cut faster)",
+            })
+
+    descs = [str((seg.get("material_fit") or {}).get("visual_desc") or "").strip()
+             for seg in segs]
+    weak = [(_seg_id(seg, i), d) for i, (seg, d) in enumerate(zip(segs, descs)) if 0 < len(d) < 6]
+    dups = {d for d in descs if d and descs.count(d) > 1}
+    if weak or dups:
+        laziness_signals.append("weak_or_dup_visual_desc")
+        detail = []
+        if weak:
+            detail.append(f"too-short visual_desc on seg {[sid for sid, _ in weak]}")
+        if dups:
+            detail.append(f"duplicated visual_desc {sorted(dups)[:3]}")
+        warnings.append({
+            "rule": "weak_or_dup_visual_desc",
+            "message": "; ".join(detail) + " — VLM scoring and stock matching are only "
+                       "as good as the description; a 4-char or copy-pasted desc "
+                       "starves them",
+            "fix": "write a concrete, segment-specific visual description "
+                   "(subject + action + place + light/mood)",
+        })
+
+    reasons = []
+    for seg in segs:
+        for key in ("material_fit", "audio", "visual_style", "editing_grammar"):
+            r = (seg.get(key) or {}).get("reason") if isinstance(seg.get(key), dict) else None
+            if r is not None:
+                reasons.append(str(r).strip())
+    if reasons:
+        trivial = [r for r in reasons if len(r) < 4]
+        if (len(trivial) >= len(reasons) / 2) or (len(reasons) >= 4 and len(set(reasons)) == 1):
+            laziness_signals.append("trivial_reasons")
+            warnings.append({
+                "rule": "trivial_reasons",
+                "message": f"{len(trivial)}/{len(reasons)} facet reasons are placeholder-"
+                           "length or all identical — reasons are the design rationale "
+                           "the reviewer/route relies on, not format filler",
+                "fix": "state WHY for each facet choice (what the segment needs, "
+                       "what was rejected)",
+            })
+
+    queries = [str((seg.get("material_fit") or {}).get("search_query") or "").strip().lower()
+               for seg in segs]
+    dup_q = {q for q in queries if q and queries.count(q) > 1}
+    if dup_q:
+        laziness_signals.append("duplicate_search_query")
+        warnings.append({
+            "rule": "duplicate_search_query",
+            "message": f"duplicated search_query across segments: {sorted(dup_q)[:3]} — "
+                       "the same stock clip will fill multiple segments (monotony + "
+                       "broll repeats)",
+            "fix": "give each segment its own concrete query (or route to local/"
+                   "generated material)",
+        })
+
+    if n >= 4 and len(laziness_signals) >= 3:
+        blocking.append({
+            "rule": "perfunctory_spec",
+            "message": f"{len(laziness_signals)} laziness signals co-occur "
+                       f"({', '.join(laziness_signals)}) on a {n}-segment film — this "
+                       "SPEC is a template fill, not a design; downstream gates can't "
+                       "rescue a hollow contract",
+            "fix": "differentiate per segment: content_pattern by section_role, pacing "
+                   "by rhythm, concrete visual_desc/search_query, real reasons",
+        })
+
     ready = not blocking
     return {
         "artifact_role": "spec_review",
@@ -184,5 +280,5 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
         "next_action": None if ready else "revise:director(spec_review)",
         "stats": {"segments": len(segs), "blocking": len(blocking),
                   "warnings": len(warnings), "stock_first": stock_first,
-                  "target_sec": target_sec},
+                  "target_sec": target_sec, "laziness_signals": laziness_signals},
     }

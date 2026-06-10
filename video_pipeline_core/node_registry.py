@@ -63,6 +63,11 @@ def verify_facets(workdir, artifacts, context):
                     facet = seg.get(key)
                     if isinstance(facet, dict) and facet.get("reason"):
                         reason_present += 1
+                    elif key == "text_layer" and facet == "none":
+                        # the string "none" IS the explicit declaration (design rule:
+                        # 留白也是顯式設計) — don't demand a reason dict for it, or the
+                        # gate warns forever and agents learn to ignore warns.
+                        reason_present += 1
             if present == total and reason_present == reason_total:
                 status = "done"
                 reason = "All required contract facets and reasons present"
