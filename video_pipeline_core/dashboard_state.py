@@ -340,6 +340,33 @@ def load_dashboard_state(workdir):
                     "message": f"{role} reported advisory findings",
                 })
 
+    # Soul-layer guard: the contract declares editing intent (editing_intent /
+    # material_treatment / sequence_grammar) but no editing_policy is active, so
+    # the Node 11/12 soul guards (visual_fatigue_audit, editorial_qa) silently
+    # skip. Surface that skip — the ai-video soul-v3 run shipped a monotone
+    # single_hold film with zero warnings because of exactly this.
+    _contract_segs = []
+    if isinstance(contract_data, dict):
+        _contract_segs = contract_data.get("segments") or []
+    elif isinstance(contract_data, list):
+        _contract_segs = contract_data
+    soul_declared = any(
+        isinstance(seg, dict) and (
+            seg.get("editing_intent") or seg.get("material_treatment")
+            or seg.get("sequence_grammar")
+        )
+        for seg in _contract_segs
+    )
+    if soul_declared and not (profile_data or {}).get("editing_policy"):
+        findings.append({
+            "type": "warning",
+            "node": 11,
+            "artifact": "editing_policy",
+            "message": ("soul layer declared in contract but editing_policy is inactive "
+                        "(no editorial_design.json) — visual_fatigue_audit and "
+                        "editorial_qa were skipped"),
+        })
+
     # Normalize next_action
     next_action = None
     if verify_result and verify_result.get("pass") is False:

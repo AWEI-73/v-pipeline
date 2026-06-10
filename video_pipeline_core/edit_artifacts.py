@@ -8,13 +8,15 @@ import json
 from pathlib import Path
 
 
-def _resolve_seg_treatment(seg, music_structure, editing_policy):
+def _resolve_seg_treatment(seg, music_structure, editing_policy, duration_sec=None):
     """Opt-in material treatment for a script segment.
 
     Only segments that declare editing_intent.content_pattern or an explicit
     material_treatment get a treatment block; everything else is left untouched so
-    existing runs are unaffected. Returns a dict to merge into the plan segment, or
-    {} when the segment opts out.
+    existing runs are unaffected. ``duration_sec`` is the allocated timeline budget
+    (used for the pacing-consistency check when the segment doesn't carry its own
+    duration). Returns a dict to merge into the plan segment, or {} when the
+    segment opts out.
     """
     ei = seg.get("editing_intent") or {}
     mt = seg.get("material_treatment") or {}
@@ -31,11 +33,11 @@ def _resolve_seg_treatment(seg, music_structure, editing_policy):
         "material_treatment": mt,
         "core": {"section_role": seg.get("section_role") or seg.get("kind")},
         "pacing": seg.get("pacing"),
-        "duration_sec": seg.get("duration_sec"),
+        "duration_sec": seg.get("duration_sec") or duration_sec,
     }
     resolved = material_treatment.resolve_treatment(seg_view, beat_count, editing_policy)
     items = mt.get("items") or []
-    return {
+    out = {
         "treatment": resolved["treatment"],
         "n_required": resolved["n_required"],
         "items": items,
@@ -43,6 +45,9 @@ def _resolve_seg_treatment(seg, music_structure, editing_policy):
         "lane_plan": resolved["lane_plan"],
         "treatment_reason": resolved["reason"],
     }
+    if resolved.get("pacing_conflict"):
+        out["pacing_conflict"] = True
+    return out
 
 
 def build_assembly_plan(script, *, music_structure=None, contract_hash=None, editing_policy=None):
@@ -168,7 +173,9 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
                 }
             }
         }
-        treatment_info = _resolve_seg_treatment(seg, music_structure, editing_policy)
+        treatment_info = _resolve_seg_treatment(
+            seg, music_structure, editing_policy,
+            duration_sec=round(end_t - start_t, 3) if end_t > start_t else None)
         entry.update(treatment_info)
         
         if seg.get("sequence_grammar"):

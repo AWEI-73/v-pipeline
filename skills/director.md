@@ -202,6 +202,12 @@ mood ↔ style 對應建議：
 
 1. 讀 beat 的 prose（不是讀 summary 標籤），抓出意象/節奏/聲音/情緒落點。
 2. **情緒型態** → `editing_intent.content_pattern`（lexicon §1）；testimony/proof/identity 落 🔒。
+   > **🔴 詞彙陷阱（ai-video soul-v3 實案教訓）**:`establishing`/`emotional` 解析成
+   > **single_hold(整段一鏡)**。`develop`/中段敘事**不要**填 establishing——
+   > 多鏡頭段落用 `process`/`enumeration`/`action`/`bridge`。
+   > 自我檢查:若該段 `pacing.preferred_shot_sec=[4,8]` 而 pattern 解析成單鏡 treatment,
+   > 就是自相矛盾——Node 9 會在 assembly_plan 標 `pacing_conflict: true` 並寫進
+   > `treatment_reason`,看到它=回來改 content_pattern,不是改 pacing。
 3. **結構** → `sequence_grammar.required_functions`（lexicon §2，例：action 段＝establish/action/detail/result）。
 4. **節奏** → `pacing.preferred_shot_sec` + `visual_style.pace`（lexicon §3，密度語感→fast/[1.5,4]）。
 5. **原音** → `audio.role` + `original_audio_policy`（lexicon §4，「他說/口令/現場聲」→keep）。

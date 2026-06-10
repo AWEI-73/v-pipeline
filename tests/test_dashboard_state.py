@@ -203,6 +203,50 @@ class DashboardStateSpecTest(unittest.TestCase):
             messages = [f["message"] for f in state["findings"]]
             self.assertIn("ComfyUI provider in build profile produces blocked/deprecated finding", messages)
 
+    def test_soul_declared_without_editing_policy_produces_warning_finding(self):
+        """Soul fields in the contract with an inactive editing_policy must surface
+        a finding — the guards (visual_fatigue/editorial_qa) silently skip otherwise."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            contract = {"segments": [{
+                "segment": 1,
+                "core": {"section_role": "develop"},
+                "editing_intent": {"content_pattern": "establishing"},
+            }]}
+            (workdir / "segment_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+            (workdir / "build_profile.json").write_text(json.dumps({"editing_policy": None}), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            messages = [f["message"] for f in state["findings"]]
+            self.assertTrue(any("editing_policy is inactive" in m for m in messages), messages)
+
+    def test_soul_with_active_editing_policy_has_no_inactive_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            contract = {"segments": [{
+                "segment": 1,
+                "core": {"section_role": "develop"},
+                "editing_intent": {"content_pattern": "process"},
+            }]}
+            (workdir / "segment_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+            (workdir / "build_profile.json").write_text(
+                json.dumps({"editing_policy": {"subtitle_strategy": {"placement": "bottom_safe"}}}),
+                encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            messages = [f["message"] for f in state["findings"]]
+            self.assertFalse(any("editing_policy is inactive" in m for m in messages), messages)
+
+    def test_no_soul_fields_no_editing_policy_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            contract = {"segments": [{"segment": 1, "core": {"section_role": "opening"}}]}
+            (workdir / "segment_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            messages = [f["message"] for f in state["findings"]]
+            self.assertFalse(any("editing_policy is inactive" in m for m in messages), messages)
+
     def test_existing_route_state_json_fallback_works(self):
         """5. Existing route state.json dashboard mode still works."""
         with tempfile.TemporaryDirectory() as tmp:

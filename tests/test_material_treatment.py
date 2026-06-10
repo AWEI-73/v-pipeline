@@ -290,5 +290,56 @@ class TestReturnShape(unittest.TestCase):
         self.assertIn("music", result["lane_plan"])
 
 
+class TestPacingConflict(unittest.TestCase):
+    """SPEC self-contradiction surfaced: 1-material treatment vs multi-shot pacing
+    (the ai-video soul-v3 monotony failure — develop sections marked 'establishing'
+    with preferred_shot_sec=[4,8] over ~24s budgets resolved to single_hold)."""
+
+    def test_single_hold_with_multishot_pacing_flags_conflict(self):
+        seg = {
+            "editing_intent": {"content_pattern": "establishing"},
+            "pacing": {"preferred_shot_sec": [4, 8]},
+            "duration_sec": 24.0,
+        }
+        result = resolve_treatment(seg, beat_count=8)
+        self.assertEqual(result["treatment"], "single_hold")
+        self.assertTrue(result["pacing_conflict"])
+        self.assertIn("pacing_conflict", result["reason"])
+
+    def test_short_budget_no_conflict(self):
+        seg = {
+            "editing_intent": {"content_pattern": "establishing"},
+            "pacing": {"preferred_shot_sec": [4, 8]},
+            "duration_sec": 6.0,
+        }
+        result = resolve_treatment(seg, beat_count=8)
+        self.assertFalse(result["pacing_conflict"])
+
+    def test_multi_material_treatment_no_conflict(self):
+        seg = {
+            "editing_intent": {"content_pattern": "enumeration"},
+            "material_treatment": {"items": ["a", "b", "c"]},
+            "pacing": {"preferred_shot_sec": [4, 8]},
+            "duration_sec": 24.0,
+        }
+        result = resolve_treatment(seg, beat_count=8)
+        self.assertFalse(result["pacing_conflict"])
+
+    def test_no_pacing_declared_no_conflict(self):
+        seg = {"editing_intent": {"content_pattern": "emotional"}, "duration_sec": 30.0}
+        result = resolve_treatment(seg, beat_count=4)
+        self.assertFalse(result["pacing_conflict"])
+
+    def test_honesty_guard_path_carries_flag_shape(self):
+        seg = {
+            "editing_intent": {"content_pattern": "testimony"},
+            "pacing": {"preferred_shot_sec": [4, 8]},
+            "duration_sec": 24.0,
+        }
+        result = resolve_treatment(seg, beat_count=8)
+        self.assertEqual(result["treatment"], "real_material_only")
+        self.assertFalse(result["pacing_conflict"])
+
+
 if __name__ == "__main__":
     unittest.main()

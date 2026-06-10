@@ -211,6 +211,7 @@ def resolve_treatment(
             "treatment": treatment,
             "n_required": n_required,
             "lane_plan": lane_plan,
+            "pacing_conflict": False,
             "reason": "; ".join(reason_parts),
         }
 
@@ -249,10 +250,33 @@ def resolve_treatment(
     # --- 5. Lane plan ---
     lane_plan = dict(_LANE_TABLE.get(treatment, _LANE_TABLE["single_hold"]))
 
+    # --- 6. Pacing-consistency check ---
+    # A declared pacing of preferred_shot_sec=[4,8] over a 24s budget implies >=3
+    # shots; resolving to a 1-material treatment then means the SPEC contradicts
+    # itself (usually a content_pattern vocabulary mistake, e.g. a develop
+    # section marked "establishing"). Surface it — don't silently hold one shot
+    # for the whole budget (the ai-video soul-v3 monotony failure).
+    pacing_conflict = False
+    pref = (segment.get("pacing") or {}).get("preferred_shot_sec")
+    if pref and n_required <= 1 and treatment in ("single_hold", "video_primary"):
+        try:
+            upper = float(pref[1]) if isinstance(pref, (list, tuple)) and len(pref) >= 2 else float(pref)
+        except (TypeError, ValueError):
+            upper = 0.0
+        dur = segment.get("duration_sec")
+        if upper > 0 and dur and float(dur) / upper >= 2:
+            pacing_conflict = True
+            reason_parts.append(
+                f"pacing_conflict: {dur}s budget with preferred_shot_sec<={upper}s implies "
+                f">={int(float(dur) // upper)} shots but treatment={treatment} keeps 1 "
+                "— check content_pattern vocabulary"
+            )
+
     return {
         "treatment": treatment,
         "n_required": n_required,
         "lane_plan": lane_plan,
+        "pacing_conflict": pacing_conflict,
         "reason": "; ".join(reason_parts),
     }
 
