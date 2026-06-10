@@ -44,7 +44,7 @@ Do not develop both copies independently.
 - VLM policy: `qwen3-vl:4b-instruct` only for gate, content QA, and retry.
 - Generated provider policy: Antigravity / assistant_imagegen / codex_imagegen preferred; ComfyUI is deprecated/disabled unless explicitly isolated.
 - BUILD runner policy: tool choices live in `build_profile.json`; runner work must write explicit artifacts and manifest entries. See `docs/build-tool-runner-spec.md`.
-- Editing/VERIFY tool integration: P1 (verification tool pack, Node 11/12), P1.5 (auto-wire into contract-run), P2 (creator_profile), and P3 (optional CapCut backend scaffolding) all implemented 2026-06-07/08. ffmpeg stays canonical; CapCut real `.draft` serialization deferred (not installed). See `docs/build-tool-runner-spec.md`, `docs/video-autopilot-tool-integration-spec.md`, and `docs/decisions/2026-06-08-p3-capcut-optional-backend.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
+- Editing/VERIFY tool integration: P1 (verification tool pack, Node 11/12), P1.5 (auto-wire into contract-run), P2 (creator_profile), and P3 (optional CapCut backend) all implemented 2026-06-07/08. ffmpeg stays canonical; CapCut real `.draft` serialization WORKS (skeleton-clone via `templates/0608/`, video track only) and the path is E2E-verified (see COMPLETED section below). Remaining CapCut gap: text/subtitle + audio tracks inside the draft (today BGM/outro are added post-export by `capcut-finalize`). See `docs/build-tool-runner-spec.md`, `docs/video-autopilot-tool-integration-spec.md`, and `docs/decisions/2026-06-08-p3-capcut-optional-backend.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
 - Migration policy: move from WSL to Windows in small verified steps. See `docs/windows-native-migration-spec.md`.
 
 ## Windows Migration State
@@ -109,8 +109,11 @@ visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12) 
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
 P3 capcut (optional): build_profile.render_backend (default ffmpeg) + capcut_backend.py — provider-neutral
   capcut_draft_manifest + export-as-render-candidate (accepted=False, Node 12 verify required, human/CU gate).
-  Real .draft serialization DEFERRED (CapCut not installed); ffmpeg stays canonical. capcut-draft CLI; contract-run
-  emits draft only when render_backend=capcut_draft. See docs/decisions/2026-06-08-p3-capcut-optional-backend.md
+  Real .draft serialization WORKS: build_capcut_draft skeleton-clone (templates/0608 full CapCut project,
+  rebuilds the video track per clip, ID remap + meta sync); E2E-verified in CapCut GUI 2026-06-08.
+  ffmpeg stays canonical. capcut-draft CLI; contract-run emits draft only when render_backend=capcut_draft.
+  Gap: text/audio tracks inside the draft (BGM/outro currently post-export via capcut-finalize).
+  See docs/decisions/2026-06-08-p3-capcut-optional-backend.md
 P2 creator_profile: creator_profile.py + creator-profile CLI; brief overrides creator defaults;
   contract-run --creator-profile fills build_profile broll_policy + writes creator_profile_applied.json (manifest-indexed)
 P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)

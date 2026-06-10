@@ -29,7 +29,7 @@
 
 | 可取(依價值排序) | 對應我們的缺口 | 觸發時機 |
 |---|---|---|
-| 🥇 `app/services/jianying_draft_builder.py` + `jianying_task.py` + 測試:**完整從零 .draft 序列化**(軌道/segment/material、微秒時間、時長 clamp、素材複製、字幕 text material) | P3「Real CapCut .draft serialization DEFERRED」——我們現在只有 sanitized skeleton | 要做實 CapCut 路線時;**前提:CapCut 已安裝可驗證** |
+| 🥇 `app/services/jianying_draft_builder.py` + `jianying_task.py` + 測試:**從零生成式 .draft 序列化**(自建 template、video+audio+**字幕 text 軌**(顏色/字級/位置)、ffprobe 時長 clamp、素材登錄) | 我們的 CapCut 路線**已通**(`capcut_backend` 骨架克隆式,E2E 2026-06-08 驗證)但**只重建 video 軌**;字幕/BGM 目前是匯出後由 `capcut-finalize` 用 ffmpeg 補。它的價值=把 text/audio 軌**做進 draft 內**,讓人在 CapCut 裡能直接改字幕/配樂 | 要升級 CapCut draft 含字幕/BGM 軌時(v4 之後) |
 | 🥈 `app/services/documentary/frame_analysis_service.py`:抽幀→快取→視覺並發的長片理解鏈 | curator 對學員上傳長素材找可用片段(現只有粗的 detect_shots+VLM) | 收斂後的素材理解升級 |
 | 🥉 `subtitle_corrector.py` / `subtitle_merger.py` / `script_subtitle.py`:ASR 結果對腳本的字幕**校正**(我們只評分不修) | Node 14 subtitle auto-fix route | 未來修字幕迴圈時 |
 | `app/utils/ffmpeg_utils.py`:量產級 ffmpeg 配方 | 補 `design/ffmpeg-pitfalls-reference.md` | 隨時,便宜 |
@@ -40,6 +40,7 @@ node 狀態機簡單)、LLM provider 管理(已有 model_routing)、影視解說
 
 ## 整合紀律(為什麼「先地圖、後整合」)
 
-1. 整合必須有**驗證閘**:draft builder 落在 Node 13,CapCut 未安裝就無法驗證 → 不加。
-2. 收斂期非目標:主鏈(ai-video v4)未確認質變前,不開新後端工作。
+1. 整合必須有**驗證閘**:draft 軌道擴充落在 Node 13,每次改動都要實際在 CapCut GUI
+   載入驗證(人/CU 閘),不是只看 JSON 長得像。
+2. 收斂期非目標:主鏈(ai-video v4)未確認質變前,不開後端擴充工作。
 3. 非商用授權 → 重寫是獨立工作項(讀懂欄位語意→自己的實作+測試),不是貼上。
