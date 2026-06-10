@@ -362,6 +362,19 @@ def _copy_initial_artifacts(project_dir, run_dir, args):
             print(f"[runtime] Copying brief from {src_brief} to {brief_path}...")
             shutil.copy2(src_brief, brief_path)
 
+    # 2b. Copy editorial_design (soul-policy layer, optional). Without this the
+    # run's editing_policy stays inactive and visual_fatigue_audit/editorial_qa
+    # silently skip — the soul-v3 failure. The contract/brief travel into the
+    # run dir; the design that governs them must travel with them.
+    ed_path = run_dir / "editorial_design.json"
+    if not ed_path.exists():
+        for cand in (Path(args.contract).parent / "editorial_design.json" if getattr(args, "contract", None) else None,
+                     project_dir / "input" / "editorial_design.json"):
+            if cand and cand.exists():
+                print(f"[runtime] Copying editorial_design from {cand} to {ed_path}...")
+                shutil.copy2(cand, ed_path)
+                break
+
     # 3. Copy narrative blueprint (WHY layer, optional) if present
     blueprint_path = run_dir / "blueprint.json"
     if not blueprint_path.exists():

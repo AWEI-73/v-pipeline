@@ -98,15 +98,20 @@ def _download_url(url, out_path):
     return True
 
 
-def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None):
+def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None, skip=0):
     """(I/O) Stock video search/download → (out_path, provider).
     Default provider order is Pexels then Pixabay. Missing/failing providers are
-    skipped so mv_cut can treat stock failure as a recoverable GAP."""
+    skipped so mv_cut can treat stock failure as a recoverable GAP.
+
+    ``skip`` skips the first N eligible candidates — the VLM content gate uses it
+    to try the next-most-relevant clip when it rejects the current one, instead
+    of GAPing the whole segment on the first wrong clip."""
     providers = providers or ("pexels", "pixabay")
     searchers = {
         "pexels": _pexels_video_candidates,
         "pixabay": _pixabay_video_candidates,
     }
+    to_skip = max(0, int(skip or 0))
     for provider in providers:
         search = searchers.get(provider)
         if not search:
@@ -123,6 +128,9 @@ def fetch_stock_video_with_provider(query, out_path, min_dur=0, providers=None):
             if min_dur and (cand.get("duration") or 0) < min_dur:
                 continue
             if not cand.get("download_url"):
+                continue
+            if to_skip > 0:
+                to_skip -= 1
                 continue
             try:
                 if _download_url(cand["download_url"], out_path):

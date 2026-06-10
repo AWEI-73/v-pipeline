@@ -570,6 +570,25 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
     return slots, entry, [msg]
 
 
+# Stock honesty floor: a clip whose BEST window scores below this is off-topic
+# (rubric 10/15); windows at 40 ("loosely related") are legitimate stock B-roll.
+_STOCK_OFF_TOPIC_FLOOR = 25.0
+# How many next-most-relevant candidates to try after a VLM rejection before GAP.
+_STOCK_VLM_RETRIES = 2
+
+
+def _distill_subject(desc):
+    """純函式:取 visual_desc 的「主詞句」(冒號前的主體 + 不含列舉子句)。
+    例:「手沖注水特寫:細水柱螺旋畫圈、咖啡粉膨脹冒泡」→「手沖注水特寫」;
+    「窗邊木桌上一杯完成的手沖咖啡,雙手捧杯,暖光」→「窗邊木桌上一杯完成的手沖咖啡」。"""
+    s = str(desc or "")
+    for sep in (":", ":", ";", ";"):
+        s = s.split(sep)[0]
+    for sep in ("、", ",", ","):
+        s = s.split(sep)[0]
+    return s.strip()
+
+
 def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
                         model=None, min_score=0, prefilter_static=True, _scorefn=None):
     """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch`/`_winfn`/`_scorefn`
@@ -583,59 +602,85 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
     - model=None → 直接機械開窗(向後相容)。
     窗不夠 n 刀時循環複用(重複交給 broll_audit 盯);機械開窗也失敗 → 單一全預算 slot。"""
     vd = s.get("visual_desc", "")
-    provider = None
-    if _fetch is None:
-        from .vt_stock import fetch_stock_video_with_provider
-        _fetch = fetch_stock_video_with_provider
-        stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
-        msgs = []
-        try:
-            got, provider = _fetch(s.get("search_query") or vd, stock, min_dur=0)
-        except Exception as _e:
-            got, _ = None, msgs.append(
-                f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
-    else:
-        stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
-        msgs = []
-        try:
-            res = _fetch(s.get("search_query") or vd, stock, min_dur=0)
-            if isinstance(res, tuple):
-                got, provider = res
-            else:
-                got = res
-                provider = "pexels" if got else None
-        except Exception as _e:
-            got, _ = None, msgs.append(
-                f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
-    slots = []
+    query = s.get("search_query") or vd
+    stock = os.path.join(mat_dir, f"mvstock_{s.get('segment')}.mp4")
+    msgs = []
     n_clips = max(1, int(a.get("n_clips") or 1))
+    slots = []
     picked_scores = None
-    vlm_rejected = False
+    if _fetch is None:
+        from .vt_stock import fetch_stock_video_with_provider as _default_fetch
+        _fetch = _default_fetch
 
-    # 1) 內容驅動裁剪:VLM 對 visual_desc 逐窗評分,選最好的 n 窗(時間序)。
-    scored = None  # None=未評(跳過/失敗);list=評了(可能為空=全離題)
-    if got and model:
-        verify_desc = vd or s.get("search_query") or ""
+    def _try_fetch(skip):
+        """回 (path|None, provider|None, exhausted)。exhausted=fetcher 不支援 skip。"""
         try:
-            shots = detect_shots(got)
+            res = _fetch(query, stock, min_dur=0, skip=skip) if skip else _fetch(query, stock, min_dur=0)
+        except TypeError:
+            return None, None, True     # 注入的舊式 fetcher 不吃 skip → 無更多候選
+        except Exception as _e:
+            msgs.append(f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
+            return None, None, False
+        if isinstance(res, tuple):
+            return res[0], res[1], False
+        return res, ("pexels" if res else None), False
+
+    def _score_clip(path):
+        """VLM 評窗一支素材。回 list=接受(選好的窗)/ []=離題拒用 / None=VLM 不可用。
+        兩段式:先用完整 visual_desc;全低於 floor 再用「主詞句蒸餾」救援——
+        導演式多子句描述(螺旋/冒泡/蒸氣)會讓 4b 逐條摳字全判否(D5),但 stock
+        B-roll 的選窗只需要主體級匹配(skill-smoke seg3 false-reject 實證)。"""
+        try:
+            shots = detect_shots(path)
             total = shots[0][1] if shots else 0
             wins = fixed_windows(total, win=max(2.0, a["clip_dur"]))
             if prefilter_static:
-                wins = filter_static_windows(wins, got) or wins
+                wins = filter_static_windows(wins, path) or wins
             cap = max(6, n_clips * 2)            # bound VLM cost per stock clip
             if len(wins) > cap:
                 step = max(1, len(wins) // cap)
                 wins = wins[::step][:cap]
-            if wins:
-                cands = score_windows(got, wins, verify_desc, model=model,
+            if not wins:
+                return None
+            for verify_desc in (vd or query or "", _distill_subject(vd or query or "")):
+                if not verify_desc:
+                    continue
+                cands = score_windows(path, wins, verify_desc, model=model,
                                       mat_dir=mat_dir, _score=_scorefn)
-                sel, _unf = select_windows(cands, n_slots=n_clips, min_score=min_score)
-                sel.sort(key=lambda c: c["win"][0])   # 按時間序組回(敘事順向)
-                scored = sel
+                # 選窗=相對排名(top-n);誠實拒用=絕對低標。rubric:100/75=主體命中、
+                # 60=on-topic、40=鬆散相關(stock B-roll 可用)、10/15=離題。
+                best = max((c.get("score") or 0) for c in cands) if cands else 0
+                if best >= _STOCK_OFF_TOPIC_FLOOR:
+                    sel, _unf = select_windows(cands, n_slots=n_clips, min_score=0)
+                    sel.sort(key=lambda c: c["win"][0])   # 時間序組回(敘事順向)
+                    return sel
+            return []                    # 連蒸餾主詞句都不過 → 真離題
         except Exception as _e:
             msgs.append(f"  seg{s.get('segment')} [stock] VLM 評窗不可用(退回機械開窗): "
                         f"{str(_e)[:60]}")
-            scored = None
+            return None
+
+    # 1) 抓素材(+VLM 拒絕時往下試相關性次高的候選,最多 _STOCK_VLM_RETRIES 次)
+    got = provider = None
+    scored = None    # None=未評(跳過/失敗);list=接受;[]=評了且拒用
+    rejected_candidates = 0
+    for attempt in range(_STOCK_VLM_RETRIES + 1):
+        got, provider, exhausted = _try_fetch(attempt)
+        if not got:
+            if attempt > 0:
+                got = None              # 沒有下一個候選了
+            break
+        if not model:
+            break                       # 機械路徑無判官,不重試
+        scored = _score_clip(got)
+        if scored is None or scored:
+            break                       # VLM 不可用(退機械)或已接受
+        rejected_candidates += 1
+        msgs.append(f"  seg{s.get('segment')} [stock] 候選#{attempt + 1} 被 VLM 判離題,"
+                    f"試下一個候選…")
+        if exhausted:
+            break
+    vlm_rejected = (scored == [])
 
     if got and scored:
         for cand in scored[:n_clips]:
@@ -652,12 +697,11 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
             i += 1
         picked_scores = [round(c["score"]) for c in scored[:n_clips]]
         msgs.append(f"  seg{s.get('segment')} [stock] VLM 評窗 picked={picked_scores}")
-    elif got and scored == []:
-        # 2) VLM 評了、每一窗都低於 min_score → 這支素材疑似離題,誠實 GAP
+    elif vlm_rejected:
+        # 2) 試過的候選(含主詞句蒸餾救援)全部低於 off-topic floor → 誠實 GAP
         #    (走既有可恢復路由:換 search_query / 改 generated),不硬用。
-        vlm_rejected = True
-        msgs.append(f"  seg{s.get('segment')} [stock] VLM 全窗低於 min_score={min_score} "
-                    f"(疑離題)→ GAP(換 query 或走 generated)")
+        msgs.append(f"  seg{s.get('segment')} [stock] {rejected_candidates} 個候選全被 VLM "
+                    f"判離題(floor={_STOCK_OFF_TOPIC_FLOOR})→ GAP(換 query 或走 generated)")
     elif got:
         # 3) 機械開窗(VLM 未啟用/不可用):多 shot 段照樣切窗,不要一鏡到底。
         if n_clips > 1:

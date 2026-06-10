@@ -515,9 +515,9 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual([sl["extract_start"] for sl in slots], [10.0, 30.0])
         self.assertEqual(entry["picked_scores"], [90, 85])
 
-    def test_plan_stock_vlm_all_below_min_score_is_honest_gap(self):
-        """Off-topic stock (robot-dance class): every window below min_score →
-        recoverable GAP instead of forcing the clip in."""
+    def test_plan_stock_vlm_off_topic_is_honest_gap(self):
+        """Off-topic stock (robot-dance class): even the BEST window scores at the
+        rubric's off-topic tier (10/15) → recoverable GAP."""
         a = {"n_clips": 2, "clip_dur": 6.0, "budget": 12.0}
         s = {"segment": 4, "visual_desc": "團隊討論"}
         with patch("video_pipeline_core.mv_cut.detect_shots", return_value=[(0.0, 60.0)]), \
@@ -526,7 +526,7 @@ class SegmentPlannerTest(unittest.TestCase):
              patch("video_pipeline_core.mv_cut.filter_static_windows",
                    side_effect=lambda wins, clip, **k: wins), \
              patch("video_pipeline_core.mv_cut.score_windows",
-                   side_effect=lambda got, wins, vd, **k: self._vlm_cands(got, [30, 25])):
+                   side_effect=lambda got, wins, vd, **k: self._vlm_cands(got, [10, 15])):
             slots, entry, msgs = mv_cut._plan_stock_segment(
                 s, a, {}, "/tmp",
                 _fetch=lambda q, o, min_dur=0: o,
@@ -534,7 +534,28 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
         self.assertTrue(entry.get("vlm_rejected"))
-        self.assertTrue(any("疑離題" in m for m in msgs))
+        self.assertTrue(any("離題" in m for m in msgs))
+
+    def test_plan_stock_vlm_loosely_related_is_used_not_gapped(self):
+        """Regression (skill-smoke seg3 false reject): windows scoring 40
+        ('loosely related' rubric tier) are legitimate stock B-roll — pick the
+        best n, don't GAP the whole clip just because nothing hits 60."""
+        a = {"n_clips": 2, "clip_dur": 6.0, "budget": 12.0}
+        s = {"segment": 3, "visual_desc": "手沖注水特寫"}
+        with patch("video_pipeline_core.mv_cut.detect_shots", return_value=[(0.0, 60.0)]), \
+             patch("video_pipeline_core.mv_cut.fixed_windows",
+                   return_value=[(0.0, 6.0), (10.0, 16.0), (20.0, 26.0), (30.0, 36.0)]), \
+             patch("video_pipeline_core.mv_cut.filter_static_windows",
+                   side_effect=lambda wins, clip, **k: wins), \
+             patch("video_pipeline_core.mv_cut.score_windows",
+                   side_effect=lambda got, wins, vd, **k: self._vlm_cands(got, [40, 40, 10, 40])):
+            slots, entry, msgs = mv_cut._plan_stock_segment(
+                s, a, {}, "/tmp",
+                _fetch=lambda q, o, min_dur=0: o,
+                model="qwen3-vl:4b-instruct", min_score=60)
+        self.assertEqual(len(slots), 2)
+        self.assertFalse(entry.get("vlm_rejected"))
+        self.assertEqual(entry["picked_scores"], [40, 40])
 
     def test_plan_stock_vlm_unavailable_falls_back_to_mechanical(self):
         """Ollama down (exception) → mechanical windows, not GAP — no judgment
@@ -557,6 +578,48 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(len(slots), 2)
         self.assertEqual(entry["picked_scores"], ["stock", "stock"])
         self.assertTrue(any("退回機械開窗" in m for m in msgs))
+
+    def test_distill_subject_takes_head_clause(self):
+        self.assertEqual(mv_cut._distill_subject(
+            "手沖注水特寫:細水柱螺旋畫圈、咖啡粉膨脹冒泡、蒸氣上升"), "手沖注水特寫")
+        self.assertEqual(mv_cut._distill_subject(
+            "窗邊木桌上一杯完成的手沖咖啡,雙手捧杯,暖光"), "窗邊木桌上一杯完成的手沖咖啡")
+        self.assertEqual(mv_cut._distill_subject(""), "")
+
+    def test_plan_stock_vlm_reject_tries_next_candidate(self):
+        """A wrong first clip (chocolate-box class) must not GAP the segment when
+        the next-most-relevant candidate is on-topic."""
+        a = {"n_clips": 2, "clip_dur": 6.0, "budget": 12.0}
+        s = {"segment": 4, "visual_desc": "窗邊咖啡杯"}
+        fetch_calls = []
+
+        def fetch(q, o, min_dur=0, skip=0):
+            fetch_calls.append(skip)
+            return o, "pexels"
+
+        score_calls = {"n": 0}
+
+        def fake_score_windows(got, wins, vd, **k):
+            score_calls["n"] += 1
+            # candidate 1: off-topic on full desc AND distilled (2 passes of 10s);
+            # candidate 2: accepted on first pass.
+            if score_calls["n"] <= 2:
+                return self._vlm_cands(got, [10, 15])[:len(wins)]
+            return self._vlm_cands(got, [75, 60])[:len(wins)]
+
+        with patch("video_pipeline_core.mv_cut.detect_shots", return_value=[(0.0, 60.0)]), \
+             patch("video_pipeline_core.mv_cut.fixed_windows",
+                   return_value=[(0.0, 6.0), (10.0, 16.0)]), \
+             patch("video_pipeline_core.mv_cut.filter_static_windows",
+                   side_effect=lambda wins, clip, **k: wins), \
+             patch("video_pipeline_core.mv_cut.score_windows", side_effect=fake_score_windows):
+            slots, entry, msgs = mv_cut._plan_stock_segment(
+                s, a, {}, "/tmp", _fetch=fetch,
+                model="qwen3-vl:4b-instruct", min_score=60)
+        self.assertEqual(fetch_calls, [0, 1])          # tried candidate #2
+        self.assertEqual(len(slots), 2)                # accepted from candidate #2
+        self.assertFalse(entry.get("vlm_rejected"))
+        self.assertEqual(entry["picked_scores"], [75, 60])
 
     def test_plan_stock_multishot_window_failure_falls_back_to_single(self):
         a = {"n_clips": 3, "clip_dur": 6.0, "budget": 18.0}
