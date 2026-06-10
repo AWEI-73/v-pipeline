@@ -35,7 +35,8 @@ Do not develop both copies independently.
 - Canonical SPEC entry: `segment_contract.json`.
 - Legacy `script.json`: runtime payload only, not the public SPEC direction.
 - Runtime package entry: implementation modules live in `video_pipeline_core/`.
-- Root Python files: CLI/orchestrator shims (`video_pipeline.py`, `video_tools.py`, `route.py`).
+- Root Python files: CLI/orchestrator shims (`video_pipeline.py`, `video_tools.py`, `runtime.py`).
+- Unified driver: `runtime.py` (resume/status/rerun) is the single state-driven executor. The legacy `route.py` dispatcher was retired 2026-06-10 (zero functional deps; its `await_material`/MV dispatch is reimplemented in `runtime_orchestrator.py`). The `route` skill (`skills/route.md`) now drives `runtime.py`.
 - Content QA entry: `video_pipeline.py` calls `python3 -m video_pipeline_core.content_qa`.
 - Error routing truth: `video_pipeline.py` aliases `video_pipeline_core.vt_core.FIX_TARGET`.
 - Project outputs: external project/run folders; repo-local `.project/active.json` is only a relative pointer.

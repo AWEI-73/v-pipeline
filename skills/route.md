@@ -78,7 +78,12 @@ next_action : null | await_material | retry:curator(seg=[…]) | revise:director
 「回對的功能層」的依據——`material`→curator/await、`spec`→director、`human`→review。
 其中 `blocked` 狀態 = 可恢復的 BUILD 失敗（出 placeholder 不炸片），`gate_review` = 整片級 gate 失敗。
 
-## 派工規則（`route.py`）——每個 next_action = 回哪一功能層
+## 派工規則——每個 next_action = 回哪一功能層
+
+> **執行器:`runtime.py`(resume/status/rerun)。** 這份路由表是 route skill 的契約;
+> 它的執行身體已從 legacy `route.py` 統一到 `runtime.py`(2026-06-10 退役 route.py,
+> 零功能依賴,await_material/MV 派工皆已在 `runtime_orchestrator.py` 重做且詞彙更完整)。
+> 下表的概念與分層不變,只是「叫誰跑」改成 `python runtime.py resume`。
 
 | state | router 動作 | 回到哪一層 |
 |---|---|---|
@@ -110,13 +115,14 @@ next_action；缺的只剩 **`route.py` 消費這條**（偵測 `revise:director
 ## 用法
 
 ```bash
-# 首輪 + 自動續跑（學員素材到位就自動接力重渲那段）
-python3 route.py journey/script.json --out journey_out \
-  --material-dir ~/student_uploads --verbose
+# 自動續跑（讀 state.json.next_action 派工；學員素材到位就自動接力重渲那段）
+python runtime.py resume --project <project>
+python runtime.py status --project <project>
 ```
 
-學員把補拍檔丟進 `--material-dir`（命名 `seg2_user.jpg` / `seg2_user.mp4`），
-再跑一次 route.py，它會自動把該段轉 local、只重渲那段、重組出片。
+學員把補拍檔丟進該 project 的 `input/materials/`（命名 `seg2_user.jpg` /
+`seg2_user.mp4` 或 `seg2.*`），再跑一次 `runtime.py resume`，它會自動把該段轉
+local、只重渲那段、重組出片(`runtime_orchestrator.py` 的 `await_material` 分支)。
 
 ## 與「三源素材」的銜接
 這正是「學員自有素材」接進主流程的那條腿：

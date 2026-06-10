@@ -555,5 +555,52 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(state_data["next_action"], "verify_failed")
 
 
+class DryBuildTest(unittest.TestCase):
+    """Render-free dry build: materialize Node 8/9/10/11 BUILD artifacts offline
+    so the SPEC->REVIEW chain can be validated with no material/ffmpeg/network."""
+
+    CONTRACT = EXAMPLES / "genre_tests" / "stock_story_e2e" / "segment_contract.json"
+    CATEGORIES = EXAMPLES / "genre_tests" / "stock_story_e2e" / "material_categories.json"
+
+    def test_dry_build_materializes_chain_offline(self):
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td)
+            result = ca.dry_build(
+                self.CONTRACT, out_dir=outdir,
+                categories_path=str(self.CATEGORIES), verbose=False)
+            self.assertTrue(result["ok"])
+            self.assertTrue(result["dry_run"])
+
+            # The three previously render-only BUILD artifacts now exist offline.
+            for name in ("build_profile.json", "assembly_plan.json", "timeline_build.json",
+                         "editor_review.json", "generated_mv_script.json", "dry_build.json"):
+                self.assertTrue((outdir / name).exists(), f"{name} not written")
+
+            # No render / verify side effects.
+            self.assertFalse((outdir / "final.mp4").exists())
+            self.assertFalse((outdir / "verify_result.json").exists())
+
+            # Timeline clips carry traces (verify_timeline gate would pass).
+            tl = json.loads((outdir / "timeline_build.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(tl["clips"]), 6)
+            for clip in tl["clips"]:
+                self.assertTrue(clip.get("trace"))
+                self.assertEqual(clip.get("provider"), "dry")
+
+    def test_dry_build_chain_walk_reaches_build_nodes(self):
+        from video_pipeline_core import dashboard_state
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td)
+            ca.dry_build(self.CONTRACT, out_dir=outdir,
+                         categories_path=str(self.CATEGORIES), verbose=False)
+            state = dashboard_state.load_dashboard_state(str(outdir))
+            status = {str(n["node"]): n["status"] for n in state["nodes"]}
+            for node in ("0", "3", "2", "8", "9", "10", "11"):
+                self.assertEqual(status.get(node), "done",
+                                 f"Node {node} not done: {status.get(node)}")
+            # Render/verify remain unmaterialized (only a real render produces them).
+            self.assertEqual(status.get("13"), "missing")
+
+
 if __name__ == "__main__":
     unittest.main()

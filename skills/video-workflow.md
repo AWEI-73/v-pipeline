@@ -3,9 +3,10 @@ name: video-workflow
 description: SPEC 最上游的「互動式模糊消除」技能。把模糊的影片委託(「幫我做個結訓影片」)透過引導式提問收斂成可執行的結構化 brief,再分流給導演(production SPEC)與編劇(文字層)。架構優先,不從隨機素材拼貼開始。
 ---
 
-# Video Workflow — 互動式模糊消除(SPEC 最上游)
+# Video Workflow — 互動式模糊消除(SPEC 最上游 / Node 0)
 
-這是整條鏈的**入口**。職責:把「想拍什麼」(vague 需求)變成「可執行 SPEC」。
+這是 **SPEC 最上游(Node 0)**。整條鏈的編排入口是 `video-pipeline` 技能;當需求模糊時,
+`video-pipeline` 會先把你導到這裡。職責:把「想拍什麼」(vague 需求)變成「可執行 SPEC」。
 
 > **這是大模型(Agent 層)的活,不是 ollama、也不是編劇。** 模糊消除靠判斷/品味/語言,
 > 是最值錢的能力。坐 SPEC 最上游,輸出 brief 分流給:`director`(製作 SPEC 主力)↘ `writer`(螢幕文字層)。

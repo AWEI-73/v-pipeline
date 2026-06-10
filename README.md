@@ -17,7 +17,7 @@ brief / interactive spec
 -> generated_mv_script.json / assembly_plan.json / timeline_build.json
 -> final.mp4
 -> artifact_manifest.json + state.json + verify artifacts
--> route.py + dashboard/review
+-> runtime.py resume + dashboard/review
 ```
 
 The project coordinates video creation through three aligned surfaces:
@@ -25,7 +25,10 @@ The project coordinates video creation through three aligned surfaces:
 - **Tools:** root CLI entrypoints plus `video_pipeline_core/*` implementation modules
 - **Skills:** `skills/*.md` role contracts for writer, director, curator, editor,
   effects, audio, subtitle, verify, route, dashboard, and related roles
-- **Route:** `route.py` reads `state.json.next_action` and decides the next step
+- **Route:** the `route` skill (`skills/route.md`) reads `state.json.next_action`
+  and decides the next step; its executor is `runtime.py` (resume/status/rerun).
+  The legacy standalone `route.py` dispatcher was retired — `runtime.py` is the
+  unified successor with the full `next_action` vocabulary.
 
 Core library modules live in `video_pipeline_core/`; root-level Python files are
 kept for CLI/runtime entrypoints and small debug helpers.
@@ -149,13 +152,13 @@ bash run_with_ollama.sh examples/story_mv_smoke_script.json \
   --out /tmp/video_route_story_mv --verbose
 ```
 
-Run the route dispatcher:
+Drive the run via the unified runtime (reads `state.json.next_action` and
+dispatches the next step; place re-shoot uploads as `seg{n}_user.*` in the
+project's `input/materials/` and resume):
 
 ```bash
-python3 route.py examples/story_mv_smoke_script.json \
-  --out /tmp/video_route_story_mv \
-  --material-dir student_uploads \
-  --verbose
+python runtime.py resume --project <project>
+python runtime.py status --project <project>
 ```
 
 Rerender selected segments:
@@ -169,7 +172,7 @@ bash run_with_ollama.sh examples/story_mv_smoke_script.json \
 
 ## Route States
 
-`state.json` is the execution truth source. `route.py` reads `next_action`:
+`state.json` is the execution truth source. `runtime.py` reads `next_action`:
 
 | `next_action` | Meaning |
 |---|---|

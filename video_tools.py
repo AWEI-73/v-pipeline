@@ -62,6 +62,9 @@ Commands:
               在 active project 建立一次 run 目錄，並更新 active_run
   contract-adapt <segment_contract.json> [--out generated_mv_script.json]
               canonical SPEC → legacy runtime payload
+  contract-dry-build <segment_contract.json> --out-dir DIR
+              render-free chain validation: SPEC → build_profile/assembly_plan/
+              timeline_build/editor_review (Node 8/9/10/11) with no material/ffmpeg/network
   contract-run <segment_contract.json> --material-db DB --music MP3 --out final.mp4
               canonical SPEC → adapter → mv_chain → manifest/state artifacts
   generated-manifest <generated_asset_requests.json> --outputs outputs.json --out generated_asset_manifest.json
@@ -123,6 +126,21 @@ def cmd_contract_adapt(args):
         args.contract,
         out_path=args.out,
         categories_path=args.categories,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_contract_dry_build(args):
+    from video_pipeline_core import contract_adapter
+    result = contract_adapter.dry_build(
+        args.contract,
+        out_dir=args.out_dir,
+        categories_path=args.categories,
+        build_profile_config_path=args.build_profile,
+        total_duration_sec=args.total_duration,
+        verbose=not args.quiet,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
@@ -1296,6 +1314,16 @@ def main():
     p_ca.add_argument("--out", help="輸出 generated_mv_script.json")
     p_ca.add_argument("--categories", help="material categories JSON")
 
+    p_cd = sub.add_parser("contract-dry-build")
+    p_cd.add_argument("contract", help="canonical segment_contract.json")
+    p_cd.add_argument("--out-dir", required=True, dest="out_dir",
+                      help="run dir for the render-free BUILD artifacts")
+    p_cd.add_argument("--categories", help="material categories JSON")
+    p_cd.add_argument("--build-profile", help="build profile override JSON")
+    p_cd.add_argument("--total-duration", type=float, default=60.0, dest="total_duration",
+                      help="nominal total duration (sec) to allocate across segments")
+    p_cd.add_argument("--quiet", action="store_true")
+
     p_cr = sub.add_parser("contract-run")
     p_cr.add_argument("contract", help="canonical segment_contract.json")
     p_cr.add_argument("--categories", help="material categories JSON")
@@ -1450,6 +1478,7 @@ def main():
         "project-init":   cmd_project_init,
         "project-new-run": cmd_project_new_run,
         "contract-adapt": cmd_contract_adapt,
+        "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
         "light-effects-plan": cmd_light_effects_plan,

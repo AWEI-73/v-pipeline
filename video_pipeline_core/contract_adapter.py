@@ -696,6 +696,212 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     }
 
 
+def _synth_render_plan(payload, *, total_duration_sec=60.0):
+    """Synthesize a *planned* (offline) render_plan from the generated MV payload.
+
+    One clip per segment, with weight-proportioned durations (mirroring the
+    allocation in ``edit_artifacts.build_assembly_plan``) and placeholder sources.
+    Every clip is tagged ``provider="dry"`` / ``source="dry://segment-N"`` so it is
+    never mistaken for a real selected/downloaded asset. Used only by
+    :func:`dry_build` to materialize ``timeline_build.json`` without selecting,
+    downloading, or rendering any material."""
+    segs = payload.get("segments", []) if isinstance(payload, dict) else []
+    weights = [max(0.1, float(s["weight"])) if s.get("weight") is not None else 1.0
+               for s in segs]
+    wsum = sum(weights) or 1.0
+    plan = []
+    cursor = 0.0
+    for seg, w in zip(segs, weights):
+        budget = round(float(total_duration_sec) * w / wsum, 3)
+        seg_id = seg.get("segment")
+        plan.append({
+            "segment": seg_id,
+            "provider": "dry",
+            "source": f"dry://segment-{seg_id}",
+            "extract_start": 0.0,
+            "extract_dur": budget,
+            "slot_dur": budget,
+            "timeline_in": round(cursor, 3),
+            "transition": "cut",
+            "text": seg.get("subtitle") or "none",
+            "audio_policy": "duck" if seg.get("keep_audio") else "music",
+        })
+        cursor += budget
+    return plan
+
+
+def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_path=None,
+              total_duration_sec=60.0, verbose=True):
+    """(I/O) Render-free **dry build** — materialize the Node 8/9/10/11 BUILD
+    artifacts from a canonical ``segment_contract`` with NO material selection,
+    download, ffmpeg, provider, or network call.
+
+    Closes the convergence gap (see roadmap "Converge One Complete Pipeline" and
+    the 2026-06-08 dry-run findings) where ``build_profile.json`` /
+    ``assembly_plan.json`` / ``timeline_build.json`` could only be produced inside
+    ``run_contract``, which renders. With this, ``runtime.py status`` can walk the
+    full ``NODE_ORDER`` and exercise every chaining gate
+    (``verify_profile`` / ``verify_assembly`` / ``verify_timeline`` /
+    ``verify_editor_review``) offline.
+
+    It deliberately does NOT render or verify: ``final.mp4`` and
+    ``verify_result.json`` stay absent, so Node 12/13 correctly report ``missing``
+    (only a real render can produce a verifiable video). Returns
+    ``{ok, stage, dry_run, artifacts, contract_hash}``.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    contract_obj, source, contract_hash = _read_contract(contract)
+    v = spec_contract.validate_segment_contract(
+        contract_obj, categories=_load_category_ids(categories_path))
+    if not v["ok"]:
+        return {"ok": False, "errors": v["errors"], "warnings": v["warnings"],
+                "stage": "validate_contract", "contract_hash": contract_hash}
+    contract_obj, stock_route = _apply_stock_first_if_enabled(contract_obj)
+    if stock_route:
+        _write_json(out_dir / "stock_first_route.json", stock_route)
+
+    script = contract_to_mv_script(contract_obj)
+    payload = _with_payload_metadata(script, generated_from=source, contract_hash=contract_hash)
+    from . import mv_cut  # noqa: PLC0415 — validate_mv_script is pure (no librosa)
+    mvv = mv_cut.validate_mv_script(payload)
+    if not mvv.get("can_run", True):
+        return {"ok": False, "errors": mvv.get("issues"), "warnings": v["warnings"],
+                "stage": "validate_mv_script", "contract_hash": contract_hash,
+                "generated_script": payload}
+    generated_payload_path = out_dir / "generated_mv_script.json"
+    _write_json(generated_payload_path, payload)
+
+    # Node 8: build_profile (+ editing_policy when an editorial_design is present).
+    from . import build_profile  # noqa: PLC0415
+    build_profile_payload = build_profile.load_build_profile(build_profile_config_path)
+    editorial_design_path = None
+    for cand in (out_dir / "editorial_design.json",
+                 Path(source).parent / "editorial_design.json" if source else None):
+        if cand and cand.exists():
+            try:
+                with cand.open(encoding="utf-8") as f:
+                    ed_payload = json.load(f)
+                from .editorial_design import derive_editing_policy  # noqa: PLC0415
+                build_profile_payload["editing_policy"] = derive_editing_policy(ed_payload)
+                editorial_design_path = cand
+            except Exception:
+                pass
+            break
+    build_profile_path = out_dir / "build_profile.json"
+    build_profile.write_build_profile(build_profile_path, build_profile_payload)
+
+    from . import generated_assets  # noqa: PLC0415
+    gen_requests_path = out_dir / "generated_asset_requests.json"
+    generated_assets.write_generated_asset_requests(
+        contract_obj, gen_requests_path,
+        provider_priority=build_profile_payload.get("provider_priority"))
+
+    # Node 9/10: assembly_plan + timeline_build from a synthetic (offline) render plan.
+    render_plan = _synth_render_plan(payload, total_duration_sec=total_duration_sec)
+    from . import edit_artifacts  # noqa: PLC0415
+    edit_paths = edit_artifacts.write_edit_artifacts(
+        payload, out_dir=out_dir, music_structure=None, render_plan=render_plan,
+        editing_policy=(build_profile_payload or {}).get("editing_policy"))
+
+    # Node 11: editor_review over the timeline.
+    editor_review_path = None
+    if edit_paths.get("timeline_build"):
+        with open(edit_paths["timeline_build"], encoding="utf-8") as f:
+            timeline = json.load(f)
+        from . import editor_review  # noqa: PLC0415
+        editor_review_path = out_dir / "editor_review.json"
+        editor_review.write_editor_review(timeline, editor_review_path)
+
+    # Canonical contract into the workspace so dashboard/status can resolve facets.
+    _write_json(out_dir / "segment_contract.json", contract_obj)
+
+    # Copy the referenced brief so the Node 0 gate resolves and the chain walk
+    # reaches the BUILD nodes (mirrors run_contract's brief_ref handling).
+    brief_dest = out_dir / "brief.json"
+    brief_ref = contract_obj.get("brief_ref") if isinstance(contract_obj, dict) else None
+    if not brief_dest.exists():
+        candidates = []
+        if source:
+            src_parent = Path(source).parent
+            candidates.append(src_parent / "brief.json")
+            if brief_ref:
+                candidates.append(src_parent / brief_ref)
+        if brief_ref:
+            candidates += [Path(".") / brief_ref, Path("examples") / brief_ref]
+        for cand in candidates:
+            if cand and cand.exists():
+                try:
+                    import shutil  # noqa: PLC0415
+                    shutil.copy2(cand, brief_dest)
+                except Exception:
+                    pass
+                break
+
+    # Dry-build marker (so nothing mistakes these artifacts for a real render).
+    dry_marker_path = out_dir / "dry_build.json"
+    _write_json(dry_marker_path, {
+        "artifact_role": "dry_build",
+        "version": 1,
+        "dry_run": True,
+        "contract_hash": contract_hash,
+        "total_duration_sec": total_duration_sec,
+        "materialized_nodes": ["8", "9", "10", "11"],
+        "not_materialized": ["12", "13"],
+        "note": "render-free chain validation; no material/ffmpeg/network. "
+                "final.mp4 and verify_result.json are intentionally absent.",
+    })
+
+    state_path = out_dir / "state.json"
+    manifest_path = out_dir / "artifact_manifest.json"
+    manifest = _manifest(
+        canonical_contract=source, contract_hash=contract_hash,
+        generated_payload=str(generated_payload_path), material_db=None,
+        music=None, music_structure=None, model_routes=None,
+        build_profile=build_profile_path,
+        stock_first_route=(out_dir / "stock_first_route.json") if stock_route else None,
+        generated_asset_requests=gen_requests_path,
+        assembly_plan=edit_paths.get("assembly_plan"),
+        timeline_build=edit_paths.get("timeline_build"),
+        editor_review=editor_review_path,
+        final=out_dir / "final.mp4", state=state_path,
+        editorial_design=editorial_design_path,
+        editorial_qa=edit_paths.get("editorial_qa"))
+    _write_json(manifest_path, manifest)
+
+    # Compute the chain walk (next_action/pass) and persist state.json.
+    from . import dashboard_state  # noqa: PLC0415
+    dash_state = dashboard_state.load_dashboard_state(str(out_dir))
+    _write_json(state_path, {
+        "dry_run": True,
+        "pass": dash_state["run"]["pass"],
+        "next_action": dash_state["run"]["next_action"],
+    })
+
+    if verbose:
+        print(f"[dry-build] materialized BUILD artifacts (no render) in {out_dir}")
+        print(f"[dry-build] next_action = {dash_state['run']['next_action']}")
+
+    return {
+        "ok": True, "dry_run": True, "stage": "dry_build",
+        "errors": [], "warnings": v["warnings"],
+        "next_action": dash_state["run"]["next_action"],
+        "contract_hash": contract_hash,
+        "artifacts": {
+            "generated_payload": str(generated_payload_path),
+            "build_profile": str(build_profile_path),
+            "generated_asset_requests": str(gen_requests_path),
+            "assembly_plan": edit_paths.get("assembly_plan"),
+            "timeline_build": edit_paths.get("timeline_build"),
+            "editor_review": str(editor_review_path) if editor_review_path else None,
+            "dry_build": str(dry_marker_path),
+            "manifest": str(manifest_path),
+            "state": str(state_path),
+        },
+    }
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="contract_adapter — canonical segment_contract runner")
     sub = ap.add_subparsers(dest="cmd")
@@ -704,6 +910,13 @@ if __name__ == "__main__":
     adapt.add_argument("contract")
     adapt.add_argument("--out")
     adapt.add_argument("--categories")
+
+    dry = sub.add_parser("dry-build")
+    dry.add_argument("contract")
+    dry.add_argument("--out-dir", required=True)
+    dry.add_argument("--categories")
+    dry.add_argument("--build-profile")
+    dry.add_argument("--total-duration", type=float, default=60.0)
 
     run = sub.add_parser("run")
     run.add_argument("contract")
@@ -719,6 +932,10 @@ if __name__ == "__main__":
     args = ap.parse_args()
     if args.cmd == "adapt":
         r = adapt_contract_file(args.contract, out_path=args.out, categories_path=args.categories)
+    elif args.cmd == "dry-build":
+        r = dry_build(args.contract, out_dir=args.out_dir, categories_path=args.categories,
+                      build_profile_config_path=args.build_profile,
+                      total_duration_sec=args.total_duration)
     elif args.cmd == "run":
         out = Path(args.out)
         r = run_contract(args.contract, material_db=args.material_db, out_path=out,
