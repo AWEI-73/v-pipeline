@@ -570,13 +570,18 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
     return slots, entry, [msg]
 
 
-def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None):
-    """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch`/`_winfn` 可注入測試。
+def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
+                        model=None, min_score=0, prefilter_static=True, _scorefn=None):
+    """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch`/`_winfn`/`_scorefn`
+    可注入測試。
 
-    多 shot 段(n_clips>1)把下載素材當素材庫用:`_windows_from_clip` 從不同時間
-    窗開 n 刀,而不是整支從 0 秒一鏡到底(ai-video soul-v3 的單調根因)。
-    窗不夠時循環複用(不同時段優先,重複交給 broll_audit 盯);開窗失敗回退
-    舊行為(單一全預算 slot)。"""
+    素材裁剪 = 內容驅動(與 live 段同一套機具):下載素材先開候選窗
+    (detect_shots+fixed_windows+靜止預篩),`model` 給定時用 VLM 對 `visual_desc`
+    逐窗評分(score_windows),選最好的 n 窗按時間序組回——
+    - VLM 判全部窗低於 min_score → 誠實 GAP(疑離題,走可恢復路由換 query/generated);
+    - VLM 不可用(Ollama 掛/例外) → 退回機械開窗(_windows_from_clip,無內容判斷);
+    - model=None → 直接機械開窗(向後相容)。
+    窗不夠 n 刀時循環複用(重複交給 broll_audit 盯);機械開窗也失敗 → 單一全預算 slot。"""
     vd = s.get("visual_desc", "")
     provider = None
     if _fetch is None:
@@ -604,7 +609,57 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None):
                 f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
     slots = []
     n_clips = max(1, int(a.get("n_clips") or 1))
-    if got:
+    picked_scores = None
+    vlm_rejected = False
+
+    # 1) 內容驅動裁剪:VLM 對 visual_desc 逐窗評分,選最好的 n 窗(時間序)。
+    scored = None  # None=未評(跳過/失敗);list=評了(可能為空=全離題)
+    if got and model:
+        verify_desc = vd or s.get("search_query") or ""
+        try:
+            shots = detect_shots(got)
+            total = shots[0][1] if shots else 0
+            wins = fixed_windows(total, win=max(2.0, a["clip_dur"]))
+            if prefilter_static:
+                wins = filter_static_windows(wins, got) or wins
+            cap = max(6, n_clips * 2)            # bound VLM cost per stock clip
+            if len(wins) > cap:
+                step = max(1, len(wins) // cap)
+                wins = wins[::step][:cap]
+            if wins:
+                cands = score_windows(got, wins, verify_desc, model=model,
+                                      mat_dir=mat_dir, _score=_scorefn)
+                sel, _unf = select_windows(cands, n_slots=n_clips, min_score=min_score)
+                sel.sort(key=lambda c: c["win"][0])   # 按時間序組回(敘事順向)
+                scored = sel
+        except Exception as _e:
+            msgs.append(f"  seg{s.get('segment')} [stock] VLM 評窗不可用(退回機械開窗): "
+                        f"{str(_e)[:60]}")
+            scored = None
+
+    if got and scored:
+        for cand in scored[:n_clips]:
+            ws, we = cand["win"]
+            take = min(a["clip_dur"], we - ws)
+            start = max(ws, (ws + we) / 2 - take / 2)
+            slots.append({"source": got, "extract_start": round(start, 3),
+                          "extract_dur": round(take, 3), "keep_audio": False,
+                          "text": seg_text, "segment": s.get("segment"),
+                          "provider": provider or "pexels"})
+        i = 0
+        while slots and len(slots) < n_clips:   # 窗不夠 → 循環複用
+            slots.append(dict(slots[i % len(slots)]))
+            i += 1
+        picked_scores = [round(c["score"]) for c in scored[:n_clips]]
+        msgs.append(f"  seg{s.get('segment')} [stock] VLM 評窗 picked={picked_scores}")
+    elif got and scored == []:
+        # 2) VLM 評了、每一窗都低於 min_score → 這支素材疑似離題,誠實 GAP
+        #    (走既有可恢復路由:換 search_query / 改 generated),不硬用。
+        vlm_rejected = True
+        msgs.append(f"  seg{s.get('segment')} [stock] VLM 全窗低於 min_score={min_score} "
+                    f"(疑離題)→ GAP(換 query 或走 generated)")
+    elif got:
+        # 3) 機械開窗(VLM 未啟用/不可用):多 shot 段照樣切窗,不要一鏡到底。
         if n_clips > 1:
             winfn = _winfn or _windows_from_clip
             try:
@@ -613,9 +668,8 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None):
             except Exception:
                 wins = []
             if wins:
-                # 窗不夠 n 刀 → 循環複用既有窗補滿(維持段預算/拍點數)
                 i = 0
-                while len(wins) < n_clips:
+                while len(wins) < n_clips:      # 窗不夠 n 刀 → 循環複用
                     wins.append(dict(wins[i % len(wins)]))
                     i += 1
                 for w in wins:
@@ -625,12 +679,16 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None):
             slots.append({"source": got, "extract_start": 0.0, "extract_dur": round(a["budget"], 3),
                           "keep_audio": False, "text": seg_text, "segment": s.get("segment"),
                           "provider": provider or "pexels"})
+
+    got_usable = bool(got) and not vlm_rejected
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "stock",
-             "provider": provider or "pexels" if got else None,
-             "clips_found": 1 if got else 0, "n_clips": len(slots) if got else n_clips,
-             "picked_scores": (["stock"] * len(slots)) if got else [GAP]}
+             "provider": provider or "pexels" if got_usable else None,
+             "clips_found": 1 if got else 0, "n_clips": len(slots) if got_usable else n_clips,
+             "picked_scores": (picked_scores or ["stock"] * len(slots)) if got_usable else [GAP]}
+    if vlm_rejected:
+        entry["vlm_rejected"] = True
     msgs.append(f"  seg{s.get('segment')} [stock] '{vd[:16]}' q={s.get('search_query')} "
-                f"-> {'ok' if got else 'GAP'}")
+                f"-> {'ok' if got_usable else 'GAP'}")
     return slots, entry, msgs
 
 
@@ -801,7 +859,9 @@ def run_mv(script, material_root, out_path, music_path=None,
                     else:
                         sl["extract_dur"] = round(a["clip_dur"], 3)
         elif s.get("source") == "stock":
-            slots, entry, msgs = _plan_stock_segment(s, a, seg_text, mat_dir)
+            slots, entry, msgs = _plan_stock_segment(
+                s, a, seg_text, mat_dir,
+                model=model, min_score=min_score, prefilter_static=prefilter_static)
         else:
             slots, entry, msgs = _plan_live_segment(
                 s, a, material_root, seg_text, keep_audio, model=model, mat_dir=mat_dir,
