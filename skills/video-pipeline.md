@@ -72,6 +72,19 @@ python runtime.py status --project <name>
 python runtime.py rerun <node> --project <name>
 ```
 
+**BUILD 前 SPEC 總體檢(spec_review gate,roadmap C0)** —— contract-run / dry-build
+會自動先跑;也可單獨驗:
+
+```bash
+python video_tools.py spec-review <segment_contract.json> --brief brief.json
+```
+
+產出 `spec_review.json`:`ready_for_build` + `blocking[]`(SPEC 自相矛盾/會靜默掉內容,
+route `revise:director`,**不進 BUILD**)+ `warnings[]`(能跑但品質會降級)。
+規則全部來自真實事故(pacing 矛盾/must_include×stock/subtitle:auto 無人聲/
+CG-bait query/缺 target_length/mode 推斷陷阱)——blocking 出現時**回 SPEC 改合約,
+不要去修工具**。
+
 **離線鏈接驗證(不 render、不下載、不碰網路)** —— 收斂期或交付前快速確認接線:
 
 ```bash

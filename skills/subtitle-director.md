@@ -9,6 +9,12 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
 **核心原則：字幕時間軸由 TTS 決定，不是反過來**。  
 路線 A（text-driven）下，TTS 是 ground truth，字幕師只是把 tts_timing.json 翻譯成 SRT。
 
+> **🔴 踩過的坑:`subtitle:"auto"` 只能配真人聲段。** auto = 對該段「原始音訊」跑
+> ASR;靜音 stock / 純配樂段沒有人聲 → 空字幕 → `subtitle_accuracy` 直接 0 分
+> (convergence dry-run 實證)。規則:`audio.role` 是 `duck`/`diegetic`(致詞/隊呼/
+> 現場聲)才能 auto;其餘段給明文字幕或 `none`。BUILD 前 spec_review gate(規則 B3)
+> 會把違規擋下來。
+
 ---
 
 ## 工具位置

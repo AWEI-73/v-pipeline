@@ -340,6 +340,19 @@ def load_dashboard_state(workdir):
                     "message": f"{role} reported advisory findings",
                 })
 
+    # Pre-BUILD SPEC review report (spec_review.json): blocking findings mean the
+    # SPEC contradicts itself or will silently lose content — surface them so the
+    # run never quietly proceeds past a not-ready SPEC.
+    spec_review_data = safe_load_json("spec_review.json")
+    if spec_review_data and not spec_review_data.get("ready_for_build", True):
+        for b in (spec_review_data.get("blocking") or [])[:6]:
+            findings.append({
+                "type": "error",
+                "node": 3,
+                "artifact": "spec_review",
+                "message": f"spec_review blocking: {b.get('message')}",
+            })
+
     # Soul-layer guard: the contract declares editing intent (editing_intent /
     # material_treatment / sequence_grammar) but no editing_policy is active, so
     # the Node 11/12 soul guards (visual_fatigue_audit, editorial_qa) silently

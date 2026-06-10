@@ -301,6 +301,45 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["creator_profile"], str(outdir / "creator_profile.json"))
             self.assertEqual(manifest["creator_profile_applied"], str(outdir / "creator_profile_applied.json"))
 
+    def test_run_contract_blocks_on_spec_review(self):
+        """A SPEC that will silently fail downstream (subtitle:auto on a no-speech
+        segment) must stop at the pre-BUILD spec_review gate — before any music
+        analysis or render cost — and route revise:director."""
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            contract = json.loads(
+                (EXAMPLES / "segment_contract_graduation_mv.json").read_text(encoding="utf-8"))
+            contract.pop("brief_ref", None)
+            seg0 = contract["segments"][0]
+            seg0["audio"] = {"role": "music", "reason": "r"}
+            seg0["text_layer"] = {"subtitle": "auto", "reason": "r"}
+
+            result = ca.run_contract(
+                contract,
+                material_db=material_db,
+                out_path=outdir / "final.mp4",
+                music_path=music,
+                categories_path=EXAMPLES / "material_categories.json",
+                mat_dir=outdir,
+                verbose=False,
+            )
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["stage"], "spec_review")
+            self.assertEqual(result["next_action"], "revise:director(spec_review)")
+            review = json.loads((outdir / "spec_review.json").read_text(encoding="utf-8"))
+            self.assertFalse(review["ready_for_build"])
+            self.assertEqual(review["blocking"][0]["rule"], "subtitle_auto_no_speech")
+            state = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertTrue(state["next_action"].startswith("revise:director"))
+            # No render/music side effects were paid for
+            self.assertFalse((outdir / "final.mp4").exists())
+
     def test_run_contract_passes_brief_target_to_mv_chain(self):
         """brief.target_length must reach the engine as target_sec so allocation
         is capped at the brief runtime, not the music length (soul-v5 lesson)."""
@@ -620,7 +659,8 @@ class DryBuildTest(unittest.TestCase):
 
             # The three previously render-only BUILD artifacts now exist offline.
             for name in ("build_profile.json", "assembly_plan.json", "timeline_build.json",
-                         "editor_review.json", "generated_mv_script.json", "dry_build.json"):
+                         "editor_review.json", "generated_mv_script.json", "dry_build.json",
+                         "spec_review.json"):
                 self.assertTrue((outdir / name).exists(), f"{name} not written")
 
             # No render / verify side effects.

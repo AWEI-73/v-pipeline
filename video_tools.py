@@ -132,6 +132,25 @@ def cmd_contract_adapt(args):
         raise SystemExit(1)
 
 
+def cmd_spec_review(args):
+    from video_pipeline_core import spec_review
+    brief = {}
+    if args.brief and Path(args.brief).exists():
+        with open(args.brief, encoding="utf-8") as f:
+            brief = json.load(f)
+    with open(args.contract, encoding="utf-8") as f:
+        contract = json.load(f)
+    result = spec_review.review_spec(
+        contract, brief,
+        has_editorial_design=bool(args.editorial_design and Path(args.editorial_design).exists()))
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ready_for_build"):
+        raise SystemExit(1)
+
+
 def cmd_contract_dry_build(args):
     from video_pipeline_core import contract_adapter
     result = contract_adapter.dry_build(
@@ -1316,6 +1335,13 @@ def main():
     p_ca.add_argument("--out", help="輸出 generated_mv_script.json")
     p_ca.add_argument("--categories", help="material categories JSON")
 
+    p_sr = sub.add_parser("spec-review")
+    p_sr.add_argument("contract", help="canonical segment_contract.json")
+    p_sr.add_argument("--brief", help="brief.json (target_length/mode checks)")
+    p_sr.add_argument("--editorial-design", dest="editorial_design",
+                      help="editorial_design.json (soul-guard check)")
+    p_sr.add_argument("--out", help="write spec_review.json here")
+
     p_cd = sub.add_parser("contract-dry-build")
     p_cd.add_argument("contract", help="canonical segment_contract.json")
     p_cd.add_argument("--out-dir", required=True, dest="out_dir",
@@ -1480,6 +1506,7 @@ def main():
         "project-init":   cmd_project_init,
         "project-new-run": cmd_project_new_run,
         "contract-adapt": cmd_contract_adapt,
+        "spec-review": cmd_spec_review,
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,

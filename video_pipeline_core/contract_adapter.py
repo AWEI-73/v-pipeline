@@ -219,7 +219,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               keyframe_grid=None, visual_audit=None,
               creator_profile=None, creator_profile_applied=None,
               capcut_draft_manifest=None, capcut_export_manifest=None,
-              editorial_design=None, editorial_qa=None):
+              editorial_design=None, editorial_qa=None, spec_review=None):
     return {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
@@ -258,6 +258,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "capcut_export_manifest": str(capcut_export_manifest) if capcut_export_manifest else None,
         "editorial_design": str(editorial_design) if editorial_design else None,
         "editorial_qa": str(editorial_qa) if editorial_qa else None,
+        "spec_review": str(spec_review) if spec_review else None,
     }
 
 
@@ -510,6 +511,38 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             except Exception:
                 pass
 
+    # Pre-BUILD whole-SPEC review gate (roadmap C0): cross-check brief+contract
+    # against the battle-tested failure modes and write the standing report.
+    # Blocking findings stop the run BEFORE any material/render cost is paid.
+    brief_dict_for_review = {}
+    brief_for_target = out_path.parent / "brief.json"
+    if brief_for_target.exists():
+        try:
+            with brief_for_target.open(encoding="utf-8") as bf:
+                brief_dict_for_review = json.load(bf)
+        except Exception:
+            brief_dict_for_review = {}
+    from . import spec_review as _spec_review  # noqa: PLC0415
+    review = _spec_review.review_spec(
+        contract_obj, brief_dict_for_review,
+        has_editorial_design=bool(editorial_design_payload))
+    spec_review_path = out_path.parent / "spec_review.json"
+    _write_json(spec_review_path, review)
+    if not review["ready_for_build"]:
+        state_path = out_path.parent / "state.json"
+        _write_json(state_path, {"pass": False, "next_action": review["next_action"],
+                                 "blocking": review["blocking"]})
+        if verbose:
+            print(f"[spec-review] NOT ready_for_build — {len(review['blocking'])} blocking:")
+            for b in review["blocking"]:
+                print(f"  - {b['message']}")
+        return {"ok": False, "stage": "spec_review", "errors": review["blocking"],
+                "warnings": review["warnings"], "next_action": review["next_action"],
+                "spec_review": str(spec_review_path), "contract_hash": contract_hash}
+    if verbose and review["warnings"]:
+        for w in review["warnings"]:
+            print(f"[spec-review] warn: {w['message']}")
+
     music_struct = None
     if music_path:
         from . import music_structure  # noqa: PLC0415
@@ -520,14 +553,11 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     # brief sets the runtime. Without this a 123s track stretches a 45s film to
     # 123s and every pacing gate downstream fails (ai-video soul-v5).
     target_sec = None
-    brief_for_target = out_path.parent / "brief.json"
-    if brief_for_target.exists():
-        try:
-            with brief_for_target.open(encoding="utf-8") as bf:
-                from .editorial_qa import _parse_target_sec  # noqa: PLC0415
-                target_sec = _parse_target_sec(json.load(bf).get("target_length"))
-        except Exception:
-            target_sec = None
+    try:
+        from .editorial_qa import _parse_target_sec  # noqa: PLC0415
+        target_sec = _parse_target_sec(brief_dict_for_review.get("target_length"))
+    except Exception:
+        target_sec = None
 
     effective_skip_render = skip_render or (build_profile_payload.get("render_backend") == "capcut_draft")
     res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
@@ -737,7 +767,8 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          creator_profile_applied=creator_profile_paths.get("creator_profile_applied"),
                          capcut_draft_manifest=capcut_paths.get("capcut_draft_manifest"),
                          editorial_design=str(editorial_design_path) if editorial_design_path else None,
-                         editorial_qa=editorial_qa_path)
+                         editorial_qa=editorial_qa_path,
+                         spec_review=spec_review_path)
     _write_json(manifest_path, manifest)
 
     # Return structured results
@@ -915,6 +946,26 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
                     pass
                 break
 
+    # Pre-BUILD whole-SPEC review report (roadmap C0). dry-build never early-
+    # returns — it exists for inspection — but the report and the dashboard
+    # finding make a not-ready SPEC visible before any real run.
+    brief_dict = {}
+    if brief_dest.exists():
+        try:
+            with brief_dest.open(encoding="utf-8") as bf:
+                brief_dict = json.load(bf)
+        except Exception:
+            brief_dict = {}
+    from . import spec_review as _spec_review  # noqa: PLC0415
+    review = _spec_review.review_spec(
+        contract_obj, brief_dict,
+        has_editorial_design=editorial_design_path is not None)
+    spec_review_path = out_dir / "spec_review.json"
+    _write_json(spec_review_path, review)
+    if verbose and not review["ready_for_build"]:
+        print(f"[dry-build] spec_review: NOT ready_for_build "
+              f"({len(review['blocking'])} blocking)")
+
     # Dry-build marker (so nothing mistakes these artifacts for a real render).
     dry_marker_path = out_dir / "dry_build.json"
     _write_json(dry_marker_path, {
@@ -943,7 +994,8 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
         editor_review=editor_review_path,
         final=out_dir / "final.mp4", state=state_path,
         editorial_design=editorial_design_path,
-        editorial_qa=edit_paths.get("editorial_qa"))
+        editorial_qa=edit_paths.get("editorial_qa"),
+        spec_review=spec_review_path)
     _write_json(manifest_path, manifest)
 
     # Compute the chain walk (next_action/pass) and persist state.json.
@@ -964,6 +1016,7 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
         "errors": [], "warnings": v["warnings"],
         "next_action": dash_state["run"]["next_action"],
         "contract_hash": contract_hash,
+        "ready_for_build": review["ready_for_build"],
         "artifacts": {
             "generated_payload": str(generated_payload_path),
             "build_profile": str(build_profile_path),
@@ -971,6 +1024,7 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
             "assembly_plan": edit_paths.get("assembly_plan"),
             "timeline_build": edit_paths.get("timeline_build"),
             "editor_review": str(editor_review_path) if editor_review_path else None,
+            "spec_review": str(spec_review_path),
             "dry_build": str(dry_marker_path),
             "manifest": str(manifest_path),
             "state": str(state_path),
