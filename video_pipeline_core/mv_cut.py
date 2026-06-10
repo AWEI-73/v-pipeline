@@ -476,7 +476,21 @@ def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
         budget = total_dur * w / wsum
         is_fast = (s.get("layout") == "montage") or (s.get("pace") == "fast")
         single = bool(s.get("hold")) or kind in ("opening", "closing", "title") or not is_fast
-        n_clips = 1 if single else max(1, round(budget / fast_clip))
+        # Contract pacing wins over the global fast_clip default: a segment
+        # declaring preferred_shot_sec=[4,8] wants ~6s shots, not 1.5s — this is
+        # what keeps engine allocation in step with Node 9 shot_slots.
+        shot_sec = fast_clip
+        pref = (s.get("pacing") or {}).get("preferred_shot_sec")
+        if pref:
+            try:
+                if isinstance(pref, (list, tuple)) and len(pref) >= 2:
+                    shot_sec = (float(pref[0]) + float(pref[1])) / 2
+                else:
+                    shot_sec = float(pref[0] if isinstance(pref, (list, tuple)) else pref)
+            except (TypeError, ValueError):
+                shot_sec = fast_clip
+            shot_sec = max(0.5, shot_sec)
+        n_clips = 1 if single else max(1, round(budget / shot_sec))
         stack = _stack_items(s)
         if stack:                       # 列舉:每項一張、每張 ≈ 一拍(beat-fast)
             n_clips = max(1, len(stack))
@@ -556,8 +570,13 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
     return slots, entry, [msg]
 
 
-def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None):
-    """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch` 可注入測試。"""
+def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None):
+    """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch`/`_winfn` 可注入測試。
+
+    多 shot 段(n_clips>1)把下載素材當素材庫用:`_windows_from_clip` 從不同時間
+    窗開 n 刀,而不是整支從 0 秒一鏡到底(ai-video soul-v3 的單調根因)。
+    窗不夠時循環複用(不同時段優先,重複交給 broll_audit 盯);開窗失敗回退
+    舊行為(單一全預算 slot)。"""
     vd = s.get("visual_desc", "")
     provider = None
     if _fetch is None:
@@ -584,14 +603,32 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None):
             got, _ = None, msgs.append(
                 f"  seg{s.get('segment')} [stock] fetch 失敗(可恢復→GAP): {str(_e)[:60]}")
     slots = []
+    n_clips = max(1, int(a.get("n_clips") or 1))
     if got:
-        slots.append({"source": got, "extract_start": 0.0, "extract_dur": round(a["budget"], 3),
-                      "keep_audio": False, "text": seg_text, "segment": s.get("segment"),
-                      "provider": provider or "pexels"})
+        if n_clips > 1:
+            winfn = _winfn or _windows_from_clip
+            try:
+                wins = winfn(got, n_clips, a["clip_dur"], False,
+                             text=seg_text, segment=s.get("segment"))
+            except Exception:
+                wins = []
+            if wins:
+                # 窗不夠 n 刀 → 循環複用既有窗補滿(維持段預算/拍點數)
+                i = 0
+                while len(wins) < n_clips:
+                    wins.append(dict(wins[i % len(wins)]))
+                    i += 1
+                for w in wins:
+                    w["provider"] = provider or "pexels"
+                slots = wins
+        if not slots:  # 單 shot 段,或開窗失敗的回退
+            slots.append({"source": got, "extract_start": 0.0, "extract_dur": round(a["budget"], 3),
+                          "keep_audio": False, "text": seg_text, "segment": s.get("segment"),
+                          "provider": provider or "pexels"})
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "stock",
              "provider": provider or "pexels" if got else None,
-             "clips_found": 1 if got else 0, "n_clips": 1,
-             "picked_scores": ["stock" if got else GAP]}
+             "clips_found": 1 if got else 0, "n_clips": len(slots) if got else n_clips,
+             "picked_scores": (["stock"] * len(slots)) if got else [GAP]}
     msgs.append(f"  seg{s.get('segment')} [stock] '{vd[:16]}' q={s.get('search_query')} "
                 f"-> {'ok' if got else 'GAP'}")
     return slots, entry, msgs

@@ -448,6 +448,57 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(entry["picked_scores"], ["GAP"])
         self.assertTrue(any("fetch 失敗" in m for m in msgs))
 
+    def test_plan_stock_multishot_opens_windows_not_one_long_take(self):
+        """Regression (ai-video soul-v3): a fast segment (n_clips>1) must cut the
+        downloaded stock into multiple windows, not one full-budget take from 0.0."""
+        a = {"n_clips": 3, "clip_dur": 6.0, "budget": 18.0}
+        s = {"segment": 4, "visual_desc": "團隊討論", "search_query": "team discussion"}
+        fake_wins = [
+            {"source": "stock.mp4", "extract_start": 2.0, "extract_dur": 6.0,
+             "keep_audio": False, "text": {}, "segment": 4},
+            {"source": "stock.mp4", "extract_start": 20.0, "extract_dur": 6.0,
+             "keep_audio": False, "text": {}, "segment": 4},
+            {"source": "stock.mp4", "extract_start": 40.0, "extract_dur": 6.0,
+             "keep_audio": False, "text": {}, "segment": 4},
+        ]
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            _winfn=lambda *args, **kw: [dict(w) for w in fake_wins])
+        self.assertEqual(len(slots), 3)
+        starts = [sl["extract_start"] for sl in slots]
+        self.assertEqual(starts, [2.0, 20.0, 40.0])
+        self.assertTrue(all(sl["provider"] for sl in slots))
+        self.assertEqual(entry["picked_scores"], ["stock", "stock", "stock"])
+
+    def test_plan_stock_multishot_cycles_when_windows_short(self):
+        """Short source: fewer windows than n_clips → cycle to keep the budget."""
+        a = {"n_clips": 4, "clip_dur": 5.0, "budget": 20.0}
+        s = {"segment": 2, "visual_desc": "x"}
+        two = [
+            {"source": "stock.mp4", "extract_start": 0.0, "extract_dur": 5.0,
+             "keep_audio": False, "text": {}, "segment": 2},
+            {"source": "stock.mp4", "extract_start": 6.0, "extract_dur": 5.0,
+             "keep_audio": False, "text": {}, "segment": 2},
+        ]
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            _winfn=lambda *args, **kw: [dict(w) for w in two])
+        self.assertEqual(len(slots), 4)
+        self.assertEqual([sl["extract_start"] for sl in slots], [0.0, 6.0, 0.0, 6.0])
+
+    def test_plan_stock_multishot_window_failure_falls_back_to_single(self):
+        a = {"n_clips": 3, "clip_dur": 6.0, "budget": 18.0}
+        s = {"segment": 2, "visual_desc": "x"}
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            _winfn=lambda *args, **kw: [])
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["extract_start"], 0.0)
+        self.assertEqual(slots[0]["extract_dur"], 18.0)
+
 
 class PlanMvTest(unittest.TestCase):
     def test_maps_selected_to_slots_centered(self):
@@ -529,6 +580,29 @@ class AllocateSegmentsTest(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(mv_cut.allocate_segments([], 30.0), [])
         self.assertEqual(mv_cut.allocate_segments([{"segment": 1}], 0), [])
+
+    def test_pacing_preferred_shot_sec_overrides_fast_clip(self):
+        """Contract pacing wins: [4,8] → ~6s shots, so a 24s fast segment gets
+        ~4 cuts instead of 16 (engine allocation in step with Node 9 slots)."""
+        segs = [{"segment": 1, "pace": "fast", "pacing": {"preferred_shot_sec": [4, 8]}}]
+        a = mv_cut.allocate_segments(segs, total_dur=24.0, fast_clip=1.5)
+        self.assertEqual(a[0]["n_clips"], 4)            # 24 / 6 = 4
+        self.assertAlmostEqual(a[0]["clip_dur"], 6.0, places=1)
+
+    def test_pacing_scalar_shot_sec(self):
+        segs = [{"segment": 1, "pace": "fast", "pacing": {"preferred_shot_sec": 3}}]
+        a = mv_cut.allocate_segments(segs, total_dur=12.0, fast_clip=1.5)
+        self.assertEqual(a[0]["n_clips"], 4)            # 12 / 3
+
+    def test_pacing_ignored_for_hold_segments(self):
+        segs = [{"segment": 1, "hold": True, "pacing": {"preferred_shot_sec": [4, 8]}}]
+        a = mv_cut.allocate_segments(segs, total_dur=20.0)
+        self.assertEqual(a[0]["n_clips"], 1)
+
+    def test_no_pacing_keeps_fast_clip_default(self):
+        segs = [{"segment": 1, "pace": "fast"}]
+        a = mv_cut.allocate_segments(segs, total_dur=15.0, fast_clip=1.5)
+        self.assertEqual(a[0]["n_clips"], 10)           # 15 / 1.5 unchanged
 
 
 class ValidateMvScriptTest(unittest.TestCase):
