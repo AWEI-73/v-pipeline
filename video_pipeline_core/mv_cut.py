@@ -578,15 +578,9 @@ _STOCK_VLM_RETRIES = 2
 
 
 def _distill_subject(desc):
-    """純函式:取 visual_desc 的「主詞句」(冒號前的主體 + 不含列舉子句)。
-    例:「手沖注水特寫:細水柱螺旋畫圈、咖啡粉膨脹冒泡」→「手沖注水特寫」;
-    「窗邊木桌上一杯完成的手沖咖啡,雙手捧杯,暖光」→「窗邊木桌上一杯完成的手沖咖啡」。"""
-    s = str(desc or "")
-    for sep in (":", ":", ";", ";"):
-        s = s.split(sep)[0]
-    for sep in ("、", ",", ","):
-        s = s.split(sep)[0]
-    return s.strip()
+    """主詞句蒸餾——canonical 實作住在 content_qa(與 scorer 同居,兩鏈共用)。"""
+    from .content_qa import distill_subject  # noqa: PLC0415
+    return distill_subject(desc)
 
 
 def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,

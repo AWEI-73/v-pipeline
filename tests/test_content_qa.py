@@ -114,5 +114,56 @@ class ContentQATest(unittest.TestCase):
             self.assertEqual(report["segments"][1]["reason"], "local_material")
 
 
+
+class SubjectDistillRescueTest(unittest.TestCase):
+    """D5 two-stage scoring: a director-style multi-clause desc makes the 4b
+    literal-minded (city-day seg8/seg11 scored 10 on perfectly matching frames);
+    a subject-clause primary match rescues to 60, honest off-topic stays low."""
+
+    def test_distill_subject(self):
+        self.assertEqual(content_qa.distill_subject(
+            "手沖注水特寫：細水柱螺旋畫圈、咖啡粉膨脹冒泡"), "手沖注水特寫")
+        self.assertEqual(content_qa.distill_subject(
+            "辦公室裡的工作場景，手在鍵盤上敲打，螢幕亮著"), "辦公室裡的工作場景")
+        self.assertEqual(content_qa.distill_subject(""), "")
+
+    def _fake_ollama(self, answers):
+        calls = {"n": 0}
+
+        def fake(model, prompt, image_path, num_predict=10):
+            i = min(calls["n"], len(answers) - 1)
+            calls["n"] += 1
+            return answers[i]
+        return fake
+
+    def test_full_desc_reject_subject_match_rescues_to_60(self):
+        fake = self._fake_ollama(["an office scene", "否", "否", "是"])
+        with patch.object(content_qa, "call_ollama_full", fake):
+            score, desc, reason = content_qa.score_segment(
+                "m", "frame.jpg", "辦公室裡的工作場景，手在鍵盤上敲打，螢幕亮著", "")
+        self.assertEqual(score, 60.0)
+        self.assertIn("subject_match=yes", reason)
+
+    def test_true_off_topic_stays_low(self):
+        fake = self._fake_ollama(["a dancing robot", "否", "否", "否"])
+        with patch.object(content_qa, "call_ollama_full", fake):
+            score, desc, reason = content_qa.score_segment(
+                "m", "frame.jpg", "辦公室裡的工作場景，手在鍵盤上敲打", "")
+        self.assertEqual(score, 10.0)
+
+    def test_full_desc_pass_skips_rescue(self):
+        fake = self._fake_ollama(["an office scene", "是", "是"])
+        with patch.object(content_qa, "call_ollama_full", fake):
+            score, _, _ = content_qa.score_segment(
+                "m", "frame.jpg", "辦公室裡的工作場景，手在鍵盤上敲打", "")
+        self.assertEqual(score, 100.0)
+
+    def test_single_clause_desc_no_rescue_loop(self):
+        fake = self._fake_ollama(["x", "否", "否", "是"])
+        with patch.object(content_qa, "call_ollama_full", fake):
+            score, _, reason = content_qa.score_segment("m", "frame.jpg", "辦公室", "")
+        self.assertEqual(score, 10.0)
+        self.assertNotIn("subject_match", reason)
+
 if __name__ == "__main__":
     unittest.main()

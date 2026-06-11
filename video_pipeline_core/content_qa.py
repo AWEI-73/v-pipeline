@@ -61,11 +61,28 @@ def rubric_score(primary, related):
     return 15.0                                 # unknown/unparseable → conservative
 
 
+def distill_subject(desc):
+    """純函式：取 visual_desc 的「主詞句」（冒號前主體、第一個列舉子句之前）。
+    導演式多子句描述（「手沖注水特寫：細水柱螺旋畫圈、咖啡粉膨脹冒泡」）會讓 4b
+    逐條摳字全判否（D5）；主體級比對才是它判得準的粒度。實證：skill-smoke seg3
+    （注水）與 city-day seg8/seg11（辦公室/廚房——自由描述完全命中卻打 10）。"""
+    s = str(desc or "")
+    for sep in ("：", ":", ";", "；"):
+        s = s.split(sep)[0]
+    for sep in ("、", ",", "，"):
+        s = s.split(sep)[0]
+    return s.strip()
+
+
 def score_segment(model, image_path, verify_desc, zh_title, verbose=False):
     """Score content alignment by matching the image against a Chinese VISUAL
     description (visual_desc, else narration), not the keyword query. A concrete
     visual spec is what 4b can actually judge; a CJK keyword in an English
-    template — or a poetic narration — both mislead it (D5)."""
+    template — or a poetic narration — both mislead it (D5).
+
+    Two-stage: full desc first; if the verdict lands in the off-topic tier,
+    retry the PRIMARY question with the distilled subject clause. A subject-level
+    match earns 60 ("on-topic context") — honest rescue, not inflation."""
     desc = call_ollama_full(
         model, "Describe what is shown in this image in one concise English sentence.",
         image_path, num_predict=60).replace("\n", " ").strip()
@@ -80,6 +97,16 @@ def score_segment(model, image_path, verify_desc, zh_title, verbose=False):
         image_path, num_predict=16).strip()
     related = yn(r_raw)
     score = rubric_score(primary, related)
+    if score < 40:
+        core = distill_subject(verify_desc)
+        if core and core != str(verify_desc).strip():
+            p2 = yn(call_ollama_full(
+                model, f"這張圖的畫面，是否就是以下描述的主要內容？\n"
+                       f"畫面：「{core}」\n只回答 是 或 否。",
+                image_path, num_predict=16).strip())
+            if p2 == "yes":
+                return 60.0, desc[:140], (f"primary={primary}, related={related}, "
+                                          f"subject_match=yes ({core})")
     return float(score), desc[:140], f"primary={primary}, related={related}"
 
 
