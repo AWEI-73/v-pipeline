@@ -24,10 +24,21 @@ def polish_caption_text(text: str, *, max_chars_per_line: int = 16, max_lines: i
     if len(cleaned) > capacity:
         cleaned = cleaned[: capacity - 1].rstrip(" \t\u3000") + "…"
 
-    return "\n".join(
-        cleaned[i:i + max_chars_per_line]
-        for i in range(0, len(cleaned), max_chars_per_line)
-    )
+    # Wrap preferring clause boundaries (the full-width spaces left by punctuation
+    # cleaning) so lines never break mid-word (the mid-phrase hard-cut class).
+    lines: list[str] = []
+    rest = cleaned
+    while rest:
+        if len(rest) <= max_chars_per_line:
+            lines.append(rest)
+            break
+        window = rest[: max_chars_per_line + 1]
+        cut = window.rfind("\u3000")
+        if cut < max(2, max_chars_per_line // 3):
+            cut = max_chars_per_line          # no usable clause boundary: hard cut
+        lines.append(rest[:cut].rstrip("\u3000"))
+        rest = rest[cut:].lstrip("\u3000")
+    return "\n".join(lines)
 
 
 def polish_srt_text(text: str, *, max_chars_per_line: int = 16, max_lines: int = 2) -> str:
@@ -52,14 +63,18 @@ def polish_srt_text(text: str, *, max_chars_per_line: int = 16, max_lines: int =
 
 
 def build_ass_style(video_height: int = 1080) -> str:
-    """Return the shared bottom-center ASS style scaled from a 1080p baseline."""
-    scale = max(int(video_height), 1) / 1080
-    font_size = max(16, round(38 * scale))
-    margin_v = max(24, round(90 * scale))
+    """Return the shared bottom-center ASS style.
+
+    libass renders SRT through a default PlayResY=288 coordinate space, NOT
+    video pixels - force_style values are resolution-independent. Scaling by
+    video height double-applies the scale (FontSize=38 became ~142px
+    mid-screen text on the city-lite smoke). FontSize=20/288 is ~7% of frame
+    height (~75px at 1080p); MarginV=22/288 sits the block in the lower safe
+    area. video_height is kept for call-site compatibility and ignored."""
     return (
-        f"FontSize={font_size},Bold=1,PrimaryColour=&H00FFFFFF,"
+        "FontSize=20,Bold=1,PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=1,"
-        f"Outline=2,Shadow=1.5,Spacing=0.5,Alignment=2,MarginV={margin_v}"
+        "Outline=1.2,Shadow=0.8,Spacing=0.5,Alignment=2,MarginV=22"
     )
 
 

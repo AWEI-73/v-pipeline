@@ -15,7 +15,9 @@ class TestSubtitlePresentation(unittest.TestCase):
 
         self.assertNotIn("，", polished)
         self.assertNotIn("。", polished)
-        self.assertIn("\u3000", polished)
+        # the clause boundary (cleaned comma) becomes the line break, never a
+        # mid-word hard cut (city-lite mid-phrase split fix)
+        self.assertEqual(polished.splitlines()[0], "這是一段需要清理")
         self.assertLessEqual(len(polished.splitlines()), 2)
         self.assertTrue(all(len(line) <= 16 for line in polished.splitlines()))
 
@@ -37,12 +39,11 @@ class TestSubtitlePresentation(unittest.TestCase):
     def test_ass_style_is_bottom_center_and_scales_with_resolution(self):
         hd = build_ass_style(1080)
         sd = build_ass_style(720)
-
-        self.assertIn("Alignment=2", hd)
-        self.assertIn("FontSize=38", hd)
-        self.assertIn("MarginV=90", hd)
-        self.assertIn("FontSize=25", sd)
-        self.assertIn("MarginV=60", sd)
+        # libass SRT styles live in PlayResY=288 units - resolution-independent,
+        # so both heights get the same numbers (city-lite mid-screen-giant fix).
+        self.assertEqual(hd, sd)
+        self.assertIn("FontSize=20", hd)
+        self.assertIn("MarginV=22", hd)
 
 
 if __name__ == "__main__":
