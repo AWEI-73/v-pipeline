@@ -1374,6 +1374,9 @@
             <div class="io-item">
               <strong>Outputs:</strong> <span id="detail-node-outputs">—</span>
             </div>
+            <div class="io-item">
+              <strong>Artifacts:</strong> <span id="detail-node-artifact-links">—</span>
+            </div>
           </div>
           
           <div class="findings-box" id="detail-findings-box" style="display:none;">
@@ -1893,6 +1896,10 @@ function renderNodeDetails() {
   
   document.getElementById('detail-node-inputs').textContent = metadata.inputs;
   document.getElementById('detail-node-outputs').textContent = metadata.outputs;
+  const artifactLinks = node.artifact_links || [];
+  document.getElementById('detail-node-artifact-links').innerHTML = artifactLinks.length
+    ? artifactLinks.map(link => `<a href="file:///${esc(link.path.replace(/\\/g, '/'))}" title="${esc(link.path)}">${esc(link.role)}</a>`).join(' · ')
+    : '—';
   
   // Render status badge
   const badge = document.getElementById('detail-node-status');

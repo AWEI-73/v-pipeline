@@ -1,5 +1,28 @@
 # Hermes Video Pipeline v2 — RUNBOOK
 
+## 2026-06-11 Windows Quick Start
+
+```powershell
+cd C:\Users\user\Desktop\video_pipeline
+
+python video_tools.py project-init "My Video"
+python video_tools.py project-new-run --label baseline
+python runtime.py status
+python runtime.py resume
+
+python video_tools.py dashboard <run-directory> --out <run-directory>\dashboard_view.html
+
+$env:PYTHONUTF8=1
+python -m unittest discover -s tests
+```
+
+Current verified baseline: **541 tests OK**.
+
+Supported build profiles include canonical ffmpeg, Node 14
+`motion_graphics` with `ffmpeg_libass`, and optional `capcut_draft`.
+Motion graphics writes timed ASS overlay assets. CapCut drafts contain editable
+text and explicit BGM/audio tracks; GUI export remains a human/Computer-Use gate.
+
 How to trigger every external API / model and run the pipeline reproducibly.
 All commands are designed to run **directly on Windows native** (using PowerShell or CMD), with WSL (Ubuntu-24.04) supported as a secondary option.
 
@@ -140,7 +163,7 @@ Warns on Chinese `search_query` (D2 — use English visual concept, put intent i
 
 ```powershell
 cd C:\Users\user\Desktop\video_pipeline
-$env:PYTHONUTF8=1; python -m unittest discover -s tests -v   # 453 expected
+$env:PYTHONUTF8=1; python -m unittest discover -s tests -v   # 541 expected
 ```
 
 ## 6. Known issues / troubleshooting

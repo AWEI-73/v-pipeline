@@ -854,23 +854,25 @@ def cmd_burnsub(args):
     優先使用系統已有的 CJK 字型，找不到就用預設字型（英文可正常顯示）。
     """
     from video_pipeline_core.platform_tools import resolve_font
+    from video_pipeline_core.subtitle_presentation import (
+        build_ass_style,
+        polished_srt_file,
+        probe_video_height,
+    )
     out = args.out or Path(args.video).stem + "_subbed.mp4"
-    srt = str(Path(args.srt).resolve())
-
     font_path = resolve_font()
 
     # 用 fontsdir 讓 ffmpeg 找到字型，force_style 指定字型名稱
-    srt_escaped = srt.replace("\\", "\\\\").replace(":", "\\:")
     font_dir    = str(Path(font_path).parent).replace("\\", "/").replace(":", "\\:")
     font_name   = Path(font_path).stem   # e.g. wqy-microhei or msjh
     # D3 字幕美學：加粗 + 半透明投影（與 merge-final 一致）
-    style = ("FontSize=24,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
-             "BackColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1.5,Spacing=0.5,MarginV=40")
-    vf = f"subtitles='{srt_escaped}':fontsdir='{font_dir}':force_style='FontName={font_name},{style}'"
-
-    cmd = [FFMPEG, "-y", "-i", args.video, "-vf", vf,
-           "-c:v", "libx264", "-crf", "23", "-c:a", "copy", out]
-    result = run(cmd)
+    style = build_ass_style(probe_video_height(args.video, FFPROBE))
+    with polished_srt_file(args.srt) as polished_srt:
+        srt_escaped = str(Path(polished_srt).resolve()).replace("\\", "\\\\").replace(":", "\\:")
+        vf = f"subtitles='{srt_escaped}':fontsdir='{font_dir}':force_style='FontName={font_name},{style}'"
+        cmd = [FFMPEG, "-y", "-i", args.video, "-vf", vf,
+               "-c:v", "libx264", "-crf", "23", "-c:a", "copy", out]
+        result = run(cmd)
 
     if result.returncode != 0:
         raise ToolError(f"burnsub failed: {result.stderr}")

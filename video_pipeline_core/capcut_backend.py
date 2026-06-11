@@ -53,6 +53,88 @@ def _material_bucket_index(materials):
     return index
 
 
+def _append_text_track(draft, clips):
+    materials = draft.setdefault("materials", {})
+    text_materials = materials.setdefault("texts", [])
+    segments = []
+    for i, clip in enumerate(clips):
+        text = clip.get("text_overlay")
+        if not text or text == "none":
+            continue
+        material_id = _new_id()
+        duration = _us(clip.get("duration_sec"))
+        timeline_in = _us(clip.get("timeline_in_sec"))
+        text_materials.append({
+            "id": material_id,
+            "type": "text",
+            "content": json.dumps({"text": str(text), "styles": []}, ensure_ascii=False),
+            "font_path": "",
+            "text_color": "#FFFFFF",
+        })
+        segments.append({
+            "id": _new_id(),
+            "material_id": material_id,
+            "extra_material_refs": [],
+            "source_timerange": None,
+            "target_timerange": {"start": timeline_in, "duration": duration},
+            "render_index": i,
+            "visible": True,
+        })
+    if segments:
+        draft.setdefault("tracks", []).append({
+            "id": _new_id(),
+            "type": "text",
+            "segments": segments,
+            "flag": 0,
+            "attribute": 0,
+            "name": "Pipeline Text",
+            "is_default_name": False,
+        })
+
+
+def _append_audio_tracks(draft, timeline):
+    audio_items = timeline.get("audio_tracks", []) if isinstance(timeline, dict) else []
+    if not audio_items:
+        return
+    materials = draft.setdefault("materials", {})
+    audio_materials = materials.setdefault("audios", [])
+    segments = []
+    for i, item in enumerate(audio_items):
+        source_path = item.get("source_path") or item.get("file")
+        if not source_path:
+            continue
+        material_id = _new_id()
+        duration = _us(item.get("duration_sec"))
+        audio_materials.append({
+            "id": material_id,
+            "type": "audio",
+            "path": str(source_path).replace("\\", "/"),
+            "duration": duration,
+            "name": Path(source_path).name,
+        })
+        segments.append({
+            "id": _new_id(),
+            "material_id": material_id,
+            "extra_material_refs": [],
+            "source_timerange": {"start": _us(item.get("source_in_sec")), "duration": duration},
+            "target_timerange": {"start": _us(item.get("timeline_in_sec")), "duration": duration},
+            "render_index": i,
+            "volume": float(item.get("volume", 1.0)),
+            "last_nonzero_volume": float(item.get("volume", 1.0)),
+            "visible": True,
+        })
+    if segments:
+        draft.setdefault("tracks", []).append({
+            "id": _new_id(),
+            "type": "audio",
+            "segments": segments,
+            "flag": 0,
+            "attribute": 0,
+            "name": "Pipeline Audio",
+            "is_default_name": False,
+        })
+
+
 def build_capcut_draft(skeleton, timeline, *, project_name=None):
     """Build a real CapCut draft dict by cloning a skeleton draft per clip.
 
@@ -126,7 +208,10 @@ def build_capcut_draft(skeleton, timeline, *, project_name=None):
     draft["id"] = _new_id()
     if project_name is not None:
         draft["name"] = project_name
-    
+
+    _append_text_track(draft, clips)
+    _append_audio_tracks(draft, timeline)
+
     # Auto-mute newly generated video segments to avoid audio leaks
     mute_all_video_segments(draft)
     
@@ -302,6 +387,7 @@ def build_draft_manifest(timeline, *, project_name=None, fps=30, resolution="192
     version-gated step recorded under ``draft_serialization``.
     """
     clips = _clips(timeline)
+    audio_track = list(timeline.get("audio_tracks", [])) if isinstance(timeline, dict) else []
     video_track = []
     text_overlays = []
     audio_cues = []
@@ -339,6 +425,7 @@ def build_draft_manifest(timeline, *, project_name=None, fps=30, resolution="192
         "project": {"name": project_name, "fps": fps, "resolution": resolution},
         "video_track": video_track,
         "text_overlays": text_overlays,
+        "audio_track": audio_track,
         "audio_cues": audio_cues,
         "draft_serialization": {
             "status": "pending",

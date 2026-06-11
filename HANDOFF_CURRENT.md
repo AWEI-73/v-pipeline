@@ -1,5 +1,24 @@
 # Current Handoff: Hermes Video Pipeline
 
+> **2026-06-11 latest state:** roadmap P1-P6 and the read-first Dashboard Build
+> Control Surface are complete. Full suite: **541 tests OK**.
+>
+> Implemented in this convergence pass:
+> - shared subtitle presentation and attention-budget pacing;
+> - canonical contract -> narrative runtime adapter;
+> - CapCut editable text tracks and explicit BGM/audio tracks;
+> - single-photo multi-shot push/pan/detail expansion;
+> - Node 14 motion graphics `ffmpeg_libass` runner and manifest integration;
+> - dashboard `controls` contract and per-node artifact links.
+> - clean source-only Graphify refresh after P1-P6 (`route.py` and reference
+>   repositories excluded).
+>
+> Real smoke evidence:
+> - P5: one photo rendered into three distinct motion shots and composed to MP4;
+> - P6: generated ASS overlay rendered through ffmpeg/libass to a playable MP4.
+>
+> Resume from `roadmap.md` section `2026-06-11 Roadmap Execution Status`.
+
 > **2026-06-11 state:** convergence COMPLETE (roadmap C0-C6 DoD met). Two real
 > E2E smokes pass: skill-smoke (MV, verify 91.5 / editorial_qa 94) and city-day
 > (narrative, 21-seg ~5min with TTS narration + BGM). Full suite **516 tests OK**.
@@ -14,7 +33,7 @@
 > work see **`archive/HANDOFF_EDITORIAL.md`** (tasks done) and the live overview
 > `docs/editorial-layer.md`. This file remains the convergence/runtime anchor.
 
-Updated: 2026-06-06
+Updated: 2026-06-11
 
 This file is the clean resume anchor (older WSL-era notes are archived at
 `archive/HANDOFF.md`). Read this first, then `roadmap.md`,
@@ -53,7 +72,7 @@ Do not develop both copies independently.
 - VLM policy: `qwen3-vl:4b-instruct` only for gate, content QA, and retry.
 - Generated provider policy: Antigravity / assistant_imagegen / codex_imagegen preferred; ComfyUI is deprecated/disabled unless explicitly isolated.
 - BUILD runner policy: tool choices live in `build_profile.json`; runner work must write explicit artifacts and manifest entries. See `docs/build-tool-runner-spec.md`.
-- Editing/VERIFY tool integration: P1 (verification tool pack, Node 11/12), P1.5 (auto-wire into contract-run), P2 (creator_profile), and P3 (optional CapCut backend) all implemented 2026-06-07/08. ffmpeg stays canonical; CapCut real `.draft` serialization WORKS (skeleton-clone via `templates/0608/`, video track only) and the path is E2E-verified (see COMPLETED section below). Remaining CapCut gap: text/subtitle + audio tracks inside the draft (today BGM/outro are added post-export by `capcut-finalize`). See `docs/build-tool-runner-spec.md`, `docs/video-autopilot-tool-integration-spec.md`, and `docs/decisions/2026-06-08-p3-capcut-optional-backend.md`. Attribution in `THIRD_PARTY_NOTICES.md` (techniques referenced, no code copied).
+- Editing/VERIFY tool integration: verification pack, creator profile, optional CapCut backend, editable CapCut text/audio tracks, photo multi-shot expansion, and the Node 14 `ffmpeg_libass` motion-graphics runner are implemented. ffmpeg stays canonical; CapCut GUI export remains an explicit human/Computer-Use gate.
 - Migration policy: move from WSL to Windows in small verified steps. See `docs/windows-native-migration-spec.md`.
 
 ## Windows Migration State
@@ -74,7 +93,7 @@ Current Windows evidence:
 ```text
 Python 3.10.16
 video_tools.py --help: pass
-Full test suite: 342 tests pass (100% success)  # 255 + 56 P1 + 9 P1.5 + 11 P2 + 11 P3 tests
+Full test suite: 541 tests pass (100% success)
 ```
 
 ## COMPLETED — E2E Verify: ffmpeg + CapCut (2026-06-08)
@@ -130,18 +149,18 @@ One-click smoke (all tools on, real video): 5/5 artifacts written in one pass; b
 Graphify: REBUILT 2026-06-08 (source-only) after P1/P1.5 — see graphify-out/
 ```
 
-## Latest Graphify (2026-06-08, post P1/P1.5)
+## Latest Graphify (2026-06-11, post P1-P6)
 
-Source-only rebuild (excludes run outputs/media/_fullpool/archives and the
-external video-autopilot-kit-main/ reference clone):
+Clean AST source-only rebuild. `.graphifyignore` excludes external reference
+repositories, run outputs, generated media, and local exploration caches:
 
 ```text
-121 source files (73 code + 48 docs) · ~94,734 words
-1346 nodes · 1992 edges · 115 communities
-extraction: AST (1108 code nodes) + 3 semantic doc subagents (240 nodes)
-P1 modules + integration captured; hyperedge "P1 Verification Tool Pack (Node 11/12)" present
-god nodes still: ToolError(56), run(), load_dashboard_state(), pipeline(), run_tool(), _audio_duration()
-new god node: "Video Autopilot Tool Integration Spec" (14 edges) — P1 work is well-connected
+104 code files
+1734 nodes · 2575 edges
+attention_budget.py, subtitle_presentation.py, motion_graphics.py, mv_cut.py,
+and dashboard_state.py captured
+retired route.py source nodes: 0
+reference repo source nodes: 0
 ```
 
 ### Codex review (2026-06-07) — findings addressed in P1.5

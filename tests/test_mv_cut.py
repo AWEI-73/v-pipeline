@@ -399,12 +399,27 @@ class MatchMontageMultiPickTest(unittest.TestCase):
 class SegmentPlannerTest(unittest.TestCase):
     """run_mv 解耦出的 per-段 planner(matched/stock/live)— 以注入避開 ffmpeg/VLM。"""
 
-    def test_windows_from_clip_image_is_single_still(self):
-        slots = mv_cut._windows_from_clip("/m/大合照/a.jpg", 3, 2.0, False, segment=7)
-        self.assertEqual(len(slots), 1)
-        self.assertTrue(slots[0]["is_photo"])
-        self.assertEqual(slots[0]["segment"], 7)
+    def test_windows_from_clip_image_expands_to_distinct_still_shots(self):
+        slots = mv_cut._windows_from_clip("/m/group/a.jpg", 3, 2.0, False, segment=7)
+        self.assertEqual(len(slots), 3)
+        self.assertTrue(all(slot["is_photo"] for slot in slots))
+        self.assertTrue(all(slot["segment"] == 7 for slot in slots))
+        self.assertEqual(
+            [slot["still_treatment"]["mode"] for slot in slots],
+            ["slow_push", "pan_right", "detail_push"],
+        )
+        self.assertEqual([slot["photo_variant"] for slot in slots], [1, 2, 3])
         self.assertNotIn("slot_index", slots[0])   # slot_index 由 run_mv 指派
+
+    def test_photo_vf_uses_distinct_motion_for_photo_variants(self):
+        push = mv_cut._photo_vf(2.0, treatment={"mode": "slow_push"})
+        pan = mv_cut._photo_vf(2.0, treatment={"mode": "pan_right"})
+        detail = mv_cut._photo_vf(2.0, treatment={"mode": "detail_push"})
+
+        self.assertNotEqual(push, pan)
+        self.assertNotEqual(push, detail)
+        self.assertIn("x+3", pan)
+        self.assertIn("1.4", detail)
 
     def test_windows_from_clip_zero_clips(self):
         self.assertEqual(mv_cut._windows_from_clip("/m/x/a.mov", 0, 2.0, False), [])

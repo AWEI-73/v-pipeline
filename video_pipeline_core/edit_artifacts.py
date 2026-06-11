@@ -177,6 +177,11 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
             seg, music_structure, editing_policy,
             duration_sec=round(end_t - start_t, 3) if end_t > start_t else None)
         entry.update(treatment_info)
+        from .attention_budget import resolve_attention_budget
+        entry["attention_budget"] = resolve_attention_budget(
+            entry,
+            mode=(editing_policy or {}).get("default_mode", script.get("style") or "warm_documentary"),
+        )
         
         if seg.get("sequence_grammar"):
             try:
@@ -366,6 +371,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "audio_policy": _audio_policy(item),
             "transition": item.get("transition") or "cut",
             "text_overlay": item.get("text") or "none",
+            "photo_variant": item.get("photo_variant"),
             "still_treatment": item.get("still_treatment"),
             "trace": {
                 "segment_contract_segment": segment,
@@ -553,4 +559,3 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
             if qa_path:
                 result["editorial_qa"] = qa_path
     return result
-

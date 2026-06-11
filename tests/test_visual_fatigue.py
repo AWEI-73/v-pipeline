@@ -224,6 +224,56 @@ class TestPacingFit(unittest.TestCase):
         findings = [f for f in res["findings"] if f["check"] == "pacing_fit"]
         self.assertEqual(len(findings), 0)
 
+    def test_narration_led_still_hold_uses_attention_budget(self):
+        plan = {
+            "mode": "rhythmic_mv",
+            "segments": [{
+                "segment": 1,
+                "treatment": "single_hold",
+                "execution_plan": {
+                    "narration": {"mode": "voiceover"},
+                    "music": {"intensity": "low"},
+                },
+            }],
+        }
+        build = {"clips": [{
+            "segment": 1,
+            "source_path": "p.jpg",
+            "duration_sec": 6.0,
+            "timeline_in_sec": 0.0,
+        }]}
+
+        res = audit_visual_fatigue(plan, build)
+
+        self.assertFalse(any(f["check"] == "still_image_fatigue" for f in res["findings"]))
+        self.assertFalse(any(f["check"] == "attention_budget_fit" for f in res["findings"]))
+
+    def test_music_led_untreated_still_over_two_seconds_fails_attention_budget(self):
+        plan = {
+            "mode": "rhythmic_mv",
+            "segments": [{
+                "segment": 1,
+                "treatment": "single_hold",
+                "still_motion": "none",
+                "execution_plan": {
+                    "narration": {"mode": "none"},
+                    "music": {"intensity": "medium"},
+                },
+            }],
+        }
+        build = {"clips": [{
+            "segment": 1,
+            "source_path": "p.jpg",
+            "duration_sec": 3.0,
+            "timeline_in_sec": 0.0,
+        }]}
+
+        res = audit_visual_fatigue(plan, build)
+
+        finding = next(f for f in res["findings"] if f["check"] == "attention_budget_fit")
+        self.assertEqual(finding["level"], "fail")
+        self.assertEqual(finding["route"], "editor/effects-director")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -133,6 +133,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(result["stage"], "validate_contract")
             self.assertFalse((Path(d) / "generated_mv_script.json").exists())
 
+
     def test_run_contract_writes_manifest_and_generated_payload(self):
         with tempfile.TemporaryDirectory() as d:
             outdir = Path(d) / "out"
@@ -246,6 +247,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             draft = json.loads((outdir / "capcut_draft_manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(draft["requires_human_or_computer_use"])
             self.assertEqual(draft["draft_serialization"]["status"], "pending")
+            self.assertEqual(draft["audio_track"][0]["source_path"], str(music))
+            self.assertEqual(draft["audio_track"][0]["role"], "bgm")
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["capcut_draft_manifest"], str(outdir / "capcut_draft_manifest.json"))
             # ffmpeg final.mp4 is still the canonical render
@@ -493,6 +496,60 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["light_effects_manifest"], str(outdir / "light_effects_manifest.json"))
             self.assertIn("grade", [item["operation"] for item in plan["items"]])
 
+    def test_run_contract_writes_motion_graphics_outputs_when_profile_enabled(self):
+        contract = {
+            "style": "mv",
+            "segments": [self._seg(
+                segment=1,
+                text_layer={"label": "Opening", "reason": "chapter marker"},
+            ), self._seg(segment=2), self._seg(segment=3)],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            profile = Path(d) / "profile.json"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+            profile.write_text(json.dumps({
+                "render_profile": "motion_graphics",
+                "effects_enabled": True,
+                "motion_graphics_backend": "ffmpeg_libass",
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
+                Path(out_path).write_bytes(b"mp4")
+                (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
+                return {"final": out_path, "plan": [{
+                    "segment": 1, "source": "a.mp4", "extract_start": 0,
+                    "extract_dur": 3, "slot_index": 0, "slot_dur": 3,
+                    "text": "Opening",
+                }]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "structure": {"sections": []}}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                ca.run_contract(
+                    contract,
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    mat_dir=outdir,
+                    verbose=False,
+                    build_profile_config_path=profile,
+                )
+
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            mg_manifest = json.loads((outdir / "motion_graphics_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["motion_graphics_contract"], str(outdir / "motion_graphics_contract.json"))
+            self.assertEqual(manifest["motion_graphics_render_plan"], str(outdir / "motion_graphics_render_plan.json"))
+            self.assertEqual(manifest["motion_graphics_manifest"], str(outdir / "motion_graphics_manifest.json"))
+            self.assertEqual(mg_manifest["render_outputs"][0]["status"], "rendered")
+            self.assertTrue(Path(mg_manifest["render_outputs"][0]["path"]).exists())
+
     def test_run_contract_stock_first_writes_route_and_stock_payload(self):
         contract = {
             "style": "mv",
@@ -639,6 +696,97 @@ class ContractToMvScriptTest(unittest.TestCase):
             state_data = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
             self.assertFalse(state_data["pass"])
             self.assertEqual(state_data["next_action"], "verify_failed")
+
+
+class ContractToNarrativeScriptTest(unittest.TestCase):
+    def _seg(self, **over):
+        base = {
+            "segment": 1,
+            "core": {
+                "section_role": "opening",
+                "story_purpose": "Introduce the idea",
+                "timeline_source": "tts",
+            },
+            "material_fit": {
+                "visual_desc": "A quiet city waking at sunrise",
+                "material_hint": "city sunrise",
+                "search_query": "quiet city sunrise",
+                "media": "photo",
+                "reason": "Establish the setting",
+            },
+            "audio": {"role": "duck", "voiceover_policy": "tts", "reason": "Narration leads"},
+            "visual_style": {
+                "layout": "single",
+                "pace": "hold",
+                "transition": "dissolve",
+                "color_grade": "warm",
+                "reason": "Calm opening",
+            },
+            "text_layer": {"label": "Morning", "subtitle": "from_voiceover", "reason": "Anchor topic"},
+            "narration": {"text": "The city wakes before the first cup is poured.", "mode": "voiceover"},
+        }
+        base.update(over)
+        return base
+
+    def test_maps_canonical_facets_to_narrative_runtime_fields(self):
+        script = ca.contract_to_narrative_script({"style": "narrative", "segments": [self._seg()]})
+        seg = script["segments"][0]
+
+        self.assertEqual(script["style"], "narrative")
+        self.assertEqual(seg["text"], "The city wakes before the first cup is poured.")
+        self.assertEqual(seg["title"], "Morning")
+        self.assertEqual(seg["media_pref"], "photo")
+        self.assertEqual(seg["search_query"], "quiet city sunrise")
+        self.assertEqual(seg["visual_desc"], "A quiet city waking at sunrise")
+        self.assertEqual(seg["effects"]["transition"], "dissolve")
+        self.assertEqual(seg["effects"]["grade"], "warm")
+        self.assertNotIn("hold", seg)
+        self.assertNotIn("weight", seg)
+
+    def test_preserves_trace_and_raw_facets(self):
+        source_seg = self._seg(segment=7)
+        seg = ca.contract_to_narrative_script({"segments": [source_seg]})["segments"][0]
+
+        self.assertEqual(seg["_from_contract"], 7)
+        self.assertEqual(seg["raw_narration"], source_seg["narration"])
+        self.assertEqual(seg["raw_audio"], source_seg["audio"])
+        self.assertEqual(seg["material_fit"], source_seg["material_fit"])
+        self.assertEqual(seg["visual_style"], source_seg["visual_style"])
+        self.assertEqual(seg["text_layer"], source_seg["text_layer"])
+
+    def test_falls_back_to_text_layer_narrative_and_local_source(self):
+        seg = self._seg(
+            narration=None,
+            source="local",
+            file="materials/seg1.mp4",
+            material_fit={"visual_desc": "Local interview", "reason": "Required interview"},
+            text_layer={"narrative": "A direct account.", "reason": "Spoken line"},
+        )
+        out = ca.contract_to_narrative_script({"segments": [seg]})["segments"][0]
+
+        self.assertEqual(out["text"], "A direct account.")
+        self.assertEqual(out["source"], "local")
+        self.assertEqual(out["file"], "materials/seg1.mp4")
+        self.assertEqual(out["media_pref"], "video")
+
+    def test_adapt_narrative_contract_file_writes_traceable_payload(self):
+        with tempfile.TemporaryDirectory() as d:
+            contract_path = Path(d) / "segment_contract.json"
+            out_path = Path(d) / "generated_narrative_script.json"
+            contract_path.write_text(
+                json.dumps({"style": "narrative", "segments": [self._seg()]}),
+                encoding="utf-8",
+            )
+
+            result = ca.adapt_narrative_contract_file(contract_path, out_path=out_path)
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(payload["_artifact_role"], "legacy_runtime_payload")
+        self.assertEqual(payload["_adapter"], "contract_adapter.py")
+        self.assertEqual(payload["_generated_from"], str(contract_path))
+        self.assertTrue(payload["_contract_hash"].startswith("sha256:"))
+        self.assertEqual(payload["segments"][0]["text"], "The city wakes before the first cup is poured.")
 
 
 class DryBuildTest(unittest.TestCase):

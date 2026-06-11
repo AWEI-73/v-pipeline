@@ -119,6 +119,7 @@ def audit_visual_fatigue(
     """
     editing_policy = editing_policy or {}
     findings: list[dict] = []
+    from .attention_budget import resolve_attention_budget
 
     # 1. Resolve Mode
     mode = (
@@ -175,6 +176,10 @@ def audit_visual_fatigue(
         [c for c in clips if c.get("timeline_in_sec") is not None],
         key=lambda x: float(x["timeline_in_sec"]),
     )
+    plan_segments = assembly_plan.get("segments") or []
+    plan_by_segment = {
+        s.get("segment"): s for s in plan_segments if s.get("segment") is not None
+    }
 
     # -----------------------------------------------------------------------
     # Check A: single_source_fatigue (Consecutive same-source duration check)
@@ -214,7 +219,18 @@ def audit_visual_fatigue(
     for clip in sorted_clips:
         if _is_still_image(clip):
             dur = float(clip.get("duration_sec") or 0)
-            if dur > max_still_hold:
+            plan_segment = plan_by_segment.get(clip.get("segment")) or {}
+            attention = resolve_attention_budget(
+                plan_segment,
+                mode=mode,
+                is_still=True,
+                has_motion=_has_still_treatment(clip),
+            )
+            narration_owns_time = (
+                attention["owner"] == "narration"
+                and dur <= attention["shot_sec"][1]
+            )
+            if dur > max_still_hold and not narration_owns_time:
                 if not _has_still_treatment(clip) and not _has_reason(clip):
                     findings.append(_finding(
                         "still_image_fatigue",
@@ -228,7 +244,6 @@ def audit_visual_fatigue(
     # Check C: shot_density_fit (per segment shot count check)
     # -----------------------------------------------------------------------
     # Collect segments from assembly plan
-    plan_segments = assembly_plan.get("segments") or []
     seg_ids = [s.get("segment") for s in plan_segments if s.get("segment") is not None]
     if not seg_ids:
         # Fallback to unique segment IDs in clips
@@ -301,7 +316,31 @@ def audit_visual_fatigue(
     min_pacing, max_pacing = pacing_bounds[0], pacing_bounds[1]
     for clip in sorted_clips:
         dur = float(clip.get("duration_sec") or 0)
-        if dur < min_pacing or dur > max_pacing:
+        plan_segment = plan_by_segment.get(clip.get("segment")) or {}
+        attention = resolve_attention_budget(
+            plan_segment,
+            mode=mode,
+            is_still=_is_still_image(clip),
+            has_motion=_has_still_treatment(clip),
+        )
+        att_min, att_max = attention["shot_sec"]
+        has_attention_signal = bool(
+            plan_segment.get("treatment")
+            or plan_segment.get("still_motion")
+            or plan_segment.get("execution_plan")
+        )
+        if has_attention_signal and (dur < att_min or dur > att_max):
+            is_untreated_still = _is_still_image(clip) and not _has_still_treatment(clip)
+            level = "fail" if attention["owner"] == "visual" and is_untreated_still else "warn"
+            route = "editor/effects-director" if level == "fail" else "editor"
+            findings.append(_finding(
+                "attention_budget_fit",
+                level,
+                f"Shot duration {dur:.2f}s is outside attention budget "
+                f"[{att_min}, {att_max}] owned by {attention['owner']}: {attention['reason']}.",
+                route=route,
+            ))
+        elif not has_attention_signal and (dur < min_pacing or dur > max_pacing):
             if not _has_reason(clip):
                 findings.append(_finding(
                     "pacing_fit",

@@ -30,6 +30,54 @@ ALLOWED_EFFECT_TYPES = {
 }
 
 
+def contract_from_timeline(canonical_contract, timeline, *, backend="ffmpeg_libass", contract_hash=None):
+    """Build a timed Node 14 contract from canonical text layers and Node 10 clips."""
+    clips_by_segment = {}
+    for clip in (timeline or {}).get("clips", []):
+        clips_by_segment.setdefault(clip.get("segment"), []).append(clip)
+    items = []
+    for idx, segment in enumerate((canonical_contract or {}).get("segments", []), start=1):
+        segment_id = segment.get("segment", idx)
+        clips = clips_by_segment.get(segment_id) or []
+        text_layer = segment.get("text_layer")
+        if not clips or not isinstance(text_layer, dict):
+            continue
+        starts = [float(clip.get("timeline_in_sec") or 0) for clip in clips]
+        ends = [float(clip.get("timeline_out_sec") or 0) for clip in clips]
+        start = min(starts)
+        end = max(ends)
+        if end <= start:
+            continue
+        name_super = text_layer.get("name_super")
+        if name_super:
+            effect_type = "lower_third"
+            if isinstance(name_super, dict):
+                text = {"main": name_super.get("text"), "subtitle": name_super.get("title")}
+            else:
+                text = {"main": name_super}
+        else:
+            main = text_layer.get("label") or text_layer.get("narrative")
+            if not main:
+                continue
+            effect_type = "chapter_card" if text_layer.get("label") else "title_sequence"
+            text = {"main": main, "subtitle": text_layer.get("subtitle")}
+        items.append({
+            "id": f"seg{segment_id}_{effect_type}",
+            "segment": segment_id,
+            "effect_type": effect_type,
+            "backend": backend,
+            "timing": {"start_sec": start, "duration_sec": round(end - start, 3)},
+            "text": text,
+            "style": {"motion": "fade", "safe_area": "lower_third" if effect_type == "lower_third" else "title_safe"},
+            "reason": text_layer.get("reason") or "canonical text layer",
+        })
+    return {
+        "motion_graphics_version": 1,
+        "contract_hash": contract_hash,
+        "items": items,
+    }
+
+
 def _finding(level, field, message):
     return {"level": level, "field": field, "message": message}
 
@@ -136,6 +184,90 @@ def _write_json(path, data):
     return str(path)
 
 
+def _ass_time(seconds):
+    total = max(0.0, float(seconds or 0))
+    hours = int(total // 3600)
+    minutes = int((total % 3600) // 60)
+    secs = total % 60
+    return f"{hours}:{minutes:02d}:{secs:05.2f}"
+
+
+def _ass_escape(value):
+    return str(value or "").replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}").replace("\n", r"\N")
+
+
+def _ass_text(item):
+    text = item.get("text") or {}
+    parts = []
+    if text.get("main"):
+        parts.append(str(text["main"]))
+    if text.get("subtitle"):
+        parts.append(str(text["subtitle"]))
+    names = text.get("names")
+    if isinstance(names, list):
+        parts.extend(str(name) for name in names if name)
+    elif names:
+        parts.append(str(names))
+    return r"\N".join(_ass_escape(part) for part in parts)
+
+
+def _write_ass_overlay(item, path):
+    style = item.get("style") or {}
+    safe_area = style.get("safe_area")
+    effect_type = item.get("effect_type")
+    alignment = 2 if effect_type == "lower_third" or safe_area == "lower_third" else 5
+    margin_v = 90 if alignment == 2 else 60
+    motion = style.get("motion", "fade")
+    motion_tag = r"{\fad(250,250)}" if motion == "fade" else ""
+    content = (
+        "\ufeff[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        "PlayResX: 1920\n"
+        "PlayResY: 1080\n"
+        "WrapStyle: 2\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Default,Arial,64,&H00FFFFFF,&H000000FF,&H00101010,&H80000000,"
+        f"-1,0,0,0,100,100,0,0,1,3,1,{alignment},100,100,{margin_v},1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        f"Dialogue: 0,{_ass_time(item['start_sec'])},{_ass_time(item['end_sec'])},"
+        f"Default,,0,0,0,,{motion_tag}{_ass_text(item)}\n"
+    )
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return str(path)
+
+
+def run_motion_graphics_render_plan(plan, out_dir):
+    """Compile supported motion-graphics plan items into backend assets."""
+    out_dir = Path(out_dir) / "motion_graphics"
+    outputs = []
+    for item in plan.get("items", []):
+        backend = item.get("backend")
+        if backend == "ffmpeg_libass":
+            output_path = _write_ass_overlay(item, out_dir / f"{item['id']}.ass")
+            status = "rendered"
+        else:
+            output_path = None
+            status = "pending"
+        outputs.append({
+            "effect_id": item.get("id"),
+            "segment": item.get("segment"),
+            "effect_type": item.get("effect_type"),
+            "backend": backend,
+            "status": status,
+            "path": output_path,
+            "start_sec": item.get("start_sec"),
+            "duration_sec": item.get("duration_sec"),
+            "motion": (item.get("style") or {}).get("motion"),
+        })
+    return outputs
+
+
 def write_motion_graphics_artifacts(contract, out_dir, backend_policy=None):
     out_dir = Path(out_dir)
     v = validate_motion_graphics_contract(contract)
@@ -144,13 +276,14 @@ def write_motion_graphics_artifacts(contract, out_dir, backend_policy=None):
     plan = build_motion_graphics_render_plan(contract, backend_policy=backend_policy)
     contract_path = _write_json(out_dir / "motion_graphics_contract.json", contract)
     plan_path = _write_json(out_dir / "motion_graphics_render_plan.json", plan)
+    render_outputs = run_motion_graphics_render_plan(plan, out_dir)
     manifest = {
         "artifact_role": "motion_graphics_manifest",
         "motion_graphics_manifest_version": 1,
         "contract_hash": contract.get("contract_hash"),
         "motion_graphics_contract": contract_path,
         "motion_graphics_render_plan": plan_path,
-        "render_outputs": [],
+        "render_outputs": render_outputs,
     }
     manifest_path = _write_json(out_dir / "motion_graphics_manifest.json", manifest)
     return {

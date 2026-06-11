@@ -262,6 +262,17 @@ def load_dashboard_state(workdir):
     for node_id in NODE_ORDER:
         node_def = NODE_REGISTRY[node_id]
         status, reason = node_def["verify_fn"](workdir, artifacts, context)
+        artifact_links = []
+        for output in node_def.get("outputs", []):
+            role = os.path.splitext(os.path.basename(output))[0]
+            declared = manifest.get(role) or output
+            path = declared if os.path.isabs(str(declared)) else os.path.join(workdir, str(declared))
+            if os.path.exists(path):
+                artifact_links.append({
+                    "role": role,
+                    "path": os.path.abspath(path),
+                    "kind": "directory" if os.path.isdir(path) else "file",
+                })
         
         # Add warnings/errors to findings
         if node_id == "8" and status == "warn":
@@ -314,6 +325,7 @@ def load_dashboard_state(workdir):
             "status": status,
             "reason": reason,
             "audits": node_audits,
+            "artifact_links": artifact_links,
         })
 
 
@@ -559,6 +571,30 @@ def load_dashboard_state(workdir):
     normalized_segs.sort(key=lambda x: x["segment"])
 
     # Package normalized dashboard state
+    generated_status = "none"
+    if gen_request_items and generated_manifest:
+        generated_status = "ready"
+    elif gen_request_items:
+        generated_status = "waiting"
+    control_surface = {
+        "read_only": True,
+        "profile": {
+            "render_profile": (profile_data or {}).get("render_profile"),
+            "render_backend": (profile_data or {}).get("render_backend"),
+            "fallback_visual_provider": (profile_data or {}).get("fallback_visual_provider"),
+            "motion_graphics_backend": (profile_data or {}).get("motion_graphics_backend"),
+            "effects_enabled": bool((profile_data or {}).get("effects_enabled")),
+        },
+        "generated_assets": {
+            "requested": len(gen_request_items),
+            "status": generated_status,
+            "manifest_present": bool(generated_manifest),
+        },
+        "route": {
+            "next_action": next_action,
+            "pass": is_pass,
+        },
+    }
     normalized_state = {
         "run": {
             "project": project_name,
@@ -591,7 +627,8 @@ def load_dashboard_state(workdir):
             "keyframe_grid": keyframe_grid_rel if keyframe_grid_present else None,
         },
         "next_action": next_action,
-        "findings": findings
+        "findings": findings,
+        "controls": control_surface,
     }
     
     return normalized_state

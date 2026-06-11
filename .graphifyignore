@@ -1,0 +1,24 @@
+# External reference repositories and local tool caches
+reference repo/
+.understand-anything/
+
+# Generated knowledge-graph outputs
+graphify-out/
+
+# Per-run/generated media and scratch outputs
+scratch/
+nightmarket/
+coffee_v2/
+runs/
+tmp_runs/
+video_pipeline_projects/
+_fullpool/
+
+*.mp4
+*.wav
+*.mp3
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic

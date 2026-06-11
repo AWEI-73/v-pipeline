@@ -15,6 +15,9 @@ def _timeline():
         {"segment": 2, "source_path": "b.mp4", "start_sec": 5, "end_sec": 7,
          "duration_sec": 2, "timeline_in_sec": 3, "timeline_out_sec": 5,
          "text_overlay": "none", "audio_policy": "duck"},
+    ], "audio_tracks": [
+        {"role": "bgm", "source_path": "bgm.mp3", "source_in_sec": 0,
+         "timeline_in_sec": 0, "duration_sec": 5, "volume": 0.35},
     ]}
 
 
@@ -43,6 +46,8 @@ class DraftManifestTest(unittest.TestCase):
         texts = [t["text"] for t in m["text_overlays"]]
         self.assertIn("開場", texts)
         self.assertNotIn("none", texts)
+        self.assertEqual(m["audio_track"][0]["source_path"], "bgm.mp3")
+        self.assertEqual(m["audio_track"][0]["role"], "bgm")
 
     def test_writer_round_trip(self):
         with tempfile.TemporaryDirectory() as d:
@@ -153,6 +158,29 @@ class CapcutDraftWriterTest(unittest.TestCase):
         draft = cc.build_capcut_draft(_skeleton(), _timeline())
         types = [t["type"] for t in draft["tracks"]]
         self.assertIn("sticker", types)
+
+    def test_build_draft_injects_editable_text_track(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        text_track = next(t for t in draft["tracks"] if t["type"] == "text")
+        self.assertEqual(len(text_track["segments"]), 1)
+        self.assertEqual(
+            text_track["segments"][0]["target_timerange"],
+            {"start": 0, "duration": 3_000_000},
+        )
+        material_id = text_track["segments"][0]["material_id"]
+        material = next(m for m in draft["materials"]["texts"] if m["id"] == material_id)
+        self.assertEqual(json.loads(material["content"])["text"], "開場")
+
+    def test_build_draft_injects_audio_track_from_explicit_sources(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        audio_track = next(t for t in draft["tracks"] if t["type"] == "audio")
+        self.assertEqual(len(audio_track["segments"]), 1)
+        seg = audio_track["segments"][0]
+        self.assertEqual(seg["target_timerange"], {"start": 0, "duration": 5_000_000})
+        self.assertEqual(seg["volume"], 0.35)
+        material = next(m for m in draft["materials"]["audios"] if m["id"] == seg["material_id"])
+        self.assertEqual(material["path"], "bgm.mp3")
+        self.assertEqual(material["type"], "audio")
 
     def test_write_draft_project_round_trip(self):
         with tempfile.TemporaryDirectory() as d:

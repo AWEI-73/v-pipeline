@@ -68,6 +68,8 @@ class DashboardStateTest(unittest.TestCase):
             story_html = story_out.read_text(encoding="utf-8")
             self.assertIn('"run":', dashboard_html)
             self.assertIn('"nodes":', dashboard_html)
+            self.assertIn('"controls":', dashboard_html)
+            self.assertIn('detail-node-artifact-links', dashboard_html)
             self.assertIn('"run":', story_html)
             self.assertIn('"nodes":', story_html)
 

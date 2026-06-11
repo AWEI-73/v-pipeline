@@ -86,6 +86,21 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(timeline["clips"][0]["crop"]["center_y"], 300)
         self.assertEqual(timeline["clips"][0]["crop"]["source"], "vlm_subject")
 
+    def test_build_timeline_carries_photo_variant_trace(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "photo.jpg",
+            "extract_start": 0,
+            "extract_dur": 2,
+            "slot_index": 2,
+            "is_photo": True,
+            "photo_variant": 3,
+            "still_treatment": {"mode": "detail_push", "reason": "photo_multi_shot"},
+        }])
+        clip = timeline["clips"][0]
+        self.assertEqual(clip["photo_variant"], 3)
+        self.assertEqual(clip["still_treatment"]["mode"], "detail_push")
+
 
     def test_build_assembly_plan_compiles_execution_and_transition_plans(self):
         script = {
@@ -128,6 +143,8 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(seg["execution_plan"]["narration"]["mode"], "voiceover")
         self.assertEqual(seg["execution_plan"]["subtitles"]["placement"], "lower_third")
         self.assertEqual(seg["execution_plan"]["effects"]["intensity"], "expressive")
+        self.assertEqual(seg["attention_budget"]["owner"], "narration")
+        self.assertEqual(seg["attention_budget"]["shot_sec"], [3.0, 8.0])
 
 
 if __name__ == "__main__":

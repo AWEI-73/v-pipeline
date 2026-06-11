@@ -1034,3 +1034,40 @@ ComfyUI 預設 disabled/deprecated；除非使用者明確要求實驗,不要選
 
 ## 產品定位(2026-05-31)
 **一條紮實、可靠、誠實、可擴充的系統**,正從「自動中文旁白影片產生器」(1 旁白=1 clip 幻燈片模型)轉向「**結訓 MV 自動剪輯器**」(beat-driven 選段+對拍+必放+文字層+人補接力)。三源素材:① 學員自有(紀實主體 ~80%,最該補的腿)② stock(Pexels 泛概念)③ 生成式(Antigravity / assistant_imagegen / Codex 圖補 ceiling,做不出特定人,只當 B-roll)。策略:Route Skill Project 先收斂 → dashboard review → 再特化 → 平台無關移轉(Project Kit 後)。生成 provider 由另一 agent 獨立執行,本專案只定義 `source=generated` 介面；ComfyUI 已降為 deprecated/disabled。
+## 2026-06-11 Roadmap Execution Status
+
+The current P1-P6 implementation direction is complete:
+
+- P1 subtitle polish: shared presentation policy, punctuation/line wrapping, bottom-center styling.
+- P2 attention-budget pacing: narration/music/visual ownership and visual-fatigue integration (audit-side; BUILD allocation does not consume it yet).
+- P3 canonical contract to narrative chain: traceable narrative adapter and runtime routing.
+- P4 CapCut text/audio tracks: editable text tracks and explicit BGM/audio tracks in real drafts (JSON-level done; CapCut GUI load verification is a pending human/CU gate).
+- P5 photo multi-shot expander: one photo expands into distinct push/pan/detail shots with timeline trace.
+- P6 motion graphics backend: canonical timeline to Node 14 contract/plan and rendered ffmpeg/libass overlays.
+
+Verification evidence:
+
+- Full suite: `python -m unittest discover -s tests` -> 541 tests OK.
+- P5 real ffmpeg smoke: one photo rendered as slow-push, pan-right, and detail-push shots.
+- P6 real ffmpeg/libass smoke: generated ASS overlay rendered into a playable 2-second MP4.
+
+Dashboard Build Control Surface is complete:
+
+- dashboard state exposes a read-only `controls` contract for profile, generated
+  asset status, and route/next-action;
+- every node exposes absolute links for artifacts that actually exist;
+- self-contained dashboard/story-map output embeds the control contract.
+
+C6 hygiene is complete:
+
+- `.understand-anything/` remains ignored local exploration output;
+- `graphify-out/` remains the accepted project map;
+- `.graphifyignore` keeps external reference repositories, generated media, and
+  run outputs outside the formal project map;
+- `HANDOFF_CURRENT.md` and `RUNBOOK.md` point to the current Windows state.
+
+Graphify was refreshed once after P1-P6 stabilized: 104 code files produced
+1,734 nodes and 2,575 edges. The clean source-only rebuild contains the new
+attention-budget, subtitle-presentation, motion-graphics, photo multi-shot, and
+dashboard-state modules; retired `route.py` and `reference repo/` have zero
+source nodes.

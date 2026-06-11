@@ -329,16 +329,27 @@ def _is_image(path):
     return os.path.splitext(path or "")[1].lower() in _IMG_EXTS
 
 
-def _photo_vf(dur, kenburns=True):
+def _photo_vf(dur, kenburns=True, treatment=None):
     """靜照→影片片段的 vf。kenburns=緩慢推近(救開場/收尾照片,避免死板靜止);
     否則純 hold(scale+pad)。輸出 1920x1080@30。純函式(回 vf 字串)。"""
     if not kenburns:
         return _MV_VF
     frames = max(1, round((dur or 1.0) * 30))
     # 先上採樣到 4K 再 zoompan 置中緩推,避免低解析照片放大鋸齒/抖動
+    mode = (treatment or {}).get("mode", "slow_push")
+    motion = {
+        "pan_right": "z=1.3:x='if(eq(on,1),0,min(x+3,iw-iw/zoom))':y='ih/2-(ih/zoom/2)'",
+        "pan_left": "z=1.3:x='if(eq(on,1),iw-iw/zoom,max(x-3,0))':y='ih/2-(ih/zoom/2)'",
+        "detail_push": (
+            "z='min(zoom+0.0016,1.4)':x='trunc(iw/2-(iw/zoom/2))':"
+            "y='trunc(ih/2-(ih/zoom/2))'"
+        ),
+    }.get(mode, (
+        "z='min(zoom+0.0008,1.25)':x='trunc(iw/2-(iw/zoom/2))':"
+        "y='trunc(ih/2-(ih/zoom/2))'"
+    ))
     return ("scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,"
-            f"zoompan=z='min(zoom+0.0008,1.25)':x='trunc(iw/2-(iw/zoom/2))':"
-            f"y='trunc(ih/2-(ih/zoom/2))':d={frames}:s=1920x1080:fps=30,"
+            f"zoompan={motion}:d={frames}:s=1920x1080:fps=30,"
             "setsar=1,format=yuv420p")
 
 
@@ -530,10 +541,19 @@ def _windows_from_clip(path, n_clips, clip_dur, keep_audio, text=None, segment=N
     回 slots(無 slot_index)。n_clips<=0 回空。"""
     if n_clips <= 0:
         return []
-    if _is_image(path):   # 照片 bookend:1 張 = 1 still slot
-        return [{"source": path, "extract_start": 0.0, "extract_dur": round(clip_dur, 3),
-                 "keep_audio": False, "text": text, "segment": segment, "is_photo": True,
-                 "still_treatment": {"mode": "slow_push", "reason": "default_pan_zoom"}}]
+    if _is_image(path):
+        modes = ("slow_push", "pan_right", "detail_push", "pan_left")
+        return [{
+            "source": path,
+            "extract_start": 0.0,
+            "extract_dur": round(clip_dur, 3),
+            "keep_audio": False,
+            "text": text,
+            "segment": segment,
+            "is_photo": True,
+            "photo_variant": i + 1,
+            "still_treatment": {"mode": modes[i % len(modes)], "reason": "photo_multi_shot"},
+        } for i in range(n_clips)]
     slots = []
     shots = detect_shots(path)
     wins = fixed_windows(shots[0][1] if shots else 0, win=max(2.0, clip_dur))
@@ -1160,7 +1180,11 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
         if p.get("is_photo"):
             # 照片→still 影片片段:loop 1 張 + kenburns 緩推 + 靜音(照片無原音)。
             # ⚠️ -t 必須放在 filter 之後當「輸出」上限(放 -i 前會與 zoompan d= 相乘爆長)。
-            pvf = _photo_vf(p["extract_dur"], kenburns=p.get("kenburns", True)) \
+            pvf = _photo_vf(
+                p["extract_dur"],
+                kenburns=p.get("kenburns", True),
+                treatment=p.get("still_treatment"),
+            ) \
                 + _drawtext_chain(p.get("text"), mat_dir, p["slot_index"])
             cmd = [FFMPEG, "-y", "-loop", "1", "-i", p["source"],
                    "-f", "lavfi", "-t", f"{p['extract_dur']:.3f}", "-i", "anullsrc=r=44100:cl=stereo",

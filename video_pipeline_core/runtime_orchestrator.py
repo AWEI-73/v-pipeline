@@ -124,8 +124,12 @@ def check_ready_for_build_gate(run_dir):
     # 1. Subtitle placement validation
     sub_strategy = design.get("subtitle_strategy") or {}
     placement = sub_strategy.get("placement")
-    if placement and placement not in ("bottom_safe", "top_safe", "hidden"):
-        errors.append(f"Invalid subtitle placement: '{placement}'. Must be 'bottom_safe', 'top_safe', or 'hidden'.")
+    allowed_placements = ("bottom_safe", "bottom_center", "top_safe", "hidden")
+    if placement and placement not in allowed_placements:
+        errors.append(
+            f"Invalid subtitle placement: '{placement}'. "
+            f"Must be one of: {', '.join(allowed_placements)}."
+        )
 
     # 2. Narration mode validation
     nar_strategy = design.get("narration_strategy") or {}
@@ -906,10 +910,20 @@ def run_orchestrator(project_name=None, args=None):
                     sys.exit(res.returncode)
             else:
                 # Narrative mode
+                from video_pipeline_core.contract_adapter import adapt_narrative_contract_file
+
+                narrative_payload = run_dir / "generated_narrative_script.json"
+                adapted = adapt_narrative_contract_file(contract_path, out_path=narrative_payload)
+                if not adapted["ok"]:
+                    print(
+                        f"[runtime] Error: narrative contract adaptation failed: {adapted['errors']}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
                 print(f"[runtime] Launching run_with_ollama.py compile for Narrative style...")
                 cmd = [
                     python_exe, str(REPO_ROOT / "run_with_ollama.py"),
-                    str(contract_path),
+                    str(narrative_payload),
                     "--out", str(run_dir)
                 ]
                 print(f"[runtime] Running: {' '.join(cmd)}")

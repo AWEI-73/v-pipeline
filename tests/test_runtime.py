@@ -125,6 +125,51 @@ class TestRuntime(unittest.TestCase):
             self.assertTrue(music_called)
             self.assertTrue(compile_called)
 
+    @patch("subprocess.run")
+    def test_narrative_run_adapts_contract_before_compile(self, mock_run):
+        project_dir = self._setup_project("narrative_proj")
+        contract_data = {
+            "style": "narrative",
+            "segments": [{
+                "segment": 1,
+                "core": {"section_role": "opening", "story_purpose": "Introduce", "timeline_source": "tts"},
+                "material_fit": {"visual_desc": "Sunrise", "material_hint": "sunrise", "reason": "setting"},
+                "audio": {"role": "duck", "voiceover_policy": "tts", "reason": "narration"},
+                "visual_style": {"layout": "single", "pace": "hold", "reason": "calm"},
+                "text_layer": {"subtitle": "from_voiceover", "reason": "captions"},
+                "narration": {"text": "A new day begins.", "mode": "voiceover"},
+            }],
+        }
+        (project_dir / "input" / "segment_contract.json").write_text(
+            json.dumps(contract_data), encoding="utf-8"
+        )
+        run_dir = self._setup_run(project_dir)
+        mock_run.return_value = MagicMock(returncode=0)
+        states = [
+            {"run": {"next_action": "missing_artifact:final.mp4", "pass": False}, "nodes": [], "findings": []},
+            {"run": {"next_action": None}, "nodes": [], "findings": []},
+        ]
+
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", side_effect=states):
+            with self.assertRaises(SystemExit):
+                runtime_orchestrator.run_orchestrator(
+                    project_name="narrative_proj",
+                    args=MagicMock(contract=None, brief=None, music=None, material_db=None),
+                )
+
+        payload_path = run_dir / "generated_narrative_script.json"
+        self.assertTrue(payload_path.exists())
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["segments"][0]["text"], "A new day begins.")
+        narrative_calls = [
+            call[0][0] for call in mock_run.call_args_list
+            if any("run_with_ollama.py" in str(arg) for arg in call[0][0])
+        ]
+        self.assertEqual(len(narrative_calls), 1)
+        call_paths = {str(Path(arg).resolve()) for arg in narrative_calls[0] if str(arg).endswith(".json")}
+        self.assertIn(str(payload_path.resolve()), call_paths)
+        self.assertNotIn(str((run_dir / "segment_contract.json").resolve()), call_paths)
+
     def test_completed_resume_exits_immediately(self):
         project_dir = self._setup_project("complete_proj")
         run_dir = self._setup_run(project_dir)
@@ -402,6 +447,20 @@ class TestRuntime(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 runtime_orchestrator.run_orchestrator(project_name="retry_cur_proj", args=MagicMock(contract=None, brief=None))
             self.assertEqual(cm.exception.code, 0)
+
+    def test_ready_for_build_gate_accepts_bottom_center_subtitles(self):
+        run_dir = self.root_path / "gate-run"
+        run_dir.mkdir()
+        (run_dir / "editorial_design.json").write_text(
+            json.dumps({
+                "subtitle_strategy": {"placement": "bottom_center"},
+                "narration_strategy": {"mode": "voiceover"},
+                "effects_strategy": {"allowed_roles": []},
+            }),
+            encoding="utf-8",
+        )
+
+        runtime_orchestrator.check_ready_for_build_gate(run_dir)
 
 class TestAuditRouting(unittest.TestCase):
     def test_resolve_audit_route_none_when_no_audit_findings(self):

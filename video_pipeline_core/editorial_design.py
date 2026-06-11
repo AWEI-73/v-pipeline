@@ -48,10 +48,14 @@ def default_editorial_design(blueprint: dict | None = None) -> dict:
         },
         "subtitle_strategy": {
             "mode": "full_subtitle",
-            "placement": "bottom_safe",
+            "placement": "bottom_center",
             "density": "full",
             "avoid": ["logo"],
             "style": "clean",
+            "punctuation": "fullwidth_space",
+            "max_chars_per_line": 16,
+            "max_lines": 2,
+            "font_size_mode": "scale_with_resolution",
         },
         "text_layer_strategy": {
             "subtitle": "full",

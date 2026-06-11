@@ -145,6 +145,7 @@ def cmd_merge_final(args):
 
     from pathlib import Path
     from .platform_tools import resolve_font
+    from .subtitle_presentation import build_ass_style, polished_srt_file, probe_video_height
     font_path = resolve_font()
     if os.path.exists(font_path):
         with open(font_path, 'rb') as f:
@@ -152,36 +153,33 @@ def cmd_merge_final(args):
         if magic[:4] not in (b'OTTO', b'\x00\x01\x00\x00', b'true', b'ttcf'):
             raise ToolError(f"font is not valid TrueType: {font_path}")
 
-    subs_path = str(Path(args.subs).resolve())
-    subs_escaped = subs_path.replace("\\", "\\\\").replace(":", "\\:")
     font_dir = str(Path(font_path).parent).replace("\\", "/").replace(":", "\\:")
     font_name = Path(font_path).stem
 
     # D3 字幕美學：加粗 + 柔和投影提升質感與在雜亂畫面上的可讀性
     #   BackColour=&H80000000 = 50% 半透明黑投影；Shadow=1.5 給深度
     #   Outline 由 3 降 to 2（有投影分離，不需過重描邊）
-    vf = (
-        f"subtitles='{subs_escaped}':fontsdir='{font_dir}':"
-        f"force_style='FontName={font_name},FontSize=38,Bold=1,"
-        f"PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,"
-        f"BorderStyle=1,Outline=2,Shadow=1.5,Spacing=0.5,"
-        f"Alignment=2,MarginV=90'"
-    )
-
-    cmd = [
-        FFMPEG, "-y",
-        "-i", args.visual,
-        "-i", args.audio,
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-c:a", "aac", "-b:a", "192k",
-        "-r", "30", "-vsync", "cfr",
-        "-ar", "48000", "-ac", "2",
-        "-shortest",
-        out,
-    ]
-    res = run(cmd)
+    style = build_ass_style(probe_video_height(args.visual, FFPROBE))
+    with polished_srt_file(args.subs) as polished_subs:
+        subs_escaped = str(Path(polished_subs).resolve()).replace("\\", "\\\\").replace(":", "\\:")
+        vf = (
+            f"subtitles='{subs_escaped}':fontsdir='{font_dir}':"
+            f"force_style='FontName={font_name},{style}'"
+        )
+        cmd = [
+            FFMPEG, "-y",
+            "-i", args.visual,
+            "-i", args.audio,
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+            "-c:a", "aac", "-b:a", "192k",
+            "-r", "30", "-vsync", "cfr",
+            "-ar", "48000", "-ac", "2",
+            "-shortest",
+            out,
+        ]
+        res = run(cmd)
     if res.returncode != 0:
         raise ToolError(f"merge-final failed: {res.stderr[:500]}")
 

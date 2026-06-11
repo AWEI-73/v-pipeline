@@ -123,6 +123,90 @@ def contract_to_mv_script(contract):
     return script
 
 
+def _narration_text(seg, audio, text_layer, core):
+    narration = seg.get("narration")
+    if isinstance(narration, str):
+        return narration
+    if isinstance(narration, dict):
+        for key in ("text", "script", "narrative"):
+            if narration.get(key):
+                return narration[key]
+    for key in ("narration", "voiceover_text", "text"):
+        if audio.get(key):
+            return audio[key]
+    if isinstance(text_layer, dict):
+        for key in ("narrative", "label"):
+            if text_layer.get(key):
+                return text_layer[key]
+    return core.get("story_purpose", "")
+
+
+def contract_to_narrative_script(contract):
+    """Adapt a canonical contract to the flat payload consumed by video_pipeline.py."""
+    segs_in = contract.get("segments", []) if isinstance(contract, dict) else (contract or [])
+    out_segs = []
+    for i, seg in enumerate(segs_in):
+        core = seg.get("core") or {}
+        mat = seg.get("material_fit") or {}
+        audio = seg.get("audio") or {}
+        visual = seg.get("visual_style") or {}
+        text_layer = seg.get("text_layer")
+        narration = seg.get("narration")
+        source = seg.get("source")
+
+        media_pref = mat.get("media")
+        if media_pref not in ("photo", "video"):
+            media_pref = "video" if source == "local" else "photo"
+
+        title = core.get("section_role") or f"Segment {i + 1}"
+        if isinstance(text_layer, dict):
+            title = text_layer.get("label") or title
+
+        effects = {}
+        transition = visual.get("transition")
+        grade = visual.get("color_grade") or visual.get("grade")
+        if transition:
+            effects["transition"] = transition
+        if grade:
+            effects["grade"] = grade
+        for key in ("kenburns", "transition_duration", "title_card", "collage_n", "montage_n"):
+            if visual.get(key) is not None:
+                effects[key] = visual[key]
+
+        flat = {
+            "segment": seg.get("segment", i + 1),
+            "_from_contract": seg.get("segment", core.get("section_role") or i + 1),
+            "title": title,
+            "text": _narration_text(seg, audio, text_layer, core),
+            "visual_desc": mat.get("visual_desc", ""),
+            "search_query": mat.get("search_query") or mat.get("material_hint") or mat.get("visual_desc", ""),
+            "media_pref": media_pref,
+            "style": "narrative",
+            "raw_narration": narration,
+            "raw_audio": audio,
+            "raw_visual_style": visual,
+            "raw_text_layer": text_layer,
+            "material_fit": mat,
+            "visual_style": visual,
+            "text_layer": text_layer,
+        }
+        if effects:
+            flat["effects"] = effects
+        for key in ("source", "file", "material_hint", "must_include"):
+            value = seg.get(key) if key in ("source", "file") else mat.get(key)
+            if value:
+                flat[key] = value
+        out_segs.append(flat)
+
+    script = {"style": "narrative", "segments": out_segs}
+    if isinstance(contract, dict):
+        if contract.get("bgm"):
+            script["bgm"] = contract["bgm"]
+        elif contract.get("music"):
+            script["bgm"] = contract["music"]
+    return script
+
+
 def _read_contract(contract):
     if isinstance(contract, (str, os.PathLike)):
         path = Path(contract)
@@ -198,6 +282,37 @@ def adapt_contract_file(contract_path, *, out_path=None, categories_path=None):
 
     result = {"ok": True, "errors": [], "warnings": v["warnings"], "stage": "adapt",
               "contract_hash": contract_hash, "generated_script": payload}
+    if out_path:
+        result["generated_payload"] = str(_write_json(out_path, payload))
+    return result
+
+
+def adapt_narrative_contract_file(contract_path, *, out_path=None, categories_path=None):
+    """Validate canonical contract and optionally write a traceable narrative payload."""
+    contract, source, contract_hash = _read_contract(contract_path)
+    validation = spec_contract.validate_segment_contract(
+        contract, categories=_load_category_ids(categories_path)
+    )
+    if not validation["ok"]:
+        return {
+            "ok": False,
+            "errors": validation["errors"],
+            "warnings": validation["warnings"],
+            "stage": "validate_contract",
+            "contract_hash": contract_hash,
+        }
+
+    contract, _stock_route = _apply_stock_first_if_enabled(contract)
+    script = contract_to_narrative_script(contract)
+    payload = _with_payload_metadata(script, generated_from=source, contract_hash=contract_hash)
+    result = {
+        "ok": True,
+        "errors": [],
+        "warnings": validation["warnings"],
+        "stage": "adapt",
+        "contract_hash": contract_hash,
+        "generated_script": payload,
+    }
     if out_path:
         result["generated_payload"] = str(_write_json(out_path, payload))
     return result
@@ -578,6 +693,28 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         from . import editor_review  # noqa: PLC0415
         editor_review_path = out_path.parent / "editor_review.json"
         editor_review.write_editor_review(timeline, editor_review_path)
+    motion_graphics_paths = {}
+    if (build_profile_payload.get("render_profile") == "motion_graphics"
+            and edit_paths.get("timeline_build")):
+        from . import motion_graphics  # noqa: PLC0415
+        with open(edit_paths["timeline_build"], encoding="utf-8") as f:
+            motion_timeline = json.load(f)
+        motion_contract = motion_graphics.contract_from_timeline(
+            contract_obj,
+            motion_timeline,
+            backend=build_profile_payload.get("motion_graphics_backend", "ffmpeg_libass"),
+            contract_hash=contract_hash,
+        )
+        if motion_contract["items"]:
+            motion_graphics_paths = motion_graphics.write_motion_graphics_artifacts(
+                motion_contract,
+                out_path.parent,
+                backend_policy={
+                    "default_backend": build_profile_payload.get("motion_graphics_backend", "ffmpeg_libass"),
+                    "fallback_backend": "ffmpeg_libass",
+                    "allow_heavy_backend": False,
+                },
+            )
     state_path = out_path.parent / "state.json"
 
     # Ensure subtitles.srt exists (needed for verify_result)
@@ -691,6 +828,16 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         try:
             with open(edit_paths["timeline_build"], encoding="utf-8") as f:
                 _tl = json.load(f)
+            if music_path:
+                total_duration = sum(float(c.get("duration_sec") or 0) for c in _tl.get("clips", []))
+                _tl.setdefault("audio_tracks", []).append({
+                    "role": "bgm",
+                    "source_path": str(music_path),
+                    "source_in_sec": 0,
+                    "timeline_in_sec": 0,
+                    "duration_sec": round(total_duration, 3),
+                    "volume": 0.35,
+                })
             from . import capcut_backend  # noqa: PLC0415
             cc_path = out_path.parent / "capcut_draft_manifest.json"
             capcut_backend.write_draft_manifest(_tl, cc_path, project_name=out_path.parent.name)
@@ -752,6 +899,9 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          generated_asset_requests=generated_asset_requests_path,
                          light_effects_plan=light_effects_paths.get("plan"),
                          light_effects_manifest=light_effects_paths.get("manifest"),
+                         motion_graphics_contract=motion_graphics_paths.get("contract"),
+                         motion_graphics_render_plan=motion_graphics_paths.get("render_plan"),
+                         motion_graphics_manifest=motion_graphics_paths.get("manifest"),
                          assembly_plan=edit_paths.get("assembly_plan"),
                          timeline_build=edit_paths.get("timeline_build"),
                          editor_review=editor_review_path,

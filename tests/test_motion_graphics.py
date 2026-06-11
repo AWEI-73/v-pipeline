@@ -60,9 +60,57 @@ class MotionGraphicsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             result = motion_graphics.write_motion_graphics_artifacts(self._contract(), d)
             manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+            self.assertTrue(Path(manifest["render_outputs"][0]["path"]).exists())
         self.assertTrue(result["ok"])
         self.assertEqual(manifest["motion_graphics_contract"], result["contract"])
         self.assertEqual(manifest["motion_graphics_render_plan"], result["render_plan"])
+        self.assertEqual(len(manifest["render_outputs"]), 1)
+        output = manifest["render_outputs"][0]
+        self.assertEqual(output["backend"], "ffmpeg_libass")
+        self.assertEqual(output["status"], "rendered")
+
+    def test_ffmpeg_libass_runner_writes_timed_overlay(self):
+        with tempfile.TemporaryDirectory() as d:
+            plan = motion_graphics.build_motion_graphics_render_plan(self._contract())
+            outputs = motion_graphics.run_motion_graphics_render_plan(plan, d)
+            ass_path = Path(outputs[0]["path"])
+            content = ass_path.read_text(encoding="utf-8-sig")
+
+        self.assertEqual(outputs[0]["effect_id"], "title_001")
+        self.assertIn("[Events]", content)
+        self.assertIn("Dialogue: 0,0:00:00.00,0:00:04.00", content)
+        self.assertIn("fade", outputs[0]["motion"])
+
+    def test_unimplemented_backend_is_explicitly_pending(self):
+        contract = self._contract()
+        contract["items"][0]["backend"] = "remotion"
+        with tempfile.TemporaryDirectory() as d:
+            result = motion_graphics.write_motion_graphics_artifacts(contract, d)
+            manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["render_outputs"][0]["status"], "pending")
+        self.assertEqual(manifest["render_outputs"][0]["backend"], "remotion")
+        self.assertIsNone(manifest["render_outputs"][0]["path"])
+
+    def test_contract_from_timeline_maps_canonical_text_to_exact_timing(self):
+        canonical = {
+            "segments": [{
+                "segment": 2,
+                "text_layer": {"label": "Chapter Two", "reason": "chapter marker"},
+            }],
+        }
+        timeline = {"clips": [
+            {"segment": 2, "timeline_in_sec": 3.0, "timeline_out_sec": 5.0},
+            {"segment": 2, "timeline_in_sec": 5.0, "timeline_out_sec": 7.5},
+        ]}
+        contract = motion_graphics.contract_from_timeline(
+            canonical, timeline, backend="ffmpeg_libass", contract_hash="sha256:abc"
+        )
+        item = contract["items"][0]
+
+        self.assertEqual(item["effect_type"], "chapter_card")
+        self.assertEqual(item["text"]["main"], "Chapter Two")
+        self.assertEqual(item["timing"], {"start_sec": 3.0, "duration_sec": 4.5})
 
 
 if __name__ == "__main__":

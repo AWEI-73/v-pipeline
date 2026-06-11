@@ -5,6 +5,34 @@ from pathlib import Path
 from video_pipeline_core.dashboard_state import load_dashboard_state
 
 class DashboardStateSpecTest(unittest.TestCase):
+    def test_control_surface_is_artifact_first_and_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "build_profile.json").write_text(json.dumps({
+                "render_profile": "motion_graphics",
+                "fallback_visual_provider": "assistant_imagegen",
+                "motion_graphics_backend": "ffmpeg_libass",
+                "effects_enabled": True,
+            }), encoding="utf-8")
+            (workdir / "generated_asset_requests.json").write_text(json.dumps({
+                "items": [{"segment": 1, "provider": "assistant_imagegen", "prompt": "city"}],
+            }), encoding="utf-8")
+            (workdir / "motion_graphics_render_plan.json").write_text(
+                json.dumps({"items": []}), encoding="utf-8"
+            )
+
+            state = load_dashboard_state(str(workdir))
+            controls = state["controls"]
+
+            self.assertTrue(controls["read_only"])
+            self.assertEqual(controls["profile"]["render_profile"], "motion_graphics")
+            self.assertEqual(controls["generated_assets"]["requested"], 1)
+            self.assertEqual(controls["generated_assets"]["status"], "waiting")
+            self.assertEqual(controls["route"]["next_action"], "wait_for_generated_provider")
+            effects = next(n for n in state["nodes"] if n["node"] == 14)
+            self.assertTrue(any(link["role"] == "motion_graphics_render_plan" for link in effects["artifact_links"]))
+            self.assertTrue(all(Path(link["path"]).is_absolute() for link in effects["artifact_links"]))
+
     def test_manifest_based_state_includes_all_nodes(self):
         """1. Manifest-based dashboard state includes required nodes."""
         with tempfile.TemporaryDirectory() as tmp:

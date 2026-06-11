@@ -15,6 +15,10 @@ class TestDefaultEditorialDesign(unittest.TestCase):
     def test_default_without_blueprint(self):
         d = default_editorial_design()
         self.assertEqual(d["video_mode"], "training_recap")
+        self.assertEqual(d["subtitle_strategy"]["placement"], "bottom_center")
+        self.assertEqual(d["subtitle_strategy"]["max_chars_per_line"], 16)
+        self.assertEqual(d["subtitle_strategy"]["max_lines"], 2)
+        self.assertEqual(d["subtitle_strategy"]["punctuation"], "fullwidth_space")
         self.assertEqual(
             d["editorial_intent"]["energy_curve"],
             ["opening_calm", "training_active", "achievement_proud", "closing_emotional"],
