@@ -1,5 +1,14 @@
 # Current Handoff: Hermes Video Pipeline
 
+> **2026-06-11 state:** convergence COMPLETE (roadmap C0-C6 DoD met). Two real
+> E2E smokes pass: skill-smoke (MV, verify 91.5 / editorial_qa 94) and city-day
+> (narrative, 21-seg ~5min with TTS narration + BGM). Full suite **516 tests OK**.
+> Next phase = expressiveness & chain merge (P1-P6) — see roadmap.md top section
+> and `docs/decisions/2026-06-11-e2e-smokes-and-next-phase.md` (includes the
+> week's fix index and the adjudication of external feedback).
+> Env note: run with **miniconda python** (librosa/edge-tts); new projects start
+> with `video_tools.py project-init <name>`.
+
 > **2026-06-08 active work:** the editorial soul layer (narrative blueprint +
 > material treatment + editing-intent). For a full-takeover-ready handoff of that
 > work see **`archive/HANDOFF_EDITORIAL.md`** (tasks done) and the live overview

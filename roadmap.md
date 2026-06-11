@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline — Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-08
+updated: 2026-06-11
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -11,6 +11,49 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 > 本文件是專案唯一長期 roadmap。過去的 `REVIEW_REPORT*`、`video_pipeline_architect_review.md`
 > 與 `HANDOFF_NEXT_SESSION.md` 的有效結論已整合到這裡；後續 agent 優先讀本檔、
 > `HANDOFF_CURRENT.md`、`RUNBOOK.md`、`README.md`。
+
+---
+
+## 2026-06-11 Active Direction: Expressiveness & Chain Merge(收斂已完成)
+
+**收斂(下節 C0-C6)已達成 DoD**:統一 driver(route.py 退役)、spec_review
+pre-BUILD gate、render-free dry-build、兩支真實 E2E 通過
+(skill-smoke MV 35s → verify 91.5 PASS / editorial_qa 94;
+city-day narrative 5min 21 段 → 全鏈含 TTS 口白+BGM+VLM gate 跑通)、516 tests OK。
+證據:git log 2026-06-10/11 + `docs/decisions/2026-06-11-e2e-smokes-and-next-phase.md`。
+
+下一階段的核心不是更多 gate,是**「感受」**:結構層(切什麼/切多快)已被消化,
+表現層(畫面內動態/合成/字幕美感)是新的天花板。優先序:
+
+```text
+P1 字幕 polish(確定性,~1 天)
+   中下置中、標點清洗(換全形空格)、字級隨解析度、單行 14-16 全形字、最多兩行。
+   進 editorial_design.subtitle_strategy 預設 + subtitle-director 燒錄工具。
+P2 注意力預算 pacing(把使用者校準值編碼進規格)
+   「哪個通道在說故事,哪個通道就拿時間」:segment 級 hold 預算 =
+   f(口白有無, 素材動態程度, 音樂能量)。靜照無特效 1-2s、堆疊 1s/2 張=快、
+   口白段可 hold 長、純音樂段必須快剪。升級 pacing_review / visual_fatigue。
+P3 canonical contract → narrative 鏈合流(根治入口不對稱)
+   contract 加 narration facet → 一份 SPEC 餵兩條鏈;video_pipeline.py 變成
+   runtime 底下的 narrative runner(不是廢棄——它是引擎,缺的是 adapter)。
+   順帶把 spec_review/soul 層帶給口白片。
+P4 CapCut draft 補 text/audio 軌(Half-baked Bridge 補完)
+   BGM/字幕/outro 直接進 draft,讓人在剪映裡能調,而非匯出後 ffmpeg 強行 finalize。
+   參考 NarratoAI jianying_draft_builder(僅技法,非商用授權禁複製,
+   見 docs/reference-repos-map.md)。
+P5 照片多幕展開器(一張照片 → 多個 crop/push 鏡頭)
+   同 multi-window 的「素材是庫」原則用在靜照;crop 座標+zoom 路徑純確定性,
+   VLM 挑焦點。省素材、好 review。
+P6 表現層/motion_graphics backend(「PPT 感」天花板)
+   light_effects → motion_graphics 的實作期;effects-director 接 Node 14。
+
+Opt-in(非預設):雲端 VLM 仲裁走 model_routes(local-first 政策不變;
+4b 蒸餾救援後仍判離題的段才升級仲裁)。
+
+Non-goals 延續:不做完整 NLE UI(用 dashboard + 寫回按鈕做「審查+補丁面板」:
+換候選→only-seg 重渲、拖 in/out→改窗重渲、結構調整→Node 14 revision);
+不預設雲端 API。
+```
 
 ---
 
