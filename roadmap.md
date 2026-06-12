@@ -159,6 +159,14 @@ real-video baseline review and full regression are verified. See
 `docs/decisions/2026-06-12-s4c-creative-exception.md`. Next: E7 or next roadmap
 priority.
 
+Sensory integrated acceptance status (2026-06-12): COMPLETE for the
+MV/local-material/light-effects branch. The fresh bakery v5 run passed true
+render, technical VERIFY 100, editor review, treatment audit, editorial QA 85,
+light-effects 5/5, agent keyframe sensory review, and 663-test regression.
+Integration fixes covered missing source audio, photo-stack pacing, safe
+motion-peak snapping, hold-reason trace, and rendered-timeline beat grids. See
+`docs/decisions/2026-06-12-sensory-integrated-bakery-acceptance.md`.
+
 ### 執行紀律(防彎路,給 Codex)
 
 ```text
