@@ -486,12 +486,22 @@ def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
         kind = s.get("kind")
         budget = total_dur * w / wsum
         is_fast = (s.get("layout") == "montage") or (s.get("pace") == "fast")
-        single = bool(s.get("hold")) or kind in ("opening", "closing", "title") or not is_fast
+        attention = s.get("attention_budget") or {}
+        attention_forces_cut = attention.get("owner") in {"music", "visual"}
+        single = (
+            kind in ("opening", "closing", "title")
+            or (bool(s.get("hold")) and not attention_forces_cut)
+            or (not is_fast and not attention_forces_cut)
+        )
         # Contract pacing wins over the global fast_clip default: a segment
         # declaring preferred_shot_sec=[4,8] wants ~6s shots, not 1.5s — this is
         # what keeps engine allocation in step with Node 9 shot_slots.
         shot_sec = fast_clip
-        pref = (s.get("pacing") or {}).get("preferred_shot_sec")
+        pref = (
+            attention.get("shot_sec")
+            if attention_forces_cut
+            else (s.get("pacing") or {}).get("preferred_shot_sec")
+        )
         if pref:
             try:
                 if isinstance(pref, (list, tuple)) and len(pref) >= 2:
@@ -604,7 +614,8 @@ def _distill_subject(desc):
 
 
 def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
-                        model=None, min_score=0, prefilter_static=True, _scorefn=None):
+                        model=None, min_score=0, prefilter_static=True, _scorefn=None,
+                        visual_judge="ollama", visual_verdict=None, _gridfn=None):
     """stock 橋段:Pexels 抓片(抓不到→GAP 不炸,可恢復)。`_fetch`/`_winfn`/`_scorefn`
     可注入測試。
 
@@ -638,6 +649,80 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
         if isinstance(res, tuple):
             return res[0], res[1], False
         return res, ("pexels" if res else None), False
+
+    if visual_judge == "agent":
+        got, provider, _exhausted = _try_fetch(0)
+        if got and visual_verdict and visual_verdict.get("accept"):
+            for window in visual_verdict.get("picked_windows") or []:
+                ws, we = float(window["start"]), float(window["end"])
+                take = min(float(a["clip_dur"]), we - ws)
+                start = max(ws, (ws + we) / 2 - take / 2)
+                slots.append({
+                    "source": got,
+                    "extract_start": round(start, 3),
+                    "extract_dur": round(take, 3),
+                    "keep_audio": False,
+                    "text": seg_text,
+                    "segment": s.get("segment"),
+                    "provider": provider or "pexels",
+                })
+            entry = {
+                "segment": s.get("segment"),
+                "visual_desc": vd,
+                "source": "stock",
+                "provider": provider or "pexels",
+                "clips_found": 1,
+                "n_clips": len(slots),
+                "picked_scores": ["agent"] * len(slots),
+            }
+            msgs.append(f"  seg{s.get('segment')} [stock] agent verdict accepted {len(slots)} window(s)")
+            return slots, entry, msgs
+        if got and visual_verdict and not visual_verdict.get("accept"):
+            entry = {
+                "segment": s.get("segment"),
+                "visual_desc": vd,
+                "source": "stock",
+                "provider": provider or "pexels",
+                "clips_found": 1,
+                "n_clips": n_clips,
+                "picked_scores": [GAP],
+                "reject_reason": visual_verdict.get("reject_reason"),
+            }
+            msgs.append(f"  seg{s.get('segment')} [stock] agent verdict rejected candidate")
+            return [], entry, msgs
+        if got:
+            if _gridfn is None:
+                from .keyframe_grid import generate_keyframe_grid as _gridfn
+            review_dir = os.path.join(mat_dir, "visual_review")
+            montage = os.path.join(review_dir, f"seg{s.get('segment')}_stock.jpg")
+            grid = _gridfn(got, montage, sample_count=max(8, n_clips * 4))
+            entry = {
+                "segment": s.get("segment"),
+                "visual_desc": vd,
+                "verify_desc": vd or query,
+                "source": "stock",
+                "provider": provider or "pexels",
+                "candidate": got,
+                "montage": grid.get("grid_path") or montage,
+                "samples": grid.get("samples") or [],
+                "clips_found": 1,
+                "n_clips": n_clips,
+                "pending_visual_review": True,
+                "picked_scores": ["PENDING_VISUAL_REVIEW"],
+            }
+            msgs.append(f"  seg{s.get('segment')} [stock] awaiting agent visual review")
+            return [], entry, msgs
+
+        entry = {
+            "segment": s.get("segment"),
+            "visual_desc": vd,
+            "source": "stock",
+            "provider": None,
+            "clips_found": 0,
+            "n_clips": n_clips,
+            "picked_scores": [GAP],
+        }
+        return [], entry, msgs
 
     def _score_clip(path):
         """VLM 評窗一支素材。回 list=接受(選好的窗)/ []=離題拒用 / None=VLM 不可用。
@@ -857,7 +942,8 @@ def trim_beats_to_target(beats, target_sec):
 def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
-           verbose=True, skip_render=False, target_sec=None):
+           verbose=True, skip_render=False, target_sec=None, burn_text=True,
+           visual_judge="ollama"):
     """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
@@ -886,6 +972,10 @@ def run_mv(script, material_root, out_path, music_path=None,
     stack_shot_sec = max(0.4, min(beat_sec, 1.2))
     alloc = allocate_segments(segs, total_dur, stack_shot_sec=stack_shot_sec)
     clip_by_seg = {as_["segment"]: as_ for as_ in (clip_list or {}).get("assignments", [])}
+    visual_verdicts = {}
+    if visual_judge == "agent":
+        from .visual_review import load_verdict
+        visual_verdicts = load_verdict(os.path.join(mat_dir, "visual_review_verdict.json"))
 
     # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry
     plan, per_seg = [], []
@@ -919,7 +1009,8 @@ def run_mv(script, material_root, out_path, music_path=None,
         elif s.get("source") == "stock":
             slots, entry, msgs = _plan_stock_segment(
                 s, a, seg_text, mat_dir,
-                model=model, min_score=min_score, prefilter_static=prefilter_static)
+                model=model, min_score=min_score, prefilter_static=prefilter_static,
+                visual_judge=visual_judge, visual_verdict=visual_verdicts.get(s.get("segment")))
         else:
             slots, entry, msgs = _plan_live_segment(
                 s, a, material_root, seg_text, keep_audio, model=model, mat_dir=mat_dir,
@@ -943,6 +1034,14 @@ def run_mv(script, material_root, out_path, music_path=None,
 
         for sl in slots:                 # slot_index 在這裡統一順序指派
             sl["slot_index"] = len(plan)
+            if s.get("attention_budget"):
+                sl["attention_budget"] = s["attention_budget"]
+            if sl is slots[0]:
+                visual_style = s.get("visual_style") or s.get("raw_visual_style") or {}
+                transition = visual_style.get("transition")
+                if transition in {"dissolve", "crossfade", "xfade"}:
+                    sl["transition"] = transition
+                    sl["transition_duration"] = float(visual_style.get("transition_duration") or 0.5)
             if reason_str:
                 sl.setdefault("shot_reason", reason_str)
                 sl.setdefault("reason", reason_str)
@@ -951,16 +1050,24 @@ def run_mv(script, material_root, out_path, music_path=None,
         for m in msgs:
             vp(m)
     # 4) render(audio_role:keep_audio 段保留原音 + 音樂墊底)
-    if not skip_render:
-        render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir)
-    else:
+    pending_visual_review = [entry for entry in per_seg if entry.get("pending_visual_review")]
+    if pending_visual_review:
+        from .visual_review import write_request
+        write_request(pending_visual_review, os.path.join(mat_dir, "visual_review_request.json"))
+
+    if not skip_render and not pending_visual_review:
+        render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir, burn_text=burn_text)
+    elif skip_render:
         vp("[mv_cut] skip_render is True. Skipping render_mv_audio.")
+    else:
+        vp("[mv_cut] awaiting visual review. Skipping render_mv_audio.")
     # 5) 寫 state.json 給 dashboard(node-timeline 可視化:SPEC+選段+缺口)
     try:
         build_mv_state(script, per_seg, out_path, music_path=music_path, plan=plan)
     except Exception as _e:
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
-    return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan}
+    return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
+            "awaiting_visual_review": bool(pending_visual_review)}
 
 
 def _srt_ts(t):
@@ -1067,7 +1174,8 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
         sid = ps.get("segment")
         s = next((x for x in sscript if x.get("segment") == sid), {})
         picked = ps.get("picked_scores") or []
-        gap = (len(picked) == 0) or picked == [GAP]
+        pending_visual_review = bool(ps.get("pending_visual_review"))
+        gap = not pending_visual_review and ((len(picked) == 0) or picked == [GAP])
         slot = seg_slots.get(sid, {})
         segments.append({
             "segment": sid, "title": (ps.get("visual_desc") or "")[:30],
@@ -1075,7 +1183,7 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
             "source": ps.get("source") or s.get("source", "local"),
             "provider": ps.get("provider"),
             "layout": s.get("layout"),
-            "status": "blocked" if gap else "done",
+            "status": "pending_review" if pending_visual_review else ("blocked" if gap else "done"),
             "score": None if gap else len([x for x in picked if x not in (GAP, "stock")]) or None,
             "label": s.get("label"), "name_super": s.get("name_super"),
             "audio_role": s.get("audio_role"), "subtitle": s.get("subtitle"),
@@ -1120,7 +1228,9 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
                    ("music", "match", "render")],
         "segments": segments, "blocking": blocking, "review_points": review_points,
         "gate_review": None,
-        "next_action": "await_material" if blocking else None,
+        "next_action": ("await_visual_review" if any(
+            ps.get("pending_visual_review") for ps in per_seg
+        ) else ("await_material" if blocking else None)),
     }
     sp = os.path.join(os.path.dirname(out_path) or ".", "state.json")
     with open(sp, "w", encoding="utf-8") as f:
@@ -1130,7 +1240,7 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
 
 
 def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
-             skip_render=False, target_sec=None):
+             skip_render=False, target_sec=None, burn_text=True, visual_judge="ollama"):
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
     把 curator 理解(caption)+ 比對 + 渲染串成一條;render 吃 match 結果,不 live 重評。
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
@@ -1148,7 +1258,7 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
             print(f"  [match] seg{as_['segment']} [{tag}] {as_['visual_desc'][:16]}")
     res = run_mv(script, None, out_path, music_path=music_path,
                  clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render,
-                 target_sec=target_sec)
+                 target_sec=target_sec, burn_text=burn_text, visual_judge=visual_judge)
     res["match"] = matched
     return res
 
@@ -1168,7 +1278,94 @@ def _mv_music_mix(have_keep_audio, music_vol=0.7):
     return None, "1:a:0"   # 純 montage:音樂即主音軌
 
 
-def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
+def _build_transition_filter(plan):
+    """Build a mixed direct-cut/xfade graph from contiguous segment groups."""
+    if not plan:
+        return "", None, None
+    parts = []
+    for idx in range(len(plan)):
+        parts.extend([
+            f"[{idx}:v]settb=AVTB,setpts=PTS-STARTPTS[v{idx}]",
+            f"[{idx}:a]aresample=44100,asetpts=PTS-STARTPTS[a{idx}]",
+        ])
+
+    groups = []
+    for idx, slot in enumerate(plan):
+        if not groups or groups[-1]["segment"] != slot.get("segment"):
+            groups.append({
+                "segment": slot.get("segment"),
+                "indices": [idx],
+                "duration": float(slot.get("extract_dur") or 0.0),
+                "transition": slot.get("transition"),
+                "transition_duration": float(slot.get("transition_duration") or 0.5),
+            })
+        else:
+            groups[-1]["indices"].append(idx)
+            groups[-1]["duration"] += float(slot.get("extract_dur") or 0.0)
+
+    for group_idx, group in enumerate(groups):
+        indices = group["indices"]
+        if len(indices) == 1:
+            group["video_label"] = f"[v{indices[0]}]"
+            group["audio_label"] = f"[a{indices[0]}]"
+            continue
+        video_label = f"[vg{group_idx}]"
+        audio_label = f"[ag{group_idx}]"
+        parts.append(
+            "".join(f"[v{idx}][a{idx}]" for idx in indices)
+            + f"concat=n={len(indices)}:v=1:a=1{video_label}{audio_label}"
+        )
+        group["video_label"] = video_label
+        group["audio_label"] = audio_label
+
+    current_v = groups[0]["video_label"]
+    current_a = groups[0]["audio_label"]
+    current_duration = groups[0]["duration"]
+    for group_idx, group in enumerate(groups[1:], start=1):
+        next_v = group["video_label"]
+        next_a = group["audio_label"]
+        out_v = f"[vt{group_idx}]"
+        out_a = f"[at{group_idx}]"
+        if group.get("transition") in {"dissolve", "crossfade", "xfade"}:
+            duration = min(group["transition_duration"], current_duration, group["duration"])
+            offset = max(0.0, current_duration - duration)
+            parts.append(
+                f"{current_v}{next_v}xfade=transition=fade:duration={duration:.3f}:"
+                f"offset={offset:.3f}{out_v}"
+            )
+            parts.append(f"{current_a}{next_a}acrossfade=d={duration:.3f}{out_a}")
+            current_duration += group["duration"] - duration
+        else:
+            parts.append(f"{current_v}{next_v}concat=n=2:v=1:a=0{out_v}")
+            parts.append(f"{current_a}{next_a}concat=n=2:v=0:a=1{out_a}")
+            current_duration += group["duration"]
+        current_v, current_a = out_v, out_a
+    return ";".join(parts), current_v, current_a
+
+
+def _render_segment_sequence(segs, plan, output_path):
+    """Render segment files with explicit transitions, otherwise return False."""
+    if not any(slot.get("transition") in {"dissolve", "crossfade", "xfade"} for slot in plan):
+        return False
+    graph, video_label, audio_label = _build_transition_filter(plan)
+    command = [FFMPEG, "-y"]
+    for seg in segs:
+        command += ["-i", seg]
+    command += [
+        "-filter_complex", graph,
+        "-map", video_label,
+        "-map", audio_label,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", output_path,
+    ]
+    result = subprocess.run(command, capture_output=True, timeout=600)
+    if result.returncode != 0 or not os.path.exists(output_path):
+        stderr = result.stderr.decode(errors="ignore") if isinstance(result.stderr, bytes) else result.stderr
+        raise ToolError(f"render_mv_audio: xfade sequence failed: {stderr[-1200:]}")
+    return True
+
+
+def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, burn_text=True):
     """(I/O) render plan → 對拍/長段拼接 + audio_role 真混音。
     keep_audio 段(duck/diegetic)保留原音、其餘補靜音;末段用 sidechain ducking
     讓音樂在原音(致詞/隊呼)時讓位(見 `_mv_music_mix`)。"""
@@ -1176,7 +1373,8 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
     segs = []
     for p in plan:
         seg = os.path.join(mat_dir, f"mvseg_{p['slot_index']:03d}.mp4")
-        vf = _MV_VF + _drawtext_chain(p.get("text"), mat_dir, p["slot_index"])  # 編劇文字層燒入
+        text_filter = _drawtext_chain(p.get("text"), mat_dir, p["slot_index"]) if burn_text else ""
+        vf = _MV_VF + text_filter
         if p.get("is_photo"):
             # 照片→still 影片片段:loop 1 張 + kenburns 緩推 + 靜音(照片無原音)。
             # ⚠️ -t 必須放在 filter 之後當「輸出」上限(放 -i 前會與 zoompan d= 相乘爆長)。
@@ -1185,7 +1383,7 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
                 kenburns=p.get("kenburns", True),
                 treatment=p.get("still_treatment"),
             ) \
-                + _drawtext_chain(p.get("text"), mat_dir, p["slot_index"])
+                + text_filter
             cmd = [FFMPEG, "-y", "-loop", "1", "-i", p["source"],
                    "-f", "lavfi", "-t", f"{p['extract_dur']:.3f}", "-i", "anullsrc=r=44100:cl=stereo",
                    "-vf", pvf, "-t", f"{p['extract_dur']:.3f}", "-r", "30",
@@ -1254,9 +1452,10 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7):
             clean_path = os.path.abspath(s).replace('\\', '/')
             f.write(f"file '{clean_path}'\n")
     av = os.path.join(mat_dir, "mv_av.mp4")
-    subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
-                    "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-                    "-c:a", "aac", av], capture_output=True, timeout=600)
+    if not _render_segment_sequence(segs, plan, av):
+        subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", av], capture_output=True, timeout=600)
     have_keep = any(p.get("keep_audio") for p in plan)
     fc, amap = _mv_music_mix(have_keep, music_vol=music_vol)
     cmd = [FFMPEG, "-y", "-i", av, "-i", music_path]

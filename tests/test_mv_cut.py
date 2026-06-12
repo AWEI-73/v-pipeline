@@ -195,6 +195,25 @@ class BuildMvStateTest(unittest.TestCase):
             self.assertTrue(st["pass"])
             self.assertIsNone(st["next_action"])
 
+    def test_pending_visual_review_is_not_reported_as_material_gap(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            st = self._run(
+                tmp,
+                [{
+                    "segment": 1,
+                    "visual_desc": "team discussion",
+                    "source": "stock",
+                    "pending_visual_review": True,
+                    "picked_scores": ["PENDING_VISUAL_REVIEW"],
+                }],
+                [{"segment": 1, "source": "stock"}],
+            )
+
+        self.assertEqual(st["next_action"], "await_visual_review")
+        self.assertEqual(st["blocking"], [])
+        self.assertEqual(st["segments"][0]["status"], "pending_review")
+
     def test_must_include_unfilled_and_review_points(self):
         import tempfile, os
         with tempfile.TemporaryDirectory() as tmp:
@@ -307,7 +326,8 @@ class RunMvArtifactTest(unittest.TestCase):
     def test_run_mv_returns_render_plan_for_timeline_artifact(self):
         script = {"segments": [
             {"segment": 1, "visual_desc": "開場", "weight": 1.0,
-             "pace": "hold", "audio_role": "music"}
+             "pace": "hold", "audio_role": "music",
+             "attention_budget": {"owner": "music", "shot_sec": [1.5, 4.0]}}
         ]}
         clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/a.mp4"}]}]}
 
@@ -326,6 +346,162 @@ class RunMvArtifactTest(unittest.TestCase):
         self.assertEqual(result["cuts"], 1)
         self.assertEqual(result["plan"][0]["source"], "/m/a.mp4")
         self.assertEqual(result["plan"][0]["segment"], 1)
+        self.assertEqual(result["plan"][0]["attention_budget"]["owner"], "music")
+
+    def test_run_mv_can_preserve_text_trace_without_burning_base_text(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "opening",
+            "narrative": "Opening title",
+            "weight": 1.0,
+            "pace": "hold",
+            "audio_role": "music",
+        }]}
+        clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/a.mp4"}]}]}
+        captured = {}
+
+        def fake_render(plan, music_path, out_path, **kwargs):
+            captured["text"] = plan[0]["text"]["narrative"]
+            captured["burn_text"] = kwargs["burn_text"]
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0])), \
+             patch("video_pipeline_core.mv_cut._windows_from_clip", lambda path, n_clips, clip_dur, keep_audio, text=None, segment=None: [{
+                 "source": path, "extract_start": 0.0, "extract_dur": 2.0,
+                 "keep_audio": keep_audio, "text": text, "segment": segment,
+             }]), \
+             patch("video_pipeline_core.mv_cut.render_mv_audio", fake_render), \
+             patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+            mv_cut.run_mv(
+                script, "/materials", "/out/final.mp4",
+                music_path="/music.mp3", clip_list=clip_list,
+                verbose=False, burn_text=False,
+            )
+
+        self.assertEqual(captured["text"], "Opening title")
+        self.assertFalse(captured["burn_text"])
+
+    def test_run_mv_preserves_explicit_transition_on_first_segment_slot(self):
+        script = {"segments": [{
+            "segment": 1, "visual_desc": "opening", "weight": 1.0,
+            "pace": "hold", "audio_role": "music",
+        }, {
+            "segment": 2, "visual_desc": "next", "weight": 1.0,
+            "pace": "hold", "audio_role": "music",
+            "visual_style": {"transition": "xfade", "transition_duration": 0.4},
+        }]}
+        clip_list = {"assignments": [
+            {"segment": 1, "picks": [{"path": "/m/a.mp4"}]},
+            {"segment": 2, "picks": [{"path": "/m/b.mp4"}]},
+        ]}
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])), \
+             patch("video_pipeline_core.mv_cut._windows_from_clip", lambda path, n_clips, clip_dur, keep_audio, text=None, segment=None: [{
+                 "source": path, "extract_start": 0.0, "extract_dur": 2.0,
+                 "keep_audio": keep_audio, "text": text, "segment": segment,
+             }]), \
+             patch("video_pipeline_core.mv_cut.render_mv_audio", lambda *a, **k: None), \
+             patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+            result = mv_cut.run_mv(
+                script, "/materials", "/out/final.mp4",
+                music_path="/music.mp3", clip_list=clip_list, verbose=False,
+            )
+
+        self.assertNotIn("transition", result["plan"][0])
+        self.assertEqual(result["plan"][1]["transition"], "xfade")
+        self.assertEqual(result["plan"][1]["transition_duration"], 0.4)
+
+    def test_run_mv_agent_mode_writes_one_visual_review_request_and_skips_render(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            def fake_stock(s, a, seg_text, mat_dir, **kwargs):
+                return [], {
+                    "segment": s["segment"],
+                    "visual_desc": s["visual_desc"],
+                    "source": "stock",
+                    "candidate": f"stock-{s['segment']}.mp4",
+                    "montage": f"visual_review/seg{s['segment']}.jpg",
+                    "pending_visual_review": True,
+                    "picked_scores": ["PENDING_VISUAL_REVIEW"],
+                }, []
+
+            with patch("video_pipeline_core.mv_cut.detect_beats", return_value=(120.0, [0.0, 2.0, 4.0])), \
+                 patch("video_pipeline_core.mv_cut._plan_stock_segment", side_effect=fake_stock), \
+                 patch("video_pipeline_core.mv_cut.render_mv_audio") as render, \
+                 patch("video_pipeline_core.mv_cut.build_mv_state"):
+                result = mv_cut.run_mv(
+                    {"segments": [
+                        {"segment": 1, "source": "stock", "visual_desc": "one"},
+                        {"segment": 2, "source": "stock", "visual_desc": "two"},
+                    ]},
+                    None,
+                    str(Path(tmp) / "final.mp4"),
+                    music_path="music.mp3",
+                    mat_dir=tmp,
+                    visual_judge="agent",
+                    verbose=False,
+                )
+
+            request = json.loads((Path(tmp) / "visual_review_request.json").read_text(encoding="utf-8"))
+
+        self.assertEqual([clip["segment"] for clip in request["clips"]], [1, 2])
+        self.assertTrue(result["awaiting_visual_review"])
+        render.assert_not_called()
+
+    def test_run_mv_agent_mode_loads_verdict_by_segment(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "visual_review_verdict.json").write_text(json.dumps({
+                "clips": [{
+                    "segment": 1,
+                    "accept": True,
+                    "picked_windows": [{"start": 1.0, "end": 2.0}],
+                }]
+            }), encoding="utf-8")
+            received = {}
+
+            def fake_stock(s, a, seg_text, mat_dir, **kwargs):
+                received["verdict"] = kwargs.get("visual_verdict")
+                return [], {"segment": 1, "picked_scores": ["GAP"]}, []
+
+            with patch("video_pipeline_core.mv_cut.detect_beats", return_value=(120.0, [0.0, 2.0])), \
+                 patch("video_pipeline_core.mv_cut._plan_stock_segment", side_effect=fake_stock), \
+                 patch("video_pipeline_core.mv_cut.render_mv_audio"), \
+                 patch("video_pipeline_core.mv_cut.build_mv_state"):
+                mv_cut.run_mv(
+                    {"segments": [{"segment": 1, "source": "stock", "visual_desc": "one"}]},
+                    None,
+                    str(Path(tmp) / "final.mp4"),
+                    music_path="music.mp3",
+                    mat_dir=tmp,
+                    visual_judge="agent",
+                    verbose=False,
+                )
+
+        self.assertTrue(received["verdict"]["accept"])
+
+
+class XfadeRenderTest(unittest.TestCase):
+    def test_build_transition_filter_uses_xfade_only_for_explicit_boundary(self):
+        plan = [
+            {"segment": 1, "extract_dur": 2.0},
+            {"segment": 1, "extract_dur": 2.0},
+            {"segment": 2, "extract_dur": 3.0, "transition": "xfade", "transition_duration": 0.5},
+            {"segment": 3, "extract_dur": 2.0, "transition": "direct_cut"},
+        ]
+
+        graph, video_label, audio_label = mv_cut._build_transition_filter(plan)
+
+        self.assertIn("xfade=transition=fade:duration=0.500:offset=3.500", graph)
+        self.assertIn("acrossfade=d=0.500", graph)
+        self.assertIn("concat=n=2:v=1:a=0", graph)
+        self.assertTrue(video_label.startswith("[v"))
+        self.assertTrue(audio_label.startswith("[a"))
 
 
 class StaticPrefilterTest(unittest.TestCase):
@@ -485,6 +661,68 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(starts, [2.0, 20.0, 40.0])
         self.assertTrue(all(sl["provider"] for sl in slots))
         self.assertEqual(entry["picked_scores"], ["stock", "stock", "stock"])
+
+    def test_plan_stock_agent_mode_builds_montage_and_waits_without_scoring(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            grid_calls = []
+
+            def fake_grid(video_path, out_path, **kwargs):
+                grid_calls.append((video_path, str(out_path)))
+                return {"grid_path": str(out_path), "samples": [{"timestamp_sec": 1.0}]}
+
+            slots, entry, _ = mv_cut._plan_stock_segment(
+                {"segment": 2, "visual_desc": "team discussion", "search_query": "team"},
+                {"n_clips": 2, "clip_dur": 3.0, "budget": 6.0},
+                {}, tmp,
+                _fetch=lambda q, o, min_dur=0: o,
+                visual_judge="agent",
+                _gridfn=fake_grid,
+                _scorefn=lambda *_: self.fail("agent mode must not invoke VLM scoring"),
+            )
+
+        self.assertEqual(slots, [])
+        self.assertTrue(entry["pending_visual_review"])
+        self.assertEqual(entry["picked_scores"], ["PENDING_VISUAL_REVIEW"])
+        self.assertEqual(len(grid_calls), 1)
+        self.assertIn("visual_review", entry["montage"])
+
+    def test_plan_stock_agent_mode_consumes_accepted_verdict_windows(self):
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            {"segment": 2, "visual_desc": "team discussion"},
+            {"n_clips": 2, "clip_dur": 3.0, "budget": 6.0},
+            {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            visual_judge="agent",
+            visual_verdict={
+                "segment": 2,
+                "accept": True,
+                "picked_windows": [{"start": 1.0, "end": 4.0}, {"start": 8.0, "end": 12.0}],
+            },
+        )
+
+        self.assertEqual([slot["extract_start"] for slot in slots], [1.0, 8.5])
+        self.assertEqual(entry["picked_scores"], ["agent", "agent"])
+        self.assertFalse(entry.get("pending_visual_review", False))
+
+    def test_plan_stock_agent_mode_rejected_verdict_is_gap(self):
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            {"segment": 2, "visual_desc": "wrong scene"},
+            {"n_clips": 1, "clip_dur": 3.0, "budget": 3.0},
+            {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            visual_judge="agent",
+            visual_verdict={
+                "segment": 2,
+                "accept": False,
+                "picked_windows": [],
+                "reject_reason": "off topic",
+            },
+        )
+
+        self.assertEqual(slots, [])
+        self.assertEqual(entry["picked_scores"], ["GAP"])
+        self.assertEqual(entry["reject_reason"], "off topic")
 
     def test_plan_stock_multishot_cycles_when_windows_short(self):
         """Short source: fewer windows than n_clips → cycle to keep the budget."""
@@ -751,6 +989,44 @@ class AllocateSegmentsTest(unittest.TestCase):
         segs = [{"segment": 1, "pace": "fast"}]
         a = mv_cut.allocate_segments(segs, total_dur=15.0, fast_clip=1.5)
         self.assertEqual(a[0]["n_clips"], 10)           # 15 / 1.5 unchanged
+
+    def test_music_attention_budget_forces_non_hold_segment_to_cut(self):
+        segs = [{
+            "segment": 1,
+            "attention_budget": {"owner": "music", "shot_sec": [0.8, 2.0]},
+        }]
+        a = mv_cut.allocate_segments(segs, total_dur=12.0)
+        self.assertEqual(a[0]["n_clips"], 9)
+        self.assertAlmostEqual(a[0]["clip_dur"], 12.0 / 9, places=2)
+
+    def test_music_attention_budget_overrides_generic_hold(self):
+        segs = [{
+            "segment": 1,
+            "hold": True,
+            "attention_budget": {"owner": "music", "shot_sec": [0.8, 2.0]},
+        }]
+        a = mv_cut.allocate_segments(segs, total_dur=12.0)
+        self.assertEqual(a[0]["n_clips"], 9)
+
+    def test_music_attention_budget_overrides_slower_legacy_pacing(self):
+        segs = [{
+            "segment": 1,
+            "pace": "fast",
+            "pacing": {"preferred_shot_sec": [6.0, 10.0]},
+            "attention_budget": {"owner": "music", "shot_sec": [1.5, 4.0]},
+        }]
+        a = mv_cut.allocate_segments(segs, total_dur=12.0)
+        self.assertEqual(a[0]["n_clips"], 4)
+
+    def test_bookend_hold_is_preserved_with_music_attention_budget(self):
+        segs = [{
+            "segment": 1,
+            "kind": "opening",
+            "hold": True,
+            "attention_budget": {"owner": "music", "shot_sec": [0.8, 2.0]},
+        }]
+        a = mv_cut.allocate_segments(segs, total_dur=12.0)
+        self.assertEqual(a[0]["n_clips"], 1)
 
 
 class TrimBeatsToTargetTest(unittest.TestCase):

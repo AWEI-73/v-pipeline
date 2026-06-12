@@ -1,6 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 from video_pipeline_core import vt_verify
 
 
@@ -73,6 +74,22 @@ class VtVerifyTest(unittest.TestCase):
             res = vt_verify._verify_subtitle_accuracy(script, srt_path)
             self.assertEqual(res["score"], 0)
             self.assertEqual(res["fix_target"], "subtitle")
+
+    def test_duration_fit_uses_timeline_out_for_xfade_total(self):
+        with tempfile.TemporaryDirectory() as d:
+            video = Path(d) / "final.mp4"
+            video.write_bytes(b"video")
+            edit_log = {"clips": [
+                {"segment": 1, "duration_sec": 2.0, "timeline_in_sec": 0.0, "timeline_out_sec": 2.0},
+                {"segment": 2, "duration_sec": 2.0, "timeline_in_sec": 1.5, "timeline_out_sec": 3.5,
+                 "transition": "xfade", "transition_duration_sec": 0.5},
+            ]}
+
+            with patch("video_pipeline_core.vt_verify._audio_duration", return_value=3.5):
+                result = vt_verify._verify_duration_fit({}, edit_log, video_path=str(video))
+
+        self.assertEqual(result["score"], 100)
+        self.assertEqual(result["issues"], [])
 
 
 if __name__ == "__main__":

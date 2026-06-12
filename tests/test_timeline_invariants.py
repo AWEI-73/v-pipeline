@@ -75,6 +75,15 @@ class TimelineInvariantsTest(unittest.TestCase):
         self.assertEqual(checks["track_overlap_free"]["status"], "fail")
         self.assertFalse(result["pass"])
 
+    def test_declared_xfade_overlap_is_intentional(self):
+        transition = _clip(2, "b.mp4", 0, 2, 2.5, transition="xfade", transition_duration_sec=0.5)
+        timeline = {"clips": [_clip(1, "a.mp4", 0, 3, 0), transition]}
+
+        result = ti.audit_timeline(timeline)
+
+        self.assertTrue(result["pass"])
+        self.assertEqual(_checks_by_name(result)["track_overlap_free"]["status"], "pass")
+
     def test_must_include_missing_fails(self):
         timeline = {"clips": [_clip(1, "a.mp4", 0, 3, 0)]}
         result = ti.audit_timeline(timeline, must_include_segments=[1, 5])

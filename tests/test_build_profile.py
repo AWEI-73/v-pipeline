@@ -60,6 +60,15 @@ class BuildProfileTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_profile.validate_build_profile(profile)
 
+    def test_visual_judge_defaults_to_agent(self):
+        self.assertEqual(build_profile.default_build_profile()["visual_judge"], "agent")
+
+    def test_visual_judge_rejects_unknown_mode(self):
+        profile = build_profile.default_build_profile()
+        profile["visual_judge"] = "cloud_api"
+        with self.assertRaises(ValueError):
+            build_profile.validate_build_profile(profile)
+
     def test_load_override_preserves_unspecified_defaults(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "build_profile.json"

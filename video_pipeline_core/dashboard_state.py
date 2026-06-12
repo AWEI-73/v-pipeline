@@ -112,6 +112,10 @@ def load_dashboard_state(workdir):
                     manifest["timeline_build"] = f
                 elif f == "editor_review.json":
                     manifest["editor_review"] = f
+                elif f == "visual_review_request.json":
+                    manifest["visual_review_request"] = f
+                elif f == "visual_review_verdict.json":
+                    manifest["visual_review_verdict"] = f
                 elif f == "state.json":
                     manifest["state"] = f
                 elif f == "qa_report.json" or f == "verify_result.json":
@@ -122,6 +126,8 @@ def load_dashboard_state(workdir):
                     manifest["motion_graphics_render_plan"] = f
                 elif f == "motion_graphics_manifest.json":
                     manifest["motion_graphics_manifest"] = f
+                elif f == "light_effects_baseline_review.json":
+                    manifest["light_effects_baseline_review"] = f
                 elif f == "editorial_qa.json":
                     manifest["editorial_qa"] = f
 
@@ -135,11 +141,17 @@ def load_dashboard_state(workdir):
     assembly_plan = safe_load_json(manifest.get("assembly_plan")) or safe_load_json("assembly_plan.json")
     timeline_build = safe_load_json(manifest.get("timeline_build")) or safe_load_json("timeline_build.json")
     editor_review = safe_load_json(manifest.get("editor_review")) or safe_load_json("editor_review.json")
+    visual_review_request = safe_load_json(manifest.get("visual_review_request")) or safe_load_json("visual_review_request.json")
+    visual_review_verdict = safe_load_json(manifest.get("visual_review_verdict")) or safe_load_json("visual_review_verdict.json")
     state_data = safe_load_json(manifest.get("state")) or safe_load_json("state.json")
     verify_result = safe_load_json(manifest.get("verify_result")) or safe_load_json("qa_report.json") or safe_load_json("verify_result.json")
     
     effects_render_plan = safe_load_json(manifest.get("motion_graphics_render_plan")) or safe_load_json("motion_graphics_render_plan.json")
     effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest")) or safe_load_json("motion_graphics_manifest.json")
+    light_effects_baseline_review = (
+        safe_load_json(manifest.get("light_effects_baseline_review"))
+        or safe_load_json("light_effects_baseline_review.json")
+    )
     generated_manifest = safe_load_json(manifest.get("generated_asset_manifest")) or safe_load_json("generated_asset_manifest.json")
 
     # P1 verification tool pack (optional VERIFY evidence, not SPEC truth)
@@ -239,7 +251,8 @@ def load_dashboard_state(workdir):
         "state": state_data,
         "verify_result": verify_result,
         "motion_graphics_render_plan": effects_render_plan,
-        "motion_graphics_manifest": effects_manifest
+        "motion_graphics_manifest": effects_manifest,
+        "light_effects_baseline_review": light_effects_baseline_review,
     }
     
     # Determine pass status: Prioritize verify_result if present
@@ -406,6 +419,14 @@ def load_dashboard_state(workdir):
             next_action = "human_review"
     elif gen_request_items and not generated_manifest:
         next_action = "wait_for_generated_provider"
+    elif visual_review_request and not visual_review_verdict:
+        next_action = "await_visual_review"
+        findings.append({
+            "type": "warning",
+            "node": 11,
+            "artifact": "visual_review_request.json",
+            "message": "Visual review request awaits agent verdict",
+        })
     else:
         # Check required missing nodes
         required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, 11, 13, 12]

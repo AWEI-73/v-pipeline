@@ -5,7 +5,9 @@ keeps title/lower-third/name-list effects as explicit artifacts that can be
 rendered by a safe ffmpeg/libass backend first, then upgraded to Remotion,
 HTML/Playwright, Blender, or external compositors when the route allows it.
 """
+import html
 import json
+import subprocess
 from pathlib import Path
 
 
@@ -27,6 +29,24 @@ ALLOWED_EFFECT_TYPES = {
     "chapter_card",
     "info_card",
     "logo_intro",
+}
+
+TEXT_RECIPES = {
+    "title_sequence": {
+        "template": "title_fade",
+        "motion": "fade_scale",
+        "safe_area": "title_safe",
+    },
+    "chapter_card": {
+        "template": "section_label",
+        "motion": "pop",
+        "safe_area": "title_safe",
+    },
+    "lower_third": {
+        "template": "lower_third_clean",
+        "motion": "slide_up",
+        "safe_area": "lower_third",
+    },
 }
 
 
@@ -61,14 +81,16 @@ def contract_from_timeline(canonical_contract, timeline, *, backend="ffmpeg_liba
                 continue
             effect_type = "chapter_card" if text_layer.get("label") else "title_sequence"
             text = {"main": main, "subtitle": text_layer.get("subtitle")}
+        recipe = TEXT_RECIPES[effect_type]
         items.append({
             "id": f"seg{segment_id}_{effect_type}",
             "segment": segment_id,
             "effect_type": effect_type,
             "backend": backend,
+            "template": recipe["template"],
             "timing": {"start_sec": start, "duration_sec": round(end - start, 3)},
             "text": text,
-            "style": {"motion": "fade", "safe_area": "lower_third" if effect_type == "lower_third" else "title_safe"},
+            "style": {"motion": recipe["motion"], "safe_area": recipe["safe_area"]},
             "reason": text_layer.get("reason") or "canonical text layer",
         })
     return {
@@ -218,7 +240,13 @@ def _write_ass_overlay(item, path):
     alignment = 2 if effect_type == "lower_third" or safe_area == "lower_third" else 5
     margin_v = 90 if alignment == 2 else 60
     motion = style.get("motion", "fade")
-    motion_tag = r"{\fad(250,250)}" if motion == "fade" else ""
+    motion_tags = {
+        "fade": r"{\fad(250,250)}",
+        "fade_scale": r"{\an5\pos(960,540)\fscx92\fscy92\t(0,320,\fscx100\fscy100)\fad(220,260)}",
+        "pop": r"{\an5\pos(960,540)\fscx72\fscy72\t(0,260,\fscx100\fscy100)\fad(100,200)}",
+        "slide_up": r"{\an2\move(960,1160,960,930,0,320)\fad(120,220)}",
+    }
+    motion_tag = motion_tags.get(motion, "")
     content = (
         "\ufeff[Script Info]\n"
         "ScriptType: v4.00+\n"
@@ -242,6 +270,85 @@ def _write_ass_overlay(item, path):
     return str(path)
 
 
+def _write_html_overlay(item, path):
+    """Write a deterministic transparent info-card animation."""
+    text = item.get("text") or {}
+    main = html.escape(str(text.get("main") or ""))
+    subtitle = html.escape(str(text.get("subtitle") or ""))
+    content = f"""<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}}
+.card{{position:absolute;left:140px;bottom:150px;min-width:620px;padding:45px 55px;
+background:rgba(12,18,28,.86);border-left:8px solid #f0b44d;border-radius:12px;
+color:white;font-family:Arial,sans-serif;opacity:0;transform:translateY(30px) scale(.96)}}
+.main{{font-size:150px;font-weight:800;line-height:1}} .sub{{font-size:40px;margin-top:16px;opacity:.82}}
+</style></head><body><div class="card" id="card"><div class="main">{main}</div>
+<div class="sub">{subtitle}</div></div><script>
+window.setProgress=(p)=>{{const q=Math.max(0,Math.min(1,p));const edge=Math.min(1,q*5,(1-q)*5);
+const c=document.getElementById('card');c.style.opacity=edge;c.style.transform=`translateY(${{30*(1-edge)}}px) scale(${{.96+.04*edge}})`;}};
+window.setProgress(0);
+</script></body></html>"""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return str(path)
+
+
+def _browser_executable():
+    candidates = (
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+    )
+    return next((str(path) for path in candidates if path.exists()), None)
+
+
+def _render_html_playwright_overlay(item, out_dir, fps=30):
+    """Render deterministic HTML frames and encode an alpha overlay MOV."""
+    item_dir = Path(out_dir)
+    html_path = Path(_write_html_overlay(item, item_dir / f"{item['id']}.html"))
+    frames_dir = item_dir / f"{item['id']}.frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    duration = float(item.get("duration_sec") or 0)
+    frame_count = max(1, round(duration * fps))
+    from playwright.sync_api import sync_playwright  # noqa: PLC0415
+
+    with sync_playwright() as playwright:
+        launch_options = {"headless": True}
+        executable = _browser_executable()
+        if executable:
+            launch_options["executable_path"] = executable
+        browser = playwright.chromium.launch(**launch_options)
+        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+        page.goto(html_path.resolve().as_uri())
+        for index in range(frame_count):
+            progress = index / max(1, frame_count - 1)
+            page.evaluate("(p) => window.setProgress(p)", progress)
+            page.screenshot(
+                path=str(frames_dir / f"{index:06d}.png"),
+                omit_background=True,
+            )
+        browser.close()
+
+    from .platform_tools import resolve_ffmpeg  # noqa: PLC0415
+    overlay_path = item_dir / f"{item['id']}.overlay.mov"
+    command = [
+        resolve_ffmpeg(), "-y", "-framerate", str(fps),
+        "-i", str(frames_dir / "%06d.png"),
+        "-c:v", "qtrle", "-pix_fmt", "argb", str(overlay_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not overlay_path.exists():
+        raise RuntimeError(f"html_playwright overlay encode failed: {result.stderr[-1200:]}")
+    return {
+        "path": str(overlay_path),
+        "html_path": str(html_path),
+        "frames_dir": str(frames_dir),
+        "frame_count": frame_count,
+        "fps": fps,
+    }
+
+
 def run_motion_graphics_render_plan(plan, out_dir):
     """Compile supported motion-graphics plan items into backend assets."""
     out_dir = Path(out_dir) / "motion_graphics"
@@ -250,10 +357,22 @@ def run_motion_graphics_render_plan(plan, out_dir):
         backend = item.get("backend")
         if backend == "ffmpeg_libass":
             output_path = _write_ass_overlay(item, out_dir / f"{item['id']}.ass")
-            status = "rendered"
+            status = "asset_ready"
+            extra = {}
+        elif backend == "html_playwright":
+            try:
+                rendered = _render_html_playwright_overlay(item, out_dir)
+                output_path = rendered["path"]
+                status = "asset_ready"
+                extra = {key: value for key, value in rendered.items() if key != "path"}
+            except Exception as exc:
+                output_path = None
+                status = "failed"
+                extra = {"error": str(exc)}
         else:
             output_path = None
             status = "pending"
+            extra = {}
         outputs.append({
             "effect_id": item.get("id"),
             "segment": item.get("segment"),
@@ -264,8 +383,129 @@ def run_motion_graphics_render_plan(plan, out_dir):
             "start_sec": item.get("start_sec"),
             "duration_sec": item.get("duration_sec"),
             "motion": (item.get("style") or {}).get("motion"),
+            **extra,
         })
     return outputs
+
+
+def _subtitles_filter(path):
+    escaped = str(Path(path).resolve()).replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
+    return f"subtitles='{escaped}'"
+
+
+def composite_ffmpeg_libass_outputs(video_path, render_outputs, output_path=None):
+    """Composite ready ASS assets into a video and mark only successful outputs."""
+    video_path = Path(video_path)
+    ready = [
+        output for output in (render_outputs or [])
+        if output.get("backend") == "ffmpeg_libass"
+        and output.get("status") == "asset_ready"
+        and output.get("path")
+    ]
+    if not ready:
+        return {"ok": True, "status": "skipped", "command": None, "outputs": render_outputs}
+    if not video_path.exists():
+        return {"ok": False, "status": "missing_input", "command": None, "outputs": render_outputs}
+    final_path = Path(output_path) if output_path else video_path
+    temp_path = final_path.with_name(f"{final_path.stem}.effects-tmp{final_path.suffix}")
+    from .platform_tools import resolve_ffmpeg  # noqa: PLC0415
+    command = [
+        resolve_ffmpeg(),
+        "-y",
+        "-i", str(video_path),
+        "-vf", ",".join(_subtitles_filter(output["path"]) for output in ready),
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        str(temp_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not temp_path.exists():
+        return {
+            "ok": False,
+            "status": "failed",
+            "command": command,
+            "stderr": result.stderr,
+            "outputs": render_outputs,
+        }
+    if final_path.exists() and final_path != video_path:
+        final_path.unlink()
+    temp_path.replace(final_path)
+    for output in ready:
+        output["status"] = "composited"
+        output["composited_video"] = str(final_path)
+    return {
+        "ok": True,
+        "status": "composited",
+        "command": command,
+        "output": str(final_path),
+        "outputs": render_outputs,
+    }
+
+
+def composite_html_playwright_outputs(video_path, render_outputs, output_path=None):
+    """Composite ready alpha overlay videos at their declared start times."""
+    video_path = Path(video_path)
+    ready = [
+        output for output in (render_outputs or [])
+        if output.get("backend") == "html_playwright"
+        and output.get("status") == "asset_ready"
+        and output.get("path")
+        and Path(output["path"]).exists()
+    ]
+    if not ready:
+        return {"ok": True, "status": "skipped", "command": None, "outputs": render_outputs}
+    if not video_path.exists():
+        return {"ok": False, "status": "missing_input", "command": None, "outputs": render_outputs}
+    final_path = Path(output_path) if output_path else video_path
+    temp_path = final_path.with_name(f"{final_path.stem}.html-effects-tmp{final_path.suffix}")
+    from .platform_tools import resolve_ffmpeg  # noqa: PLC0415
+    command = [resolve_ffmpeg(), "-y", "-i", str(video_path)]
+    for output in ready:
+        command += ["-i", str(output["path"])]
+    filters = []
+    current = "[0:v]"
+    for index, output in enumerate(ready, start=1):
+        overlay_label = f"[ov{index}]"
+        result_label = f"[v{index}]"
+        filters.append(f"[{index}:v]setpts=PTS+{float(output.get('start_sec') or 0):.3f}/TB{overlay_label}")
+        filters.append(f"{current}{overlay_label}overlay=eof_action=pass{result_label}")
+        current = result_label
+    command += [
+        "-filter_complex", ";".join(filters),
+        "-map", current, "-map", "0:a?", "-c:v", "libx264", "-preset", "medium",
+        "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", str(temp_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not temp_path.exists():
+        return {
+            "ok": False, "status": "failed", "command": command,
+            "stderr": result.stderr, "outputs": render_outputs,
+        }
+    if final_path.exists() and final_path != video_path:
+        final_path.unlink()
+    temp_path.replace(final_path)
+    for output in ready:
+        output["status"] = "composited"
+        output["composited_video"] = str(final_path)
+    return {
+        "ok": True, "status": "composited", "command": command,
+        "output": str(final_path), "outputs": render_outputs,
+    }
+
+
+def composite_motion_graphics_outputs(video_path, render_outputs, output_path=None):
+    """Composite all supported safe backends in deterministic backend order."""
+    libass = composite_ffmpeg_libass_outputs(video_path, render_outputs, output_path=output_path)
+    if not libass.get("ok"):
+        return {"ok": False, "status": "failed", "steps": [libass], "outputs": render_outputs}
+    html_result = composite_html_playwright_outputs(video_path, render_outputs, output_path=output_path)
+    steps = [libass, html_result]
+    ok = all(step.get("ok") for step in steps)
+    status = "composited" if any(step.get("status") == "composited" for step in steps) else "skipped"
+    return {"ok": ok, "status": status if ok else "failed", "steps": steps, "outputs": render_outputs}
 
 
 def write_motion_graphics_artifacts(contract, out_dir, backend_policy=None):

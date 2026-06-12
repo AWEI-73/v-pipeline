@@ -405,6 +405,61 @@ def cmd_caption_meta(args):
     print(json.dumps({"status": "ok", "db": args.db, "captioned": done}, ensure_ascii=False))
 
 
+def build_material_review_request(db, out_dir, _gridfn=None):
+    """Build deterministic visual evidence for agent-authored material captions."""
+    if _gridfn is None:
+        from .keyframe_grid import generate_keyframe_grid as _gridfn
+    out_dir = os.path.join(str(out_dir), "material_review")
+    assets = []
+    template = []
+    for entry in (db or {}).get("files", []):
+        asset_id = entry.get("id")
+        if not asset_id or entry.get("vlm_caption"):
+            continue
+        if entry.get("type") == "video":
+            montage = os.path.join(out_dir, f"{asset_id}.jpg")
+            evidence = _gridfn(entry.get("path"), montage, sample_count=12)
+            montage = evidence.get("grid_path") or montage
+            samples = evidence.get("samples") or []
+        else:
+            montage = entry.get("display_path") or entry.get("path")
+            samples = []
+        assets.append({
+            "id": asset_id,
+            "type": entry.get("type"),
+            "source": entry.get("path"),
+            "montage": montage,
+            "samples": samples,
+        })
+        template.append({"id": asset_id, "caption": None, "notes": None})
+    return {
+        "artifact_role": "material_visual_review_request",
+        "version": 1,
+        "next_action": "await_material_visual_review",
+        "assets": assets,
+        "verdict_template": {"assets": template},
+    }
+
+
+def apply_material_review_verdict(db, verdict):
+    """Apply agent-authored captions while preserving explicit lineage."""
+    indexed = {}
+    for item in (verdict or {}).get("assets", []):
+        asset_id = item.get("id")
+        caption = item.get("caption")
+        if not asset_id or not isinstance(caption, str) or not caption.strip():
+            raise ValueError("material visual review verdict requires id and non-empty caption")
+        indexed[asset_id] = item
+    for entry in (db or {}).get("files", []):
+        item = indexed.get(entry.get("id"))
+        if not item:
+            continue
+        entry["vlm_caption"] = item["caption"].strip()
+        entry["caption_source"] = "agent_visual_review"
+        entry["caption_notes"] = item.get("notes")
+    return db
+
+
 def cmd_material_map(args):
     """讀 materials_db → 人看得懂的素材地圖(依資料夾分群 + 可用/caption)。"""
     with open(args.db, encoding="utf-8") as f:

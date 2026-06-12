@@ -59,6 +59,36 @@ class TestRuntime(unittest.TestCase):
         run_dir = Path(run_info["run_dir"])
         return run_dir
 
+    @patch("video_pipeline_core.runtime_orchestrator.subprocess.run")
+    def test_music_resolver_ignores_stray_repo_and_project_root_audio(self, mock_run):
+        project_dir = self._setup_project("music_hygiene")
+        run_dir = self._setup_run(project_dir)
+        contract = project_dir / "input" / "segment_contract.json"
+        (self.repo_dir / "stray.mp3").write_bytes(b"stray")
+        (project_dir / "stray.mp3").write_bytes(b"stray")
+
+        result = runtime_orchestrator._resolve_music_path(
+            project_dir, run_dir, contract, MagicMock(music=None)
+        )
+
+        self.assertEqual(result, str(run_dir / "bgm.mp3"))
+        self.assertIn("music-fetch", mock_run.call_args.args[0])
+
+    def test_music_resolver_accepts_explicit_project_input_audio(self):
+        project_dir = self._setup_project("music_input")
+        run_dir = self._setup_run(project_dir)
+        music = project_dir / "input" / "approved.mp3"
+        music.write_bytes(b"approved")
+
+        result = runtime_orchestrator._resolve_music_path(
+            project_dir,
+            run_dir,
+            project_dir / "input" / "segment_contract.json",
+            MagicMock(music=None),
+        )
+
+        self.assertEqual(result, str(music))
+
     @patch("subprocess.run")
     def test_fresh_run_compiles_video(self, mock_run):
         # Set up a mock project and contract
@@ -266,6 +296,74 @@ class TestRuntime(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 runtime_orchestrator.run_orchestrator(project_name="await_no_proj", args=MagicMock(contract=None, brief=None))
             self.assertEqual(cm.exception.code, 0)
+
+    def test_await_visual_review_without_verdict_exits_with_review_instructions(self):
+        import io
+        from contextlib import redirect_stdout
+
+        project_dir = self._setup_project("visual_wait_proj")
+        run_dir = self._setup_run(project_dir)
+        request = {
+            "next_action": "await_visual_review",
+            "clips": [{"segment": 2, "montage": "visual_review/seg2.jpg"}],
+            "verdict_template": {"clips": [{"segment": 2, "accept": True, "picked_windows": []}]},
+        }
+        (run_dir / "visual_review_request.json").write_text(
+            json.dumps(request), encoding="utf-8"
+        )
+        state_data = {
+            "run": {"next_action": "await_visual_review"},
+            "nodes": [],
+            "findings": [],
+        }
+
+        output = io.StringIO()
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", return_value=state_data):
+            with redirect_stdout(output):
+                with self.assertRaises(SystemExit) as cm:
+                    runtime_orchestrator.run_orchestrator(
+                        project_name="visual_wait_proj",
+                        args=MagicMock(contract=None, brief=None),
+                    )
+
+        self.assertEqual(cm.exception.code, 0)
+        self.assertIn("visual_review/seg2.jpg", output.getvalue())
+        self.assertIn("visual_review_verdict.json", output.getvalue())
+
+    def test_await_visual_review_with_verdict_triggers_rebuild(self):
+        project_dir = self._setup_project("visual_resume_proj")
+        run_dir = self._setup_run(project_dir)
+        (run_dir / "visual_review_request.json").write_text(
+            json.dumps({"clips": [{"segment": 2, "montage": "visual_review/seg2.jpg"}]}),
+            encoding="utf-8",
+        )
+        (run_dir / "visual_review_verdict.json").write_text(
+            json.dumps({
+                "clips": [{
+                    "segment": 2,
+                    "accept": True,
+                    "picked_windows": [{"start": 1.0, "end": 3.0}],
+                }]
+            }),
+            encoding="utf-8",
+        )
+        (run_dir / "state.json").write_text("{}", encoding="utf-8")
+        (run_dir / "final.mp4").write_text("old", encoding="utf-8")
+        states = [
+            {"run": {"next_action": "await_visual_review"}, "nodes": [], "findings": []},
+            {"run": {"next_action": None}, "nodes": [], "findings": []},
+        ]
+
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", side_effect=states):
+            with self.assertRaises(SystemExit) as cm:
+                runtime_orchestrator.run_orchestrator(
+                    project_name="visual_resume_proj",
+                    args=MagicMock(contract=None, brief=None),
+                )
+
+        self.assertEqual(cm.exception.code, 0)
+        self.assertFalse((run_dir / "state.json").exists())
+        self.assertFalse((run_dir / "final.mp4").exists())
 
     @patch("subprocess.run")
     def test_wait_for_generated_provider_arrived_triggers_rebuild(self, mock_run):

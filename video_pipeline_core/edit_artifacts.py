@@ -88,7 +88,15 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
             raw_txt = {}
         
         # Narration
-        narr_mode = raw_audio.get("mode") or raw_audio.get("role") or "none"
+        narr_mode = raw_audio.get("mode")
+        if not narr_mode:
+            voiceover_policy = raw_audio.get("voiceover_policy")
+            if voiceover_policy and voiceover_policy not in ("none", "no_speech"):
+                narr_mode = "voiceover"
+            elif raw_audio.get("role") == "duck":
+                narr_mode = "original_speech"
+            else:
+                narr_mode = "none"
         narr_src = raw_audio.get("source") or ("tts" if narr_mode == "voiceover" else "none")
         narr_duck = bool(raw_audio.get("duck_music") or raw_audio.get("role") in ("duck", "diegetic"))
         if editing_policy:
@@ -342,7 +350,14 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             (scene_cuts_by_source or {}).get(source),
             scene_cut_tolerance_sec,
         )
-        timeline_in = float(item.get("timeline_in", cursor))
+        transition = item.get("transition") or "cut"
+        transition_duration = float(item.get("transition_duration") or 0.0)
+        if item.get("timeline_in") is not None:
+            timeline_in = float(item["timeline_in"])
+        elif transition in {"dissolve", "crossfade", "xfade"}:
+            timeline_in = max(0.0, cursor - min(transition_duration, dur))
+        else:
+            timeline_in = cursor
         timeline_out = timeline_in + dur
         segment = item.get("segment")
         crop_center = item.get("crop_center") or {}
@@ -369,7 +384,9 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
                 "source": crop_center.get("source") or "center",
             },
             "audio_policy": _audio_policy(item),
-            "transition": item.get("transition") or "cut",
+            "transition": transition,
+            "transition_duration_sec": round(transition_duration, 3) if transition_duration else None,
+            "attention_budget": item.get("attention_budget"),
             "text_overlay": item.get("text") or "none",
             "photo_variant": item.get("photo_variant"),
             "still_treatment": item.get("still_treatment"),

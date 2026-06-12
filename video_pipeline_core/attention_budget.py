@@ -58,6 +58,13 @@ def resolve_attention_budget(
             "reason": "high-energy music carries momentum and requires fast cutting",
         }
 
+    if str(music.get("intensity") or "").lower() not in ("", "none", "low"):
+        return {
+            "owner": "music",
+            "shot_sec": [1.5, 4.0],
+            "reason": "music-only segment requires visual progression to carry the story",
+        }
+
     return {
         "owner": "shared",
         "shot_sec": list(_MODE_FALLBACKS.get(mode) or _MODE_FALLBACKS["warm_documentary"]),

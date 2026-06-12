@@ -101,6 +101,30 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(clip["photo_variant"], 3)
         self.assertEqual(clip["still_treatment"]["mode"], "detail_push")
 
+    def test_build_timeline_carries_attention_budget_trace(self):
+        budget = {"owner": "music", "shot_sec": [1.5, 4.0], "reason": "music-led"}
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "a.mp4",
+            "extract_start": 0,
+            "extract_dur": 2.5,
+            "slot_index": 0,
+            "attention_budget": budget,
+        }])
+
+        self.assertEqual(timeline["clips"][0]["attention_budget"], budget)
+
+    def test_build_timeline_models_explicit_xfade_as_overlap(self):
+        timeline = ea.build_timeline_build([
+            {"segment": 1, "source": "a.mp4", "extract_start": 0, "extract_dur": 2, "slot_index": 0},
+            {"segment": 2, "source": "b.mp4", "extract_start": 0, "extract_dur": 2, "slot_index": 1,
+             "transition": "xfade", "transition_duration": 0.5},
+        ])
+
+        self.assertEqual(timeline["clips"][1]["timeline_in_sec"], 1.5)
+        self.assertEqual(timeline["clips"][1]["timeline_out_sec"], 3.5)
+        self.assertEqual(timeline["clips"][1]["transition_duration_sec"], 0.5)
+
 
     def test_build_assembly_plan_compiles_execution_and_transition_plans(self):
         script = {
@@ -145,6 +169,20 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(seg["execution_plan"]["effects"]["intensity"], "expressive")
         self.assertEqual(seg["attention_budget"]["owner"], "narration")
         self.assertEqual(seg["attention_budget"]["shot_sec"], [3.0, 8.0])
+
+    def test_audio_role_music_is_not_misclassified_as_narration(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "music-led montage",
+            "raw_audio": {"role": "music"},
+        }]}
+
+        plan = ea.build_assembly_plan(script)
+
+        seg = plan["segments"][0]
+        self.assertEqual(seg["execution_plan"]["narration"]["mode"], "none")
+        self.assertEqual(seg["attention_budget"]["owner"], "music")
+        self.assertEqual(seg["attention_budget"]["shot_sec"], [1.5, 4.0])
 
 
 if __name__ == "__main__":

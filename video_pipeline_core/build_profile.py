@@ -23,6 +23,7 @@ ALLOWED_MOTION_BACKENDS = {"ffmpeg_libass", "html_playwright", "remotion", "mlt"
 # unattended MVP backend; the others are opt-in and may require a human/Computer
 # Use step (CapCut GUI export, etc.).
 ALLOWED_RENDER_BACKENDS = {"ffmpeg", "capcut_draft", "remotion", "html_playwright"}
+ALLOWED_VISUAL_JUDGES = {"agent", "ollama", "none"}
 
 
 DEFAULT_BUILD_PROFILE = {
@@ -39,6 +40,7 @@ DEFAULT_BUILD_PROFILE = {
     # P3: Node 13 render-candidate backend. Default ffmpeg = fully unattended.
     "render_backend": "ffmpeg",
     "requires_human_or_computer_use": False,
+    "visual_judge": "agent",
     # P1 verification tool pack. Default OFF so existing runs are unchanged;
     # enable per project to make contract-run auto-produce audit evidence.
     "verification_tools": {
@@ -90,6 +92,7 @@ def validate_build_profile(profile):
     _validate_choice(profile, "motion_graphics_backend", ALLOWED_MOTION_BACKENDS)
     if "render_backend" in profile:
         _validate_choice(profile, "render_backend", ALLOWED_RENDER_BACKENDS)
+    _validate_choice(profile, "visual_judge", ALLOWED_VISUAL_JUDGES)
     priority = profile.get("provider_priority")
     if not isinstance(priority, list) or not priority:
         raise ValueError("provider_priority must be non-empty list")

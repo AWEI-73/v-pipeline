@@ -1,0 +1,18 @@
+{
+  "render_profile": "light_effects",
+  "effects_enabled": true,
+  "motion_graphics_backend": "ffmpeg_libass",
+  "render_backend": "ffmpeg",
+  "quality_baseline": "light_effects_baseline",
+  "verification_tools": {
+    "timeline_invariants": true,
+    "broll_audit": true,
+    "caption_audit": true,
+    "keyframe_grid": true,
+    "visual_audit": true
+  },
+  "keyframe_grid": {
+    "sample_count": 12,
+    "columns": 4
+  }
+}

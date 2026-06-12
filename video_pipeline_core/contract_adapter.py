@@ -324,6 +324,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               generated_asset_manifest=None,
               light_effects_plan=None,
               light_effects_manifest=None,
+              light_effects_baseline_review=None,
               motion_graphics_contract=None,
               motion_graphics_render_plan=None,
               motion_graphics_manifest=None,
@@ -352,6 +353,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "generated_asset_manifest": str(generated_asset_manifest) if generated_asset_manifest else None,
         "light_effects_plan": str(light_effects_plan) if light_effects_plan else None,
         "light_effects_manifest": str(light_effects_manifest) if light_effects_manifest else None,
+        "light_effects_baseline_review": str(light_effects_baseline_review) if light_effects_baseline_review else None,
         "motion_graphics_contract": str(motion_graphics_contract) if motion_graphics_contract else None,
         "motion_graphics_render_plan": str(motion_graphics_render_plan) if motion_graphics_render_plan else None,
         "motion_graphics_manifest": str(motion_graphics_manifest) if motion_graphics_manifest else None,
@@ -458,6 +460,53 @@ def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None
                 print(f"[audit] keyframe_grid/visual_audit skipped: {e}")
 
     return written
+
+
+def _timeline_caption_entries(clips):
+    """Return reading-track captions from timeline clips.
+
+    Labels and name supers are visual decoration, so they must not leak into the
+    generated SRT or caption audit.
+    """
+    entries = []
+    for clip in clips or []:
+        text_overlay = clip.get("text_overlay")
+        if isinstance(text_overlay, dict):
+            text = (text_overlay.get("narrative") or text_overlay.get("subtitle") or "").strip()
+        elif isinstance(text_overlay, str) and text_overlay.strip().lower() != "none":
+            text = text_overlay.strip()
+        else:
+            text = ""
+        if not text:
+            continue
+        t_in = clip.get("timeline_in_sec", 0.0)
+        t_out = clip.get("timeline_out_sec", 0.0)
+        if entries and entries[-1]["text"] == text:
+            entries[-1]["t_out"] = max(entries[-1]["t_out"], t_out)
+        else:
+            entries.append({"t_in": t_in, "t_out": t_out, "text": text})
+    return entries
+
+
+def _attach_attention_budgets(payload, *, music_structure=None, editing_policy=None):
+    """Attach Node 9 attention budgets to the flat runtime payload in place."""
+    from . import edit_artifacts  # noqa: PLC0415
+
+    assembly = edit_artifacts.build_assembly_plan(
+        payload,
+        music_structure=music_structure,
+        editing_policy=editing_policy,
+    )
+    budgets = {
+        segment.get("segment"): segment.get("attention_budget")
+        for segment in assembly.get("segments") or []
+        if segment.get("segment") is not None and segment.get("attention_budget")
+    }
+    for segment in payload.get("segments") or []:
+        budget = budgets.get(segment.get("segment"))
+        if budget:
+            segment["attention_budget"] = budget
+    return payload
 
 
 def _apply_creator_profile(out_dir, creator_profile_path, brief_dict, build_profile_payload, verbose=True):
@@ -675,9 +724,32 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         target_sec = None
 
     effective_skip_render = skip_render or (build_profile_payload.get("render_backend") == "capcut_draft")
+    burn_base_text = build_profile_payload.get("render_profile") not in {"light_effects", "motion_graphics"}
+    _attach_attention_budgets(
+        payload,
+        music_structure=(music_struct or {}).get("structure"),
+        editing_policy=(build_profile_payload or {}).get("editing_policy"),
+    )
+    _write_json(generated_payload_path, payload)
     res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
                           mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render,
-                          target_sec=target_sec)
+                          target_sec=target_sec, burn_text=burn_base_text,
+                          visual_judge=build_profile_payload.get("visual_judge", "agent"))
+    if (build_profile_payload.get("render_profile") == "light_effects"
+            and light_effects_paths.get("plan")
+            and light_effects_paths.get("manifest")):
+        from . import light_effects  # noqa: PLC0415
+        with open(light_effects_paths["plan"], encoding="utf-8") as f:
+            light_plan_payload = json.load(f)
+        with open(light_effects_paths["manifest"], encoding="utf-8") as f:
+            light_manifest_payload = json.load(f)
+        light_effects.record_mv_render_outputs(
+            light_plan_payload,
+            light_manifest_payload,
+            res.get("plan"),
+            final_video=out_path if out_path.exists() else None,
+        )
+        _write_json(light_effects_paths["manifest"], light_manifest_payload)
     from . import edit_artifacts  # noqa: PLC0415
     edit_paths = edit_artifacts.write_edit_artifacts(
         payload,
@@ -694,7 +766,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         editor_review_path = out_path.parent / "editor_review.json"
         editor_review.write_editor_review(timeline, editor_review_path)
     motion_graphics_paths = {}
-    if (build_profile_payload.get("render_profile") == "motion_graphics"
+    if (build_profile_payload.get("render_profile") in {"motion_graphics", "light_effects"}
             and edit_paths.get("timeline_build")):
         from . import motion_graphics  # noqa: PLC0415
         with open(edit_paths["timeline_build"], encoding="utf-8") as f:
@@ -715,6 +787,34 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                     "allow_heavy_backend": False,
                 },
             )
+            with open(motion_graphics_paths["manifest"], encoding="utf-8") as f:
+                motion_manifest_payload = json.load(f)
+            if out_path.exists():
+                composite_result = motion_graphics.composite_motion_graphics_outputs(
+                    out_path,
+                    motion_manifest_payload.get("render_outputs"),
+                )
+                motion_manifest_payload["composite_result"] = {
+                    key: value for key, value in composite_result.items()
+                    if key not in {"outputs", "stderr"}
+                }
+                if composite_result.get("stderr"):
+                    motion_manifest_payload["composite_result"]["stderr"] = composite_result["stderr"][-2000:]
+                _write_json(motion_graphics_paths["manifest"], motion_manifest_payload)
+            if (build_profile_payload.get("render_profile") == "light_effects"
+                    and light_effects_paths.get("plan")
+                    and light_effects_paths.get("manifest")):
+                from . import light_effects  # noqa: PLC0415
+                with open(light_effects_paths["plan"], encoding="utf-8") as f:
+                    light_plan_payload = json.load(f)
+                with open(light_effects_paths["manifest"], encoding="utf-8") as f:
+                    light_manifest_payload = json.load(f)
+                light_effects.record_motion_graphics_outputs(
+                    light_plan_payload,
+                    light_manifest_payload,
+                    motion_manifest_payload.get("render_outputs"),
+                )
+                _write_json(light_effects_paths["manifest"], light_manifest_payload)
     state_path = out_path.parent / "state.json"
 
     # Ensure subtitles.srt exists (needed for verify_result)
@@ -726,30 +826,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             with open(timeline_build_file, encoding="utf-8") as f:
                 tb_data = json.load(f)
             clips = tb_data.get("clips", [])
-            merged_entries = []
-            for clip in clips:
-                # timeline_build's text_overlay is usually a plain string (the
-                # subtitle text, or "none"); the dict shape comes from
-                # assembly_plan-style text layers. Accept both.
-                text_overlay = clip.get("text_overlay")
-                if isinstance(text_overlay, dict):
-                    text = (text_overlay.get("narrative") or text_overlay.get("subtitle")
-                            or text_overlay.get("label") or "").strip()
-                elif isinstance(text_overlay, str) and text_overlay.strip().lower() != "none":
-                    text = text_overlay.strip()
-                else:
-                    text = ""
-                if text:
-                    t_in = clip.get("timeline_in_sec", 0.0)
-                    t_out = clip.get("timeline_out_sec", 0.0)
-                    if merged_entries and merged_entries[-1]["text"] == text:
-                        merged_entries[-1]["t_out"] = max(merged_entries[-1]["t_out"], t_out)
-                    else:
-                        merged_entries.append({
-                            "t_in": t_in,
-                            "t_out": t_out,
-                            "text": text
-                        })
+            merged_entries = _timeline_caption_entries(clips)
 
             def _fmt_ts(sec):
                 h = int(sec // 3600)
@@ -808,6 +885,24 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         contract_obj=contract_obj,
         verbose=verbose,
     )
+    light_effects_baseline_review_path = None
+    if light_effects_paths.get("plan") and light_effects_paths.get("manifest"):
+        try:
+            from . import light_effects  # noqa: PLC0415
+            with open(light_effects_paths["plan"], encoding="utf-8") as f:
+                light_effects_plan_payload = json.load(f)
+            with open(light_effects_paths["manifest"], encoding="utf-8") as f:
+                light_effects_manifest_payload = json.load(f)
+            light_effects_baseline_review_path = light_effects.write_light_effects_baseline_review(
+                light_effects_plan_payload,
+                light_effects_manifest_payload,
+                out_path.parent / "light_effects_baseline_review.json",
+                final_video=out_path if out_path.exists() else None,
+                audit_paths=audit_paths,
+            )
+        except Exception as e:
+            if verbose:
+                print(f"[light-effects] baseline review failed: {e}")
 
     # Reload / update editorial_qa.json if editing_policy is active to incorporate final verify_result/audits
     editorial_qa_path = edit_paths.get("editorial_qa")
@@ -899,6 +994,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          generated_asset_requests=generated_asset_requests_path,
                          light_effects_plan=light_effects_paths.get("plan"),
                          light_effects_manifest=light_effects_paths.get("manifest"),
+                         light_effects_baseline_review=light_effects_baseline_review_path,
                          motion_graphics_contract=motion_graphics_paths.get("contract"),
                          motion_graphics_render_plan=motion_graphics_paths.get("render_plan"),
                          motion_graphics_manifest=motion_graphics_paths.get("manifest"),

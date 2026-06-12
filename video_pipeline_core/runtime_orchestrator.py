@@ -433,12 +433,6 @@ def _resolve_music_path(project_dir, run_dir, contract_path, args):
         for cand in (project_dir / "input").glob(f"*.{ext}"):
             if cand.exists():
                 return str(cand)
-        for cand in project_dir.glob(f"*.{ext}"):
-            if cand.exists():
-                return str(cand)
-        for cand in REPO_ROOT.glob(f"*.{ext}"):
-            if cand.exists():
-                return str(cand)
 
     # 3. Auto-fetch via query from contract
     try:
@@ -931,6 +925,51 @@ def run_orchestrator(project_name=None, args=None):
                 if res.returncode != 0:
                     print("[runtime] Error: narrative compilation failed.", file=sys.stderr)
                     sys.exit(res.returncode)
+
+        elif next_action == "await_visual_review":
+            request_path = run_dir / "visual_review_request.json"
+            verdict_path = run_dir / "visual_review_verdict.json"
+
+            if verdict_path.exists():
+                try:
+                    from video_pipeline_core.visual_review import load_verdict
+                    load_verdict(verdict_path)
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    print(f"[runtime] Error: invalid visual review verdict: {exc}", file=sys.stderr)
+                    sys.exit(1)
+
+                print("[runtime] Visual review verdict found. Rebuilding with approved windows...")
+                for art in [
+                    "state.json",
+                    "verify_result.json",
+                    "qa_report.json",
+                    "final.mp4",
+                    "polished_visual.mp4",
+                    "mv_av.mp4",
+                ]:
+                    filepath = run_dir / art
+                    if filepath.exists():
+                        try:
+                            filepath.unlink()
+                        except Exception:
+                            pass
+                continue
+
+            print("[runtime] [WAIT] Awaiting agent visual review.")
+            if request_path.exists():
+                try:
+                    with request_path.open(encoding="utf-8") as f:
+                        request_data = json.load(f)
+                    for clip in request_data.get("clips", []):
+                        print(f"  - seg{clip.get('segment')}: {clip.get('montage')}")
+                    print("[runtime] Write the completed verdict to visual_review_verdict.json.")
+                    if request_data.get("verdict_template"):
+                        print(json.dumps(request_data["verdict_template"], ensure_ascii=False, indent=2))
+                except (OSError, json.JSONDecodeError) as exc:
+                    print(f"[runtime] Warning: unable to read visual review request: {exc}", file=sys.stderr)
+            else:
+                print("[runtime] Warning: visual_review_request.json is missing.", file=sys.stderr)
+            sys.exit(0)
 
         elif next_action == "await_capcut_export":
             print("[runtime] [WAIT] Awaiting CapCut manual export...")

@@ -61,3 +61,24 @@ V3 Node 12 content_qa                       — agent 讀成片 grid 寫 verdict
 - runtime 在 await_visual_review 時印出:蒙太奇路徑清單 + verdict 檔範本 +
   「讀圖→寫檔→resume」三步指示(與 revise:director 餵工作清單同風格)。
 - 駕駛 agent 可派 subagent 讀圖(入口 skill 明文允許),但 verdict 責任在主責 agent。
+# Implementation Status
+
+Status: verified
+
+E6 V1 stock selection is implemented end to end:
+
+- `build_profile.visual_judge` defaults to `agent`; `ollama` and `none` remain valid.
+- V1 stock planning writes one timestamped montage per pending stock segment.
+- `run_mv` groups pending stock candidates into one `visual_review_request.json`.
+- Pending review skips rendering and writes `state.next_action = await_visual_review`.
+- Dashboard and runtime expose one visual-review wait gate.
+- A validated `visual_review_verdict.json` is consumed on resume.
+- Accepted windows become render slots; rejected candidates become recoverable gaps.
+
+Verified on 2026-06-12:
+
+- Focused E6 regression: 164 tests passed.
+- Full suite: 596 tests passed.
+- Python compile check passed for modified E6 runtime modules.
+
+Deferred by design: E7 material-ingest montage understanding and E8 narrative/Node 12 expansion.

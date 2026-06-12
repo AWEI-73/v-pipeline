@@ -33,6 +33,31 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertTrue(any(link["role"] == "motion_graphics_render_plan" for link in effects["artifact_links"]))
             self.assertTrue(all(Path(link["path"]).is_absolute() for link in effects["artifact_links"]))
 
+    def test_light_effects_baseline_gaps_surface_under_revision_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "build_profile.json").write_text(json.dumps({
+                "render_profile": "light_effects",
+                "effects_enabled": True,
+            }), encoding="utf-8")
+            (workdir / "light_effects_baseline_review.json").write_text(json.dumps({
+                "artifact_role": "light_effects_baseline_review",
+                "status": "gaps_found",
+                "metrics": {"planned_count": 3, "rendered_count": 0, "gap_count": 3},
+                "gaps": [{"effect_id": "seg1_title_card_1", "reason": "no_render_output"}],
+                "next_action": "implement_or_wire_effect_recipe",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            revision = next(n for n in state["nodes"] if n["node"] == 14)
+
+            self.assertEqual(revision["status"], "warn")
+            self.assertIn("3 light-effects render gap", revision["reason"])
+            self.assertTrue(any(
+                link["role"] == "light_effects_baseline_review"
+                for link in revision["artifact_links"]
+            ))
+
     def test_manifest_based_state_includes_all_nodes(self):
         """1. Manifest-based dashboard state includes required nodes."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -165,6 +190,23 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(state["next_action"], "wait_for_generated_provider")
             self.assertIn("Generated requests exist but no generated manifest",
                           [f["message"] for f in state["findings"]])
+
+    def test_visual_review_request_routes_to_single_agent_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "visual_review_request.json").write_text(json.dumps({
+                "artifact_role": "visual_review_request",
+                "next_action": "await_visual_review",
+                "clips": [{"segment": 2, "montage": "visual_review/seg2.jpg"}],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+        self.assertEqual(state["next_action"], "await_visual_review")
+        self.assertIn(
+            "Visual review request awaits agent verdict",
+            [finding["message"] for finding in state["findings"]],
+        )
 
     def test_generated_manifest_path_from_artifact_manifest_satisfies_node8(self):
         with tempfile.TemporaryDirectory() as tmp:

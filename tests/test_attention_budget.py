@@ -61,6 +61,20 @@ class TestAttentionBudget(unittest.TestCase):
         self.assertEqual(budget["owner"], "music")
         self.assertEqual(budget["shot_sec"], [0.8, 2.0])
 
+    def test_medium_music_without_narration_uses_fast_visual_band(self):
+        segment = {
+            "execution_plan": {
+                "narration": {"mode": "none"},
+                "music": {"intensity": "medium"},
+            },
+            "treatment": "video_primary",
+        }
+
+        budget = resolve_attention_budget(segment, mode="warm_documentary")
+
+        self.assertEqual(budget["owner"], "music")
+        self.assertEqual(budget["shot_sec"], [1.5, 4.0])
+
 
 if __name__ == "__main__":
     unittest.main()

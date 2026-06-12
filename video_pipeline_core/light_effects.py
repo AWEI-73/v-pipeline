@@ -54,18 +54,19 @@ def _segment_operations(seg):
             "preset": grade,
             "reason": visual.get("reason") or "visual grade requested by contract",
         })
-    if material.get("media") == "photo" or visual.get("pace") == "hold":
+    if material.get("media") == "photo":
         ops.append({
             "operation": "kenburns",
             "direction": visual.get("motion") or "zoom-in",
-            "reason": visual.get("reason") or "photo/hold segment needs motion",
+            "reason": visual.get("reason") or "photo segment needs motion",
         })
     ops.extend(_text_ops(seg))
-    if visual.get("layout") == "montage" or visual.get("pace") == "fast":
+    transition = visual.get("transition")
+    if transition in {"dissolve", "crossfade", "xfade"}:
         ops.append({
             "operation": "xfade",
-            "transition": visual.get("transition") or "fade",
-            "reason": visual.get("reason") or "fast/montage segment needs light transition",
+            "transition": transition,
+            "reason": visual.get("reason") or "explicit light transition requested by contract",
         })
     return ops
 
@@ -130,3 +131,151 @@ def write_light_effects_artifacts(contract, build_profile, out_dir):
         "manifest": manifest_path,
         "status": plan["status"],
     }
+
+
+def record_motion_graphics_outputs(plan, manifest, motion_outputs):
+    """Record ffmpeg/libass text recipe outputs against matching light-effect items."""
+    effect_to_operation = {
+        "title_sequence": "title_card",
+        "chapter_card": "title_card",
+        "info_card": "title_card",
+        "lower_third": "lower_third",
+    }
+    recorded = (manifest or {}).setdefault("render_outputs", [])
+    recorded_ids = {item.get("effect_id") for item in recorded}
+    planned = (plan or {}).get("items") or []
+    for output in motion_outputs or []:
+        operation = effect_to_operation.get(output.get("effect_type"))
+        if not operation or output.get("status") != "composited":
+            continue
+        match = next((
+            item for item in planned
+            if item.get("segment") == output.get("segment")
+            and item.get("operation") == operation
+            and item.get("id") not in recorded_ids
+        ), None)
+        if not match:
+            continue
+        recorded.append({
+            "effect_id": match.get("id"),
+            "segment": match.get("segment"),
+            "operation": operation,
+            "status": "composited",
+            "path": output.get("path"),
+            "renderer": "motion_graphics.ffmpeg_libass",
+            "source_effect_id": output.get("effect_id"),
+        })
+        recorded_ids.add(match.get("id"))
+    return manifest
+
+
+def record_mv_render_outputs(plan, manifest, mv_plan, *, final_video=None):
+    """Record effects that the MV renderer actually applied while building clips."""
+    recorded = (manifest or {}).setdefault("render_outputs", [])
+    recorded_ids = {item.get("effect_id") for item in recorded}
+    planned = (plan or {}).get("items") or []
+    for slot in mv_plan or []:
+        operations = []
+        if slot.get("is_photo") and slot.get("kenburns", True):
+            operations.append(("kenburns", "mv_cut.photo_zoompan"))
+        if slot.get("transition") in {"dissolve", "crossfade", "xfade"}:
+            operations.append(("xfade", "mv_cut.ffmpeg_xfade"))
+        for operation, renderer in operations:
+            match = next((
+                item for item in planned
+                if item.get("segment") == slot.get("segment")
+                and item.get("operation") == operation
+                and item.get("id") not in recorded_ids
+            ), None)
+            if not match:
+                continue
+            output = {
+                "effect_id": match.get("id"),
+                "segment": match.get("segment"),
+                "operation": operation,
+                "status": "rendered",
+                "path": str(final_video) if final_video else None,
+                "renderer": renderer,
+                "source_slot_index": slot.get("slot_index"),
+            }
+            if operation == "xfade":
+                output["transition_duration"] = float(slot.get("transition_duration") or 0.5)
+            recorded.append(output)
+            recorded_ids.add(match.get("id"))
+    return manifest
+
+
+def build_light_effects_baseline_review(plan, manifest, *, final_video=None, audit_paths=None):
+    """Measure whether planned light effects reached render and review evidence."""
+    items = (plan or {}).get("items") or []
+    outputs = (manifest or {}).get("render_outputs") or []
+    rendered_ids = {
+        output.get("effect_id")
+        for output in outputs
+        if output.get("status") in {"rendered", "composited"} and output.get("effect_id")
+    }
+    gaps = [
+        {
+            "effect_id": item.get("id"),
+            "segment": item.get("segment"),
+            "operation": item.get("operation"),
+            "reason": "no_render_output",
+            "next_action": "implement_or_wire_effect_recipe",
+        }
+        for item in items
+        if item.get("id") not in rendered_ids
+    ]
+    audits = audit_paths or {}
+    evidence = {
+        "final_video": str(final_video) if final_video else None,
+        "final_video_present": bool(final_video),
+        "keyframe_grid": str(audits.get("keyframe_grid")) if audits.get("keyframe_grid") else None,
+        "keyframe_review_ready": bool(audits.get("keyframe_grid")),
+        "visual_audit": str(audits.get("visual_audit")) if audits.get("visual_audit") else None,
+        "visual_audit_ready": bool(audits.get("visual_audit")),
+        "p1_audits": {
+            role: str(path)
+            for role, path in audits.items()
+            if path
+        },
+    }
+    planned_count = len(items)
+    rendered_count = len(items) - len(gaps)
+    coverage_ratio = round(rendered_count / planned_count, 3) if planned_count else 1.0
+    evidence_ready = (
+        evidence["final_video_present"]
+        and evidence["keyframe_review_ready"]
+        and evidence["visual_audit_ready"]
+    )
+    if gaps:
+        status = "gaps_found"
+    elif planned_count and not evidence_ready:
+        status = "visual_review_required"
+    else:
+        status = "pass"
+    return {
+        "artifact_role": "light_effects_baseline_review",
+        "light_effects_baseline_review_version": 1,
+        "status": status,
+        "metrics": {
+            "planned_count": planned_count,
+            "rendered_count": rendered_count,
+            "gap_count": len(gaps),
+            "coverage_ratio": coverage_ratio,
+        },
+        "gaps": gaps,
+        "evidence": evidence,
+        "next_action": gaps[0]["next_action"] if gaps else (
+            "complete_keyframe_and_visual_review" if not evidence_ready and planned_count else None
+        ),
+    }
+
+
+def write_light_effects_baseline_review(plan, manifest, out_path, *, final_video=None, audit_paths=None):
+    review = build_light_effects_baseline_review(
+        plan,
+        manifest,
+        final_video=final_video,
+        audit_paths=audit_paths,
+    )
+    return _write_json(out_path, review)

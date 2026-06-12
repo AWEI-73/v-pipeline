@@ -79,7 +79,14 @@ def audit_timeline(timeline, *, must_include_segments=None,
                          or (float(prev.get("timeline_in_sec") or 0)
                              + float(prev.get("duration_sec") or 0)))
         cur_in = float(cur.get("timeline_in_sec") or 0)
-        if cur_in + overlap_tolerance_sec < prev_out:
+        overlap = prev_out - cur_in
+        transition = cur.get("transition")
+        declared_overlap = float(cur.get("transition_duration_sec") or 0.0)
+        intentional = (
+            transition in {"dissolve", "crossfade", "xfade"}
+            and overlap <= declared_overlap + overlap_tolerance_sec
+        )
+        if cur_in + overlap_tolerance_sec < prev_out and not intentional:
             overlap_segments.append(cur.get("segment"))
     checks.append(_check(
         "track_overlap_free",

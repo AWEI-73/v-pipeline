@@ -1,7 +1,9 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from video_pipeline_core import motion_graphics
 
@@ -67,7 +69,7 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(len(manifest["render_outputs"]), 1)
         output = manifest["render_outputs"][0]
         self.assertEqual(output["backend"], "ffmpeg_libass")
-        self.assertEqual(output["status"], "rendered")
+        self.assertEqual(output["status"], "asset_ready")
 
     def test_ffmpeg_libass_runner_writes_timed_overlay(self):
         with tempfile.TemporaryDirectory() as d:
@@ -92,6 +94,87 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(manifest["render_outputs"][0]["backend"], "remotion")
         self.assertIsNone(manifest["render_outputs"][0]["path"])
 
+    def test_html_playwright_writes_deterministic_info_card_html(self):
+        item = {
+            "id": "metric_001",
+            "effect_type": "info_card",
+            "text": {"main": "42", "subtitle": "completed"},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            path = motion_graphics._write_html_overlay(item, Path(d) / "metric.html")
+            content = Path(path).read_text(encoding="utf-8")
+
+        self.assertIn("window.setProgress", content)
+        self.assertIn("42", content)
+        self.assertIn("completed", content)
+        self.assertIn("min-width:620px", content)
+        self.assertIn("font-size:150px", content)
+        self.assertIn("font-size:40px", content)
+
+    def test_html_playwright_runner_records_rendered_overlay(self):
+        contract = self._contract()
+        contract["items"][0]["backend"] = "html_playwright"
+        contract["items"][0]["effect_type"] = "info_card"
+        with tempfile.TemporaryDirectory() as d, patch(
+            "video_pipeline_core.motion_graphics._render_html_playwright_overlay"
+        ) as render:
+            overlay = Path(d) / "motion_graphics" / "title_001.overlay.mov"
+            render.return_value = {
+                "path": str(overlay),
+                "html_path": str(Path(d) / "motion_graphics" / "title_001.html"),
+                "frames_dir": str(Path(d) / "motion_graphics" / "title_001.frames"),
+                "frame_count": 30,
+            }
+            result = motion_graphics.write_motion_graphics_artifacts(contract, d)
+            manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+        output = manifest["render_outputs"][0]
+        self.assertEqual(output["status"], "asset_ready")
+        self.assertEqual(output["backend"], "html_playwright")
+        self.assertEqual(output["frame_count"], 30)
+
+    def test_composite_html_playwright_outputs_marks_asset_composited(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            video = root / "final.mp4"
+            overlay = root / "metric.overlay.mov"
+            video.write_bytes(b"input")
+            overlay.write_bytes(b"overlay")
+            outputs = [{
+                "effect_id": "metric_001",
+                "backend": "html_playwright",
+                "status": "asset_ready",
+                "path": str(overlay),
+                "start_sec": 2.0,
+            }]
+
+            def fake_run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b"composited")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch("video_pipeline_core.motion_graphics.subprocess.run", fake_run):
+                result = motion_graphics.composite_html_playwright_outputs(video, outputs)
+
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(outputs[0]["status"], "composited")
+            self.assertIn("overlay=eof_action=pass", " ".join(result["command"]))
+
+    def test_composite_motion_graphics_outputs_dispatches_both_safe_backends(self):
+        outputs = [{"backend": "ffmpeg_libass"}, {"backend": "html_playwright"}]
+        with patch(
+            "video_pipeline_core.motion_graphics.composite_ffmpeg_libass_outputs",
+            return_value={"ok": True, "status": "skipped", "outputs": outputs},
+        ) as libass, patch(
+            "video_pipeline_core.motion_graphics.composite_html_playwright_outputs",
+            return_value={"ok": True, "status": "composited", "outputs": outputs},
+        ) as html_composite:
+            result = motion_graphics.composite_motion_graphics_outputs("final.mp4", outputs)
+
+        libass.assert_called_once()
+        html_composite.assert_called_once()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "composited")
+
     def test_contract_from_timeline_maps_canonical_text_to_exact_timing(self):
         canonical = {
             "segments": [{
@@ -111,6 +194,69 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(item["effect_type"], "chapter_card")
         self.assertEqual(item["text"]["main"], "Chapter Two")
         self.assertEqual(item["timing"], {"start_sec": 3.0, "duration_sec": 4.5})
+
+    def test_contract_from_timeline_selects_functional_text_recipes(self):
+        canonical = {"segments": [
+            {"segment": 1, "text_layer": {"narrative": "Opening thought", "reason": "open"}},
+            {"segment": 2, "text_layer": {"label": "Chapter Two", "reason": "chapter"}},
+            {"segment": 3, "text_layer": {
+                "name_super": {"text": "A. Lin", "title": "Director"},
+                "reason": "identify speaker",
+            }},
+        ]}
+        timeline = {"clips": [
+            {"segment": 1, "timeline_in_sec": 0.0, "timeline_out_sec": 2.0},
+            {"segment": 2, "timeline_in_sec": 2.0, "timeline_out_sec": 4.0},
+            {"segment": 3, "timeline_in_sec": 4.0, "timeline_out_sec": 6.0},
+        ]}
+
+        contract = motion_graphics.contract_from_timeline(canonical, timeline)
+        by_segment = {item["segment"]: item for item in contract["items"]}
+
+        self.assertEqual(by_segment[1]["template"], "title_fade")
+        self.assertEqual(by_segment[1]["style"]["motion"], "fade_scale")
+        self.assertEqual(by_segment[2]["template"], "section_label")
+        self.assertEqual(by_segment[2]["style"]["motion"], "pop")
+        self.assertEqual(by_segment[3]["template"], "lower_third_clean")
+        self.assertEqual(by_segment[3]["style"]["motion"], "slide_up")
+
+    def test_ffmpeg_libass_recipes_emit_motion_tags(self):
+        contract = self._contract()
+        contract["items"][0]["style"]["motion"] = "slide_up"
+        with tempfile.TemporaryDirectory() as d:
+            result = motion_graphics.write_motion_graphics_artifacts(contract, d)
+            manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+            ass_path = Path(manifest["render_outputs"][0]["path"])
+            content = ass_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(r"\move(", content)
+        self.assertIn(r"\fad(", content)
+
+    def test_composite_ffmpeg_libass_outputs_marks_assets_composited(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            video = root / "final.mp4"
+            overlay = root / "title.ass"
+            video.write_bytes(b"input")
+            overlay.write_text("[Script Info]\n", encoding="utf-8")
+            outputs = [{
+                "effect_id": "title_001",
+                "backend": "ffmpeg_libass",
+                "status": "asset_ready",
+                "path": str(overlay),
+            }]
+
+            def fake_run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b"composited")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch("video_pipeline_core.motion_graphics.subprocess.run", fake_run):
+                result = motion_graphics.composite_ffmpeg_libass_outputs(video, outputs)
+
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(video.read_bytes(), b"composited")
+            self.assertEqual(outputs[0]["status"], "composited")
+            self.assertIn("subtitles=", " ".join(result["command"]))
 
 
 if __name__ == "__main__":

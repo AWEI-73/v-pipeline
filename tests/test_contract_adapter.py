@@ -389,6 +389,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                 )
 
             self.assertEqual(captured.get("target_sec"), 45.0)
+            self.assertEqual(captured.get("visual_judge"), "agent")
 
     def test_run_contract_auto_generates_audits_when_enabled(self):
         with tempfile.TemporaryDirectory() as d:
@@ -471,7 +472,12 @@ class ContractToMvScriptTest(unittest.TestCase):
             def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
                 Path(out_path).write_bytes(b"mp4")
                 (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
-                return {"final": out_path, "plan": []}
+                return {"final": out_path, "plan": [{
+                    "segment": 1,
+                    "is_photo": True,
+                    "kenburns": True,
+                    "slot_index": 0,
+                }]}
 
             def fake_music_structure(audio_path, out_path, **_kwargs):
                 Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
@@ -494,7 +500,22 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertTrue(result["render_ok"])
             self.assertEqual(manifest["light_effects_plan"], str(outdir / "light_effects_plan.json"))
             self.assertEqual(manifest["light_effects_manifest"], str(outdir / "light_effects_manifest.json"))
+            self.assertEqual(
+                manifest["light_effects_baseline_review"],
+                str(outdir / "light_effects_baseline_review.json"),
+            )
+            baseline = json.loads(
+                (outdir / "light_effects_baseline_review.json").read_text(encoding="utf-8")
+            )
+            effects_manifest = json.loads(
+                (outdir / "light_effects_manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(baseline["status"], "gaps_found")
+            self.assertGreater(baseline["metrics"]["planned_count"], 0)
             self.assertIn("grade", [item["operation"] for item in plan["items"]])
+            self.assertIn("kenburns", [
+                item["operation"] for item in effects_manifest["render_outputs"]
+            ])
 
     def test_run_contract_writes_motion_graphics_outputs_when_profile_enabled(self):
         contract = {
@@ -547,7 +568,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["motion_graphics_contract"], str(outdir / "motion_graphics_contract.json"))
             self.assertEqual(manifest["motion_graphics_render_plan"], str(outdir / "motion_graphics_render_plan.json"))
             self.assertEqual(manifest["motion_graphics_manifest"], str(outdir / "motion_graphics_manifest.json"))
-            self.assertEqual(mg_manifest["render_outputs"][0]["status"], "rendered")
+            self.assertEqual(mg_manifest["render_outputs"][0]["status"], "asset_ready")
+            self.assertEqual(mg_manifest["composite_result"]["status"], "failed")
             self.assertTrue(Path(mg_manifest["render_outputs"][0]["path"]).exists())
 
     def test_run_contract_stock_first_writes_route_and_stock_payload(self):
@@ -696,6 +718,48 @@ class ContractToMvScriptTest(unittest.TestCase):
             state_data = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
             self.assertFalse(state_data["pass"])
             self.assertEqual(state_data["next_action"], "verify_failed")
+
+
+class TimelineCaptionEntriesTest(unittest.TestCase):
+    def test_excludes_labels_and_name_supers_from_subtitles(self):
+        clips = [
+            {
+                "timeline_in_sec": 0.0,
+                "timeline_out_sec": 2.0,
+                "text_overlay": {"narrative": "read me"},
+            },
+            {
+                "timeline_in_sec": 1.5,
+                "timeline_out_sec": 3.0,
+                "text_overlay": {"label": "decoration"},
+            },
+            {
+                "timeline_in_sec": 3.0,
+                "timeline_out_sec": 4.0,
+                "text_overlay": {"name_super": "speaker"},
+            },
+        ]
+
+        entries = ca._timeline_caption_entries(clips)
+
+        self.assertEqual(entries, [{"t_in": 0.0, "t_out": 2.0, "text": "read me"}])
+
+
+class AttentionBudgetRuntimeTest(unittest.TestCase):
+    def test_attaches_node9_attention_budget_to_runtime_segments(self):
+        payload = {
+            "segments": [{
+                "segment": 1,
+                "raw_audio": {"role": "music", "intensity": "high"},
+            }],
+        }
+        policy = {"default_mode": "rhythmic_mv"}
+
+        ca._attach_attention_budgets(payload, music_structure=None, editing_policy=policy)
+
+        budget = payload["segments"][0]["attention_budget"]
+        self.assertEqual(budget["owner"], "music")
+        self.assertEqual(budget["shot_sec"], [0.8, 2.0])
 
 
 class ContractToNarrativeScriptTest(unittest.TestCase):

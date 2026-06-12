@@ -85,7 +85,11 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
     if video_path and os.path.exists(video_path):
         try:
             actual_total = _audio_duration(video_path)
-            expected_total = sum(
+            timeline_ends = [
+                float(s["timeline_out_sec"])
+                for s in segs if s.get("timeline_out_sec") is not None
+            ]
+            expected_total = max(timeline_ends) if timeline_ends else sum(
                 tts_durs.get(s['segment'], s.get('target_duration_sec') or s.get('duration_sec') or s.get('tts_target_sec') or 0)
                 for s in segs if s.get('segment') is not None
             )
