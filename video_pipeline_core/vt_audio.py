@@ -180,7 +180,8 @@ def cmd_mix_audio(args):
     # aformat:acrossfade 串出來的流會丟 channel layout,sidechaincompress 會拒收
     bfin = f"atrim=duration={voice_dur:.3f},aformat=channel_layouts=stereo"
     bfade = f"afade=t=in:st=0:d=1,afade=t=out:st={max(0, voice_dur-1.5):.3f}:d=1.5"
-    vfade = f"afade=t=in:st=0:d=0.3,afade=t=out:st={max(0, voice_dur-1):.3f}:d=1"
+    vfade = (f"afade=t=in:st=0:d=0.3,afade=t=out:st={max(0, voice_dur-1):.3f}:d=1,"
+             f"aformat=channel_layouts=stereo")
     if args.duck:
         # sidechain ducking：人聲說話時自動壓低音樂。BGM 基準可大聲些（預設 0.28）
         dvol = args.bgm_vol if args.bgm_vol is not None else 0.28

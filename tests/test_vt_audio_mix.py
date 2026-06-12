@@ -13,9 +13,12 @@ from video_pipeline_core.vt_core import FFMPEG
 
 
 def _sine(path, dur, freq=440):
+    # explicit stereo layout: lavfi sine emits layout-less audio that
+    # sidechaincompress (duck) rejects — real TTS/music files carry layouts
     subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
                     f"sine=frequency={freq}:duration={dur}",
-                    "-ac", "2", "-ar", "48000", str(path)],
+                    "-af", "aformat=channel_layouts=stereo",
+                    "-ar", "48000", str(path)],
                    capture_output=True, check=True)
 
 
