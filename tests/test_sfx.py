@@ -103,6 +103,40 @@ class SfxRenderTest(unittest.TestCase):
                 mixed_rms = audioop.rms(src.readframes(src.getframerate() // 2), src.getsampwidth())
             self.assertAlmostEqual(mixed_rms / base_rms, 1.0, delta=0.08)
 
+    def test_real_mix_preserves_base_stereo_image(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            base = root / "base.wav"
+            cue = root / "cue.wav"
+            plan = root / "sfx_plan.json"
+            out = root / "mixed.wav"
+            subprocess.run([FFMPEG, "-y",
+                            "-f", "lavfi", "-i", "sine=frequency=220:duration=3",
+                            "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
+                            "-filter_complex",
+                            "[0:a][1:a]join=inputs=2:channel_layout=stereo[a]",
+                            "-map", "[a]", str(base)],
+                           capture_output=True, check=True)
+            subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                            "sine=frequency=880:duration=0.2",
+                            "-af", "aformat=channel_layouts=stereo",
+                            "-ar", "48000", str(cue)],
+                           capture_output=True, check=True)
+            plan.write_text(json.dumps({"cues": [{
+                "type": "hit", "asset": str(cue), "start_sec": 1.0, "volume": 0.15,
+            }]}), encoding="utf-8")
+
+            cmd_mix_sfx(types.SimpleNamespace(base=str(base), plan=str(plan), out=str(out)))
+
+            with wave.open(str(out), "rb") as src:
+                frames = src.readframes(src.getframerate() // 2)
+                width = src.getsampwidth()
+            left_rms = audioop.rms(audioop.tomono(frames, width, 1, 0), width)
+            diff_rms = audioop.rms(audioop.tomono(frames, width, 1, -1), width)
+            # pan c0|c0 would collapse both channels to the left signal
+            # (diff_rms ~ 0); distinct L/R content must survive the mix.
+            self.assertGreater(diff_rms, 0.2 * left_rms)
+
 
 if __name__ == "__main__":
     unittest.main()

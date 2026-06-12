@@ -309,7 +309,15 @@ def cmd_mix_sfx(args):
     for cue in cues:
         if not os.path.exists(cue.get("asset", "")):
             raise ToolError(f"sfx asset not found: {cue.get('asset')}")
-    graph, label = build_sfx_filter(cues)
+    probe = subprocess.run([
+        FFPROBE, "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=channels", "-of", "csv=p=0", args.base,
+    ], capture_output=True, text=True)
+    try:
+        base_channels = int(probe.stdout.strip())
+    except ValueError:
+        base_channels = 2
+    graph, label = build_sfx_filter(cues, base_channels=base_channels)
     cmd = [FFMPEG, "-y", "-i", args.base]
     for cue in cues:
         cmd += ["-i", cue["asset"]]

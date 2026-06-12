@@ -52,13 +52,20 @@ def write_sfx_plan(script, timing, asset_dir, out_path):
     return plan
 
 
-def build_sfx_filter(cues):
+def build_sfx_filter(cues, base_channels=2):
     # Bundled ffmpeg has no amix normalize=0, so amix lowers the base as cue
     # inputs are added. Merge stereo channels, then pan-sum them explicitly.
+    # Base channel handling depends on its layout: a mono voice-only base
+    # needs pan c0|c0 (full-gain duplicate; aformat upmix would lose 3dB),
+    # while a stereo voice+BGM base needs aformat passthrough (pan c0|c0
+    # would discard the right channel and collapse the stereo image).
     parts = []
     labels = []
     total_inputs = len(cues) + 1
-    parts.append("[0:a]pan=stereo|c0=c0|c1=c0[base]")
+    if int(base_channels) == 1:
+        parts.append("[0:a]pan=stereo|c0=c0|c1=c0[base]")
+    else:
+        parts.append("[0:a]aformat=channel_layouts=stereo[base]")
     for i, cue in enumerate(cues, 1):
         label = f"sfx{i}"
         delay_ms = int(round(float(cue.get("start_sec") or 0) * 1000))
