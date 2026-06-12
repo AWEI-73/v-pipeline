@@ -71,6 +71,12 @@ S2c 口白呼吸:句尾後留 0.3-0.5s 再切。TTS timing(audio/tts_timing.json
     完成判準:city-lite 級口白片重跑,抽 3 個轉場人眼/耳驗收(agent 讀波形+幀)。
 ```
 
+S2a status (2026-06-12): COMPLETE. Deterministic frame-difference motion peaks,
+scene-first/motion-second snap precedence, pre-render concrete-plan snapping,
+source-duration safety, Node 10 trace, dual-baseline real renders, and sensory
+review are verified. See
+`docs/decisions/2026-06-12-s2a-cut-on-motion.md`. Next: S2b.
+
 ### S3 音訊感官層(SFX 標點 + 音樂結構對位)
 
 ```text

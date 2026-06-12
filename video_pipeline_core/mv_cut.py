@@ -1084,6 +1084,9 @@ def run_mv(script, material_root, out_path, music_path=None,
         from .visual_review import write_request
         write_request(pending_visual_review, os.path.join(mat_dir, "visual_review_request.json"))
 
+    from .edit_artifacts import snap_render_plan_to_motion  # noqa: PLC0415
+    plan = snap_render_plan_to_motion(plan)
+
     if not skip_render and not pending_visual_review:
         render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir, burn_text=burn_text)
     elif skip_render:

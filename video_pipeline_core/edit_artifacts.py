@@ -6,6 +6,7 @@ reinterpreting the canonical SPEC.
 """
 import json
 import math
+import os
 from pathlib import Path
 
 
@@ -372,28 +373,152 @@ def _audio_policy(item):
     return "music"
 
 
-def _snap_to_scene_cut(start, duration, cuts, tolerance):
-    for cut in sorted(float(c) for c in (cuts or [])):
-        if start + tolerance < cut < start + duration - tolerance:
-            return cut, cut + duration, True, "snapped_to_scene_cut"
+def local_motion_peaks(energy_samples, min_energy=5.0, min_gap_sec=0.5):
+    """Return stable local maxima from ``[(timestamp_sec, frame_diff_energy)]``."""
+    samples = [(float(ts), float(energy)) for ts, energy in (energy_samples or [])]
+    candidates = []
+    for index in range(1, len(samples) - 1):
+        timestamp, energy = samples[index]
+        if energy < float(min_energy):
+            continue
+        if energy > samples[index - 1][1] and energy >= samples[index + 1][1]:
+            candidates.append((timestamp, energy))
+    selected = []
+    for timestamp, energy in sorted(candidates, key=lambda item: (-item[1], item[0])):
+        if all(abs(timestamp - kept[0]) >= float(min_gap_sec) for kept in selected):
+            selected.append((timestamp, energy))
+    return [timestamp for timestamp, _energy in sorted(selected)]
+
+
+def detect_motion_peaks(source, sample_fps=4.0, min_energy=5.0, min_gap_sec=0.5):
+    """Detect local frame-difference energy peaks. Decode failures return no peaks."""
+    if not source or not os.path.exists(source):
+        return []
+    try:
+        import cv2  # noqa: PLC0415
+        capture = cv2.VideoCapture(str(source))
+        source_fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0)
+        if not capture.isOpened() or source_fps <= 0:
+            capture.release()
+            return []
+        step = max(1, round(source_fps / float(sample_fps)))
+        samples = []
+        previous = None
+        frame_index = 0
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if frame_index % step == 0:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                if previous is not None:
+                    energy = float(cv2.absdiff(gray, previous).mean())
+                    samples.append((frame_index / source_fps, energy))
+                previous = gray
+            frame_index += 1
+        capture.release()
+        return local_motion_peaks(samples, min_energy=min_energy, min_gap_sec=min_gap_sec)
+    except Exception:
+        return []
+
+
+def _video_duration(source):
+    if not source or not os.path.exists(source):
+        return None
+    try:
+        import cv2  # noqa: PLC0415
+        capture = cv2.VideoCapture(str(source))
+        fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0)
+        frames = float(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0)
+        capture.release()
+        return frames / fps if fps > 0 and frames > 0 else None
+    except Exception:
+        return None
+
+
+def snap_to_edit_point(start, duration, scene_cuts=None, motion_peaks=None, tolerance=0.5):
+    """Snap a source window to a scene boundary first, then to a motion peak."""
+    for reason, points in (
+        ("snapped_to_scene_cut", scene_cuts),
+        ("snapped_to_motion_peak", motion_peaks),
+    ):
+        for point in sorted(float(value) for value in (points or [])):
+            if start + tolerance < point < start + duration - tolerance:
+                return point, point + duration, True, reason
     return start, start + duration, False, None
 
 
+def _snap_to_scene_cut(start, duration, cuts, tolerance):
+    return snap_to_edit_point(start, duration, scene_cuts=cuts, tolerance=tolerance)
+
+
+def snap_render_plan_to_motion(render_plan, *, motion_peak_detector=None,
+                               source_duration_probe=None, tolerance=0.5):
+    """Return a copy of a concrete render plan snapped to source motion peaks."""
+    detector = motion_peak_detector or detect_motion_peaks
+    duration_probe = source_duration_probe or _video_duration
+    peaks_by_source = {}
+    durations_by_source = {}
+    snapped_plan = []
+    for index, item in enumerate(render_plan or []):
+        snapped = dict(item)
+        source = snapped.get("source") or snapped.get("source_path")
+        start = float(snapped.get("extract_start") or snapped.get("start_sec") or 0.0)
+        duration = float(snapped.get("extract_dur") or snapped.get("duration_sec") or 0.0)
+        if index == 0:
+            snapped_plan.append(snapped)
+            continue
+        if source not in peaks_by_source:
+            try:
+                peaks_by_source[source] = detector(source)
+            except Exception:
+                peaks_by_source[source] = []
+        if source not in durations_by_source:
+            try:
+                durations_by_source[source] = duration_probe(source)
+            except Exception:
+                durations_by_source[source] = None
+        source_duration = durations_by_source.get(source)
+        usable_peaks = [
+            peak for peak in peaks_by_source.get(source, [])
+            if source_duration is None or float(peak) + duration <= float(source_duration)
+        ]
+        new_start, _end, adjusted, reason = snap_to_edit_point(
+            start,
+            duration,
+            motion_peaks=usable_peaks,
+            tolerance=tolerance,
+        )
+        if adjusted:
+            snapped["original_extract_start"] = start
+            snapped["extract_start"] = round(new_start, 3)
+            snapped["adjustment_reason"] = reason
+        snapped_plan.append(snapped)
+    return snapped_plan
+
+
 def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution="1920x1080",
-                         scene_cuts_by_source=None, scene_cut_tolerance_sec=0.5):
+                         scene_cuts_by_source=None, motion_peaks_by_source=None,
+                         scene_cut_tolerance_sec=0.5):
     """Build Node 10 timeline_build from concrete render plan clips."""
     clips = []
     cursor = 0.0
     for item in render_plan or []:
         dur = float(item.get("extract_dur") or item.get("duration_sec") or 0)
         source = item.get("source") or item.get("source_path")
-        original_start = float(item.get("extract_start") or item.get("start_sec") or 0)
-        start, end, adjusted, adjustment_reason = _snap_to_scene_cut(
-            original_start,
-            dur,
-            (scene_cuts_by_source or {}).get(source),
-            scene_cut_tolerance_sec,
-        )
+        start = float(item.get("extract_start") or item.get("start_sec") or 0)
+        original_start = float(item.get("original_extract_start", start))
+        adjustment_reason = item.get("adjustment_reason")
+        adjusted = bool(adjustment_reason or original_start != start)
+        end = start + dur
+        if not adjusted:
+            start, end, adjusted, adjustment_reason = snap_to_edit_point(
+                original_start,
+                dur,
+                scene_cuts=(scene_cuts_by_source or {}).get(source),
+                motion_peaks=(motion_peaks_by_source or {}).get(source),
+                tolerance=scene_cut_tolerance_sec,
+            )
         transition = item.get("transition") or "cut"
         transition_duration = float(item.get("transition_duration") or 0.0)
         if item.get("timeline_in") is not None:

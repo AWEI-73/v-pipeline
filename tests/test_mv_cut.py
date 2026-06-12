@@ -324,6 +324,45 @@ class AudioQaTest(unittest.TestCase):
 
 
 class RunMvArtifactTest(unittest.TestCase):
+    def test_run_mv_snaps_plan_to_motion_before_render(self):
+        script = {"segments": [
+            {"segment": 1, "visual_desc": "開場", "weight": 1.0,
+             "pace": "hold", "audio_role": "music"},
+            {"segment": 2, "visual_desc": "動作", "weight": 1.0,
+             "pace": "hold", "audio_role": "music"},
+        ]}
+        clip_list = {"assignments": [
+            {"segment": 1, "picks": [{"path": "/m/a.mp4"}]},
+            {"segment": 2, "picks": [{"path": "/m/b.mp4"}]},
+        ]}
+        captured = {}
+
+        def fake_render(plan, *_args, **_kwargs):
+            captured["plan"] = plan
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])), \
+             patch("video_pipeline_core.mv_cut._windows_from_clip", lambda path, *a, **k: [{
+                 "source": path, "extract_start": 10.0, "extract_dur": 3.0,
+                 "keep_audio": False, "segment": k.get("segment"),
+             }]), \
+             patch("video_pipeline_core.edit_artifacts.snap_render_plan_to_motion",
+                   side_effect=lambda plan: [plan[0], {
+                       **plan[1],
+                       "original_extract_start": plan[1]["extract_start"],
+                       "extract_start": 11.0,
+                       "adjustment_reason": "snapped_to_motion_peak",
+                   }]), \
+             patch("video_pipeline_core.mv_cut.render_mv_audio", fake_render), \
+             patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+            result = mv_cut.run_mv(
+                script, "/materials", "/out/final.mp4",
+                music_path="/music.mp3", clip_list=clip_list, verbose=False,
+            )
+
+        self.assertEqual(captured["plan"][0]["extract_start"], 10.0)
+        self.assertEqual(captured["plan"][1]["extract_start"], 11.0)
+        self.assertEqual(result["plan"][1]["adjustment_reason"], "snapped_to_motion_peak")
+
     def test_run_mv_returns_render_plan_for_timeline_artifact(self):
         script = {"segments": [
             {"segment": 1, "visual_desc": "開場", "weight": 1.0,

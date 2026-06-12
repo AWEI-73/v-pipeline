@@ -72,6 +72,92 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertTrue(clip["adjusted"])
         self.assertEqual(clip["adjustment_reason"], "snapped_to_scene_cut")
 
+    def test_motion_energy_local_maxima_filters_weak_and_adjacent_peaks(self):
+        samples = [
+            (0.0, 1.0),
+            (0.25, 9.0),
+            (0.5, 2.0),
+            (0.75, 8.0),
+            (1.0, 1.0),
+            (1.25, 3.0),
+        ]
+
+        peaks = ea.local_motion_peaks(samples, min_energy=5.0, min_gap_sec=0.75)
+
+        self.assertEqual(peaks, [0.25])
+
+    def test_scene_cut_has_priority_over_motion_peak(self):
+        snapped = ea.snap_to_edit_point(
+            10.0,
+            3.0,
+            scene_cuts=[11.0],
+            motion_peaks=[10.8],
+            tolerance=0.5,
+        )
+
+        self.assertEqual(snapped, (11.0, 14.0, True, "snapped_to_scene_cut"))
+
+    def test_render_plan_snaps_to_motion_peak_before_render(self):
+        plan = [
+            {
+                "segment": 1,
+                "source": "materials/opening.mp4",
+                "extract_start": 0.0,
+                "extract_dur": 3.0,
+            },
+            {
+                "segment": 2,
+                "source": "materials/a.mp4",
+                "extract_start": 10.0,
+                "extract_dur": 3.0,
+            },
+        ]
+
+        snapped = ea.snap_render_plan_to_motion(
+            plan,
+            motion_peak_detector=lambda _source: [10.25, 11.0],
+            source_duration_probe=lambda _source: 20.0,
+            tolerance=0.5,
+        )
+
+        self.assertNotIn("adjustment_reason", snapped[0])
+        self.assertEqual(snapped[1]["original_extract_start"], 10.0)
+        self.assertEqual(snapped[1]["extract_start"], 11.0)
+        self.assertEqual(snapped[1]["adjustment_reason"], "snapped_to_motion_peak")
+        self.assertEqual(plan[1]["extract_start"], 10.0)
+
+    def test_render_plan_rejects_motion_snap_that_would_overflow_source(self):
+        plan = [
+            {"source": "opening.mp4", "extract_start": 0.0, "extract_dur": 2.0},
+            {"source": "short.mp4", "extract_start": 5.0, "extract_dur": 3.0},
+        ]
+
+        snapped = ea.snap_render_plan_to_motion(
+            plan,
+            motion_peak_detector=lambda _source: [6.5],
+            source_duration_probe=lambda _source: 8.0,
+            tolerance=0.5,
+        )
+
+        self.assertEqual(snapped[1]["extract_start"], 5.0)
+        self.assertNotIn("adjustment_reason", snapped[1])
+
+    def test_build_timeline_preserves_pre_render_motion_snap_trace(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "materials/a.mp4",
+            "original_extract_start": 10.0,
+            "extract_start": 11.0,
+            "extract_dur": 3.0,
+            "adjustment_reason": "snapped_to_motion_peak",
+        }])
+
+        clip = timeline["clips"][0]
+        self.assertEqual(clip["original_start_sec"], 10.0)
+        self.assertEqual(clip["start_sec"], 11.0)
+        self.assertTrue(clip["adjusted"])
+        self.assertEqual(clip["adjustment_reason"], "snapped_to_motion_peak")
+
     def test_build_timeline_carries_crop_center(self):
         render_plan = [{
             "segment": 1,
