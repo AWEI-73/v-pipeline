@@ -105,6 +105,33 @@ class TestStillImageFatigue(unittest.TestCase):
         self.assertEqual(len(still_findings), 0)
 
 
+    def test_creative_exception_keeps_still_fatigue_as_acknowledged_warning(self):
+        exception = {
+            "rule_bent": "still_image_fatigue",
+            "reason": "The still is the only proof image.",
+            "risk": "The hold may feel static.",
+            "requires_review": True,
+        }
+        plan = {"mode": "rhythmic_mv", "segments": [{
+            "segment": 1,
+            "creative_exception": exception,
+        }]}
+        build = {"clips": [{
+            "segment": 1,
+            "source_path": "p.jpg",
+            "duration_sec": 5.0,
+            "timeline_in_sec": 0.0,
+        }]}
+
+        res = audit_visual_fatigue(plan, build)
+
+        finding = next(f for f in res["findings"] if f["check"] == "still_image_fatigue")
+        self.assertTrue(res["pass"])
+        self.assertEqual(finding["level"], "warn")
+        self.assertTrue(finding["acknowledged_exception"])
+        self.assertEqual(finding["creative_exception"], exception)
+
+
 class TestShotDensityFit(unittest.TestCase):
     """Test shot density within segments."""
 

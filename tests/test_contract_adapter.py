@@ -72,6 +72,20 @@ class ContractToMvScriptTest(unittest.TestCase):
         self.assertEqual(s["music"]["brief"], "熱血")
         self.assertEqual(s["segments"][0]["_from_contract"], 7)   # 可追溯
 
+    def test_creative_exception_reaches_runtime_and_dry_render_plan(self):
+        exception = {
+            "rule_bent": "hold_discipline",
+            "reason": "Hold for the reveal.",
+            "risk": "The shot may feel slow.",
+            "requires_review": True,
+        }
+        script = ca.contract_to_mv_script({
+            "segments": [self._seg(segment=7, creative_exception=exception)]
+        })
+
+        self.assertEqual(script["segments"][0]["creative_exception"], exception)
+        self.assertEqual(ca._synth_render_plan(script)[0]["creative_exception"], exception)
+
     def test_example_contract_adapts_and_validates(self):
         c = json.loads((EXAMPLES / "segment_contract_graduation_mv.json").read_text(encoding="utf-8"))
         script = ca.contract_to_mv_script(c)

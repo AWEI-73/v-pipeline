@@ -111,6 +111,33 @@ class PresentationFeelAuditTest(unittest.TestCase):
         self.assertEqual(result["findings"], [])
         self.assertEqual(result["score"], 100)
 
+    def test_creative_exception_keeps_static_photo_as_acknowledged_warning(self):
+        exception = {
+            "rule_bent": "static_photo_too_long",
+            "reason": "The still is the story payoff.",
+            "risk": "The frame may feel presentation-like.",
+            "requires_review": True,
+        }
+        assembly = {
+            "mode": "rhythmic_mv",
+            "segments": [{"segment": 1, "creative_exception": exception}],
+        }
+        timeline = {"clips": [{
+            "segment": 1,
+            "source_path": "payoff.jpg",
+            "duration_sec": 5.0,
+            "timeline_in_sec": 0.0,
+            "composition_layers": 2,
+        }]}
+
+        result = pfa.audit_presentation_feel(assembly, timeline)
+
+        finding = next(f for f in result["findings"] if f["check"] == "static_photo_too_long")
+        self.assertTrue(result["pass"])
+        self.assertEqual(finding["level"], "warn")
+        self.assertTrue(finding["acknowledged_exception"])
+        self.assertEqual(finding["creative_exception"], exception)
+
     def test_writer_outputs_stable_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "presentation_feel_audit.json"

@@ -97,8 +97,19 @@ def review_pacing(
     cuts_min = n / (total / 60.0) if total > 0 else 0
 
     # 1. dead holds (unjustified shots longer than max_hold)
-    dead = [(d, c) for d, c in pairs if d > max_hold and not _justified(c)]
+    dead = [(d, c) for d, c in pairs if d > max_hold]
     for d, c in dead:
+        if _justified(c):
+            from .creative_exception import acknowledge, legacy_hold_exception
+            finding = {"level": "error", "dimension": "hold_discipline",
+                       "segment": c.get("segment"),
+                       "message": f"long hold: {d:.1f}s shot exceeds {mode} max {max_hold}s with legacy payoff reason",
+                       "route": "editor"}
+            findings.append(acknowledge(
+                finding,
+                legacy_hold_exception(c, _HOLD_JUSTIFICATIONS),
+            ))
+            continue
         pen = min(45, (d - max_hold) * 2.0)
         dims["hold_discipline"] -= pen
         findings.append({"level": "error", "dimension": "hold_discipline",
@@ -138,6 +149,17 @@ def review_pacing(
         findings.append({"level": "warn", "dimension": "pacing_band",
                          "message": f"{cuts_min:.1f} cuts/min outside gold window [{cm_lo},{cm_hi}] for {mode}",
                          "route": "editor"})
+
+    from .creative_exception import acknowledge, matching_exception
+    clips_by_segment = {clip.get("segment"): clip for _, clip in pairs}
+    findings = [
+        acknowledge(finding, exception)
+        if (exception := matching_exception(
+            finding["dimension"], clips_by_segment.get(finding.get("segment"))
+        ))
+        else finding
+        for finding in findings
+    ]
 
     for k in dims:
         dims[k] = max(0, min(100, int(round(dims[k]))))

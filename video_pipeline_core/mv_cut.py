@@ -1087,6 +1087,8 @@ def run_mv(script, material_root, out_path, music_path=None,
             sl["slot_index"] = len(plan)
             if s.get("attention_budget"):
                 sl["attention_budget"] = s["attention_budget"]
+            if s.get("creative_exception"):
+                sl["creative_exception"] = s["creative_exception"]
             if sl is slots[0]:
                 visual_style = s.get("visual_style") or s.get("raw_visual_style") or {}
                 transition = visual_style.get("transition")

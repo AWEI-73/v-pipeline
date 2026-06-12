@@ -30,12 +30,37 @@ class TestPacingReview(unittest.TestCase):
         # a long group-photo hold WITH a payoff reason should not be a dead-hold error
         tl = {"clips": [
             {"segment": 1, "duration_sec": 3.0},
-            {"segment": 2, "duration_sec": 11.0, "hold_reason": "group_photo"},
+            {"segment": 2, "duration_sec": 13.0, "hold_reason": "group_photo"},
             {"segment": 3, "duration_sec": 3.0},
         ]}
-        r = pr.review_pacing(tl, mode="warm_documentary", target_sec=17)
+        r = pr.review_pacing(tl, mode="warm_documentary", target_sec=19)
         self.assertFalse(any(f["dimension"] == "hold_discipline" and f["level"] == "error"
                              for f in r["findings"]))
+        finding = next(f for f in r["findings"] if f["dimension"] == "hold_discipline")
+        self.assertEqual(finding["level"], "warn")
+        self.assertTrue(finding["acknowledged_exception"])
+        self.assertEqual(finding["creative_exception"]["rule_bent"], "hold_discipline")
+
+    def test_creative_exception_keeps_long_hold_as_acknowledged_warning(self):
+        exception = {
+            "rule_bent": "hold_discipline",
+            "reason": "Hold for the emotional reveal.",
+            "risk": "The sequence may lose momentum.",
+            "requires_review": True,
+        }
+        tl = {"clips": [
+            {"segment": 1, "duration_sec": 3.0},
+            {"segment": 2, "duration_sec": 13.0, "creative_exception": exception},
+            {"segment": 3, "duration_sec": 3.0},
+        ]}
+
+        r = pr.review_pacing(tl, mode="warm_documentary", target_sec=19)
+
+        finding = next(f for f in r["findings"] if f["dimension"] == "hold_discipline")
+        self.assertTrue(r["pass"])
+        self.assertEqual(finding["level"], "warn")
+        self.assertTrue(finding["acknowledged_exception"])
+        self.assertEqual(finding["creative_exception"], exception)
 
     def test_empty_timeline_fails(self):
         r = pr.review_pacing({"clips": []}, mode="promo")

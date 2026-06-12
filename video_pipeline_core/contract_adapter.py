@@ -74,6 +74,8 @@ def contract_to_mv_script(contract):
             flat["pacing"] = seg["pacing"]
         if seg.get("still_image_policy"):
             flat["still_image_policy"] = seg["still_image_policy"]
+        if seg.get("creative_exception"):
+            flat["creative_exception"] = seg["creative_exception"]
         if section:
             flat["section_role"] = section
         # 來源 / 媒材
@@ -1110,6 +1112,7 @@ def _synth_render_plan(payload, *, total_duration_sec=60.0):
             "transition": "cut",
             "text": seg.get("subtitle") or "none",
             "audio_policy": "duck" if seg.get("keep_audio") else "music",
+            "creative_exception": seg.get("creative_exception"),
         })
         cursor += budget
     return plan

@@ -101,6 +101,12 @@ def validate_segment_contract(contract, categories=None):
         def err(msg):
             errors.append(f"[{sid}] {msg}")
 
+        creative_exception = seg.get("creative_exception")
+        if creative_exception is not None:
+            from .creative_exception import validation_errors
+            for issue in validation_errors(creative_exception):
+                err(f"creative_exception {issue}")
+
         # core
         if not core.get("story_purpose"):
             err("core.story_purpose 必填(這段為什麼存在)")

@@ -74,6 +74,27 @@ class BlockingRulesTest(unittest.TestCase):
         self.assertTrue(r["ready_for_build"])
 
 
+    def test_matching_creative_exception_downgrades_block_to_acknowledged_warning(self):
+        exception = {
+            "rule_bent": "subtitle_auto_no_speech",
+            "reason": "Intentional silent subtitle reveal.",
+            "risk": "ASR may produce no text.",
+            "requires_review": True,
+        }
+        contract = {"segments": [_seg(
+            creative_exception=exception,
+            text_layer={"subtitle": "auto", "reason": "r"},
+        )]}
+
+        r = review_spec(contract, BRIEF, has_editorial_design=True)
+
+        self.assertTrue(r["ready_for_build"])
+        self.assertEqual(r["blocking"], [])
+        finding = next(w for w in r["warnings"] if w["rule"] == "subtitle_auto_no_speech")
+        self.assertTrue(finding["acknowledged_exception"])
+        self.assertEqual(finding["creative_exception"], exception)
+
+
 class WarningRulesTest(unittest.TestCase):
     def _rules(self, r):
         return [w["rule"] for w in r["warnings"]]

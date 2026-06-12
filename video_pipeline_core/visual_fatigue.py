@@ -46,14 +46,17 @@ DEFAULT_MIN_SHOTS_PER_SEGMENT = 2
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _finding(check: str, level: str, message: str, route: str) -> dict:
+def _finding(check: str, level: str, message: str, route: str, segments=None) -> dict:
     """Create a single audit finding."""
-    return {
+    finding = {
         "check": check,
         "level": level,
         "message": message,
         "route": route,
     }
+    if segments:
+        finding["segments"] = list(dict.fromkeys(segments))
+    return finding
 
 
 def _has_reason(clip: dict) -> bool:
@@ -201,6 +204,7 @@ def audit_visual_fatigue(
                         f"Source '{src}' consecutive duration {tot_dur:.2f}s "
                         f"exceeds mode '{mode}' limit of {max_single_source}s without reason.",
                         route="editor",
+                        segments=[c.get("segment") for c in group if c.get("segment") is not None],
                     ))
 
         for clip in sorted_clips[1:]:
@@ -238,6 +242,7 @@ def audit_visual_fatigue(
                         f"Still image '{clip.get('source_path')}' hold time {dur:.2f}s "
                         f"exceeds mode '{mode}' limit of {max_still_hold}s with no treatment or reason.",
                         route="editor/effects-director",
+                        segments=[clip.get("segment")],
                     ))
 
     # -----------------------------------------------------------------------
@@ -258,6 +263,7 @@ def audit_visual_fatigue(
                 f"Segment {seg_id} has {len(seg_clips)} shot(s), which is fewer "
                 f"than the required {min_shots} for mode '{mode}'.",
                 route="editor",
+                segments=[seg_id],
             ))
 
     # -----------------------------------------------------------------------
@@ -283,6 +289,7 @@ def audit_visual_fatigue(
                 f"Source '{src}' is reused in {use_count} segments/clips, "
                 f"exceeding the limit of {max_reuse}.",
                 route="curator",
+                segments=list(unique_segs),
             ))
 
         # D2: Cooldown check
@@ -308,6 +315,7 @@ def audit_visual_fatigue(
                         f"Source '{src}' reused too soon: gap of {gap:.2f}s "
                         f"is less than cooldown of {cooldown}s.",
                         route="curator",
+                        segments=[c1.get("segment"), c2.get("segment")],
                     ))
 
     # -----------------------------------------------------------------------
@@ -339,6 +347,7 @@ def audit_visual_fatigue(
                 f"Shot duration {dur:.2f}s is outside attention budget "
                 f"[{att_min}, {att_max}] owned by {attention['owner']}: {attention['reason']}.",
                 route=route,
+                segments=[clip.get("segment")],
             ))
         elif not has_attention_signal and (dur < min_pacing or dur > max_pacing):
             if not _has_reason(clip):
@@ -348,7 +357,15 @@ def audit_visual_fatigue(
                     f"Shot duration {dur:.2f}s is outside target pacing range "
                     f"[{min_pacing}, {max_pacing}] for mode '{mode}' and has no reason.",
                     route="editor",
+                    segments=[clip.get("segment")],
                 ))
+
+    from .creative_exception import acknowledge, matching_exception
+    for index, finding in enumerate(findings):
+        candidates = [plan_by_segment.get(segment_id) for segment_id in finding.get("segments", [])]
+        exception = matching_exception(finding["check"], *candidates)
+        if exception:
+            findings[index] = acknowledge(finding, exception)
 
     # Determine if audit passes
     has_fail = any(f["level"] == "fail" for f in findings)

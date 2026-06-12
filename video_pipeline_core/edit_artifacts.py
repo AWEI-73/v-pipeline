@@ -177,6 +177,7 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
         entry = {
             "segment": seg.get("segment"),
             "contract_segment": seg.get("_from_contract"),
+            "creative_exception": seg.get("creative_exception"),
             "story_purpose": seg.get("visual_desc"),
             "narrative_logic": seg.get("visual_desc"),
             "audio_role": seg.get("audio_role"),
@@ -556,6 +557,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "transition": transition,
             "transition_duration_sec": round(transition_duration, 3) if transition_duration else None,
             "attention_budget": item.get("attention_budget"),
+            "creative_exception": item.get("creative_exception"),
             "text_overlay": item.get("text") or "none",
             "composition_layers": item.get("composition_layers"),
             "text_area_ratio": item.get("text_area_ratio"),

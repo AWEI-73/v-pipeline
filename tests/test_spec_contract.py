@@ -132,6 +132,25 @@ class ValidateSegmentContractTest(unittest.TestCase):
         self.assertFalse(sc.validate_segment_contract([bad])["ok"])
 
 
+    def test_creative_exception_requires_complete_reviewable_schema(self):
+        valid = self._seg(creative_exception={
+            "rule_bent": "hold_discipline",
+            "reason": "Let the reveal land before the next cut.",
+            "risk": "The shot may feel slow.",
+            "requires_review": True,
+        })
+        self.assertTrue(sc.validate_segment_contract([valid])["ok"])
+
+        invalid = self._seg(creative_exception={
+            "rule_bent": "hold_discipline",
+            "reason": "Let the reveal land.",
+            "requires_review": False,
+        })
+        result = sc.validate_segment_contract([invalid])
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("creative_exception" in error for error in result["errors"]))
+
+
 class BuildLayerVocabTest(unittest.TestCase):
     """鎖住 Node 9-14 canonical 詞彙(skill 契約與未來程式須一致)。"""
 

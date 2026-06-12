@@ -150,6 +150,15 @@ crop patches reach the MV ffmpeg renderer, and patched choices are traced as
 `agent_patch`. Gen-smoke real-candidate patch smoke and full regression are
 verified. See `docs/decisions/2026-06-12-s4b-needs-patch-verdict.md`. Next: S4c.
 
+S4c status (2026-06-12): COMPLETE. Segment-level `creative_exception` now has
+a validated reviewable schema, survives canonical/runtime/assembly/timeline
+artifacts, and downgrades only the matching rule in spec, pacing, visual-fatigue,
+and presentation-feel review to warn-with-ack. Legacy hold reasons remain
+accepted but are normalized into visible acknowledged warnings. City-lite
+real-video baseline review and full regression are verified. See
+`docs/decisions/2026-06-12-s4c-creative-exception.md`. Next: E7 or next roadmap
+priority.
+
 ### 執行紀律(防彎路,給 Codex)
 
 ```text

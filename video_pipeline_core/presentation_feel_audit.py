@@ -163,6 +163,14 @@ def audit_presentation_feel(assembly_plan, timeline_build, editing_policy=None, 
             ))
             break
 
+    from .creative_exception import acknowledge, matching_exception
+    for index, finding in enumerate(findings):
+        affected = set(finding.get("affected") or [])
+        candidates = [segments.get(segment_id) for segment_id in affected]
+        exception = matching_exception(finding["check"], *candidates)
+        if exception:
+            findings[index] = acknowledge(finding, exception)
+
     fail_count = sum(finding["level"] == "fail" for finding in findings)
     warn_count = sum(finding["level"] == "warn" for finding in findings)
     return {

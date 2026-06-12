@@ -51,6 +51,26 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(clip["audio_policy"], "duck")
         self.assertEqual(clip["trace"]["segment_contract_segment"], 1)
 
+    def test_creative_exception_survives_assembly_and_timeline_artifacts(self):
+        exception = {
+            "rule_bent": "hold_discipline",
+            "reason": "Hold for the reveal.",
+            "risk": "The shot may feel slow.",
+            "requires_review": True,
+        }
+        plan = ea.build_assembly_plan({
+            "segments": [{"segment": 1, "creative_exception": exception}]
+        })
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "materials/a.mp4",
+            "extract_dur": 3.0,
+            "creative_exception": exception,
+        }])
+
+        self.assertEqual(plan["segments"][0]["creative_exception"], exception)
+        self.assertEqual(timeline["clips"][0]["creative_exception"], exception)
+
     def test_build_timeline_snaps_start_to_scene_cut(self):
         render_plan = [{
             "segment": 1,

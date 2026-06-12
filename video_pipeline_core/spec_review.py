@@ -270,6 +270,20 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
                    "by rhythm, concrete visual_desc/search_query, real reasons",
         })
 
+    from .creative_exception import acknowledge, matching_exception  # noqa: PLC0415
+    seg_by_id = {_seg_id(seg, idx): seg for idx, seg in enumerate(segs)}
+    remaining_blocking = []
+    for finding in blocking:
+        exception = matching_exception(
+            finding["rule"],
+            seg_by_id.get(finding.get("segment")),
+        )
+        if exception:
+            warnings.append(acknowledge(finding, exception))
+        else:
+            remaining_blocking.append(finding)
+    blocking = remaining_blocking
+
     ready = not blocking
     return {
         "artifact_role": "spec_review",
