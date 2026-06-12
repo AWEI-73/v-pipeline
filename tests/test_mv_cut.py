@@ -4,7 +4,9 @@ Pure-function tests — no audio, no librosa. The beats are synthetic timestamps
 so the cut-grid logic is fully deterministic.
 """
 import tempfile
+import subprocess
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from video_pipeline_core import mv_cut
@@ -542,6 +544,35 @@ class XfadeRenderTest(unittest.TestCase):
         self.assertIn("concat=n=2:v=1:a=0", graph)
         self.assertTrue(video_label.startswith("[v"))
         self.assertTrue(audio_label.startswith("[a"))
+
+    def test_keep_audio_slot_without_source_audio_gets_silence_for_xfade(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources = []
+            for index, color in enumerate(("red", "blue")):
+                source = root / f"source-{index}.mp4"
+                subprocess.run([
+                    mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                    f"color=c={color}:s=320x180:d=1.5", "-an", str(source),
+                ], capture_output=True, check=True)
+                sources.append(source)
+            music = root / "music.wav"
+            subprocess.run([
+                mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                "sine=frequency=440:duration=3", str(music),
+            ], capture_output=True, check=True)
+            out = root / "final.mp4"
+            plan = [
+                {"slot_index": 0, "segment": 1, "source": str(sources[0]),
+                 "extract_start": 0.0, "extract_dur": 1.5, "keep_audio": True},
+                {"slot_index": 1, "segment": 2, "source": str(sources[1]),
+                 "extract_start": 0.0, "extract_dur": 1.5, "keep_audio": False,
+                 "transition": "xfade", "transition_duration": 0.5},
+            ]
+
+            mv_cut.render_mv_audio(plan, str(music), str(out), mat_dir=tmp, burn_text=False)
+
+            self.assertTrue(out.exists())
 
 
 class StaticPrefilterTest(unittest.TestCase):

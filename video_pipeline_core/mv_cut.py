@@ -1423,6 +1423,16 @@ def _render_segment_sequence(segs, plan, output_path):
     return True
 
 
+def _has_audio_stream(path):
+    from .vt_core import FFPROBE
+
+    result = subprocess.run([
+        FFPROBE, "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=index", "-of", "csv=p=0", path,
+    ], capture_output=True, text=True)
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
 def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, burn_text=True):
     """(I/O) render plan → 對拍/長段拼接 + audio_role 真混音。
     keep_audio 段(duck/diegetic)保留原音、其餘補靜音;末段用 sidechain ducking
@@ -1450,24 +1460,37 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
                    "-c:a", "aac", "-ar", "44100", "-ac", "2", seg]
         elif p.get("keep_audio"):
             actual_dur = 0.0
-            try:
-                from .vt_core import _audio_duration
-                actual_dur = _audio_duration(p["source"])
-            except Exception:
-                pass
-            rem_dur = max(0.1, actual_dur - p["extract_start"])
-            expected = p["extract_dur"]
-            input_opts = []
-            if actual_dur > 0 and rem_dur < expected:
-                import math
-                loops = int(math.ceil(expected / rem_dur)) - 1
-                if loops > 0:
-                    input_opts += ["-stream_loop", str(loops)]
+            has_audio = _has_audio_stream(p["source"])
+            if has_audio:
+                try:
+                    from .vt_core import _audio_duration
+                    actual_dur = _audio_duration(p["source"])
+                except Exception:
+                    pass
+            if not has_audio:
+                cmd = [FFMPEG, "-y", "-ss", f"{p['extract_start']:.3f}", "-i", p["source"],
+                       "-f", "lavfi", "-t", f"{p['extract_dur']:.3f}", "-i",
+                       "anullsrc=r=44100:cl=stereo",
+                       "-t", f"{p['extract_dur']:.3f}", "-vf", vf,
+                       "-map", "0:v:0", "-map", "1:a:0",
+                       "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                       "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "44100", "-ac", "2", seg]
+            else:
+                rem_dur = max(0.1, actual_dur - p["extract_start"])
+                expected = p["extract_dur"]
+                input_opts = []
+                if rem_dur < expected:
+                    import math
+                    loops = int(math.ceil(expected / rem_dur)) - 1
+                    if loops > 0:
+                        input_opts += ["-stream_loop", str(loops)]
 
-            cmd = [FFMPEG, "-y"] + input_opts + ["-ss", f"{p['extract_start']:.3f}", "-i", p["source"],
-                   "-t", f"{p['extract_dur']:.3f}", "-vf", vf,
-                   "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-                   "-c:a", "aac", "-ar", "44100", "-ac", "2", seg]
+                cmd = [FFMPEG, "-y"] + input_opts + [
+                    "-ss", f"{p['extract_start']:.3f}", "-i", p["source"],
+                    "-t", f"{p['extract_dur']:.3f}", "-vf", vf,
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "44100", "-ac", "2", seg,
+                ]
         else:
             actual_dur = 0.0
             try:
