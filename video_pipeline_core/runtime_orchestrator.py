@@ -28,7 +28,7 @@ NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REG
 _AUDIT_NODE = {
     "timeline_invariants": "11", "broll_audit": "11", "caption_audit": "11",
     "keyframe_grid": "12", "visual_audit": "12", "treatment_audit": "11",
-    "visual_fatigue_audit": "11", "editorial_qa": "12",
+    "visual_fatigue_audit": "11", "presentation_feel_audit": "12", "editorial_qa": "12",
 }
 
 

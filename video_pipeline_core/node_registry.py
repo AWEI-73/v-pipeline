@@ -319,7 +319,8 @@ NODE_REGISTRY = {
         "skill": ["verify"],
         "runner": "verify",
         "inputs": ["final.mp4"],
-        "outputs": ["verify_result.json", "qa_report.json", "keyframe_grid.jpg", "visual_audit.json", "editorial_qa.json"],
+        "outputs": ["verify_result.json", "qa_report.json", "keyframe_grid.jpg", "visual_audit.json",
+                    "presentation_feel_audit.json", "editorial_qa.json"],
         "verify_fn": verify_verify,
         "description": "QA verify report"
     },

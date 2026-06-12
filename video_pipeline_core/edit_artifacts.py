@@ -388,6 +388,9 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "transition_duration_sec": round(transition_duration, 3) if transition_duration else None,
             "attention_budget": item.get("attention_budget"),
             "text_overlay": item.get("text") or "none",
+            "composition_layers": item.get("composition_layers"),
+            "text_area_ratio": item.get("text_area_ratio"),
+            "effect_overlays": item.get("effect_overlays"),
             "photo_variant": item.get("photo_variant"),
             "still_treatment": item.get("still_treatment"),
             "trace": {

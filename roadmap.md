@@ -47,6 +47,10 @@ S1b 計畫期預防(Node 9,edit_artifacts/_resolve_seg_treatment 一帶):
     完成判準:city-lite 重跑,S1a 偵測器 0 fail;對照舊片至少 3 個偵測器原本會響。
 ```
 
+S1a status (2026-06-12): COMPLETE. Deterministic audit, Node 12 wiring,
+dual-baseline real renders, sensory review, and full regression are verified.
+See `docs/decisions/2026-06-12-s1a-presentation-feel-audit.md`. Next: S1b.
+
 ### S2 微節奏(cut-on-motion / J-L cut / 口白呼吸)
 
 ```text

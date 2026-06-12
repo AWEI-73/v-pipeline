@@ -407,6 +407,7 @@ class ContractToMvScriptTest(unittest.TestCase):
                     "timeline_invariants": True,
                     "broll_audit": True,
                     "caption_audit": True,
+                    "presentation_feel_audit": True,
                 },
             }), encoding="utf-8")
 
@@ -437,7 +438,8 @@ class ContractToMvScriptTest(unittest.TestCase):
 
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             # deterministic audits produced and indexed
-            for role in ("timeline_invariants", "broll_audit", "caption_audit"):
+            for role in ("timeline_invariants", "broll_audit", "caption_audit",
+                         "presentation_feel_audit"):
                 self.assertTrue((outdir / f"{role}.json").exists(), f"{role}.json missing")
                 self.assertEqual(manifest[role], str(outdir / f"{role}.json"))
             # ffmpeg-dependent tools were left disabled -> still null
@@ -447,6 +449,27 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(audit["artifact_role"], "timeline_invariants")
             self.assertTrue((outdir / "editor_review.json").exists())
             self.assertTrue((outdir / "model_routes.json").exists())
+
+    def test_presentation_feel_audit_does_not_require_caption_audit(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d)
+            assembly = outdir / "assembly_plan.json"
+            timeline = outdir / "timeline_build.json"
+            assembly.write_text(json.dumps({"segments": []}), encoding="utf-8")
+            timeline.write_text(json.dumps({"clips": []}), encoding="utf-8")
+
+            written = ca._write_p1_audits(
+                outdir,
+                {"verification_tools": {"presentation_feel_audit": True}},
+                timeline_build_path=timeline,
+                verbose=False,
+            )
+
+            self.assertTrue((outdir / "presentation_feel_audit.json").exists())
+            self.assertEqual(
+                written["presentation_feel_audit"],
+                str(outdir / "presentation_feel_audit.json"),
+            )
 
     def test_run_contract_writes_light_effects_artifacts_when_profile_enabled(self):
         contract = {

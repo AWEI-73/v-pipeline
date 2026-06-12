@@ -366,6 +366,7 @@ class DashboardStateSpecTest(unittest.TestCase):
                 "timeline_invariants": "timeline_invariants.json",
                 "broll_audit": "broll_audit.json",
                 "visual_audit": "visual_audit.json",
+                "presentation_feel_audit": "presentation_feel_audit.json",
             }
             (workdir / "artifact_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
             (workdir / "timeline_build.json").write_text(json.dumps([]), encoding="utf-8")
@@ -386,6 +387,12 @@ class DashboardStateSpecTest(unittest.TestCase):
                 "grid": "keyframe_grid.jpg", "samples": [{"timestamp_sec": 1.0, "cell": 1}],
                 "mechanical_findings": [], "model_review": None, "next_action": None,
             }), encoding="utf-8")
+            (workdir / "presentation_feel_audit.json").write_text(json.dumps({
+                "artifact_role": "presentation_feel_audit", "version": 1, "pass": False,
+                "score": 40,
+                "findings": [{"check": "text_blocks_dominate", "level": "fail"}],
+                "next_action": "fix_timeline_or_assembly",
+            }), encoding="utf-8")
 
             state = load_dashboard_state(str(workdir))
 
@@ -402,6 +409,7 @@ class DashboardStateSpecTest(unittest.TestCase):
             verify_node = nodes_by_label["Verify"]
             roles_12 = {a["role"] for a in verify_node.get("audits", [])}
             self.assertIn("visual_audit", roles_12)
+            self.assertIn("presentation_feel_audit", roles_12)
 
             # failing audit surfaces a finding tagged to its node
             failing = [f for f in state["findings"]

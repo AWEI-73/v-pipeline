@@ -114,6 +114,23 @@ class EditArtifactsTest(unittest.TestCase):
 
         self.assertEqual(timeline["clips"][0]["attention_budget"], budget)
 
+    def test_build_timeline_carries_presentation_feel_trace(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "a.mp4",
+            "extract_start": 0,
+            "extract_dur": 2.5,
+            "slot_index": 0,
+            "composition_layers": 3,
+            "text_area_ratio": 0.18,
+            "effect_overlays": ["grain", "light_leak"],
+        }])
+
+        clip = timeline["clips"][0]
+        self.assertEqual(clip["composition_layers"], 3)
+        self.assertEqual(clip["text_area_ratio"], 0.18)
+        self.assertEqual(clip["effect_overlays"], ["grain", "light_leak"])
+
     def test_build_timeline_models_explicit_xfade_as_overlap(self):
         timeline = ea.build_timeline_build([
             {"segment": 1, "source": "a.mp4", "extract_start": 0, "extract_dur": 2, "slot_index": 0},

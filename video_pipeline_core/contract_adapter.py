@@ -333,6 +333,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               revision_plan=None, brief=None,
               timeline_invariants=None, broll_audit=None, caption_audit=None,
               keyframe_grid=None, visual_audit=None,
+              presentation_feel_audit=None,
               creator_profile=None, creator_profile_applied=None,
               capcut_draft_manifest=None, capcut_export_manifest=None,
               editorial_design=None, editorial_qa=None, spec_review=None):
@@ -369,6 +370,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "caption_audit": str(caption_audit) if caption_audit else None,
         "keyframe_grid": str(keyframe_grid) if keyframe_grid else None,
         "visual_audit": str(visual_audit) if visual_audit else None,
+        "presentation_feel_audit": str(presentation_feel_audit) if presentation_feel_audit else None,
         "creator_profile": str(creator_profile) if creator_profile else None,
         "creator_profile_applied": str(creator_profile_applied) if creator_profile_applied else None,
         "capcut_draft_manifest": str(capcut_draft_manifest) if capcut_draft_manifest else None,
@@ -438,6 +440,25 @@ def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None
         except Exception as e:
             if verbose:
                 print(f"[audit] caption_audit skipped: {e}")
+
+    if tools["presentation_feel_audit"] and timeline is not None:
+        assembly_path = out_dir / "assembly_plan.json"
+        if assembly_path.exists():
+            try:
+                from . import presentation_feel_audit  # noqa: PLC0415
+                with assembly_path.open(encoding="utf-8") as f:
+                    assembly = json.load(f)
+                p = out_dir / "presentation_feel_audit.json"
+                presentation_feel_audit.write_presentation_feel_audit(
+                    assembly,
+                    timeline,
+                    p,
+                    editing_policy=build_profile_payload.get("editing_policy"),
+                )
+                written["presentation_feel_audit"] = str(p)
+            except Exception as e:
+                if verbose:
+                    print(f"[audit] presentation_feel_audit skipped: {e}")
 
     if (tools["keyframe_grid"] or tools["visual_audit"]) and final_video and Path(final_video).exists():
         from . import keyframe_grid as _kg  # noqa: PLC0415
@@ -1009,6 +1030,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          caption_audit=audit_paths.get("caption_audit"),
                          keyframe_grid=audit_paths.get("keyframe_grid"),
                          visual_audit=audit_paths.get("visual_audit"),
+                          presentation_feel_audit=audit_paths.get("presentation_feel_audit"),
                          creator_profile=creator_profile_paths.get("creator_profile"),
                          creator_profile_applied=creator_profile_paths.get("creator_profile_applied"),
                          capcut_draft_manifest=capcut_paths.get("capcut_draft_manifest"),
