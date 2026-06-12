@@ -27,6 +27,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/capcut-pipeline-integration-design.md` — optional CapCut finishing backend.
 - `docs/dashboard-node-skill-output-spec.md` — dashboard / node / output contract.
 - `docs/windows-native-migration-spec.md` — Windows migration record (migration complete).
+- `docs/SYSTEM-DESIGN.md` — self-contained node/skill/tool architecture brief
+  (honest status grading: proven / thin / scaffold / known gaps). Share-ready.
 - `docs/reference-repos-map.md` — external reference repos: what to take, license limits,
   integration triggers (ai-media-generator / NarratoAI). Do not re-evaluate; read this.
 
