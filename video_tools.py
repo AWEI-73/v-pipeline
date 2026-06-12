@@ -1058,7 +1058,7 @@ def cmd_title(args):
 
 # ── audio/subtitle 已解耦到 vt_audio.py;re-export 保持 video_tools.X + CLI 不變 ──
 from video_pipeline_core.vt_audio import (  # noqa: F401,E402
-    cmd_tts, cmd_mix_audio, cmd_srt, cmd_gen_bgm, cmd_music_fetch, _music_ytdlp_cmd,
+    cmd_tts, cmd_mix_audio, cmd_mix_sfx, cmd_srt, cmd_gen_bgm, cmd_music_fetch, _music_ytdlp_cmd,
     BGM_MOODS,
 )
 
@@ -1178,6 +1178,11 @@ def main():
     p_mix.add_argument("--duck", action="store_true",
                        help="sidechain ducking：人聲說話時自動壓低音樂（比固定音量專業）")
     p_mix.add_argument("--out", help="輸出檔案，預設 final_audio.wav")
+
+    p_sfx_mix = sub.add_parser("sfx-mix")
+    p_sfx_mix.add_argument("--base", required=True, help="既有人聲/BGM 混音")
+    p_sfx_mix.add_argument("--plan", required=True, help="sfx_plan.json")
+    p_sfx_mix.add_argument("--out", help="輸出檔案，預設 final_audio.wav")
 
     p_srt = sub.add_parser("srt")
     p_srt.add_argument("timing", help="tts_timing.json 路徑（音控師 tts 指令輸出）")
@@ -1480,6 +1485,7 @@ def main():
         "title":       cmd_title,
         "tts":         cmd_tts,
         "mix-audio":   cmd_mix_audio,
+        "sfx-mix":     cmd_mix_sfx,
         "srt":         cmd_srt,
         "assemble":    cmd_assemble,
         "merge-final": cmd_merge_final,

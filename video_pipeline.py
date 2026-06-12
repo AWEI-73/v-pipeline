@@ -1335,17 +1335,29 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
     atomic_write_json(f"{outdir}/audio/tts_timing.json", timing)
     xfade = max(xfade, jl_cut_render_tail(jl_cuts, boundary_durations))
     actual_dur = {s["segment"]: s["duration_sec"] for s in timing["segments"]}
+    from video_pipeline_core.sfx import write_sfx_plan
+    sfx_plan_path = f"{outdir}/sfx_plan.json"
+    write_sfx_plan(script, timing, os.path.join(_HERE, "assets", "sfx"), sfx_plan_path)
 
     vprint("[2] SRT", verbose)
     run_tool(["srt", f"{outdir}/audio/tts_timing.json", "--out", f"{outdir}/subtitles.srt"], verbose)
 
-    vprint("[3] mix-audio", verbose)
-    if bgm and os.path.exists(bgm):
-        run_tool(["mix-audio", "--voice", f"{outdir}/audio/voice.mp3",
-                  "--bgm", bgm, "--duck",
+    vprint("[3] mix-audio + sfx", verbose)
+    base_audio = f"{outdir}/audio/base_mix.wav"
+
+    def _mix_final_audio(bgm_volume=None):
+        if bgm and os.path.exists(bgm):
+            cmd = ["mix-audio", "--voice", f"{outdir}/audio/voice.mp3",
+                   "--bgm", bgm, "--duck", "--out", base_audio]
+            if bgm_volume is not None:
+                cmd += ["--bgm-vol", str(bgm_volume)]
+            run_tool(cmd, verbose)
+        else:
+            shutil.copy(f"{outdir}/audio/voice.mp3", base_audio)
+        run_tool(["sfx-mix", "--base", base_audio, "--plan", sfx_plan_path,
                   "--out", f"{outdir}/final_audio.wav"], verbose)
-    else:
-        shutil.copy(f"{outdir}/audio/voice.mp3", f"{outdir}/final_audio.wav")
+
+    _mix_final_audio()
 
     # ---- material pick + render + QA, with self-reflection retry loop (P2-3) ----
     thumbs_dir = f"{outdir}/prepick_thumbs"
@@ -1509,11 +1521,8 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
             
         if actions["remix"]:
             cur_bgm_vol = round(max(0.04, cur_bgm_vol - 0.04), 2)
-            if bgm and os.path.exists(bgm):
-                vprint(f"  remix bgm-vol={cur_bgm_vol}", verbose)
-                run_tool(["mix-audio", "--voice", f"{outdir}/audio/voice.mp3",
-                          "--bgm", bgm, "--bgm-vol", str(cur_bgm_vol),
-                          "--out", f"{outdir}/final_audio.wav"], verbose)
+            vprint(f"  remix bgm-vol={cur_bgm_vol}", verbose)
+            _mix_final_audio(cur_bgm_vol)
         seg_paths = [path_by_seg[n] for n in seg_ids]
         try:
             qa, cqa, gate = compose_and_qa(script, seg_paths, actual_dur, xfade, outdir,

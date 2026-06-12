@@ -103,6 +103,13 @@ S3b 音樂結構對位:消費 music_structure.sections(欄位早就有、render 
     完成判準:同一支片 A/B(有無 S3)各渲一次,agent 聽感複核記錄差異。
 ```
 
+S3a status (2026-06-12): COMPLETE. Narrative runs now emit sparse deterministic
+`sfx_plan.json` cues, rotate a six-file local synthetic CC0 library, and mix
+chapter whooshes / explicit title-card hits into final audio without lowering
+the base track. City-lite SFX A/B, true final render, audio-level VERIFY, and
+full regression are verified. See
+`docs/decisions/2026-06-12-s3a-sfx-punctuation.md`. Next: S3b.
+
 ### S4 裁決體系收尾(採納外部評析 A + creative_exception)
 
 ```text

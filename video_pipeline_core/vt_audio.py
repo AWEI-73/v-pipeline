@@ -5,6 +5,7 @@ import sys
 import json
 import subprocess
 import re  # noqa: F401
+import shutil
 from pathlib import Path  # noqa: F401  (cmd_music_fetch 用 Path(FFMPEG).parent)
 from .vt_core import YTDLP, FFMPEG, FFPROBE, run, ToolError, _audio_duration  # noqa: F401
 
@@ -266,6 +267,39 @@ def cmd_mix_audio(args):
         "bgm_volume": bgm_vol,
         "duration_sec": round(voice_dur, 3),
     }))
+
+
+def cmd_mix_sfx(args):
+    """Mix a deterministic SFX cue plan onto an existing final-audio base."""
+    from .sfx import build_sfx_filter
+
+    if not os.path.exists(args.base):
+        raise ToolError(f"base audio not found: {args.base}")
+    if not os.path.exists(args.plan):
+        raise ToolError(f"sfx plan not found: {args.plan}")
+    with open(args.plan, encoding="utf-8") as f:
+        plan = json.load(f)
+    cues = plan.get("cues") or []
+    out = args.out or "final_audio.wav"
+    if not cues:
+        shutil.copy(args.base, out)
+        print(json.dumps({"status": "ok", "file": out, "cues": 0}))
+        return
+    for cue in cues:
+        if not os.path.exists(cue.get("asset", "")):
+            raise ToolError(f"sfx asset not found: {cue.get('asset')}")
+    graph, label = build_sfx_filter(cues)
+    cmd = [FFMPEG, "-y", "-i", args.base]
+    for cue in cues:
+        cmd += ["-i", cue["asset"]]
+    cmd += [
+        "-filter_complex", graph, "-map", f"[{label}]",
+        "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "2", out,
+    ]
+    res = run(cmd)
+    if res.returncode != 0:
+        raise ToolError(f"sfx mix failed: {res.stderr[:500]}")
+    print(json.dumps({"status": "ok", "file": out, "cues": len(cues)}))
 
 
 # ── subtitle-director: 從 tts_timing.json 生成同步 SRT ─────────────────────
