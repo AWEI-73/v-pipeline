@@ -63,6 +63,11 @@ class GeneratedAssetsTest(unittest.TestCase):
         self.assertEqual(item["provider"], "assistant_imagegen")
         self.assertTrue(item["forbidden_as_truth"])
         self.assertIn("乾淨明亮的工作空間", item["prompt"])
+        # the raw desc is a seed, not a generation-ready prompt: the request must
+        # carry the expansion obligation + hints so no agent feeds it verbatim
+        self.assertTrue(item["prompt_expansion_required"])
+        self.assertIn("story_purpose", item["expansion_hints"])
+        self.assertIn("generative-director", item["expansion_hints"]["skill"])
 
     def test_rejects_comfyui_provider_priority(self):
         with self.assertRaises(ValueError):

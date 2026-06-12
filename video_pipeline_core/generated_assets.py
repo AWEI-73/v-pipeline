@@ -72,11 +72,25 @@ def build_generated_asset_requests(contract, *, provider_priority=None):
         core = seg.get("core") or {}
         visual = mat.get("visual_desc") or mat.get("search_query") or core.get("story_purpose") or ""
         reason = mat.get("reason") or "generated fallback requested by contract"
+        # `prompt` is a SEED (the raw contract description), not generation-ready:
+        # a Chinese director-style desc fed verbatim to an image model is the
+        # bare-description anti-pattern the generative-director Hard Rule bans.
+        # Expansion (token-stack: subject + lens/light/film-texture/grade, in
+        # English) is the generative-director skill's job before any provider
+        # call — `prompt_expansion_required` makes skipping that step
+        # structurally visible; `expansion_hints` carries the raw material.
         items.append({
             "segment": _segment_id(seg, idx),
             "asset_role": "conceptual_cutaway",
             "provider": priority[0],
             "prompt": visual,
+            "prompt_expansion_required": True,
+            "expansion_hints": {
+                "category": mat.get("category"),
+                "collection_instructions": mat.get("collection_instructions"),
+                "story_purpose": core.get("story_purpose"),
+                "skill": "skills/generative-director.md#3",
+            },
             "negative_prompt": "text, watermark, distorted hands, low quality, fake identity evidence",
             "reason": reason,
             "forbidden_as_truth": True,
