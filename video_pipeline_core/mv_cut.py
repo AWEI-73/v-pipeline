@@ -484,6 +484,11 @@ def _stack_items(s):
     return list(items) if (is_stack and items) else None
 
 
+def _stack_shot_duration(tempo):
+    beat_sec = (60.0 / tempo) if tempo else 0.8
+    return round(max(0.8, min(beat_sec, 1.2)), 3)
+
+
 def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
     """純函式:把音樂總長分給各段 → 每段幾個 clip、每 clip 多長。
     montage/pace:fast → 多個快剪(~fast_clip 秒,預設 1.5≈66 期中位 1.47);
@@ -1020,8 +1025,7 @@ def run_mv(script, material_root, out_path, music_path=None,
         vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
 
     # 2) 時長分配(列舉堆疊用「一拍」長度 → 對拍快剪)
-    beat_sec = (60.0 / _tempo) if _tempo else 0.8
-    stack_shot_sec = max(0.4, min(beat_sec, 1.2))
+    stack_shot_sec = _stack_shot_duration(_tempo)
     alloc = allocate_segments(segs, total_dur, stack_shot_sec=stack_shot_sec)
     clip_by_seg = {as_["segment"]: as_ for as_ in (clip_list or {}).get("assignments", [])}
     visual_verdicts = {}
@@ -1089,6 +1093,8 @@ def run_mv(script, material_root, out_path, music_path=None,
             sl["slot_index"] = len(plan)
             if s.get("attention_budget"):
                 sl["attention_budget"] = s["attention_budget"]
+            if s.get("hold") and (s.get("material_fit") or {}).get("category"):
+                sl["hold_reason"] = s["material_fit"]["category"]
             if s.get("creative_exception"):
                 sl["creative_exception"] = s["creative_exception"]
             if sl is slots[0]:

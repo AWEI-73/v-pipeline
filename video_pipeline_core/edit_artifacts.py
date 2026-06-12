@@ -88,14 +88,19 @@ def _resolve_seg_treatment(seg, music_structure, editing_policy, duration_sec=No
     return out
 
 
-def build_assembly_plan(script, *, music_structure=None, contract_hash=None, editing_policy=None):
+def build_assembly_plan(script, *, music_structure=None, contract_hash=None, editing_policy=None,
+                        timeline_duration_sec=None):
     """Build Node 9 assembly_plan from generated MV payload."""
     contract_hash = contract_hash or script.get("_contract_hash")
     music_sections = (music_structure or {}).get("sections") or []
     default_music_anchor = music_sections[0].get("name") if music_sections else None
     
     beats = (music_structure or {}).get("beats") or []
-    total_dur = beats[-1] if beats else 0.0
+    if timeline_duration_sec is not None:
+        beats = [beat for beat in beats if float(beat) <= float(timeline_duration_sec)]
+    total_dur = float(timeline_duration_sec) if timeline_duration_sec is not None else (
+        beats[-1] if beats else 0.0
+    )
     segs = script.get("segments", [])
     weights = [max(0.1, float(s["weight"])) if s.get("weight") is not None else 1.0
                for s in segs]
@@ -461,6 +466,15 @@ def snap_render_plan_to_motion(render_plan, *, motion_peak_detector=None,
     peaks_by_source = {}
     durations_by_source = {}
     snapped_plan = []
+    original_ranges = [
+        (
+            item.get("source") or item.get("source_path"),
+            float(item.get("extract_start") or item.get("start_sec") or 0.0),
+            float(item.get("extract_start") or item.get("start_sec") or 0.0)
+            + float(item.get("extract_dur") or item.get("duration_sec") or 0.0),
+        )
+        for item in (render_plan or [])
+    ]
     for index, item in enumerate(render_plan or []):
         snapped = dict(item)
         source = snapped.get("source") or snapped.get("source_path")
@@ -483,6 +497,17 @@ def snap_render_plan_to_motion(render_plan, *, motion_peak_detector=None,
         usable_peaks = [
             peak for peak in peaks_by_source.get(source, [])
             if source_duration is None or float(peak) + duration <= float(source_duration)
+        ]
+        usable_peaks = [
+            peak for peak in usable_peaks
+            if not any(
+                other_source == source
+                and other_index != index
+                and float(peak) < other_end
+                and other_start < float(peak) + duration
+                for other_index, (other_source, other_start, other_end)
+                in enumerate(original_ranges)
+            )
         ]
         new_start, _end, adjusted, reason = snap_to_edit_point(
             start,
@@ -558,6 +583,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "transition_duration_sec": round(transition_duration, 3) if transition_duration else None,
             "attention_budget": item.get("attention_budget"),
             "creative_exception": item.get("creative_exception"),
+            "hold_reason": item.get("hold_reason"),
             "text_overlay": item.get("text") or "none",
             "composition_layers": item.get("composition_layers"),
             "text_area_ratio": item.get("text_area_ratio"),
@@ -711,8 +737,18 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    assembly = build_assembly_plan(script, music_structure=music_structure,
-                                   editing_policy=editing_policy)
+    timeline_duration_sec = None
+    if render_plan is not None:
+        timeline_duration_sec = sum(
+            float(item.get("extract_dur") or item.get("duration_sec") or 0.0)
+            for item in render_plan
+        )
+    assembly = build_assembly_plan(
+        script,
+        music_structure=music_structure,
+        editing_policy=editing_policy,
+        timeline_duration_sec=timeline_duration_sec,
+    )
     assembly_path = out_dir / "assembly_plan.json"
     with assembly_path.open("w", encoding="utf-8") as f:
         json.dump(assembly, f, ensure_ascii=False, indent=2)

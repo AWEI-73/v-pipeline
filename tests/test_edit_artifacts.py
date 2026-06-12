@@ -30,6 +30,21 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(seg["shot_plan"]["shots"][0]["source_hint"], "空拍")
         self.assertNotIn("start_sec", seg["shot_plan"]["shots"][0])
 
+    def test_build_assembly_plan_scopes_beat_grid_to_rendered_timeline(self):
+        script = {"segments": [
+            {"segment": 1, "weight": 1.0},
+            {"segment": 2, "weight": 1.0},
+        ]}
+
+        plan = ea.build_assembly_plan(
+            script,
+            music_structure={"beats": [5.0, 10.0, 15.0, 50.0]},
+            timeline_duration_sec=20.0,
+        )
+
+        self.assertEqual(plan["segments"][0]["beat_grid"], [5.0, 10.0])
+        self.assertEqual(plan["segments"][1]["beat_grid"], [10.0, 15.0])
+
     def test_build_timeline_build_has_exact_clip_timing_and_trace(self):
         render_plan = [{
             "segment": 1,
@@ -162,6 +177,26 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(snapped[1]["extract_start"], 5.0)
         self.assertNotIn("adjustment_reason", snapped[1])
 
+    def test_render_plan_rejects_motion_snap_that_would_overlap_another_window(self):
+        plan = [
+            {"source": "a.mp4", "extract_start": 0.0, "extract_dur": 3.0},
+            {"source": "a.mp4", "extract_start": 3.0, "extract_dur": 3.0},
+            {"source": "a.mp4", "extract_start": 6.0, "extract_dur": 3.0},
+        ]
+
+        snapped = ea.snap_render_plan_to_motion(
+            plan,
+            motion_peak_detector=lambda _source: [4.8, 6.8],
+            source_duration_probe=lambda _source: 12.0,
+            tolerance=0.5,
+        )
+
+        self.assertEqual([clip["extract_start"] for clip in snapped], [0.0, 3.0, 6.8])
+        self.assertLessEqual(
+            snapped[1]["extract_start"] + snapped[1]["extract_dur"],
+            snapped[2]["extract_start"],
+        )
+
     def test_build_timeline_preserves_pre_render_motion_snap_trace(self):
         timeline = ea.build_timeline_build([{
             "segment": 1,
@@ -177,6 +212,17 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(clip["start_sec"], 11.0)
         self.assertTrue(clip["adjusted"])
         self.assertEqual(clip["adjustment_reason"], "snapped_to_motion_peak")
+
+    def test_build_timeline_carries_hold_reason(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "materials/group-photo.mp4",
+            "extract_start": 0.0,
+            "extract_dur": 9.0,
+            "hold_reason": "group_photo",
+        }])
+
+        self.assertEqual(timeline["clips"][0]["hold_reason"], "group_photo")
 
     def test_build_timeline_carries_crop_center(self):
         render_plan = [{

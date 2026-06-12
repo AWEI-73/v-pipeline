@@ -326,6 +326,9 @@ class AudioQaTest(unittest.TestCase):
 
 
 class RunMvArtifactTest(unittest.TestCase):
+    def test_fast_tempo_photo_stack_uses_reviewable_shot_floor(self):
+        self.assertEqual(mv_cut._stack_shot_duration(152.0), 0.8)
+
     def test_run_mv_snaps_plan_to_motion_before_render(self):
         script = {"segments": [
             {"segment": 1, "visual_desc": "開場", "weight": 1.0,
@@ -389,6 +392,28 @@ class RunMvArtifactTest(unittest.TestCase):
         self.assertEqual(result["plan"][0]["source"], "/m/a.mp4")
         self.assertEqual(result["plan"][0]["segment"], 1)
         self.assertEqual(result["plan"][0]["attention_budget"]["owner"], "music")
+
+    def test_run_mv_propagates_explicit_hold_reason_from_material_category(self):
+        script = {"segments": [{
+            "segment": 1, "visual_desc": "group photo", "weight": 1.0,
+            "kind": "closing", "hold": True, "audio_role": "diegetic",
+            "material_fit": {"category": "group_photo"},
+        }]}
+        clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/a.mp4"}]}]}
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0])), \
+             patch("video_pipeline_core.mv_cut._windows_from_clip", lambda path, n_clips, clip_dur, keep_audio, text=None, segment=None: [{
+                 "source": path, "extract_start": 0.0, "extract_dur": 9.0,
+                 "keep_audio": keep_audio, "text": text, "segment": segment,
+             }]), \
+             patch("video_pipeline_core.mv_cut.render_mv_audio", lambda *a, **k: None), \
+             patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+            result = mv_cut.run_mv(
+                script, "/materials", "/out/final.mp4",
+                music_path="/music.mp3", clip_list=clip_list, verbose=False,
+            )
+
+        self.assertEqual(result["plan"][0]["hold_reason"], "group_photo")
 
     def test_run_mv_can_preserve_text_trace_without_burning_base_text(self):
         script = {"segments": [{
