@@ -77,6 +77,13 @@ source-duration safety, Node 10 trace, dual-baseline real renders, and sensory
 review are verified. See
 `docs/decisions/2026-06-12-s2a-cut-on-motion.md`. Next: S2b.
 
+S2b status (2026-06-12): COMPLETE. Narrative renders now alternate deterministic
+0.5s J/L visual seams around unchanged TTS boundaries, persist the plan in
+timing/edit artifacts, budget chained-xfade tail correctly, and trim to the
+voice duration. City-lite narrative true render, three seam waveform/frame A/B
+checks, and full regression are verified. See
+`docs/decisions/2026-06-12-s2b-narrative-jl-cuts.md`. Next: S2c.
+
 ### S3 音訊感官層(SFX 標點 + 音樂結構對位)
 
 ```text

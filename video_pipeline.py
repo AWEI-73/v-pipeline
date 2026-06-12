@@ -737,14 +737,54 @@ ALLOWED_TRANSITIONS = {
 }
 
 
-def build_filter_chain(actual_durs, xfade, transitions=None, durations=None):
+def plan_narrative_jl_cuts(timing, style, shift_sec=0.5):
+    """Build deterministic J/L visual seam offsets around unchanged TTS seams."""
+    if style != "narrative":
+        return []
+    segments = timing.get("segments") or []
+    cuts = []
+    cursor = 0.0
+    for i in range(len(segments) - 1):
+        prev_dur = float(segments[i].get("duration_sec") or 0)
+        next_dur = float(segments[i + 1].get("duration_sec") or 0)
+        cursor += prev_dur
+        bounded = 0.3 if min(prev_dur, next_dur) < 1.0 else min(float(shift_sec), 0.7)
+        direction = 1 if i % 2 == 0 or i == len(segments) - 2 else -1
+        shift = round(direction * bounded, 3)
+        cuts.append({
+            "from_segment": segments[i].get("segment"),
+            "to_segment": segments[i + 1].get("segment"),
+            "type": "j_cut" if shift > 0 else "l_cut",
+            "shift_sec": shift,
+            "audio_seam_sec": round(cursor, 3),
+            "visual_cut_sec": round(cursor + shift, 3),
+        })
+    return cuts
+
+
+def jl_cut_render_tail(jl_cuts, boundary_durations):
+    """Return tail needed across consecutive shifted xfade boundaries."""
+    required = [0.0]
+    previous_shift = 0.0
+    for i, cut in enumerate(jl_cuts):
+        transition = boundary_durations[i] if i < len(boundary_durations) else 0.0
+        shift = float(cut.get("shift_sec") or 0)
+        required.append(max(0.0, shift - previous_shift) + transition)
+        previous_shift = shift
+    return round(max(required), 3)
+
+
+def build_filter_chain(actual_durs, xfade, transitions=None, durations=None,
+                       boundary_offsets=None, total_duration=None):
     """每個邊界 i-1 = 第 i 段切入：可有各自的轉場型(transitions)與 xfade 時長(durations)。
     offset 只跟前段 TTS 累加有關、與 xfade 時長無關，所以逐段混風格(durations 不同)時
     總長不變——前提是每段渲染留的尾巴 >= 該邊界 xfade 時長（pipeline 用統一 max 尾巴）。"""
     parts = []
     prev = "[0:v]"
     for i in range(1, len(actual_durs)):
-        offset = sum(actual_durs[k] for k in range(i))
+        offset = (boundary_offsets[i - 1]
+                  if boundary_offsets and i - 1 < len(boundary_offsets)
+                  else sum(actual_durs[k] for k in range(i)))
         label = f"[v{i}]"
         tr = "fade"
         if transitions and i - 1 < len(transitions) and transitions[i - 1] in ALLOWED_TRANSITIONS:
@@ -752,6 +792,11 @@ def build_filter_chain(actual_durs, xfade, transitions=None, durations=None):
         d = durations[i - 1] if (durations and i - 1 < len(durations)) else xfade
         parts.append(f"{prev}[{i}:v]xfade=transition={tr}:duration={d}:offset={offset:.3f}{label}")
         prev = label
+    if total_duration is not None and len(actual_durs) > 1:
+        parts.append(
+            f"{prev}trim=duration={total_duration:.3f},setpts=PTS-STARTPTS[vfinal]"
+        )
+        prev = "[vfinal]"
     return ";".join(parts), prev.strip("[]")
 
 
@@ -986,7 +1031,7 @@ def collect_fix_actions(qa, outdir):
 
 def compose_and_qa(script, seg_paths, actual_dur, xfade, outdir, script_path,
                    timing, cqa_model, cqa_weight, verbose, no_strict=False,
-                   transitions=None, durations=None):
+                   transitions=None, durations=None, jl_cuts=None):
     """Steps 5b–10 + content_qa: precompose gate → xfade concat → merge-final →
     thumbnails → verify → content_qa → reread qa_report. Idempotent per attempt.
     Returns (qa, cqa_summary, gate)."""
@@ -1007,7 +1052,16 @@ def compose_and_qa(script, seg_paths, actual_dur, xfade, outdir, script_path,
     seg_ids = [s["segment"] for s in script]
     actual_list = [actual_dur[n] for n in seg_ids]
     # 每段切入轉場型 + xfade 時長由 pipeline 依逐段 style 算好傳入（支援逐段混風格）
-    fc, last_label = build_filter_chain(actual_list, xfade, transitions, durations)
+    jl_cuts = jl_cuts or []
+    boundary_offsets = [cut["visual_cut_sec"] for cut in jl_cuts] or None
+    fc, last_label = build_filter_chain(
+        actual_list,
+        xfade,
+        transitions,
+        durations,
+        boundary_offsets=boundary_offsets,
+        total_duration=sum(actual_list) if boundary_offsets else None,
+    )
     inputs = []
     for p in seg_paths:
         inputs += ['-i', p]
@@ -1026,7 +1080,8 @@ def compose_and_qa(script, seg_paths, actual_dur, xfade, outdir, script_path,
         "output": visual, "total_duration_sec": dur(visual),
         "segments": [{"segment": n, "source": seg_paths[i], "cut_start_sec": 0,
                       "tts_target_sec": actual_dur[n], "actual_sec": actual_dur[n],
-                      "duration_diff_ms": 0} for i, n in enumerate(seg_ids)]
+                      "duration_diff_ms": 0} for i, n in enumerate(seg_ids)],
+        "jl_cuts": jl_cuts,
     }
     with open(f"{outdir}/edit_log.json", "w", encoding="utf-8") as f:
         json.dump(edit_log, f, ensure_ascii=False, indent=2)
@@ -1265,7 +1320,7 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
         return (s.get("effects") or {}).get("transition_duration") or STYLE_XFADE.get(_seg_style(s), 0.40)
     boundary_durations = [_seg_xfade(s) for s in script[1:]]
     boundary_transitions = [resolve_transition(s, _seg_style(s)) for s in script[1:]]
-    # 渲染統一留「最大邊界時長」的尾巴，concat 時各邊界用各自時長（offset 與時長無關）
+    # 先保留轉場所需尾巴；TTS 後若 narrative J/L cut 延後視覺切點，會再擴充。
     xfade = max(boundary_durations + [0.12]) if boundary_durations else (user_xfade or 0.40)
     # 寫純 segments list 給下游工具（tts/verify/content_qa 不需懂 wrapper）
     script_path = f"{outdir}/script.json"
@@ -1275,6 +1330,10 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
     vprint("[1] TTS", verbose)
     run_tool(["tts", script_path, "--outdir", f"{outdir}/audio"], verbose)
     with open(f"{outdir}/audio/tts_timing.json", encoding="utf-8") as f: timing = json.load(f)
+    jl_cuts = plan_narrative_jl_cuts(timing, style)
+    timing["jl_cuts"] = jl_cuts
+    atomic_write_json(f"{outdir}/audio/tts_timing.json", timing)
+    xfade = max(xfade, jl_cut_render_tail(jl_cuts, boundary_durations))
     actual_dur = {s["segment"]: s["duration_sec"] for s in timing["segments"]}
 
     vprint("[2] SRT", verbose)
@@ -1376,7 +1435,7 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
     try:
         qa, cqa, gate = compose_and_qa(script, seg_paths, actual_dur, xfade, outdir,
                                        script_path, timing, vlm_model, cqa_weight, verbose, no_strict,
-                                       boundary_transitions, boundary_durations)
+                                       boundary_transitions, boundary_durations, jl_cuts)
     except RecoverableBuildError as e:
         gate_review = e.reason
         vprint(f"[gate] {e.reason} → state review（不中斷）", verbose)
@@ -1459,7 +1518,7 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
         try:
             qa, cqa, gate = compose_and_qa(script, seg_paths, actual_dur, xfade, outdir,
                                            script_path, timing, vlm_model, cqa_weight, verbose, no_strict,
-                                           boundary_transitions, boundary_durations)
+                                           boundary_transitions, boundary_durations, jl_cuts)
         except RecoverableBuildError as e:
             gate_review = e.reason
             vprint(f"[gate] {e.reason} → state review（不中斷）", verbose)
