@@ -1338,6 +1338,30 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
     from video_pipeline_core.sfx import write_sfx_plan
     sfx_plan_path = f"{outdir}/sfx_plan.json"
     write_sfx_plan(script, timing, os.path.join(_HERE, "assets", "sfx"), sfx_plan_path)
+    music_alignment = {
+        "artifact_role": "music_alignment_plan",
+        "version": 1,
+        "bgm_offset_sec": 0.0,
+        "reason": "no_bgm",
+    }
+    if bgm and os.path.exists(bgm):
+        try:
+            from video_pipeline_core.music_structure import (
+                write_music_alignment_plan,
+                write_music_structure,
+            )
+            structure_result = write_music_structure(bgm, f"{outdir}/music_structure.json")
+            music_alignment = write_music_alignment_plan(
+                script,
+                timing,
+                structure_result["structure"],
+                f"{outdir}/music_alignment_plan.json",
+            )
+        except Exception as e:
+            music_alignment["reason"] = f"music_structure_unavailable:{type(e).__name__}"
+            atomic_write_json(f"{outdir}/music_alignment_plan.json", music_alignment)
+    else:
+        atomic_write_json(f"{outdir}/music_alignment_plan.json", music_alignment)
 
     vprint("[2] SRT", verbose)
     run_tool(["srt", f"{outdir}/audio/tts_timing.json", "--out", f"{outdir}/subtitles.srt"], verbose)
@@ -1349,6 +1373,8 @@ def pipeline(script_path, outdir, bgm, xfade, verbose, vlm_gate=True, vlm_model=
         if bgm and os.path.exists(bgm):
             cmd = ["mix-audio", "--voice", f"{outdir}/audio/voice.mp3",
                    "--bgm", bgm, "--duck", "--out", base_audio]
+            if music_alignment["bgm_offset_sec"]:
+                cmd += ["--bgm-offset", str(music_alignment["bgm_offset_sec"])]
             if bgm_volume is not None:
                 cmd += ["--bgm-vol", str(bgm_volume)]
             run_tool(cmd, verbose)

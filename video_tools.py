@@ -1175,6 +1175,8 @@ def main():
     p_mix.add_argument("--bgm", help="背景音樂檔案（可選）")
     p_mix.add_argument("--bgm-vol", type=float, dest="bgm_vol",
                        help="BGM 音量 0.0~1.0，預設 0.10（--duck 時 0.28）")
+    p_mix.add_argument("--bgm-offset", type=float, default=0.0,
+                       help="BGM 從結構點起播的秒數")
     p_mix.add_argument("--duck", action="store_true",
                        help="sidechain ducking：人聲說話時自動壓低音樂（比固定音量專業）")
     p_mix.add_argument("--out", help="輸出檔案，預設 final_audio.wav")

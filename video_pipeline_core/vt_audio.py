@@ -163,26 +163,45 @@ def cmd_tts(args):
     }, ensure_ascii=False))
 
 
-def _bgm_loop_chain(voice_dur, bgm_dur, crossfade_sec=2.5, max_copies=12):
+def _bgm_loop_chain(voice_dur, bgm_dur, crossfade_sec=2.5, max_copies=12,
+                    bgm_offset=0.0):
     """純函式:回 (filter_chain_prefix, bgm_source_label)。
 
     BGM 比片短時需要 loop——但 aloop 是硬接縫(曲尾高潮跳回曲頭安靜開場),
     改用 N 份輸入以 acrossfade 串接(輸入 index 1..N 都是同一支 bgm 檔)。
     BGM 夠長(或無效時長)→ 回 ('', '1:a') 維持單輸入原行為。"""
-    if not bgm_dur or bgm_dur <= 0 or voice_dur <= bgm_dur:
+    if not bgm_dur or bgm_dur <= 0:
         return "", "1:a"
-    xf = min(crossfade_sec, max(0.5, bgm_dur / 3))
-    effective = max(0.5, bgm_dur - xf)
+    offset = max(0.0, min(float(bgm_offset or 0.0), max(0.0, bgm_dur - 0.5)))
+    source_dur = max(0.5, bgm_dur - offset)
+    trim_parts = []
+
+    def source_label(input_index):
+        if not offset:
+            return f"{input_index}:a"
+        label = f"bgmoff{input_index}"
+        trim_parts.append(
+            f"[{input_index}:a]atrim=start={offset:.3f},asetpts=PTS-STARTPTS[{label}];"
+        )
+        return label
+
+    if voice_dur <= source_dur:
+        if not offset:
+            return "", "1:a"
+        label = source_label(1)
+        return "".join(trim_parts), label
+    xf = min(crossfade_sec, max(0.5, source_dur / 3))
+    effective = max(0.5, source_dur - xf)
     import math  # noqa: PLC0415
-    n = 1 + math.ceil((voice_dur - bgm_dur) / effective)
+    n = 1 + math.ceil((voice_dur - source_dur) / effective)
     n = min(max_copies, max(2, n))
     parts = []
-    prev = "1:a"
+    prev = source_label(1)
     for k in range(2, n + 1):
         label = f"bgmlp{k - 1}"
-        parts.append(f"[{prev}][{k}:a]acrossfade=d={xf:.2f}[{label}];")
+        parts.append(f"[{prev}][{source_label(k)}]acrossfade=d={xf:.2f}[{label}];")
         prev = label
-    return "".join(parts), prev
+    return "".join(trim_parts + parts), prev
 
 
 def cmd_mix_audio(args):
@@ -219,7 +238,8 @@ def cmd_mix_audio(args):
     # Loop 用 acrossfade 串副本,不用 aloop 硬接——122.9s 的曲被硬 loop 進 297s 的
     # 片時,曲尾高潮直接跳回曲頭安靜開場,聽感像壞掉(city-day 5min 實聽教訓)。
     bgm_dur = _audio_duration(bgm)
-    loop_chain, bsrc = _bgm_loop_chain(voice_dur, bgm_dur)
+    bgm_offset = max(0.0, float(getattr(args, "bgm_offset", 0.0) or 0.0))
+    loop_chain, bsrc = _bgm_loop_chain(voice_dur, bgm_dur, bgm_offset=bgm_offset)
     n_bgm_inputs = max(1, loop_chain.count("acrossfade") + 1)
     # aformat:acrossfade 串出來的流會丟 channel layout,sidechaincompress 會拒收
     bfin = f"atrim=duration={voice_dur:.3f},aformat=channel_layouts=stereo"
@@ -265,6 +285,7 @@ def cmd_mix_audio(args):
         "voice": voice,
         "bgm": bgm,
         "bgm_volume": bgm_vol,
+        "bgm_offset_sec": round(bgm_offset, 3),
         "duration_sec": round(voice_dur, 3),
     }))
 

@@ -110,6 +110,13 @@ the base track. City-lite SFX A/B, true final render, audio-level VERIFY, and
 full regression are verified. See
 `docs/decisions/2026-06-12-s3a-sfx-punctuation.md`. Next: S3b.
 
+S3b status (2026-06-12): COMPLETE. Narrative single-track BGM now consumes
+energy-scored `music_structure.sections`, snaps source playback to the nearest
+structural offset, and aligns a declared climax with the highest-energy music
+section. City-lite offset-0/aligned A/B, true render, sensory waveform review,
+technical VERIFY, and full regression are verified. See
+`docs/decisions/2026-06-12-s3b-music-structure-alignment.md`. Next: S4a.
+
 ### S4 裁決體系收尾(採納外部評析 A + creative_exception)
 
 ```text

@@ -4,7 +4,98 @@ Turn detected tempo/beats into a small JSON artifact that Node 5/7/9/10 can
 consume without re-running audio analysis or rereading long logs.
 """
 import json
+import re
+import subprocess
 from pathlib import Path
+
+
+def _segment_role(segment):
+    return (
+        segment.get("section_role")
+        or (segment.get("core") or {}).get("section_role")
+        or (segment.get("editing_intent") or {}).get("segment_role")
+        or segment.get("title")
+        or ""
+    ).lower()
+
+
+def plan_music_alignment(script, timing, music_structure):
+    """Align a narrative climax to the highest-energy music section."""
+    timing_by_segment = {
+        item.get("segment"): item for item in (timing or {}).get("segments", [])
+    }
+    climax = next((seg for seg in script or [] if _segment_role(seg) == "climax"), None)
+    sections = (music_structure or {}).get("sections") or []
+    energy_sections = [
+        section for section in sections
+        if isinstance(section.get("energy_score"), (int, float))
+        and isinstance(section.get("start_sec"), (int, float))
+    ]
+    if not climax or not energy_sections or climax.get("segment") not in timing_by_segment:
+        return {
+            "artifact_role": "music_alignment_plan",
+            "version": 1,
+            "bgm_offset_sec": 0.0,
+            "reason": "no_climax_or_energy_section",
+        }
+
+    climax_start = float(timing_by_segment[climax["segment"]].get("start_sec") or 0.0)
+    energy = max(energy_sections, key=lambda section: float(section["energy_score"]))
+    energy_start = float(energy["start_sec"])
+    target_offset = max(0.0, energy_start - climax_start)
+    structure_points = [
+        float(section["start_sec"]) for section in sections
+        if isinstance(section.get("start_sec"), (int, float))
+    ] or [0.0]
+    offset = min(structure_points, key=lambda point: (abs(point - target_offset), point))
+    return {
+        "artifact_role": "music_alignment_plan",
+        "version": 1,
+        "bgm_offset_sec": round(offset, 3),
+        "climax_segment": climax["segment"],
+        "climax_start_sec": round(climax_start, 3),
+        "energy_section_index": energy.get("index"),
+        "energy_section_start_sec": round(energy_start, 3),
+        "alignment_error_sec": round(abs((energy_start - offset) - climax_start), 3),
+        "reason": "climax_aligned_to_highest_energy_section",
+    }
+
+
+def write_music_alignment_plan(script, timing, music_structure, out_path):
+    plan = plan_music_alignment(script, timing, music_structure)
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(plan, f, ensure_ascii=False, indent=2)
+    return plan
+
+
+def _detect_section_mean_volume(audio_path, start_sec, duration_sec):
+    from .vt_core import FFMPEG  # noqa: PLC0415
+
+    result = subprocess.run([
+        FFMPEG, "-hide_banner", "-ss", f"{start_sec:.3f}", "-t", f"{duration_sec:.3f}",
+        "-i", str(audio_path), "-af", "volumedetect", "-f", "null", "-",
+    ], capture_output=True, text=True)
+    match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", result.stderr or "")
+    return float(match.group(1)) if result.returncode == 0 and match else None
+
+
+def annotate_section_energy(structure, audio_path, detector=None):
+    """Populate existing sections with deterministic mean-volume energy scores."""
+    if detector is None:
+        if not Path(audio_path).exists():
+            return structure
+        detector = _detect_section_mean_volume
+    for section in structure.get("sections") or []:
+        start = section.get("start_sec")
+        duration = section.get("duration_sec")
+        if not isinstance(start, (int, float)) or not isinstance(duration, (int, float)):
+            continue
+        score = detector(str(audio_path), float(start), float(duration))
+        if isinstance(score, (int, float)):
+            section["energy_score"] = round(float(score), 3)
+    return structure
 
 
 def _fmt_mmss(seconds):
@@ -81,6 +172,7 @@ def write_music_structure(audio_path, out_path, *, detector=None, every_n_beats=
         source_audio=str(audio_path),
         every_n_beats=every_n_beats,
     )
+    annotate_section_energy(structure, audio_path)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:

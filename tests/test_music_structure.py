@@ -39,6 +39,24 @@ class MusicStructureTest(unittest.TestCase):
             self.assertEqual(saved["beats"][1], 0.75)
             self.assertEqual(len(saved["sections"]), 2)
 
+    def test_section_energy_detector_populates_existing_sections(self):
+        structure = ms.build_music_structure(
+            tempo_bpm=120,
+            beat_times=[0, 1, 2, 3, 4],
+            every_n_beats=2,
+        )
+        calls = []
+
+        def detector(path, start, duration):
+            calls.append((path, start, duration))
+            return {-0.0: -28.0, 2.0: -12.0}[start]
+
+        result = ms.annotate_section_energy(structure, "song.mp3", detector=detector)
+
+        self.assertEqual([section["energy_score"] for section in result["sections"]],
+                         [-28.0, -12.0])
+        self.assertEqual(calls, [("song.mp3", 0.0, 2.0), ("song.mp3", 2.0, 2.0)])
+
 
 if __name__ == "__main__":
     unittest.main()
