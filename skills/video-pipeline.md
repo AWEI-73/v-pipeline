@@ -108,8 +108,26 @@ timeline_build / editor_review),`status` 會看到這幾個 node 變 `done`;Node
 內容判讀(素材對不對題、選哪個窗)的正式裁判是**駕駛中的主責 agent**,不是內嵌
 小模型:引擎在判讀點產出「場景中點+時間戳烙印」蒙太奇與 `visual_review_request.json`
 後以 `await_visual_review` 暫停;你(或你派的 subagent)**親眼讀圖**、寫
-`visual_review_verdict.json`、再 resume。設計與遷移順序見
-`docs/decisions/2026-06-12-agent-as-visual-judge.md`(V1 引擎改造待 Codex E 批次落地)。
+`visual_review_verdict.json`、再 resume。這是正式 node 10.5(Visual Judge,
+registry 內,`status` 看得到)。設計見
+`docs/decisions/2026-06-12-agent-as-visual-judge.md` 與 s4a/s4b 決策文件。
+
+**verdict 格式(每個 clip 一筆,2026-06-12 S4b 起)**:
+
+```json
+{"segment": 2,
+ "action": "accept | reject | needs_patch",
+ "picked_windows": [{"start": 3.0, "end": 8.5}],
+ "patch": {"type": "window | crop | treatment", "hint": {}},
+ "reject_reason": null, "notes": "引用格上時間戳寫依據"}
+```
+
+- `accept` / `needs_patch` **必須給 picked_windows**(window patch 可只給
+  `patch.hint.start/end`,引擎會代填);`reject` 給 `reject_reason`。
+- `needs_patch` = 素材可用但要一個有界的確定性修正:`window`(換時間窗)、
+  `crop`(`hint: {"x": 0..1, "y": 0..1}` 構圖重心)、`treatment`(`hint:
+  {"mode": "slow_push"|...}` 照片動態)。它不是任意改圖的入口。
+- 舊欄位 `accept: true/false`(boolean)仍相容,新 verdict 一律用 `action`。
 
 已生效的部分:Node 12 的 `keyframe_grid.jpg`(已含時間戳烙印)**必須由主責 agent
 親自讀過**才算完成複核——引用格上時間戳寫結論,不要只看 JSON 分數。
@@ -126,6 +144,7 @@ timeline_build / editor_review),`status` 會看到這幾個 node 變 `done`;Node
 | `await_material` | 等補拍素材:把 `seg{n}_user.*` 放進 project 的 `input/materials/` 再 resume |
 | `wait_for_generated_provider` | 等外部生成素材交付 `materials/generated/seg{n}.*` 再 resume |
 | `await_capcut_export` | 開 CapCut 匯出 `capcut_exported.mp4` 到 run 目錄,再 resume(僅 capcut backend) |
+| `await_visual_review` | Node 10.5:親眼讀 run 目錄下的蒙太奇圖,寫 `visual_review_verdict.json`(格式見上節),再 resume |
 | `revise:director` | SPEC 層修正:編輯 `segment_contract.json` 的 layout/media_pref 等,再 resume |
 | `retry:curator` | 內部重試已耗盡 → 換 search_query/source 或補本地檔,再 resume |
 | `verify_failed` / `human_review` / `fix_timeline_or_assembly` | 看 findings,修最小受影響 node 再 resume |
