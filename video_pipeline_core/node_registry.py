@@ -136,6 +136,18 @@ def verify_timeline(workdir, artifacts, context):
             reason = f"Timeline compiled ({len(clips)} clips)"
     return status, reason
 
+def verify_visual_judge(workdir, artifacts, context):
+    request = artifacts.get("visual_review_request")
+    verdict = artifacts.get("visual_review_verdict")
+    if request and verdict:
+        return "done", "Visual review verdict recorded"
+    if request:
+        return "warn", "Visual review request awaits agent verdict"
+    if verdict:
+        return "warn", "Visual review verdict exists without request"
+    return "optional", "No visual review requested"
+
+
 def verify_editor_review(workdir, artifacts, context):
     editor_review = artifacts.get("editor_review")
     status = "missing"
@@ -210,7 +222,7 @@ def verify_revision(workdir, artifacts, context):
         reason = "Effects enabled but render plan missing"
     return status, reason
 
-NODE_ORDER = ["0", "3", "2", "4-7", "5", "8", "9", "10", "11", "13", "12", "14"]
+NODE_ORDER = ["0", "3", "2", "4-7", "5", "8", "9", "10", "10.5", "11", "13", "12", "14"]
 
 NODE_REGISTRY = {
     "0": {
@@ -292,6 +304,16 @@ NODE_REGISTRY = {
         "outputs": ["timeline_build.json"],
         "verify_fn": verify_timeline,
         "description": "EDL timeline build"
+    },
+    "10.5": {
+        "node": "10.5",
+        "label": "Visual Judge",
+        "skill": ["visual_review"],
+        "runner": "agent",
+        "inputs": ["timeline_build.json", "visual_review_request.json"],
+        "outputs": ["visual_review_request.json", "visual_review_verdict.json"],
+        "verify_fn": verify_visual_judge,
+        "description": "Agent visual-review gate"
     },
     "11": {
         "node": "11",

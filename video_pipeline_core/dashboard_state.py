@@ -257,6 +257,8 @@ def load_dashboard_state(workdir):
         "assembly_plan": assembly_plan,
         "timeline_build": timeline_build,
         "editor_review": editor_review,
+        "visual_review_request": visual_review_request,
+        "visual_review_verdict": visual_review_verdict,
         "state": state_data,
         "verify_result": verify_result,
         "motion_graphics_render_plan": effects_render_plan,
@@ -322,7 +324,7 @@ def load_dashboard_state(workdir):
                 "message": "Effects enabled but render plan missing"
             })
             
-        node_int = int(node_id) if "-" not in node_id else node_id
+        node_int = int(node_id) if node_id.isdigit() else node_id
         node_audits = []
         for role in NODE_AUDIT_MAP.get(node_int, []):
             if role == "keyframe_grid":
@@ -407,7 +409,7 @@ def load_dashboard_state(workdir):
     if soul_declared and not (profile_data or {}).get("editing_policy"):
         findings.append({
             "type": "warning",
-            "node": 11,
+            "node": "10.5",
             "artifact": "editing_policy",
             "message": ("soul layer declared in contract but editing_policy is inactive "
                         "(no editorial_design.json) — visual_fatigue_audit and "
@@ -438,7 +440,7 @@ def load_dashboard_state(workdir):
         })
     else:
         # Check required missing nodes
-        required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, 11, 13, 12]
+        required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, "10.5", 11, 13, 12]
         if effects_required:
             required_nodes_keys.append(14)
             

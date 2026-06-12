@@ -136,6 +136,13 @@ S4c creative_exception 統一欄位(segment 級):
     (向後相容保留舊欄位)。
 ```
 
+S4a status (2026-06-12): COMPLETE. The existing E6 visual-review gate is now
+explicit Node `10.5 Visual Judge` between Timeline and Editor Review, with
+optional/warn/done lifecycle verification, request/verdict artifact links, and
+dashboard routing. City-lite and gen-smoke real-run dashboard states, montage
+sensory review, and full regression are verified. See
+`docs/decisions/2026-06-12-s4a-visual-judge-node.md`. Next: S4b.
+
 ### 執行紀律(防彎路,給 Codex)
 
 ```text

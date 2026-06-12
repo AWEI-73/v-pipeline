@@ -203,10 +203,32 @@ class DashboardStateSpecTest(unittest.TestCase):
             state = load_dashboard_state(str(workdir))
 
         self.assertEqual(state["next_action"], "await_visual_review")
+        nodes_by_label = {node["label"]: node for node in state["nodes"]}
+        self.assertEqual(nodes_by_label["Visual Judge"]["node"], "10.5")
+        self.assertEqual(nodes_by_label["Visual Judge"]["status"], "warn")
         self.assertIn(
             "Visual review request awaits agent verdict",
             [finding["message"] for finding in state["findings"]],
         )
+
+    def test_visual_judge_node_is_done_when_request_has_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "visual_review_request.json").write_text(json.dumps({
+                "artifact_role": "visual_review_request",
+                "clips": [{"segment": 2}],
+            }), encoding="utf-8")
+            (workdir / "visual_review_verdict.json").write_text(json.dumps({
+                "artifact_role": "visual_review_verdict",
+                "clips": [{"segment": 2, "accept": True}],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+        nodes_by_label = {node["label"]: node for node in state["nodes"]}
+        self.assertEqual(nodes_by_label["Visual Judge"]["status"], "done")
+        self.assertEqual(nodes_by_label["Visual Judge"]["reason"],
+                         "Visual review verdict recorded")
 
     def test_generated_manifest_path_from_artifact_manifest_satisfies_node8(self):
         with tempfile.TemporaryDirectory() as tmp:
