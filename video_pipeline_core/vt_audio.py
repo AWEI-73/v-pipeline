@@ -119,6 +119,28 @@ def cmd_tts(args):
     }, ensure_ascii=False))
 
 
+def _bgm_loop_chain(voice_dur, bgm_dur, crossfade_sec=2.5, max_copies=12):
+    """純函式:回 (filter_chain_prefix, bgm_source_label)。
+
+    BGM 比片短時需要 loop——但 aloop 是硬接縫(曲尾高潮跳回曲頭安靜開場),
+    改用 N 份輸入以 acrossfade 串接(輸入 index 1..N 都是同一支 bgm 檔)。
+    BGM 夠長(或無效時長)→ 回 ('', '1:a') 維持單輸入原行為。"""
+    if not bgm_dur or bgm_dur <= 0 or voice_dur <= bgm_dur:
+        return "", "1:a"
+    xf = min(crossfade_sec, max(0.5, bgm_dur / 3))
+    effective = max(0.5, bgm_dur - xf)
+    import math  # noqa: PLC0415
+    n = 1 + math.ceil((voice_dur - bgm_dur) / effective)
+    n = min(max_copies, max(2, n))
+    parts = []
+    prev = "1:a"
+    for k in range(2, n + 1):
+        label = f"bgmlp{k - 1}"
+        parts.append(f"[{prev}][{k}:a]acrossfade=d={xf:.2f}[{label}];")
+        prev = label
+    return "".join(parts), prev
+
+
 def cmd_mix_audio(args):
     """混合人聲 + BGM：BGM 降到指定音量，含淡入淡出"""
     if not os.path.exists(args.voice):
@@ -149,8 +171,14 @@ def cmd_mix_audio(args):
     if not os.path.exists(bgm):
         raise ToolError(f"bgm file not found: {bgm}")
 
-    # 有 BGM：loop BGM 到人聲長度，加淡入淡出，再混音（normalize=0 避免壓低人聲）
-    bfin = f"aloop=loop=-1:size=2e9,atrim=duration={voice_dur:.3f}"
+    # 有 BGM:loop 到人聲長度 + 淡入淡出再混音(normalize=0 避免壓低人聲)。
+    # Loop 用 acrossfade 串副本,不用 aloop 硬接——122.9s 的曲被硬 loop 進 297s 的
+    # 片時,曲尾高潮直接跳回曲頭安靜開場,聽感像壞掉(city-day 5min 實聽教訓)。
+    bgm_dur = _audio_duration(bgm)
+    loop_chain, bsrc = _bgm_loop_chain(voice_dur, bgm_dur)
+    n_bgm_inputs = max(1, loop_chain.count("acrossfade") + 1)
+    # aformat:acrossfade 串出來的流會丟 channel layout,sidechaincompress 會拒收
+    bfin = f"atrim=duration={voice_dur:.3f},aformat=channel_layouts=stereo"
     bfade = f"afade=t=in:st=0:d=1,afade=t=out:st={max(0, voice_dur-1.5):.3f}:d=1.5"
     vfade = f"afade=t=in:st=0:d=0.3,afade=t=out:st={max(0, voice_dur-1):.3f}:d=1"
     if args.duck:
@@ -158,7 +186,7 @@ def cmd_mix_audio(args):
         dvol = args.bgm_vol if args.bgm_vol is not None else 0.28
         bgm_vol = dvol
         fc = (
-            f"[1:a]{bfin},volume={dvol},{bfade}[bgmraw];"
+            f"{loop_chain}[{bsrc}]{bfin},volume={dvol},{bfade}[bgmraw];"
             f"[0:a]{vfade}[v];[v]asplit=2[v1][vkey];"
             f"[bgmraw][vkey]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=350[bgmduck];"
             f"[v1][bgmduck]amix=inputs=2:duration=first:dropout_transition=0,"
@@ -166,16 +194,16 @@ def cmd_mix_audio(args):
         )
     else:
         fc = (
-            f"[1:a]{bfin},volume={bgm_vol},{bfade}[bgm];"
+            f"{loop_chain}[{bsrc}]{bfin},volume={bgm_vol},{bfade}[bgm];"
             f"[0:a]{vfade}[v];"
             f"[v][bgm]amix=inputs=2:duration=first:dropout_transition=0,"
             f"alimiter=limit=0.95,aresample=48000[mixed]"
         )
 
-    cmd = [
-        FFMPEG, '-y',
-        '-i', voice,
-        '-i', bgm,
+    cmd = [FFMPEG, '-y', '-i', voice]
+    for _ in range(n_bgm_inputs):
+        cmd += ['-i', bgm]
+    cmd += [
         '-filter_complex', fc,
         '-map', '[mixed]',
         '-acodec', 'pcm_s16le', '-ar', '48000', '-ac', '2',
