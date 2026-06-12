@@ -187,8 +187,9 @@ def cmd_mix_audio(args):
         dvol = args.bgm_vol if args.bgm_vol is not None else 0.28
         bgm_vol = dvol
         fc = (
-            f"{loop_chain}[{bsrc}]{bfin},volume={dvol},{bfade}[bgmraw];"
-            f"[0:a]{vfade}[v];[v]asplit=2[v1][vkey];"
+            f"{loop_chain}[{bsrc}]{bfin},volume={dvol},{bfade},aformat=channel_layouts=stereo[bgmraw];"
+            f"[0:a]{vfade}[v];[v]asplit=2[v1][vkeyraw];"
+            f"[vkeyraw]aformat=channel_layouts=stereo[vkey];"
             f"[bgmraw][vkey]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=350[bgmduck];"
             f"[v1][bgmduck]amix=inputs=2:duration=first:dropout_transition=0,"
             f"alimiter=limit=0.95,aresample=48000[mixed]"
