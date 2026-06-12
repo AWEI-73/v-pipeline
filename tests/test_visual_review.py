@@ -53,6 +53,31 @@ class VisualReviewTest(unittest.TestCase):
                 }],
             })
 
+    def test_needs_patch_validates_and_derives_window(self):
+        indexed = visual_review.verdict_by_segment({
+            "clips": [{
+                "segment": 2,
+                "action": "needs_patch",
+                "patch": {
+                    "type": "window",
+                    "hint": {"start": 3.0, "end": 6.0},
+                },
+            }],
+        })
+
+        self.assertEqual(indexed[2]["action"], "needs_patch")
+        self.assertEqual(indexed[2]["picked_windows"], [{"start": 3.0, "end": 6.0}])
+
+    def test_needs_patch_rejects_unknown_patch_type(self):
+        with self.assertRaises(ValueError):
+            visual_review.verdict_by_segment({
+                "clips": [{
+                    "segment": 2,
+                    "action": "needs_patch",
+                    "patch": {"type": "magic", "hint": {}},
+                }],
+            })
+
     def test_write_request_includes_verdict_template(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "visual_review_request.json"
@@ -66,7 +91,9 @@ class VisualReviewTest(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
 
         self.assertEqual(payload["verdict_template"]["clips"][0]["segment"], 2)
+        self.assertIsNone(payload["verdict_template"]["clips"][0]["action"])
         self.assertIsNone(payload["verdict_template"]["clips"][0]["accept"])
+        self.assertIsNone(payload["verdict_template"]["clips"][0]["patch"])
 
 
 if __name__ == "__main__":

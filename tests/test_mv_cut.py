@@ -613,6 +613,13 @@ class MatchMontageMultiPickTest(unittest.TestCase):
 
 
 class SegmentPlannerTest(unittest.TestCase):
+    def test_video_vf_uses_patch_crop_center(self):
+        vf = mv_cut._video_vf({"x": 0.7, "y": 0.4})
+
+        self.assertIn("force_original_aspect_ratio=increase", vf)
+        self.assertIn("(iw-ow)*0.700", vf)
+        self.assertIn("(ih-oh)*0.400", vf)
+
     """run_mv 解耦出的 per-段 planner(matched/stock/live)— 以注入避開 ffmpeg/VLM。"""
 
     def test_windows_from_clip_image_expands_to_distinct_still_shots(self):
@@ -806,6 +813,41 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
         self.assertEqual(entry["reject_reason"], "off topic")
+
+    def test_plan_stock_agent_mode_consumes_crop_patch(self):
+        slots, entry, _ = mv_cut._plan_stock_segment(
+            {"segment": 2, "visual_desc": "team discussion"},
+            {"n_clips": 1, "clip_dur": 3.0, "budget": 3.0},
+            {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            visual_judge="agent",
+            visual_verdict={
+                "segment": 2,
+                "action": "needs_patch",
+                "picked_windows": [{"start": 1.0, "end": 4.0}],
+                "patch": {"type": "crop", "hint": {"x": 0.7, "y": 0.4}},
+            },
+        )
+
+        self.assertEqual(slots[0]["crop_center"], {"x": 0.7, "y": 0.4})
+        self.assertEqual(entry["picked_scores"], ["agent_patch"])
+
+    def test_plan_stock_agent_mode_consumes_treatment_patch(self):
+        slots, _, _ = mv_cut._plan_stock_segment(
+            {"segment": 2, "visual_desc": "still idea"},
+            {"n_clips": 1, "clip_dur": 3.0, "budget": 3.0},
+            {}, "/tmp",
+            _fetch=lambda q, o, min_dur=0: o,
+            visual_judge="agent",
+            visual_verdict={
+                "segment": 2,
+                "action": "needs_patch",
+                "picked_windows": [{"start": 1.0, "end": 4.0}],
+                "patch": {"type": "treatment", "hint": {"mode": "slow_push"}},
+            },
+        )
+
+        self.assertEqual(slots[0]["still_treatment"], {"mode": "slow_push"})
 
     def test_plan_stock_multishot_cycles_when_windows_short(self):
         """Short source: fewer windows than n_clips → cycle to keep the budget."""

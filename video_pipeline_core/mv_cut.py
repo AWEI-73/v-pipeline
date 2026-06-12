@@ -325,6 +325,18 @@ _MV_VF = ("scale=1920:1080:force_original_aspect_ratio=decrease,"
 _IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic"}
 
 
+def _video_vf(crop_center=None):
+    if not isinstance(crop_center, dict):
+        return _MV_VF
+    x = min(1.0, max(0.0, float(crop_center.get("x", 0.5))))
+    y = min(1.0, max(0.0, float(crop_center.get("y", 0.5))))
+    return (
+        "scale=1920:1080:force_original_aspect_ratio=increase,"
+        f"crop=1920:1080:x='(iw-ow)*{x:.3f}':y='(ih-oh)*{y:.3f}',"
+        "setsar=1,fps=30,format=yuv420p"
+    )
+
+
 def _is_image(path):
     return os.path.splitext(path or "")[1].lower() in _IMG_EXTS
 
@@ -680,12 +692,15 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
 
     if visual_judge == "agent":
         got, provider, _exhausted = _try_fetch(0)
-        if got and visual_verdict and visual_verdict.get("accept"):
+        verdict_action = (visual_verdict or {}).get("action")
+        verdict_accepts = (visual_verdict or {}).get("accept") or verdict_action in ("accept", "needs_patch")
+        if got and visual_verdict and verdict_accepts:
+            patch = visual_verdict.get("patch") or {}
             for window in visual_verdict.get("picked_windows") or []:
                 ws, we = float(window["start"]), float(window["end"])
                 take = min(float(a["clip_dur"]), we - ws)
                 start = max(ws, (ws + we) / 2 - take / 2)
-                slots.append({
+                slot = {
                     "source": got,
                     "extract_start": round(start, 3),
                     "extract_dur": round(take, 3),
@@ -693,7 +708,13 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
                     "text": seg_text,
                     "segment": s.get("segment"),
                     "provider": provider or "pexels",
-                })
+                }
+                if patch.get("type") == "crop":
+                    slot["crop_center"] = dict(patch.get("hint") or {})
+                elif patch.get("type") == "treatment":
+                    slot["still_treatment"] = dict(patch.get("hint") or {})
+                slots.append(slot)
+            patched = visual_verdict.get("action") == "needs_patch"
             entry = {
                 "segment": s.get("segment"),
                 "visual_desc": vd,
@@ -701,11 +722,12 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
                 "provider": provider or "pexels",
                 "clips_found": 1,
                 "n_clips": len(slots),
-                "picked_scores": ["agent"] * len(slots),
+                "picked_scores": ["agent_patch" if patched else "agent"] * len(slots),
+                "patch": patch if patched else None,
             }
             msgs.append(f"  seg{s.get('segment')} [stock] agent verdict accepted {len(slots)} window(s)")
             return slots, entry, msgs
-        if got and visual_verdict and not visual_verdict.get("accept"):
+        if got and visual_verdict and not verdict_accepts:
             entry = {
                 "segment": s.get("segment"),
                 "visual_desc": vd,
@@ -1406,7 +1428,7 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
     for p in plan:
         seg = os.path.join(mat_dir, f"mvseg_{p['slot_index']:03d}.mp4")
         text_filter = _drawtext_chain(p.get("text"), mat_dir, p["slot_index"]) if burn_text else ""
-        vf = _MV_VF + text_filter
+        vf = _video_vf(p.get("crop_center")) + text_filter
         if p.get("is_photo"):
             # 照片→still 影片片段:loop 1 張 + kenburns 緩推 + 靜音(照片無原音)。
             # ⚠️ -t 必須放在 filter 之後當「輸出」上限(放 -i 前會與 zoompan d= 相乘爆長)。

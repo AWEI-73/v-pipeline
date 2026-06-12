@@ -143,6 +143,13 @@ dashboard routing. City-lite and gen-smoke real-run dashboard states, montage
 sensory review, and full regression are verified. See
 `docs/decisions/2026-06-12-s4a-visual-judge-node.md`. Next: S4b.
 
+S4b status (2026-06-12): COMPLETE. Visual verdicts now support bounded
+`needs_patch` actions for window, crop, and treatment corrections while
+preserving legacy accept/reject verdicts. Patches flow into concrete slots,
+crop patches reach the MV ffmpeg renderer, and patched choices are traced as
+`agent_patch`. Gen-smoke real-candidate patch smoke and full regression are
+verified. See `docs/decisions/2026-06-12-s4b-needs-patch-verdict.md`. Next: S4c.
+
 ### 執行紀律(防彎路,給 Codex)
 
 ```text

@@ -9,8 +9,10 @@ def build_request(clips):
     for clip in clips:
         template.append({
             "segment": clip.get("segment"),
+            "action": None,
             "accept": None,
             "picked_windows": [],
+            "patch": None,
             "reject_reason": None,
             "notes": None,
         })
@@ -39,18 +41,36 @@ def verdict_by_segment(verdict):
         segment = clip.get("segment")
         if not isinstance(segment, int):
             raise ValueError("visual review verdict clip requires integer segment")
-        accept = clip.get("accept")
-        if not isinstance(accept, bool):
-            raise ValueError(f"visual review verdict seg{segment} requires boolean accept")
-        windows = clip.get("picked_windows") or []
-        if accept and not windows:
+        action = clip.get("action")
+        if action is None:
+            accept = clip.get("accept")
+            if not isinstance(accept, bool):
+                raise ValueError(f"visual review verdict seg{segment} requires action or boolean accept")
+            action = "accept" if accept else "reject"
+        if action not in ("accept", "reject", "needs_patch"):
+            raise ValueError(f"visual review verdict seg{segment} has invalid action")
+        normalized = dict(clip)
+        normalized["action"] = action
+        normalized["accept"] = action in ("accept", "needs_patch")
+        patch = normalized.get("patch")
+        if action == "needs_patch":
+            if not isinstance(patch, dict) or patch.get("type") not in ("window", "crop", "treatment"):
+                raise ValueError(f"visual review verdict seg{segment} has invalid patch")
+            if not isinstance(patch.get("hint"), dict):
+                raise ValueError(f"visual review verdict seg{segment} patch requires hint")
+        windows = normalized.get("picked_windows") or []
+        if action == "needs_patch" and patch["type"] == "window" and not windows:
+            hint = patch["hint"]
+            windows = [{"start": hint.get("start"), "end": hint.get("end")}]
+            normalized["picked_windows"] = windows
+        if normalized["accept"] and not windows:
             raise ValueError(f"visual review verdict seg{segment} accepted without picked_windows")
         for window in windows:
             start = window.get("start")
             end = window.get("end")
             if not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or end <= start:
                 raise ValueError(f"visual review verdict seg{segment} has invalid picked window")
-        indexed[segment] = clip
+        indexed[segment] = normalized
     return indexed
 
 
