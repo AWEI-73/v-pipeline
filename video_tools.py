@@ -41,7 +41,7 @@ Commands:
               產 self-contained dashboard（state 內嵌）→ 直接開檔即可看，免 server
   ingest-meta <dir> [--out materials_db.json]
               小編：掃本地素材庫，提取 EXIF/ffprobe/keyframe + classify(機械歸類)，輸出 materials_db.json
-  caption-meta <db> [--model M] [--limit N]
+  caption-meta <db> [--model M] [--limit N] [--visual-review-dir DIR]
               小編語意歸類：對素材跑本地 VLM 填 vlm_caption(實際內容)
   material-map <db> [--out map.md]
               人看得懂的素材地圖（依資料夾分群 + 可用/caption）
@@ -1260,6 +1260,11 @@ def main():
     p_cm.add_argument("db", help="materials_db.json")
     p_cm.add_argument("--model", help="VLM 模型（預設 qwen3-vl:4b-instruct）")
     p_cm.add_argument("--limit", type=int, help="最多 caption 幾個（測試用）")
+
+    p_cm.add_argument(
+        "--visual-review-dir",
+        help="write material montage review request here, then consume verdict on rerun",
+    )
 
     p_mm = sub.add_parser("material-map")
     p_mm.add_argument("db", help="materials_db.json")

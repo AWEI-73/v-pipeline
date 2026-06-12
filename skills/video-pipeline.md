@@ -145,6 +145,7 @@ registry 內,`status` 看得到)。設計見
 | `wait_for_generated_provider` | 等外部生成素材交付 `materials/generated/seg{n}.*` 再 resume |
 | `await_capcut_export` | 開 CapCut 匯出 `capcut_exported.mp4` 到 run 目錄,再 resume(僅 capcut backend) |
 | `await_visual_review` | Node 10.5:親眼讀 run 目錄下的蒙太奇圖,寫 `visual_review_verdict.json`(格式見上節),再 resume |
+| `await_material_visual_review` | `caption-meta --visual-review-dir DIR` 已產生長素材蒙太奇;親眼讀圖、寫 `material_visual_review_verdict.json`,再重跑同一指令 |
 | `revise:director` | SPEC 層修正:編輯 `segment_contract.json` 的 layout/media_pref 等,再 resume |
 | `retry:curator` | 內部重試已耗盡 → 換 search_query/source 或補本地檔,再 resume |
 | `verify_failed` / `human_review` / `fix_timeline_or_assembly` | 看 findings,修最小受影響 node 再 resume |

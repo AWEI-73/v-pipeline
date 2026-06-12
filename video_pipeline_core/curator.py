@@ -221,7 +221,7 @@ def cmd_ingest_meta(args):
 
     for root, _, fnames in sorted(os.walk(src)):
         rel = os.path.relpath(root, src)
-        if rel.startswith('.') or '/.' in rel:
+        if rel != "." and (rel.startswith('.') or f"{os.sep}." in rel):
             continue
         tags = [p for p in rel.split(os.sep) if p and p != '.']
 
@@ -379,6 +379,39 @@ def cmd_caption_meta(args):
     分離的慢步驟(ingest 機械快、caption 慢),只跑沒 caption 的。"""
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
+    review_dir = getattr(args, "visual_review_dir", None)
+    if review_dir:
+        pending = [entry for entry in db.get("files", []) if not entry.get("vlm_caption")]
+        if not pending:
+            print(json.dumps({
+                "status": "ok", "db": args.db, "captioned": 0,
+            }, ensure_ascii=False))
+            return
+        os.makedirs(review_dir, exist_ok=True)
+        request_path = os.path.join(review_dir, "material_visual_review_request.json")
+        verdict_path = os.path.join(review_dir, "material_visual_review_verdict.json")
+        if os.path.exists(verdict_path):
+            with open(verdict_path, encoding="utf-8-sig") as f:
+                verdict = json.load(f)
+            before = sum(bool(entry.get("vlm_caption")) for entry in db.get("files", []))
+            apply_material_review_verdict(db, verdict)
+            after = sum(bool(entry.get("vlm_caption")) for entry in db.get("files", []))
+            with open(args.db, "w", encoding="utf-8") as f:
+                json.dump(db, f, ensure_ascii=False, indent=2)
+            print(json.dumps({
+                "status": "ok", "db": args.db, "captioned": after - before,
+                "verdict": verdict_path,
+            }, ensure_ascii=False))
+            return
+        request = build_material_review_request(db, review_dir)
+        with open(request_path, "w", encoding="utf-8") as f:
+            json.dump(request, f, ensure_ascii=False, indent=2)
+        print(json.dumps({
+            "status": "awaiting_review", "db": args.db, "request": request_path,
+            "verdict": verdict_path, "next_action": "await_material_visual_review",
+            "assets": len(request.get("assets") or []),
+        }, ensure_ascii=False))
+        return
     model = args.model or "qwen3-vl:4b-instruct"
     limit = args.limit or 0
     done = 0
@@ -450,6 +483,13 @@ def apply_material_review_verdict(db, verdict):
         if not asset_id or not isinstance(caption, str) or not caption.strip():
             raise ValueError("material visual review verdict requires id and non-empty caption")
         indexed[asset_id] = item
+    pending_ids = {
+        entry.get("id") for entry in (db or {}).get("files", [])
+        if entry.get("id") and not entry.get("vlm_caption")
+    }
+    missing = sorted(pending_ids - set(indexed))
+    if missing:
+        raise ValueError(f"material visual review verdict missing pending asset(s): {missing}")
     for entry in (db or {}).get("files", []):
         item = indexed.get(entry.get("id"))
         if not item:

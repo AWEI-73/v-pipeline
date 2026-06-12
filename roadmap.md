@@ -1423,3 +1423,13 @@ First contract slice complete:
 - `apply_material_review_verdict` writes agent-authored `vlm_caption` plus explicit lineage.
 
 Next E7 step: connect this request/verdict contract to `caption-meta` await/resume CLI behavior.
+
+E7 status (2026-06-12): COMPLETE. `caption-meta --visual-review-dir` now writes
+a timestamped material montage request and returns
+`await_material_visual_review`; rerunning after an agent-authored verdict
+applies complete captions with explicit lineage. Partial verdicts are rejected,
+UTF-8 BOM verdicts are accepted, root-level ingest files are no longer skipped,
+and an empty pending set completes without a false wait. Real city-lite long
+material await/resume and montage sensory review are verified. See
+`docs/decisions/2026-06-12-e7-material-montage-review.md`. Next: integrated
+fresh-film sensory acceptance, then E8.
