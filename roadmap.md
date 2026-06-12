@@ -14,7 +14,117 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 
 ---
 
-## 2026-06-12 Active Direction: Sensory Phase(感官層攻堅,S1-S4)
+## 2026-06-12 Active Direction: Material Phase(真素材精剪攻堅,M0-M4)
+
+**現況**:Sensory S1-S4 + 整合驗收(bakery v5)已收,主鏈「看不出自動生成」的
+機制都在;但素材來源仍以 stock/照片/短 clip 為主。主用途(剪學員長素材、
+sound-bite、講話段落)還缺三塊:**素材地圖(掃一次離線重查)、窗口級檢索、
+語音感知裁刀**。本階段把 agent 裁剪打到窗口級。
+參考 OpenMontage(reference repo)**僅借概念**(corpus 掃一次離線查、CLIP 排序、
+silence jump-cut)——它是 **AGPL v3,一行碼都不可抄、不可 import**,全部 clean-room 自寫。
+
+### M0 能力字典 + 邊界(先做,小;「規格不撒謊」的地基)
+
+```text
+M0a capability_manifest.json(生成物,絕不手寫):
+    `python video_tools.py capability-manifest` 從程式碼常數彙編:
+      transitions      = video_pipeline.ALLOWED_TRANSITIONS
+      still_treatments = edit_artifacts._STILL_TREATMENT_MODES
+      sfx_cues         = sfx.ASSET_COUNTS keys(whoosh/hit/riser)
+      patch_types      = visual_review 的 window/crop/treatment
+      audio_policies   = duck/music(+M2d 後的 source_speech)
+      render_profiles / providers(stock|local|generated + 誠實規則摘要)
+      judge_modes      = agent|ollama|none
+      unsupported      = multi_track_music, arbitrary_effects, full_nle_ui,
+                         cloud_vlm_default, remotion_backend(機器可讀邊界)
+M0b spec_review 新規則 B5(out_of_capability):合約要求 manifest 沒有的能力
+    (未知 transition/treatment/sfx/音訊角色/多軌音樂)→ blocking,訊息附
+    manifest 路徑與最近合法值。字典不攔人就只是會腐爛的文件。
+M0c skills/spec-contract.md 增「能力字典」節:指向生成的 manifest,
+    不重複維護清單;director/writer skill 各加一行「寫 SPEC 前先讀 manifest」。
+完成判準:故意寫一份越界合約(多軌換曲+未知 transition)被 B5 全攔;
+測試斷言 manifest 與程式碼常數同源(改常數忘了重生成 → 測試紅)。
+```
+
+### M1 素材地圖(material_map:一支長素材掃一次,之後離線重查)
+
+```text
+基底(不重做):caption-meta + E7 agent 蒙太奇複核(整支 caption/lineage,
+見 docs/decisions/2026-06-12-e7-material-montage-review.md)、detect_shots
+(PySceneDetect,mv_cut)、keyframe_grid、filter_static_windows 幀差機具、
+capcut_backend._parse_silencedetect(搬到共用處,別寫第二份)。
+M1a `video_tools.py material-map <src>`(確定性,新模組 material_map.py):
+      scenes[]  start/end/midpoint thumb(detect_shots)
+      speech[]  silencedetect 反推 talk/silence runs(搬用現成 parser)
+      motion[]  每 scene 幀差能量摘要(S1a/S2a 機具)
+    輸出 materials/maps/<asset_id>.map.json + 縮圖;materials_db 記 map 路徑。
+M1b 逐 scene caption:沿用 E7 兩模式(本地 VLM 預設 / --visual-review-dir
+    agent 親看),寫回 map.scenes[].caption。不發明第三種協議。
+M1c (opt-in)transcript:faster-whisper 已在 video_tools 字幕路徑;對 speech
+    runs 跑帶時間戳轉寫,寫 map.speech[].text——sound-bite 檢索的地基。
+    未安裝 → map 仍完整有效(speech runs 無文字)。
+完成判準:用 Codex 真實素材案例那支長素材跑 material-map,agent 抽 3 個 scene
+驗 caption/時間戳;重跑第二次直接讀 map 不重算(冪等)。
+```
+
+### M2 窗口級檢索(visual_desc/句意 → 排序候選窗 → 裁決)
+
+```text
+基底(不重做):_plan_matched_segment/_windows_from_clip(local 切窗)、
+content_qa.score_segment(蒸餾救援)、visual judge node 10.5 + needs_patch。
+M2a 候選窗從 map.scenes 出(取代均勻盲切):每 scene 依 pace 需求出 0-2 窗。
+M2b 確定性排序器(material_retrieval.py):關鍵詞分(caption/transcript ×
+    visual_desc)+ 動能 fit(pace hold↔低動能、fast↔高)+ 時長 fit;
+    分數與理由寫進候選(可解釋,給 judge 的 montage 附帶)。
+M2c (opt-in)CLIP 重排:本地 clip-vit-base-patch32 對 top-K 候選做
+    text→visual cosine 重排,掛 model_routes "ranker";未安裝自動退 M2b。
+    概念借 OpenMontage、實作 clean-room。**ranker 只排序,誠實裁決永遠在
+    judge**——它沒有 4b 的 D5 逐字較真問題,但也不給它否決權。
+M2d sound-bite 支線:segment 宣告 audio.role=source_speech(keep_audio)時,
+    候選窗只能出自 speech runs,端點吸附句界(有 transcript 用句界,
+    無則用 silence 邊界)。
+完成判準:同一 visual_desc「均勻盲切 vs map 檢索」A/B 出 montage 給 judge
+裁決對題度;至少 3 段 + 1 個 sound-bite。
+```
+
+### M3 語音感知裁刀(speech-aware snap + jump-cut)
+
+```text
+M3a snap 優先序擴充(edit_artifacts.snap_to_edit_point 既有機具):
+    keep_audio 窗 → speech 邊界 > scene cut > motion peak;非 keep_audio 不變。
+M3b jump-cut(講話長段瘦身):`video_tools.py jumpcut-plan <src>` 讀 map.speech
+    產 jumpcut_plan.json(mark 模式:只標不剪)→ agent 核可(沿用 verdict 的
+    accept/needs_patch 語彙,不發明新格式)→ `jumpcut-apply` 產
+    materials/processed/<id>.mp4 並記 lineage。speed_up 模式進 backlog。
+完成判準:真實講話素材直剪 vs jump-cut A/B,agent 聽感複核「句子完整、呼吸
+自然」;jump-cut 後的素材重跑 material-map 冪等。
+```
+
+### M4 整合驗收(真學員素材一條龍)
+
+```text
+Codex 正在跑的真實素材案例 = 前哨戰(在 M0 前完成,發現的問題回填本節基線)。
+M4:一支真實長素材 project-init→final:M2 檢索選窗 >=3 段、sound-bite >=1 段、
+jump-cut >=1 段、Sensory 全審計 0 fail、judge verdict 全程留痕。
+完成判準 = 上述全中 + 全迴歸綠 + decision log。
+```
+
+### 執行紀律(防彎路,給 Codex)
+
+```text
+1. 順序固定 M0→M1→M2→M3→M4;M0 很小,先收。
+2. 每項動手前先列「基底(不重做)」清單並 grep 驗證——本階段最大風險是重工:
+   切窗/評分/judge/caption 全部已存在,新碼只填「地圖、檢索、語音吸附」三塊。
+3. 每項完成 = 真素材跑通 + agent 感官複核 + 確定性測試(Sensory 紀律不變)。
+4. OpenMontage 是 AGPL v3:只看概念與資料結構;不抄碼、不 import、不 vendoring。
+5. 不碰:多軌換曲、CLIP 之外的新模型依賴、雲端 API 預設、UI;CLIP 本身 opt-in。
+6. ffmpeg 音訊鏈改動先在 4.3.1 實測響度(volumedetect 分聲道)再 commit
+   (amix normalize / 聲道塌陷教訓)。
+```
+
+---
+
+## ✅ 2026-06-12(已完成): Sensory Phase(感官層攻堅,S1-S4)
 
 **現況診斷(SYSTEM-DESIGN.md + 外部評析裁決後)**:結構層(soul/選材/宏觀節奏
 ~70-80%)已接近水準;**感官層(畫面內表現力 ~40%、微節奏 ~45%、音訊質感 ~50%)**
