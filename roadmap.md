@@ -14,7 +14,97 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 
 ---
 
-## 2026-06-12 Active Direction: Effects Phase(特效區)
+## 2026-06-12 Active Direction: Sensory Phase(感官層攻堅,S1-S4)
+
+**現況診斷(SYSTEM-DESIGN.md + 外部評析裁決後)**:結構層(soul/選材/宏觀節奏
+~70-80%)已接近水準;**感官層(畫面內表現力 ~40%、微節奏 ~45%、音訊質感 ~50%)**
+是觀眾直接感受的缺口。目標:S1-S3 完成並真片驗收後跨過「看不出自動生成」線。
+本節**取代原 E2「配方庫」定義**——驗收問句從「有沒有特效」改成「簡報感偵測器
+還響不響」。每項附:改哪裡、用什麼現成零件、完成判準。
+
+### S1 反簡報感引擎(最優先;雙態:計畫期預防 + 渲染後審計)
+
+```text
+S1a presentation_feel_audit.py(新模組,確定性,Node 12 audit 家族)
+    六個偵測器(全可機械判):
+      static_photo_too_long      靜照單窗 > max_still_hold(editing_policy 已有此值)
+      no_foreground_motion       畫面動能低:幀差 RMS——改裝 filter_static_windows
+                                 (mv_cut)的現成幀差機具,對 timeline 各 clip 抽測
+      centered_caption_card      字卡置中且文字框佔幅 > 25%:從 ASS 樣式/字卡
+                                 參數推算(subtitle_presentation/motion_graphics)
+      repeated_push_in           連續 >=3 個同向運鏡:讀 timeline 的 still_treatment
+                                 / zoompan mode 序列(P5 已記錄 mode)
+      text_blocks_dominate       同屏文字行數/佔幅超限
+      single_layer_composition   連續 >=N clip 無任何 overlay/text/效果層
+    輸出 presentation_feel_audit.json{findings, score},接 dashboard Node 12,
+    跟 visual_fatigue 同款接線(edit_artifacts/dashboard_state 照抄它的 wiring)。
+S1b 計畫期預防(Node 9,edit_artifacts/_resolve_seg_treatment 一帶):
+    偵測條件在排程時就換補救,優先用現成零件:
+      靜照過長        → P5 照片多幕拆 2-3 個 crop 拍點(_windows_from_clip 照片支)
+      置中字卡        → lower-third 配方(E2 文字配方已有)
+      連續同向運鏡    → 運鏡輪替盤:slow_push/pan_left/pan_right/hold 輪換
+                        (P5 的 modes 表已存在,改成「不重複上一段」即可)
+    完成判準:city-lite 重跑,S1a 偵測器 0 fail;對照舊片至少 3 個偵測器原本會響。
+```
+
+### S2 微節奏(cut-on-motion / J-L cut / 口白呼吸)
+
+```text
+S2a cut-on-motion:切點吸附「動作峰值」。現有 _snap_to_scene_cut(edit_artifacts)
+    只吸場景邊界;新增 motion-peak 偵測(幀差能量序列的局部極大,同 S1a 機具),
+    建 timeline 時 scene-cut 與 motion-peak 雙吸附(scene 優先,峰值次之)。
+S2b J/L cut(narrative 鏈):轉場處音訊先行/延後 0.3-0.7s。落點在 narrative 渲染
+    的段間接縫(video_pipeline xfade/concat 段),純 timeline 位移,不碰素材。
+S2c 口白呼吸:句尾後留 0.3-0.5s 再切。TTS timing(audio/tts_timing.json)已有
+    句界;在段長計算時加 tail padding。
+    完成判準:city-lite 級口白片重跑,抽 3 個轉場人眼/耳驗收(agent 讀波形+幀)。
+```
+
+### S3 音訊感官層(SFX 標點 + 音樂結構對位)
+
+```text
+S3a SFX 標點:小型本地音效庫(assets/sfx/,whoosh/hit/riser 各 2-3 支,CC0)。
+    確定性落點:章節轉場=whoosh、字卡進場=hit;混進 final_audio(vt_audio,
+    與 BGM 同一 amix 圖,音量 ~0.15)。
+S3b 音樂結構對位:消費 music_structure.sections(欄位早就有、render 不讀):
+    最低版=BGM 從最近的結構點起播(offset),高潮段(climax role)對到能量段。
+    多軌換曲不在本階段(backlog 不變)。
+    完成判準:同一支片 A/B(有無 S3)各渲一次,agent 聽感複核記錄差異。
+```
+
+### S4 裁決體系收尾(採納外部評析 A + creative_exception)
+
+```text
+S4a VISUAL_JUDGE 升一級節點:進 node_registry(建議 node id "10.5" 字串,
+    NODE_ORDER 插在 10 與 11 之間),verify_fn 讀 visual_review_request/verdict
+    存在性與狀態;dashboard 自然顯示。E6 機具不動,只是掛牌。
+S4b verdict 增加 needs_patch 裁決(現只有 accept/reject):
+    {action:"needs_patch", patch:{type:"window|crop|treatment", hint:{...}}}
+    引擎消費:window→改 extract 窗重建;crop→改 crop_center;treatment→改
+    still_treatment。visual_review.py 的 validate/consume 兩端同步擴。
+S4c creative_exception 統一欄位(segment 級):
+    {"creative_exception":{"rule_bent":"...","reason":"...","risk":"...",
+     "requires_review":true}}
+    消費端:spec_review/pacing_review/visual_fatigue/presentation_feel 遇到
+    違規但該段有對應 exception → 降為 warn-with-ack(進 review 清單,不 block)。
+    把現有零星豁免(allow_long_hold_when/hold_reason)歸一到這個語法之下
+    (向後相容保留舊欄位)。
+```
+
+### 執行紀律(防彎路,給 Codex)
+
+```text
+1. 順序固定 S1a→S1b→S2→S3→S4,每個子項獨立 commit + 測試;不要並行開兩項。
+2. 每項「完成」= 真片重渲 + agent 讀圖/聽感複核 + 確定性測試,三者缺一不可
+   (PlayRes 教訓:單元測試看不到感官缺陷)。
+3. 新偵測器/補救一律走既有 wiring 模式(visual_fatigue 是範本),不發明新接線。
+4. 不碰:多軌換曲、雲端 API、NLE UI、remotion/blender(non-goals 不變)。
+5. 基準片:city-lite(口白)+ skill-smoke(MV)雙基準,改前改後都要有對照。
+```
+
+---
+
+## 🔄 2026-06-12(被 Sensory Phase 取代/吸收): Effects Phase(特效區)
 
 前一階段(P1-P6 + city-lite 合併驗證)已收;本階段在 Codex 鋪好的 motion_graphics
 鷹架上**填表現力內容**,不再搭地基。
