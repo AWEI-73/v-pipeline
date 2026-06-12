@@ -523,10 +523,20 @@ def _attach_attention_budgets(payload, *, music_structure=None, editing_policy=N
         for segment in assembly.get("segments") or []
         if segment.get("segment") is not None and segment.get("attention_budget")
     }
+    anti_plans = {
+        segment.get("segment"): segment.get("anti_presentation_plan")
+        for segment in assembly.get("segments") or []
+        if segment.get("segment") is not None and segment.get("anti_presentation_plan")
+    }
     for segment in payload.get("segments") or []:
         budget = budgets.get(segment.get("segment"))
         if budget:
             segment["attention_budget"] = budget
+        anti_plan = anti_plans.get(segment.get("segment"))
+        if anti_plan:
+            segment["anti_presentation_plan"] = anti_plan
+            if anti_plan.get("text_placement"):
+                segment["text_placement"] = anti_plan["text_placement"]
     return payload
 
 

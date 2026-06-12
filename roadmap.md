@@ -51,6 +51,13 @@ S1a status (2026-06-12): COMPLETE. Deterministic audit, Node 12 wiring,
 dual-baseline real renders, sensory review, and full regression are verified.
 See `docs/decisions/2026-06-12-s1a-presentation-feel-audit.md`. Next: S1b.
 
+S1b status (2026-06-12): COMPLETE. Node 9 now emits deterministic
+anti-presentation plans for long still rotation and centered narrative
+lower-thirds; the directives reach both the base renderer and light-effects
+motion-graphics path. Dual-baseline real renders, sensory review, 0-fail S1a
+audits, and full regression are verified. See
+`docs/decisions/2026-06-12-s1b-anti-presentation-planning.md`. Next: S2.
+
 ### S2 微節奏(cut-on-motion / J-L cut / 口白呼吸)
 
 ```text

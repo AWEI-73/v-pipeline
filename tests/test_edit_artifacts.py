@@ -201,6 +201,32 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(seg["attention_budget"]["owner"], "music")
         self.assertEqual(seg["attention_budget"]["shot_sec"], [1.5, 4.0])
 
+    def test_long_photo_narrative_gets_anti_presentation_plan(self):
+        script = {"segments": [{
+            "segment": 2,
+            "visual_desc": "long still explanation",
+            "media": "photo",
+            "narrative": "A concise explanation",
+            "raw_text_layer": {"placement": "center"},
+        }]}
+
+        plan = ea.build_assembly_plan(
+            script,
+            music_structure={"beats": [0.0, 18.0]},
+            editing_policy={
+                "default_mode": "warm_documentary",
+                "max_still_hold_sec_by_mode": {"warm_documentary": 7.0},
+            },
+        )
+
+        anti = plan["segments"][0]["anti_presentation_plan"]
+        self.assertEqual(anti["min_shots"], 3)
+        self.assertEqual(
+            anti["still_treatment_modes"],
+            ["detail_push", "pan_left", "slow_push"],
+        )
+        self.assertEqual(anti["text_placement"], "lower_third")
+
 
 if __name__ == "__main__":
     unittest.main()

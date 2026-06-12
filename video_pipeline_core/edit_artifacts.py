@@ -5,7 +5,44 @@ timestamps (`timeline_build`). Runtime can use these artifacts without
 reinterpreting the canonical SPEC.
 """
 import json
+import math
 from pathlib import Path
+
+
+_STILL_TREATMENT_MODES = ("slow_push", "pan_right", "detail_push", "pan_left")
+
+
+def _resolve_anti_presentation_plan(seg, duration_sec, editing_policy):
+    """Plan deterministic prevention for common presentation-like treatments."""
+    policy = editing_policy or {}
+    material_fit = seg.get("material_fit") or {}
+    media = seg.get("media_pref") or seg.get("media") or material_fit.get("media")
+    is_photo = media in {"photo", "image", "still"}
+    narrative = seg.get("narrative")
+    raw_text = seg.get("raw_text_layer") or {}
+    if not isinstance(raw_text, dict):
+        raw_text = {}
+    placement = raw_text.get("placement")
+
+    plan = {}
+    if is_photo:
+        mode = policy.get("default_mode") or "warm_documentary"
+        max_still = (
+            policy.get("max_still_hold_sec_by_mode", {}).get(mode)
+            or policy.get("max_still_hold_sec")
+            or 5.0
+        )
+        duration = float(duration_sec or 0.0)
+        if duration > float(max_still):
+            plan["min_shots"] = max(2, min(3, math.ceil(duration / float(max_still))))
+        offset = int(seg.get("segment") or 0) % len(_STILL_TREATMENT_MODES)
+        plan["still_treatment_modes"] = [
+            _STILL_TREATMENT_MODES[(offset + index) % len(_STILL_TREATMENT_MODES)]
+            for index in range(3)
+        ]
+    if narrative and placement in {None, "center", "centered", "middle"}:
+        plan["text_placement"] = "lower_third"
+    return plan
 
 
 def _resolve_seg_treatment(seg, music_structure, editing_policy, duration_sec=None):
@@ -185,6 +222,13 @@ def build_assembly_plan(script, *, music_structure=None, contract_hash=None, edi
             seg, music_structure, editing_policy,
             duration_sec=round(end_t - start_t, 3) if end_t > start_t else None)
         entry.update(treatment_info)
+        anti_presentation_plan = _resolve_anti_presentation_plan(
+            seg,
+            round(end_t - start_t, 3) if end_t > start_t else None,
+            editing_policy,
+        )
+        if anti_presentation_plan:
+            entry["anti_presentation_plan"] = anti_presentation_plan
         from .attention_budget import resolve_attention_budget
         entry["attention_budget"] = resolve_attention_budget(
             entry,

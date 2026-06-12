@@ -220,6 +220,28 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(by_segment[3]["template"], "lower_third_clean")
         self.assertEqual(by_segment[3]["style"]["motion"], "slide_up")
 
+    def test_contract_from_timeline_honors_runtime_lower_third_placement(self):
+        canonical = {"segments": [{
+            "segment": 1,
+            "text_layer": {"narrative": "Opening thought", "reason": "open"},
+        }]}
+        timeline = {"clips": [{
+            "segment": 1,
+            "timeline_in_sec": 0.0,
+            "timeline_out_sec": 2.0,
+            "text_overlay": {
+                "narrative": "Opening thought",
+                "placement": "lower_third",
+            },
+        }]}
+
+        contract = motion_graphics.contract_from_timeline(canonical, timeline)
+        item = contract["items"][0]
+
+        self.assertEqual(item["effect_type"], "lower_third")
+        self.assertEqual(item["template"], "lower_third_clean")
+        self.assertEqual(item["style"]["safe_area"], "lower_third")
+
     def test_ffmpeg_libass_recipes_emit_motion_tags(self):
         contract = self._contract()
         contract["items"][0]["style"]["motion"] = "slide_up"

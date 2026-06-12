@@ -784,6 +784,28 @@ class AttentionBudgetRuntimeTest(unittest.TestCase):
         self.assertEqual(budget["owner"], "music")
         self.assertEqual(budget["shot_sec"], [0.8, 2.0])
 
+    def test_attaches_node9_anti_presentation_plan_to_runtime_segments(self):
+        payload = {"style": "mv", "segments": [{
+            "segment": 1,
+            "media_pref": "photo",
+            "narrative": "Explain this",
+            "raw_text_layer": {"placement": "center"},
+        }]}
+        policy = {
+            "default_mode": "warm_documentary",
+            "max_still_hold_sec_by_mode": {"warm_documentary": 7.0},
+        }
+
+        ca._attach_attention_budgets(
+            payload,
+            music_structure={"beats": [0.0, 18.0]},
+            editing_policy=policy,
+        )
+
+        anti = payload["segments"][0]["anti_presentation_plan"]
+        self.assertEqual(anti["min_shots"], 3)
+        self.assertEqual(payload["segments"][0]["text_placement"], "lower_third")
+
 
 class ContractToNarrativeScriptTest(unittest.TestCase):
     def _seg(self, **over):

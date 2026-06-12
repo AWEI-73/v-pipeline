@@ -79,7 +79,17 @@ def contract_from_timeline(canonical_contract, timeline, *, backend="ffmpeg_liba
             main = text_layer.get("label") or text_layer.get("narrative")
             if not main:
                 continue
-            effect_type = "chapter_card" if text_layer.get("label") else "title_sequence"
+            runtime_lower_third = any(
+                isinstance(clip.get("text_overlay"), dict)
+                and clip["text_overlay"].get("placement") == "lower_third"
+                for clip in clips
+            )
+            if text_layer.get("label"):
+                effect_type = "chapter_card"
+            elif runtime_lower_third:
+                effect_type = "lower_third"
+            else:
+                effect_type = "title_sequence"
             text = {"main": main, "subtitle": text_layer.get("subtitle")}
         recipe = TEXT_RECIPES[effect_type]
         items.append({

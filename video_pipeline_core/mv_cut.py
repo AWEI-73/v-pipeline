@@ -376,10 +376,15 @@ def _drawtext_chain(text, mat_dir, slot_idx):
         with open(tf, "w", encoding="utf-8") as f:
             f.write(text["narrative"])
         tf_esc = tf.replace("\\", "/").replace(":", "\\:")
-        parts.append("drawbox=x=0:y=0:w=iw:h=ih:color=black@0.5:t=fill")
-        parts.append(f"drawtext=fontfile='{ff}':textfile='{tf_esc}':fontsize=72:fontcolor=white:"
-                     f"borderw=2:bordercolor=black@0.6:line_spacing=20:"
-                     f"x=(w-text_w)/2:y=(h-text_h)/2")
+        if text.get("placement") == "lower_third":
+            parts.append(f"drawtext=fontfile='{ff}':textfile='{tf_esc}':fontsize=46:fontcolor=white:"
+                         f"borderw=3:bordercolor=black@0.8:line_spacing=14:"
+                         f"x=(w-text_w)/2:y=h-text_h-140")
+        else:
+            parts.append("drawbox=x=0:y=0:w=iw:h=ih:color=black@0.5:t=fill")
+            parts.append(f"drawtext=fontfile='{ff}':textfile='{tf_esc}':fontsize=72:fontcolor=white:"
+                         f"borderw=2:bordercolor=black@0.6:line_spacing=20:"
+                         f"x=(w-text_w)/2:y=(h-text_h)/2")
     if text.get("label"):
         tf = os.path.join(mat_dir, f"lbl_{slot_idx}.txt")
         with open(tf, "w", encoding="utf-8") as f:
@@ -512,6 +517,9 @@ def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
                 shot_sec = fast_clip
             shot_sec = max(0.5, shot_sec)
         n_clips = 1 if single else max(1, round(budget / shot_sec))
+        min_shots = int((s.get("anti_presentation_plan") or {}).get("min_shots") or 0)
+        if min_shots:
+            n_clips = max(n_clips, min_shots)
         stack = _stack_items(s)
         if stack:                       # 列舉:每項一張、每張 ≈ 一拍(beat-fast)
             n_clips = max(1, len(stack))
@@ -575,6 +583,26 @@ def _windows_from_clip(path, n_clips, clip_dur, keep_audio, text=None, segment=N
         slots.append({"source": path, "extract_start": round(start, 3),
                       "extract_dur": round(take, 3), "keep_audio": keep_audio,
                       "text": text, "segment": segment})
+    return slots
+
+
+def _apply_anti_presentation_plan(slots, segment):
+    """Apply Node 9 anti-presentation directives to concrete render slots."""
+    plan = segment.get("anti_presentation_plan") or {}
+    modes = plan.get("still_treatment_modes") or []
+    placement = plan.get("text_placement")
+    for index, slot in enumerate(slots):
+        if slot.get("is_photo") and modes:
+            slot["still_treatment"] = {
+                "mode": modes[index % len(modes)],
+                "reason": "anti_presentation_rotation",
+            }
+        if placement:
+            text = slot.get("text")
+            if not isinstance(text, dict):
+                text = {}
+                slot["text"] = text
+            text["placement"] = placement
     return slots
 
 
@@ -1016,6 +1044,7 @@ def run_mv(script, material_root, out_path, music_path=None,
                 s, a, material_root, seg_text, keep_audio, model=model, mat_dir=mat_dir,
                 max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
                 min_score=min_score, prefilter_static=prefilter_static)
+        _apply_anti_presentation_plan(slots, s)
         reason_str = None
         for r_path in [
             lambda: s.get("material_fit", {}).get("reason"),

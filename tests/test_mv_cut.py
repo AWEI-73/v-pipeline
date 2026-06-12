@@ -3,6 +3,7 @@
 Pure-function tests — no audio, no librosa. The beats are synthetic timestamps
 so the cut-grid logic is fully deterministic.
 """
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -599,6 +600,49 @@ class SegmentPlannerTest(unittest.TestCase):
 
     def test_windows_from_clip_zero_clips(self):
         self.assertEqual(mv_cut._windows_from_clip("/m/x/a.mov", 0, 2.0, False), [])
+
+    def test_anti_presentation_plan_rotates_photo_treatments_and_text_placement(self):
+        slots = mv_cut._windows_from_clip("/m/group/a.jpg", 3, 2.0, False, segment=7)
+        segment = {
+            "anti_presentation_plan": {
+                "still_treatment_modes": ["pan_left", "pan_right", "hold"],
+                "text_placement": "lower_third",
+            }
+        }
+
+        mv_cut._apply_anti_presentation_plan(slots, segment)
+
+        self.assertEqual(
+            [slot["still_treatment"]["mode"] for slot in slots],
+            ["pan_left", "pan_right", "hold"],
+        )
+        self.assertTrue(all(slot["text"]["placement"] == "lower_third" for slot in slots))
+
+    def test_allocate_segments_honors_anti_presentation_min_shots(self):
+        allocation = mv_cut.allocate_segments([{
+            "segment": 1,
+            "kind": "opening",
+            "anti_presentation_plan": {"min_shots": 3},
+        }], total_dur=18.0)
+
+        self.assertEqual(allocation[0]["n_clips"], 3)
+        self.assertEqual(allocation[0]["clip_dur"], 6.0)
+
+    def test_drawtext_chain_places_narrative_in_lower_third(self):
+        original_font = mv_cut._CJK_FONT
+        try:
+            mv_cut._CJK_FONT = "font.ttf"
+            with tempfile.TemporaryDirectory() as tmp:
+                chain = mv_cut._drawtext_chain(
+                    {"narrative": "Explain this", "placement": "lower_third"},
+                    tmp,
+                    1,
+                )
+        finally:
+            mv_cut._CJK_FONT = original_font
+
+        self.assertNotIn("drawbox=x=0:y=0:w=iw:h=ih", chain)
+        self.assertIn("y=h-text_h-140", chain)
 
     def test_plan_matched_caps_at_n_clips(self):
         a = {"n_clips": 2, "clip_dur": 1.5, "budget": 6.0}
