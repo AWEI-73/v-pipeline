@@ -12,6 +12,12 @@ REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+try:
+    import dotenv
+    dotenv.load_dotenv(REPO_ROOT / ".env")
+except ImportError:
+    pass
+
 if sys.platform == "win32":
     import io
     try:

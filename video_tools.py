@@ -82,6 +82,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
+try:
+    import dotenv
+    dotenv.load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
 if sys.platform == "win32":
     import io
     try:
