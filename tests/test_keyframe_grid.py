@@ -67,5 +67,22 @@ class KeyframeGridSmokeTest(unittest.TestCase):
         self.assertEqual([s["cell"] for s in meta["samples"]], [1, 2, 3, 4, 5, 6])
 
 
+class SceneMidpointsTest(unittest.TestCase):
+    def test_midpoints_per_scene(self):
+        from video_pipeline_core.keyframe_grid import scene_midpoints
+        self.assertEqual(scene_midpoints([(0, 10), (10, 30)], 12), [5.0, 20.0])
+
+    def test_subsamples_when_too_many_scenes(self):
+        from video_pipeline_core.keyframe_grid import scene_midpoints
+        shots = [(i, i + 1) for i in range(40)]
+        out = scene_midpoints(shots, 12)
+        self.assertEqual(len(out), 12)
+        self.assertEqual(out, sorted(out))
+
+    def test_empty_and_degenerate(self):
+        from video_pipeline_core.keyframe_grid import scene_midpoints
+        self.assertEqual(scene_midpoints([], 12), [])
+        self.assertEqual(scene_midpoints([(5, 5)], 12), [])
+
 if __name__ == "__main__":
     unittest.main()

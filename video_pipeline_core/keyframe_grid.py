@@ -28,6 +28,26 @@ def select_timestamps(duration_sec, sample_count):
     return [round(duration_sec * (i + 0.5) / n, 3) for i in range(n)]
 
 
+def scene_midpoints(shots, max_count):
+    """純函式:場景區間 [(start,end)…] → 每景中點時間戳(最多 max_count 個)。
+
+    景比 max_count 多時等距抽景(保持時間軸覆蓋)。比均勻取樣更有劇情代表性:
+    每一格對應一個真實換幕段落,而不是落在隨機位置(時間軸蒙太奇設計,2026-06-12)。"""
+    pts = [round((s + e) / 2.0, 3) for s, e in (shots or []) if e > s]
+    if not pts:
+        return []
+    n = int(max_count)
+    if n <= 0 or len(pts) <= n:
+        return pts
+    step = len(pts) / n
+    return [pts[min(len(pts) - 1, int(i * step))] for i in range(n)]
+
+
+def _ts_label(seconds):
+    m, s = divmod(int(round(float(seconds))), 60)
+    return f"[{m:02d}:{s:02d}]"
+
+
 def grid_dimensions(sample_count, columns):
     """Return ``(columns, rows)`` needed to hold ``sample_count`` cells."""
     n = int(sample_count)
@@ -69,7 +89,21 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
     if duration_sec is None:
         duration_sec = probe_duration(video_path, ffprobe=ffprobe)
 
-    timestamps = select_timestamps(duration_sec, sample_count)
+    # Scene-aligned sampling first (one cell per real cut = story-representative);
+    # even spacing is the fallback when detection finds <2 scenes or is unavailable.
+    sampling = "even"
+    timestamps = []
+    try:
+        from .mv_cut import detect_shots  # noqa: PLC0415 — lazy (scenedetect)
+        shots = detect_shots(str(video_path))
+        if len(shots) >= 2:
+            timestamps = scene_midpoints(shots, sample_count)
+            sampling = "scene_midpoints"
+    except Exception:
+        timestamps = []
+    if not timestamps:
+        timestamps = select_timestamps(duration_sec, sample_count)
+        sampling = "even"
     cols, rows = grid_dimensions(len(timestamps), columns)
 
     out_path = Path(out_path)
@@ -80,13 +114,37 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
         frame_paths = []
         scale_vf = f"scale={cell_width}:{cell_height}:force_original_aspect_ratio=decrease," \
                    f"pad={cell_width}:{cell_height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        # Burn the timestamp onto each cell (black box, yellow text) so the
+        # reviewing agent/human can cite exact times straight off the montage.
+        font_arg = ""
+        try:
+            from .platform_tools import resolve_font  # noqa: PLC0415
+            fp = resolve_font()
+            if fp and os.path.exists(fp):
+                fp = fp.replace("\\", "/").replace(":", "\\:")
+                font_arg = f"fontfile='{fp}':"
+        except Exception:
+            font_arg = ""
+        fontsize = max(14, int(cell_height * 0.12))
         for i, ts in enumerate(timestamps):
             frame = os.path.join(tmp, f"frame_{i:03d}.jpg")
+            label = _ts_label(ts).replace(":", "\\:")
+            cell_vf = (f"{scale_vf},drawtext={font_arg}text='{label}':x=6:y=6:"
+                       f"fontsize={fontsize}:fontcolor=yellow:box=1:"
+                       f"boxcolor=black@0.7:boxborderw=5")
             r = subprocess.run(
                 [ffmpeg, "-y", "-ss", f"{ts:.3f}", "-i", str(video_path),
-                 "-frames:v", "1", "-q:v", "3", "-vf", scale_vf, frame],
+                 "-frames:v", "1", "-q:v", "3", "-vf", cell_vf, frame],
                 capture_output=True, timeout=120,
             )
+            if r.returncode != 0:
+                # drawtext can fail on exotic font setups — the grid itself is
+                # the load-bearing evidence, so retry without the burn.
+                r = subprocess.run(
+                    [ffmpeg, "-y", "-ss", f"{ts:.3f}", "-i", str(video_path),
+                     "-frames:v", "1", "-q:v", "3", "-vf", scale_vf, frame],
+                    capture_output=True, timeout=120,
+                )
             if r.returncode == 0 and os.path.exists(frame):
                 frame_paths.append(frame)
                 samples.append({"timestamp_sec": ts, "cell": len(frame_paths)})
@@ -101,7 +159,7 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
             cols, rows = tile_cols, tile_rows
             subprocess.run(
                 [ffmpeg, "-y", "-framerate", "1", "-i", os.path.join(tmp, "seq_%03d.jpg"),
-                 "-vf", f"tile={tile_cols}x{tile_rows}", "-frames:v", "1", str(out_path)],
+                 "-vf", f"tile={tile_cols}x{tile_rows}:padding=4", "-frames:v", "1", str(out_path)],
                 capture_output=True, timeout=120, check=True,
             )
 
@@ -111,6 +169,7 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
         "columns": cols,
         "rows": rows,
         "sample_count": len(samples),
+        "sampling": sampling,
         "cell_size": [int(cell_width), int(cell_height)],
         "duration_sec": round(float(duration_sec), 3),
         "samples": samples,
