@@ -30,6 +30,8 @@ def _segment_query(seg):
 
 
 def _can_use_stock(contract, seg):
+    if seg.get("source") in ("local", "generated"):
+        return False
     mat = seg.get("material_fit") or {}
     core = seg.get("core") or {}
     if mat.get("must_include") or core.get("identity_sensitive") or core.get("proof_critical"):
@@ -86,6 +88,8 @@ def apply_stock_first_route(contract):
     route = build_stock_first_route(routed)
     by_seg = {x["segment"]: x for x in route["segments"]}
     for seg in routed.get("segments", []):
+        if seg.get("source") in ("local", "generated"):
+            continue
         decision = by_seg.get(seg.get("segment")) or {}
         if decision.get("source") != "stock":
             continue

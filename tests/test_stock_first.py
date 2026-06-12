@@ -65,6 +65,14 @@ class StockFirstTest(unittest.TestCase):
         routed = stock_first.apply_stock_first_route(copy.deepcopy(contract))
         self.assertNotIn("source", routed["segments"][0])
 
+    def test_apply_stock_first_route_preserves_local_and_generated_sources(self):
+        contract = self._contract()
+        contract["segments"][0]["source"] = "local"
+        contract["segments"][0]["file"] = "path/to/local.mp4"
+        routed = stock_first.apply_stock_first_route(contract)
+        self.assertEqual(routed["segments"][0]["source"], "local")
+        self.assertEqual(routed["segments"][0]["file"], "path/to/local.mp4")
+
 
 if __name__ == "__main__":
     unittest.main()

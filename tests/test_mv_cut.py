@@ -709,6 +709,16 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
 
+    def test_plan_matched_falls_back_to_segment_file(self):
+        a = {"n_clips": 1, "clip_dur": 3.0, "budget": 4.0}
+        s = {"segment": 9, "visual_desc": "學員本人", "file": "/tmp/seg9.mp4"}
+        def winfn(path, n, dur, ka, text=None, segment=None):
+            return [{"source": path, "segment": segment}]
+        slots, entry, msgs = mv_cut._plan_matched_segment(s, a, {}, {}, False, _winfn=winfn)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["source"], "/tmp/seg9.mp4")
+        self.assertEqual(entry["picked_scores"], ["matched"])
+
     def test_plan_stock_success_and_gap(self):
         a = {"n_clips": 1, "clip_dur": 3.0, "budget": 4.0}
         s = {"segment": 2, "visual_desc": "空拍", "search_query": "aerial"}

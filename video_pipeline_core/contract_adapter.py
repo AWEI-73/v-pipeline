@@ -59,6 +59,10 @@ def contract_to_mv_script(contract):
             "needs_review": bool(core.get("review_required")),
             "weight": _seg_weight(core, eg),
         }
+        if seg.get("source"):
+            flat["source"] = seg["source"]
+        if seg.get("file"):
+            flat["file"] = seg["file"]
         # kind:只對 mv_cut 特殊處理的 bookend/title 設;montage 交給 layout/pace
         if section in ("opening", "closing", "title"):
             flat["kind"] = section

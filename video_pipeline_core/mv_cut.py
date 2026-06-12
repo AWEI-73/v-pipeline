@@ -623,6 +623,8 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
     paths = [p["path"] for p in clip_by_seg.get(s.get("segment"), {}).get("picks", [])]
+    if not paths and s.get("file"):
+        paths = [s["file"]]
     slots = []
     for path in paths:
         slots += winfn(path, a["n_clips"] - len(slots), a["clip_dur"], keep_audio,
