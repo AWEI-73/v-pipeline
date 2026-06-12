@@ -103,6 +103,18 @@ timeline_build / editor_review),`status` 會看到這幾個 node 變 `done`;Node
 
 ---
 
+## 視覺判讀:主責 agent 親眼看(agent-as-judge,2026-06-12 決策)
+
+內容判讀(素材對不對題、選哪個窗)的正式裁判是**駕駛中的主責 agent**,不是內嵌
+小模型:引擎在判讀點產出「場景中點+時間戳烙印」蒙太奇與 `visual_review_request.json`
+後以 `await_visual_review` 暫停;你(或你派的 subagent)**親眼讀圖**、寫
+`visual_review_verdict.json`、再 resume。設計與遷移順序見
+`docs/decisions/2026-06-12-agent-as-visual-judge.md`(V1 引擎改造待 Codex E 批次落地)。
+
+已生效的部分:Node 12 的 `keyframe_grid.jpg`(已含時間戳烙印)**必須由主責 agent
+親自讀過**才算完成複核——引用格上時間戳寫結論,不要只看 JSON 分數。
+`build_profile.visual_judge: ollama` 為無人值守 autopilot 模式(4b gate + 救援機制)。
+
 ## 讀 next_action → 下一棒(路由表)
 
 `runtime.py resume` 會自動處理大部分情況;需要人介入時它會清楚停下並印指引。
