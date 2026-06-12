@@ -26,6 +26,37 @@ def _split_by_punct(text: str) -> list:
     return phrases
 
 
+def _finalize_segment_timing(segment, title, seg_start, speech_end, phrases,
+                             segment_index, segment_count, tail_sec=0.4):
+    """Close one spoken segment and add breathing room before the next one."""
+    tail = float(tail_sec) if segment_index < segment_count - 1 else 0.0
+    end = speech_end + tail
+    return {
+        "segment": segment,
+        "title": title,
+        "start_sec": round(seg_start, 3),
+        "speech_end_sec": round(speech_end, 3),
+        "tail_padding_sec": round(tail, 3),
+        "end_sec": round(end, 3),
+        "duration_sec": round(end - seg_start, 3),
+        "phrases": phrases,
+    }, end
+
+
+def _render_silence_mp3(path, duration_sec=0.4):
+    """Render a reusable mono 24kHz MP3 silence compatible with Edge TTS."""
+    res = subprocess.run([
+        FFMPEG, "-y",
+        "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
+        "-t", f"{duration_sec:.3f}",
+        "-c:a", "libmp3lame", "-b:a", "48k",
+        str(path),
+    ], capture_output=True)
+    if res.returncode != 0:
+        raise ToolError(f"speech-tail silence render failed: {res.stderr.decode(errors='ignore')[:300]}")
+    return str(path)
+
+
 
 
 def cmd_tts(args):
@@ -54,12 +85,19 @@ def cmd_tts(args):
         all_audio = []
         cursor = 0.0
         timing = {"voice": voice, "segments": []}
+        prepared = [(seg, _split_by_punct(seg["text"])) for seg in script]
+        prepared = [(seg, phrases) for seg, phrases in prepared if phrases]
+        silence_file = None
+        silence_duration = 0.4
+        if len(prepared) > 1:
+            silence_file = _render_silence_mp3(
+                os.path.join(outdir, "speech_tail_400ms.mp3"),
+                silence_duration,
+            )
+            silence_duration = _audio_duration(silence_file)
 
-        for seg in script:
+        for seg_index, (seg, phrases) in enumerate(prepared):
             n = seg['segment']
-            phrases = _split_by_punct(seg['text'])
-            if not phrases:
-                continue
             seg_start = cursor
             seg_phrases = []
             for i, ph in enumerate(phrases, 1):
@@ -76,14 +114,19 @@ def cmd_tts(args):
                 })
                 all_audio.append(mp3)
                 cursor += dur
-            timing["segments"].append({
-                "segment": n,
-                "title": seg.get('title'),
-                "start_sec": round(seg_start, 3),
-                "end_sec": round(cursor, 3),
-                "duration_sec": round(cursor - seg_start, 3),
-                "phrases": seg_phrases,
-            })
+            seg_timing, cursor = _finalize_segment_timing(
+                n,
+                seg.get("title"),
+                seg_start,
+                cursor,
+                seg_phrases,
+                seg_index,
+                len(prepared),
+                silence_duration,
+            )
+            if seg_timing["tail_padding_sec"] and silence_file:
+                all_audio.append(silence_file)
+            timing["segments"].append(seg_timing)
 
         # 合併音訊
         concat_list = os.path.normpath(os.path.join(outdir, "concat.txt"))

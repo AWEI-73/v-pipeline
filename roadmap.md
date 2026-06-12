@@ -84,6 +84,13 @@ voice duration. City-lite narrative true render, three seam waveform/frame A/B
 checks, and full regression are verified. See
 `docs/decisions/2026-06-12-s2b-narrative-jl-cuts.md`. Next: S2c.
 
+S2c status (2026-06-12): COMPLETE. Non-final narrative segments now carry a
+real 0.3-0.5s speech-tail silence, explicit `speech_end_sec` /
+`tail_padding_sec` timing, unchanged phrase subtitles, and audio-probed duration
+truth. City-lite narrative true render and three sentence-tail waveform/frame
+checks are verified. See
+`docs/decisions/2026-06-12-s2c-speech-tail-breathing.md`. Next: S3a.
+
 ### S3 音訊感官層(SFX 標點 + 音樂結構對位)
 
 ```text
