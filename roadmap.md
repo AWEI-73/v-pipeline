@@ -456,7 +456,25 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 | Requirement-vs-actual delta | `material_delta.json` | Missing |
 | Revised executable story | revised `segment_contract.json` | Exists, but not yet driven by a canonical delta |
 
-#### M6a Canonical contracts and lifecycle entry points
+#### M6a Canonical contracts and lifecycle entry points ✅ 契約層完成 (2026-06-14)
+
+實作 `material_needs.py` + `validate-needs` CLI + `tests/test_material_needs.py`:
+- schema validator(必填欄位、fallback_tier 1-4、must_have+tier1+無 fallback
+  的死局 warning——即 gap-analyzer 標「待加」的 validate-needs)。
+- **穩定 project-local `need_id`**:內容衍生 `nd_<sha1(project|category|type|
+  purpose)[:8]>`,**與 segment 編號無關**;章節重排/renumber 不改 id;legacy
+  `id` 僅保留為 `display_id`,segment 降為 advisory `segment_hint`。
+- **scene-level `satisfies` edge**:`apply_satisfaction_verdict` 在 material-map
+  scene 寫入 `{need_id, status, lineage}`;status = candidate|accepted|rejected,
+  狀態轉換記 `previous_status`,timestamp 由 verdict 提供(無隱藏時鐘)。
+- `summarize_satisfaction` 是 scene→need 的唯讀反查(**非 delta**:無 covered/
+  thin/missing 路由、無劇本決策)。
+- 向後相容:無 needs / scene 無 satisfies 的純既有素材流程不受影響;legacy 巢狀
+  與 flat canonical 皆可輸入;未碰 supply_review / rank-local。778 tests OK。
+
+剩餘 M6a(契約已就緒,尚未做):把 need_id lineage 串到 shooting brief →
+revised contract segment 的端到端引用(本輪只立契約 + 邊 + validator)。
+原始設計目標保留於下:
 
 - Model one lifecycle with existing-material and planned-capture entry points;
   partial material availability is first-class, not a third branch.

@@ -315,6 +315,22 @@ def cmd_black_frame_audit(args):
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
 
 
+def cmd_validate_needs(args):
+    """M6a: validate + canonicalize material_needs.json (stable need_id)."""
+    from video_pipeline_core import material_needs
+    raw = _load_json(args.needs)
+    if args.out:
+        result = material_needs.write_validated_needs(raw, args.out)
+    else:
+        result = material_needs.validate_material_needs(raw)
+    print(json.dumps({
+        "ok": result["ok"],
+        "errors": result["errors"],
+        "warnings": result["warnings"],
+        "need_count": len(result["normalized"]["needs"]),
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_semantic_novelty_audit(args):
     """M5a Node 11: perceptual de-duplication of timeline compositions."""
     from video_pipeline_core import semantic_novelty_audit
@@ -1603,6 +1619,10 @@ def main():
     p_bfa.add_argument("--fps", type=float, default=2.0, help="luma sampling rate")
     p_bfa.add_argument("--min-run-sec", type=float, default=0.4, dest="min_run_sec")
 
+    p_vn = sub.add_parser("validate-needs")
+    p_vn.add_argument("needs", help="material_needs.json (legacy nested or flat)")
+    p_vn.add_argument("--out", help="write canonical normalized needs here if valid")
+
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
     p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
@@ -1770,6 +1790,7 @@ def main():
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
         "black-frame-audit": cmd_black_frame_audit,
+        "validate-needs": cmd_validate_needs,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
         "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,
