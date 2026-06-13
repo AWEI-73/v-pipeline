@@ -1,0 +1,45 @@
+{
+  "artifact_role": "montage_review_evidence",
+  "version": 1,
+  "videos": {
+    "student": {
+      "duration_sec": 564.433
+    },
+    "agent": {
+      "duration_sec": 640.033
+    }
+  },
+  "shot_metrics": {
+    "student": {
+      "count": 172,
+      "mean": 3.2816,
+      "median": 2.0333,
+      "under2": 0.4477,
+      "under3": 0.7326,
+      "max": 66.8
+    },
+    "agent": {
+      "count": 124,
+      "mean": 5.1616,
+      "median": 2.7,
+      "under2": 0.0726,
+      "under3": 0.5081,
+      "max": 41.6667
+    }
+  },
+  "evidence_images": [
+    "chapter_01_opening_compare.jpg",
+    "chapter_02_training_setup_compare.jpg",
+    "chapter_03_course_action_compare.jpg",
+    "chapter_04_life_compare.jpg",
+    "chapter_05_choice_compare.jpg",
+    "chapter_06_farewell_compare.jpg",
+    "key_course_detail_compare.jpg",
+    "key_ending_detail_compare.jpg",
+    "key_life_detail_compare.jpg",
+    "key_opening_detail_compare.jpg",
+    "overview_agent_48.jpg",
+    "overview_student_48.jpg",
+    "pacing_compare.jpg"
+  ]
+}

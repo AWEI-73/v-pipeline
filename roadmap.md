@@ -14,16 +14,151 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 
 ---
 
-## 2026-06-12 Active Direction: Material Phase(真素材精剪攻堅,M0-M4)
+## 2026-06-13 Active Direction: Material Phase(真素材精剪攻堅,M0-M4)
 
-**現況**:Sensory S1-S4 + 整合驗收(bakery v5)已收,主鏈「看不出自動生成」的
-機制都在;但素材來源仍以 stock/照片/短 clip 為主。主用途(剪學員長素材、
-sound-bite、講話段落)還缺三塊:**素材地圖(掃一次離線重查)、窗口級檢索、
-語音感知裁刀**。本階段把 agent 裁剪打到窗口級。
+**現況與根據**:Sensory S1-S4 + bakery 整合驗收已收。2026-06-13 真實學員素材
+案例(同素材人剪對照,見 `docs/reviews/2026-06-13-student-vs-agent-montage-review.md`
+與 `…-spec-weight-assessment.md`)判定:結構與流程有進步,**剪輯品質 VERIFY 不通過**。
+關鍵發現:幾乎每個失敗點系統裡都已有訊號在響(broll_audit 重複 fail、素材地圖 GAP、
+零分匹配),**但沒有任何訊號有決策權**;且劇本在供給評估前就承諾片長,逼出
+「重複素材硬補時間」。
+
+**因此本階段的優先序是:先給訊號決策權(M0)、再給供給算術(M1)、然後才是
+新剪輯機具(M2/M3)。** 階段成功標準(取自評估報告,逐字):
+
+```text
+即使影片變短,也不使用錯誤素材。
+即使章節減少,也不重複素材硬補時間。
+即使故事較簡單,也確保每個段落都有正確且足夠的視覺證據。
+```
+
 參考 OpenMontage(reference repo)**僅借概念**(corpus 掃一次離線查、CLIP 排序、
-silence jump-cut)——它是 **AGPL v3,一行碼都不可抄、不可 import**,全部 clean-room 自寫。
+silence jump-cut)——**AGPL v3,一行碼都不可抄、不可 import**,全部 clean-room 自寫。
 
-### M0 能力字典 + 邊界(先做,小;「規格不撒謊」的地基)
+### M0 規格決策權(最優先;全部是執法,不寫新剪輯能力)
+
+```text
+M0a capability_manifest.json(生成物,絕不手寫):
+    `python video_tools.py capability-manifest` 從程式碼常數彙編:
+      transitions      = video_pipeline.ALLOWED_TRANSITIONS
+      still_treatments = edit_artifacts._STILL_TREATMENT_MODES
+      sfx_cues         = sfx.ASSET_COUNTS keys(whoosh/hit/riser)
+      patch_types      = visual_review 的 window/crop/treatment
+      audio_policies   = duck/music(+M2d 後的 source_speech)
+      render_profiles / providers(stock|local|generated + 誠實規則摘要)
+      judge_modes      = agent|ollama|none
+      unsupported      = multi_track_music, arbitrary_effects, full_nle_ui,
+                         cloud_vlm_default, remotion_backend(機器可讀邊界)
+M0b spec_review 新規則 B5(out_of_capability):合約要求 manifest 沒有的能力
+    → blocking,附 manifest 路徑與最近合法值。字典不攔人就只是會腐爛的文件。
+M0c 規格三層化(評估報告的分層,編進規則 metadata,不是散文):
+      tier1 不可違反:語意正確/來源誠實/proof 不錯配/零分不得用/GAP 不得繞/
+                      不得重複硬補片長/VERIFY 阻擋不得交付
+      tier2 品質目標:故事結構/鏡頭功能/節奏變化/每刀新資訊
+      tier3 風格偏好:目標片長/特效/字幕風格/轉場/音樂/聲線
+    鐵則:tier3 不得壓 tier2,tier2 不得壓 tier1。**target_length 自此降為
+    tier3**——它讓步給 max_honest_duration(M1),不再是硬要求。
+M0d 交付硬閘(本次案例的直接修復;全部是「給既有訊號決策權」):
+      broll_audit fail(max_source_repeats/unique_source_ratio)→ 不得
+        complete_review_final,next_action 維持 fix 路由(dashboard waterfall 消費)
+      零分/無 caption/無匹配理由的 local 窗 → planner 拒收(stock 鏈
+        _STOCK_OFF_TOPIC_FLOOR 的 local 等價物)
+      素材地圖標 GAP 的段 → 只能 await_material / 縮短 / 重寫,不得以
+        重複其他來源無聲填補
+      editorial_qa / 剪輯品質 VERIFY fail → 同上,不得標 complete
+完成判準:用 2026-06-13 案例的 run artifacts 回放——當時交付的那支片,在 M0d
+之後必須走不到 complete(被哪個閘攔下要寫進測試)。
+```
+
+### M1 素材供需帳(supply-before-script:供給決定承諾)
+
+```text
+基底(不重做):caption-meta + E7 agent 蒙太奇複核、detect_shots(PySceneDetect)、
+keyframe_grid、filter_static_windows 幀差機具、capcut_backend._parse_silencedetect
+(搬共用,別寫第二份)、broll_audit(來源重複統計已存在)。
+M1a `video_tools.py material-map <src>`(確定性,新模組 material_map.py):
+      scenes[]  start/end/midpoint thumb(detect_shots)
+      speech[]  silencedetect 反推 talk/silence runs
+      motion[]  每 scene 幀差能量摘要(S1a/S2a 機具)
+    輸出 materials/maps/<asset_id>.map.json;materials_db 記 map 路徑;冪等。
+M1b 逐 scene caption:沿用 E7 兩模式(本地 VLM 預設 / agent 親看),寫回
+    map.scenes[].caption;agent 複核時可加 bridge 標記(見 M3c)。
+M1c 供需帳(supply_review.json,劇本定稿前的 blocking 節點):
+    每章節/段落計算(評估報告的 schema 照收):
+      required_effective_shots = requested_duration / target_shot_sec
+      estimated_effective_shots(map.scenes 合格鏡頭;照片經 P5 多幕展開
+        最多算 2;同一來源的多窗**不算多樣性**,unique source 另計)
+      required_functions 覆蓋(establish/action/detail/result/reaction
+        ——以 caption 關鍵詞+動能粗分類,不求精準,求缺口可見)
+      max_honest_duration_sec、feasibility(ok|thin|gap)、
+      recommended_action(ok|shorten_or_merge|reshoot|await_material)
+M1d spec_review 新規則 B6(script_overreach):章節承諾秒數 > max_honest_duration
+    → blocking;導演只能縮短/合併/列補拍清單。劇本承諾自此由供給決定。
+M1e (opt-in)transcript:faster-whisper(已在字幕路徑)對 speech runs 帶時間戳
+    轉寫,寫 map.speech[].text——sound-bite 檢索地基;未安裝 map 仍完整。
+完成判準:對 2026-06-13 案例素材重算供需帳,它必須報出「活線=gap、生活段=thin、
+建議縮短」;故意餵 30s 章節+2 支影片 3 張照,B6 攔下並給出 max_honest_duration。
+```
+
+### M2 窗口級檢索 + 新資訊審計(裁剪核心第一半)
+
+```text
+基底(不重做):_plan_matched_segment/_windows_from_clip、content_qa.score_segment
+(蒸餾救援)、visual judge node 10.5 + needs_patch、broll_audit。
+M2a 候選窗從 map.scenes 出(取代均勻盲切):每 scene 依 pace 出 0-2 窗。
+M2b 確定性排序器(material_retrieval.py):關鍵詞分(caption/transcript ×
+    visual_desc)+ 動能 fit + 時長 fit;分數與理由寫進候選(給 judge 的
+    montage 附帶,可解釋)。無 caption/零分 → 不出候選(M0d 閘的上游版)。
+M2c (opt-in)CLIP 重排:本地 clip-vit-base-patch32 對 top-K cosine 重排,
+    掛 model_routes "ranker";未安裝退 M2b。**ranker 只排序,judge 才裁決**。
+M2d sound-bite:segment 宣告 audio.role=source_speech(keep_audio)→ 候選窗
+    只能出自 speech runs,端點吸附句界(有 transcript 用句界,無則 silence 邊界)。
+M2e new_visual_information 審計(評估報告指標落地,擴充 visual_fatigue/
+    broll_audit,不另起爐灶):
+      同來源相鄰窗必須跨 scene 或幀差 > 閾值(同 scene 重切 ≠ 新鏡頭)
+      new_visual_information_ratio / repeated_visual_hold_sec 進 audit 輸出
+      fail → M0d 閘消費(不得 complete)
+完成判準:同一 visual_desc「均勻盲切 vs map 檢索」A/B montage 給 judge 裁決;
+2026-06-13 案例的「同源 23 次」在 M2e 下必須 fail 並被閘攔。
+```
+
+### M3 頓點裁刀(裁剪核心第二半:語音 + 動作 + 既有橋段)
+
+```text
+M3a snap 優先序擴充(edit_artifacts.snap_to_edit_point 既有機具):
+    keep_audio 窗 → speech 邊界 > scene cut > motion peak;非 keep_audio 不變。
+M3b jump-cut(講話長段瘦身):`jumpcut-plan <src>` 讀 map.speech 產
+    jumpcut_plan.json(mark 模式只標不剪)→ agent 核可(沿用 verdict 的
+    accept/needs_patch 語彙)→ `jumpcut-apply` 產 materials/processed/<id>.mp4
+    記 lineage。speed_up 模式進 backlog。
+M3c 動作頓點與既有橋段(評估報告的「人類式局部判斷」最小可行版):
+      動作相位:map.motion 能量曲線分 rise/peak/settle;M2a 出窗時
+        cut-in 對 rise、cut-out 對 settle 之後(S2a 峰值吸附的前後擴展)
+      既有橋段:M1b agent 複核時標 scene 為 bridge(素材內已做好的
+        特效/字卡/橋段)→ 該 scene 只能整段用或不用,不得攔腰切
+    不做:跨素材的動作銜接學習、人物反應理解(誠實標註為下階段)。
+完成判準:真實講話素材直剪 vs jump-cut A/B 聽感複核;課程段落 A/B
+(固定秒數 vs 頓點對位)由 judge 用高密度 montage 裁決。
+```
+
+### M4 VERIFY 證據升級 + 整合驗收(用同一支案例回考)
+
+```text
+M4a 高密度蒙太奇 VERIFY(評估報告四層證據制度化;全部是 keyframe_grid
+    既有機具改採樣密度 + 一個節奏條渲染器):
+      全片鳥瞰 36-48 格 / 逐章 12-16 格 / 關鍵段 24-40 格 / 節奏條(全鏡頭
+      長度分佈)。輸出進 verify artifacts,judge 複核以此為證據基準。
+M4b 回考:**同一批 2026-06-13 學員素材重跑全鏈**。及格線:
+      三行成功標準全中(可變短、可減章、不重複硬補)
+      M0d/M1d/M2e 所有閘 0 繞過;judge verdict 全程留痕
+      量化對照上次:2 秒內鏡頭比例、unique_source_ratio、
+      max_source_repeats、新資訊比——逐項記進 decision log
+      sound-bite >=1 段、jump-cut >=1 段(若該素材適用)
+完成判準 = 上述全中 + 全迴歸綠 + decision log(與 2026-06-13 review 同格式,
+好壞都寫)。
+```
+
+### 執行紀律(防彎路,給 Codex)
 
 ```text
 M0a capability_manifest.json(生成物,絕不手寫):
@@ -112,13 +247,18 @@ jump-cut >=1 段、Sensory 全審計 0 fail、judge verdict 全程留痕。
 ### 執行紀律(防彎路,給 Codex)
 
 ```text
-1. 順序固定 M0→M1→M2→M3→M4;M0 很小,先收。
-2. 每項動手前先列「基底(不重做)」清單並 grep 驗證——本階段最大風險是重工:
-   切窗/評分/judge/caption 全部已存在,新碼只填「地圖、檢索、語音吸附」三塊。
+1. 順序固定 M0→M1→M2→M3→M4。M0/M1 是執法與算術,刻意排在新機具前——
+   本階段的躍遷來自「給既有訊號決策權」,不是更多剪輯能力。
+2. 每項動手前先列「基底(不重做)」清單並 grep 驗證——最大風險是重工:
+   重複統計(broll_audit)/切窗/評分/judge/caption 全部已存在,新碼只填
+   「閘、供需帳、地圖、檢索、頓點」。
 3. 每項完成 = 真素材跑通 + agent 感官複核 + 確定性測試(Sensory 紀律不變)。
-4. OpenMontage 是 AGPL v3:只看概念與資料結構;不抄碼、不 import、不 vendoring。
-5. 不碰:多軌換曲、CLIP 之外的新模型依賴、雲端 API 預設、UI;CLIP 本身 opt-in。
-6. ffmpeg 音訊鏈改動先在 4.3.1 實測響度(volumedetect 分聲道)再 commit
+   M0/M1/M2e 另加「案例回放」:2026-06-13 那支片必須被正確攔下。
+4. 不再新增同權重規格(評估報告結論):新規則一律標 tier,tier1 必須有
+   閘消費者,答不出「誰消費/誰驗證/違反時做什麼」的欄位不准進 SPEC。
+5. OpenMontage 是 AGPL v3:只看概念與資料結構;不抄碼、不 import、不 vendoring。
+6. 不碰:多軌換曲、CLIP 之外的新模型依賴、雲端 API 預設、UI;CLIP 本身 opt-in。
+7. ffmpeg 音訊鏈改動先在 4.3.1 實測響度(volumedetect 分聲道)再 commit
    (amix normalize / 聲道塌陷教訓)。
 ```
 
