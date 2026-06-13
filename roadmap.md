@@ -20,8 +20,10 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 render are stable enough to pause. The 67th result is accepted as a
 material-limited baseline, not as proof of human-edit-quality parity.
 
-**Only active next direction:** review, then implement M6a canonical
-material-map contracts and mode routing.
+**Only active next direction:** M6a canonical material-lifecycle contracts.
+VD0 shallow-label storage and review lineage are complete. Do not start the
+complete Visual Diversity Guard or `material_delta` before M6a contracts are
+proven.
 
 **Do not start yet:** M5c designed sequences, M5d human-vs-agent automation,
 M5e rerender, effects expansion, CLIP hard dependency, or further 67th-specific
@@ -359,42 +361,87 @@ M5 component status:
 ```
 人工／Agent 挑選候選素材
 → ingest 時粗分類視覺家族(coarse,不是像素偵測)
-→ 優先影片、後照片;多角度(遠/中/近)交替
-→ 相同視覺家族冷卻(連續不得同家族)
+→ BUILD soft-ranking:正確性優先,多樣性加分(不是硬跳過)
 → 缺素材時標缺口,允許人工挑選或合成
+→ VERIFY:未解決的視覺疲乏顯示為 tier-2 warning(不擋交付)
 ```
 
-規則(粗粒度,全部可機械判,tier-2 品質):
-- 禁止:同一 `visual_family` 連續(集合廣角→集合廣角→集合廣角)——**即使來自
-  不同檔案也算同家族**(這正是 67th 的單調根因)。
-- 優先 video 先於 photo;優先交替 `angle_scale`(遠/中/近)、人物/場景/視角。
+**核心修正(2026-06-14,採納 Codex 反駁,推翻先前硬規則寫法):多樣性是
+soft-ranking 的加分項,永遠不得凌駕素材正確性。** 先前「禁止同 family 連續/
+冷卻內就跳過」是硬規則,素材不足時會逼出更嚴重的錯誤(為換畫面用無關素材、
+跳過唯一能證明事件的關鍵鏡頭、影片優先害關鍵照片永不被選)。改為下列順序:
+
+```
+選片優先序(BUILD,前項永遠壓後項):
+1. must_have / proof / identity / need 滿足   ← tier-1 正確性,不可被多樣性犧牲
+2. 故事與段落相關性
+3. 已核准(judge accepted)素材
+4. media_type 弱偏好(影片略優於照片——弱 prior,非硬規則;
+   照片若是最佳/唯一證據仍勝出)
+5. visual_family / angle_scale / action_family 多樣性加分(tiebreaker)
+6. 照片與允許的 fallback
+```
+
+規則(粗粒度,全部可機械判,tier-2 品質;**全為加分/警示,非阻擋**):
+- 連續同 `visual_family` → **降分,不是禁止**(集合廣角→集合廣角即使不同檔案
+  也算同家族——這是 67th 單調根因,但解法是降權重排,不是 veto)。
+- `angle_scale`(遠/中/近)、人物/場景/視角交替 → 加分。
 - 相同來源冷卻(已有,見下「重用」)。
-- 單一動作疲乏 = `action_family` 連續檢查,**併入本守門**,不另立 M5b 大系統。
+- 單一動作疲乏 = `action_family` 連續 → 降分,併入本守門,不另立 M5b 大系統。
 
 落地原則(給 Codex):
 - **重用 `visual_fatigue_audit`,不要另建平行系統**——它已有 source 冷卻、最少鏡頭、
-  reuse 上限;本守門 = 讓它再消費 `visual_family` / `angle_scale` / `action_family`
-  三個標籤,加「連續同家族」與「video-before-photo」兩條規則即可。
+  reuse 上限;VERIFY 端的守門 = 讓它再消費 `visual_family` / `angle_scale` /
+  `action_family`,**以 warning 呈現**(連續同家族、單調)。不 fail、不擋交付。
 - **dHash 降為輔助**:只可靠抓「近乎相同畫面」(字面近重複),作為 backstop,
   **不主導選片**;`semantic_novelty_audit` 留著當這個窄用途,別讓它驅動。
 - M5b 的 establish→action→result spine 雄心**收掉**;只保留 `action_family`
   連續疲乏這一條併入守門(action_phase_coverage 不再是驗收門檻)。
 - **視覺家族是 per-project 詞彙,不可寫死**:範例(戶外集合廣角/課堂教學/講師正面/
   學員團體照/高空作業/工具操作特寫/人物反應/校園空拍)是結訓片專屬;通用的只有
-  **軸**(`media_type` video|photo、`angle_scale` wide|medium|close、subject),
+  **軸**(`media_type` 沿用 asset_type、`angle_scale` wide|medium|close、subject),
   家族清單由 Agent 在 ingest/caption 複核時依專案填,系統只認軸 + 專案家族表。
-- 承載輸入是 ingest 時的 `visual_family` 標註——**沒標就守門失明**,所以 M1b/E7
-  的 agent 複核點就是寫這四個欄位的地方(複核時人/Agent 本來就在看畫面)。
+- **未標註素材必須優雅降級**:soft-ranker 遇到沒有 `visual_family` 的素材,
+  退回現行行為(只用相關性/核准/媒體型別),不得因缺標籤而排除素材或中止 BUILD。
 
-M6 素材地圖只需記:`visual_family`、`media_type`、`angle_scale`、`action_family`
-(四個淺欄位,不過度複雜化)。本守門獨立於 M6 delta,可先於 delta 落地。
+#### VD 實作順序(soft-ranking 在標籤覆蓋率有證據之後才寫)
+
+```
+VD0  淺標籤契約 + lineage              ✅ 已完成(見下)
+VD1  標籤覆蓋率驗證(開工前的閘):    ⬜ 先做
+       在真實素材上量:標註覆蓋率%、未標比例、
+       同素材跨 Agent 分類一致性(粗粒度,不要求完全一致);
+       覆蓋率/一致性達標才值得寫 ranker,否則 ranker 多數時間沒資料。
+VD2  BUILD soft-ranking(editor 端)   ⬜ 上面優先序;未標素材優雅降級
+VD3  VERIFY tier-2 warning backstop    ⬜ 擴充 visual_fatigue 吃家族,只警示
+```
+
+承載輸入是 ingest 時的淺標籤——**沒標 soft-ranker 就只能退回現行行為**,所以
+VD1 的覆蓋率證據是 VD2 的前置閘。M1b/E7 的 agent 複核點就是寫這些欄位的地方。
+本守門獨立於 M6 delta。
+
+**通用 skill 的粒度(回應「想做通用 SKILL」+ Codex 審慎):現在先寫成一份
+通用的 Visual Diversity contract/policy**(通用軸 `media_type`/`angle_scale`/
+`subject` + 粗分類方法 + soft-ranking 原則),由 curator(標)/ editor(排)/
+verify(警示)三個角色技能共同引用,**不另起第 4 套執行流程**。等 VD2 在 editor
+端真的消費標籤、跑通一個非結訓案例後,再決定是否包裝成可獨立啟動的 Skill——
+否則現在做會是一個多數時間沒資料、責任模糊的空殼。家族詞彙永遠 per-project。
+
+#### VD0 Shallow-label contract ✅ complete (bounded)
+
+- `apply_scene_review_verdict` 保存四個淺標籤；`curator.md` 明定複核責任。
+- 標籤缺失代表 `unreviewed`，不是 pass，也不是 tier-1 fail。
+- 驗收只證明標籤能從 review verdict 寫入 material-map scene 並保留 lineage。
+- 非目標：此階段不寫 family cooldown、不改選片、不宣稱品質提升。
+- Evidence: scene-review lineage test plus dashboard/runtime tier-2
+  nonblocking tests; full regression `760 tests OK` on 2026-06-14.
 
 Decision log:
 `docs/decisions/2026-06-13-m5-real-render-sensory-acceptance.md`、
 `docs/decisions/2026-06-14-m6a-review-response.md`。
 M5a/M5b 實作見 commit(semantic_novelty_audit / action_progression)。
 
-### Active Next Direction: M6 Material-Map Lifecycle
+### Next After VD0: M6 Material-Map Lifecycle
 
 **Product decision:** default editing remains actual-material-first. A
 script-first workflow is supported as a pre-production planning mode, but every
@@ -409,14 +456,18 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 | Requirement-vs-actual delta | `material_delta.json` | Missing |
 | Revised executable story | revised `segment_contract.json` | Exists, but not yet driven by a canonical delta |
 
-#### M6a Canonical contracts and mode routing
+#### M6a Canonical contracts and lifecycle entry points
 
-- Define `existing_material_edit` and `planned_capture` entry modes.
+- Model one lifecycle with existing-material and planned-capture entry points;
+  partial material availability is first-class, not a third branch.
+- Validate and canonicalize existing `material_needs.json` before downstream use.
+- Add the load-bearing `satisfies: [need_id]` edge on reviewed assets/scenes.
+- Reconcile requirement-purpose vocabulary before any delta implementation.
 - Specify stable IDs linking requirement → shooting brief → actual asset/scene
-  → contract segment.
+  → revised contract segment.
 - Reuse `material_needs.json`; do not create a second required-map format.
 - Acceptance: the same requirement ID survives through every artifact, and
-  both modes converge on actual-material review before BUILD.
+  every entry point converges on actual-material review before BUILD.
 
 #### M6b Material delta
 
@@ -459,6 +510,10 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 **Explicit non-goals for M6:** effects expansion, CLIP as a hard dependency,
 automatic claim of semantic understanding, forced ten-minute duration, and
 further 67th-specific sensory tuning.
+
+M6a must not revive the deprecated M5b `establish → action → result` acceptance
+spine. Requirement-purpose vocabulary and Visual Diversity labels solve
+different problems and must remain separate.
 
 Review handoff:
 `docs/decisions/2026-06-14-roadmap-course-correction.md`.
