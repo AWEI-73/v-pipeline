@@ -141,20 +141,59 @@ def cmd_contract_adapt(args):
 def cmd_spec_review(args):
     from video_pipeline_core import spec_review
     brief = {}
+    supply_review = None
     if args.brief and Path(args.brief).exists():
         with open(args.brief, encoding="utf-8") as f:
             brief = json.load(f)
     with open(args.contract, encoding="utf-8") as f:
         contract = json.load(f)
+    if getattr(args, "supply_review", None):
+        with open(args.supply_review, encoding="utf-8") as f:
+            supply_review = json.load(f)
     result = spec_review.review_spec(
         contract, brief,
-        has_editorial_design=bool(args.editorial_design and Path(args.editorial_design).exists()))
+        has_editorial_design=bool(args.editorial_design and Path(args.editorial_design).exists()),
+        supply_review=supply_review)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ready_for_build"):
         raise SystemExit(1)
+
+
+def cmd_capability_manifest(args):
+    from video_pipeline_core import capability_manifest
+    out = capability_manifest.write_capability_manifest(args.out)
+    print(json.dumps({"ok": True, "capability_manifest": out}, ensure_ascii=False, indent=2))
+
+
+def cmd_supply_review(args):
+    from video_pipeline_core.supply_review import fallback_maps_from_coverage, review_supply
+    with open(args.contract, encoding="utf-8") as f:
+        contract = json.load(f)
+    maps = []
+    for path in Path(args.maps_dir).glob("*.map.json"):
+        with open(path, encoding="utf-8") as f:
+            maps.append(json.load(f))
+    coverage_map = None
+    if args.coverage_map:
+        with open(args.coverage_map, encoding="utf-8") as f:
+            coverage_map = json.load(f)
+        known_sources = {str(item.get("source") or "").lower() for item in maps}
+        maps.extend(
+            item for item in fallback_maps_from_coverage(coverage_map)
+            if str(item.get("source") or "").lower() not in known_sources
+        )
+    result = review_supply(
+        contract,
+        maps,
+        coverage_map=coverage_map,
+        target_duration_sec=args.target_duration,
+    )
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def cmd_contract_dry_build(args):
@@ -186,6 +225,7 @@ def cmd_contract_run(args):
         build_profile_config_path=args.build_profile,
         creator_profile_path=getattr(args, "creator_profile", None),
         skip_render=getattr(args, "skip_render", False),
+        enforce_supply_gate=True,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
@@ -250,6 +290,60 @@ def cmd_broll_audit(args):
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
 
 
+def cmd_new_visual_information_audit(args):
+    """M2 Node 11: repeated-scene and new-visual-information audit."""
+    from video_pipeline_core import new_visual_information_audit
+    timeline = _load_json(args.timeline)
+    result = new_visual_information_audit.write_new_visual_information_audit(
+        timeline,
+        args.out,
+        min_new_visual_ratio=args.min_new_visual_ratio,
+        max_repeated_hold_sec=args.max_repeated_hold_sec,
+    )
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_black_frame_audit(args):
+    """M0d Node 12: tier-1 black/blank-frame defect gate over a rendered video."""
+    from video_pipeline_core import black_frame_audit
+    result = black_frame_audit.write_black_frame_audit(
+        args.video,
+        args.out,
+        fps=args.fps,
+        min_run_sec=args.min_run_sec,
+    )
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_jumpcut_plan(args):
+    from video_pipeline_core.jumpcut import write_jumpcut_plan
+    material_map = _load_json(args.material_map)
+    result = write_jumpcut_plan(
+        material_map, args.out, min_remove_silence_sec=args.min_silence,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_jumpcut_apply(args):
+    from video_pipeline_core.jumpcut import apply_jumpcut
+    result = apply_jumpcut(_load_json(args.plan), args.out)
+    Path(args.lineage).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.lineage).write_text(
+        json.dumps(result["lineage"], ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_jumpcut_review(args):
+    from video_pipeline_core.jumpcut import apply_jumpcut_verdict
+    result = apply_jumpcut_verdict(_load_json(args.plan), _load_json(args.verdict))
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(
+        json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_caption_audit(args):
     """P1 Node 11/12: caption gap/overlap/reading-speed audit."""
     from video_pipeline_core import caption_audit
@@ -298,6 +392,33 @@ def cmd_visual_audit(args):
     )
     result = visual_audit.write_visual_audit(meta, args.out)
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_verify_evidence(args):
+    from video_pipeline_core.verify_evidence import write_verify_evidence
+    result = write_verify_evidence(
+        args.video, _load_json(args.timeline), args.out_dir,
+        overview_samples=getattr(args, "overview_samples", 48),
+        chapter_samples=getattr(args, "chapter_samples", 16),
+        critical_samples=getattr(args, "critical_samples", 32),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_replay_acceptance(args):
+    from video_pipeline_core.replay_acceptance import write_replay_report
+    kwargs = {
+        "gate_artifacts": _load_json(args.gates),
+        "judge_verdicts": _load_json(args.verdicts),
+    }
+    if getattr(args, "jumpcut_plan", None):
+        kwargs["jumpcut_plan"] = _load_json(args.jumpcut_plan)
+    if getattr(args, "new_visual_audit", None):
+        kwargs["new_visual_audit"] = _load_json(args.new_visual_audit)
+    if getattr(args, "adaptation", None):
+        kwargs["adaptation_decisions"] = _load_json(args.adaptation)
+    result = write_replay_report(_load_json(args.timeline), args.out, **kwargs)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def cmd_capcut_draft(args):
@@ -1268,6 +1389,10 @@ def main():
 
     p_mm = sub.add_parser("material-map")
     p_mm.add_argument("db", help="materials_db.json")
+    p_mm.add_argument("--maps-dir", dest="maps_dir",
+                      help="write deterministic per-asset *.map.json files")
+    p_mm.add_argument("--update-db", dest="update_db",
+                      help="write materials_db with material_map paths")
     p_mm.add_argument("--out", help="輸出地圖 .md 路徑")
 
     p_mv = sub.add_parser("match-mv")
@@ -1361,6 +1486,23 @@ def main():
     p_sr.add_argument("--editorial-design", dest="editorial_design",
                       help="editorial_design.json (soul-guard check)")
     p_sr.add_argument("--out", help="write spec_review.json here")
+    p_sr.add_argument("--supply-review", dest="supply_review",
+                      help="supply_review.json used by B6 script-overreach gate")
+
+    p_cap = sub.add_parser("capability-manifest")
+    p_cap.add_argument("--out", default="capability_manifest.json",
+                       help="generated capability manifest output")
+
+    p_supply = sub.add_parser("supply-review")
+    p_supply.add_argument("contract", help="canonical segment_contract.json")
+    p_supply.add_argument("--maps-dir", required=True, dest="maps_dir",
+                          help="directory containing *.map.json")
+    p_supply.add_argument("--out", default="supply_review.json",
+                          help="supply review output")
+    p_supply.add_argument("--coverage-map", dest="coverage_map",
+                          help="material_coverage_map.json with segment assignments")
+    p_supply.add_argument("--target-duration", type=float, dest="target_duration",
+                          help="allocate requested segment duration by contract weight")
 
     p_cd = sub.add_parser("contract-dry-build")
     p_cd.add_argument("contract", help="canonical segment_contract.json")
@@ -1417,6 +1559,36 @@ def main():
     p_ba.add_argument("--max-source-repeats", type=int, dest="max_source_repeats",
                       default=None, help="max reuse count for a single source (policy)")
 
+    p_nvi = sub.add_parser("new-visual-audit")
+    p_nvi.add_argument("timeline", help="timeline_build.json")
+    p_nvi.add_argument("--out", required=True,
+                       help="new_visual_information_audit.json output")
+    p_nvi.add_argument("--min-new-visual-ratio", type=float, default=0.6,
+                       dest="min_new_visual_ratio")
+    p_nvi.add_argument("--max-repeated-hold-sec", type=float, default=3.0,
+                       dest="max_repeated_hold_sec")
+
+    p_bfa = sub.add_parser("black-frame-audit")
+    p_bfa.add_argument("video", help="rendered video to scan for black/blank runs")
+    p_bfa.add_argument("--out", required=True, help="black_frame_audit.json output")
+    p_bfa.add_argument("--fps", type=float, default=2.0, help="luma sampling rate")
+    p_bfa.add_argument("--min-run-sec", type=float, default=0.4, dest="min_run_sec")
+
+    p_jp = sub.add_parser("jumpcut-plan")
+    p_jp.add_argument("material_map", help="per-asset material map JSON")
+    p_jp.add_argument("--out", required=True, help="jumpcut_plan.json")
+    p_jp.add_argument("--min-silence", type=float, default=1.0, dest="min_silence")
+
+    p_ja = sub.add_parser("jumpcut-apply")
+    p_ja.add_argument("plan", help="approved jumpcut_plan.json")
+    p_ja.add_argument("--out", required=True, help="processed output video")
+    p_ja.add_argument("--lineage", required=True, help="processed material lineage JSON")
+
+    p_jr = sub.add_parser("jumpcut-review")
+    p_jr.add_argument("plan", help="jumpcut_plan.json")
+    p_jr.add_argument("--verdict", required=True, help="agent verdict JSON")
+    p_jr.add_argument("--out", required=True, help="approved jumpcut plan JSON")
+
     p_capa = sub.add_parser("caption-audit")
     p_capa.add_argument("captions", nargs="?", default=None,
                         help="caption events JSON (list or {captions:[...]}); omit when using --srt")
@@ -1439,6 +1611,24 @@ def main():
     p_va.add_argument("--grid", default=None, help="keyframe_grid.jpg output path")
     p_va.add_argument("--samples", type=int, default=12, help="number of keyframes")
     p_va.add_argument("--columns", type=int, default=4, help="grid columns")
+
+    p_ve = sub.add_parser("verify-evidence")
+    p_ve.add_argument("video", help="render candidate video")
+    p_ve.add_argument("--timeline", required=True, help="timeline_build.json")
+    p_ve.add_argument("--out-dir", required=True, help="four-layer evidence output directory")
+    p_ve.add_argument("--overview-samples", type=int, default=48)
+    p_ve.add_argument("--chapter-samples", type=int, default=16)
+    p_ve.add_argument("--critical-samples", type=int, default=32)
+
+    p_ra = sub.add_parser("replay-acceptance")
+    p_ra.add_argument("timeline", help="timeline_build.json")
+    p_ra.add_argument("--gates", required=True, help="JSON object of tier-1 gate artifacts")
+    p_ra.add_argument("--verdicts", required=True, help="JSON list of judge verdicts")
+    p_ra.add_argument("--jumpcut-plan", default=None)
+    p_ra.add_argument("--new-visual-audit", default=None)
+    p_ra.add_argument("--adaptation", default=None,
+                      help="JSON evidence for duration/chapter adaptation decisions")
+    p_ra.add_argument("--out", required=True, help="m4_replay_acceptance.json output")
 
     # --- P3 optional CapCut backend ---
     p_ccd = sub.add_parser("capcut-draft")
@@ -1528,15 +1718,24 @@ def main():
         "project-new-run": cmd_project_new_run,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
+        "capability-manifest": cmd_capability_manifest,
+        "supply-review": cmd_supply_review,
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
+        "new-visual-audit": cmd_new_visual_information_audit,
+        "black-frame-audit": cmd_black_frame_audit,
+        "jumpcut-plan":     cmd_jumpcut_plan,
+        "jumpcut-apply":    cmd_jumpcut_apply,
+        "jumpcut-review":   cmd_jumpcut_review,
         "caption-audit":   cmd_caption_audit,
         "keyframe-grid":   cmd_keyframe_grid,
         "visual-audit":    cmd_visual_audit,
+        "verify-evidence": cmd_verify_evidence,
+        "replay-acceptance": cmd_replay_acceptance,
         "creator-profile": cmd_creator_profile,
         "blueprint-coverage": cmd_blueprint_coverage,
         "blueprint-compile": cmd_blueprint_compile,

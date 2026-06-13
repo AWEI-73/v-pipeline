@@ -68,9 +68,11 @@ M0d 交付硬閘(本次案例的直接修復;全部是「給既有訊號決策�
       素材地圖標 GAP 的段 → 只能 await_material / 縮短 / 重寫,不得以
         重複其他來源無聲填補
       editorial_qa / 剪輯品質 VERIFY fail → 同上,不得標 complete
-      黑幀/近空白幀檢測(技術缺陷級,tier1):成片抽樣亮度/方差過低的幀段
-        → fail(2026-06-13 案例 03:13 黑幀、09:13 近全白卡實際漏過了 verify;
-        機具:keyframe_grid 抽樣 + 平均亮度/方差,純確定性)
+      黑幀/近空白幀檢測(技術缺陷級,tier1):✅ 已實作 black_frame_audit.py
+        (ffmpeg signalstats 抽樣 YMIN/YMAX/YAVG → black: avg≤16;
+        blank: avg≥235 且 range≤12;run≥0.4s 才 fail)。接 delivery_gate
+        HARD_AUDITS + dashboard node 12;CLI `video_tools.py black-frame-audit`。
+        真渲驗證:黑+白測試片各被抓出,彩條乾淨;739 tests 綠。
       proof/identity/testimony 段(core.proof_critical / identity_sensitive)
         → 強制走 node 10.5 judge,沒有 accept verdict 的素材不得進 timeline
         (wrong-proof-material 的執法機制;活線錯配就是這條的案例)
@@ -81,6 +83,31 @@ M0e 既有 SPEC 欄位普查(評估報告「保留/合併/降級/移除」落地
 完成判準:用 2026-06-13 案例的 run artifacts 回放——當時交付的那支片,在 M0d
 之後必須走不到 complete(被哪個閘攔下要寫進測試);欄位清冊覆蓋 100% 現有欄位。
 ```
+
+M0 status (2026-06-13): COMPLETE. `capability_manifest.json` is generated
+from runtime constants; `spec_review` B5 blocks unsupported required
+capabilities and emits tier metadata; target length is documented as tier 3;
+failed existing audits and unresolved material GAPs now block delivery through
+`delivery_gate`; zero-score local matches remain honest GAPs; SPEC field census
+is recorded in `docs/decisions/2026-06-13-spec-field-census.md`.
+
+Verification: focused M0 suite passed; full suite `672 tests OK`; replay of
+`20260612-232948-story-mv` resolves to `pass=false`, `next_action=curator`,
+blocked by failed `broll_audit` and unresolved live-line segment 7 GAP.
+M1 status (2026-06-13): COMPLETE. Deterministic material maps now record
+per-asset scenes, speech/silence runs, motion peaks, optional scene captions /
+bridge labels, and opt-in transcript text. `supply_review.json` estimates
+effective shots, unique sources, function coverage, and
+`max_honest_duration_sec`; its conservative fallback counts each positive
+unscanned coverage pick as one useful window and rejects zero-score picks.
+`spec_review` B6 blocks script duration above evidenced supply.
+
+Verification: focused M1 suite passed; full suite `685 tests OK`; replay of the
+11-minute `20260612-232948-story-mv` run marked segment 7 and the old zero-score
+segment 8 as GAP, all remaining segments as thin, and B6 emitted 20 tier-1
+`script_overreach` blockers with `ready_for_build=false`.
+
+Next: M2.
 
 ### M1 素材供需帳(supply-before-script:供給決定承諾)
 
@@ -134,6 +161,23 @@ M2e new_visual_information 審計(評估報告指標落地,擴充 visual_fatigue
 2026-06-13 案例的「同源 23 次」在 M2e 下必須 fail 並被閘攔。
 ```
 
+M2 status (2026-06-13): COMPLETE. Scene-level retrieval now ranks material-map
+scenes by caption relevance, sequence function, pace/motion fit, and an optional
+external ranker that may rerank but cannot admit zero-evidence scenes. The
+matched planner automatically loads maps recorded in `materials_db`, selects
+ranked scene windows, and emits `scene_id` plus retrieval score. `source_speech`
+segments preserve audio and select mapped speech runs, preferring transcript
+evidence. `new_visual_information_audit.json` measures new-visual ratio and
+repeated visual hold, appears in dashboard/editor review, and blocks delivery.
+
+Verification: focused M2 suites passed; full suite `699 tests OK`; replay of
+`20260612-232948-story-mv` failed M2e with
+`new_visual_information_ratio=0.4781` and
+`repeated_visual_hold_sec=331.531`, exposing the repeated photos and repeated
+source-time windows behind the unnatural edit.
+
+Next: M3.
+
 ### M3 頓點裁刀(裁剪核心第二半:語音 + 動作 + 既有橋段)
 
 ```text
@@ -153,6 +197,29 @@ M3c 動作頓點與既有橋段(評估報告的「人類式局部判斷」最小
 (固定秒數 vs 頓點對位)由 judge 用高密度 montage 裁決。
 ```
 
+M3 status (2026-06-13): COMPLETE. Render planning now treats mapped speech,
+scene boundaries, and motion peaks as ordered edit-point evidence. Clips with
+`keep_audio` expand to complete intersecting speech runs and are protected from
+later generic motion snapping. Action-aligned scenes use mapped
+rise/peak/settle phases, while scenes reviewed as `bridge` are excluded from
+primary action phase selection.
+
+`jumpcut-plan`, `jumpcut-review`, and `jumpcut-apply` provide a review-gated
+workflow with processed-material lineage. A jump-cut is never applied without
+an accepted verdict, and material with no qualifying silence remains uncut.
+
+Verification: actual action material `換桿/IMG_8346.MOV` (15.865s) produced
+6 motion peaks and 6 rise/peak/settle phases. Actual speech material
+`主任勉勵/IMG_2118.MOV` (70.817s) produced one continuous speech run and zero
+qualifying long-silence candidates, correctly marking jump-cut as not
+applicable. An 8-frame fixed-window vs motion-phase A/B showed the phase window
+preserving a complete foreground walk-in action instead of an arbitrary crane
+exit. This improves action continuity but does not yet identify which action is
+semantically most important. Focused M3 suites and full regression passed:
+`715 tests OK`.
+
+Next: M4.
+
 ### M4 VERIFY 證據升級 + 整合驗收(用同一支案例回考)
 
 ```text
@@ -170,6 +237,64 @@ M4b 回考:**同一批 2026-06-13 學員素材重跑全鏈**。及格線:
 完成判準 = 上述全中 + 全迴歸綠 + decision log(與 2026-06-13 review 同格式,
 好壞都寫)。
 ```
+
+M4 status (2026-06-13): COMPLETE. M4a provides the four-layer evidence bundle.
+M4b first failed and correctly routed to `revise:director(spec_review)`, then
+passed after a material-aware director revision reduced the contract from 20
+chapters / 660s to 15 chapters / 180.5s while preserving all must-include beats.
+
+The replay exposed and fixed three BUILD gaps: matched candidates were consumed
+from the first source instead of interleaved, `requested_duration_sec` was lost
+before allocation, and an explicit director `file` choice did not override
+automatic matching. The final planning replay uses distinct opening/closing
+aerials and passes formal supply, timeline, b-roll, new-visual-information, and
+judge-lineage gates.
+
+Final replay metrics:
+`shot_le_2s_ratio=0.0192`, `unique_source_ratio=1.0`,
+`max_source_repeats=1`, `new_visual_information_ratio=1.0`,
+`repeated_visual_hold_sec=0.0`, `action_phase_coverage=0.0`,
+sound bites `=2`, jump-cut not applicable. Duration adaptation and chapter
+adaptation both pass. See
+`docs/decisions/2026-06-13-m4-material-aware-replay.md`.
+
+Verification: M4 replay acceptance passed; full regression `731 tests OK`;
+`py_compile` and `git diff --check` passed. The run is planning-only
+(`--skip-render`), so final video delivery remains outside M4b acceptance.
+
+Next: begin the post-M4 roadmap. Preserve the new rule that material supply and
+explicit director duration/source choices constrain BUILD rather than merely
+informing SPEC review.
+
+### M5 True Render And Sensory Acceptance
+
+M5 status (2026-06-13): TRUE RENDER COMPLETE; SENSORY ACCEPTANCE FAILED.
+
+The M0-M4 material-aware plan was rendered as a real 180.5-second candidate:
+`C:\Users\user\Desktop\video_project\67th-graduation-film\runs\20260613-m5-real-render\final.mp4`.
+Technical VERIFY passed at 98.7, and the four-layer montage evidence completed.
+However, dense visual review against the student edit proves that the current
+acceptance model still confuses file-level novelty with viewer-perceived
+editing quality.
+
+Observed gaps:
+
+- Different source files still produce long runs of semantically similar
+  classroom, group, and ceremony compositions.
+- Motion-peak snapping can show no visible setup/execution/result progression.
+- Opening, course transitions, and ending lack designed sequence grammar.
+- Technical VERIFY passes while story tension and human-edit feel do not.
+
+Next sequence:
+
+1. M5a semantic visual novelty / composition-cluster audit.
+2. M5b action setup-execution-result progression audit.
+3. M5c designed sequence grammar for opener, course transitions, and ending.
+4. M5d high-density human-vs-agent critical-section comparison.
+5. M5e rerender; require both technical and sensory acceptance.
+
+Decision log:
+`docs/decisions/2026-06-13-m5-real-render-sensory-acceptance.md`.
 
 ### 執行紀律(防彎路,給 Codex)
 

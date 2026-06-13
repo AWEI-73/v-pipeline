@@ -159,6 +159,14 @@ def load_dashboard_state(workdir):
     # P1 verification tool pack (optional VERIFY evidence, not SPEC truth)
     timeline_invariants = safe_load_json(manifest.get("timeline_invariants")) or safe_load_json("timeline_invariants.json")
     broll_audit = safe_load_json(manifest.get("broll_audit")) or safe_load_json("broll_audit.json")
+    new_visual_information_audit = (
+        safe_load_json(manifest.get("new_visual_information_audit"))
+        or safe_load_json("new_visual_information_audit.json")
+    )
+    black_frame_audit = (
+        safe_load_json(manifest.get("black_frame_audit"))
+        or safe_load_json("black_frame_audit.json")
+    )
     caption_audit = safe_load_json(manifest.get("caption_audit")) or safe_load_json("caption_audit.json")
     visual_audit = safe_load_json(manifest.get("visual_audit")) or safe_load_json("visual_audit.json")
     presentation_feel_audit = (
@@ -175,6 +183,8 @@ def load_dashboard_state(workdir):
     audit_data = {
         "timeline_invariants": timeline_invariants,
         "broll_audit": broll_audit,
+        "new_visual_information_audit": new_visual_information_audit,
+        "black_frame_audit": black_frame_audit,
         "caption_audit": caption_audit,
         "visual_audit": visual_audit,
         "presentation_feel_audit": presentation_feel_audit,
@@ -184,21 +194,26 @@ def load_dashboard_state(workdir):
     }
     audit_evidence = {
         role: (manifest.get(role) or f"{role}.json")
-        for role in ("timeline_invariants", "broll_audit", "caption_audit", "visual_audit",
+        for role in ("timeline_invariants", "broll_audit", "new_visual_information_audit",
+                     "black_frame_audit",
+                     "caption_audit", "visual_audit",
                      "presentation_feel_audit",
                      "treatment_audit", "visual_fatigue_audit", "editorial_qa")
     }
     # node ownership: 11 = editor review, 12 = verify
     NODE_AUDIT_MAP = {
-        11: ["timeline_invariants", "broll_audit", "caption_audit", "treatment_audit",
+        11: ["timeline_invariants", "broll_audit", "new_visual_information_audit",
+             "caption_audit", "treatment_audit",
              "visual_fatigue_audit"],
         12: ["caption_audit", "keyframe_grid", "visual_audit", "presentation_feel_audit",
-             "editorial_qa"],
+             "black_frame_audit", "editorial_qa"],
     }
     AUDIT_PRIMARY_NODE = {
-        "timeline_invariants": 11, "broll_audit": 11, "caption_audit": 11,
+        "timeline_invariants": 11, "broll_audit": 11, "new_visual_information_audit": 11,
+        "caption_audit": 11,
         "keyframe_grid": 12, "visual_audit": 12, "treatment_audit": 11,
         "visual_fatigue_audit": 11, "presentation_feel_audit": 12, "editorial_qa": 12,
+        "black_frame_audit": 12,
     }
 
     def generated_request_items(payload):
@@ -461,6 +476,23 @@ def load_dashboard_state(workdir):
                 capcut_exported_present = os.path.exists(os.path.join(workdir, "capcut_exported.mp4"))
             if draft_manifest_present and not capcut_exported_present:
                 next_action = "await_capcut_export"
+
+    from .delivery_gate import evaluate_delivery_gate
+    delivery_gate = evaluate_delivery_gate({
+        **audit_data,
+        "verify_result": verify_result,
+        "material_coverage": material_coverage,
+    })
+    if not delivery_gate["pass"]:
+        next_action = delivery_gate["next_action"]
+        is_pass = False
+        for item in delivery_gate["blocking"]:
+            findings.append({
+                "type": "error",
+                "node": 12,
+                "artifact": item.get("artifact") or "material_coverage",
+                "message": item["message"],
+            })
             
     if not next_action:
         # Check if final exists and pass is true
@@ -653,10 +685,13 @@ def load_dashboard_state(workdir):
             "state": state_data,
             "timeline_invariants": timeline_invariants,
             "broll_audit": broll_audit,
+            "new_visual_information_audit": new_visual_information_audit,
+            "black_frame_audit": black_frame_audit,
             "caption_audit": caption_audit,
             "visual_audit": visual_audit,
             "presentation_feel_audit": presentation_feel_audit,
             "editorial_qa": editorial_qa,
+            "delivery_gate": delivery_gate,
             "keyframe_grid": keyframe_grid_rel if keyframe_grid_present else None,
         },
         "next_action": next_action,
