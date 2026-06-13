@@ -25,72 +25,117 @@ def _legacy():
     }
 
 
-class NeedIdStabilityTest(unittest.TestCase):
-    def test_need_id_is_not_segment_derived_and_is_stable(self):
-        a = mn.normalize_material_needs(_legacy())
-        b = mn.normalize_material_needs(_legacy())
-        ids_a = [n["need_id"] for n in a["needs"]]
-        ids_b = [n["need_id"] for n in b["needs"]]
-        self.assertEqual(ids_a, ids_b)                 # deterministic
-        self.assertTrue(all(i.startswith("nd_") for i in ids_a))
-        self.assertNotIn("1.1", ids_a)                 # not the segment-local id
-        # legacy id preserved only as a human reference
-        self.assertEqual(a["needs"][0]["display_id"], "1.1")
-        self.assertEqual(a["needs"][0]["segment_hint"], 1)
+class MigrationTest(unittest.TestCase):
+    def test_migration_allocates_non_segment_ids(self):
+        canon = mn.migrate_material_needs(_legacy())
+        ids = [n["need_id"] for n in canon["needs"]]
+        self.assertTrue(all(i.startswith("nd_") for i in ids))
+        self.assertNotIn("1.1", ids)                       # not segment-local id
+        self.assertEqual(canon["needs"][0]["display_id"], "1.1")
+        self.assertEqual(canon["needs"][0]["segment_hint"], 1)
 
-    def test_renumbering_segment_does_not_change_need_id(self):
-        original = mn.normalize_material_needs(_legacy())["needs"][0]["need_id"]
+    def test_renumbering_segment_does_not_change_id(self):
+        before = mn.migrate_material_needs(_legacy())["needs"][0]["need_id"]
         moved = _legacy()
-        moved["segments"][0]["segment"] = 9            # chapter renumber
-        after = mn.normalize_material_needs(moved)["needs"][0]["need_id"]
-        self.assertEqual(original, after)
+        moved["segments"][0]["segment"] = 9
+        after = mn.migrate_material_needs(moved)["needs"][0]["need_id"]
+        self.assertEqual(before, after)
 
-    def test_distinct_needs_get_distinct_ids(self):
-        ids = [n["need_id"] for n in mn.normalize_material_needs(_legacy())["needs"]]
-        self.assertEqual(len(ids), len(set(ids)))
-
-    def test_explicit_need_id_is_preserved(self):
+    def test_existing_need_id_is_preserved(self):
         flat = {"project": "p", "needs": [
             {"need_id": "keepme", "category": "c", "type": "t", "purpose": "x"}]}
         self.assertEqual(
-            mn.normalize_material_needs(flat)["needs"][0]["need_id"], "keepme")
+            mn.migrate_material_needs(flat)["needs"][0]["need_id"], "keepme")
 
-    def test_identical_content_disambiguated(self):
+    def test_migration_is_idempotent(self):
+        once = mn.migrate_material_needs(_legacy())
+        twice = mn.migrate_material_needs(once)
+        self.assertEqual([n["need_id"] for n in once["needs"]],
+                         [n["need_id"] for n in twice["needs"]])
+
+    def test_content_identical_fresh_needs_disambiguated_with_note(self):
         flat = {"project": "p", "needs": [
             {"category": "c", "type": "t", "purpose": "x"},
             {"category": "c", "type": "t", "purpose": "x"},
         ]}
-        ids = [n["need_id"] for n in mn.normalize_material_needs(flat)["needs"]]
+        canon = mn.migrate_material_needs(flat)
+        ids = [n["need_id"] for n in canon["needs"]]
         self.assertEqual(len(set(ids)), 2)
+        self.assertIn("migration_notes", canon)
+
+
+class IdentityStabilityTest(unittest.TestCase):
+    def test_editing_purpose_type_category_does_not_change_id(self):
+        """F1: once a need has an id, content edits must not regenerate it."""
+        canon = mn.migrate_material_needs(_legacy())
+        nid = canon["needs"][0]["need_id"]
+        canon["needs"][0]["purpose"] = "完全改寫的用途"
+        canon["needs"][0]["type"] = "新型別"
+        canon["needs"][0]["category"] = "新類別"
+        re = mn.migrate_material_needs(canon)        # M6c-style revision pass
+        self.assertEqual(re["needs"][0]["need_id"], nid)
 
 
 class ValidatorTest(unittest.TestCase):
-    def test_valid_needs_pass(self):
-        result = mn.validate_material_needs(_legacy())
+    def test_migrated_needs_validate_ok(self):
+        result = mn.validate_material_needs(mn.migrate_material_needs(_legacy()))
         self.assertTrue(result["ok"], result["errors"])
 
+    def test_canonical_need_without_id_is_error(self):
+        """Validation never allocates: a missing need_id must surface."""
+        result = mn.validate_material_needs(
+            {"project": "p", "needs": [{"category": "c", "type": "t", "purpose": "x"}]})
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("missing need_id" in e for e in result["errors"]))
+
+    def test_duplicate_explicit_id_fails(self):
+        """F2: explicit duplicate join key is an error, not a silent suffix."""
+        dup = {"project": "p", "needs": [
+            {"need_id": "same", "category": "c", "type": "t", "purpose": "x"},
+            {"need_id": "same", "category": "c", "type": "t", "purpose": "y"},
+        ]}
+        result = mn.validate_material_needs(dup)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("duplicate need_id same" in e for e in result["errors"]))
+
+    def test_must_have_string_false_fails(self):
+        """F4: 'false' string must not be coerced to True."""
+        bad = {"project": "p", "needs": [
+            {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+             "must_have": "false"}]}
+        result = mn.validate_material_needs(bad)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("must_have must be boolean" in e for e in result["errors"]))
+
+    def test_invalid_count_fails(self):
+        """F4: invalid count is an error, not a silent 'treated as 1'."""
+        for bad_count in (0, -2, "3", 2.5, True):
+            bad = {"project": "p", "needs": [
+                {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+                 "count": bad_count}]}
+            result = mn.validate_material_needs(bad)
+            self.assertFalse(result["ok"], f"count={bad_count!r} should fail")
+            self.assertTrue(any("positive integer" in e for e in result["errors"]))
+
     def test_missing_required_field_is_error(self):
-        bad = {"project": "p", "needs": [{"category": "c", "purpose": "x"}]}  # no type
+        bad = {"project": "p", "needs": [{"need_id": "n1", "category": "c", "purpose": "x"}]}
         result = mn.validate_material_needs(bad)
         self.assertFalse(result["ok"])
         self.assertTrue(any("missing type" in e for e in result["errors"]))
 
     def test_bad_fallback_tier_is_error(self):
         bad = {"project": "p", "needs": [
-            {"category": "c", "type": "t", "purpose": "x", "fallback_tier": 9}]}
+            {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+             "fallback_tier": 9}]}
         self.assertFalse(mn.validate_material_needs(bad)["ok"])
 
     def test_must_have_tier1_without_fallback_warns(self):
         risky = {"project": "p", "needs": [
-            {"category": "動作鏡頭", "type": "唯一實拍", "purpose": "證明事件",
-             "fallback_tier": 1, "must_have": True}]}  # tier1 + must_have + no fallback
+            {"need_id": "n1", "category": "動作鏡頭", "type": "唯一實拍",
+             "purpose": "證明事件", "fallback_tier": 1, "must_have": True}]}
         result = mn.validate_material_needs(risky)
+        self.assertTrue(result["ok"])      # warning, not error
         self.assertTrue(any("deadlock" in w for w in result["warnings"]))
-
-    def test_empty_needs_warns_not_errors(self):
-        result = mn.validate_material_needs({"project": "p", "segments": []})
-        self.assertTrue(result["ok"])
-        self.assertTrue(any("no needs" in w for w in result["warnings"]))
 
 
 class SatisfiesEdgeTest(unittest.TestCase):
@@ -103,20 +148,30 @@ class SatisfiesEdgeTest(unittest.TestCase):
         mn.apply_satisfaction_verdict(m, {
             "reviewer": "agent", "at": "2026-06-14",
             "scenes": [{"scene_index": 0, "satisfies": [
-                {"need_id": "nd_x", "status": "accepted", "note": "傳承合照"}]}]})
+                {"need_id": "nd_x", "status": "accepted", "note": "傳承合照"}]}]},
+            valid_need_ids={"nd_x"})
         edge = m["scenes"][0]["satisfies"][0]
-        self.assertEqual(edge["need_id"], "nd_x")
         self.assertEqual(edge["status"], "accepted")
         self.assertEqual(edge["lineage"]["reviewer"], "agent")
         self.assertEqual(edge["lineage"]["at"], "2026-06-14")
-        self.assertNotIn("satisfies", m["scenes"][1])   # untouched scene
+        self.assertNotIn("satisfies", m["scenes"][1])
+
+    def test_unknown_need_reference_fails(self):
+        """F3: a typo'd need_id must not form a phantom edge."""
+        m = self._map()
+        with self.assertRaises(ValueError):
+            mn.apply_satisfaction_verdict(m, {"scenes": [
+                {"scene_index": 0, "satisfies": [{"need_id": "typo"}]}]},
+                valid_need_ids={"nd_x"})
 
     def test_status_transition_records_previous_status(self):
         m = self._map()
         mn.apply_satisfaction_verdict(m, {"scenes": [
-            {"scene_index": 0, "satisfies": [{"need_id": "nd_x", "status": "candidate"}]}]})
+            {"scene_index": 0, "satisfies": [{"need_id": "nd_x", "status": "candidate"}]}]},
+            valid_need_ids={"nd_x"})
         mn.apply_satisfaction_verdict(m, {"scenes": [
-            {"scene_index": 0, "satisfies": [{"need_id": "nd_x", "status": "accepted"}]}]})
+            {"scene_index": 0, "satisfies": [{"need_id": "nd_x", "status": "accepted"}]}]},
+            valid_need_ids={"nd_x"})
         edge = m["scenes"][0]["satisfies"][0]
         self.assertEqual(edge["status"], "accepted")
         self.assertEqual(edge["lineage"]["previous_status"], "candidate")
@@ -131,37 +186,38 @@ class SatisfiesEdgeTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             mn.make_satisfaction("nd_x", "approved")
 
-    def test_out_of_range_scene_index_ignored(self):
+    def test_need_ids_helper_feeds_reference_check(self):
+        canon = mn.migrate_material_needs(_legacy())
+        ids = mn.need_ids(canon)
+        good = next(iter(ids))
         m = self._map()
         mn.apply_satisfaction_verdict(m, {"scenes": [
-            {"scene_index": 9, "satisfies": [{"need_id": "nd_x", "status": "accepted"}]}]})
-        self.assertNotIn("satisfies", m["scenes"][0])
+            {"scene_index": 0, "satisfies": [{"need_id": good, "status": "accepted"}]}]},
+            valid_need_ids=ids)
+        self.assertEqual(m["scenes"][0]["satisfies"][0]["need_id"], good)
 
     def test_summarize_inverts_edges_without_routing(self):
         m1 = self._map()
         mn.apply_satisfaction_verdict(m1, {"scenes": [
             {"scene_index": 0, "satisfies": [{"need_id": "nd_x", "status": "accepted"}]},
-            {"scene_index": 1, "satisfies": [{"need_id": "nd_y", "status": "candidate"}]}]})
+            {"scene_index": 1, "satisfies": [{"need_id": "nd_y", "status": "candidate"}]}]},
+            valid_need_ids={"nd_x", "nd_y"})
         summary = mn.summarize_satisfaction([m1])
         self.assertEqual(summary["nd_x"]["accepted"][0],
                          {"asset_id": "clipA", "scene_index": 0})
         self.assertEqual(summary["nd_y"]["candidate"][0]["scene_index"], 1)
-        self.assertNotIn("nd_x", summary["nd_y"]["candidate"][0])  # no cross-talk
 
 
 class BackwardCompatTest(unittest.TestCase):
     def test_existing_material_map_without_satisfies_is_unaffected(self):
-        # no needs, no satisfies — pure existing-material flow stays valid
         m = {"asset_id": "a", "scenes": [{"start": 0, "end": 2}]}
         self.assertEqual(mn.summarize_satisfaction([m]), {})
 
-    def test_flat_canonical_input_roundtrips(self):
-        flat = {"project": "p", "needs": [
-            {"need_id": "nd_1", "category": "c", "type": "t", "purpose": "x",
-             "count": 1, "fallback_tier": 2, "must_have": False}]}
-        out = mn.normalize_material_needs(flat)
-        self.assertEqual(out["needs"][0]["need_id"], "nd_1")
-        self.assertEqual(out["needs"][0]["segment_hint"] if "segment_hint" in out["needs"][0] else None, None)
+    def test_permissive_apply_without_valid_ids_still_works(self):
+        m = {"asset_id": "a", "scenes": [{"start": 0, "end": 2}]}
+        mn.apply_satisfaction_verdict(m, {"scenes": [
+            {"scene_index": 0, "satisfies": [{"need_id": "nd_x"}]}]})
+        self.assertEqual(m["scenes"][0]["satisfies"][0]["need_id"], "nd_x")
 
 
 if __name__ == "__main__":

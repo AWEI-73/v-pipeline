@@ -27,16 +27,18 @@ VALID_FALLBACK_TIERS = (1, 2, 3, 4)
 
 
 # ---------------------------------------------------------------------------
-# Stable, project-local, segment-independent need_id
+# Three separated concerns (M6a-hardening):
+#   1. allocation / migration  — assign an id ONCE to a need that has none.
+#   2. validation              — strict checks; never allocates, never mutates
+#                                the join key, never silently coerces types.
+#   3. editing                 — content edits never touch need_id (a need that
+#                                already has an id keeps it through migration).
 # ---------------------------------------------------------------------------
 
-def allocate_need_id(project, need):
-    """Return a stable project-local id. Explicit `need_id` wins; otherwise it
-    is derived from semantic content (project + category + type + purpose) so
-    reordering or renumbering segments never changes it."""
-    explicit = need.get("need_id")
-    if explicit:
-        return str(explicit)
+def _migration_id(project, need):
+    """Content fingerprint used ONLY to assign an id to a legacy need that has
+    none. It is the *initial value*, not the identity: once a need carries a
+    need_id, that id is preserved verbatim and never regenerated from content."""
     basis = "|".join([
         str(project or ""),
         str(need.get("category") or ""),
@@ -46,118 +48,125 @@ def allocate_need_id(project, need):
     return "nd_" + hashlib.sha1(basis.encode("utf-8")).hexdigest()[:8]
 
 
-# ---------------------------------------------------------------------------
-# Normalization: legacy nested OR flat -> canonical flat
-# ---------------------------------------------------------------------------
-
-def _canonical_need(project, raw_need, *, segment_hint=None, seen=None):
-    need_id = allocate_need_id(project, raw_need)
-    if seen is not None:
-        base, suffix = need_id, 2
-        while need_id in seen:
-            need_id = f"{base}_{suffix}"
-            suffix += 1
-        seen.add(need_id)
-    out = {
-        "need_id": need_id,
-        "category": raw_need.get("category"),
-        "type": raw_need.get("type"),
-        "purpose": raw_need.get("purpose"),
-        "count": raw_need.get("count", 1),
-        "fallback_tier": raw_need.get("fallback_tier", 1),
-        "must_have": bool(raw_need.get("must_have", False)),
-    }
-    if raw_need.get("fallback_options") is not None:
-        out["fallback_options"] = list(raw_need.get("fallback_options") or [])
-    if raw_need.get("duration_each") is not None:
-        out["duration_each"] = raw_need.get("duration_each")
-    # legacy segment-local id kept for human reference only — never a join key
-    legacy_id = raw_need.get("id")
-    if legacy_id is not None:
-        out["display_id"] = str(legacy_id)
-    if segment_hint is not None:
-        out["segment_hint"] = segment_hint
-    if raw_need.get("segment_hint") is not None:
-        out["segment_hint"] = raw_need.get("segment_hint")
-    return out
-
-
-def normalize_material_needs(raw):
-    """Return canonical flat material-needs. Accepts legacy nested
-    ({segments:[{segment, needs:[...]}]}) or flat ({needs:[...]})."""
+def _flatten(raw):
+    """Flatten legacy nested or flat needs WITHOUT allocating ids. An existing
+    need_id is preserved verbatim; an absent one stays None for the caller."""
     raw = raw or {}
     project = raw.get("project")
-    seen = set()
-    needs = []
     if raw.get("needs") is not None:
-        for raw_need in raw.get("needs") or []:
-            needs.append(_canonical_need(project, raw_need, seen=seen))
+        source = [(None, n) for n in raw.get("needs") or []]
     else:
-        for seg in raw.get("segments") or []:
-            segment_hint = seg.get("segment")
-            for raw_need in seg.get("needs") or []:
-                needs.append(_canonical_need(
-                    project, raw_need, segment_hint=segment_hint, seen=seen))
-    canonical = {
-        "artifact_role": "material_needs",
-        "version": 1,
-        "project": project,
-        "needs": needs,
-    }
+        source = [(seg.get("segment"), n)
+                  for seg in raw.get("segments") or []
+                  for n in seg.get("needs") or []]
+    rows = []
+    for segment_hint, raw_need in source:
+        row = {
+            "need_id": raw_need.get("need_id"),          # may be None
+            "category": raw_need.get("category"),
+            "type": raw_need.get("type"),
+            "purpose": raw_need.get("purpose"),
+            "count": raw_need.get("count"),              # None == absent
+            "fallback_tier": raw_need.get("fallback_tier", 1),
+            "must_have": raw_need.get("must_have", False),  # type-checked later
+        }
+        if raw_need.get("fallback_options") is not None:
+            row["fallback_options"] = list(raw_need.get("fallback_options") or [])
+        if raw_need.get("duration_each") is not None:
+            row["duration_each"] = raw_need.get("duration_each")
+        if raw_need.get("id") is not None:               # legacy display only
+            row["display_id"] = str(raw_need.get("id"))
+        hint = raw_need.get("segment_hint", segment_hint)
+        if hint is not None:
+            row["segment_hint"] = hint
+        rows.append(row)
+    return project, rows
+
+
+def migrate_material_needs(raw):
+    """One-time allocation. Assigns an id ONLY to needs lacking one; an existing
+    need_id is always preserved (so editing purpose/type/category never changes
+    it). Content-identical fresh needs are disambiguated and noted."""
+    project, rows = _flatten(raw)
+    used = {row["need_id"] for row in rows if row.get("need_id")}
+    notes = []
+    for row in rows:
+        if row.get("need_id"):
+            continue
+        candidate = base = _migration_id(project, row)
+        suffix = 2
+        while candidate in used:
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        if candidate != base:
+            notes.append(f"allocated {candidate} for content-identical need")
+        row["need_id"] = candidate
+        used.add(candidate)
+        if row.get("count") is None:
+            row["count"] = 1
+    canonical = {"artifact_role": "material_needs", "version": 1,
+                 "project": project, "needs": rows}
     for key in ("based_on_script", "generated_at"):
-        if raw.get(key) is not None:
-            canonical[key] = raw.get(key)
+        if (raw or {}).get(key) is not None:
+            canonical[key] = raw[key]
+    if notes:
+        canonical["migration_notes"] = notes
     return canonical
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
+def _positive_int(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
 
 def validate_material_needs(raw):
-    """Validate and normalize. Returns {ok, errors, warnings, normalized}."""
-    canonical = normalize_material_needs(raw)
-    errors = []
-    warnings = []
-    needs = canonical["needs"]
-    if not needs:
+    """Strict validation. Does NOT allocate ids, mutate join keys, or coerce
+    types. A canonical need must carry an explicit need_id; duplicate explicit
+    ids and bad types are errors, not silent fixes."""
+    project, rows = _flatten(raw)
+    errors, warnings = [], []
+    if not rows:
         warnings.append("material_needs has no needs")
-    seen_ids = set()
-    for need in needs:
-        nid = need["need_id"]
-        ref = nid or need.get("display_id") or "?"
-        if nid in seen_ids:
-            errors.append(f"duplicate need_id {nid}")
-        seen_ids.add(nid)
+    counts = {}
+    for row in rows:
+        nid = row.get("need_id")
+        ref = nid or row.get("display_id") or "?"
+        if not nid or not str(nid).strip():
+            errors.append(f"need {ref} missing need_id "
+                          f"(run migration to allocate a stable id)")
+        else:
+            counts[nid] = counts.get(nid, 0) + 1
         for field in REQUIRED_NEED_FIELDS:
-            value = need.get(field)
+            value = row.get(field)
             missing = (not value.strip()) if isinstance(value, str) else (not value)
             if missing:
                 errors.append(f"need {ref} missing {field}")
-        tier = need.get("fallback_tier")
+        tier = row.get("fallback_tier")
         if tier is not None and tier not in VALID_FALLBACK_TIERS:
             errors.append(f"need {ref} fallback_tier {tier} not in 1-4")
-        count = need.get("count")
-        if not isinstance(count, int) or count <= 0:
-            warnings.append(f"need {ref} count {count!r} invalid; treated as 1")
-        # the deadlock the gap-analyzer skill warns about
-        if need.get("must_have") and need.get("fallback_tier") == 1 \
-                and not need.get("fallback_options"):
+        if not isinstance(row.get("must_have"), bool):
+            errors.append(f"need {ref} must_have must be boolean, got "
+                          f"{row.get('must_have')!r}")
+        count = row.get("count")
+        if count is None:
+            warnings.append(f"need {ref} count absent; migration sets it to 1")
+        elif not _positive_int(count):
+            errors.append(f"need {ref} count must be a positive integer, got {count!r}")
+        if row.get("must_have") is True and row.get("fallback_tier") == 1 \
+                and not row.get("fallback_options"):
             warnings.append(
                 f"need {ref} is must_have at tier 1 with no fallback_options "
                 f"(unshootable -> deadlock risk)")
+    for nid, n in counts.items():
+        if n > 1:
+            errors.append(f"duplicate need_id {nid} ({n} needs) — join key must be unique")
     return {"ok": not errors, "errors": errors, "warnings": warnings,
-            "normalized": canonical}
+            "project": project, "needs": rows}
 
 
-def write_validated_needs(raw, out_path):
-    result = validate_material_needs(raw)
-    if result["ok"]:
-        path = Path(out_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(result["normalized"], ensure_ascii=False, indent=2),
-                        encoding="utf-8")
-    return result
+def need_ids(raw):
+    """Convenience: the set of declared need_ids (for satisfies validation)."""
+    _project, rows = _flatten(raw)
+    return {row["need_id"] for row in rows if row.get("need_id")}
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +202,7 @@ def _merge_satisfies(existing, incoming):
     return list(index.values())
 
 
-def apply_satisfaction_verdict(material_map, verdict):
+def apply_satisfaction_verdict(material_map, verdict, *, valid_need_ids=None):
     """Apply a reviewer verdict that links material-map scenes to need_ids.
 
     Verdict shape::
@@ -203,7 +212,11 @@ def apply_satisfaction_verdict(material_map, verdict):
                      "satisfies": [{"need_id": "nd_ab12cd34",
                                     "status": "accepted", "note": "..."}]}]}
 
-    Scenes without a verdict entry are untouched (backward compatible)."""
+    When ``valid_need_ids`` is given, any need_id outside it raises ValueError —
+    a typo must not silently create a phantom edge that a future delta inherits.
+    Pass `need_ids(material_needs)` to enforce reference integrity. Scenes
+    without a verdict entry are untouched (backward compatible)."""
+    known = set(valid_need_ids) if valid_need_ids is not None else None
     scenes = material_map.get("scenes") or []
     default_reviewer = verdict.get("reviewer")
     default_at = verdict.get("at")
@@ -216,6 +229,10 @@ def apply_satisfaction_verdict(material_map, verdict):
             need_id = raw.get("need_id")
             if not need_id:
                 continue
+            if known is not None and need_id not in known:
+                raise ValueError(
+                    f"satisfies references unknown need_id {need_id!r} "
+                    f"(not in canonical material_needs)")
             incoming.append(make_satisfaction(
                 need_id,
                 raw.get("status", "candidate"),

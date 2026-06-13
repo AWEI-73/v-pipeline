@@ -316,18 +316,26 @@ def cmd_black_frame_audit(args):
 
 
 def cmd_validate_needs(args):
-    """M6a: validate + canonicalize material_needs.json (stable need_id)."""
+    """M6a: strict-validate material_needs; --migrate allocates stable need_ids."""
     from video_pipeline_core import material_needs
     raw = _load_json(args.needs)
-    if args.out:
-        result = material_needs.write_validated_needs(raw, args.out)
-    else:
-        result = material_needs.validate_material_needs(raw)
+    canonical = material_needs.migrate_material_needs(raw) if args.migrate else None
+    result = material_needs.validate_material_needs(
+        canonical if canonical is not None else raw)
+    if result["ok"] and args.out:
+        obj = canonical if canonical is not None else {
+            "artifact_role": "material_needs", "version": 1,
+            "project": result["project"], "needs": result["needs"],
+        }
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(
+            json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({
         "ok": result["ok"],
+        "migrated": bool(args.migrate),
         "errors": result["errors"],
         "warnings": result["warnings"],
-        "need_count": len(result["normalized"]["needs"]),
+        "need_count": len(result["needs"]),
     }, ensure_ascii=False, indent=2))
 
 
@@ -1621,7 +1629,9 @@ def main():
 
     p_vn = sub.add_parser("validate-needs")
     p_vn.add_argument("needs", help="material_needs.json (legacy nested or flat)")
-    p_vn.add_argument("--out", help="write canonical normalized needs here if valid")
+    p_vn.add_argument("--migrate", action="store_true",
+                      help="allocate stable need_ids for needs that lack one (one-time)")
+    p_vn.add_argument("--out", help="write canonical needs here if valid")
 
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
