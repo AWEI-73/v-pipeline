@@ -138,6 +138,23 @@ class FormatMaterialMapTest(unittest.TestCase):
 
 
 class MatchScriptToMaterialTest(unittest.TestCase):
+    def test_no_hint_and_zero_score_candidates_remain_gap(self):
+        segments = [{
+            "segment": 7,
+            "visual_desc": "活線作業與高空工作",
+            "layout": "montage",
+        }]
+        files = [{
+            "path": "unrelated_group_photo.jpg",
+            "classify": {"usable": True},
+            "vlm_caption": None,
+        }]
+
+        result = vt.match_script_to_material(segments, files)
+
+        self.assertEqual(result["assignments"][0]["picks"], [])
+        self.assertTrue(result["assignments"][0]["gap"])
+
     def _db(self):
         return [
             {"path": "/m/拖拉電纜/a.mov", "vlm_caption": "工人在戶外拖拉電纜施工",

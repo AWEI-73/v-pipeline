@@ -76,6 +76,8 @@ def contract_to_mv_script(contract):
             flat["sequence_grammar"] = seg["sequence_grammar"]
         if seg.get("pacing"):
             flat["pacing"] = seg["pacing"]
+        if seg.get("requested_duration_sec") is not None:
+            flat["requested_duration_sec"] = seg["requested_duration_sec"]
         if seg.get("still_image_policy"):
             flat["still_image_policy"] = seg["still_image_policy"]
         if seg.get("creative_exception"):
@@ -103,7 +105,7 @@ def contract_to_mv_script(contract):
         # 音訊
         if role_arole:
             flat["audio_role"] = role_arole
-        if role_arole in ("duck", "diegetic"):
+        if role_arole in ("duck", "diegetic", "source_speech"):
             flat["keep_audio"] = True
         # 文字層(text_layer == "none" → 不上字)
         if isinstance(txt, dict):
@@ -118,6 +120,8 @@ def contract_to_mv_script(contract):
         flat["raw_text_layer"] = txt
         flat["material_fit"] = mat
         flat["editing_grammar"] = eg
+        if eg.get("beat_alignment"):
+            flat["beat_alignment"] = eg["beat_alignment"]
         flat["visual_style"] = vis
         flat["text_layer"] = txt
         out_segs.append(flat)
@@ -338,7 +342,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               editor_review, final, state, verify_result=None,
               revision_plan=None, brief=None,
               timeline_invariants=None, broll_audit=None, caption_audit=None,
-              keyframe_grid=None, visual_audit=None,
+              keyframe_grid=None, visual_audit=None, verify_evidence_bundle=None,
               presentation_feel_audit=None,
               creator_profile=None, creator_profile_applied=None,
               capcut_draft_manifest=None, capcut_export_manifest=None,
@@ -376,6 +380,7 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "caption_audit": str(caption_audit) if caption_audit else None,
         "keyframe_grid": str(keyframe_grid) if keyframe_grid else None,
         "visual_audit": str(visual_audit) if visual_audit else None,
+        "verify_evidence_bundle": str(verify_evidence_bundle) if verify_evidence_bundle else None,
         "presentation_feel_audit": str(presentation_feel_audit) if presentation_feel_audit else None,
         "creator_profile": str(creator_profile) if creator_profile else None,
         "creator_profile_applied": str(creator_profile_applied) if creator_profile_applied else None,
@@ -486,6 +491,17 @@ def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None
             if verbose:
                 print(f"[audit] keyframe_grid/visual_audit skipped: {e}")
 
+    if tools["verify_evidence"] and timeline is not None and final_video and Path(final_video).exists():
+        try:
+            from . import verify_evidence  # noqa: PLC0415
+            evidence_dir = out_dir / "verify_evidence"
+            verify_evidence.write_verify_evidence(final_video, timeline, evidence_dir)
+            written["verify_evidence_bundle"] = str(
+                evidence_dir / "verify_evidence_bundle.json")
+        except Exception as e:
+            if verbose:
+                print(f"[audit] verify_evidence skipped: {e}")
+
     return written
 
 
@@ -585,7 +601,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
                  model_routes_config_path=None, build_profile_path=None,
                  build_profile_config_path=None, generated_asset_requests_path=None,
-                 creator_profile_path=None, skip_render=False):
+                 creator_profile_path=None, skip_render=False, enforce_supply_gate=False):
     """(I/O) canonical-first 入口:驗 contract → 轉 flat → 既有 mv_chain 執行。
     contract 可為 dict 或 .json 路徑。回 {ok, errors, result?}。**不改 run chain**。"""
     out_path = Path(out_path)
@@ -723,10 +739,47 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                 brief_dict_for_review = json.load(bf)
         except Exception:
             brief_dict_for_review = {}
+
+    # Node 2 + M1: direct contract-run must materialize the same coverage and
+    # supply evidence as runtime_orchestrator before the SPEC/render gate.
+    with open(material_db, encoding="utf-8-sig") as material_handle:
+        material_db_payload = json.load(material_handle)
+    from .curator import build_material_coverage  # noqa: PLC0415
+    coverage = build_material_coverage(payload.get("segments") or [],
+                                       material_db_payload.get("files") or [])
+    material_coverage_path = out_path.parent / "material_coverage_map.json"
+    _write_json(material_coverage_path, coverage)
+    material_maps = []
+    for entry in material_db_payload.get("files") or []:
+        map_path = entry.get("material_map")
+        if map_path and Path(map_path).exists():
+            try:
+                with open(map_path, encoding="utf-8-sig") as map_handle:
+                    material_maps.append(json.load(map_handle))
+            except (OSError, ValueError):
+                pass
+    from .supply_review import fallback_maps_from_coverage, review_supply  # noqa: PLC0415
+    known_sources = {str(item.get("source") or "").lower() for item in material_maps}
+    material_maps.extend(
+        item for item in fallback_maps_from_coverage(coverage)
+        if str(item.get("source") or "").lower() not in known_sources
+    )
+    try:
+        from .editorial_qa import _parse_target_sec  # noqa: PLC0415
+        supply_target_sec = _parse_target_sec(brief_dict_for_review.get("target_length"))
+    except Exception:
+        supply_target_sec = None
+    supply = review_supply(
+        contract_obj, material_maps, coverage_map=coverage,
+        target_duration_sec=supply_target_sec)
+    supply_review_path = out_path.parent / "supply_review.json"
+    _write_json(supply_review_path, supply)
+
     from . import spec_review as _spec_review  # noqa: PLC0415
     review = _spec_review.review_spec(
         contract_obj, brief_dict_for_review,
-        has_editorial_design=bool(editorial_design_payload))
+        has_editorial_design=bool(editorial_design_payload),
+        supply_review=supply if enforce_supply_gate else None)
     spec_review_path = out_path.parent / "spec_review.json"
     _write_json(spec_review_path, review)
     if not review["ready_for_build"]:
@@ -1046,6 +1099,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          caption_audit=audit_paths.get("caption_audit"),
                          keyframe_grid=audit_paths.get("keyframe_grid"),
                          visual_audit=audit_paths.get("visual_audit"),
+                         verify_evidence_bundle=audit_paths.get("verify_evidence_bundle"),
                           presentation_feel_audit=audit_paths.get("presentation_feel_audit"),
                          creator_profile=creator_profile_paths.get("creator_profile"),
                          creator_profile_applied=creator_profile_paths.get("creator_profile_applied"),
@@ -1357,7 +1411,8 @@ if __name__ == "__main__":
                          music_path=args.music, mat_dir=args.mat_dir or out.parent,
                          verbose=not args.quiet, categories_path=args.categories,
                          model_routes_config_path=args.model_routes,
-                         build_profile_config_path=args.build_profile)
+                         build_profile_config_path=args.build_profile,
+                         enforce_supply_gate=True)
     else:
         ap.print_help()
         raise SystemExit(2)

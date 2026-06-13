@@ -758,12 +758,56 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(len(slots), 2)                       # capped at n_clips
         self.assertEqual(entry["picked_scores"], ["matched", "matched"])
 
+    def test_plan_matched_interleaves_candidate_sources_before_reusing(self):
+        a = {"n_clips": 4, "clip_dur": 2.0, "budget": 8.0}
+        s = {"segment": 1, "visual_desc": "class life"}
+        clip_by_seg = {1: {"picks": [
+            {"path": "/m/life/a.jpg"},
+            {"path": "/m/life/b.jpg"},
+            {"path": "/m/life/c.jpg"},
+        ]}}
+
+        def winfn(path, n, dur, ka, text=None, segment=None):
+            return [{"source": path, "variant": index} for index in range(n)]
+
+        slots, _, _ = mv_cut._plan_matched_segment(
+            s, a, clip_by_seg, {}, False, _winfn=winfn,
+        )
+
+        self.assertEqual(
+            [slot["source"] for slot in slots],
+            ["/m/life/a.jpg", "/m/life/b.jpg", "/m/life/c.jpg", "/m/life/a.jpg"],
+        )
+
     def test_plan_matched_no_picks_is_gap(self):
         a = {"n_clips": 2, "clip_dur": 1.5, "budget": 6.0}
         slots, entry, _ = mv_cut._plan_matched_segment({"segment": 9}, a, {}, {}, False,
                                                        _winfn=lambda *x, **k: [])
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
+
+    def test_plan_matched_uses_ranked_material_map_scenes_when_available(self):
+        a = {"n_clips": 1, "clip_dur": 2.0, "budget": 2.0}
+        s = {"segment": 4, "visual_desc": "students pull cable"}
+        maps = [{"asset_id": "a", "source": "a.mp4", "scenes": [
+            {"start": 0, "end": 2, "caption": "empty room"},
+            {"start": 2, "end": 5, "caption": "students pull cable"},
+        ]}]
+        slots, entry, _ = mv_cut._plan_matched_segment(
+            s, a, {}, {}, False, material_maps=maps,
+        )
+        self.assertEqual(slots[0]["scene_id"], "a:1")
+        self.assertEqual(entry["picked_scores"], [slots[0]["retrieval_score"]])
+
+    def test_load_material_maps_reads_paths_recorded_in_db(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.map.json"
+            path.write_text(json.dumps({"asset_id": "a", "scenes": []}), encoding="utf-8")
+            maps = mv_cut._load_material_maps({"files": [{"material_map": str(path)}]})
+            self.assertEqual(maps[0]["asset_id"], "a")
 
     def test_plan_matched_falls_back_to_segment_file(self):
         a = {"n_clips": 1, "clip_dur": 3.0, "budget": 4.0}
@@ -774,6 +818,20 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(len(slots), 1)
         self.assertEqual(slots[0]["source"], "/tmp/seg9.mp4")
         self.assertEqual(entry["picked_scores"], ["matched"])
+
+    def test_plan_matched_explicit_file_overrides_auto_matched_picks(self):
+        a = {"n_clips": 1, "clip_dur": 3.0, "budget": 3.0}
+        s = {"segment": 20, "visual_desc": "closing", "file": "/tmp/director-choice.mp4"}
+        clip_by_seg = {20: {"picks": [{"path": "/tmp/auto-first.mp4"}]}}
+
+        def winfn(path, n, dur, ka, text=None, segment=None):
+            return [{"source": path, "segment": segment}]
+
+        slots, _, _ = mv_cut._plan_matched_segment(
+            s, a, clip_by_seg, {}, False, _winfn=winfn,
+        )
+
+        self.assertEqual(slots[0]["source"], "/tmp/director-choice.mp4")
 
     def test_plan_stock_success_and_gap(self):
         a = {"n_clips": 1, "clip_dur": 3.0, "budget": 4.0}
@@ -1153,6 +1211,15 @@ class AllocateSegmentsTest(unittest.TestCase):
         segs = [{"segment": 1}, {"segment": 2}, {"segment": 3}]
         a = mv_cut.allocate_segments(segs, total_dur=30.0)
         self.assertTrue(all(abs(x["budget"] - 10.0) < 0.01 for x in a))
+
+    def test_requested_duration_is_fixed_and_remainder_uses_weights(self):
+        segs = [
+            {"segment": 1, "requested_duration_sec": 6.0, "kind": "opening"},
+            {"segment": 2, "weight": 1.0, "layout": "montage"},
+            {"segment": 3, "weight": 2.0, "layout": "montage"},
+        ]
+        a = mv_cut.allocate_segments(segs, total_dur=36.0)
+        self.assertEqual([item["budget"] for item in a], [6.0, 10.0, 20.0])
 
     def test_empty(self):
         self.assertEqual(mv_cut.allocate_segments([], 30.0), [])

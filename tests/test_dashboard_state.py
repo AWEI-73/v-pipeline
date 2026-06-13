@@ -452,6 +452,40 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(
                 [f for f in state["findings"] if "artifact" in f], [])
 
+    def test_failed_broll_audit_prevents_complete_review_final(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final.mp4").write_bytes(b"video")
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8")
+            (workdir / "broll_audit.json").write_text(json.dumps({
+                "artifact_role": "broll_audit",
+                "pass": False,
+                "next_action": "curator",
+                "findings": [{"level": "fail"}],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "curator")
+            self.assertFalse(state["run"]["pass"])
+
+    def test_failed_new_visual_information_audit_prevents_complete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final.mp4").write_bytes(b"video")
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8")
+            (workdir / "new_visual_information_audit.json").write_text(json.dumps({
+                "artifact_role": "new_visual_information_audit",
+                "pass": False,
+                "next_action": "curator",
+                "findings": [{"level": "fail"}],
+            }), encoding="utf-8")
+            state = load_dashboard_state(str(workdir))
+            self.assertEqual(state["next_action"], "curator")
+            self.assertFalse(state["run"]["pass"])
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

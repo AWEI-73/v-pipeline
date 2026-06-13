@@ -71,7 +71,7 @@ def _seg_id(seg, idx):
     return seg.get("segment", idx + 1)
 
 
-def review_spec(contract, brief=None, *, has_editorial_design=False):
+def review_spec(contract, brief=None, *, has_editorial_design=False, supply_review=None):
     """Cross-check the whole project SPEC for executability. Returns the
     spec_review payload (see module docstring)."""
     brief = brief or {}
@@ -81,6 +81,52 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
 
     target_sec = _parse_target_sec(brief.get("target_length"))
     stock_first = _is_stock_first(contract)
+
+    # --- B6: requested script duration exceeds evidenced material supply -----
+    supply_by_segment = {
+        item.get("segment"): item for item in (supply_review or {}).get("segments") or []
+    }
+    for idx, seg in enumerate(segs):
+        sid = _seg_id(seg, idx)
+        supply = supply_by_segment.get(sid)
+        if not supply:
+            continue
+        requested_sec = float(
+            seg.get("requested_duration_sec")
+            or seg.get("duration_sec")
+            or supply.get("requested_duration_sec")
+            or 0
+        )
+        max_sec = float(supply.get("max_honest_duration_sec") or 0)
+        if requested_sec > max_sec:
+            blocking.append({
+                "rule": "script_overreach",
+                "tier": 1,
+                "segment": sid,
+                "requested_duration_sec": requested_sec,
+                "max_honest_duration_sec": max_sec,
+                "message": f"seg{sid}: script promises {requested_sec:g}s but material "
+                           f"supply supports at most {max_sec:g}s",
+                "fix": "shorten/merge the segment, await material, or request a reshoot",
+            })
+
+    # --- B5: requested capability is not executable by this runtime ---------
+    from .capability_manifest import build_capability_manifest, supported_capabilities
+    manifest = build_capability_manifest()
+    supported = supported_capabilities(manifest)
+    unsupported = set(manifest.get("unsupported") or [])
+    requested = list(contract.get("required_capabilities") or []) if isinstance(contract, dict) else []
+    for seg in segs:
+        requested.extend(seg.get("required_capabilities") or [])
+    for capability in sorted(set(requested)):
+        if capability in unsupported or capability not in supported:
+            blocking.append({
+                "rule": "out_of_capability",
+                "tier": 1,
+                "capability": capability,
+                "message": f"SPEC requires unsupported capability '{capability}'",
+                "fix": "remove/downgrade the requirement or implement and expose it in capability_manifest",
+            })
 
     # --- W2: no target_length → music length becomes the runtime -------------
     if not target_sec:
@@ -284,6 +330,18 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
             remaining_blocking.append(finding)
     blocking = remaining_blocking
 
+    tier_by_rule = {
+        "out_of_capability": 1,
+        "script_overreach": 1,
+        "must_include_stock_conflict": 1,
+        "subtitle_auto_no_speech": 1,
+        "pacing_conflict": 2,
+        "perfunctory_spec": 2,
+        "missing_target_length": 3,
+    }
+    for finding in blocking + warnings:
+        finding.setdefault("tier", tier_by_rule.get(finding.get("rule"), 2))
+
     ready = not blocking
     return {
         "artifact_role": "spec_review",
@@ -294,5 +352,6 @@ def review_spec(contract, brief=None, *, has_editorial_design=False):
         "next_action": None if ready else "revise:director(spec_review)",
         "stats": {"segments": len(segs), "blocking": len(blocking),
                   "warnings": len(warnings), "stock_first": stock_first,
-                  "target_sec": target_sec, "laziness_signals": laziness_signals},
+                  "target_sec": target_sec, "laziness_signals": laziness_signals,
+                  "required_capabilities": sorted(set(requested))},
     }

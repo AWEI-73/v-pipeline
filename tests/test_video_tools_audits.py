@@ -24,6 +24,25 @@ def _write(path, payload):
 
 
 class AuditCliTest(unittest.TestCase):
+    def test_replay_acceptance_cmd(self):
+        with tempfile.TemporaryDirectory() as d:
+            timeline = os.path.join(d, "timeline.json")
+            gates = os.path.join(d, "gates.json")
+            verdicts = os.path.join(d, "verdicts.json")
+            adaptation = os.path.join(d, "adaptation.json")
+            out = os.path.join(d, "replay.json")
+            _write(timeline, {"clips": [{"duration_sec": 2, "source_path": "a.mp4",
+                                         "scene_id": "a:0"}]})
+            _write(gates, {"spec_review": {"ready_for_build": True}})
+            _write(verdicts, [{"decision": "accept", "reviewer": "agent"}])
+            _write(adaptation, {"duration": "shortened", "chapters": "reduced"})
+            args = SimpleNamespace(timeline=timeline, gates=gates, verdicts=verdicts,
+                                   jumpcut_plan=None, new_visual_audit=None,
+                                   adaptation=adaptation, out=out)
+            video_tools.cmd_replay_acceptance(args)
+            saved = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(saved["artifact_role"], "m4_replay_acceptance")
+
     def test_timeline_audit_cmd(self):
         with tempfile.TemporaryDirectory() as d:
             timeline = os.path.join(d, "timeline_build.json")
@@ -54,6 +73,25 @@ class AuditCliTest(unittest.TestCase):
             saved = json.loads(Path(out).read_text(encoding="utf-8"))
             self.assertEqual(saved["artifact_role"], "broll_audit")
             self.assertFalse(saved["pass"])  # repeated source exceeds ceiling 1
+
+    def test_new_visual_information_audit_cmd(self):
+        with tempfile.TemporaryDirectory() as d:
+            timeline = os.path.join(d, "timeline_build.json")
+            out = os.path.join(d, "new_visual_information_audit.json")
+            _write(timeline, {"clips": [
+                {"scene_id": "a:0", "duration_sec": 2},
+                {"scene_id": "a:0", "duration_sec": 5},
+            ]})
+            args = SimpleNamespace(
+                timeline=timeline,
+                out=out,
+                min_new_visual_ratio=0.6,
+                max_repeated_hold_sec=3,
+            )
+            video_tools.cmd_new_visual_information_audit(args)
+            saved = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(saved["artifact_role"], "new_visual_information_audit")
+            self.assertFalse(saved["pass"])
 
     def test_caption_audit_cmd_accepts_list_or_dict(self):
         with tempfile.TemporaryDirectory() as d:
@@ -124,6 +162,22 @@ class AuditCliFfmpegTest(unittest.TestCase):
         self.assertEqual(saved["artifact_role"], "visual_audit")
         self.assertIsNone(saved["model_review"])  # mechanical-only via CLI
         self.assertTrue(os.path.exists(grid))
+
+    def test_verify_evidence_cmd(self):
+        timeline = os.path.join(self.tmp, "timeline.json")
+        out_dir = os.path.join(self.tmp, "verify_evidence")
+        _write(timeline, {"clips": [
+            {"segment": 1, "timeline_in_sec": 0, "timeline_out_sec": 2,
+             "duration_sec": 2, "adjustment_reason": "motion_phase"},
+        ]})
+        args = SimpleNamespace(video=self.video, timeline=timeline, out_dir=out_dir,
+                               overview_samples=4, chapter_samples=2,
+                               critical_samples=2)
+        video_tools.cmd_verify_evidence(args)
+        saved = json.loads(
+            (Path(out_dir) / "verify_evidence_bundle.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["artifact_role"], "verify_evidence_bundle")
+        self.assertTrue((Path(out_dir) / "rhythm_strip.svg").exists())
 
 
 if __name__ == "__main__":

@@ -48,6 +48,16 @@ def _ts_label(seconds):
     return f"[{m:02d}:{s:02d}]"
 
 
+def resolve_grid_timestamps(duration_sec, sample_count, *, explicit=None, shots=None):
+    """Resolve explicit, scene-aligned, or evenly-spaced grid timestamps."""
+    if explicit is not None:
+        return [round(float(value), 3) for value in explicit], "explicit"
+    scene_points = scene_midpoints(shots or [], sample_count)
+    if scene_points:
+        return scene_points, "scene_midpoints"
+    return select_timestamps(duration_sec, sample_count), "even"
+
+
 def grid_dimensions(sample_count, columns):
     """Return ``(columns, rows)`` needed to hold ``sample_count`` cells."""
     n = int(sample_count)
@@ -75,7 +85,7 @@ def probe_duration(video_path, ffprobe=None):
 
 def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
                            cell_width=480, cell_height=270, duration_sec=None,
-                           ffmpeg=None, ffprobe=None):
+                           ffmpeg=None, ffprobe=None, timestamps=None):
     """(I/O) Build a keyframe grid image and return its metadata.
 
     Returns a metadata dict suitable for ``visual_audit.json``::
@@ -91,17 +101,24 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
 
     # Scene-aligned sampling first (one cell per real cut = story-representative);
     # even spacing is the fallback when detection finds <2 scenes or is unavailable.
-    sampling = "even"
-    timestamps = []
+    sampling = "explicit" if timestamps is not None else "even"
+    timestamps = [round(float(value), 3) for value in timestamps or []]
+    if sampling == "explicit":
+        cols, rows = grid_dimensions(len(timestamps), columns)
+    else:
+        timestamps = []
     try:
+        if sampling == "explicit":
+            raise RuntimeError("explicit timestamps supplied")
         from .mv_cut import detect_shots  # noqa: PLC0415 — lazy (scenedetect)
         shots = detect_shots(str(video_path))
         if len(shots) >= 2:
             timestamps = scene_midpoints(shots, sample_count)
             sampling = "scene_midpoints"
     except Exception:
-        timestamps = []
-    if not timestamps:
+        if sampling != "explicit":
+            timestamps = []
+    if not timestamps and sampling != "explicit":
         timestamps = select_timestamps(duration_sec, sample_count)
         sampling = "even"
     cols, rows = grid_dimensions(len(timestamps), columns)

@@ -480,7 +480,7 @@ def snap_render_plan_to_motion(render_plan, *, motion_peak_detector=None,
         source = snapped.get("source") or snapped.get("source_path")
         start = float(snapped.get("extract_start") or snapped.get("start_sec") or 0.0)
         duration = float(snapped.get("extract_dur") or snapped.get("duration_sec") or 0.0)
-        if index == 0:
+        if index == 0 or snapped.get("keep_audio") or snapped.get("adjustment_reason"):
             snapped_plan.append(snapped)
             continue
         if source not in peaks_by_source:
@@ -568,6 +568,11 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "duration_sec": round(dur, 3),
             "adjusted": adjusted,
             "adjustment_reason": adjustment_reason,
+            "scene_id": item.get("scene_id"),
+            "beat_alignment": item.get("beat_alignment"),
+            "keep_audio": bool(item.get("keep_audio")),
+            "motion_phase": item.get("motion_phase"),
+            "review_required": item.get("review_required"),
             "target_duration_sec": item.get("slot_dur") or item.get("target_duration_sec"),
             "timeline_in_sec": round(timeline_in, 3),
             "timeline_out_sec": round(timeline_out, 3),

@@ -32,6 +32,57 @@ class ReadySpecTest(unittest.TestCase):
 
 
 class BlockingRulesTest(unittest.TestCase):
+    def test_b6_script_overreach_blocks_above_max_honest_duration(self):
+        contract = {"segments": [_seg(segment=1, requested_duration_sec=30)]}
+        supply_review = {
+            "segments": [{
+                "segment": 1,
+                "requested_duration_sec": 30,
+                "max_honest_duration_sec": 14,
+                "feasibility": "thin",
+            }]
+        }
+
+        r = review_spec(
+            contract,
+            BRIEF,
+            has_editorial_design=True,
+            supply_review=supply_review,
+        )
+
+        finding = next(b for b in r["blocking"] if b["rule"] == "script_overreach")
+        self.assertEqual(finding["segment"], 1)
+        self.assertEqual(finding["max_honest_duration_sec"], 14)
+
+    def test_b6_within_max_honest_duration_is_ready(self):
+        contract = {"segments": [_seg(segment=1, requested_duration_sec=10)]}
+        supply_review = {
+            "segments": [{
+                "segment": 1,
+                "requested_duration_sec": 10,
+                "max_honest_duration_sec": 14,
+                "feasibility": "ok",
+            }]
+        }
+        r = review_spec(
+            contract,
+            BRIEF,
+            has_editorial_design=True,
+            supply_review=supply_review,
+        )
+        self.assertTrue(r["ready_for_build"])
+
+    def test_b5_out_of_capability_blocks(self):
+        contract = {
+            "required_capabilities": ["arbitrary_effects"],
+            "segments": [_seg()],
+        }
+        r = review_spec(contract, BRIEF, has_editorial_design=True)
+        self.assertFalse(r["ready_for_build"])
+        finding = next(b for b in r["blocking"] if b["rule"] == "out_of_capability")
+        self.assertEqual(finding["tier"], 1)
+        self.assertEqual(finding["capability"], "arbitrary_effects")
+
     def test_b1_pacing_conflict_blocks(self):
         # establishing → single_hold vs multi-shot pacing over a real budget
         contract = {"segments": [_seg(
@@ -127,6 +178,15 @@ class WarningRulesTest(unittest.TestCase):
         contract = {"segments": [_seg(editing_intent={"content_pattern": "process"})]}
         r = review_spec(contract, BRIEF, has_editorial_design=False)
         self.assertIn("soul_without_editorial_design", self._rules(r))
+
+    def test_findings_carry_priority_tier_metadata(self):
+        r = review_spec(
+            {"segments": [_seg()]},
+            {"video_type": "mv", "mode": "warm_documentary"},
+            has_editorial_design=True,
+        )
+        finding = next(w for w in r["warnings"] if w["rule"] == "missing_target_length")
+        self.assertEqual(finding["tier"], 3)
 
 
 class PerfunctorySpecTest(unittest.TestCase):

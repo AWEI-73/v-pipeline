@@ -37,6 +37,12 @@ class KeyframeTimestampTest(unittest.TestCase):
         self.assertEqual(kg.grid_dimensions(6, 3), (3, 2))
         self.assertEqual(kg.grid_dimensions(1, 4), (1, 1))
 
+    def test_explicit_timestamps_are_preserved(self):
+        timestamps, sampling = kg.resolve_grid_timestamps(
+            10, 4, explicit=[1.25, 8.75], shots=[(0, 5), (5, 10)])
+        self.assertEqual(timestamps, [1.25, 8.75])
+        self.assertEqual(sampling, "explicit")
+
 
 @unittest.skipUnless(_ffmpeg_available(), "ffmpeg not available")
 class KeyframeGridSmokeTest(unittest.TestCase):

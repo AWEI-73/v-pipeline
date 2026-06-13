@@ -502,11 +502,26 @@ def allocate_segments(segments, total_dur, fast_clip=1.5, stack_shot_sec=0.8):
         return []
     weights = [max(0.1, float(s["weight"])) if s.get("weight") is not None else 1.0
                for s in segments]
-    wsum = sum(weights) or 1.0
+    requested = []
+    for segment in segments:
+        try:
+            value = float(segment.get("requested_duration_sec"))
+            requested.append(value if value > 0 else None)
+        except (TypeError, ValueError):
+            requested.append(None)
+    fixed_total = sum(value for value in requested if value is not None)
+    remaining = max(0.0, float(total_dur) - fixed_total)
+    flexible_weight = sum(
+        weight for weight, value in zip(weights, requested) if value is None
+    ) or 1.0
     out = []
-    for s, w in zip(segments, weights):
+    for s, w, requested_budget in zip(segments, weights, requested):
         kind = s.get("kind")
-        budget = total_dur * w / wsum
+        budget = (
+            requested_budget
+            if requested_budget is not None
+            else remaining * w / flexible_weight
+        )
         is_fast = (s.get("layout") == "montage") or (s.get("pace") == "fast")
         attention = s.get("attention_budget") or {}
         attention_forces_cut = attention.get("owner") in {"music", "visual"}
@@ -623,19 +638,54 @@ def _apply_anti_presentation_plan(slots, segment):
     return slots
 
 
-def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None):
+def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
+                          material_maps=None, ranker=None):
     """local 段:用 match-mv 已配好的 clip 開窗(不 live 重評)。`_winfn` 可注入測試。"""
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
-    paths = [p["path"] for p in clip_by_seg.get(s.get("segment"), {}).get("picks", [])]
-    if not paths and s.get("file"):
-        paths = [s["file"]]
-    slots = []
+    if material_maps:
+        from .material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(
+            s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
+        )
+        for slot in slots:
+            slot["provider"] = "local"
+            slot["text"] = seg_text
+            slot["keep_audio"] = keep_audio
+        entry = {
+            "segment": s.get("segment"), "visual_desc": vd, "source": "local(scene-ranked)",
+            "provider": "local", "clips_found": len({slot["source"] for slot in slots}),
+            "n_clips": a["n_clips"],
+            "picked_scores": [slot["retrieval_score"] for slot in slots] or [GAP],
+        }
+        return slots, entry, [
+            f"  seg{s.get('segment')} '{vd[:18]}' scene-ranked -> {len(slots)} slots"
+            + (" GAP" if not slots else "")
+        ]
+    paths = (
+        [s["file"]]
+        if s.get("file")
+        else [p["path"] for p in clip_by_seg.get(s.get("segment"), {}).get("picks", [])]
+    )
+    windows_by_path = []
     for path in paths:
-        slots += winfn(path, a["n_clips"] - len(slots), a["clip_dur"], keep_audio,
-                       text=seg_text, segment=s.get("segment"))
-        if len(slots) >= a["n_clips"]:
+        windows_by_path.append(winfn(
+            path, a["n_clips"], a["clip_dur"], keep_audio,
+            text=seg_text, segment=s.get("segment"),
+        ))
+    slots = []
+    window_index = 0
+    while len(slots) < a["n_clips"]:
+        added = False
+        for windows in windows_by_path:
+            if window_index < len(windows):
+                slots.append(windows[window_index])
+                added = True
+                if len(slots) >= a["n_clips"]:
+                    break
+        if not added:
             break
+        window_index += 1
     for slot in slots:
         slot["provider"] = "local"
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "local(matched)",
@@ -1000,7 +1050,7 @@ def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
            verbose=True, skip_render=False, target_sec=None, burn_text=True,
-           visual_judge="ollama"):
+           visual_judge="ollama", material_maps=None):
     """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
@@ -1037,12 +1087,26 @@ def run_mv(script, material_root, out_path, music_path=None,
     plan, per_seg = [], []
     for s, a in zip(segs, alloc):
         keep_audio = bool(s.get("hold") or s.get("keep_audio")
-                          or s.get("audio_role") in ("duck", "diegetic"))
+                          or s.get("audio_role") in ("duck", "diegetic", "source_speech"))
         seg_text = {"label": s.get("label"), "name_super": s.get("name_super"),
                     "subtitle": s.get("subtitle"), "narrative": s.get("narrative")}  # 編劇文字層
         stack_items = _stack_items(s)
-        if clip_list is not None and s.get("source") != "stock":
-            slots, entry, msgs = _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio)
+        if s.get("audio_role") == "source_speech" and material_maps:
+            from .material_retrieval import plan_sound_bite
+            sound_bite = plan_sound_bite(s, material_maps)
+            slots = [dict(sound_bite, text=seg_text, provider="local")] if sound_bite.get("status") == "ok" else []
+            entry = {
+                "segment": s.get("segment"), "visual_desc": s.get("visual_desc", ""),
+                "source": "local(source_speech)", "provider": "local",
+                "clips_found": len(slots), "n_clips": a["n_clips"],
+                "picked_scores": ["source_speech"] if slots else [GAP],
+            }
+            msgs = [f"  seg{s.get('segment')} source_speech -> "
+                    + ("speech run" if slots else "GAP")]
+        elif clip_list is not None and s.get("source") != "stock":
+            slots, entry, msgs = _plan_matched_segment(
+                s, a, clip_by_seg, seg_text, keep_audio, material_maps=material_maps,
+            )
         elif s.get("source") == "stock" and stack_items:
             slots, entry, msgs = _plan_stock_stack_segment(s, a, mat_dir, stack_items)
             # Snapping stack still cut times to actual music beat grid timestamps
@@ -1097,6 +1161,8 @@ def run_mv(script, material_root, out_path, music_path=None,
                 sl["hold_reason"] = s["material_fit"]["category"]
             if s.get("creative_exception"):
                 sl["creative_exception"] = s["creative_exception"]
+            if s.get("beat_alignment"):
+                sl["beat_alignment"] = s["beat_alignment"]
             if sl is slots[0]:
                 visual_style = s.get("visual_style") or s.get("raw_visual_style") or {}
                 transition = visual_style.get("transition")
@@ -1116,6 +1182,9 @@ def run_mv(script, material_root, out_path, music_path=None,
         from .visual_review import write_request
         write_request(pending_visual_review, os.path.join(mat_dir, "visual_review_request.json"))
 
+    if material_maps:
+        from .edit_point_planner import plan_render_edit_points  # noqa: PLC0415
+        plan = plan_render_edit_points(plan, material_maps)
     from .edit_artifacts import snap_render_plan_to_motion  # noqa: PLC0415
     plan = snap_render_plan_to_motion(plan)
 
@@ -1303,6 +1372,21 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
     return state
 
 
+def _load_material_maps(material_db):
+    import json as _json
+    maps = []
+    for entry in (material_db or {}).get("files") or []:
+        path = entry.get("material_map")
+        if not path:
+            continue
+        try:
+            with open(path, encoding="utf-8") as handle:
+                maps.append(_json.load(handle))
+        except (OSError, ValueError):
+            continue
+    return maps
+
+
 def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
              skip_render=False, target_sec=None, burn_text=True, visual_judge="ollama"):
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
@@ -1316,13 +1400,15 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
             material_db = _json.load(f)
     segs = script.get("segments") or []
     matched = video_tools.match_script_to_material(segs, material_db.get("files", []))
+    material_maps = _load_material_maps(material_db)
     if verbose:
         for as_ in matched["assignments"]:
             tag = GAP if as_["gap"] else f"{as_['picks'][0]['score']}"
             print(f"  [match] seg{as_['segment']} [{tag}] {as_['visual_desc'][:16]}")
     res = run_mv(script, None, out_path, music_path=music_path,
                  clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render,
-                 target_sec=target_sec, burn_text=burn_text, visual_judge=visual_judge)
+                 target_sec=target_sec, burn_text=burn_text, visual_judge=visual_judge,
+                 material_maps=material_maps)
     res["match"] = matched
     return res
 

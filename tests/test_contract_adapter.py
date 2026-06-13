@@ -60,6 +60,22 @@ class ContractToMvScriptTest(unittest.TestCase):
         self.assertEqual(o["must_include"], "主任")
         self.assertEqual(o["name_super"], {"text": "主任"})
 
+    def test_source_speech_keeps_audio(self):
+        seg = self._seg(audio={"role": "source_speech", "reason": "use trainee voice"})
+        o = ca.contract_to_mv_script({"segments": [seg]})["segments"][0]
+        self.assertEqual(o["audio_role"], "source_speech")
+        self.assertTrue(o["keep_audio"])
+
+    def test_action_beat_alignment_reaches_runtime(self):
+        seg = self._seg(editing_grammar={"beat_alignment": "action", "reason": "cut on action"})
+        o = ca.contract_to_mv_script({"segments": [seg]})["segments"][0]
+        self.assertEqual(o["beat_alignment"], "action")
+
+    def test_requested_duration_reaches_runtime(self):
+        seg = self._seg(requested_duration_sec=6.5)
+        o = ca.contract_to_mv_script({"segments": [seg]})["segments"][0]
+        self.assertEqual(o["requested_duration_sec"], 6.5)
+
     def test_editing_grammar_hero_locked_is_heavy(self):
         seg = self._seg(editing_grammar={"role": "hero", "compressibility": "locked", "reason": "r"})
         w = ca.contract_to_mv_script({"segments": [seg]})["segments"][0]["weight"]
@@ -958,6 +974,50 @@ class DryBuildTest(unittest.TestCase):
                                  f"Node {node} not done: {status.get(node)}")
             # Render/verify remain unmaterialized (only a real render produces them).
             self.assertEqual(status.get("13"), "missing")
+
+
+class RunContractSupplyGateTest(unittest.TestCase):
+    def test_direct_run_writes_coverage_and_supply_before_mv_chain(self):
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td)
+            material_db = outdir / "materials_db.json"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            with patch("video_pipeline_core.mv_cut.mv_chain") as mv_chain:
+                result = ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    categories_path=EXAMPLES / "material_categories.json",
+                    mat_dir=outdir,
+                    verbose=False,
+                    enforce_supply_gate=True,
+                )
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["stage"], "spec_review")
+            self.assertTrue((outdir / "material_coverage_map.json").exists())
+            self.assertTrue((outdir / "supply_review.json").exists())
+            mv_chain.assert_not_called()
+
+    def test_p1_audits_writes_verify_evidence_bundle_when_enabled(self):
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td)
+            timeline = outdir / "timeline_build.json"
+            video = outdir / "final.mp4"
+            timeline.write_text(json.dumps({"clips": []}), encoding="utf-8")
+            video.write_bytes(b"video")
+            with patch("video_pipeline_core.verify_evidence.write_verify_evidence") as writer:
+                writer.return_value = {"artifact_role": "verify_evidence_bundle"}
+                result = ca._write_p1_audits(
+                    outdir,
+                    {"verification_tools": {"verify_evidence": True}},
+                    timeline_build_path=timeline,
+                    final_video=video,
+                    verbose=False,
+                )
+            self.assertEqual(
+                result["verify_evidence_bundle"],
+                str(outdir / "verify_evidence" / "verify_evidence_bundle.json"),
+            )
 
 
 if __name__ == "__main__":

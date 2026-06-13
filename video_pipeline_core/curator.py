@@ -335,6 +335,11 @@ def match_script_to_material(segments, files, restrict_to_hint=True, montage_pic
             if hint and restrict_to_hint and not hint_hit:
                 continue
             score = _caption_match_score(desc, f.get("vlm_caption")) + (0.5 if hint_hit else 0)
+            # A zero-score local candidate is not evidence. Keeping it would
+            # silently bypass GAP and let unrelated material represent a real
+            # course/event (the 2026-06-13 live-line incident).
+            if score <= 0:
+                continue
             scored.append({"path": path, "score": round(score, 3),
                            "caption": f.get("vlm_caption"), "hint_hit": hint_hit})
         scored.sort(key=lambda x: -x["score"])
@@ -350,6 +355,23 @@ def match_script_to_material(segments, files, restrict_to_hint=True, montage_pic
                             "material_hint": s.get("material_hint"), "must_include": must,
                             "picks": picks, "gap": gap})
     return {"assignments": assignments, "gaps": gaps}
+
+
+def build_material_coverage(segments, files):
+    """Build the canonical Node 2 coverage artifact from existing match evidence."""
+    matched = match_script_to_material(segments, files)
+    missing = [gap for gap in matched["gaps"] if gap.get("must_include")]
+    weak = [gap for gap in matched["gaps"] if not gap.get("must_include")]
+    return {
+        "artifact_role": "material_coverage_map",
+        "version": 1,
+        "assignments": matched["assignments"],
+        "gaps": matched["gaps"],
+        "covered": [item for item in matched["assignments"] if not item.get("gap")],
+        "weak": weak,
+        "missing": missing,
+        "blocking": missing,
+    }
 
 
 def cmd_match_mv(args):
@@ -504,6 +526,20 @@ def cmd_material_map(args):
     """讀 materials_db → 人看得懂的素材地圖(依資料夾分群 + 可用/caption)。"""
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
+    if getattr(args, "maps_dir", None):
+        from .material_map import write_material_maps
+        maps = write_material_maps(db, args.maps_dir)
+        update_db = getattr(args, "update_db", None)
+        if update_db:
+            with open(update_db, "w", encoding="utf-8") as f:
+                json.dump(db, f, ensure_ascii=False, indent=2)
+        print(json.dumps({
+            "ok": True,
+            "maps_dir": args.maps_dir,
+            "maps": len(maps),
+            "materials_db": update_db,
+        }, ensure_ascii=False, indent=2))
+        return
     txt = format_material_map(db.get("files", []))
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

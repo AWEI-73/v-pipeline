@@ -161,6 +161,22 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(snapped[1]["adjustment_reason"], "snapped_to_motion_peak")
         self.assertEqual(plan[1]["extract_start"], 10.0)
 
+    def test_render_plan_does_not_move_keep_audio_or_preplanned_window(self):
+        plan = [
+            {"source": "talk.mp4", "extract_start": 2.0, "extract_dur": 5.0,
+             "keep_audio": True, "adjustment_reason": "speech_boundary"},
+            {"source": "action.mp4", "extract_start": 4.0, "extract_dur": 3.0,
+             "adjustment_reason": "motion_phase"},
+        ]
+        snapped = ea.snap_render_plan_to_motion(
+            plan,
+            motion_peak_detector=lambda _source: [5.0],
+            source_duration_probe=lambda _source: 20.0,
+        )
+        self.assertEqual([item["extract_start"] for item in snapped], [2.0, 4.0])
+        self.assertEqual(snapped[0]["adjustment_reason"], "speech_boundary")
+        self.assertEqual(snapped[1]["adjustment_reason"], "motion_phase")
+
     def test_render_plan_rejects_motion_snap_that_would_overflow_source(self):
         plan = [
             {"source": "opening.mp4", "extract_start": 0.0, "extract_dur": 2.0},
@@ -212,6 +228,23 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(clip["start_sec"], 11.0)
         self.assertTrue(clip["adjusted"])
         self.assertEqual(clip["adjustment_reason"], "snapped_to_motion_peak")
+
+    def test_build_timeline_preserves_m3_verify_evidence(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "materials/action.mp4",
+            "extract_dur": 2.0,
+            "scene_id": "action:0",
+            "beat_alignment": "action",
+            "keep_audio": False,
+            "motion_phase": {"rise": 1.0, "peak": 2.0, "settle": 3.0},
+            "adjustment_reason": "motion_phase",
+        }])
+        clip = timeline["clips"][0]
+        self.assertEqual(clip["scene_id"], "action:0")
+        self.assertEqual(clip["beat_alignment"], "action")
+        self.assertEqual(clip["motion_phase"]["peak"], 2.0)
+        self.assertFalse(clip["keep_audio"])
 
     def test_build_timeline_carries_hold_reason(self):
         timeline = ea.build_timeline_build([{

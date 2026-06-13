@@ -21,7 +21,7 @@ class BuildProfileTest(unittest.TestCase):
         vt = profile["verification_tools"]
         self.assertEqual(set(vt), {"timeline_invariants", "broll_audit",
                                    "caption_audit", "keyframe_grid", "visual_audit",
-                                   "presentation_feel_audit"})
+                                   "presentation_feel_audit", "verify_evidence"})
         self.assertTrue(all(v is False for v in vt.values()))
         self.assertEqual(profile["keyframe_grid"], {"sample_count": 12, "columns": 4})
         self.assertEqual(profile["broll_policy"],
@@ -33,7 +33,7 @@ class BuildProfileTest(unittest.TestCase):
             build_profile.verification_tools({}),
             {"timeline_invariants": False, "broll_audit": False,
              "caption_audit": False, "keyframe_grid": False, "visual_audit": False,
-             "presentation_feel_audit": False},
+             "presentation_feel_audit": False, "verify_evidence": False},
         )
         partial = {"verification_tools": {"timeline_invariants": True}}
         got = build_profile.verification_tools(partial)

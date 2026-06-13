@@ -50,6 +50,7 @@ DEFAULT_BUILD_PROFILE = {
         "keyframe_grid": False,
         "visual_audit": False,
         "presentation_feel_audit": False,
+        "verify_evidence": False,
     },
     "broll_policy": {"target_ratio": None, "max_source_repeats": None},
     "keyframe_grid": {"sample_count": 12, "columns": 4},
@@ -58,7 +59,7 @@ DEFAULT_BUILD_PROFILE = {
 
 VERIFICATION_TOOL_NAMES = (
     "timeline_invariants", "broll_audit", "caption_audit",
-    "keyframe_grid", "visual_audit", "presentation_feel_audit",
+    "keyframe_grid", "visual_audit", "presentation_feel_audit", "verify_evidence",
 )
 
 
