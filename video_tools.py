@@ -315,6 +315,35 @@ def cmd_black_frame_audit(args):
     print(json.dumps(result["result"], ensure_ascii=False, indent=2))
 
 
+def cmd_semantic_novelty_audit(args):
+    """M5a Node 11: perceptual de-duplication of timeline compositions."""
+    from video_pipeline_core import semantic_novelty_audit
+    timeline = _load_json(args.timeline)
+    result = semantic_novelty_audit.write_semantic_novelty_audit(
+        timeline,
+        args.out,
+        video_path=args.video,
+        max_distance=args.max_distance,
+        min_distinct_ratio=args.min_distinct_ratio,
+        max_similar_run_sec=args.max_similar_run_sec,
+    )
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
+def cmd_action_progression_audit(args):
+    """M5b Node 11: action-phase coverage over segments declaring required_functions."""
+    from video_pipeline_core import action_progression
+    segments = _load_json(args.segments)
+    if isinstance(segments, dict):
+        segments = segments.get("segments") or []
+    result = action_progression.write_action_progression_audit(
+        segments,
+        args.out,
+        min_coverage=args.min_coverage,
+    )
+    print(json.dumps(result["result"], ensure_ascii=False, indent=2))
+
+
 def cmd_jumpcut_plan(args):
     from video_pipeline_core.jumpcut import write_jumpcut_plan
     material_map = _load_json(args.material_map)
@@ -1574,6 +1603,19 @@ def main():
     p_bfa.add_argument("--fps", type=float, default=2.0, help="luma sampling rate")
     p_bfa.add_argument("--min-run-sec", type=float, default=0.4, dest="min_run_sec")
 
+    p_sna = sub.add_parser("semantic-novelty-audit")
+    p_sna.add_argument("timeline", help="timeline_build.json")
+    p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
+    p_sna.add_argument("--out", required=True, help="semantic_novelty_audit.json output")
+    p_sna.add_argument("--max-distance", type=int, default=10, dest="max_distance")
+    p_sna.add_argument("--min-distinct-ratio", type=float, default=0.5, dest="min_distinct_ratio")
+    p_sna.add_argument("--max-similar-run-sec", type=float, default=6.0, dest="max_similar_run_sec")
+
+    p_apa = sub.add_parser("action-progression-audit")
+    p_apa.add_argument("segments", help="contract/segments JSON with clips + required_functions")
+    p_apa.add_argument("--out", required=True, help="action_progression_audit.json output")
+    p_apa.add_argument("--min-coverage", type=float, default=0.6, dest="min_coverage")
+
     p_jp = sub.add_parser("jumpcut-plan")
     p_jp.add_argument("material_map", help="per-asset material map JSON")
     p_jp.add_argument("--out", required=True, help="jumpcut_plan.json")
@@ -1728,6 +1770,8 @@ def main():
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
         "black-frame-audit": cmd_black_frame_audit,
+        "semantic-novelty-audit": cmd_semantic_novelty_audit,
+        "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,
         "jumpcut-apply":    cmd_jumpcut_apply,
         "jumpcut-review":   cmd_jumpcut_review,

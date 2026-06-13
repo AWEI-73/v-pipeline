@@ -287,14 +287,27 @@ Observed gaps:
 
 Next sequence:
 
-1. M5a semantic visual novelty / composition-cluster audit.
-2. M5b action setup-execution-result progression audit.
+1. M5a semantic visual novelty / composition-cluster audit. ✅ 已實作
+   `semantic_novelty_audit.py`:dHash 感知雜湊(純 PIL,無模型)+ 貪婪聚類;
+   fail 條件 distinct_composition_ratio<0.5 或同構連續段>6s。接 delivery_gate
+   HARD_AUDITS + dashboard node 11 + CLI `semantic-novelty-audit`。真渲確認:
+   4 同構圖+1 異圖 → ratio 0.4、8s 連續段,兩條 fail 皆觸發。CLIP 仍為 opt-in。
+2. M5b action setup-execution-result progression audit. ✅ 已實作
+   `action_progression.py`:確定性雙語 caption+動能 `classify_function`(填補
+   action_phase_coverage=0.0 的根因——功能標註過去只靠 agent 複核);掛進
+   material_retrieval 讓候選窗自帶 function,流進 timeline。audit 對宣告
+   required_functions 的段檢查 establish→action→result spine 覆蓋。接
+   delivery_gate + dashboard node 11 + CLI `action-progression-audit`。
 3. M5c designed sequence grammar for opener, course transitions, and ending.
-4. M5d high-density human-vs-agent critical-section comparison.
-5. M5e rerender; require both technical and sensory acceptance.
+   ⬜ 未做(tier-2;開場/課程轉場/結尾的可執行結構)。
+4. M5d high-density human-vs-agent critical-section comparison. ⬜ 未做
+   (M4a 四層蒙太奇機具已在,缺的是與學員片關鍵段的並排比對流程)。
+5. M5e rerender; require both technical and sensory acceptance. ⬜ 未做
+   (M5a-d 齊備後重渲,技術 VERIFY + 感官閘雙過才接受交付)。
 
 Decision log:
-`docs/decisions/2026-06-13-m5-real-render-sensory-acceptance.md`.
+`docs/decisions/2026-06-13-m5-real-render-sensory-acceptance.md`。
+M5a/M5b 實作見 commit(semantic_novelty_audit / action_progression)。
 
 ### 執行紀律(防彎路,給 Codex)
 

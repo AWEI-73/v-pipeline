@@ -12,6 +12,8 @@ HARD_AUDITS = (
     "treatment_audit",
     "visual_fatigue_audit",
     "new_visual_information_audit",
+    "semantic_novelty_audit",
+    "action_progression_audit",
     "black_frame_audit",
     "editorial_qa",
 )

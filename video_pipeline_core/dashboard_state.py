@@ -167,6 +167,14 @@ def load_dashboard_state(workdir):
         safe_load_json(manifest.get("black_frame_audit"))
         or safe_load_json("black_frame_audit.json")
     )
+    semantic_novelty_audit = (
+        safe_load_json(manifest.get("semantic_novelty_audit"))
+        or safe_load_json("semantic_novelty_audit.json")
+    )
+    action_progression_audit = (
+        safe_load_json(manifest.get("action_progression_audit"))
+        or safe_load_json("action_progression_audit.json")
+    )
     caption_audit = safe_load_json(manifest.get("caption_audit")) or safe_load_json("caption_audit.json")
     visual_audit = safe_load_json(manifest.get("visual_audit")) or safe_load_json("visual_audit.json")
     presentation_feel_audit = (
@@ -184,6 +192,8 @@ def load_dashboard_state(workdir):
         "timeline_invariants": timeline_invariants,
         "broll_audit": broll_audit,
         "new_visual_information_audit": new_visual_information_audit,
+        "semantic_novelty_audit": semantic_novelty_audit,
+        "action_progression_audit": action_progression_audit,
         "black_frame_audit": black_frame_audit,
         "caption_audit": caption_audit,
         "visual_audit": visual_audit,
@@ -195,6 +205,7 @@ def load_dashboard_state(workdir):
     audit_evidence = {
         role: (manifest.get(role) or f"{role}.json")
         for role in ("timeline_invariants", "broll_audit", "new_visual_information_audit",
+                     "semantic_novelty_audit", "action_progression_audit",
                      "black_frame_audit",
                      "caption_audit", "visual_audit",
                      "presentation_feel_audit",
@@ -203,6 +214,7 @@ def load_dashboard_state(workdir):
     # node ownership: 11 = editor review, 12 = verify
     NODE_AUDIT_MAP = {
         11: ["timeline_invariants", "broll_audit", "new_visual_information_audit",
+             "semantic_novelty_audit", "action_progression_audit",
              "caption_audit", "treatment_audit",
              "visual_fatigue_audit"],
         12: ["caption_audit", "keyframe_grid", "visual_audit", "presentation_feel_audit",
@@ -210,6 +222,7 @@ def load_dashboard_state(workdir):
     }
     AUDIT_PRIMARY_NODE = {
         "timeline_invariants": 11, "broll_audit": 11, "new_visual_information_audit": 11,
+        "semantic_novelty_audit": 11, "action_progression_audit": 11,
         "caption_audit": 11,
         "keyframe_grid": 12, "visual_audit": 12, "treatment_audit": 11,
         "visual_fatigue_audit": 11, "presentation_feel_audit": 12, "editorial_qa": 12,
@@ -686,6 +699,8 @@ def load_dashboard_state(workdir):
             "timeline_invariants": timeline_invariants,
             "broll_audit": broll_audit,
             "new_visual_information_audit": new_visual_information_audit,
+            "semantic_novelty_audit": semantic_novelty_audit,
+            "action_progression_audit": action_progression_audit,
             "black_frame_audit": black_frame_audit,
             "caption_audit": caption_audit,
             "visual_audit": visual_audit,

@@ -569,6 +569,8 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "adjusted": adjusted,
             "adjustment_reason": adjustment_reason,
             "scene_id": item.get("scene_id"),
+            "caption": item.get("caption"),
+            "function": item.get("function") or item.get("shot_function"),
             "beat_alignment": item.get("beat_alignment"),
             "keep_audio": bool(item.get("keep_audio")),
             "motion_phase": item.get("motion_phase"),

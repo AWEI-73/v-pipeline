@@ -71,14 +71,32 @@ def rank_scenes(segment, material_maps, *, ranker=None):
     return sorted(ranked, key=lambda item: (-item["score"], item["scene_id"]))
 
 
+def _scene_by_id(material_maps, scene_id):
+    asset_id, _, raw = str(scene_id).rpartition(":")
+    for material_map in material_maps or []:
+        if str(material_map.get("asset_id")) == asset_id:
+            try:
+                return (material_map.get("scenes") or [])[int(raw)]
+            except (ValueError, IndexError):
+                return None
+    return None
+
+
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None):
     """Convert top-ranked scenes to concrete editor slots."""
+    from .action_progression import classify_function
     slots = []
     for item in rank_scenes(segment, material_maps, ranker=ranker)[:max(0, int(limit))]:
         available = max(0.0, item["end"] - item["start"])
         take = min(float(clip_dur), available)
         if take <= 0:
             continue
+        scene = _scene_by_id(material_maps, item["scene_id"]) or {}
+        function = scene.get("function") or classify_function(
+            item.get("caption"),
+            motion_peaks=scene.get("motion_peaks"),
+            duration_sec=available,
+        )
         slots.append({
             "source": item["source"],
             "extract_start": round(item["start"] + max(0, available - take) / 2, 3),
@@ -86,6 +104,8 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None)
             "keep_audio": False,
             "segment": segment.get("segment"),
             "scene_id": item["scene_id"],
+            "caption": item.get("caption"),
+            "function": function,
             "retrieval_score": item["score"],
         })
     return slots
