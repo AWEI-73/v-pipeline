@@ -64,11 +64,26 @@ class HardeningTest(unittest.TestCase):
         self.assertEqual(hook["opening_role"], "hook")
         self.assertEqual(hook["extract_dur"], 1.0)        # clamped, not 2.5
 
-    def test_video_clip_clamped_against_start_offset(self):
-        # shot 10s but window starts at 9.0 -> only 1.0s available
-        shot = [{"source": "/m/s.mp4", "start": 9.0, "dur": 10.0}]
-        hook = op.compile_opening_sequence({"context_count": 0}, shot)["clips"][0]
-        self.assertEqual(hook["extract_dur"], 1.0)
+    def test_window_length_is_dur_not_dur_minus_start(self):
+        # shot.dur is the approved WINDOW length; start is its position, not a
+        # deduction. start=5 dur=1 -> only 1s; start=5 dur=3 -> min(design,3).
+        one = [{"source": "/m/s.mp4", "start": 5.0, "dur": 1.0}]
+        hook1 = op.compile_opening_sequence({"context_count": 0}, one)["clips"][0]
+        self.assertEqual(hook1["extract_start"], 5.0)
+        self.assertEqual(hook1["extract_dur"], 1.0)
+        three = [{"source": "/m/s.mp4", "start": 5.0, "dur": 3.0}]
+        hook3 = op.compile_opening_sequence({"context_count": 0}, three)["clips"][0]
+        self.assertEqual(hook3["extract_dur"], 2.5)        # min(hook design 2.5, 3)
+
+    def test_video_without_valid_dur_is_dropped(self):
+        for bad in ({"source": "/m/s.mp4", "start": 0.0},            # missing dur
+                    {"source": "/m/s.mp4", "start": 0.0, "dur": 0},   # dur 0
+                    {"source": "/m/s.mp4", "start": 0.0, "dur": -2},  # negative
+                    {"source": "/m/s.mp4", "start": 0.0, "dur": "3"}):  # non-numeric
+            result = op.compile_opening_sequence({"context_count": 0}, [bad])
+            self.assertEqual(result["clips"], [], f"shot {bad!r} should be dropped")
+            self.assertIn({"reason": "invalid_video_dur", "source": "/m/s.mp4"},
+                          result["dropped"])
 
     def test_photo_uses_design_duration_not_source_dur(self):
         photo = [{"source": "/m/p.jpg", "start": 0.0, "dur": 0.0, "is_photo": True}]
@@ -96,6 +111,17 @@ class PoolAndPrependTest(unittest.TestCase):
                 {"source": "/m/b.mp4", "extract_start": 0.0, "extract_dur": 2.0}]
         pool = op.opening_pool_from_plan(plan)
         self.assertEqual([s["source"] for s in pool], ["/m/a.mp4", "/m/b.mp4"])
+
+    def test_pool_extract_fields_flow_into_opening_clip(self):
+        # a story clip's extract_start/extract_dur become the pool shot's
+        # start/dur, and the opening clip extracts within that approved window.
+        plan = [{"source": "/m/story.mp4", "extract_start": 10.0, "extract_dur": 3.0}]
+        pool = op.opening_pool_from_plan(plan)
+        self.assertEqual(pool[0], {"source": "/m/story.mp4", "start": 10.0,
+                                   "dur": 3.0, "is_photo": False})
+        hook = op.compile_opening_sequence({"context_count": 0}, pool)["clips"][0]
+        self.assertEqual(hook["extract_start"], 10.0)
+        self.assertEqual(hook["extract_dur"], 2.5)         # min(hook 2.5, window 3.0)
 
     def test_prepend_reindexes_slot_index(self):
         plan = [{"source": "/m/seg.mp4", "slot_index": 0}]

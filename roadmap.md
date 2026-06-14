@@ -641,12 +641,15 @@ Smallest high-value gap = BR1 opening/hook. Documentation only, no feature.
 
 ### BR1 Opening / Hook Sequence Builder — implemented + hardened (2026-06-14), pending Codex review
 
-BR1-hardening: video opening clips are clamped to the approved shot's available
-footage (start..dur) so they never overrun; photos keep their design length
-(loop); `sound_punctuation` cues are resolved AFTER clips and only emit when
-their `title_reveal` anchor actually exists (else dropped with
-`anchor_missing:title_reveal`). 16 tests incl. two real renders (one proving the
-short-source clamp holds through a true ffmpeg render). 821 full regression OK.
+BR1-hardening: `sound_punctuation` cues resolved AFTER clips, only emit when the
+`title_reveal` anchor exists (else `anchor_missing:title_reveal`).
+
+BR1 duration contract (2026-06-14): **`shot.dur` = approved window length, so
+available = dur (start is the window's position, NOT a deduction)**; video clip =
+`min(design_dur, dur)`. Video shots with missing / non-numeric / ≤0 dur are
+**dropped** (`invalid_video_dur`), never rendered at a guessed design length.
+Photos keep their design length (loop). 18 tests incl. two real renders +
+opening_pool_from_plan→clip extract integration. 823 full regression OK.
 
 
 `opening_sequence.py` + `run_mv` integration + `tests/test_opening_sequence.py`

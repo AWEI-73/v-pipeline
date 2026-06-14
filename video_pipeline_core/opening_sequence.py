@@ -19,17 +19,24 @@ DEFAULT_BEAT_DURATIONS = {"hook": 2.5, "context": 1.2, "title": 2.0}
 DEFAULT_CONTEXT_COUNT = 3
 
 
+def _usable_shot(shot):
+    """A photo is always usable (it loops). A video shot is usable only with a
+    positive numeric `dur` (the approved window length). Invalid-dur video shots
+    are dropped, never rendered at a guessed design length."""
+    if bool(shot.get("is_photo", False)):
+        return True
+    dur = shot.get("dur")
+    return isinstance(dur, (int, float)) and not isinstance(dur, bool) and dur > 0
+
+
 def _effective_dur(shot, design_dur):
-    """Photos loop to any design length; a video clip must never exceed the
-    approved shot's available footage (start..dur)."""
+    """`shot.dur` is the approved window length, so available = dur (start is the
+    window's position in the source, not a deduction). Photos loop to any design
+    length; a video clip never exceeds its approved window."""
     design_dur = float(design_dur)
     if bool(shot.get("is_photo", False)):
         return design_dur
-    available = float(shot.get("dur", 0.0)) - float(shot.get("start", 0.0))
-    if available > 0:
-        return min(design_dur, available)
-    # no usable dur metadata: best-effort design length (approved-shot caller's bug)
-    return design_dur
+    return min(design_dur, float(shot["dur"]))     # available == dur, not dur - start
 
 
 def _shot_clip(shot, design_dur, *, role, text=None, treatment=None):
@@ -62,11 +69,19 @@ def compile_opening_sequence(recipe, available_shots, *, durations=None):
     durs = {**DEFAULT_BEAT_DURATIONS, **(recipe.get("durations") or {}),
             **(durations or {})}
     title_text = recipe.get("title_text")
-    pool = [dict(s) for s in (available_shots or []) if s.get("source")]
-    first_shot = dict(pool[0]) if pool else None
-
     clips, cues, used, dropped = [], [], [], []
     pending_punctuation = []          # resolved after clips are known (item 3)
+
+    # drop video shots with missing/invalid dur — never render at a guessed length
+    pool = []
+    for shot in (available_shots or []):
+        if not shot.get("source"):
+            continue
+        if _usable_shot(shot):
+            pool.append(dict(shot))
+        else:
+            dropped.append({"reason": "invalid_video_dur", "source": shot.get("source")})
+    first_shot = dict(pool[0]) if pool else None
 
     def take(role_hint=None):
         for i, shot in enumerate(pool):
