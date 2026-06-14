@@ -737,6 +737,12 @@ contract (`_usable_shot`/`_effective_dur`) so all video windows obey {start,dur}
 Graceful fallback drops beats with no material; no recipe → segment unchanged.
 Optional payoff punctuation cue emitted only when the payoff clip exists.
 Selectable recipe, NOT a universal action-spine gate.
+BR2-hardening (2026-06-14): replaced slots inherit segment semantics —
+keep_audio/audio_role, text/subtitle/narrative layer (every slot, mirroring
+`_windows_from_clip`), and `anti_presentation_plan` (BR2 now runs before the
+anti-presentation pass); trace metadata (attention_budget/creative_exception/
+beat_alignment/reason) still applied by the slot loop. Reverse tests cover
+keep_audio/audio_role + text placement.
 
 ```text
 context -> primary action -> detail/reaction -> payoff
@@ -757,6 +763,13 @@ into the rendered video's audio** via the loudness-preserving sfx filter (real
 output change). Cues whose anchor is absent/dropped are dropped
 (`anchor_missing:`). No cues → audio unchanged. Real-mix test proves a hit
 raises audio energy at its anchor time vs the silent baseline.
+BR3-hardening (2026-06-14): cue resolver computes anchor time with **xfade/
+transition overlap** (a crossfading clip starts `transition_duration` earlier),
+matching the render's `_build_transition_filter`. `apply_punctuation_to_video`
+returns `{status, cues_mixed, error}`; a non-zero ffmpeg exit or missing output
+raises `PunctuationMixError` (never reported as mixed). run_mv stays non-fatal
+but records `status=failed`, `error`, `cues_mixed=0`. Reverse tests cover xfade
+timing and remux failure.
 
 #### BR4 Ending / Payoff Sequence — P2
 

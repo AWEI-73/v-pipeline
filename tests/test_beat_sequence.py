@@ -87,6 +87,33 @@ class RunMvIntegrationTest(unittest.TestCase):
         result = self._run(script, clip_list, captured)
         self.assertFalse(any(c.get("beat_role") for c in result["plan"]))
 
+    def test_beat_recipe_preserves_keep_audio_and_audio_role(self):
+        # a duck (keep_audio) segment must not lose its audio semantic on replace
+        script = {"segments": [
+            {"segment": 1, "visual_desc": "致詞", "weight": 1.0, "pace": "hold",
+             "audio_role": "duck",
+             "beat_recipe": {"beats": ["context", "primary_action"],
+                             "shots": [{"source": "/m/x.mp4", "start": 0.0, "dur": 8.0},
+                                       {"source": "/m/y.mp4", "start": 0.0, "dur": 8.0}]}}]}
+        clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/x.mp4"}]}]}
+        result = self._run(script, clip_list, {})
+        beat_clips = [c for c in result["plan"] if c.get("beat_role")]
+        self.assertTrue(beat_clips)
+        self.assertTrue(all(c["keep_audio"] for c in beat_clips))
+        self.assertTrue(all(c.get("audio_role") == "duck" for c in beat_clips))
+
+    def test_beat_recipe_preserves_text_layer(self):
+        script = {"segments": [
+            {"segment": 1, "visual_desc": "課程", "weight": 1.0, "pace": "hold",
+             "audio_role": "music", "subtitle": "字幕內容", "narrative": "旁白內容",
+             "beat_recipe": {"beats": ["context"],
+                             "shots": [{"source": "/m/x.mp4", "start": 0.0, "dur": 8.0}]}}]}
+        clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/x.mp4"}]}]}
+        result = self._run(script, clip_list, {})
+        beat_clip = [c for c in result["plan"] if c.get("beat_role")][0]
+        self.assertEqual(beat_clip["text"]["subtitle"], "字幕內容")
+        self.assertEqual(beat_clip["text"]["narrative"], "旁白內容")
+
 
 class RealRenderTest(unittest.TestCase):
     def test_compiled_beat_sequence_renders_to_video(self):

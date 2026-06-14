@@ -28,14 +28,27 @@ def _asset_for(cue_type, asset_dir, ordinal):
     return os.path.join(str(asset_dir), f"{kind}_{variant}.wav")
 
 
+def _timeline_starts(plan):
+    """Timeline start of each clip, accounting for xfade/transition overlap: a
+    clip with a transition crossfades into the previous one and therefore starts
+    `transition_duration` earlier than a naive cumulative sum. Mirrors the
+    render's `_build_transition_filter` overlap so a cue lands at the real time."""
+    starts, cursor = [], 0.0
+    for index, clip in enumerate(plan or []):
+        overlap = 0.0
+        if index > 0 and clip.get("transition") in {"dissolve", "crossfade", "xfade"}:
+            overlap = float(clip.get("transition_duration") or 0.0)
+        start = round(cursor - overlap, 3)
+        starts.append(start)
+        cursor = start + float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0)
+    return starts
+
+
 def resolve_punctuation_cues(plan, cues, *, asset_dir):
     """Map each cue anchor (a produced sequence role) to a timeline start + asset.
     A cue whose anchor is not present in the plan is dropped (BR1/BR2 contract:
     never point at a non-existent or dropped beat)."""
-    starts, cursor = [], 0.0
-    for clip in plan or []:
-        starts.append(cursor)
-        cursor += float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0)
+    starts = _timeline_starts(plan)
 
     resolved, dropped, counters = [], [], {}
     for cue in cues or []:
@@ -88,10 +101,18 @@ def mix_punctuation_audio(base_audio, punctuation_plan, out_path, *, ffmpeg=None
     return str(out_path)
 
 
+class PunctuationMixError(RuntimeError):
+    """Raised when the punctuation remux is attempted but does not produce a
+    valid output — callers must treat this as an explicit failure, never as a
+    successful mix."""
+
+
 def apply_punctuation_to_video(video_path, plan, cues, *, asset_dir, ffmpeg=None):
     """Remux resolved punctuation hits into a rendered video's audio (real output
-    change). No usable cues -> the video is left untouched. Returns the resolved
-    punctuation plan for tracing."""
+    change). Returns a structured result {status, cues_mixed, cues, dropped,
+    error}: `no_cues` when nothing is usable (video untouched), `ok` on a
+    verified remux. A non-zero ffmpeg exit or a missing output raises
+    PunctuationMixError — it must never be reported as mixed cues."""
     if ffmpeg is None:
         try:
             from .platform_tools import resolve_ffmpeg
@@ -101,7 +122,9 @@ def apply_punctuation_to_video(video_path, plan, cues, *, asset_dir, ffmpeg=None
     resolved = resolve_punctuation_cues(plan, cues, asset_dir=asset_dir)
     usable = [c for c in resolved["cues"] if os.path.exists(c.get("asset", ""))]
     if not usable:
-        return resolved
+        return {"artifact_role": "punctuation_result", "status": "no_cues",
+                "cues_mixed": 0, "cues": resolved["cues"],
+                "dropped": resolved["dropped"], "error": None}
     graph, label = build_sfx_filter(
         [{"start_sec": c["start_sec"], "volume": c["volume"]} for c in usable],
         base_channels=2)
@@ -112,6 +135,13 @@ def apply_punctuation_to_video(video_path, plan, cues, *, asset_dir, ffmpeg=None
     cmd += ["-filter_complex", graph, "-map", "0:v", "-map", f"[{label}]",
             "-c:v", "copy", "-c:a", "aac", out_tmp]
     result = subprocess.run(cmd, capture_output=True)
-    if result.returncode == 0 and os.path.exists(out_tmp):
-        os.replace(out_tmp, str(video_path))
-    return resolved
+    if result.returncode != 0 or not os.path.exists(out_tmp):
+        if os.path.exists(out_tmp):
+            os.remove(out_tmp)
+        stderr = (result.stderr or b"").decode(errors="ignore")[-400:]
+        raise PunctuationMixError(
+            f"punctuation remux failed (rc={result.returncode}): {stderr}")
+    os.replace(out_tmp, str(video_path))
+    return {"artifact_role": "punctuation_result", "status": "ok",
+            "cues_mixed": len(usable), "cues": resolved["cues"],
+            "dropped": resolved["dropped"], "error": None}

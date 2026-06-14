@@ -45,6 +45,57 @@ class ResolveTest(unittest.TestCase):
         res = pn.resolve_punctuation_cues([], [], asset_dir=ASSET_DIR)
         self.assertEqual(res["cues"], [])
 
+    def test_xfade_overlap_shifts_anchor_time_earlier(self):
+        # clip A 3.0s, then title_reveal 2.0s crossfading in over 0.5s ->
+        # title starts at 3.0 - 0.5 = 2.5, not 3.0.
+        plan = [_clip("opening_role", "hook", 3.0, segment=0),
+                _clip("opening_role", "title_reveal", 2.0, segment=0,
+                      transition="xfade", transition_duration=0.5)]
+        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 0}]
+        res = pn.resolve_punctuation_cues(plan, cues, asset_dir=ASSET_DIR)
+        self.assertEqual(res["cues"][0]["start_sec"], 2.5)
+
+    def test_cut_transition_does_not_shift_time(self):
+        plan = [_clip("opening_role", "hook", 3.0, segment=0),
+                _clip("opening_role", "title_reveal", 2.0, segment=0,
+                      transition="cut", transition_duration=0.5)]
+        res = pn.resolve_punctuation_cues(
+            plan, [{"type": "hit", "anchor": "title_reveal", "segment": 0}], asset_dir=ASSET_DIR)
+        self.assertEqual(res["cues"][0]["start_sec"], 3.0)
+
+
+class RemuxFailureTest(unittest.TestCase):
+    def test_remux_failure_raises_and_reports_no_mix(self):
+        plan = [_clip("opening_role", "title_reveal", 2.0, segment=0)]
+        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 0}]
+        # usable assets exist, but the video input does not -> ffmpeg fails
+        with self.assertRaises(pn.PunctuationMixError):
+            pn.apply_punctuation_to_video("/no/such/video.mp4", plan, cues, asset_dir=ASSET_DIR)
+
+    def test_missing_assets_is_no_cues_not_failure(self):
+        plan = [_clip("opening_role", "title_reveal", 2.0, segment=0)]
+        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 0}]
+        res = pn.apply_punctuation_to_video("/no/such/video.mp4", plan, cues,
+                                            asset_dir="/no/such/sfx_dir")
+        self.assertEqual(res["status"], "no_cues")
+        self.assertEqual(res["cues_mixed"], 0)
+
+    def test_successful_mix_reports_ok_with_count(self):
+        d = Path(tempfile.mkdtemp())
+        vid = d / "v.mp4"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=160x120:rate=30:duration=5",
+                        "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                        "-t", "5", "-c:v", "libx264", "-c:a", "aac",
+                        "-pix_fmt", "yuv420p", str(vid)], capture_output=True, check=True)
+        plan = [_clip("opening_role", "hook", 3.0, segment=0),
+                _clip("opening_role", "title_reveal", 2.0, segment=0)]
+        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 0}]
+        res = pn.apply_punctuation_to_video(str(vid), plan, cues, asset_dir=ASSET_DIR)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["cues_mixed"], 1)
+        self.assertTrue(vid.exists())
+
 
 class RealMixTest(unittest.TestCase):
     def test_punctuation_mixes_real_audio_at_anchor_time(self):
