@@ -12,7 +12,27 @@ Status values: `active` (real BUILD/render consumer + evidence) · `partial`
 (consumed only on some paths or planning-only) · `declared_only` (stored, no
 BUILD consumer yet) · `missing` · `deprecated`.
 
-## Capability table
+## How to read this
+
+Three layers, kept separate on purpose — a planning gate is NOT a BUILD
+capability, and a VERIFY check creates nothing:
+
+- **A. Pre-BUILD gates** — run before BUILD; they accept/shorten/block the SPEC.
+  They change the *input* to BUILD, never emit timeline/render themselves.
+- **B. BUILD capabilities** — consumed during BUILD; they change the actual
+  timeline and/or rendered output.
+- **C. VERIFY audits** — inspect the result; they create no edit and choose no
+  replacement.
+
+### A. Pre-BUILD gates (planning layer — not BUILD capabilities)
+
+| Gate | Declared source | Tool | Where it runs | Effect on BUILD | Status |
+|---|---|---|---|---|---|
+| `B5 out_of_capability` | `capability_manifest` (M0) | `capability_manifest.build_capability_manifest` via `spec_review` | `spec_review` pre-BUILD | blocks SPEC requesting unsupported capability | active (gate) |
+| `B6 script_overreach` | `supply_review` (M1) | `review_supply` via `spec_review` | `spec_review` pre-BUILD | forces shorten/merge before BUILD | active (gate) |
+| Supply review | M1 `supply_review` | `review_supply` | pre-BUILD | shortened contract is BUILD input | active (gate) |
+
+### B. BUILD capabilities (change timeline / render)
 
 | Capability | Declared source | Existing tool | BUILD consumer | Timeline evidence | Render evidence | Status |
 |---|---|---|---|---|---|---|
@@ -22,19 +42,22 @@ BUILD consumer yet) · `missing` · `deprecated`.
 | SFX punctuation | `sfx.ASSET_COUNTS` + `sfx_plan` | `sfx-mix` | `video_pipeline` audio mix | `sfx_plan.json` cues | cues in final_audio | active |
 | Music structure / climax align | `music_structure` sections | `music_alignment` | `video_pipeline` bgm offset | `music_alignment_plan.json` | bgm offset in render | active |
 | J/L cut + speech-tail + motion snap | edit_artifacts / vt_audio | `snap_render_plan_to_motion`, jl/tail | `video_pipeline`, `mv_cut` | adjusted extract starts | rendered seams | active |
-| Supply review / `B6 script_overreach` | M1 `supply_review` | `review_supply` | `spec_review` pre-BUILD gate | shortened contract → BUILD | shorter film | active (planning gate) |
-| Capability manifest / `B5` | M0 `capability_manifest` | `validate-needs`/spec_review | `spec_review` gate | blocks out-of-capability SPEC | — | active (gate) |
 | Window retrieval (map-based) | M2 `material_retrieval` | `plan_ranked_windows`, `plan_sound_bite` | `mv_cut` (called when material_maps present) | ranked slots / sound-bite | rendered windows | partial |
+| motion_graphics: ffmpeg_libass | `build_profile.motion_graphics_backend` | `motion_graphics.py` (Node 14) | Node 14 render-plan → manifest → libass overlay | `motion_graphics_render_plan.json` | rendered overlays | active |
+| motion_graphics: html_playwright | build_profile | `motion_graphics.py` (Node 14) | Node 14 (one recipe) | render plan | rendered frames | partial |
+| motion_graphics: remotion | build_profile enum | — | none | — | — | declared_only |
+| CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
 | Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | — | — | declared_only |
 | Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | — | — | declared_only |
 | VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | scene review verdict | none (no BUILD ranking yet) | stored on scenes | — | declared_only |
-| Semantic novelty (dHash) | M5a | `semantic-novelty-audit` | VERIFY tier-2 only (warn) | — | — | declared_only (BUILD); active (VERIFY warn) |
-| Action progression | M5b | `action-progression-audit` | VERIFY tier-2 only (warn) | — | — | declared_only (BUILD); active (VERIFY warn) |
-| Black/blank frame | M0d | `black-frame-audit` | VERIFY tier-1 gate | — | fail-closed on defect | active (VERIFY) |
-| motion_graphics: ffmpeg_libass | build_profile | libass overlay | Node 14 effects render | render plan | rendered overlays | active |
-| motion_graphics: html_playwright | build_profile | playwright capture | Node 14 (one recipe) | render plan | rendered frames | partial |
-| motion_graphics: remotion | build_profile enum | — | none | — | — | declared_only |
-| CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
+
+### C. VERIFY audits (inspect only — not BUILD capabilities)
+
+| Audit | Declared source | Tool | Tier | Effect | Status |
+|---|---|---|---|---|---|
+| Black/blank frame | M0d | `black-frame-audit` | tier-1 | fail-closed blocks delivery on defect | active |
+| Semantic novelty (dHash) | M5a | `semantic-novelty-audit` | tier-2 | warns; never blocks | active (warn) |
+| Action progression | M5b | `action-progression-audit` | tier-2 | warns; never blocks | active (warn) |
 
 ## Findings
 

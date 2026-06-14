@@ -33,8 +33,8 @@ class AggregationTest(unittest.TestCase):
         met = result["metrics"]
         self.assertEqual(met["asset_count"], 1)
         self.assertEqual(met["scene_count"], 2)
-        self.assertEqual(met["reviewed_scene_ratio"], 0.5)
-        self.assertEqual(met["visual_label_coverage"], 0.5)
+        self.assertEqual(met["captioned_scene_ratio"], 0.5)
+        self.assertEqual(met["vd0_labeled_scene_ratio"], 0.5)
 
     def test_scene_evidence_is_preserved_verbatim(self):
         scene = {"start": 0, "end": 3, "caption": "c", "motion_peaks": [1.0],
@@ -78,7 +78,49 @@ class ExistingMaterialFirstTest(unittest.TestCase):
         result = pmm.build_project_material_map([])
         self.assertEqual(result["metrics"],
                          {"asset_count": 0, "scene_count": 0,
-                          "reviewed_scene_ratio": 0, "visual_label_coverage": 0})
+                          "captioned_scene_ratio": 0, "vd0_labeled_scene_ratio": 0})
+
+
+class HardeningTest(unittest.TestCase):
+    def _needs(self):
+        return mn.migrate_material_needs({"project": "p", "needs": [
+            {"need_id": "nd_keep", "category": "c", "type": "t", "purpose": "x"}]})
+
+    def test_satisfies_edge_without_needs_fails(self):
+        m = _asset_map("a", [{"start": 0, "end": 3,
+                              "satisfies": [{"need_id": "nd_keep", "status": "accepted"}]}])
+        with self.assertRaises(ValueError):
+            pmm.build_project_material_map([m])      # no needs -> phantom edge
+
+    def test_malformed_satisfies_edges_fail(self):
+        bad_edges = [
+            "not-a-dict",
+            {"status": "accepted"},                  # missing need_id
+            {"need_id": 5, "status": "accepted"},    # non-string need_id
+            {"need_id": "nd_keep"},                  # missing status
+            {"need_id": "nd_keep", "status": "approved"},  # invalid status
+        ]
+        for edge in bad_edges:
+            m = _asset_map("a", [{"start": 0, "end": 3, "satisfies": [edge]}])
+            with self.assertRaises(ValueError, msg=f"edge {edge!r} should fail"):
+                pmm.build_project_material_map([m], needs=self._needs())
+
+    def test_duplicate_asset_id_fails(self):
+        with self.assertRaises(ValueError):
+            pmm.build_project_material_map([_asset_map("dup", []), _asset_map("dup", [])])
+
+    def test_empty_or_nonstring_asset_id_fails(self):
+        for bad in ("", "   ", None, 7):
+            with self.assertRaises(ValueError):
+                pmm.build_project_material_map([_asset_map(bad, [])])
+
+    def test_nonexistent_needs_path_fails(self):
+        d = Path(tempfile.mkdtemp())
+        maps_dir = d / "maps"; maps_dir.mkdir()
+        (maps_dir / "a.map.json").write_text(json.dumps(_asset_map("a", [])), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            pmm.write_project_material_map(
+                str(maps_dir), str(d / "out.json"), needs_path=str(d / "missing_needs.json"))
 
 
 class CliTest(unittest.TestCase):

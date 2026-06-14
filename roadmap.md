@@ -559,15 +559,21 @@ different problems and must remain separate.
 Review handoff:
 `docs/decisions/2026-06-14-roadmap-course-correction.md`.
 
-### MM1 Project Material Map V1 — implemented (2026-06-14), pending Codex review
+### MM1 Project Material Map V1 — implemented + hardened (2026-06-14), pending Codex review
 
 `project_material_map.py` + `project-material-map` CLI + `tests/test_project_material_map.py`
-(9 tests). All 6 acceptance criteria covered: deterministic aggregate (sorted by
-asset_id), unknown `satisfies.need_id` fails when needs present, projects without
-needs stay valid, truthful metrics (asset/scene count, reviewed_scene_ratio via
-caption presence, visual_label_coverage via VD0 labels), CLI writes
-`project_material_map.json`. Non-goals held (no delta/decision, no BUILD/UI).
-Full regression below.
+(14 tests). 6 acceptance criteria + hardening:
+- deterministic aggregate (sorted by asset_id); CLI writes `project_material_map.json`.
+- **reference integrity**: every satisfies edge validated (object / non-empty
+  string need_id / status in candidate|accepted|rejected / known need_id);
+  unknown need_id fails when needs present; **a satisfies edge with no canonical
+  needs fails** (phantom-edge bypass closed).
+- **asset_id** must be a unique non-empty string (duplicate / empty / non-string fail).
+- **needs_path** explicitly provided but missing → fail (not silently treated as needs-less).
+- **metrics renamed for honesty**: `captioned_scene_ratio` (scenes with a caption)
+  and `vd0_labeled_scene_ratio` (scenes with ≥1 VD0 label) — no longer overclaim
+  "reviewed" / full "label coverage".
+- projects without needs stay valid; non-goals held (no delta/decision, BUILD, UI).
 
 **Goal:** aggregate the existing per-asset `*.map.json` evidence into one
 project-level material map that can be consumed by agents, BUILD, and a future
@@ -587,8 +593,8 @@ Minimum contract:
   "metrics": {
     "asset_count": 0,
     "scene_count": 0,
-    "reviewed_scene_ratio": 0,
-    "visual_label_coverage": 0
+    "captioned_scene_ratio": 0,
+    "vd0_labeled_scene_ratio": 0
   }
 }
 ```

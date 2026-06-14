@@ -16,19 +16,44 @@ import json
 import os
 from pathlib import Path
 
-from .material_needs import summarize_satisfaction, validate_material_needs
+from .material_needs import (
+    VALID_STATUSES,
+    summarize_satisfaction,
+    validate_material_needs,
+)
 
 
 _VD0_LABELS = ("visual_family", "angle_scale", "action_family", "subject")
 
 
-def _scene_is_reviewed(scene):
-    # an agent/VLM review produces a caption; that is the canonical review signal
+def _scene_is_captioned(scene):
+    # an agent/VLM review produces a caption; this metric measures exactly that
     return bool(scene.get("caption"))
 
 
-def _scene_has_label(scene):
+def _scene_has_vd0_label(scene):
     return any(scene.get(axis) for axis in _VD0_LABELS)
+
+
+def _validate_satisfies(asset_id, index, scene, whitelist):
+    """Validate every satisfies edge's structure, need_id, status, and reference.
+    whitelist=None means no canonical needs exist — then any edge is a phantom."""
+    for edge in scene.get("satisfies") or []:
+        ref = f"asset {asset_id!r} scene {index}"
+        if not isinstance(edge, dict):
+            raise ValueError(f"{ref} satisfies edge must be an object, got {edge!r}")
+        nid = edge.get("need_id")
+        if not isinstance(nid, str) or not nid.strip():
+            raise ValueError(f"{ref} satisfies need_id must be a non-empty string, got {nid!r}")
+        status = edge.get("status")
+        if status not in VALID_STATUSES:
+            raise ValueError(f"{ref} satisfies status must be one of {VALID_STATUSES}, got {status!r}")
+        if whitelist is None:
+            raise ValueError(
+                f"{ref} has a satisfies edge but the project declares no material "
+                f"needs — a satisfaction edge cannot reference a non-existent need")
+        if nid not in whitelist:
+            raise ValueError(f"{ref} satisfies unknown need_id {nid!r} (not in canonical material_needs)")
 
 
 def build_project_material_map(material_maps, *, needs=None):
@@ -51,24 +76,25 @@ def build_project_material_map(material_maps, *, needs=None):
 
     assets = []
     scene_count = 0
-    reviewed = 0
+    captioned = 0
     labeled = 0
+    seen_ids = set()
     # deterministic order regardless of input/glob ordering
     for material_map in sorted(material_maps or [],
                                key=lambda m: str(m.get("asset_id") or "")):
         asset_id = material_map.get("asset_id")
+        if not isinstance(asset_id, str) or not asset_id.strip():
+            raise ValueError(f"asset_id must be a non-empty string, got {asset_id!r}")
+        if asset_id in seen_ids:
+            raise ValueError(f"duplicate asset_id {asset_id!r} — must be unique")
+        seen_ids.add(asset_id)
         scenes = material_map.get("scenes") or []
         for index, scene in enumerate(scenes):
-            for edge in scene.get("satisfies") or []:
-                nid = edge.get("need_id")
-                if whitelist is not None and nid not in whitelist:
-                    raise ValueError(
-                        f"asset {asset_id!r} scene {index} satisfies unknown "
-                        f"need_id {nid!r} (not in canonical material_needs)")
+            _validate_satisfies(asset_id, index, scene, whitelist)
             scene_count += 1
-            if _scene_is_reviewed(scene):
-                reviewed += 1
-            if _scene_has_label(scene):
+            if _scene_is_captioned(scene):
+                captioned += 1
+            if _scene_has_vd0_label(scene):
                 labeled += 1
         assets.append({
             "asset_id": asset_id,
@@ -92,10 +118,12 @@ def build_project_material_map(material_maps, *, needs=None):
         "needs": canonical_needs,
         "satisfaction_summary": satisfaction_summary,
         "metrics": {
+            # renamed for honesty: each measures exactly the named signal, not a
+            # broader notion of "reviewed" or full "label coverage".
             "asset_count": len(assets),
             "scene_count": scene_count,
-            "reviewed_scene_ratio": _ratio(reviewed),
-            "visual_label_coverage": _ratio(labeled),
+            "captioned_scene_ratio": _ratio(captioned),       # scenes with a caption
+            "vd0_labeled_scene_ratio": _ratio(labeled),       # scenes with >=1 VD0 label
         },
     }
 
@@ -112,7 +140,11 @@ def load_asset_maps(maps_dir):
 def write_project_material_map(maps_dir, out_path, *, needs_path=None):
     material_maps = load_asset_maps(maps_dir)
     needs = None
-    if needs_path and os.path.exists(needs_path):
+    if needs_path is not None:
+        # explicitly provided -> it must exist; silently ignoring a typo'd path
+        # would build a needs-less map and hide the mistake.
+        if not os.path.exists(needs_path):
+            raise ValueError(f"needs_path was provided but does not exist: {needs_path}")
         with open(needs_path, encoding="utf-8") as handle:
             needs = json.load(handle)
     project_map = build_project_material_map(material_maps, needs=needs)
