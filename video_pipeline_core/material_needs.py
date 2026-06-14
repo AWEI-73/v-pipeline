@@ -118,6 +118,12 @@ def _positive_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _valid_tier(value):
+    # bool is an int subclass and True == 1, so reject booleans explicitly.
+    return isinstance(value, int) and not isinstance(value, bool) \
+        and value in VALID_FALLBACK_TIERS
+
+
 def validate_material_needs(raw):
     """Strict validation. Does NOT allocate ids, mutate join keys, or coerce
     types. A canonical need must carry an explicit need_id; duplicate explicit
@@ -141,8 +147,9 @@ def validate_material_needs(raw):
             if missing:
                 errors.append(f"need {ref} missing {field}")
         tier = row.get("fallback_tier")
-        if tier is not None and tier not in VALID_FALLBACK_TIERS:
-            errors.append(f"need {ref} fallback_tier {tier} not in 1-4")
+        if not _valid_tier(tier):
+            errors.append(f"need {ref} fallback_tier must be an integer 1-4, "
+                          f"got {tier!r}")
         if not isinstance(row.get("must_have"), bool):
             errors.append(f"need {ref} must_have must be boolean, got "
                           f"{row.get('must_have')!r}")

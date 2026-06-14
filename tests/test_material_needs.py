@@ -1,6 +1,12 @@
+import json
+import tempfile
+import types
 import unittest
+from pathlib import Path
 
 from video_pipeline_core import material_needs as mn
+from video_pipeline_core.vt_core import ToolError
+from video_tools import cmd_validate_needs
 
 
 def _legacy():
@@ -124,10 +130,14 @@ class ValidatorTest(unittest.TestCase):
         self.assertTrue(any("missing type" in e for e in result["errors"]))
 
     def test_bad_fallback_tier_is_error(self):
-        bad = {"project": "p", "needs": [
-            {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
-             "fallback_tier": 9}]}
-        self.assertFalse(mn.validate_material_needs(bad)["ok"])
+        for bad_tier in (9, 0, "1", True, 1.0):
+            bad = {"project": "p", "needs": [
+                {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+                 "fallback_tier": bad_tier}]}
+            result = mn.validate_material_needs(bad)
+            self.assertFalse(result["ok"], f"fallback_tier={bad_tier!r} should fail")
+            self.assertTrue(any("fallback_tier must be an integer" in e
+                                for e in result["errors"]))
 
     def test_must_have_tier1_without_fallback_warns(self):
         risky = {"project": "p", "needs": [
@@ -206,6 +216,44 @@ class SatisfiesEdgeTest(unittest.TestCase):
         self.assertEqual(summary["nd_x"]["accepted"][0],
                          {"asset_id": "clipA", "scene_index": 0})
         self.assertEqual(summary["nd_y"]["candidate"][0]["scene_index"], 1)
+
+
+class CliTest(unittest.TestCase):
+    def _write(self, obj):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(obj, tmp)
+        tmp.close()
+        return tmp.name
+
+    def test_invalid_input_raises_for_nonzero_exit(self):
+        # missing need_id (strict, no --migrate) must fail the CLI
+        path = self._write({"project": "p", "needs": [
+            {"category": "c", "type": "t", "purpose": "x"}]})
+        args = types.SimpleNamespace(needs=path, migrate=False, out=None)
+        with self.assertRaises(ToolError):
+            cmd_validate_needs(args)
+
+    def test_out_not_written_on_failure(self):
+        path = self._write({"project": "p", "needs": [
+            {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+             "must_have": "false"}]})  # invalid type -> validation fails
+        out = Path(tempfile.gettempdir()) / "should_not_exist_needs.json"
+        if out.exists():
+            out.unlink()
+        args = types.SimpleNamespace(needs=path, migrate=False, out=str(out))
+        with self.assertRaises(ToolError):
+            cmd_validate_needs(args)
+        self.assertFalse(out.exists())
+
+    def test_migrate_valid_input_writes_canonical(self):
+        path = self._write({"project": "p", "segments": [{"segment": 1, "needs": [
+            {"id": "1.1", "category": "c", "type": "t", "purpose": "x",
+             "count": 2, "fallback_tier": 2, "must_have": False}]}]})
+        out = Path(tempfile.mkdtemp()) / "canon.json"
+        args = types.SimpleNamespace(needs=path, migrate=True, out=str(out))
+        cmd_validate_needs(args)  # must not raise
+        written = json.loads(out.read_text(encoding="utf-8"))
+        self.assertTrue(written["needs"][0]["need_id"].startswith("nd_"))
 
 
 class BackwardCompatTest(unittest.TestCase):

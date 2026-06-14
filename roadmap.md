@@ -456,7 +456,14 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 | Requirement-vs-actual delta | `material_delta.json` | Missing |
 | Revised executable story | revised `segment_contract.json` | Exists, but not yet driven by a canonical delta |
 
-#### M6a Canonical contracts — implemented + hardened (2026-06-14), lineage integration pending
+#### M6a Canonical contracts — contract implemented; hardening pending Codex re-review (2026-06-14)
+
+> 狀態用語依約定:hardening 全數通過 Codex re-review 後才標 "contract layer complete"。
+> 本輪在 `cbc171c`(F1-F4)之上再補兩個 spec 漏項:`fallback_tier` 嚴格型別
+> (拒 boolean `True`/字串/float——`True in (1,2,3,4)` 在 Python 為 True 的陷阱)
+> 與 **CLI 驗證失敗回非零 exit code**(`validate-needs` 失敗 raise ToolError;
+> `--out` 僅在通過時寫入)。新增 CLI failure / tier 型別 TDD。786 tests OK。
+
 
 實作 `material_needs.py` + `validate-needs` CLI + `tests/test_material_needs.py`。
 M6a-hardening 已修正契約 review 抓到的 4 個問題(F1-F4):

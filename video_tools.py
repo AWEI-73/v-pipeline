@@ -337,6 +337,8 @@ def cmd_validate_needs(args):
         "warnings": result["warnings"],
         "need_count": len(result["needs"]),
     }, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError(f"material_needs validation failed: {len(result['errors'])} error(s)")
 
 
 def cmd_semantic_novelty_audit(args):
