@@ -149,6 +149,76 @@ class BrokenChainFailsNotMissingTest(unittest.TestCase):
         self.assertEqual(result["deltas"], [])
 
 
+def _map(source, *scene_specs):
+    """scene_specs: (start, end, need_id, status). Hand-authored so we can craft
+    unrenderable / duplicate evidence the verdict API would not normally write."""
+    scenes = []
+    for start, end, need_id, status in scene_specs:
+        scenes.append({"start": start, "end": end,
+                       "satisfies": [{"need_id": need_id, "status": status}]})
+    return [{"asset_id": "clip-a", "source": source, "scenes": scenes}]
+
+
+class RenderableEvidenceTest(unittest.TestCase):
+    def test_zero_length_accepted_scene_does_not_satisfy_must_have(self):
+        needs = _needs(("hero", 1, True, None))
+        nid = _first_id(needs)
+        maps = _map("a.mp4", (2.0, 2.0, nid, "accepted"))   # zero-length window
+        result = md.compute_material_delta(needs, maps)
+        self.assertTrue(result["ok"])
+        delta = result["deltas"][0]
+        self.assertEqual(delta["outcome"], "missing")       # not covered
+        self.assertEqual(delta["tier"], 1)
+        self.assertTrue(delta["blocks_ready_for_build"])
+        self.assertFalse(result["ready_for_build"])
+        self.assertEqual(delta["evidence"]["accepted"], 0)
+        self.assertEqual(delta["evidence"]["dropped_evidence"][0]["reason"],
+                         "non_positive_length")
+
+    def test_accepted_scene_missing_source_does_not_pass(self):
+        needs = _needs(("hero", 1, True, None))
+        nid = _first_id(needs)
+        maps = _map("", (0.0, 3.0, nid, "accepted"))        # no source
+        result = md.compute_material_delta(needs, maps)
+        delta = result["deltas"][0]
+        self.assertEqual(delta["outcome"], "missing")
+        self.assertTrue(delta["blocks_ready_for_build"])
+        self.assertEqual(delta["evidence"]["dropped_evidence"][0]["reason"],
+                         "missing_source")
+
+    def test_invalid_bounds_accepted_scene_dropped(self):
+        needs = _needs(("hero", 1, True, ["reshoot"]))      # has fallback -> tier2
+        nid = _first_id(needs)
+        maps = _map("a.mp4", ("soon", 3.0, nid, "accepted"))
+        result = md.compute_material_delta(needs, maps)
+        delta = result["deltas"][0]
+        self.assertEqual(delta["outcome"], "missing")
+        self.assertEqual(delta["evidence"]["accepted"], 0)
+
+    def test_duplicate_accepted_scene_counted_once(self):
+        needs = _needs(("hero", 1, True, None))
+        nid = _first_id(needs)
+        # one scene carrying the SAME accepted edge twice
+        maps = [{"asset_id": "clip-a", "source": "a.mp4", "scenes": [
+            {"start": 0, "end": 3, "satisfies": [
+                {"need_id": nid, "status": "accepted"},
+                {"need_id": nid, "status": "accepted"}]}]}]
+        result = md.compute_material_delta(needs, maps)
+        delta = result["deltas"][0]
+        self.assertEqual(delta["evidence"]["accepted"], 1)   # not 2
+        self.assertEqual(delta["outcome"], "covered")        # not excess
+
+
+class FallbackValidationTest(unittest.TestCase):
+    def test_empty_string_fallback_fails_and_keeps_block(self):
+        for bad in ([""], ["   "], ["ok", ""]):
+            needs = _needs(("hero", 1, True, bad))
+            result = md.compute_material_delta(needs, [])
+            self.assertFalse(result["ok"], bad)              # validation failure
+            self.assertEqual(result["deltas"], [])
+            self.assertFalse(result["ready_for_build"])      # block not relieved
+
+
 class BoundaryTest(unittest.TestCase):
     def test_no_semantic_or_phase_fields_in_output(self):
         needs = _needs(("cable pull", 1, True, None))

@@ -621,6 +621,23 @@ malformed/invalid → fail-not-missing; no-semantic-field boundary; multi-need
 summary): 14 tests. Full regression: **921 tests OK**. F2 stays deferred until a
 real case proves semantic function classification is needed.
 
+M6b increment-1 hardening (2026-06-15): coverage now counts only BUILD-usable
+evidence. (1) A satisfying scene is counted only if its source is a non-empty
+string and its start/end are valid numbers with `end > start`; unrenderable
+evidence is recorded in `evidence.dropped_evidence` (reason
+`missing_source`/`invalid_bounds`/`non_positive_length`) and never makes a need
+`covered` — so a zero-length or sourceless accepted scene cannot flip a must_have
+need to `ready_for_build`. (2) `fallback_options` items must be trimmed non-empty
+strings; `[""]`/`["   "]` now fail validation (→ `ok=False`) and therefore cannot
+relieve a tier-1 block. (3) Evidence is deduped by `(need_id, asset_id,
+scene_index)` at its strongest status, so a duplicated accepted scene cannot
+inflate `covered`/`excess`. Future pre-BUILD gate MUST require
+`delta.ok is True AND delta.ready_for_build is True` (not `blocks_ready_for_build`
+alone) — documented in `material_delta` module. Reverse tests: zero-length /
+missing-source / invalid-bounds accepted dropped; duplicate accepted counted
+once; `[""]`/`["   "]` fallback fails. Focused: 19 tests OK; full regression:
+**926 tests OK**.
+
 #### M6c Delta-driven script revision
 
 - Convert accepted delta decisions into a revised `segment_contract.json`.

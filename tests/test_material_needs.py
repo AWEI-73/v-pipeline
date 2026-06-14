@@ -140,14 +140,16 @@ class ValidatorTest(unittest.TestCase):
             self.assertTrue(any("fallback_tier must be an integer" in e
                                 for e in result["errors"]))
 
-    def test_fallback_options_must_be_list_of_strings(self):
-        for bad in ("just a string", [1, 2], [{"x": 1}], 5):
+    def test_fallback_options_must_be_list_of_nonempty_strings(self):
+        # empty/whitespace strings are NOT real fallbacks (must not relieve a
+        # tier-1 must_have block downstream in M6b)
+        for bad in ("just a string", [1, 2], [{"x": 1}], 5, [""], ["   "], ["ok", ""]):
             payload = {"project": "p", "needs": [
                 {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
                  "fallback_options": bad}]}
             result = mn.validate_material_needs(payload)
             self.assertFalse(result["ok"], f"fallback_options={bad!r} should fail")
-            self.assertTrue(any("fallback_options must be a list of strings" in e
+            self.assertTrue(any("fallback_options must be a list of non-empty strings" in e
                                 for e in result["errors"]))
 
     def test_valid_fallback_options_pass(self):

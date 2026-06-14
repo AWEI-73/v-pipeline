@@ -162,9 +162,12 @@ def validate_material_needs(raw):
         fallback_options = row.get("fallback_options")
         if fallback_options is not None and not (
                 isinstance(fallback_options, list)
-                and all(isinstance(item, str) for item in fallback_options)):
-            errors.append(f"need {ref} fallback_options must be a list of strings, "
-                          f"got {fallback_options!r}")
+                and all(isinstance(item, str) and item.strip()
+                        for item in fallback_options)):
+            # each option must be a trimmed non-empty string — `[""]`/`["   "]`
+            # is NOT a real fallback and must not relieve a tier-1 must_have block
+            errors.append(f"need {ref} fallback_options must be a list of "
+                          f"non-empty strings, got {fallback_options!r}")
         if row.get("must_have") is True and row.get("fallback_tier") == 1 \
                 and not row.get("fallback_options"):
             warnings.append(
