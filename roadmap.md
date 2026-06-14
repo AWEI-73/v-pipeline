@@ -500,9 +500,44 @@ M6a-hardening 已修正契約 review 抓到的 4 個問題(F1-F4):
 - 向後相容:無 needs / 無 satisfies 的純既有素材流程不受影響;legacy 巢狀與 flat
   皆可輸入;未碰 supply_review / rank-local。**全套件 791 tests OK(round 3)**。
 
-M6a lineage integration remains useful but is deferred until the project-level
-material map and BUILD capability alignment are proven. Do not start M6b
-`material_delta` yet. Original design goals remain below:
+#### M6a Lineage Integration ✅ reference chain complete (2026-06-14)
+
+The end-to-end `need_id` reference chain now joins every artifact, with NO
+`material_delta` decision (that boundary is M6b):
+
+```
+need_id (material_needs)
+  → shooting-brief requirement (shooting_brief.requirements[].need_id)
+  → scene satisfies edge        (material_map.scenes[].satisfies[].need_id)
+  → revised segment_contract    (segment.material_fit.need_refs[])
+```
+
+- `material_lineage.build_shooting_brief(needs)` projects each **strict-validated**
+  canonical need into a brief requirement carrying its `need_id` (the join key
+  the human-authored prose brief must preserve). It is a projection, not a second
+  required-map format; invalid/un-migrated needs raise.
+- `segment_contract` gains optional `material_fit.need_refs` (list of need_id).
+  `spec_contract.validate_segment_contract` validates **shape only** (non-empty
+  string array); the cross-file join is enforced by the linker — same split as
+  `blueprint_ref`.
+- `material_lineage.link_lineage(needs, shooting_brief, material_maps, contract)`
+  produces a neutral join view (`chain[need_id] = {in_brief, satisfied_by,
+  contract_segments}`) and fails (`ok=False`) only on a **dangling reference** —
+  any brief/satisfies/contract hop pointing at a need_id absent from canonical
+  needs. It makes NO covered/thin/missing verdict: a need with zero satisfying
+  scenes is reported as-is, never flagged missing.
+- CLI `lineage-link [--build-brief] [--brief] [--project-map] [--contract]`.
+  Reuses `summarize_satisfaction` (scene→need inversion) and
+  `expand_project_material_map` (MR1 loader). Backward compatible: needs-only or
+  no-need_refs flows stay `ok`.
+
+Falsification tests `tests/test_material_lineage.py` (brief carries need_id;
+invalid needs cannot build a brief; need_refs shape; need_id survives all four
+artifacts; dangling at each hop fails; no-delta boundary asserts no
+coverage/route/status keys leak): 11 tests. Full regression: **900 tests OK**.
+M6b `material_delta` stays deferred — it now has a join to diff over.
+
+Original design goals (all met by the above):
 
 - Model one lifecycle with existing-material and planned-capture entry points;
   partial material availability is first-class, not a third branch.
@@ -856,8 +891,8 @@ regression: **889 tests OK**.
 
 ### Deferred Until After BUILD Alignment
 
-- M6a lineage integration: `need_id` through shooting brief and revised
-  contract references.
+- ~~M6a lineage integration: `need_id` through shooting brief and revised
+  contract references.~~ DONE (2026-06-14) — see "M6a Lineage Integration" above.
 - M6b `material_delta` and delta-driven script revision.
 - Dashboard/UI, Node 14, effects expansion, and front/back-end separation.
 - New aesthetic hard gates or further 67th-specific tuning.

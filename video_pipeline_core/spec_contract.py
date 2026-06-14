@@ -132,6 +132,14 @@ def validate_segment_contract(contract, categories=None):
                 err("material_fit.visual_desc 必填(素材撐的視覺段)")
             if not mat.get("reason"):
                 err("material_fit.reason 必填")
+            # need_refs(M6a lineage,選配):這段宣稱實現哪些 material_needs need_id。
+            # 此處只驗形狀(非空字串陣列);ref 是否指到 canonical need 的跨檔 join
+            # 由 material_lineage.link_lineage 守門(同 blueprint_ref 模式)。
+            nrefs = mat.get("need_refs")
+            if nrefs is not None and not (
+                    isinstance(nrefs, list) and nrefs
+                    and all(isinstance(r, str) and r.strip() for r in nrefs)):
+                err("material_fit.need_refs 形狀非法(應為非空 need_id 字串陣列)")
             # 地圖規範:category 對照詞彙(有提供 vocab 才驗)
             if cat_ids is not None and mat.get("category") and mat["category"] not in cat_ids:
                 err(f"material_fit.category='{mat['category']}' 不在地圖規範詞彙")

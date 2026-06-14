@@ -349,6 +349,42 @@ def cmd_project_material_map(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_lineage_link(args):
+    """M6a lineage: build the shooting-brief projection and/or link the need_id
+    reference chain (needs -> brief -> satisfies -> contract). Reports dangling
+    references only; makes NO coverage/delta decision."""
+    from video_pipeline_core import material_lineage, project_material_map
+    needs = _load_json(args.needs)
+    if args.build_brief:
+        brief = material_lineage.build_shooting_brief(needs)
+        if args.out:
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(
+                json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(json.dumps({"ok": True, "artifact": "shooting_brief",
+                          "requirement_count": len(brief["requirements"])},
+                         ensure_ascii=False, indent=2))
+        return
+    brief = _load_json(args.brief) if args.brief else None
+    contract = _load_json(args.contract) if args.contract else None
+    material_maps = None
+    if args.project_map:
+        material_maps = project_material_map.expand_project_material_map(
+            _load_json(args.project_map))
+    result = material_lineage.link_lineage(
+        needs, shooting_brief=brief, material_maps=material_maps, contract=contract)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": result["ok"], "errors": result["errors"],
+                      "dangling": result["dangling"],
+                      "need_count": len(result["chain"])},
+                     ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError(f"lineage has {len(result['errors'])} dangling reference(s)")
+
+
 def cmd_visual_diversity_coverage(args):
     """VD1: report real project-map VD0 label coverage; never rank material."""
     from video_pipeline_core import visual_diversity_coverage
@@ -1658,6 +1694,16 @@ def main():
                       help="allocate stable need_ids for needs that lack one (one-time)")
     p_vn.add_argument("--out", help="write canonical needs here if valid")
 
+    p_ll = sub.add_parser("lineage-link")
+    p_ll.add_argument("needs", help="canonical material_needs.json")
+    p_ll.add_argument("--build-brief", action="store_true", dest="build_brief",
+                      help="project needs into a shooting_brief skeleton (need_id-keyed)")
+    p_ll.add_argument("--brief", default=None, help="shooting_brief.json to link")
+    p_ll.add_argument("--project-map", default=None, dest="project_map",
+                      help="project_material_map.json (satisfies edges)")
+    p_ll.add_argument("--contract", default=None, help="segment_contract.json (need_refs)")
+    p_ll.add_argument("--out", default=None, help="write the brief/lineage artifact here")
+
     p_pmm = sub.add_parser("project-material-map")
     p_pmm.add_argument("--maps-dir", required=True, dest="maps_dir",
                        help="directory of per-asset *.map.json files")
@@ -1851,6 +1897,7 @@ def main():
         "new-visual-audit": cmd_new_visual_information_audit,
         "black-frame-audit": cmd_black_frame_audit,
         "validate-needs": cmd_validate_needs,
+        "lineage-link": cmd_lineage_link,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
