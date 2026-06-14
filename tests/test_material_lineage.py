@@ -105,7 +105,9 @@ class EndToEndChainTest(unittest.TestCase):
         link = result["chain"][nid]
         self.assertTrue(link["in_brief"])
         self.assertEqual(len(link["satisfied_by"]["accepted"]), 1)
-        self.assertEqual(link["contract_segments"], ["#0"])
+        self.assertEqual(link["contract_segments"], [
+            {"segment_ref": "#0", "segment_index": 0},
+        ])
 
     def test_dangling_brief_reference_is_an_error(self):
         needs = _needs("cable pull")
@@ -194,7 +196,33 @@ class HardeningShapeTest(unittest.TestCase):
         result = ml.link_lineage(needs, shooting_brief=brief, material_maps=maps,
                                  contract={"segments": [_seg("body", [nid])]})
         self.assertTrue(result["ok"], result["errors"])
-        self.assertEqual(result["chain"][nid]["contract_segments"], ["body"])
+        self.assertEqual(result["chain"][nid]["contract_segments"], [
+            {"segment_ref": "body", "segment_index": 0},
+        ])
+
+    def test_contract_segments_preserve_artifact_local_unique_position(self):
+        needs = _needs("cable pull")
+        nid = _first_need_id(needs)
+        result = ml.link_lineage(
+            needs,
+            contract={"segments": [_seg("body", [nid]), _seg("body", [nid])]},
+        )
+        self.assertTrue(result["ok"], result["errors"])
+        self.assertEqual(result["chain"][nid]["contract_segments"], [
+            {"segment_ref": "body", "segment_index": 0},
+            {"segment_ref": "body", "segment_index": 1},
+        ])
+
+    def test_malformed_top_level_brief_and_contract_fail_without_crashing(self):
+        needs = _needs("cable pull")
+        for bad_brief in ("x", []):
+            result = ml.link_lineage(needs, shooting_brief=bad_brief)
+            self.assertFalse(result["ok"], bad_brief)
+            self.assertTrue(any("shooting_brief" in error for error in result["errors"]))
+        for bad_contract in ({"segments": "x"}, {"segments": [123]}):
+            result = ml.link_lineage(needs, contract=bad_contract)
+            self.assertFalse(result["ok"], bad_contract)
+            self.assertTrue(any("contract" in error for error in result["errors"]))
 
 
 class BoundaryTest(unittest.TestCase):

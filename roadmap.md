@@ -552,6 +552,16 @@ dangling, brief missing/non-string need_id, contract `[123]`/`[]`/non-list,
 satisfies non-object/non-string/illegal-status, legal four-link still ok. Focused:
 16 tests OK; full regression: **905 tests OK**.
 
+M6a lineage final hardening (2026-06-14): `chain.contract_segments` now
+preserves both display `segment_ref` and artifact-local `segment_index`, so
+same-role segments remain individually addressable by downstream M6b/M6c.
+`segment_index` is intentionally only an identity inside the current contract
+artifact; it is not claimed stable after contract reordering. Supplied
+shooting-brief and contract top-level shapes now fail safely (`ok=False` +
+errors) instead of crashing or silently passing. Reverse tests cover duplicate
+display roles and malformed top-level brief/contract inputs. Focused:
+18 tests OK; full regression: **907 tests OK**.
+
 Original design goals (all met by the above):
 
 - Model one lifecycle with existing-material and planned-capture entry points;

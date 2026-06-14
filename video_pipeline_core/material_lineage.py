@@ -104,6 +104,9 @@ def contract_need_refs(contract):
 def _collect_brief_ids(shooting_brief, errors):
     """Validate brief requirement shape; collect the need_ids it references."""
     ids = set()
+    if not isinstance(shooting_brief, dict):
+        errors.append(f"shooting_brief must be an object, got {shooting_brief!r}")
+        return ids
     requirements = shooting_brief.get("requirements")
     if not isinstance(requirements, list):
         errors.append(f"shooting_brief.requirements must be a list, got {requirements!r}")
@@ -124,6 +127,23 @@ def _collect_brief_ids(shooting_brief, errors):
 def _collect_contract_ids(contract, errors):
     """Validate each segment's need_refs shape; collect ids + segments_by_need."""
     ids, segments_by_need = set(), {}
+    shape_error = False
+    if isinstance(contract, dict):
+        segments = contract.get("segments")
+        if not isinstance(segments, list):
+            errors.append(f"contract.segments must be a list, got {segments!r}")
+            return ids, segments_by_need
+    elif isinstance(contract, list):
+        segments = contract
+    else:
+        errors.append(f"contract must be an object or segment list, got {contract!r}")
+        return ids, segments_by_need
+    for index, segment in enumerate(segments):
+        if not isinstance(segment, dict):
+            errors.append(f"contract segment #{index} must be an object, got {segment!r}")
+            shape_error = True
+    if shape_error:
+        return ids, segments_by_need
     for rec in contract_need_refs(contract):
         refs = rec["need_refs"]
         label = f"contract segment {rec['segment_ref']!r} (index {rec['segment_index']})"
@@ -134,7 +154,11 @@ def _collect_contract_ids(contract, errors):
             continue
         for nid in refs:
             ids.add(nid)
-            segments_by_need.setdefault(nid, []).append(rec["segment_ref"])
+            segments_by_need.setdefault(nid, []).append({
+                "segment_ref": rec["segment_ref"],
+                # Artifact-local identity only; contract reordering changes it.
+                "segment_index": rec["segment_index"],
+            })
     return ids, segments_by_need
 
 
