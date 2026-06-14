@@ -408,6 +408,39 @@ def cmd_material_delta(args):
             f"material_delta failed: {len(result['errors'])} reference/validation error(s)")
 
 
+def cmd_material_revision(args):
+    """M6c: apply ACCEPTED human delta decisions to a revised segment_contract.
+    Writes both artifacts only on success; invalid input exits non-zero and
+    writes no half-baked artifact."""
+    from video_pipeline_core import material_revision
+    contract = _load_json(args.contract)
+    delta = _load_json(args.delta)
+    decisions = _load_json(args.decisions)
+    categories = None
+    if getattr(args, "categories", None):
+        from video_pipeline_core.spec_contract import load_material_categories
+        categories = set(load_material_categories(args.categories))
+    report, revised = material_revision.apply_revisions(
+        contract, delta, decisions, categories=categories)
+    if not report["ok"]:
+        print(json.dumps({"ok": False, "errors": report["errors"]},
+                         ensure_ascii=False, indent=2))
+        raise ToolError(f"material_revision failed: {len(report['errors'])} error(s)")
+    Path(args.out_contract).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out_contract).write_text(
+        json.dumps(revised, ensure_ascii=False, indent=2), encoding="utf-8")
+    report["revised_contract"] = str(args.out_contract)
+    Path(args.out_revision).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": True, "no_op": report["no_op"],
+                      "ready_for_build": report["ready_for_build"],
+                      "next_action": report["next_action"],
+                      "unresolved_blocking_needs": report["unresolved_blocking_needs"],
+                      "revised_contract": str(args.out_contract),
+                      "material_revision": str(args.out_revision)},
+                     ensure_ascii=False, indent=2))
+
+
 def cmd_visual_diversity_coverage(args):
     """VD1: report real project-map VD0 label coverage; never rank material."""
     from video_pipeline_core import visual_diversity_coverage
@@ -1733,6 +1766,16 @@ def main():
                       help="project_material_map.json (satisfies edges)")
     p_md.add_argument("--out", default=None, help="write material_delta.json here")
 
+    p_mr = sub.add_parser("material-revision")
+    p_mr.add_argument("contract", help="segment_contract.json (not mutated)")
+    p_mr.add_argument("--delta", required=True, help="material_delta.json")
+    p_mr.add_argument("--decisions", required=True, help="revision_decisions.json")
+    p_mr.add_argument("--out-contract", required=True, dest="out_contract",
+                      help="revised_segment_contract.json output")
+    p_mr.add_argument("--out-revision", required=True, dest="out_revision",
+                      help="material_revision.json output")
+    p_mr.add_argument("--categories", default=None, help="material_categories.json (optional)")
+
     p_pmm = sub.add_parser("project-material-map")
     p_pmm.add_argument("--maps-dir", required=True, dest="maps_dir",
                        help="directory of per-asset *.map.json files")
@@ -1928,6 +1971,7 @@ def main():
         "validate-needs": cmd_validate_needs,
         "lineage-link": cmd_lineage_link,
         "material-delta": cmd_material_delta,
+        "material-revision": cmd_material_revision,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,

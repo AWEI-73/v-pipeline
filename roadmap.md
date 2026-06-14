@@ -727,6 +727,54 @@ deferred.
 - Acceptance: a missing requirement either changes the script, requests
   material, or is explicitly waived. It is never hidden by repetition.
 
+##### M6c revision engine ✅ (2026-06-15)
+
+`material_revision.apply_revisions(contract, material_delta, decisions)`
+deterministically converts ACCEPTED human/director decisions into a revised
+`segment_contract` — the agent never invents content or silently edits. Reuses
+the existing `need_id` + route enum (no second needs/delta schema).
+
+- **Decision contract** (`revision_decisions[]`): `decision_id` (unique,
+  non-empty), `need_id` (must exist in the current delta), `route` (must be
+  compatible with that need's delta outcome), `status` accepted|rejected,
+  `target_segment` (required for segment-modifying routes; resolved to exactly
+  one segment by its `segment` identity), `patch` (shorten/rewrite), `waiver`
+  (reviewer+reason; the ONLY thing that releases a tier-1 block), `lineage`
+  (reviewer/reason/at, caller-supplied — no hidden clock).
+- **Route behavior**: `collect_material`/`reshoot`/`dashboard_review` → no script
+  change, status `blocked`, next_action `await_material`/`await_review`;
+  `shorten_or_merge` → edits only the target segment's duration (allow-listed
+  keys), need_refs preserved; `script_rewrite` → merges only the explicit patch
+  (identity/need_refs/need_id changes rejected); `drop_segment` → removes the
+  named segment, and a must_have need cannot be dropped without an explicit
+  waiver.
+- **Safety (all fail-closed, order-independent)**: `material_delta.ok=false`
+  forbids revision; unknown/stale `need_id`, duplicate `decision_id`,
+  incompatible route, missing/ambiguous target, conflicting accepted patches on
+  one segment, and identity-touching patches all fail with no revised contract.
+  The original contract is never mutated (deep copy); the revised contract must
+  re-pass `spec_contract.validate_segment_contract`; tier-1 gaps not covered by
+  an explicit waiver remain in `unresolved_blocking_needs` (still blocked).
+- **Artifacts**: `revised_segment_contract.json` (new copy) +
+  `material_revision.json` (per-decision applied/rejected/blocked status,
+  before/after contract hash, need_id/route/target, lineage,
+  unresolved_blocking_needs, next_action). CLI `material-revision` writes both on
+  success; invalid input exits non-zero and writes no half-baked artifact.
+
+Falsification tests `tests/test_material_revision.py` A–O (no-op/identical;
+rejected no change; non-modifying routes; shorten only-target + need_refs kept;
+script_rewrite only explicit patch; drop optional ok / must_have-no-waiver fail;
+explicit waiver releases block with lineage; unknown/dup/incompatible fail;
+ambiguous/missing target fail; conflicting patches fail both orders; identity
+patch fail; original untouched; revised validates; unresolved tier-1 still
+blocks; CLI two-artifact + fail-closed): 17 tests. Full regression:
+**968 tests OK**.
+
+**Next increment (separate batch): runtime plumbing** — wire M6c into the
+SPEC→BUILD flow so an accepted revision feeds the M6b gate. Deliberately NOT done
+here so revision and the BUILD gate stay decoupled. F2 / `wrong_semantics` /
+`insufficient_action_phases` and M6d remain deferred.
+
 #### M6d Independent Material Map Skill
 
 - Expose the lifecycle as an independently runnable Skill/template:
