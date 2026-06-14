@@ -73,18 +73,23 @@ M5 true rendering is complete, but the candidate is not accepted for delivery.
 The next work must target sensory evidence rather than raise the existing
 planning scores.
 
-Required next sequence:
+## 2026-06-14 Scope Correction
 
-1. **M5a Semantic novelty audit**: cluster perceptually similar compositions
-   and fail long runs that are different files but the same visible idea.
-2. **M5b Action progression audit**: require critical course montages to show
-   distinct setup, execution, and result phases.
-3. **M5c Designed sequence grammar**: define enforceable structures for the
-   opener, course transitions, and ending, including title/effect beats.
-4. **M5d Human-vs-agent critical comparison**: compare matching key sections
-   at high montage density, not only full-film overview grids.
-5. **M5e Rerender and sensory acceptance**: accept only when technical VERIFY
-   and the new sensory gates both pass.
+The mechanisms added after this review do not fully close the sensory gap:
+
+- M5a uses dHash as a perceptual-composition proxy. It is useful evidence, but
+  it is not semantic understanding and is not a tier-1 delivery gate.
+- M5b now checks declared function coverage and order. The 67th contract and
+  timeline do not currently provide reviewable `required_functions`; the
+  honest result is `no_required_functions`, not a passing coverage score.
+- M5c/M5d/M5e are deferred until a richer-material case exists. Continuing to
+  tune the limited 67th case would overfit proxy metrics rather than prove
+  general editing quality.
+
+The active next direction is the material-map lifecycle: canonicalize the
+existing requirement-side `material_needs.json` / `shooting_brief.md`, compare
+them with actual `*.map.json` / `supply_review.json`, produce
+`material_delta.json`, and revise the executable script from that evidence.
 
 ## Verification
 

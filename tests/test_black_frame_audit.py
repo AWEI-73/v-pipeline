@@ -64,6 +64,12 @@ class AuditTest(unittest.TestCase):
         self.assertTrue(result["pass"])
         self.assertIsNone(result["next_action"])
 
+    def test_unavailable_samples_fail_closed(self):
+        result = bfa.audit_black_frames("missing.mp4", sampler=lambda _p: [])
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["reason"], "sample_unavailable")
+        self.assertEqual(result["next_action"], "verify_failed")
+
 
 class DeliveryGateIntegrationTest(unittest.TestCase):
     def test_failed_black_frame_audit_blocks_delivery(self):

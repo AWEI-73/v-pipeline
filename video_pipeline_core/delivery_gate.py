@@ -7,15 +7,8 @@ HARD_AUDITS = (
     "timeline_invariants",
     "broll_audit",
     "caption_audit",
-    "visual_audit",
-    "presentation_feel_audit",
-    "treatment_audit",
-    "visual_fatigue_audit",
     "new_visual_information_audit",
-    "semantic_novelty_audit",
-    "action_progression_audit",
     "black_frame_audit",
-    "editorial_qa",
 )
 
 

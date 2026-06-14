@@ -130,6 +130,22 @@ def audit_black_frames(video_path, *, sampler=None, fps=2.0, black_luma_max=16.0
     """Deterministic tier-1 audit over a rendered video's luma profile."""
     sample_fn = sampler or (lambda path: probe_luma_samples(path, fps=fps))
     samples = sample_fn(video_path)
+    if not samples:
+        return {
+            "artifact_role": "black_frame_audit",
+            "version": 1,
+            "pass": False,
+            "reason": "sample_unavailable",
+            "metrics": {"defect_run_count": 0, "sampled_frames": 0},
+            "findings": [{
+                "check": "luma_sample_unavailable",
+                "level": "fail",
+                "message": "rendered video could not be sampled for black/blank frames",
+                "fix_class": "verify",
+                "next_route": "verify_failed",
+            }],
+            "next_action": "verify_failed",
+        }
     runs = find_defect_runs(
         samples,
         interval_sec=1.0 / float(fps),

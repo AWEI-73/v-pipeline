@@ -382,14 +382,16 @@ def load_dashboard_state(workdir):
 
 
 
-    # Surface P1 audit findings (failing -> error, warn-only -> warning)
+    # Surface audit findings using the same severity policy as delivery_gate.
+    # Tier-2 quality evidence remains visible without becoming a runtime blocker.
+    from .delivery_gate import HARD_AUDITS
     for role, data in audit_data.items():
         if not data:
             continue
         node_owner = AUDIT_PRIMARY_NODE[role]
         if data.get("pass") is False:
             findings.append({
-                "type": "error",
+                "type": "error" if role in HARD_AUDITS else "warning",
                 "node": node_owner,
                 "artifact": role,
                 "message": f"{role} failed: {data.get('next_action') or 'see findings'}",

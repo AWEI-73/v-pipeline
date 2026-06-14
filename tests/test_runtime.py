@@ -586,6 +586,21 @@ class TestAuditRouting(unittest.TestCase):
         self.assertEqual(route["next_action"], "fix_timeline_or_assembly")
         self.assertIn("editor_review", route["skill"])
 
+    def test_resolve_audit_route_ignores_quality_warning(self):
+        dash_state = {
+            "findings": [
+                {"type": "warning", "node": 11, "artifact": "visual_fatigue_audit",
+                 "message": "visual_fatigue_audit failed"},
+            ],
+            "artifacts": {
+                "visual_fatigue_audit": {
+                    "pass": False,
+                    "next_action": "review_visual_diversity",
+                },
+            },
+        }
+        self.assertIsNone(runtime_orchestrator.resolve_audit_route(dash_state))
+
 
 class TestRuntimeAuditIntegration(unittest.TestCase):
     def setUp(self):

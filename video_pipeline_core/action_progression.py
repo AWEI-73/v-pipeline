@@ -73,10 +73,12 @@ def audit_action_progression(segments, *, min_coverage=0.6, spine=("establish", 
         if not required:
             continue
         present = set()
+        ordered = []
         for clip in segment.get("clips") or []:
             fn = _clip_function(clip)
             if fn:
                 present.add(fn)
+                ordered.append(fn)
         covered = [fn for fn in required if fn in present]
         missing = [fn for fn in required if fn not in present]
         total_required += len(required)
@@ -97,8 +99,28 @@ def audit_action_progression(segments, *, min_coverage=0.6, spine=("establish", 
                             f"missing {missing or missing_spine}"),
                 "fix_class": "material", "next_route": "curator",
             })
-    overall = round(total_covered / total_required, 4) if total_required else 1.0
-    return {
+        required_spine = [fn for fn in spine if fn in required]
+        if not missing_spine and required_spine:
+            cursor = 0
+            for fn in ordered:
+                if cursor < len(required_spine) and fn == required_spine[cursor]:
+                    cursor += 1
+            if cursor < len(required_spine):
+                findings.append({
+                    "check": "action_phase_order", "level": "fail",
+                    "segment": sid, "required_order": required_spine,
+                    "observed_order": ordered,
+                    "message": f"segment {sid} action phases are present but out of order",
+                    "fix_class": "edit", "next_route": "editor",
+                })
+    overall = round(total_covered / total_required, 4) if total_required else None
+    next_action = None
+    if findings:
+        next_action = (
+            "editor" if all(item.get("check") == "action_phase_order" for item in findings)
+            else "curator"
+        )
+    result = {
         "artifact_role": "action_progression_audit",
         "version": 1,
         "pass": not findings,
@@ -108,8 +130,11 @@ def audit_action_progression(segments, *, min_coverage=0.6, spine=("establish", 
         },
         "segments": reviewed,
         "findings": findings,
-        "next_action": "curator" if findings else None,
+        "next_action": next_action,
     }
+    if not total_required:
+        result["reason"] = "no_required_functions"
+    return result
 
 
 def write_action_progression_audit(segments, out_path, **kwargs):

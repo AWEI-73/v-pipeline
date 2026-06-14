@@ -113,13 +113,17 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
     affected = set()
     for clip, cid in zip(clips, cluster_ids):
         dur = float(clip.get("duration_sec") or 0)
-        if cid is not None and cid == prev:
+        if cid is None:
+            run = 0.0
+            prev = object()
+            continue
+        if cid == prev:
             run += dur
         else:
             run = dur
         if run > longest:
             longest = run
-        if cid is not None and cid == prev:
+        if cid == prev:
             affected.add(cid)
         prev = cid
 

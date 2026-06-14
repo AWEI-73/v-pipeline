@@ -5,6 +5,21 @@ description: 小編 Skill。搜尋 YouTube、下載素材、Whisper 轉譯找最
 
 # Curator Skill
 
+## Scene Review Shallow Labels
+
+During ingest/caption review, record coarse visual-diversity labels on each
+reviewed material-map scene:
+
+- `visual_family`: project-defined coarse family, such as
+  `outdoor_muster_wide`; do not use a global hardcoded family list.
+- `angle_scale`: `wide | medium | close` when confidently visible.
+- `action_family`: project-defined coarse repeated action, when applicable.
+- `subject`: short project-local subject label, when applicable.
+
+`media_type` is derived from the material map's existing `asset_type`; do not
+duplicate it on each scene. These labels support later tier-2 visual-diversity
+review. Missing labels mean `unreviewed`, not pass and not tier-1 failure.
+
 > **Facet 擁有權(Node 3,見 [spec-contract.md](spec-contract.md)):小編消費 `material_fit` facet。**
 > 欄位:`visual_desc` / `material_hint` / `required_traits` / `reject_traits` / `must_include` / `fallback_policy` / `reason`。
 > 缺口路由(reshoot/generated/stock_bridge/text_bridge/…)見 Node 8 與 [gap-analyzer.md](gap-analyzer.md);**不靜默用泛用 stock 填 identity 缺口**。

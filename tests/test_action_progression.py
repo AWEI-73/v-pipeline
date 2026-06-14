@@ -45,6 +45,15 @@ class AuditTest(unittest.TestCase):
         result = ap.audit_action_progression([{"segment": 1, "clips": [{"function": "action"}]}])
         self.assertTrue(result["pass"])
         self.assertEqual(result["metrics"]["segments_reviewed"], 0)
+        self.assertIsNone(result["metrics"]["action_phase_coverage"])
+        self.assertEqual(result["reason"], "no_required_functions")
+
+    def test_spine_phases_in_reverse_order_fail(self):
+        seg = self._segment(1, ["establish", "action", "result"],
+                            ["result", "action", "establish"])
+        result = ap.audit_action_progression([seg])
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["findings"][0]["check"], "action_phase_order")
 
     def test_classifies_from_caption_when_function_absent(self):
         seg = {
@@ -57,13 +66,13 @@ class AuditTest(unittest.TestCase):
 
 
 class DeliveryGateIntegrationTest(unittest.TestCase):
-    def test_failed_action_progression_blocks_delivery(self):
+    def test_failed_action_progression_is_quality_evidence_not_tier1_blocker(self):
         gate = evaluate_delivery_gate({
             "verify_result": {"pass": True},
             "action_progression_audit": {"pass": False, "next_action": "fix_timeline_or_assembly"},
         })
-        self.assertFalse(gate["pass"])
-        self.assertTrue(any(b["artifact"] == "action_progression_audit" for b in gate["blocking"]))
+        self.assertTrue(gate["pass"])
+        self.assertFalse(any(b["artifact"] == "action_progression_audit" for b in gate["blocking"]))
 
 
 if __name__ == "__main__":

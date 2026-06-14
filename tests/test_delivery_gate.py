@@ -43,3 +43,20 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertTrue(result["pass"])
         self.assertIsNone(result["next_action"])
+
+    def test_quality_evidence_does_not_block_delivery(self):
+        quality_roles = (
+            "visual_audit",
+            "presentation_feel_audit",
+            "treatment_audit",
+            "visual_fatigue_audit",
+            "semantic_novelty_audit",
+            "action_progression_audit",
+            "editorial_qa",
+        )
+        result = evaluate_delivery_gate({
+            role: {"pass": False, "next_action": "dashboard_review"}
+            for role in quality_roles
+        })
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["blocking"], [])

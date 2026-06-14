@@ -126,6 +126,7 @@ def build_asset_map(entry, *, shot_detector=None, motion_detector=None, speech_d
 def apply_scene_review_verdict(material_map, verdict):
     """Apply agent/VLM scene captions without requiring a model dependency."""
     scenes = material_map.get("scenes") or []
+    shallow_labels = ("visual_family", "angle_scale", "action_family", "subject")
     for item in verdict.get("scenes") or []:
         index = item.get("scene_index")
         if not isinstance(index, int) or index < 0 or index >= len(scenes):
@@ -136,6 +137,9 @@ def apply_scene_review_verdict(material_map, verdict):
             scenes[index]["bridge"] = bool(item["bridge"])
         if item.get("functions"):
             scenes[index]["functions"] = list(item["functions"])
+        for field in shallow_labels:
+            if item.get(field):
+                scenes[index][field] = str(item[field]).strip()
     return material_map
 
 

@@ -63,6 +63,28 @@ class MaterialMapTest(unittest.TestCase):
         self.assertEqual(result["scenes"][0]["caption"], "Students enter the workshop")
         self.assertTrue(result["scenes"][0]["bridge"])
 
+    def test_scene_review_preserves_shallow_visual_diversity_labels(self):
+        material_map = {
+            "asset_id": "clip-a",
+            "asset_type": "video",
+            "scenes": [{"start": 0, "end": 2}],
+        }
+        result = apply_scene_review_verdict(material_map, {
+            "scenes": [{
+                "scene_index": 0,
+                "visual_family": "outdoor_muster_wide",
+                "angle_scale": "wide",
+                "action_family": "standing_muster",
+                "subject": "students",
+            }],
+        })
+        scene = result["scenes"][0]
+        self.assertEqual(scene["visual_family"], "outdoor_muster_wide")
+        self.assertEqual(scene["angle_scale"], "wide")
+        self.assertEqual(scene["action_family"], "standing_muster")
+        self.assertEqual(scene["subject"], "students")
+        self.assertNotIn("media_type", scene)
+
     def test_opt_in_transcript_detector_only_transcribes_speech_runs(self):
         entry = {
             "id": "clip-a",

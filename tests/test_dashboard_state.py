@@ -440,6 +440,33 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(failing[0]["node"], 11)
             self.assertEqual(failing[0]["type"], "error")
 
+    def test_failed_quality_audit_surfaces_as_nonblocking_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final.mp4").write_bytes(b"video")
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8")
+            (workdir / "visual_fatigue_audit.json").write_text(json.dumps({
+                "artifact_role": "visual_fatigue_audit",
+                "pass": False,
+                "next_action": "review_visual_diversity",
+                "findings": [{"level": "fail"}],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            finding = next(
+                f for f in state["findings"]
+                if f.get("artifact") == "visual_fatigue_audit"
+            )
+            self.assertEqual(finding["type"], "warning")
+            self.assertNotEqual(state["next_action"], "review_visual_diversity")
+            self.assertFalse(any(
+                f.get("type") == "error"
+                and f.get("artifact") == "visual_fatigue_audit"
+                for f in state["findings"]
+            ))
+
     def test_no_audit_artifacts_keeps_nodes_clean(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

@@ -58,15 +58,25 @@ class AuditTest(unittest.TestCase):
         self.assertTrue(result["pass"])
         self.assertEqual(result["reason"], "no_render")
 
+    def test_unhashed_long_clip_does_not_count_as_similar_composition_run(self):
+        clips = [_clip(1, 0, 10), _clip(2, 10, 12)]
+        hashes = iter([None, 0xFFFF])
+        result = sna.audit_semantic_novelty(
+            clips, frame_hasher=lambda _t: next(hashes),
+            max_similar_run_sec=6.0,
+        )
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["metrics"]["max_similar_composition_run_sec"], 2.0)
+
 
 class DeliveryGateIntegrationTest(unittest.TestCase):
-    def test_failed_semantic_audit_blocks_delivery(self):
+    def test_failed_semantic_audit_is_quality_evidence_not_tier1_blocker(self):
         gate = evaluate_delivery_gate({
             "verify_result": {"pass": True},
             "semantic_novelty_audit": {"pass": False, "next_action": "fix_timeline_or_assembly"},
         })
-        self.assertFalse(gate["pass"])
-        self.assertTrue(any(b["artifact"] == "semantic_novelty_audit" for b in gate["blocking"]))
+        self.assertTrue(gate["pass"])
+        self.assertFalse(any(b["artifact"] == "semantic_novelty_audit" for b in gate["blocking"]))
 
 
 if __name__ == "__main__":
