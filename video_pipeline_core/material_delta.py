@@ -238,51 +238,68 @@ def compute_material_delta(material_needs, material_maps=None):
 GATE_ROUTES = ("fix_material_map_or_needs", "await_material")
 
 
-def material_delta_gate(material_needs, material_maps=None, *,
+def waived_need_ids(waivers):
+    """The set of need_ids released by a CANONICAL waiver artifact. A waiver only
+    counts when it carries explicit lineage (a non-empty reviewer AND reason),
+    so a malformed waiver can never silently release a tier-1 block."""
+    out = set()
+    for waiver in waivers or []:
+        if (isinstance(waiver, dict)
+                and isinstance(waiver.get("need_id"), str) and waiver["need_id"].strip()
+                and isinstance(waiver.get("reviewer"), str) and waiver["reviewer"].strip()
+                and isinstance(waiver.get("reason"), str) and waiver["reason"].strip()):
+            out.add(waiver["need_id"])
+    return out
+
+
+def gate_from_delta(delta, *, waivers=None, material_delta_path=None):
+    """The single fail-closed gate verdict from a `material_delta` artifact, with
+    explicit waiver consumption. A tier-1 block is released ONLY by a canonical
+    waiver (need_id + reviewer + reason); checking `blocks_ready_for_build` alone
+    is insufficient. Used by both the run_contract gate (on a freshly computed
+    delta) and M6c (on the delta artifact) so their `ready_for_build` can never
+    contradict. Returns {gate, status, ok, ready_for_build, blocking_need_ids,
+    waived_need_ids, reason, route, material_delta, next_action, delta}."""
+    if not isinstance(delta, dict) or not delta.get("ok"):
+        errors = (delta or {}).get("errors") if isinstance(delta, dict) else None
+        return {"gate": "material_delta", "status": "block", "ok": False,
+                "ready_for_build": False, "blocking_need_ids": [],
+                "waived_need_ids": [], "reason": "material_delta could not be computed: "
+                + "; ".join(errors or ["invalid delta"]),
+                "route": "fix_material_map_or_needs",
+                "material_delta": material_delta_path,
+                "next_action": "revise:material(material_delta)", "delta": delta}
+
+    waived = waived_need_ids(waivers)
+    tier1 = [d["need_id"] for d in delta.get("deltas") or [] if d.get("blocks_ready_for_build")]
+    unresolved = [nid for nid in tier1 if nid not in waived]
+    honored = sorted(nid for nid in tier1 if nid in waived)
+    base = {"gate": "material_delta", "ok": True,
+            "blocking_need_ids": unresolved, "waived_need_ids": honored,
+            "material_delta": material_delta_path, "delta": delta}
+    if not unresolved:
+        reason = "all required material is covered or has a permitted fallback"
+        if honored:
+            reason = f"tier-1 gaps released by explicit waiver: {honored}"
+        return {**base, "status": "pass", "ready_for_build": True,
+                "reason": reason, "route": None, "next_action": None}
+    return {**base, "status": "block", "ready_for_build": False,
+            "reason": f"{len(unresolved)} must_have need(s) missing with no permitted "
+                      f"fallback and no waiver: {unresolved}",
+            "route": "await_material", "next_action": "await_material"}
+
+
+def material_delta_gate(material_needs, material_maps=None, *, waivers=None,
                         resolution_error=None, material_delta_path=None):
-    """Fail-closed pre-BUILD gate verdict, built ONLY on `compute_material_delta`
-    (no second delta logic). The build may proceed iff BOTH ``delta.ok`` AND
-    ``delta.ready_for_build`` are true — checking ``blocks_ready_for_build`` alone
-    is insufficient (a broken/invalid delta has ``ok=False`` and must also block).
-
-    ``resolution_error`` is a string set by the caller when the project DECLARED
-    material_needs but they (or the maps) could not be resolved — declared but
-    missing / unparseable input is a hard block, never a silent skip.
-
-    Returns a machine-readable verdict::
-
-        {gate, status: pass|block, ok, ready_for_build, blocking_need_ids,
-         reason, route, material_delta (path), next_action, delta}
-    """
+    """Fail-closed pre-BUILD gate verdict. Computes the delta fresh from current
+    inputs, then delegates to `gate_from_delta` (the single waiver-aware verdict).
+    A declared-but-unresolvable input (`resolution_error`) is a hard block."""
     if resolution_error:
         return {"gate": "material_delta", "status": "block", "ok": False,
                 "ready_for_build": False, "blocking_need_ids": [],
-                "reason": resolution_error, "route": "fix_material_map_or_needs",
+                "waived_need_ids": [], "reason": resolution_error,
+                "route": "fix_material_map_or_needs",
                 "material_delta": material_delta_path,
                 "next_action": "revise:material(material_delta)", "delta": None}
-
     delta = compute_material_delta(material_needs, material_maps)
-    base = {"gate": "material_delta", "ok": delta["ok"],
-            "ready_for_build": delta["ready_for_build"],
-            "material_delta": material_delta_path, "delta": delta}
-
-    if delta["ok"] and delta["ready_for_build"]:
-        return {**base, "status": "pass", "blocking_need_ids": [],
-                "reason": "all required material is covered or has a permitted fallback",
-                "route": None, "next_action": None}
-
-    if not delta["ok"]:
-        # invalid needs / broken reference chain / bad material map — never a
-        # plain `missing`; the fix is the map or the needs contract, not a reshoot
-        return {**base, "status": "block", "blocking_need_ids": [],
-                "reason": "material_delta could not be computed: "
-                          + "; ".join(delta["errors"]),
-                "route": "fix_material_map_or_needs",
-                "next_action": "revise:material(material_delta)"}
-
-    # ok but not ready: one or more tier-1 must_have gaps with no permitted fallback
-    blocking = [d["need_id"] for d in delta["deltas"] if d["blocks_ready_for_build"]]
-    return {**base, "status": "block", "blocking_need_ids": blocking,
-            "reason": f"{len(blocking)} must_have need(s) missing with no permitted "
-                      f"fallback: {blocking}",
-            "route": "await_material", "next_action": "await_material"}
+    return gate_from_delta(delta, waivers=waivers, material_delta_path=material_delta_path)

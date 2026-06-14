@@ -770,6 +770,24 @@ patch fail; original untouched; revised validates; unresolved tier-1 still
 blocks; CLI two-artifact + fail-closed): 17 tests. Full regression:
 **968 tests OK**.
 
+M6c hardening (2026-06-15): (1) Unified waiver/gate contract — the M6b gate is
+now waiver-aware via a single `material_delta.gate_from_delta(delta, waivers)`
+verdict that both `run_contract`'s gate and M6c consume, with a canonical waiver
+artifact `{need_id, reviewer, reason, at}`. M6c's `ready_for_build` IS that gate
+verdict, so `material_revision.ready=true` can never contradict a gate block; a
+tier-1 block is released only by a canonical waiver (explicit reviewer+reason).
+(2) `drop_segment` now protects EVERY `material_fit.need_refs` of the target —
+each referenced must_have / tier-1 need requires its own explicit waiver, an
+unknown need_ref is fail-closed, and `affected_need_ids` is recorded.
+(3) `write_revision_artifacts` is all-or-nothing: the two outputs must differ,
+both parent dirs are created, both files are written to temporaries and only
+`os.replace`d after both succeed; on failure temporaries are cleaned and existing
+official artifacts are left intact. Reverse tests: gate reproduces M6c ready
+(and the no-waiver no-release case); multi-ref drop protection incl.
+per-need waiver and unknown-ref fail; affected_need_ids recorded; CLI atomicity
+(same-path fail, missing-parent create, second-write failure leaves no new first
+artifact). Focused: 26 tests OK; full regression: **977 tests OK**.
+
 **Next increment (separate batch): runtime plumbing** — wire M6c into the
 SPEC→BUILD flow so an accepted revision feeds the M6b gate. Deliberately NOT done
 here so revision and the BUILD gate stay decoupled. F2 / `wrong_semantics` /

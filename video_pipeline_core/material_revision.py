@@ -28,8 +28,11 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
+from pathlib import Path
 
 from . import spec_contract
+from .material_delta import gate_from_delta
 
 
 # the routes a decision may carry (the M6b route enum minus the no-op "none")
@@ -74,6 +77,25 @@ def _valid_waiver(waiver):
     return (isinstance(waiver, dict)
             and isinstance(waiver.get("reviewer"), str) and waiver["reviewer"].strip()
             and isinstance(waiver.get("reason"), str) and waiver["reason"].strip())
+
+
+def _decision_waivers(dec):
+    """Canonical per-need waivers carried by a decision → {need_id: {reviewer,
+    reason, at}}. The single `waiver` field waives the decision's own need_id; an
+    optional `waivers` list waives additional referenced needs (one per need_id,
+    each explicit). Only waivers with reviewer+reason are honored."""
+    out = {}
+    at = (dec.get("lineage") or {}).get("at")
+    single = dec.get("waiver")
+    if _valid_waiver(single) and isinstance(dec.get("need_id"), str):
+        out[dec["need_id"]] = {"reviewer": single["reviewer"],
+                               "reason": single["reason"], "at": at}
+    for entry in dec.get("waivers") or []:
+        if (_valid_waiver(entry) and isinstance(entry.get("need_id"), str)
+                and entry["need_id"].strip()):
+            out[entry["need_id"]] = {"reviewer": entry["reviewer"],
+                                     "reason": entry["reason"], "at": entry.get("at", at)}
+    return out
 
 
 def _valid_lineage(lineage):
@@ -236,6 +258,7 @@ def apply_revisions(contract, material_delta, decisions, *, categories=None):
     revised = copy.deepcopy(contract)
     revised_segments = _segments(revised)
     plan = []   # (decision, action, idx)
+    affected_need_ids = {}   # decision_id -> all need_refs of a dropped segment
     for dec in accepted:
         did, route, nid = dec["decision_id"], dec["route"], dec["need_id"]
         if route in NON_MODIFYING_ROUTES:
@@ -272,24 +295,39 @@ def apply_revisions(contract, material_delta, decisions, *, categories=None):
                 continue
             plan.append((dec, "rewrite", idx))
         elif route == "drop_segment":
-            must_have = bool((delta_by_need[nid].get("evidence") or {}).get("must_have"))
-            if must_have and not _valid_waiver(dec.get("waiver")):
-                errors.append(f"decision {did!r} cannot drop a must_have need {nid!r} "
-                              f"without an explicit waiver (reviewer+reason)")
+            # Protect EVERY need the dropped segment references, not just the
+            # decision's own need_id: each referenced need that is must_have or a
+            # tier-1 blocker needs its own explicit waiver; an unknown need_ref
+            # (absent from the current delta) is fail-closed.
+            affected = list((seg.get("material_fit") or {}).get("need_refs") or [])
+            waivers_here = _decision_waivers(dec)
+            drop_failed = False
+            for ref in affected:
+                if ref not in delta_by_need:
+                    errors.append(f"decision {did!r} drops a segment referencing unknown "
+                                  f"need_id {ref!r} (not in current material_delta)")
+                    drop_failed = True
+                    continue
+                d = delta_by_need[ref]
+                protected = (bool((d.get("evidence") or {}).get("must_have"))
+                             or bool(d.get("blocks_ready_for_build")))
+                if protected and ref not in waivers_here:
+                    errors.append(f"decision {did!r} cannot drop a segment referencing "
+                                  f"must_have/tier-1 need {ref!r} without an explicit "
+                                  f"waiver for it")
+                    drop_failed = True
+            if drop_failed:
                 continue
+            affected_need_ids[did] = affected
             plan.append((dec, "drop", idx))
     if errors:
         return fail()
 
     # ---- apply (deterministic; drops last so indices stay valid) ------------
     decision_records = []
-    resolved_need_ids = set()
     drops = []
     for dec, action, idx in plan:
         did, route, nid = dec["decision_id"], dec["route"], dec["need_id"]
-        lineage = dec.get("lineage")
-        if _valid_waiver(dec.get("waiver")):
-            resolved_need_ids.add(nid)
         if action == "blocked":
             decision_records.append(_record(dec, "blocked",
                                              f"route {route}: no script change; remains pending"))
@@ -320,9 +358,12 @@ def apply_revisions(contract, material_delta, decisions, *, categories=None):
     # apply drops by descending index so earlier indices remain valid
     for idx, dec in sorted(drops, key=lambda t: -t[0]):
         revised_segments.pop(idx)
-        decision_records.append(_record(dec, "applied",
-                                         f"dropped segment {dec['target_segment']}"
-                                         + (" (waived)" if _valid_waiver(dec.get("waiver")) else "")))
+        affected = affected_need_ids.get(dec["decision_id"], [])
+        decision_records.append(_record(
+            dec, "applied",
+            f"dropped segment {dec['target_segment']} (affected needs: {affected})"
+            + (" (waived)" if _decision_waivers(dec) else ""),
+            affected_need_ids=affected))
 
     if isinstance(revised, dict):
         revised["segments"] = revised_segments
@@ -336,12 +377,20 @@ def apply_revisions(contract, material_delta, decisions, *, categories=None):
                       + "; ".join(validation["errors"]))
         return fail()
 
-    # ---- re-check the M6b block at the artifact level: a tier-1 block is only
-    #      released by an explicit waiver (never auto-cleared) ----------------
-    unresolved = sorted(nid for nid in tier1_blocking if nid not in resolved_need_ids)
+    # ---- canonical waiver artifact + ACTUAL M6b gate re-run -----------------
+    # ready_for_build is taken from gate_from_delta(delta, waivers) — the SAME
+    # verdict run_contract's gate uses — so material_revision.ready can never
+    # contradict the M6b gate. We never hand-roll the unresolved list.
+    collected = {}
+    for dec in accepted:
+        for need_id_w, rec in _decision_waivers(dec).items():
+            collected[need_id_w] = {"need_id": need_id_w, **rec}
+    waivers_artifact = [collected[k] for k in sorted(collected)]
+    gate = gate_from_delta(material_delta, waivers=waivers_artifact)
+
     accepted_routes = {d["route"] for d in accepted}
-    if unresolved:
-        next_action = "await_material"
+    if gate["status"] == "block":
+        next_action = gate["next_action"]                 # await_material
     elif accepted_routes & {"collect_material", "reshoot"}:
         next_action = "await_material"
     elif "dashboard_review" in accepted_routes:
@@ -349,15 +398,15 @@ def apply_revisions(contract, material_delta, decisions, *, categories=None):
     else:
         next_action = None
 
-    no_op = not accepted
     report = {
         "artifact_role": "material_revision", "version": 1, "ok": True,
-        "errors": [], "no_op": no_op,
+        "errors": [], "no_op": not accepted,
         "before_contract_hash": _hash(contract),
         "after_contract_hash": _hash(revised),
         "decisions": decision_records,
-        "unresolved_blocking_needs": unresolved,
-        "ready_for_build": not unresolved,
+        "waivers": waivers_artifact,
+        "unresolved_blocking_needs": gate["blocking_need_ids"],
+        "ready_for_build": gate["status"] == "pass",
         "next_action": next_action,
     }
     return report, revised
@@ -372,12 +421,45 @@ def _stamp_lineage(seg, dec):
     seg.setdefault("revision_lineage", []).append(entry)
 
 
-def _record(dec, status, summary):
+def _record(dec, status, summary, *, affected_need_ids=None):
     record = {"decision_id": dec.get("decision_id"), "need_id": dec.get("need_id"),
               "route": dec.get("route"), "status": status, "summary": summary,
               "lineage": dec.get("lineage")}
     if dec.get("target_segment") is not None:
         record["target_segment"] = dec.get("target_segment")
-    if _valid_waiver(dec.get("waiver")):
-        record["waiver"] = dec["waiver"]
+    waivers = _decision_waivers(dec)
+    if waivers:
+        record["waivers"] = [{"need_id": k, **v} for k, v in sorted(waivers.items())]
+    if affected_need_ids is not None:
+        record["affected_need_ids"] = affected_need_ids
     return record
+
+
+def write_revision_artifacts(revised, report, out_contract, out_revision, *, _writer=None):
+    """All-or-nothing write of the two M6c artifacts. The two output paths must
+    differ; both parent dirs are created; both files are written to temporaries
+    first and only os.replace'd into place after BOTH succeed. On any failure the
+    temporaries are removed and any existing official artifacts are left intact.
+    Returns (out_contract, out_revision) on success; raises on error."""
+    out_contract, out_revision = Path(out_contract), Path(out_revision)
+    if out_contract == out_revision or os.path.abspath(out_contract) == os.path.abspath(out_revision):
+        raise ValueError("out_contract and out_revision must be different paths")
+    out_contract.parent.mkdir(parents=True, exist_ok=True)
+    out_revision.parent.mkdir(parents=True, exist_ok=True)
+    writer = _writer or (lambda path, text: Path(path).write_text(text, encoding="utf-8"))
+    tmp_c = out_contract.with_name(out_contract.name + ".m6c.tmp")
+    tmp_r = out_revision.with_name(out_revision.name + ".m6c.tmp")
+    try:
+        writer(tmp_c, json.dumps(revised, ensure_ascii=False, indent=2))
+        writer(tmp_r, json.dumps(report, ensure_ascii=False, indent=2))
+    except Exception:
+        for tmp in (tmp_c, tmp_r):
+            try:
+                if Path(tmp).exists():
+                    Path(tmp).unlink()
+            except OSError:
+                pass
+        raise
+    os.replace(tmp_c, out_contract)   # both temps exist -> commit
+    os.replace(tmp_r, out_revision)
+    return str(out_contract), str(out_revision)

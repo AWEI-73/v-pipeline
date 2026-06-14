@@ -147,7 +147,11 @@ class ModifyingRouteTest(unittest.TestCase):
         self.assertTrue(report["ready_for_build"])
         rec = report["decisions"][0]
         self.assertEqual(rec["status"], "applied")
-        self.assertEqual(rec["waiver"], waiver)
+        self.assertEqual(rec["affected_need_ids"], ["nd_a"])
+        self.assertEqual(rec["waivers"][0]["need_id"], "nd_a")
+        self.assertEqual(rec["waivers"][0]["reason"], waiver["reason"])
+        # canonical waiver artifact + gate reproducibility
+        self.assertEqual(report["waivers"][0]["need_id"], "nd_a")
 
 
 class ValidationTest(unittest.TestCase):
@@ -307,6 +311,140 @@ class CliTest(unittest.TestCase):
             self.assertNotEqual(bad.returncode, 0)
             self.assertFalse(out_c.exists())
             self.assertFalse(out_r.exists())
+
+
+class WaiverGateContractTest(unittest.TestCase):
+    def test_A_waiver_ready_reproduced_by_m6b_gate(self):
+        from video_pipeline_core import material_delta as md
+        contract = _contract(_seg(1, need_refs=["nd_a"]), _seg(2, need_refs=["nd_b"]))
+        delta = _delta("nd_a", "missing", route="drop_segment", tier=1,
+                       blocks=True, must_have=True)
+        dec = _dec("d1", "nd_a", "drop_segment", target_segment=1,
+                   waiver={"reviewer": "director", "reason": "cut"})
+        report, _ = mr.apply_revisions(contract, delta, [dec])
+        self.assertTrue(report["ready_for_build"])
+        # the M6b gate, re-run with the canonical waiver artifact, AGREES
+        gate = md.gate_from_delta(delta, waivers=report["waivers"])
+        self.assertEqual(gate["status"], "pass")
+        self.assertEqual(gate["status"] == "pass", report["ready_for_build"])
+
+    def test_B_no_canonical_waiver_means_no_release(self):
+        from video_pipeline_core import material_delta as md
+        contract = _contract(_seg(1, need_refs=["nd_a"]), _seg(2, need_refs=["nd_b"]))
+        delta = _delta("nd_a", "missing", route="reshoot", tier=1,
+                       blocks=True, must_have=True)
+        report, _ = mr.apply_revisions(contract, delta, [_dec("d1", "nd_a", "reshoot")])
+        self.assertEqual(report["waivers"], [])
+        self.assertFalse(report["ready_for_build"])
+        gate = md.gate_from_delta(delta, waivers=report["waivers"])
+        self.assertEqual(gate["status"], "block")           # no contradiction
+
+
+class DropProtectsAllNeedRefsTest(unittest.TestCase):
+    def _delta2(self, specs):
+        # specs: list of (need_id, must_have, blocks)
+        return {"artifact_role": "material_delta", "version": 1, "ok": True,
+                "ready_for_build": True, "blocks_ready_for_build": False,
+                "deltas": [{"need_id": nid, "outcome": "thin", "tier": 2,
+                            "route": "drop_segment", "blocks_ready_for_build": blk,
+                            "reason": "r", "evidence": {"must_have": mh}}
+                           for nid, mh, blk in specs],
+                "summary": {}}
+
+    def test_C_drop_segment_with_a_must_have_ref_needs_that_waiver(self):
+        contract = _contract(_seg(1, need_refs=["nd_opt", "nd_must"]), _seg(2, need_refs=["nd_z"]))
+        delta = self._delta2([("nd_opt", False, False), ("nd_must", True, False),
+                              ("nd_z", False, False)])
+        # decision is "about" the optional need but the segment also refs a must_have
+        dec = _dec("d1", "nd_opt", "drop_segment", target_segment=1)   # no waiver for nd_must
+        report, revised = mr.apply_revisions(contract, delta, [dec])
+        self.assertFalse(report["ok"])
+        self.assertIsNone(revised)
+        self.assertTrue(any("nd_must" in e for e in report["errors"]))
+
+    def test_D_each_must_have_ref_needs_its_own_waiver(self):
+        contract = _contract(_seg(1, need_refs=["nd_m1", "nd_m2"]), _seg(2, need_refs=["nd_z"]))
+        delta = self._delta2([("nd_m1", True, False), ("nd_m2", True, False),
+                              ("nd_z", False, False)])
+        # only one of the two must_have refs waived -> fail
+        one = _dec("d1", "nd_m1", "drop_segment", target_segment=1,
+                   waiver={"reviewer": "d", "reason": "r"})
+        report, _ = mr.apply_revisions(contract, delta, [one])
+        self.assertFalse(report["ok"])
+        self.assertTrue(any("nd_m2" in e for e in report["errors"]))
+        # both waived via the waivers list -> ok
+        both = _dec("d2", "nd_m1", "drop_segment", target_segment=1,
+                    waiver={"reviewer": "d", "reason": "r"},
+                    waivers=[{"need_id": "nd_m2", "reviewer": "d", "reason": "r"}])
+        report2, revised2 = mr.apply_revisions(contract, delta, [both])
+        self.assertTrue(report2["ok"], report2["errors"])
+        self.assertEqual(len(revised2["segments"]), 1)
+
+    def test_E_drop_segment_referencing_unknown_need_fails(self):
+        contract = _contract(_seg(1, need_refs=["nd_known", "nd_ghost"]), _seg(2, need_refs=["nd_z"]))
+        delta = self._delta2([("nd_known", False, False), ("nd_z", False, False)])  # nd_ghost absent
+        dec = _dec("d1", "nd_known", "drop_segment", target_segment=1)
+        report, _ = mr.apply_revisions(contract, delta, [dec])
+        self.assertFalse(report["ok"])
+        self.assertTrue(any("nd_ghost" in e and "unknown" in e for e in report["errors"]))
+
+    def test_F_affected_need_ids_recorded(self):
+        contract = _contract(_seg(1, need_refs=["nd_a", "nd_b"]), _seg(2, need_refs=["nd_z"]))
+        delta = self._delta2([("nd_a", False, False), ("nd_b", False, False),
+                              ("nd_z", False, False)])
+        dec = _dec("d1", "nd_a", "drop_segment", target_segment=1)
+        report, _ = mr.apply_revisions(contract, delta, [dec])
+        self.assertTrue(report["ok"], report["errors"])
+        rec = report["decisions"][0]
+        self.assertEqual(rec["affected_need_ids"], ["nd_a", "nd_b"])
+
+
+class ArtifactAtomicityTest(unittest.TestCase):
+    def _ok_inputs(self):
+        contract = _contract(_seg(1, need_refs=["nd_a"]), _seg(2, need_refs=["nd_b"]))
+        delta = _delta("nd_b", "excess", route="shorten_or_merge")
+        report = {"artifact_role": "material_revision", "ok": True, "decisions": []}
+        return contract, report
+
+    def test_I_same_output_path_fails(self):
+        import tempfile
+        from pathlib import Path
+        contract, report = self._ok_inputs()
+        with tempfile.TemporaryDirectory() as d:
+            p = str(Path(d) / "same.json")
+            with self.assertRaises(ValueError):
+                mr.write_revision_artifacts(contract, report, p, p)
+
+    def test_G_creates_missing_parent_and_writes_both(self):
+        import tempfile
+        from pathlib import Path
+        contract, report = self._ok_inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c = Path(d) / "a" / "revised.json"
+            out_r = Path(d) / "b" / "revision.json"      # parent does not exist yet
+            mr.write_revision_artifacts(contract, report, out_c, out_r)
+            self.assertTrue(out_c.exists() and out_r.exists())
+
+    def test_H_second_write_failure_leaves_no_new_first_artifact(self):
+        import tempfile
+        from pathlib import Path
+        contract, report = self._ok_inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c = Path(d) / "revised.json"
+            out_r = Path(d) / "revision.json"
+            out_c.write_text("OLD-OFFICIAL", encoding="utf-8")   # pre-existing official
+
+            def writer(path, text):
+                if str(path).endswith("revision.json.m6c.tmp"):
+                    raise OSError("disk full")
+                Path(path).write_text(text, encoding="utf-8")
+
+            with self.assertRaises(OSError):
+                mr.write_revision_artifacts(contract, report, out_c, out_r, _writer=writer)
+            self.assertEqual(out_c.read_text(encoding="utf-8"), "OLD-OFFICIAL")  # untouched
+            self.assertFalse(out_r.exists())
+            self.assertFalse((Path(d) / "revised.json.m6c.tmp").exists())   # temp cleaned
+            self.assertFalse((Path(d) / "revision.json.m6c.tmp").exists())
 
 
 if __name__ == "__main__":

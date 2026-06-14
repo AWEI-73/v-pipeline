@@ -426,12 +426,12 @@ def cmd_material_revision(args):
         print(json.dumps({"ok": False, "errors": report["errors"]},
                          ensure_ascii=False, indent=2))
         raise ToolError(f"material_revision failed: {len(report['errors'])} error(s)")
-    Path(args.out_contract).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out_contract).write_text(
-        json.dumps(revised, ensure_ascii=False, indent=2), encoding="utf-8")
     report["revised_contract"] = str(args.out_contract)
-    Path(args.out_revision).write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        material_revision.write_revision_artifacts(
+            revised, report, args.out_contract, args.out_revision)
+    except (ValueError, OSError) as exc:
+        raise ToolError(f"material_revision could not write artifacts: {exc}")
     print(json.dumps({"ok": True, "no_op": report["no_op"],
                       "ready_for_build": report["ready_for_build"],
                       "next_action": report["next_action"],
