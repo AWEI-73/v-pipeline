@@ -1176,6 +1176,23 @@ def run_mv(script, material_root, out_path, music_path=None,
         per_seg.append(entry)
         for m in msgs:
             vp(m)
+    # 3.5) BR1 opening / hook sequence — prepend an approved opening recipe into
+    # the render plan so it changes both timeline and true render.
+    opening_result = None
+    opening_recipe = script.get("opening_recipe")
+    if opening_recipe:
+        from .opening_sequence import (  # noqa: PLC0415
+            compile_opening_sequence, opening_pool_from_plan, prepend_opening_to_plan)
+        pool = opening_recipe.get("shots") or opening_pool_from_plan(plan)
+        opening_result = compile_opening_sequence(opening_recipe, pool)
+        if opening_result["clips"]:
+            plan = prepend_opening_to_plan(plan, opening_result["clips"])
+            vp(f"[opening] prepended {len(opening_result['clips'])} clip(s); "
+               f"beats={opening_result['beats_used']} dropped={opening_result['dropped']}")
+        else:
+            vp(f"[opening] no opening clips compiled (fallback); "
+               f"dropped={opening_result['dropped']}")
+
     # 4) render(audio_role:keep_audio 段保留原音 + 音樂墊底)
     pending_visual_review = [entry for entry in per_seg if entry.get("pending_visual_review")]
     if pending_visual_review:
@@ -1200,6 +1217,7 @@ def run_mv(script, material_root, out_path, music_path=None,
     except Exception as _e:
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
     return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
+            "opening": opening_result,
             "awaiting_visual_review": bool(pending_visual_review)}
 
 

@@ -19,6 +19,11 @@ capability, and a VERIFY check creates nothing:
 
 - **A. Pre-BUILD gates** — run before BUILD; they accept/shorten/block the SPEC.
   They change the *input* to BUILD, never emit timeline/render themselves.
+
+> Node-registry node "14" is a **flow-grouping / scaffold label**, not a BUILD
+> consumer. The actual motion-graphics BUILD consumer is the `contract_adapter`
+> build path calling `motion_graphics`. Do not cite Node 14 as the consumer.
+
 - **B. BUILD capabilities** — consumed during BUILD; they change the actual
   timeline and/or rendered output.
 - **C. VERIFY audits** — inspect the result; they create no edit and choose no
@@ -43,8 +48,8 @@ capability, and a VERIFY check creates nothing:
 | Music structure / climax align | `music_structure` sections | `music_alignment` | `video_pipeline` bgm offset | `music_alignment_plan.json` | bgm offset in render | active |
 | J/L cut + speech-tail + motion snap | edit_artifacts / vt_audio | `snap_render_plan_to_motion`, jl/tail | `video_pipeline`, `mv_cut` | adjusted extract starts | rendered seams | active |
 | Window retrieval (map-based) | M2 `material_retrieval` | `plan_ranked_windows`, `plan_sound_bite` | `mv_cut` (called when material_maps present) | ranked slots / sound-bite | rendered windows | partial |
-| motion_graphics: ffmpeg_libass | `build_profile.motion_graphics_backend` | `motion_graphics.py` (Node 14) | Node 14 render-plan → manifest → libass overlay | `motion_graphics_render_plan.json` | rendered overlays | active |
-| motion_graphics: html_playwright | build_profile | `motion_graphics.py` (Node 14) | Node 14 (one recipe) | render plan | rendered frames | partial |
+| motion_graphics: ffmpeg_libass | `build_profile.motion_graphics_backend` | `motion_graphics.py` | **contract_adapter build path → motion_graphics render/composite** (when render_profile ∈ light_effects/motion_graphics) | `motion_graphics_render_plan.json` | rendered overlays | active |
+| motion_graphics: html_playwright | build_profile | `motion_graphics.py` | contract_adapter build path (one recipe) | render plan | rendered frames | partial |
 | motion_graphics: remotion | build_profile enum | — | none | — | — | declared_only |
 | CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
 | Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | — | — | declared_only |

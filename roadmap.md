@@ -23,14 +23,19 @@ material-limited baseline, not as proof of human-edit-quality parity.
 **M6a contract layer COMPLETE** (2026-06-14, evidence: 791 tests OK at round 3).
 VD0 shallow-label storage also complete.
 
-**This round:** MM1 Project Material Map V1 implemented (`project_material_map.py`
-+ `project-material-map` CLI + tests) and BA1 BUILD Alignment Audit written
-(`docs/build-capability-alignment.md`, documentation only — no BUILD feature).
-Both pending Codex review.
+**MM1 COMPLETE** + **BA1 COMPLETE** (2026-06-14, Codex re-review passed). BA1
+motion_graphics consumer corrected to the `contract_adapter` build path (Node 14
+is scaffold/flow-grouping only).
 
-**Only after MM1 + BA1 review pass:** BR1 Opening / Hook Sequence Builder.
-Do not start M6a lineage integration, `material_delta`, the complete Visual
-Diversity Guard, or BR1 before that review.
+**BR1 Opening / Hook Sequence Builder implemented** (this round, pending review):
+`opening_sequence.py` compiles an approved recipe (hook → context montage →
+sound-punctuation cue → title reveal → story entry) into render-plan clips that
+are **prepended to the plan and reindexed**, so it changes both timeline and
+true render (real-render test proves it). Graceful fallback drops beats with no
+material. Consumed via `script["opening_recipe"]` in `run_mv`.
+
+**Do not start:** M6a lineage integration, `material_delta`, the complete Visual
+Diversity Guard. Do not expand the MM1 contract further.
 
 **Do not start yet:** M5c designed sequences, M5d human-vs-agent automation,
 M5e rerender, effects expansion, CLIP hard dependency, or further 67th-specific
@@ -559,7 +564,7 @@ different problems and must remain separate.
 Review handoff:
 `docs/decisions/2026-06-14-roadmap-course-correction.md`.
 
-### MM1 Project Material Map V1 — implemented + hardened (2026-06-14), pending Codex review
+### MM1 Project Material Map V1 — COMPLETE (2026-06-14, Codex review passed)
 
 `project_material_map.py` + `project-material-map` CLI + `tests/test_project_material_map.py`
 (14 tests). 6 acceptance criteria + hardening:
@@ -625,15 +630,26 @@ Acceptance:
 5. A CLI produces `project_material_map.json`.
 6. Focused tests and the full regression pass.
 
-### BA1 BUILD Alignment Audit — written (2026-06-14), pending Codex review
+### BA1 BUILD Alignment Audit — COMPLETE (2026-06-14, Codex review passed)
 
-`docs/build-capability-alignment.md`: capability table grounded in call-site
-grep. Key finding — render-time grammar (transitions/treatments/attention
-budget/SFX/music/micro-rhythm) is genuinely `active` in BUILD; the
-material-evidence layer (M6a needs, satisfies edge, MM1 map, VD0 labels) is
-`declared_only` for BUILD (nothing selects/orders from it yet); M2 window
-retrieval is `partial`. Smallest high-value gap = BR1 opening/hook (uses
-existing active grammar, no new evidence layer). Documentation only, no feature.
+`docs/build-capability-alignment.md`: split into A) pre-BUILD gates B) BUILD
+capabilities C) VERIFY audits. motion_graphics BUILD consumer corrected to the
+`contract_adapter` build path (Node 14 = scaffold only, not a consumer). Key
+finding — render-time grammar is `active` in BUILD; the material-evidence layer
+(needs/satisfies/MM1/VD0) is `declared_only`; M2 retrieval is `partial`.
+Smallest high-value gap = BR1 opening/hook. Documentation only, no feature.
+
+### BR1 Opening / Hook Sequence Builder — implemented (2026-06-14), pending Codex review
+
+`opening_sequence.py` + `run_mv` integration + `tests/test_opening_sequence.py`
+(10 tests incl. real render). Compiles an approved recipe into render-plan clips
+(hook slow-push / context montage / title-reveal card / sound-punctuation cue /
+story-entry marker), `prepend_opening_to_plan` reindexes slot_index across the
+whole plan. **Changes timeline AND true render** (real-render test renders the
+compiled opening, incl. title overlay, to a video of expected duration).
+Graceful fallback: beats with no material are dropped and recorded; no recipe →
+plan unchanged. Consumed via `script["opening_recipe"]`. sound_punctuation is a
+cue only (audio wiring is BR3). No VERIFY-only behavior — it is a BUILD change.
 
 **Goal:** identify which existing dictionaries, Skills, and tools actually
 change BUILD output before adding more BUILD features.
