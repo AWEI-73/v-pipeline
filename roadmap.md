@@ -537,6 +537,21 @@ artifacts; dangling at each hop fails; no-delta boundary asserts no
 coverage/route/status keys leak): 11 tests. Full regression: **900 tests OK**.
 M6b `material_delta` stays deferred — it now has a join to diff over.
 
+M6a lineage hardening (2026-06-14): (1) `contract_need_refs` returns ordered
+records `[{segment_ref, segment_index, need_refs}]` instead of a dict keyed by
+`section_role` — a repeated role no longer overwrites a sibling's references, so
+a dangling ref on the first of two same-role segments is caught. (2) `link_lineage`
+now shape-validates every supplied artifact reference (brief requirement = object
+with non-empty-string need_id; contract need_refs = non-empty list of need_id
+strings, no silent filtering; satisfies edge = object with non-empty-string
+need_id and candidate/accepted/rejected status, reusing material_needs'
+`VALID_STATUSES`). Malformed input returns `ok=False` + errors without crashing
+(satisfaction inversion is now built crash-safe inline rather than via
+`summarize_satisfaction` on unvalidated data). Reverse tests: repeated-role
+dangling, brief missing/non-string need_id, contract `[123]`/`[]`/non-list,
+satisfies non-object/non-string/illegal-status, legal four-link still ok. Focused:
+16 tests OK; full regression: **905 tests OK**.
+
 Original design goals (all met by the above):
 
 - Model one lifecycle with existing-material and planned-capture entry points;

@@ -19,7 +19,7 @@ verdict M6b owns; lineage only reports the join and broken references.
 """
 from __future__ import annotations
 
-from .material_needs import need_ids, summarize_satisfaction, validate_material_needs
+from .material_needs import VALID_STATUSES, validate_material_needs
 
 
 _BRIEF_PROJECTION_FIELDS = (
@@ -77,33 +77,113 @@ def _segment_ref(segment, index):
 
 
 def contract_need_refs(contract):
-    """Read `material_fit.need_refs` per segment → {segment_ref: [need_id, ...]}.
-    Only well-shaped non-empty string refs are returned; shape errors are the
-    segment_contract validator's job (see spec_contract.validate_segment_contract)."""
-    refs = {}
+    """Per-segment need_refs as ORDERED RECORDS — never a dict keyed by
+    `section_role`, which can repeat and would silently overwrite a sibling's
+    references (and lose a dangling ref on the first of two same-role segments)::
+
+        [{"segment_ref": <display>, "segment_index": <stable int>,
+          "need_refs": <raw value from material_fit.need_refs>}]
+
+    A record is emitted for every segment that declares a `need_refs` key, even a
+    malformed value — the linker validates shape and reports errors rather than
+    this reader silently dropping illegal refs. Segments without the key do not
+    participate in lineage and are omitted."""
+    records = []
     for index, segment in enumerate(_iter_segments(contract)):
         if not isinstance(segment, dict):
             continue
-        material_fit = segment.get("material_fit") or {}
-        need_refs = material_fit.get("need_refs")
-        if not isinstance(need_refs, list):
+        material_fit = segment.get("material_fit")
+        if not isinstance(material_fit, dict) or "need_refs" not in material_fit:
             continue
-        clean = [r for r in need_refs if isinstance(r, str) and r.strip()]
-        if clean:
-            refs[_segment_ref(segment, index)] = clean
-    return refs
+        records.append({"segment_ref": _segment_ref(segment, index),
+                        "segment_index": index,
+                        "need_refs": material_fit.get("need_refs")})
+    return records
 
 
-def _satisfies_need_ids(material_maps):
-    """Every need_id referenced by a scene satisfies edge (across all maps)."""
-    out = set()
-    for material_map in material_maps or []:
-        for scene in material_map.get("scenes") or []:
-            for edge in scene.get("satisfies") or []:
+def _collect_brief_ids(shooting_brief, errors):
+    """Validate brief requirement shape; collect the need_ids it references."""
+    ids = set()
+    requirements = shooting_brief.get("requirements")
+    if not isinstance(requirements, list):
+        errors.append(f"shooting_brief.requirements must be a list, got {requirements!r}")
+        return ids
+    for i, req in enumerate(requirements):
+        if not isinstance(req, dict):
+            errors.append(f"shooting_brief requirement #{i} must be an object, got {req!r}")
+            continue
+        nid = req.get("need_id")
+        if not isinstance(nid, str) or not nid.strip():
+            errors.append(f"shooting_brief requirement #{i} need_id must be a "
+                          f"non-empty string, got {nid!r}")
+            continue
+        ids.add(nid)
+    return ids
+
+
+def _collect_contract_ids(contract, errors):
+    """Validate each segment's need_refs shape; collect ids + segments_by_need."""
+    ids, segments_by_need = set(), {}
+    for rec in contract_need_refs(contract):
+        refs = rec["need_refs"]
+        label = f"contract segment {rec['segment_ref']!r} (index {rec['segment_index']})"
+        if not (isinstance(refs, list) and refs
+                and all(isinstance(r, str) and r.strip() for r in refs)):
+            errors.append(f"{label} need_refs must be a non-empty list of need_id "
+                          f"strings, got {refs!r}")
+            continue
+        for nid in refs:
+            ids.add(nid)
+            segments_by_need.setdefault(nid, []).append(rec["segment_ref"])
+    return ids, segments_by_need
+
+
+def _collect_satisfies(material_maps, errors):
+    """Validate scene satisfies-edge shape; collect ids + a crash-safe inversion
+    (need_id -> {status: [{asset_id, scene_index}]}). Reuses material_needs'
+    VALID_STATUSES — no parallel status vocabulary."""
+    ids, satisfaction = set(), {}
+    if not isinstance(material_maps, list):
+        errors.append(f"material_maps must be a list, got {material_maps!r}")
+        return ids, satisfaction
+    for material_map in material_maps:
+        if not isinstance(material_map, dict):
+            errors.append(f"material map must be an object, got {material_map!r}")
+            continue
+        asset_id = material_map.get("asset_id")
+        scenes = material_map.get("scenes") or []
+        if not isinstance(scenes, list):
+            errors.append(f"asset {asset_id!r} scenes must be a list, got {scenes!r}")
+            continue
+        for index, scene in enumerate(scenes):
+            if not isinstance(scene, dict):
+                errors.append(f"asset {asset_id!r} scene {index} must be an object, got {scene!r}")
+                continue
+            edges = scene.get("satisfies")
+            if edges is None:
+                continue
+            if not isinstance(edges, list):
+                errors.append(f"asset {asset_id!r} scene {index} satisfies must be a list, got {edges!r}")
+                continue
+            for edge in edges:
+                ref = f"asset {asset_id!r} scene {index}"
+                if not isinstance(edge, dict):
+                    errors.append(f"{ref} satisfies edge must be an object, got {edge!r}")
+                    continue
                 nid = edge.get("need_id")
-                if isinstance(nid, str) and nid.strip():
-                    out.add(nid)
-    return out
+                if not isinstance(nid, str) or not nid.strip():
+                    errors.append(f"{ref} satisfies need_id must be a non-empty string, got {nid!r}")
+                    continue
+                status = edge.get("status")
+                if status not in VALID_STATUSES:
+                    errors.append(f"{ref} satisfies status must be one of "
+                                  f"{VALID_STATUSES}, got {status!r}")
+                    continue
+                ids.add(nid)
+                satisfaction.setdefault(
+                    nid, {"accepted": [], "candidate": [], "rejected": []}
+                )[status].append({"asset_id": asset_id, "scene_index": index})
+    return ids, satisfaction
 
 
 def link_lineage(material_needs, *, shooting_brief=None, material_maps=None, contract=None):
@@ -114,10 +194,15 @@ def link_lineage(material_needs, *, shooting_brief=None, material_maps=None, con
         {ok, errors, chain: {need_id: {requirement, in_brief, satisfied_by,
                                        contract_segments}}, dangling: {...}}
 
-    `ok` is True iff no dangling reference exists — i.e. every brief requirement,
-    satisfies edge, and contract need_ref resolves to a declared canonical need.
-    The `chain` is a neutral join view (which scenes/segments point at each need
-    and with what satisfaction status); it makes NO coverage decision — a need
+    Every artifact reference that is actually supplied is shape-validated first
+    (brief requirements are objects with a non-empty-string need_id; contract
+    need_refs is a non-empty list of need_id strings; satisfies edges are objects
+    with a non-empty-string need_id and a candidate/accepted/rejected status).
+    Malformed input yields `ok=False` + `errors` — never a crash, never a silent
+    drop. `ok` is True iff there is no shape error AND no dangling reference (a
+    well-shaped ref to a need_id absent from canonical needs).
+
+    The `chain` is a neutral join view; it makes NO coverage decision — a need
     with an empty `satisfied_by` is reported as-is, never flagged as missing."""
     validation = validate_material_needs(material_needs)
     canonical = {need["need_id"] for need in validation["needs"]
@@ -127,10 +212,11 @@ def link_lineage(material_needs, *, shooting_brief=None, material_maps=None, con
     if not validation["ok"]:
         errors.append("material_needs invalid: " + "; ".join(validation["errors"]))
 
-    brief_ids = shooting_brief_need_ids(shooting_brief) if shooting_brief is not None else set()
-    satisfies_ids = _satisfies_need_ids(material_maps) if material_maps is not None else set()
-    contract_refs = contract_need_refs(contract) if contract is not None else {}
-    contract_ids = {nid for ids in contract_refs.values() for nid in ids}
+    brief_ids = _collect_brief_ids(shooting_brief, errors) if shooting_brief is not None else set()
+    contract_ids, segments_by_need = (
+        _collect_contract_ids(contract, errors) if contract is not None else (set(), {}))
+    satisfies_ids, satisfaction = (
+        _collect_satisfies(material_maps, errors) if material_maps is not None else (set(), {}))
 
     dangling = {}
 
@@ -146,12 +232,6 @@ def link_lineage(material_needs, *, shooting_brief=None, material_maps=None, con
     _record_dangling("shooting_brief", brief_ids)
     _record_dangling("satisfies_edge", satisfies_ids)
     _record_dangling("contract_need_ref", contract_ids)
-
-    satisfaction = summarize_satisfaction(material_maps) if material_maps is not None else {}
-    segments_by_need = {}
-    for seg_ref, ids in contract_refs.items():
-        for nid in ids:
-            segments_by_need.setdefault(nid, []).append(seg_ref)
 
     chain = {}
     for nid in sorted(canonical):
