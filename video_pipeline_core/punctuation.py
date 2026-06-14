@@ -19,7 +19,7 @@ from .sfx import ASSET_COUNTS, SFX_VOLUME, build_sfx_filter
 
 
 def _clip_role(clip):
-    return clip.get("opening_role") or clip.get("beat_role")
+    return clip.get("opening_role") or clip.get("beat_role") or clip.get("ending_role")
 
 
 def _asset_for(cue_type, asset_dir, ordinal):

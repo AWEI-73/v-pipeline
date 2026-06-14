@@ -1199,6 +1199,10 @@ def run_mv(script, material_root, out_path, music_path=None,
         per_seg.append(entry)
         for m in msgs:
             vp(m)
+    # Keep the unmodified story plan as the source pool for both bookends. This
+    # prevents the opening from selecting ending clips or vice versa.
+    story_plan = list(plan)
+
     # 3.5) BR1 opening / hook sequence — prepend an approved opening recipe into
     # the render plan so it changes both timeline and true render.
     opening_result = None
@@ -1206,7 +1210,7 @@ def run_mv(script, material_root, out_path, music_path=None,
     if opening_recipe:
         from .opening_sequence import (  # noqa: PLC0415
             compile_opening_sequence, opening_pool_from_plan, prepend_opening_to_plan)
-        pool = opening_recipe.get("shots") or opening_pool_from_plan(plan)
+        pool = opening_recipe.get("shots") or opening_pool_from_plan(story_plan)
         opening_result = compile_opening_sequence(opening_recipe, pool)
         if opening_result["clips"]:
             plan = prepend_opening_to_plan(plan, opening_result["clips"])
@@ -1215,6 +1219,27 @@ def run_mv(script, material_root, out_path, music_path=None,
         else:
             vp(f"[opening] no opening clips compiled (fallback); "
                f"dropped={opening_result['dropped']}")
+
+    # 3.6) BR4 ending / payoff sequence — append approved closure beats. Missing
+    # recipe/material leaves the existing plan unchanged.
+    ending_result = None
+    ending_recipe = script.get("ending_recipe")
+    if ending_recipe:
+        from .ending_sequence import (  # noqa: PLC0415
+            append_ending_to_plan, compile_ending_sequence, ending_pool_from_plan)
+        story_segments = [s.get("segment") for s in segs if isinstance(s.get("segment"), int)]
+        ending_segment = (max(story_segments) + 1) if story_segments else 1
+        pool = ending_recipe.get("shots") or ending_pool_from_plan(story_plan)
+        ending_result = compile_ending_sequence(
+            ending_recipe, pool, segment=ending_segment)
+        if ending_result["clips"]:
+            plan = append_ending_to_plan(plan, ending_result["clips"])
+            sequence_cues.extend(ending_result["cues"])
+            vp(f"[ending] appended {len(ending_result['clips'])} clip(s); "
+               f"beats={ending_result['beats_used']} dropped={ending_result['dropped']}")
+        else:
+            vp(f"[ending] no ending clips compiled (fallback); "
+               f"dropped={ending_result['dropped']}")
 
     # 4) render(audio_role:keep_audio 段保留原音 + 音樂墊底)
     pending_visual_review = [entry for entry in per_seg if entry.get("pending_visual_review")]
@@ -1260,7 +1285,8 @@ def run_mv(script, material_root, out_path, music_path=None,
     except Exception as _e:
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
     return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
-            "opening": opening_result, "punctuation": punctuation_result,
+            "opening": opening_result, "ending": ending_result,
+            "punctuation": punctuation_result,
             "awaiting_visual_review": bool(pending_visual_review)}
 
 

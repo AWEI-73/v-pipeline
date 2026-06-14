@@ -356,6 +356,10 @@ def cmd_visual_diversity_coverage(args):
         args.project_map,
         args.out,
         min_visual_family_coverage=args.min_visual_family_coverage,
+        min_angle_scale_coverage=args.min_angle_scale_coverage,
+        consistency_review_paths=args.consistency_review,
+        min_consistency_ratio=args.min_consistency_ratio,
+        min_consistency_scenes=args.min_consistency_scenes,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
@@ -1667,6 +1671,17 @@ def main():
     p_vdc.add_argument("--min-visual-family-coverage", type=float, default=0.7,
                        dest="min_visual_family_coverage",
                        help="minimum visual_family scene coverage required before VD2")
+    p_vdc.add_argument("--min-angle-scale-coverage", type=float, default=0.6,
+                       dest="min_angle_scale_coverage",
+                       help="minimum angle_scale scene coverage required before VD2")
+    p_vdc.add_argument("--consistency-review", action="append", default=[],
+                       help="independent project_material_map review; repeatable")
+    p_vdc.add_argument("--min-consistency-ratio", type=float, default=0.7,
+                       dest="min_consistency_ratio",
+                       help="minimum coarse-label agreement required before VD2")
+    p_vdc.add_argument("--min-consistency-scenes", type=int, default=10,
+                       dest="min_consistency_scenes",
+                       help="minimum independently reviewed comparable scenes")
 
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")

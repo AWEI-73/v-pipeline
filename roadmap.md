@@ -420,11 +420,11 @@ soft-ranking 的加分項,永遠不得凌駕素材正確性。** 先前「禁止
 
 ```
 VD0  淺標籤契約 + lineage              ✅ 已完成(見下)
-VD1  標籤覆蓋率驗證(開工前的閘):    ✅ 工具完成;真實專案證據待產生
+VD1  標籤覆蓋率驗證(開工前的閘):    ✅ 契約完成;真實素材證據已產生
        在真實素材上量:標註覆蓋率%、未標比例、
        同素材跨 Agent 分類一致性(粗粒度,不要求完全一致);
        覆蓋率/一致性達標才值得寫 ranker,否則 ranker 多數時間沒資料。
-VD2  BUILD soft-ranking(editor 端)   ⬜ blocked:等待 VD1 真實專案覆蓋證據
+VD2  BUILD soft-ranking(editor 端)   ⬜ blocked:真實素材 VD0 覆蓋率 0%,無一致性證據
 VD3  VERIFY tier-2 warning backstop    ⬜ 擴充 visual_fatigue 吃家族,只警示
 ```
 
@@ -750,19 +750,25 @@ context -> primary action -> detail/reaction -> payoff
 
 #### VD1 / VD2 Visual Diversity Evidence And Soft Ranking — P1
 
-**VD1 evidence tool implemented (2026-06-14); VD2 remains blocked.**
+**VD1 evidence contract completed (2026-06-14); VD2 remains blocked.**
 `visual_diversity_coverage.py` + `visual-diversity-coverage` CLI reads the
 validated `project_material_map.json` and emits
 `visual_diversity_coverage.json`: per-axis labeled/missing counts and scene
 references, any/full-label ratios, and an explicit `ready_for_vd2` decision.
-The default precondition is `visual_family` coverage >= 0.70 and at least one
-scene; the threshold is configurable. This tool is evidence-only and performs
-no ranking, selection, or map mutation.
+The default preconditions are `visual_family` coverage >= 0.70,
+`angle_scale` coverage >= 0.60, and an independent coarse-label review with at
+least 10 comparable scenes and >= 0.70 agreement **on each required axis**.
+`action_family` and `subject` remain measured but do not universally block
+because they may be inapplicable. The CLI accepts repeatable
+`--consistency-review` project maps. It performs no ranking, selection, or map
+mutation.
 
-No real `project_material_map.json` or `*.map.json` was available in the
-workspace or known project/material directories at implementation time, so no
-real-project coverage pass is claimed. VD2 stays blocked until the CLI is run
-against a real project map and produces `ready_for_vd2=true`.
+A reproducible evidence run used 12 real photo assets selected from distinct
+folders under `_整理後`. The resulting project map had 12 scenes, but actual
+VD0 coverage was 0% and no independent consistency review existed. Therefore
+VD2 is truthfully blocked; writing the ranker now would produce a feature that
+usually has no labels to consume. Generated evidence is kept under
+`.tmp/vd1-real-evidence/` and is not a claimed review artifact.
 
 After that evidence exists, labels may be used only as a soft tiebreaker after
 correctness, relevance, and approved material.
@@ -792,10 +798,17 @@ Transitions declared inside one group do not shift time; oversized transitions
 cannot produce negative cue timestamps. Focused BR1/BR2/BR3/VD1/MM1 suite:
 61 tests OK; full regression: 852 tests OK.
 
-#### BR4 Ending / Payoff Sequence — P2
+#### BR4 Ending / Payoff Sequence — COMPLETE (2026-06-14)
 
-Compile an ending recipe that provides narrative or emotional closure instead
-of ending when available material runs out.
+`ending_sequence.py` compiles an approved script-level `ending_recipe` into
+`callback -> payoff -> closing_title` clips and appends them to the real render
+plan. Its default pool walks the story tail backward, all video windows reuse
+BR1's approved `{start,dur}` contract, and an optional payoff cue flows into
+BR3. Missing recipe/material leaves the existing plan unchanged; title and cue
+anchors are emitted only when their visual beat exists. Focused tests include
+plan integration, negative fallbacks, bookend composition, and a true ffmpeg
+render. Focused BR1/BR2/BR3/BR4/VD1 suite: 64 tests OK; full regression:
+869 tests OK.
 
 ### Deferred Until After BUILD Alignment
 

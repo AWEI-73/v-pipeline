@@ -41,6 +41,13 @@ class ResolveTest(unittest.TestCase):
         res = pn.resolve_punctuation_cues(plan, cues, asset_dir=ASSET_DIR)
         self.assertEqual(res["cues"][0]["start_sec"], 2.0)   # second payoff, after first 2.0s
 
+    def test_ending_payoff_anchor_resolves(self):
+        plan = [_clip("beat_role", "context", 2.0, segment=1),
+                _clip("ending_role", "payoff", 2.0, segment=2)]
+        cues = [{"type": "hit", "anchor": "payoff", "segment": 2}]
+        res = pn.resolve_punctuation_cues(plan, cues, asset_dir=ASSET_DIR)
+        self.assertEqual(res["cues"][0]["start_sec"], 2.0)
+
     def test_no_cues_yields_empty_plan(self):
         res = pn.resolve_punctuation_cues([], [], asset_dir=ASSET_DIR)
         self.assertEqual(res["cues"], [])
