@@ -92,7 +92,8 @@ class ValidatorTest(unittest.TestCase):
         result = mn.validate_material_needs(
             {"project": "p", "needs": [{"category": "c", "type": "t", "purpose": "x"}]})
         self.assertFalse(result["ok"])
-        self.assertTrue(any("missing need_id" in e for e in result["errors"]))
+        self.assertTrue(any("need_id must be a non-empty string" in e
+                            for e in result["errors"]))
 
     def test_duplicate_explicit_id_fails(self):
         """F2: explicit duplicate join key is an error, not a silent suffix."""
@@ -138,6 +139,30 @@ class ValidatorTest(unittest.TestCase):
             self.assertFalse(result["ok"], f"fallback_tier={bad_tier!r} should fail")
             self.assertTrue(any("fallback_tier must be an integer" in e
                                 for e in result["errors"]))
+
+    def test_fallback_options_must_be_list_of_strings(self):
+        for bad in ("just a string", [1, 2], [{"x": 1}], 5):
+            payload = {"project": "p", "needs": [
+                {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+                 "fallback_options": bad}]}
+            result = mn.validate_material_needs(payload)
+            self.assertFalse(result["ok"], f"fallback_options={bad!r} should fail")
+            self.assertTrue(any("fallback_options must be a list of strings" in e
+                                for e in result["errors"]))
+
+    def test_valid_fallback_options_pass(self):
+        payload = {"project": "p", "needs": [
+            {"need_id": "n1", "category": "c", "type": "t", "purpose": "x",
+             "fallback_options": ["a", "b"]}]}
+        self.assertTrue(mn.validate_material_needs(payload)["ok"])
+
+    def test_non_string_need_id_in_canonical_fails(self):
+        payload = {"project": "p", "needs": [
+            {"need_id": 7, "category": "c", "type": "t", "purpose": "x"}]}
+        result = mn.validate_material_needs(payload)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("need_id must be a non-empty string" in e
+                            for e in result["errors"]))
 
     def test_must_have_tier1_without_fallback_warns(self):
         risky = {"project": "p", "needs": [
@@ -189,12 +214,37 @@ class SatisfiesEdgeTest(unittest.TestCase):
     def test_default_status_is_candidate(self):
         m = self._map()
         mn.apply_satisfaction_verdict(m, {"scenes": [
-            {"scene_index": 0, "satisfies": [{"need_id": "nd_x"}]}]})
+            {"scene_index": 0, "satisfies": [{"need_id": "nd_x"}]}]},
+            valid_need_ids={"nd_x"})
         self.assertEqual(m["scenes"][0]["satisfies"][0]["status"], "candidate")
+
+    def test_missing_valid_need_ids_fails(self):
+        """valid_need_ids is mandatory — an unchecked write path is forbidden."""
+        m = self._map()
+        with self.assertRaises(ValueError):
+            mn.apply_satisfaction_verdict(m, {"scenes": [
+                {"scene_index": 0, "satisfies": [{"need_id": "nd_x"}]}]})
+
+    def test_non_string_need_id_rejected(self):
+        m = self._map()
+        with self.assertRaises(ValueError):
+            mn.apply_satisfaction_verdict(m, {"scenes": [
+                {"scene_index": 0, "satisfies": [{"need_id": 123}]}]},
+                valid_need_ids={"nd_x"})
+        with self.assertRaises(ValueError):
+            mn.apply_satisfaction_verdict(m, {"scenes": [
+                {"scene_index": 0, "satisfies": [{"need_id": "  "}]}]},
+                valid_need_ids={"nd_x"})
 
     def test_invalid_status_rejected(self):
         with self.assertRaises(ValueError):
             mn.make_satisfaction("nd_x", "approved")
+
+    def test_make_satisfaction_rejects_non_string_need_id(self):
+        with self.assertRaises(ValueError):
+            mn.make_satisfaction(123)
+        with self.assertRaises(ValueError):
+            mn.make_satisfaction("")
 
     def test_need_ids_helper_feeds_reference_check(self):
         canon = mn.migrate_material_needs(_legacy())
@@ -258,14 +308,9 @@ class CliTest(unittest.TestCase):
 
 class BackwardCompatTest(unittest.TestCase):
     def test_existing_material_map_without_satisfies_is_unaffected(self):
+        # pure existing-material flow (no needs, no satisfies edges) is untouched
         m = {"asset_id": "a", "scenes": [{"start": 0, "end": 2}]}
         self.assertEqual(mn.summarize_satisfaction([m]), {})
-
-    def test_permissive_apply_without_valid_ids_still_works(self):
-        m = {"asset_id": "a", "scenes": [{"start": 0, "end": 2}]}
-        mn.apply_satisfaction_verdict(m, {"scenes": [
-            {"scene_index": 0, "satisfies": [{"need_id": "nd_x"}]}]})
-        self.assertEqual(m["scenes"][0]["satisfies"][0]["need_id"], "nd_x")
 
 
 if __name__ == "__main__":

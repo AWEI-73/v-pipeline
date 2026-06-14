@@ -459,10 +459,12 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 #### M6a Canonical contracts — contract implemented; hardening pending Codex re-review (2026-06-14)
 
 > 狀態用語依約定:hardening 全數通過 Codex re-review 後才標 "contract layer complete"。
-> 本輪在 `cbc171c`(F1-F4)之上再補兩個 spec 漏項:`fallback_tier` 嚴格型別
-> (拒 boolean `True`/字串/float——`True in (1,2,3,4)` 在 Python 為 True 的陷阱)
-> 與 **CLI 驗證失敗回非零 exit code**(`validate-needs` 失敗 raise ToolError;
-> `--out` 僅在通過時寫入)。新增 CLI failure / tier 型別 TDD。786 tests OK。
+> round 2(`c810ab3`):`fallback_tier` 嚴格型別(拒 boolean `True`/字串/float
+> ——`True in (1,2,3,4)` 在 Python 為 True 的陷阱)+ CLI 驗證失敗回非零 exit code。
+> round 3(本輪):`apply_satisfaction_verdict` 強制 `valid_need_ids`(未提供即
+> ValueError,堵住 unchecked 寫入路徑);`need_id` 僅接受非空字串(canonical 與
+> verdict 兩端);`fallback_options` 僅接受 list[str](移除靜默 `list()` 轉型);
+> 移除 permissive satisfaction 測試。**全套件 791 tests OK**。
 
 
 實作 `material_needs.py` + `validate-needs` CLI + `tests/test_material_needs.py`。
@@ -474,7 +476,8 @@ M6a-hardening 已修正契約 review 抓到的 4 個問題(F1-F4):
 - **F2 重複 id**:明確重複 `need_id` → validation **error**(不再靜默加 _2 後綴);
   自動配置只在遷移缺 id 時發生,且 content-identical 衝突會加註 migration_notes。
 - **F3 reference integrity**:`apply_satisfaction_verdict(..., valid_need_ids=...)`
-  對不存在的 need_id **raise**(typo 不再形成幽靈 edge);`need_ids()` 提供白名單。
+  **強制**白名單(round 3:未提供即 ValueError),對不存在/非字串 need_id **raise**
+  (typo 不再形成幽靈 edge);`need_ids()` 提供白名單。
 - **F4 嚴格型別**:`must_have` 只接受 boolean(`"false"` → error)、`count` 只接受
   正整數(0/負/字串/float/bool → error,不再「treated as 1」卻沒改值)。
 - **穩定 project-local `need_id`**,與 segment 編號無關;章節 renumber 不改 id;
@@ -483,7 +486,7 @@ M6a-hardening 已修正契約 review 抓到的 4 個問題(F1-F4):
   (轉換記 `previous_status`,timestamp 由 verdict 提供,無隱藏時鐘)。
 - `summarize_satisfaction` 是 scene→need 唯讀反查(**非 delta**)。
 - 向後相容:無 needs / 無 satisfies 的純既有素材流程不受影響;legacy 巢狀與 flat
-  皆可輸入;未碰 supply_review / rank-local。**783 tests OK**。
+  皆可輸入;未碰 supply_review / rank-local。**全套件 791 tests OK(round 3)**。
 
 **下一個正式項目:M6a lineage integration** —— 讓同一個 `need_id` 實際穿過
 shooting brief → scene review → revised contract segment(本輪只立契約 + 邊 +

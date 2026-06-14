@@ -32,12 +32,20 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/reference-repos-map.md` — external reference repos: what to take, license limits,
   integration triggers (ai-media-generator / NarratoAI). Do not re-evaluate; read this.
 
+## Working conventions (read before contributing)
+
+- `docs/decisions/2026-06-14-working-loop-and-tdd-evidence.md` — the
+  Claude↔Codex loop, the TDD-green-is-the-only-evidence rule, and validator
+  discipline. Shared source of truth for how work is done here.
+
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
-`2026-06-08-prose-to-contract-lexicon-compiler.md`,
-`2026-06-08-editorial-soul-layer-and-treatment-grammar.md`,
-`2026-06-08-e2e-verify-capcut-finalize.md`.
+`2026-06-14-working-loop-and-tdd-evidence.md`,
+`2026-06-14-m6a-review-response.md`,
+`2026-06-13-m5-real-render-sensory-acceptance.md`,
+`2026-06-13-spec-field-census.md`.
+Material Phase (M0-M6a) lives in `roadmap.md` top section + these decision files.
 
 ## Design notes (still referenced by skills — keep)
 

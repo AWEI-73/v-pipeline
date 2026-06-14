@@ -71,7 +71,8 @@ def _flatten(raw):
             "must_have": raw_need.get("must_have", False),  # type-checked later
         }
         if raw_need.get("fallback_options") is not None:
-            row["fallback_options"] = list(raw_need.get("fallback_options") or [])
+            # keep the raw value verbatim — type is validated, never coerced
+            row["fallback_options"] = raw_need.get("fallback_options")
         if raw_need.get("duration_each") is not None:
             row["duration_each"] = raw_need.get("duration_each")
         if raw_need.get("id") is not None:               # legacy display only
@@ -135,9 +136,9 @@ def validate_material_needs(raw):
     counts = {}
     for row in rows:
         nid = row.get("need_id")
-        ref = nid or row.get("display_id") or "?"
-        if not nid or not str(nid).strip():
-            errors.append(f"need {ref} missing need_id "
+        ref = nid if isinstance(nid, str) and nid.strip() else (row.get("display_id") or "?")
+        if not isinstance(nid, str) or not nid.strip():
+            errors.append(f"need {ref} need_id must be a non-empty string, got {nid!r} "
                           f"(run migration to allocate a stable id)")
         else:
             counts[nid] = counts.get(nid, 0) + 1
@@ -158,6 +159,12 @@ def validate_material_needs(raw):
             warnings.append(f"need {ref} count absent; migration sets it to 1")
         elif not _positive_int(count):
             errors.append(f"need {ref} count must be a positive integer, got {count!r}")
+        fallback_options = row.get("fallback_options")
+        if fallback_options is not None and not (
+                isinstance(fallback_options, list)
+                and all(isinstance(item, str) for item in fallback_options)):
+            errors.append(f"need {ref} fallback_options must be a list of strings, "
+                          f"got {fallback_options!r}")
         if row.get("must_have") is True and row.get("fallback_tier") == 1 \
                 and not row.get("fallback_options"):
             warnings.append(
@@ -186,8 +193,8 @@ def make_satisfaction(need_id, status="candidate", *, reviewer=None, note=None, 
     (no hidden clock) to keep the write path deterministic and testable."""
     if status not in VALID_STATUSES:
         raise ValueError(f"invalid satisfaction status: {status!r}")
-    if not need_id:
-        raise ValueError("satisfaction requires need_id")
+    if not isinstance(need_id, str) or not need_id.strip():
+        raise ValueError(f"satisfaction need_id must be a non-empty string, got {need_id!r}")
     lineage = {}
     for key, value in (("reviewer", reviewer), ("note", note), ("at", at),
                        ("previous_status", previous_status)):
@@ -219,11 +226,16 @@ def apply_satisfaction_verdict(material_map, verdict, *, valid_need_ids=None):
                      "satisfies": [{"need_id": "nd_ab12cd34",
                                     "status": "accepted", "note": "..."}]}]}
 
-    When ``valid_need_ids`` is given, any need_id outside it raises ValueError —
-    a typo must not silently create a phantom edge that a future delta inherits.
-    Pass `need_ids(material_needs)` to enforce reference integrity. Scenes
-    without a verdict entry are untouched (backward compatible)."""
-    known = set(valid_need_ids) if valid_need_ids is not None else None
+    ``valid_need_ids`` is REQUIRED (the canonical need_id set, e.g.
+    `need_ids(material_needs)`). Omitting it, or referencing a need_id outside
+    it, raises ValueError — an unchecked or typo'd edge must never reach a
+    future delta as a phantom requirement. Scenes without a verdict entry are
+    untouched (backward compatible)."""
+    if valid_need_ids is None:
+        raise ValueError(
+            "valid_need_ids is required: satisfies edges must be validated "
+            "against the canonical material_needs (pass need_ids(...))")
+    known = set(valid_need_ids)
     scenes = material_map.get("scenes") or []
     default_reviewer = verdict.get("reviewer")
     default_at = verdict.get("at")
@@ -234,9 +246,12 @@ def apply_satisfaction_verdict(material_map, verdict, *, valid_need_ids=None):
         incoming = []
         for raw in item.get("satisfies") or []:
             need_id = raw.get("need_id")
-            if not need_id:
+            if need_id is None:
                 continue
-            if known is not None and need_id not in known:
+            if not isinstance(need_id, str) or not need_id.strip():
+                raise ValueError(
+                    f"satisfies need_id must be a non-empty string, got {need_id!r}")
+            if need_id not in known:
                 raise ValueError(
                     f"satisfies references unknown need_id {need_id!r} "
                     f"(not in canonical material_needs)")
