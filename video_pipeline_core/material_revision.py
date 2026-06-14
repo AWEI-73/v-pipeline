@@ -32,7 +32,7 @@ import os
 from pathlib import Path
 
 from . import spec_contract
-from .material_delta import gate_from_delta
+from .material_delta import gate_from_delta, is_canonical_waiver
 
 
 # the routes a decision may carry (the M6b route enum minus the no-op "none")
@@ -73,28 +73,28 @@ def _segments(contract):
     return []
 
 
-def _valid_waiver(waiver):
-    return (isinstance(waiver, dict)
-            and isinstance(waiver.get("reviewer"), str) and waiver["reviewer"].strip()
-            and isinstance(waiver.get("reason"), str) and waiver["reason"].strip())
-
-
 def _decision_waivers(dec):
-    """Canonical per-need waivers carried by a decision → {need_id: {reviewer,
-    reason, at}}. The single `waiver` field waives the decision's own need_id; an
-    optional `waivers` list waives additional referenced needs (one per need_id,
-    each explicit). Only waivers with reviewer+reason are honored."""
-    out = {}
+    """CANONICAL per-need waivers carried by a decision → list of
+    {need_id, reviewer, reason, at} records that pass the SINGLE shared validator
+    `material_delta.is_canonical_waiver` (no second rule). The `waiver` field
+    waives the decision's own need_id (its `at` defaults to the decision lineage's
+    `at`); an optional `waivers` list waives additional referenced needs. A
+    malformed/incomplete waiver is simply not canonical and releases nothing."""
     at = (dec.get("lineage") or {}).get("at")
+    candidates = []
     single = dec.get("waiver")
-    if _valid_waiver(single) and isinstance(dec.get("need_id"), str):
-        out[dec["need_id"]] = {"reviewer": single["reviewer"],
-                               "reason": single["reason"], "at": at}
+    if isinstance(single, dict) and isinstance(dec.get("need_id"), str):
+        candidates.append({"need_id": dec["need_id"], "reviewer": single.get("reviewer"),
+                           "reason": single.get("reason"), "at": single.get("at", at)})
     for entry in dec.get("waivers") or []:
-        if (_valid_waiver(entry) and isinstance(entry.get("need_id"), str)
-                and entry["need_id"].strip()):
-            out[entry["need_id"]] = {"reviewer": entry["reviewer"],
-                                     "reason": entry["reason"], "at": entry.get("at", at)}
+        if isinstance(entry, dict):
+            candidates.append({"need_id": entry.get("need_id"), "reviewer": entry.get("reviewer"),
+                               "reason": entry.get("reason"), "at": entry.get("at", at)})
+    # de-dup by need_id, keep only canonical waivers (the shared validator decides)
+    out = {}
+    for record in candidates:
+        if is_canonical_waiver(record):
+            out[record["need_id"]] = record
     return out
 
 
@@ -416,8 +416,9 @@ def _stamp_lineage(seg, dec):
     """Append revision lineage to a modified segment (need_refs preserved)."""
     entry = {"decision_id": dec["decision_id"], "need_id": dec["need_id"],
              "route": dec["route"], "lineage": dec.get("lineage")}
-    if _valid_waiver(dec.get("waiver")):
-        entry["waiver"] = dec["waiver"]
+    waivers = _decision_waivers(dec)
+    if waivers:
+        entry["waivers"] = [v for _, v in sorted(waivers.items())]
     seg.setdefault("revision_lineage", []).append(entry)
 
 
@@ -435,31 +436,80 @@ def _record(dec, status, summary, *, affected_need_ids=None):
     return record
 
 
+def _unlink_quietly(*paths):
+    for path in paths:
+        try:
+            if Path(path).exists():
+                Path(path).unlink()
+        except OSError:
+            pass
+
+
 def write_revision_artifacts(revised, report, out_contract, out_revision, *, _writer=None):
-    """All-or-nothing write of the two M6c artifacts. The two output paths must
-    differ; both parent dirs are created; both files are written to temporaries
-    first and only os.replace'd into place after BOTH succeed. On any failure the
-    temporaries are removed and any existing official artifacts are left intact.
-    Returns (out_contract, out_revision) on success; raises on error."""
+    """All-or-nothing write of the two M6c artifacts.
+
+    The two output paths must differ; both parent dirs are created. Both files
+    are written to temporaries first; existing officials are backed up; the temps
+    are then ``os.replace``d into place. If a commit step fails, the prior
+    officials are rolled back from backup (or the newly-created file removed when
+    there was none), so the on-disk state is never a new/old mix. On rollback
+    success all temps/backups are cleaned. If rollback ITSELF fails, the backups
+    are preserved and a RuntimeError is raised — atomic success is never claimed.
+    """
     out_contract, out_revision = Path(out_contract), Path(out_revision)
-    if out_contract == out_revision or os.path.abspath(out_contract) == os.path.abspath(out_revision):
+    if os.path.abspath(out_contract) == os.path.abspath(out_revision):
         raise ValueError("out_contract and out_revision must be different paths")
     out_contract.parent.mkdir(parents=True, exist_ok=True)
     out_revision.parent.mkdir(parents=True, exist_ok=True)
     writer = _writer or (lambda path, text: Path(path).write_text(text, encoding="utf-8"))
     tmp_c = out_contract.with_name(out_contract.name + ".m6c.tmp")
     tmp_r = out_revision.with_name(out_revision.name + ".m6c.tmp")
+    bak_c = out_contract.with_name(out_contract.name + ".m6c.bak")
+    bak_r = out_revision.with_name(out_revision.name + ".m6c.bak")
+
+    # 1) write both temporaries (no official touched yet)
     try:
         writer(tmp_c, json.dumps(revised, ensure_ascii=False, indent=2))
         writer(tmp_r, json.dumps(report, ensure_ascii=False, indent=2))
     except Exception:
-        for tmp in (tmp_c, tmp_r):
-            try:
-                if Path(tmp).exists():
-                    Path(tmp).unlink()
-            except OSError:
-                pass
+        _unlink_quietly(tmp_c, tmp_r)
         raise
-    os.replace(tmp_c, out_contract)   # both temps exist -> commit
-    os.replace(tmp_r, out_revision)
+
+    # 2) back up the existing officials so a failed commit can be rolled back
+    had_c, had_r = out_contract.exists(), out_revision.exists()
+    try:
+        if had_c:
+            os.replace(out_contract, bak_c)
+        if had_r:
+            os.replace(out_revision, bak_r)
+    except OSError:
+        _unlink_quietly(tmp_c, tmp_r, bak_c, bak_r)
+        raise
+
+    # 3) commit both; any failure rolls the officials back to their prior state
+    try:
+        os.replace(tmp_c, out_contract)
+        os.replace(tmp_r, out_revision)
+    except OSError as exc:
+        rollback_errors = []
+        for path, had, bak in ((out_contract, had_c, bak_c), (out_revision, had_r, bak_r)):
+            try:
+                if had:
+                    if Path(bak).exists():
+                        os.replace(bak, path)          # restore prior official
+                elif Path(path).exists():
+                    Path(path).unlink()                # nothing existed before -> remove new
+            except OSError as rollback_exc:
+                rollback_errors.append(f"{path}: {rollback_exc}")
+        if rollback_errors:
+            # keep backups for manual recovery; never claim atomic success
+            _unlink_quietly(tmp_c, tmp_r)
+            raise RuntimeError(
+                "artifact commit failed AND rollback failed (on-disk state is NOT "
+                f"atomic; backups preserved): {exc}; rollback errors: {rollback_errors}")
+        _unlink_quietly(tmp_c, tmp_r, bak_c, bak_r)
+        raise OSError(f"artifact commit failed; rolled back to prior state: {exc}")
+
+    # 4) success: drop the backups
+    _unlink_quietly(bak_c, bak_r)
     return str(out_contract), str(out_revision)

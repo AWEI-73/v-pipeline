@@ -5,7 +5,9 @@ deterministically, with lineage. It never invents content, never mutates the
 original, and a tier-1 must_have block is released only by an explicit waiver.
 """
 import copy
+import os
 import unittest
+from pathlib import Path
 
 from video_pipeline_core import material_revision as mr
 from video_pipeline_core.spec_contract import validate_segment_contract
@@ -445,6 +447,131 @@ class ArtifactAtomicityTest(unittest.TestCase):
             self.assertFalse(out_r.exists())
             self.assertFalse((Path(d) / "revised.json.m6c.tmp").exists())   # temp cleaned
             self.assertFalse((Path(d) / "revision.json.m6c.tmp").exists())
+
+
+class CanonicalWaiverValidatorTest(unittest.TestCase):
+    def test_A_B_malformed_waiver_fields_release_nothing(self):
+        from video_pipeline_core import material_delta as md
+        good = {"need_id": "nd_a", "reviewer": "d", "reason": "r", "at": "2026-06-15T10:00"}
+        self.assertTrue(md.is_canonical_waiver(good))
+        self.assertEqual(md.waived_need_ids([good]), {"nd_a"})
+        bad_variants = [
+            dict(good, at=""), dict(good, at="   "), dict(good, at=123), {k: v for k, v in good.items() if k != "at"},
+            dict(good, reviewer=""), dict(good, reviewer="  "), dict(good, reviewer=None),
+            dict(good, reason=""), dict(good, reason=5),
+            dict(good, need_id=""), dict(good, need_id=None), dict(good, need_id=["nd_a"]),
+        ]
+        for bad in bad_variants:
+            self.assertFalse(md.is_canonical_waiver(bad), bad)
+            self.assertEqual(md.waived_need_ids([bad]), set(), bad)
+
+    def test_shared_validator_means_gate_does_not_release_on_malformed(self):
+        from video_pipeline_core import material_delta as md
+        delta = _delta("nd_a", "missing", route="reshoot", tier=1, blocks=True, must_have=True)
+        # waiver missing `at` -> not canonical -> gate must still block
+        gate = md.gate_from_delta(delta, waivers=[{"need_id": "nd_a", "reviewer": "d", "reason": "r"}])
+        self.assertEqual(gate["status"], "block")
+
+    def test_C_legal_m6c_waiver_reproduced_by_gate(self):
+        from video_pipeline_core import material_delta as md
+        contract = _contract(_seg(1, need_refs=["nd_a"]), _seg(2, need_refs=["nd_b"]))
+        delta = _delta("nd_a", "missing", route="drop_segment", tier=1, blocks=True, must_have=True)
+        dec = _dec("d1", "nd_a", "drop_segment", target_segment=1,
+                   waiver={"reviewer": "director", "reason": "cut"})
+        report, _ = mr.apply_revisions(contract, delta, [dec])
+        self.assertTrue(report["ready_for_build"])
+        for w in report["waivers"]:
+            self.assertTrue(md.is_canonical_waiver(w))     # produced waivers are canonical
+        self.assertEqual(md.gate_from_delta(delta, waivers=report["waivers"])["status"], "pass")
+
+
+class ReplaceFailureRollbackTest(unittest.TestCase):
+    def _inputs(self):
+        return ({"segments": [_seg(1, need_refs=["nd_a"])]},
+                {"artifact_role": "material_revision", "ok": True, "decisions": []})
+
+    def _patched_replace(self, out_revision, *, always=False):
+        """Real os.replace except the commit into out_revision fails (once, or
+        always when `always`)."""
+        real = os.replace
+        state = {"failed": False}
+
+        def fake(src, dst):
+            if str(dst) == str(out_revision) and (always or not state["failed"]):
+                state["failed"] = True
+                raise OSError("replace boom")
+            return real(src, dst)
+        return fake
+
+    def test_D_second_replace_failure_leaves_existing_pair_unchanged(self):
+        import tempfile
+        from unittest.mock import patch
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            with patch.object(mr.os, "replace", self._patched_replace(out_r)):
+                with self.assertRaises(OSError):
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertEqual(out_c.read_text(encoding="utf-8"), "OLD-C")   # both unchanged
+            self.assertEqual(out_r.read_text(encoding="utf-8"), "OLD-R")
+
+    def test_E_second_replace_failure_no_prior_leaves_neither_output(self):
+        import tempfile
+        from unittest.mock import patch
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"   # neither exists
+            with patch.object(mr.os, "replace", self._patched_replace(out_r)):
+                with self.assertRaises(OSError):
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertFalse(out_c.exists())
+            self.assertFalse(out_r.exists())
+
+    def test_F_no_temp_or_backup_residue_after_rolled_back_failure(self):
+        import tempfile
+        from unittest.mock import patch
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            with patch.object(mr.os, "replace", self._patched_replace(out_r)):
+                with self.assertRaises(OSError):
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            leftovers = [p.name for p in Path(d).iterdir()
+                         if p.name.endswith(".m6c.tmp") or p.name.endswith(".m6c.bak")]
+            self.assertEqual(leftovers, [])
+
+    def test_G_rollback_failure_is_diagnosable_not_atomic(self):
+        import tempfile
+        from unittest.mock import patch
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            # every replace into out_revision fails -> commit AND rollback-restore fail
+            with patch.object(mr.os, "replace", self._patched_replace(out_r, always=True)):
+                with self.assertRaises(RuntimeError) as ctx:
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertIn("not", str(ctx.exception).lower())
+            self.assertIn("atomic", str(ctx.exception).lower())
+
+    def test_H_success_path_updates_both_artifacts(self):
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertIn("segments", out_c.read_text(encoding="utf-8"))
+            self.assertIn("material_revision", out_r.read_text(encoding="utf-8"))
+            leftovers = [p.name for p in Path(d).iterdir()
+                         if p.name.endswith(".m6c.tmp") or p.name.endswith(".m6c.bak")]
+            self.assertEqual(leftovers, [])
 
 
 if __name__ == "__main__":

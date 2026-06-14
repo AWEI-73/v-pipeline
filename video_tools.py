@@ -430,7 +430,7 @@ def cmd_material_revision(args):
     try:
         material_revision.write_revision_artifacts(
             revised, report, args.out_contract, args.out_revision)
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
         raise ToolError(f"material_revision could not write artifacts: {exc}")
     print(json.dumps({"ok": True, "no_op": report["no_op"],
                       "ready_for_build": report["ready_for_build"],

@@ -238,18 +238,24 @@ def compute_material_delta(material_needs, material_maps=None):
 GATE_ROUTES = ("fix_material_map_or_needs", "await_material")
 
 
+# the four fields a canonical waiver must carry as trimmed non-empty strings
+CANONICAL_WAIVER_FIELDS = ("need_id", "reviewer", "reason", "at")
+
+
+def is_canonical_waiver(waiver):
+    """THE single canonical-waiver validator (shared by gate_from_delta and M6c —
+    there is no second rule). A waiver releases a tier-1 block only when EVERY one
+    of need_id/reviewer/reason/at is a trimmed non-empty string; any
+    missing/blank/non-string field makes it non-canonical and it silently
+    releases nothing."""
+    return (isinstance(waiver, dict)
+            and all(isinstance(waiver.get(k), str) and waiver[k].strip()
+                    for k in CANONICAL_WAIVER_FIELDS))
+
+
 def waived_need_ids(waivers):
-    """The set of need_ids released by a CANONICAL waiver artifact. A waiver only
-    counts when it carries explicit lineage (a non-empty reviewer AND reason),
-    so a malformed waiver can never silently release a tier-1 block."""
-    out = set()
-    for waiver in waivers or []:
-        if (isinstance(waiver, dict)
-                and isinstance(waiver.get("need_id"), str) and waiver["need_id"].strip()
-                and isinstance(waiver.get("reviewer"), str) and waiver["reviewer"].strip()
-                and isinstance(waiver.get("reason"), str) and waiver["reason"].strip()):
-            out.add(waiver["need_id"])
-    return out
+    """The set of need_ids released by canonical waivers (malformed → ignored)."""
+    return {w["need_id"] for w in (waivers or []) if is_canonical_waiver(w)}
 
 
 def gate_from_delta(delta, *, waivers=None, material_delta_path=None):

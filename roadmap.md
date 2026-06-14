@@ -788,6 +788,22 @@ per-need waiver and unknown-ref fail; affected_need_ids recorded; CLI atomicity
 (same-path fail, missing-parent create, second-write failure leaves no new first
 artifact). Focused: 26 tests OK; full regression: **977 tests OK**.
 
+M6c final contract hardening (2026-06-15): (1) ONE shared canonical-waiver
+validator `material_delta.is_canonical_waiver` — a waiver releases a tier-1 block
+only when need_id/reviewer/reason/**at** are all trimmed non-empty strings; both
+`gate_from_delta` and M6c route through it (no second rule), so a malformed
+waiver silently releases nothing. (2) `write_revision_artifacts` now survives a
+commit-stage (`os.replace`) failure: existing officials are backed up before any
+replace, a failed second replace rolls the first back to its prior content (or
+removes the newly-created file when none existed), and temps/backups are cleaned
+— the disk is never a new/old mix. If rollback itself fails, backups are kept and
+a `RuntimeError` is raised (atomic success is never claimed). Reverse tests:
+malformed at/reviewer/reason/need_id release nothing (and the gate still blocks);
+a legal M6c waiver is reproduced by the gate; second-replace failure leaves an
+existing pair unchanged / leaves neither output when none existed; no temp/backup
+residue; rollback-failure is diagnosable; success updates both. Focused: 34 tests
+OK; full regression: **985 tests OK**.
+
 **Next increment (separate batch): runtime plumbing** — wire M6c into the
 SPEC→BUILD flow so an accepted revision feeds the M6b gate. Deliberately NOT done
 here so revision and the BUILD gate stay decoupled. F2 / `wrong_semantics` /
