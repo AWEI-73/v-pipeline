@@ -1,7 +1,7 @@
 {
   "C:\\Users\\user\\Desktop\\video_pipeline\\runtime.py": {
-    "mtime": 1780760432.929487,
-    "hash": "c7378fe3fcb278e692ada33e92229e43"
+    "mtime": 1781248170.9236283,
+    "hash": "e69631a6f0fa73d246ef327eb87443e7"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\run_with_ollama.py": {
     "mtime": 1780710785.5176077,
@@ -16,16 +16,16 @@
     "hash": "5c455bfd7910676b7fe1b1ee01e95523"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline.py": {
-    "mtime": 1781061069.7808895,
-    "hash": "c7a0e8342cab6899020636308713a609"
+    "mtime": 1781252989.9932854,
+    "hash": "04f6feea3b5220543e8f6eb75df28f90"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_tools.py": {
-    "mtime": 1781158520.465899,
-    "hash": "d4669b5eb5fa2a58138ced74a4703bbc"
+    "mtime": 1781329908.141716,
+    "hash": "90bc17f6f82d274bf827f650cf7fddda"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_attention_budget.py": {
-    "mtime": 1781158783.7565873,
-    "hash": "f919a9357ced4eeaddccd479550eae19"
+    "mtime": 1781225487.251256,
+    "hash": "e4f048aca9e8cd2377564b44b34c4499"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_blueprint.py": {
     "mtime": 1780893105.1723173,
@@ -44,40 +44,52 @@
     "hash": "547e6a5a855b258e5b5336c44501f81a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_build_profile.py": {
-    "mtime": 1780872353.4412096,
-    "hash": "d2157843740f19c96bb27d678e355707"
+    "mtime": 1781330042.417577,
+    "hash": "bbd4ea8a0094b5b05b29b2e91b12028b"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_build_recoverable.py": {
     "mtime": 1780643530.816964,
     "hash": "6a572157a1b22633886659aafbd991ae"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_capability_manifest.py": {
+    "mtime": 1781312904.1712294,
+    "hash": "64ccfacfb34d90ead450823932ea6c49"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_capcut_backend.py": {
     "mtime": 1781159686.016651,
     "hash": "044f8f45d35a06e576cd2e0a8a63278a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_caption_audit.py": {
-    "mtime": 1780847151.4479394,
+    "mtime": 1781189184.8057897,
     "hash": "28d3f41d9c3d97bd3f06eeac329de4b6"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_classify_asset.py": {
-    "mtime": 1780710696.7921915,
-    "hash": "5b74caab22747ee455644db58bce73f6"
+    "mtime": 1781313048.7679849,
+    "hash": "3ff1dca69ad2358406810d7889aab78c"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_content_qa.py": {
     "mtime": 1781138468.0583057,
     "hash": "95227c7f919c2c5db49e5b0b76b88a9d"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_contract_adapter.py": {
-    "mtime": 1781161699.9351413,
-    "hash": "2e8043a59d2facad05f4e58e23b0e9d9"
+    "mtime": 1781336762.019708,
+    "hash": "ef37837f97792621402ef01b27978c6a"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_creative_exception.py": {
+    "mtime": 1781258276.597492,
+    "hash": "4e64a9af381ad27d0adc05ced6dcaf09"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_creator_profile.py": {
     "mtime": 1780871539.3752484,
     "hash": "fdbdb23dbc8f79b27977b1966a8fbca8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_dashboard_state.py": {
-    "mtime": 1781162900.5325694,
-    "hash": "50e35b268e771ac1ae0ac79f68df1fcd"
+    "mtime": 1781317268.2252295,
+    "hash": "8c238b1840c8dfd42472ffc6a97e693d"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_delivery_gate.py": {
+    "mtime": 1781317070.3827367,
+    "hash": "1f07bd0d1a283a2b66046c4de3f4d79d"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_editorial_design.py": {
     "mtime": 1781158327.2401187,
@@ -92,96 +104,148 @@
     "hash": "b83a71fd88aa5007b862998d8bb8aae4"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_edit_artifacts.py": {
-    "mtime": 1781160030.5323071,
-    "hash": "839704edb5dfeec2e1188a1e89b916b0"
+    "mtime": 1781327998.8443294,
+    "hash": "c3fe8cfcc807b3c9496aa8523e0d5425"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_edit_point_planner.py": {
+    "mtime": 1781319702.1186523,
+    "hash": "02d9e55eb89816dde1448d19ec4d4cb3"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_generated_assets.py": {
-    "mtime": 1780706696.5994067,
-    "hash": "0d5bf62ce4567eae32cafb279abc2410"
+    "mtime": 1781226257.897586,
+    "hash": "0eaea8329fa13c03ccfeffdb44af0c7f"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_jumpcut.py": {
+    "mtime": 1781319702.1176414,
+    "hash": "da7767930d31c1c9a98229988081a132"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_keyframe_grid.py": {
-    "mtime": 1780845359.2489543,
-    "hash": "90d98ebcf5f124bd172a11a22143dd6d"
+    "mtime": 1781327947.6259422,
+    "hash": "e96ddb881526de8486234b54ad3c5908"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_light_effects.py": {
-    "mtime": 1780707146.2430372,
-    "hash": "39cbabbf71c27474589ac0967270dd01"
+    "mtime": 1781188386.3901734,
+    "hash": "71f47da5fd83b7069ef2dc3fdb746f01"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_longform_duration.py": {
     "mtime": 1780383933.9401057,
     "hash": "4d0b5aabb28ca494bacbac5cacdb2353"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_material_map.py": {
+    "mtime": 1781313741.2739675,
+    "hash": "57d2e8889194b7dec5ad40304da776a7"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_material_retrieval.py": {
+    "mtime": 1781317621.8711133,
+    "hash": "e3499a8c6aab6c195581306810027004"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_material_treatment.py": {
     "mtime": 1781062532.179087,
     "hash": "c98d867c6266490d7a105254d8516068"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_material_visual_review.py": {
+    "mtime": 1781262807.2683988,
+    "hash": "2094c7fe6c2a09d86e67880a4ef27f1e"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_model_routing.py": {
     "mtime": 1780643530.6974883,
     "hash": "ecb5121d5c5612a866ffd5d5bc585699"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_motion_graphics.py": {
-    "mtime": 1781161587.9469707,
-    "hash": "8e342279438aea60243187f1eb0b7221"
+    "mtime": 1781244020.948742,
+    "hash": "d63f4af445b356df51d30f417f0d948e"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_music_alignment.py": {
+    "mtime": 1781253952.7224984,
+    "hash": "519ab3f2bbed074a2a776c579382e42a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_music_fetch.py": {
     "mtime": 1780643789.5336058,
     "hash": "18503c35f896a54dd105205095e8c6be"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_music_structure.py": {
-    "mtime": 1780643530.82692,
-    "hash": "02e2245f9109c3e927014b2c4c893afa"
+    "mtime": 1781253121.0997303,
+    "hash": "17a0c0ac16f8afaec149e1ef01d55371"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_mv_cut.py": {
-    "mtime": 1781160000.3679032,
-    "hash": "fe3bdc31a5c255ca2d70fd27f4471b18"
+    "mtime": 1781339555.391832,
+    "hash": "ac81f25992da461d1b5150101a8cb806"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_narrative_jl_cut.py": {
+    "mtime": 1781249055.6943495,
+    "hash": "d5d52cb798d30f46928f1478a0a26a17"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_new_visual_information_audit.py": {
+    "mtime": 1781317424.157765,
+    "hash": "5a071372e6010a55ce96b07a2836205d"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_node_registry.py": {
+    "mtime": 1781254175.7134845,
+    "hash": "1317c073fef04dbb54074ae7b44b96e2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_pacing_review.py": {
-    "mtime": 1780989405.1208112,
-    "hash": "c286a3c00cf2b84020bd49965d538d35"
+    "mtime": 1781258461.9767823,
+    "hash": "facd154938b711b5c5946c5827654316"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_platform_tools.py": {
     "mtime": 1780710773.3359797,
     "hash": "4a81c2fe2c70d72435fbb359294c321b"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_presentation_feel_audit.py": {
+    "mtime": 1781258060.9656496,
+    "hash": "6aea2a4dd657cee9a949f362ead710ef"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_project_workspace.py": {
     "mtime": 1780711607.2260778,
     "hash": "cb701c2949a294a78a05393c51c1f10b"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_replay_acceptance.py": {
+    "mtime": 1781329576.815595,
+    "hash": "480fcb2ee7433e01554922408430a81f"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_runtime.py": {
-    "mtime": 1781159447.8839197,
-    "hash": "7a4467ded77947f312282909282d57d9"
+    "mtime": 1781232698.4891427,
+    "hash": "cc550a83edac7e0be03772dda8da73bf"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_runtime_decisions_bootstrap.py": {
     "mtime": 1780978797.8395815,
     "hash": "63bb17a4fe14116068ad6282a80e0732"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_sfx.py": {
+    "mtime": 1781254637.2247303,
+    "hash": "ddbd72d3ed75a6fc56790c7ef8e8084a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_shot_slots.py": {
     "mtime": 1780896438.0734882,
     "hash": "dc0105c9f57c689086b977fcaa5013e2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_spec_contract.py": {
-    "mtime": 1780643530.7273571,
-    "hash": "0d25c98fa488bd8a3c60097733c3ab06"
+    "mtime": 1781258060.9579241,
+    "hash": "2808f83f736e084adf907a832262ba5f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_spec_review.py": {
-    "mtime": 1781080239.4954064,
-    "hash": "e24de6d37660f863a82bfa305f494542"
+    "mtime": 1781313612.2892504,
+    "hash": "72833e8a7e1250e6cf103f376db23d95"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_stack_renderer.py": {
     "mtime": 1780895485.4364617,
     "hash": "82c1dd642431c7fcdccf7b786a6358ab"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_stock_first.py": {
-    "mtime": 1780643530.886658,
-    "hash": "f3fa5ad0b0cb16e06fa5c77401c6c449"
+    "mtime": 1781235375.0917222,
+    "hash": "e97e429f2680d15c28206202f83c99e6"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_subtitle_presentation.py": {
-    "mtime": 1781158327.2390554,
-    "hash": "2928627e9bf239d39b2017197ee89c3b"
+    "mtime": 1781182597.1356795,
+    "hash": "dafc65751ace6bb4d2eeee3881f85ee9"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_supply_review.py": {
+    "mtime": 1781313974.6322527,
+    "hash": "81d818c4638f825201a1b104e50c926a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_timeline_invariants.py": {
-    "mtime": 1780845053.8050215,
-    "hash": "9ce041481f7ad921450d9dae5c65157f"
+    "mtime": 1781188795.1686127,
+    "hash": "31bc56cd3cfc1bdb5d37ab358932990a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_treatment_audit.py": {
     "mtime": 1780892594.3192148,
@@ -191,13 +255,21 @@
     "mtime": 1780893713.5293953,
     "hash": "2224c6f9551356056999e547c001cd25"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_verify_evidence.py": {
+    "mtime": 1781327744.960236,
+    "hash": "e5112e84c269d72076cf8d6e83572e44"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_pipeline_state.py": {
     "mtime": 1780280336.714795,
     "hash": "ee92f257f15be6fe6ab2f8c08d3e3368"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_tools_audits.py": {
-    "mtime": 1780847227.9008093,
-    "hash": "9394c80e822a5d85a40a1fa9f5743acd"
+    "mtime": 1781329576.815595,
+    "hash": "b6d528b233047367eaca958f2f63d975"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_tools_jumpcut.py": {
+    "mtime": 1781319832.2190814,
+    "hash": "3dc2feb75e437d5b93cd3e0b595ad719"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_video_tools_state.py": {
     "mtime": 1781163035.3624878,
@@ -208,24 +280,36 @@
     "hash": "c5b2eb5a6921112e8e5ab25d8ade4ba2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_visual_fatigue.py": {
-    "mtime": 1781158783.7576654,
-    "hash": "de90a3a48ecc85380c0d092e54bf3813"
+    "mtime": 1781258060.9616227,
+    "hash": "33b39b9bc0136eb2a811be2e9d4d5452"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_visual_review.py": {
+    "mtime": 1781257640.1370347,
+    "hash": "c7de11821b0ce355c96314e390f273d9"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_audio_mix.py": {
+    "mtime": 1781229707.7097578,
+    "hash": "2aafbf7c4bd7badc1e50090a2d949413"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_audio_timing.py": {
+    "mtime": 1781249585.1100173,
+    "hash": "fbff638a4bcd44a53f3096ceefe09d29"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_stock.py": {
     "mtime": 1781061069.780286,
     "hash": "dac3c4c8d1b7b2135d2e99a6b04233c4"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\test_vt_verify.py": {
-    "mtime": 1780757423.0760133,
-    "hash": "fe5a610988bb09b2b7b1d06a682e18d0"
+    "mtime": 1781188795.1686127,
+    "hash": "28d5e3940d5f634707bdf0b4bd5a80e2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\tests\\__init__.py": {
     "mtime": 1780280512.9502642,
     "hash": "68b329da9893e34099c7d8ad5cb9c940"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\attention_budget.py": {
-    "mtime": 1781158853.2513092,
-    "hash": "1d4c0e697ac9e674a7c43c2aac6a032e"
+    "mtime": 1781225509.228046,
+    "hash": "8a2b9ed985c0f4ec4cd6e96b981fd326"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\blueprint.py": {
     "mtime": 1780892990.998593,
@@ -244,8 +328,12 @@
     "hash": "8e71a28fdb84f5be01dad201716df556"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\build_profile.py": {
-    "mtime": 1780896555.0813677,
-    "hash": "22bc5bc4cd29d9231b9d87889fd900e4"
+    "mtime": 1781330067.8088553,
+    "hash": "632a92d38425479da0275479c65ab2cc"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\capability_manifest.py": {
+    "mtime": 1781312978.945306,
+    "hash": "04d4aed3da4a08cda32fb03cf8733187"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\capcut_backend.py": {
     "mtime": 1781159714.7265708,
@@ -260,20 +348,28 @@
     "hash": "f971cbb9d2a6281eeeb7a2dfa96b5aa1"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\contract_adapter.py": {
-    "mtime": 1781161727.7529058,
-    "hash": "161b844d3ed01e837e081e26dce4d5b1"
+    "mtime": 1781336784.360213,
+    "hash": "5b5c5d22b4ac4ab554ac9a7adc3d603f"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\creative_exception.py": {
+    "mtime": 1781258666.8980958,
+    "hash": "ff4c256960966e1a1ac27ba7709cf3e0"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\creator_profile.py": {
     "mtime": 1780871498.3688862,
     "hash": "a0aaa272ad074edffabaf14f8e924f62"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\curator.py": {
-    "mtime": 1780643487.3827772,
-    "hash": "678eda21cb18f90e04d8b6c876852418"
+    "mtime": 1781329850.1885464,
+    "hash": "4df11d538122a6d8a8bb70e8150ad5f9"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\dashboard_state.py": {
-    "mtime": 1781162933.8664305,
-    "hash": "6ce1ea7869058d9f5d7bad2930ec2bea"
+    "mtime": 1781317340.9749587,
+    "hash": "dc35617b05f7504e93e003b97b6f1f7a"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\delivery_gate.py": {
+    "mtime": 1781317120.6603148,
+    "hash": "3ec80ce30a77bd43202edf62ffe46277"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\editorial_design.py": {
     "mtime": 1781158445.3092878,
@@ -288,20 +384,36 @@
     "hash": "6b7fa80b808914d57d5b89fd1a8418f5"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\edit_artifacts.py": {
-    "mtime": 1781160137.6857421,
-    "hash": "496087f21631743715a2e44f990a91ad"
+    "mtime": 1781328011.5049675,
+    "hash": "808bc3eb93b023557c71f4bfa9c745aa"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\edit_point_planner.py": {
+    "mtime": 1781319735.3228998,
+    "hash": "94372c5d158feed54f4c2e3e7826585a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\generated_assets.py": {
-    "mtime": 1780706726.9896505,
-    "hash": "cb2070da90d90b2b7e8e003cfe2d8128"
+    "mtime": 1781226224.0063694,
+    "hash": "0f8a1fa46457194da043ae84701e43bd"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\jumpcut.py": {
+    "mtime": 1781319735.3249788,
+    "hash": "b6ea7a127fc92faada0fa451a87e3e27"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\keyframe_grid.py": {
-    "mtime": 1780845380.603959,
-    "hash": "5090ca5bb538af816e67f664ff52a606"
+    "mtime": 1781327973.3412757,
+    "hash": "85b882b59851100e389731e078827ffc"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\light_effects.py": {
-    "mtime": 1780707022.0020363,
-    "hash": "e8045a00f00ba169eed52b4b1036944c"
+    "mtime": 1781188447.1543064,
+    "hash": "d8ac3f2ab4d0c4e2f03e901b62c7a402"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\material_map.py": {
+    "mtime": 1781313780.4349651,
+    "hash": "2315f4227d8ce126274af5cb2d9b3fb4"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\material_retrieval.py": {
+    "mtime": 1781317652.3334413,
+    "hash": "8b2e152aecfc03944ea320ae355ba402"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\material_treatment.py": {
     "mtime": 1781062453.6298614,
@@ -312,76 +424,104 @@
     "hash": "5cba00200f465c83145de0b48dda5c60"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\motion_graphics.py": {
-    "mtime": 1781161620.0607708,
-    "hash": "dc0dc13b904745df563ac98b88f389b4"
+    "mtime": 1781244035.0422127,
+    "hash": "ae96f41eacbbe5a8eab1018657556695"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\music_structure.py": {
-    "mtime": 1780711702.7465997,
-    "hash": "2f3ca1163e89af32d2df27166a7250ed"
+    "mtime": 1781253148.4159155,
+    "hash": "bb08f1ddd91bb3b23e5990b55e656be9"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\mv_cut.py": {
-    "mtime": 1781160131.1599422,
-    "hash": "cf0eb35b90aee57443b3096506f9f314"
+    "mtime": 1781339566.9540274,
+    "hash": "82f2d25d6039a1055016e6dca8c3dab3"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\new_visual_information_audit.py": {
+    "mtime": 1781317470.9304092,
+    "hash": "701c280c46367bed13bb70de968e20ee"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\node_registry.py": {
-    "mtime": 1781080134.1271863,
-    "hash": "cff0dbf44ef6c0987567a70574d7c16a"
+    "mtime": 1781317480.2107184,
+    "hash": "f089cb38008b17889e29598c4b6caba2"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\pacing_review.py": {
-    "mtime": 1780989309.770906,
-    "hash": "3d09bc39371701eab6b99129282c1180"
+    "mtime": 1781258666.9007382,
+    "hash": "59cb8888a3da42ceb10192b41c710f22"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\platform_tools.py": {
     "mtime": 1780710768.8636193,
     "hash": "cfdab03b6a9630a305b9e7212d8331b8"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\presentation_feel_audit.py": {
+    "mtime": 1781258109.9061043,
+    "hash": "841d0ab22c252ea4f797f850ff2fa70a"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\project_workspace.py": {
     "mtime": 1780711502.4300554,
     "hash": "05604a2c43ce5f99bb80d981844264cb"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\replay_acceptance.py": {
+    "mtime": 1781329615.2905905,
+    "hash": "45474759ffcc0ae38cc54bd8a05649d6"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\runtime_orchestrator.py": {
-    "mtime": 1781159428.1356356,
-    "hash": "f0cd581ed1da8985083208a867b7549d"
+    "mtime": 1781238989.273504,
+    "hash": "551aa1e91a6544f8ed99285e5eee3b99"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\sfx.py": {
+    "mtime": 1781254776.2789755,
+    "hash": "55a82faafa3ad2bbda6a7aee7a773763"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\shot_slots.py": {
     "mtime": 1780896435.7162607,
     "hash": "589235f9960ea5c0cc48eedd0aea9af0"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\spec_contract.py": {
-    "mtime": 1780891991.5412817,
-    "hash": "81f21c80ecc4fe2d759e3abf17399da6"
+    "mtime": 1781258109.9027572,
+    "hash": "f27e69c9dfe692f63d27d914c6b814a6"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\spec_review.py": {
-    "mtime": 1781080122.5655863,
-    "hash": "c649c6e9e627c09990746c7ca35594ff"
+    "mtime": 1781313669.5284975,
+    "hash": "215b94a864d78e8a8c58908feb242ead"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\stock_first.py": {
-    "mtime": 1780643487.4226346,
-    "hash": "abcc2811acc1b3cede8217887d436974"
+    "mtime": 1781235362.999009,
+    "hash": "605c5cf2f626b95cc4fe7cb62dbff69f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\subtitle_presentation.py": {
-    "mtime": 1781158445.308278,
-    "hash": "48f825330522d96f14353ee49fd43e5e"
+    "mtime": 1781182524.6346722,
+    "hash": "e60e3fc32bb3aa85966f57dd190fc400"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\supply_review.py": {
+    "mtime": 1781313974.6342504,
+    "hash": "84fa35be6b3a83f26532b2de2e6c675f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\timeline_invariants.py": {
-    "mtime": 1780845085.8415554,
-    "hash": "dfbf907551a3f40aec306c4a12936a96"
+    "mtime": 1781188824.87217,
+    "hash": "e6b71c0e5fe0bfafc2bfebaca6444d70"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\treatment_audit.py": {
     "mtime": 1780892430.372999,
     "hash": "7ebd1bd90199b74f7177d0dc2b461ccc"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\verify_evidence.py": {
+    "mtime": 1781327915.4436407,
+    "hash": "727882cb712cbe3147500b5638414afc"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\visual_audit.py": {
     "mtime": 1780845477.2986999,
     "hash": "d8674415aeead6b38746502fc905e311"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\visual_fatigue.py": {
-    "mtime": 1781158888.587049,
-    "hash": "4261908af821d635985ab2cc0b7c71fb"
+    "mtime": 1781258666.9007382,
+    "hash": "4d36f7b0e79c493df7f9bc9a4246c7d7"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\visual_review.py": {
+    "mtime": 1781257640.1370347,
+    "hash": "484ff284ba4e7c7c48be0876cf1128f8"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\vt_audio.py": {
-    "mtime": 1781061069.7890503,
-    "hash": "ed013b0047c0676aec50b72007b1488c"
+    "mtime": 1781254808.2188964,
+    "hash": "dc2ea830a920f781c769b249c8226b8c"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\vt_core.py": {
     "mtime": 1780711582.2022502,
@@ -408,8 +548,8 @@
     "hash": "fad4f506abc63d26c3c01c5af4fb5d17"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\vt_verify.py": {
-    "mtime": 1780980823.1058095,
-    "hash": "98ca53e60b80f3b58a87a281783ac73b"
+    "mtime": 1781188824.87217,
+    "hash": "57ae94cae1fcbd1f1a7b972487ce29a6"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\video_pipeline_core\\__init__.py": {
     "mtime": 1780643433.6266773,
@@ -428,8 +568,8 @@
     "hash": "56cbdbab103013fb3028a0e4890dee7a"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\roadmap.md": {
-    "mtime": 1781163542.040413,
-    "hash": "7716c193735f9f223136e02f11a7869e"
+    "mtime": 1781352734.795203,
+    "hash": "1d519e13d869756b8bdbf639e6c85d50"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\RUNBOOK.md": {
     "mtime": 1781163175.9321456,
@@ -458,6 +598,10 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\archive\\video-route-skill-project.md": {
     "mtime": 1780672723.144925,
     "hash": "8db9b39932de45b49a0542eae16de7b1"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\assets\\sfx\\README.md": {
+    "mtime": 1781250779.078799,
+    "hash": "87efa0eea8cb12a3d79988b2f2a73637"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\design\\ffmpeg-pitfalls-reference.md": {
     "mtime": 1780029247.6309154,
@@ -504,8 +648,8 @@
     "hash": "80a2b5113810167d38a19dbbd86d041e"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\INDEX.md": {
-    "mtime": 1781070656.5760043,
-    "hash": "0dfaa5ba7b31a08442127b276d285dc2"
+    "mtime": 1781234974.585171,
+    "hash": "c24ed330386b4b217371b1fdfe708d64"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\material-treatment-grammar-spec.md": {
     "mtime": 1780891435.637297,
@@ -518,6 +662,10 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\reference-repos-map.md": {
     "mtime": 1781070807.494828,
     "hash": "e2ba43f16835203ab01414d9aaaff51e"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\SYSTEM-DESIGN.md": {
+    "mtime": 1781234957.557211,
+    "hash": "093a34ddaa00fd69a0bb55eefc559800"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\video-autopilot-tool-integration-spec.md": {
     "mtime": 1780801013.6095483,
@@ -603,6 +751,94 @@
     "mtime": 1781152615.9416988,
     "hash": "2383ec6d30b25e9c5681e45e2751db8c"
   },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-11-effects-baseline-and-recipe-order.md": {
+    "mtime": 1781189751.4425914,
+    "hash": "184499737f92692514fe0d8d92cb3237"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-agent-as-visual-judge.md": {
+    "mtime": 1781233148.923389,
+    "hash": "af871fd6afde8d795372ed261e650e60"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-attention-budget-build-allocation.md": {
+    "mtime": 1781227097.9149723,
+    "hash": "924249b646f86ad6e764e1811f779b67"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-capcut-text-audio-gui-gate.md": {
+    "mtime": 1781230701.6140535,
+    "hash": "b5a5521601f4a6ff5b670aba8d8de997"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-e7-material-montage-review.md": {
+    "mtime": 1781262900.4666345,
+    "hash": "ad971ab9c5e33681eda00db5bb1d19a6"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-html-playwright-info-card-mvp.md": {
+    "mtime": 1781227838.9418237,
+    "hash": "7f06dd5a567964060cebe6fb61c3abe1"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s1a-presentation-feel-audit.md": {
+    "mtime": 1781242986.8293462,
+    "hash": "20321f3af472283d449d162cccb678bf"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s1b-anti-presentation-planning.md": {
+    "mtime": 1781245198.3114922,
+    "hash": "cc8635434195f2e97965d1c0b8e2f22d"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s2a-cut-on-motion.md": {
+    "mtime": 1781248179.4935732,
+    "hash": "ce2c352d593ce185ca80e703eef11270"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s2b-narrative-jl-cuts.md": {
+    "mtime": 1781249486.6691992,
+    "hash": "fc5a31fd7ee66b5c17fe8fb01bd60e1a"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s2c-speech-tail-breathing.md": {
+    "mtime": 1781250483.4057093,
+    "hash": "45c6290c85231ee9b1653907f8c8af0b"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s3a-sfx-punctuation.md": {
+    "mtime": 1781252134.7554374,
+    "hash": "ec178da4fe43a10f372f53781c013a17"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s3b-music-structure-alignment.md": {
+    "mtime": 1781253978.8753748,
+    "hash": "cc31c887ffbf2b8df31fd9116cdb2b29"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s4a-visual-judge-node.md": {
+    "mtime": 1781254367.433538,
+    "hash": "e699655e3db965b91648802b97ca2f95"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s4b-needs-patch-verdict.md": {
+    "mtime": 1781257774.7627692,
+    "hash": "5a9b900aa8ab7e191d2995578f3cec38"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-s4c-creative-exception.md": {
+    "mtime": 1781258637.386195,
+    "hash": "a220fc1b9d656300dd63b569d4eee308"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-12-sensory-integrated-bakery-acceptance.md": {
+    "mtime": 1781264647.4923892,
+    "hash": "7295c64961ea97c62a2d52d3edeec1b9"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-13-m4-material-aware-replay.md": {
+    "mtime": 1781341027.3785937,
+    "hash": "52390dea16addbb521f02d88db8ce590"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-13-m5-real-render-sensory-acceptance.md": {
+    "mtime": 1781352734.7931907,
+    "hash": "53162d8449e29dc40cf0fb1ad1f505d0"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\decisions\\2026-06-13-spec-field-census.md": {
+    "mtime": 1781313115.4851444,
+    "hash": "a0ad6dc541f7dd7efe210df9e456aff3"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\reviews\\2026-06-13-student-vs-agent-montage-review.md": {
+    "mtime": 1781308942.828561,
+    "hash": "8c09907291caa0b2253e74e6917ce0c3"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\reviews\\2026-06-13-video-pipeline-spec-weight-assessment.md": {
+    "mtime": 1781309522.1976595,
+    "hash": "6132f6735a82ba56acd666727bd9c77f"
+  },
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-07-video-autopilot-tool-integration.md": {
     "mtime": 1780801013.6121724,
     "hash": "f1a76a30cfede339603503ebbf91963c"
@@ -614,6 +850,34 @@
   "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-11-subtitle-polish.md": {
     "mtime": 1781158327.2358575,
     "hash": "b9d8b9ae7cf6bc05b10f38851bbb098a"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-12-67th-graduation-film.md": {
+    "mtime": 1781278133.84455,
+    "hash": "cbef943fec3911dd276d7f316cbc8252"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-13-material-phase-m0-enforcement.md": {
+    "mtime": 1781312843.325086,
+    "hash": "7828129015a45c67e895ab10fcf5e3f1"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-13-material-phase-m1-supply.md": {
+    "mtime": 1781313612.2867284,
+    "hash": "09ef638a4c409dfca1649408efc0d96d"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-13-material-phase-m2-retrieval.md": {
+    "mtime": 1781317070.1398647,
+    "hash": "e329728e1745190cabc1ed86087e5706"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-13-material-phase-m3-edit-points.md": {
+    "mtime": 1781319629.2057269,
+    "hash": "bbcc4b804ba5d7c692c91ff9d8e2f2e1"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\plans\\2026-06-13-material-phase-m4-verify-replay.md": {
+    "mtime": 1781327723.2683568,
+    "hash": "b3d6f45b84a3fb25d5c49628e2bbcfe8"
+  },
+  "C:\\Users\\user\\Desktop\\video_pipeline\\docs\\superpowers\\specs\\2026-06-12-67th-graduation-film-design.md": {
+    "mtime": 1781278133.8423834,
+    "hash": "ddfcfa3a1ed4b30428e83682edb94a41"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\examples\\bakery_gold\\blueprint.md": {
     "mtime": 1780989115.2455256,
@@ -636,8 +900,8 @@
     "hash": "e4b3d9df31b2b60bfd5ccfdf0680177f"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\audio-director.md": {
-    "mtime": 1780552272.4324782,
-    "hash": "3e0f760c29c593e8e776ed16d4637fd2"
+    "mtime": 1781231397.4932714,
+    "hash": "a33124ce288526daa56f226771d7aa34"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\blueprint-interview.md": {
     "mtime": 1780908782.1410732,
@@ -680,8 +944,8 @@
     "hash": "57c49547008db85295d8764315d495a3"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\spec-contract.md": {
-    "mtime": 1781080323.1125145,
-    "hash": "3387338aacc457ac69f1d55171bc3625"
+    "mtime": 1781330117.3626025,
+    "hash": "bc06c3c7c97246552c7343e895822eec"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\subtitle-director.md": {
     "mtime": 1781076851.6434045,
@@ -692,8 +956,8 @@
     "hash": "30f1dabcbfc388c5c7b98dc7f1f0a640"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\video-pipeline.md": {
-    "mtime": 1781100661.8209524,
-    "hash": "eae65b9bf04ab6e5008da76aa774c9ff"
+    "mtime": 1781262859.480525,
+    "hash": "973a2138c775ba4cc69db44c2b61b16b"
   },
   "C:\\Users\\user\\Desktop\\video_pipeline\\skills\\video-workflow.md": {
     "mtime": 1781076878.9059086,
