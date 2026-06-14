@@ -1085,6 +1085,7 @@ def run_mv(script, material_root, out_path, music_path=None,
 
     # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry
     plan, per_seg = [], []
+    sequence_cues = []          # BR2/BR1 punctuation cues, resolved by BR3 post-render
     for s, a in zip(segs, alloc):
         keep_audio = bool(s.get("hold") or s.get("keep_audio")
                           or s.get("audio_role") in ("duck", "diegetic", "source_speech"))
@@ -1137,6 +1138,20 @@ def run_mv(script, material_root, out_path, music_path=None,
                 max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
                 min_score=min_score, prefilter_static=prefilter_static)
         _apply_anti_presentation_plan(slots, s)
+        # BR2 beat-to-sequence: if a segment opts into a beat recipe, compile its
+        # approved windows into a multi-shot sequence and replace the slots so the
+        # timeline sequence actually changes.
+        beat_recipe = s.get("beat_recipe")
+        if beat_recipe and slots:
+            from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
+            from .opening_sequence import opening_pool_from_plan  # noqa: PLC0415
+            beat_pool = beat_recipe.get("shots") or opening_pool_from_plan(slots)
+            beat_seq = compile_beat_sequence(beat_recipe, beat_pool, segment=s.get("segment"))
+            if beat_seq["clips"]:
+                slots = beat_seq["clips"]
+                sequence_cues.extend(beat_seq["cues"])
+                vp(f"  seg{s.get('segment')} beat sequence: beats={beat_seq['beats_used']} "
+                   f"dropped={beat_seq['dropped']}")
         reason_str = None
         for r_path in [
             lambda: s.get("material_fit", {}).get("reason"),
@@ -1205,8 +1220,23 @@ def run_mv(script, material_root, out_path, music_path=None,
     from .edit_artifacts import snap_render_plan_to_motion  # noqa: PLC0415
     plan = snap_render_plan_to_motion(plan)
 
+    # BR3 punctuation: collect valid cues from BR1 opening + BR2 beats
+    punctuation_cues = list((opening_result or {}).get("cues") or []) + sequence_cues
+    punctuation_result = None
+
     if not skip_render and not pending_visual_review:
         render_mv_audio(plan, music_path, out_path, mat_dir=mat_dir, burn_text=burn_text)
+        # BR3: mix the resolved punctuation hits into the rendered audio output
+        if punctuation_cues:
+            try:
+                from .punctuation import apply_punctuation_to_video  # noqa: PLC0415
+                sfx_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "sfx")
+                punctuation_result = apply_punctuation_to_video(
+                    out_path, plan, punctuation_cues, asset_dir=sfx_dir)
+                vp(f"[punctuation] mixed {len(punctuation_result['cues'])} cue(s); "
+                   f"dropped={punctuation_result['dropped']}")
+            except Exception as _pe:
+                vp(f"[punctuation] mix failed (non-fatal): {_pe}")
     elif skip_render:
         vp("[mv_cut] skip_render is True. Skipping render_mv_audio.")
     else:
@@ -1217,7 +1247,7 @@ def run_mv(script, material_root, out_path, music_path=None,
     except Exception as _e:
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
     return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
-            "opening": opening_result,
+            "opening": opening_result, "punctuation": punctuation_result,
             "awaiting_visual_review": bool(pending_visual_review)}
 
 

@@ -139,7 +139,7 @@ def compile_opening_sequence(recipe, available_shots, *, durations=None):
     produced_roles = {clip["opening_role"] for clip in clips}
     for anchor in pending_punctuation:
         if anchor in produced_roles:
-            cues.append({"type": "hit", "anchor": anchor})
+            cues.append({"type": "hit", "anchor": anchor, "segment": 0})
             used.append("sound_punctuation")
         else:
             dropped.append({"beat": "sound_punctuation",

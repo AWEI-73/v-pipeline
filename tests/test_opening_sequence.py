@@ -25,7 +25,7 @@ class CompileTest(unittest.TestCase):
         self.assertEqual(title["text"], {"narrative": "66期養成班"})
         self.assertEqual([c["segment"] for c in result["clips"]], [0, 0, 0, 0])
         self.assertIn("sound_punctuation", result["beats_used"])
-        self.assertEqual(result["cues"], [{"type": "hit", "anchor": "title_reveal"}])
+        self.assertEqual(result["cues"], [{"type": "hit", "anchor": "title_reveal", "segment": 0}])
 
     def test_no_material_drops_visual_beats_gracefully(self):
         result = op.compile_opening_sequence({"title_text": "T"}, [])
@@ -100,7 +100,7 @@ class HardeningTest(unittest.TestCase):
 
     def test_sound_punctuation_emitted_only_with_real_title(self):
         result = op.compile_opening_sequence({"title_text": "T", "context_count": 1}, _shots(3))
-        self.assertEqual(result["cues"], [{"type": "hit", "anchor": "title_reveal"}])
+        self.assertEqual(result["cues"], [{"type": "hit", "anchor": "title_reveal", "segment": 0}])
         self.assertIn("sound_punctuation", result["beats_used"])
 
 

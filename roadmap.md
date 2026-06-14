@@ -727,25 +727,36 @@ hook visual -> quick context montage -> sound punctuation
 Acceptance must prove the recipe changes the timeline and true render. It must
 gracefully fall back when the required material is unavailable.
 
-#### BR2 Beat-to-Sequence Recipes — P0
+#### BR2 Beat-to-Sequence Recipes — P0 — implemented (2026-06-14), pending Codex review
 
-Compile a story beat into an optional multi-shot recipe such as:
+`beat_sequence.py` + `run_mv` per-segment hook + `tests/test_beat_sequence.py`
+(11 tests incl. real render). A segment opting into `beat_recipe` is compiled
+into context → primary_action → detail_reaction → payoff and **replaces that
+segment's render-plan slots** (real timeline change). Reuses BR1's approved-window
+contract (`_usable_shot`/`_effective_dur`) so all video windows obey {start,dur}.
+Graceful fallback drops beats with no material; no recipe → segment unchanged.
+Optional payoff punctuation cue emitted only when the payoff clip exists.
+Selectable recipe, NOT a universal action-spine gate.
 
 ```text
 context -> primary action -> detail/reaction -> payoff
 ```
-
-This is a selectable BUILD recipe, not a universal M5b action-spine gate.
 
 #### VD1 / VD2 Visual Diversity Evidence And Soft Ranking — P1
 
 First prove real-project label coverage, then use labels only as a soft
 tiebreaker after correctness, relevance, and approved material.
 
-#### BR3 Music / Sound Punctuation — P1
+#### BR3 Music / Sound Punctuation — implemented (2026-06-14), pending Codex review
 
-Align supported hits, risers, and whooshes with declared story turns and title
-reveals instead of distributing effects uniformly.
+`punctuation.py` + `run_mv` post-render hook + `tests/test_punctuation.py`
+(8 tests incl. real audio mix). Consumes BR1/BR2 valid cues: resolves each
+anchor to a timeline timestamp (cumulative extract_dur of the matching produced
+role, segment-scoped), maps cue type → CC0 sfx asset, and **remuxes the hits
+into the rendered video's audio** via the loudness-preserving sfx filter (real
+output change). Cues whose anchor is absent/dropped are dropped
+(`anchor_missing:`). No cues → audio unchanged. Real-mix test proves a hit
+raises audio energy at its anchor time vs the silent baseline.
 
 #### BR4 Ending / Payoff Sequence — P2
 
