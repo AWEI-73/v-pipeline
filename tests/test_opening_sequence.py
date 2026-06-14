@@ -55,6 +55,40 @@ class CompileTest(unittest.TestCase):
         self.assertEqual(result["clips"][0]["source"], "/m/hook.mp4")
 
 
+class HardeningTest(unittest.TestCase):
+    def test_video_clip_clamped_to_approved_shot_dur(self):
+        # hook design dur 2.5, but the approved video shot is only 1.0s long
+        short = [{"source": "/m/s.mp4", "start": 0.0, "dur": 1.0}]
+        result = op.compile_opening_sequence({"context_count": 0}, short)
+        hook = result["clips"][0]
+        self.assertEqual(hook["opening_role"], "hook")
+        self.assertEqual(hook["extract_dur"], 1.0)        # clamped, not 2.5
+
+    def test_video_clip_clamped_against_start_offset(self):
+        # shot 10s but window starts at 9.0 -> only 1.0s available
+        shot = [{"source": "/m/s.mp4", "start": 9.0, "dur": 10.0}]
+        hook = op.compile_opening_sequence({"context_count": 0}, shot)["clips"][0]
+        self.assertEqual(hook["extract_dur"], 1.0)
+
+    def test_photo_uses_design_duration_not_source_dur(self):
+        photo = [{"source": "/m/p.jpg", "start": 0.0, "dur": 0.0, "is_photo": True}]
+        hook = op.compile_opening_sequence({"context_count": 0}, photo)["clips"][0]
+        self.assertEqual(hook["extract_dur"], 2.5)        # design hook dur, unclamped
+
+    def test_sound_punctuation_dropped_when_title_reveal_absent(self):
+        # no title_text -> title_reveal dropped -> the cue has no real anchor
+        result = op.compile_opening_sequence({"context_count": 1}, _shots(3))
+        self.assertEqual(result["cues"], [])
+        self.assertIn({"beat": "sound_punctuation", "reason": "anchor_missing:title_reveal"},
+                      result["dropped"])
+        self.assertNotIn("sound_punctuation", result["beats_used"])
+
+    def test_sound_punctuation_emitted_only_with_real_title(self):
+        result = op.compile_opening_sequence({"title_text": "T", "context_count": 1}, _shots(3))
+        self.assertEqual(result["cues"], [{"type": "hit", "anchor": "title_reveal"}])
+        self.assertIn("sound_punctuation", result["beats_used"])
+
+
 class PoolAndPrependTest(unittest.TestCase):
     def test_pool_from_plan_dedups_and_orders(self):
         plan = [{"source": "/m/a.mp4", "extract_start": 1.0, "extract_dur": 3.0},
@@ -142,6 +176,31 @@ class RealRenderTest(unittest.TestCase):
              "-of", "csv=p=0", str(out)], text=True).strip())
         # hook 2.5 + title 2.0 = 4.5s (context dropped: only 1 shot, reused)
         self.assertGreater(dur, 3.5)
+
+    def test_short_source_clip_is_clamped_in_true_render(self):
+        """Short-material true render: a 1s approved video shot must not produce
+        a 2.5s hook clip — the clamp holds through a real ffmpeg render."""
+        d = Path(tempfile.mkdtemp())
+        src = d / "short.mp4"
+        music = d / "bgm.mp3"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=320x240:rate=30:duration=1",
+                        "-pix_fmt", "yuv420p", str(src)], capture_output=True, check=True)
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "sine=frequency=220:duration=4", str(music)],
+                       capture_output=True, check=True)
+        recipe = {"context_count": 0,
+                  "shots": [{"source": str(src), "start": 0.0, "dur": 1.0}]}
+        opening = op.compile_opening_sequence(recipe, recipe["shots"])
+        self.assertEqual(opening["clips"][0]["extract_dur"], 1.0)
+        plan = op.prepend_opening_to_plan([], opening["clips"])
+        out = d / "short_open.mp4"
+        mv_cut.render_mv_audio(plan, str(music), str(out), mat_dir=str(d), burn_text=False)
+        self.assertTrue(out.exists())
+        dur = float(subprocess.check_output(
+            [FFPROBE, "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(out)], text=True).strip())
+        self.assertLess(dur, 1.6)          # ~1.0s hook, not 2.5s
 
 
 if __name__ == "__main__":

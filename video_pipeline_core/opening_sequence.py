@@ -19,12 +19,26 @@ DEFAULT_BEAT_DURATIONS = {"hook": 2.5, "context": 1.2, "title": 2.0}
 DEFAULT_CONTEXT_COUNT = 3
 
 
-def _shot_clip(shot, dur, *, role, text=None, treatment=None):
+def _effective_dur(shot, design_dur):
+    """Photos loop to any design length; a video clip must never exceed the
+    approved shot's available footage (start..dur)."""
+    design_dur = float(design_dur)
+    if bool(shot.get("is_photo", False)):
+        return design_dur
+    available = float(shot.get("dur", 0.0)) - float(shot.get("start", 0.0))
+    if available > 0:
+        return min(design_dur, available)
+    # no usable dur metadata: best-effort design length (approved-shot caller's bug)
+    return design_dur
+
+
+def _shot_clip(shot, design_dur, *, role, text=None, treatment=None):
+    dur = round(_effective_dur(shot, design_dur), 3)
     clip = {
         "source": shot["source"],
         "extract_start": round(float(shot.get("start", 0.0)), 3),
-        "extract_dur": round(float(dur), 3),
-        "slot_dur": round(float(dur), 3),
+        "extract_dur": dur,
+        "slot_dur": dur,
         "keep_audio": False,
         "is_photo": bool(shot.get("is_photo", False)),
         "segment": 0,                 # opening precedes story segment 1
@@ -52,6 +66,7 @@ def compile_opening_sequence(recipe, available_shots, *, durations=None):
     first_shot = dict(pool[0]) if pool else None
 
     clips, cues, used, dropped = [], [], [], []
+    pending_punctuation = []          # resolved after clips are known (item 3)
 
     def take(role_hint=None):
         for i, shot in enumerate(pool):
@@ -82,8 +97,9 @@ def compile_opening_sequence(recipe, available_shots, *, durations=None):
             else:
                 dropped.append({"beat": "context_montage", "reason": "no_material"})
         elif beat == "sound_punctuation":
-            cues.append({"type": "hit", "anchor": "title_reveal"})  # BR3 wires audio
-            used.append("sound_punctuation")
+            # a punctuation hit must land on a real reveal; resolved post-loop
+            # because title_reveal is processed after this beat.
+            pending_punctuation.append("title_reveal")
         elif beat == "title_reveal":
             if not title_text:
                 dropped.append({"beat": "title_reveal", "reason": "no_title_text"})
@@ -102,6 +118,17 @@ def compile_opening_sequence(recipe, available_shots, *, durations=None):
             used.append("story_entry")    # marker: story segments follow opening
         else:
             dropped.append({"beat": beat, "reason": "unknown_beat"})
+
+    # resolve sound_punctuation against clips that were actually produced — a cue
+    # must point at a real anchor, never a dropped beat (BR3 wires the audio).
+    produced_roles = {clip["opening_role"] for clip in clips}
+    for anchor in pending_punctuation:
+        if anchor in produced_roles:
+            cues.append({"type": "hit", "anchor": anchor})
+            used.append("sound_punctuation")
+        else:
+            dropped.append({"beat": "sound_punctuation",
+                            "reason": f"anchor_missing:{anchor}"})
 
     return {
         "artifact_role": "opening_sequence",
