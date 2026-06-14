@@ -46,12 +46,12 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(res["cues"], [])
 
     def test_xfade_overlap_shifts_anchor_time_earlier(self):
-        # clip A 3.0s, then title_reveal 2.0s crossfading in over 0.5s ->
+        # group A 3.0s, then title_reveal group crossfading in over 0.5s ->
         # title starts at 3.0 - 0.5 = 2.5, not 3.0.
         plan = [_clip("opening_role", "hook", 3.0, segment=0),
-                _clip("opening_role", "title_reveal", 2.0, segment=0,
+                _clip("opening_role", "title_reveal", 2.0, segment=1,
                       transition="xfade", transition_duration=0.5)]
-        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 0}]
+        cues = [{"type": "hit", "anchor": "title_reveal", "segment": 1}]
         res = pn.resolve_punctuation_cues(plan, cues, asset_dir=ASSET_DIR)
         self.assertEqual(res["cues"][0]["start_sec"], 2.5)
 
@@ -62,6 +62,33 @@ class ResolveTest(unittest.TestCase):
         res = pn.resolve_punctuation_cues(
             plan, [{"type": "hit", "anchor": "title_reveal", "segment": 0}], asset_dir=ASSET_DIR)
         self.assertEqual(res["cues"][0]["start_sec"], 3.0)
+
+    def test_oversized_xfade_is_clamped_to_incoming_group_duration(self):
+        plan = [_clip("beat_role", "context", 3.0, segment=1),
+                _clip("beat_role", "payoff", 0.2, segment=2,
+                      transition="xfade", transition_duration=0.5)]
+        res = pn.resolve_punctuation_cues(
+            plan, [{"type": "hit", "anchor": "payoff", "segment": 2}], asset_dir=ASSET_DIR)
+        self.assertEqual(res["cues"][0]["start_sec"], 2.8)
+
+    def test_transition_applies_between_segment_groups_not_within_group(self):
+        plan = [_clip("beat_role", "context", 1.0, segment=1),
+                _clip("beat_role", "primary_action", 1.0, segment=1,
+                      transition="xfade", transition_duration=0.5),
+                _clip("beat_role", "payoff", 1.0, segment=2,
+                      transition="xfade", transition_duration=0.5)]
+        cues = [{"type": "hit", "anchor": "primary_action", "segment": 1},
+                {"type": "hit", "anchor": "payoff", "segment": 2}]
+        res = pn.resolve_punctuation_cues(plan, cues, asset_dir=ASSET_DIR)
+        self.assertEqual([cue["start_sec"] for cue in res["cues"]], [1.0, 1.5])
+
+    def test_oversized_xfade_never_produces_negative_start(self):
+        plan = [_clip("beat_role", "context", 0.1, segment=1),
+                _clip("beat_role", "payoff", 0.2, segment=2,
+                      transition="xfade", transition_duration=5.0)]
+        res = pn.resolve_punctuation_cues(
+            plan, [{"type": "hit", "anchor": "payoff", "segment": 2}], asset_dir=ASSET_DIR)
+        self.assertEqual(res["cues"][0]["start_sec"], 0.0)
 
 
 class RemuxFailureTest(unittest.TestCase):

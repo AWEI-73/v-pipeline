@@ -420,11 +420,11 @@ soft-ranking 的加分項,永遠不得凌駕素材正確性。** 先前「禁止
 
 ```
 VD0  淺標籤契約 + lineage              ✅ 已完成(見下)
-VD1  標籤覆蓋率驗證(開工前的閘):    ⬜ 先做
+VD1  標籤覆蓋率驗證(開工前的閘):    ✅ 工具完成;真實專案證據待產生
        在真實素材上量:標註覆蓋率%、未標比例、
        同素材跨 Agent 分類一致性(粗粒度,不要求完全一致);
        覆蓋率/一致性達標才值得寫 ranker,否則 ranker 多數時間沒資料。
-VD2  BUILD soft-ranking(editor 端)   ⬜ 上面優先序;未標素材優雅降級
+VD2  BUILD soft-ranking(editor 端)   ⬜ blocked:等待 VD1 真實專案覆蓋證據
 VD3  VERIFY tier-2 warning backstop    ⬜ 擴充 visual_fatigue 吃家族,只警示
 ```
 
@@ -727,7 +727,7 @@ hook visual -> quick context montage -> sound punctuation
 Acceptance must prove the recipe changes the timeline and true render. It must
 gracefully fall back when the required material is unavailable.
 
-#### BR2 Beat-to-Sequence Recipes — P0 — implemented (2026-06-14), pending Codex review
+#### BR2 Beat-to-Sequence Recipes — P0 — COMPLETE (2026-06-14)
 
 `beat_sequence.py` + `run_mv` per-segment hook + `tests/test_beat_sequence.py`
 (11 tests incl. real render). A segment opting into `beat_recipe` is compiled
@@ -750,10 +750,24 @@ context -> primary action -> detail/reaction -> payoff
 
 #### VD1 / VD2 Visual Diversity Evidence And Soft Ranking — P1
 
-First prove real-project label coverage, then use labels only as a soft
-tiebreaker after correctness, relevance, and approved material.
+**VD1 evidence tool implemented (2026-06-14); VD2 remains blocked.**
+`visual_diversity_coverage.py` + `visual-diversity-coverage` CLI reads the
+validated `project_material_map.json` and emits
+`visual_diversity_coverage.json`: per-axis labeled/missing counts and scene
+references, any/full-label ratios, and an explicit `ready_for_vd2` decision.
+The default precondition is `visual_family` coverage >= 0.70 and at least one
+scene; the threshold is configurable. This tool is evidence-only and performs
+no ranking, selection, or map mutation.
 
-#### BR3 Music / Sound Punctuation — implemented (2026-06-14), pending Codex review
+No real `project_material_map.json` or `*.map.json` was available in the
+workspace or known project/material directories at implementation time, so no
+real-project coverage pass is claimed. VD2 stays blocked until the CLI is run
+against a real project map and produces `ready_for_vd2=true`.
+
+After that evidence exists, labels may be used only as a soft tiebreaker after
+correctness, relevance, and approved material.
+
+#### BR3 Music / Sound Punctuation — COMPLETE (2026-06-14)
 
 `punctuation.py` + `run_mv` post-render hook + `tests/test_punctuation.py`
 (8 tests incl. real audio mix). Consumes BR1/BR2 valid cues: resolves each
@@ -770,6 +784,13 @@ returns `{status, cues_mixed, error}`; a non-zero ffmpeg exit or missing output
 raises `PunctuationMixError` (never reported as mixed). run_mv stays non-fatal
 but records `status=failed`, `error`, `cues_mixed=0`. Reverse tests cover xfade
 timing and remux failure.
+
+BR3 final alignment (2026-06-14): cue timing now mirrors renderer
+**contiguous-segment groups** and clamps overlap with
+`min(transition_duration, accumulated_duration, incoming_group_duration)`.
+Transitions declared inside one group do not shift time; oversized transitions
+cannot produce negative cue timestamps. Focused BR1/BR2/BR3/VD1/MM1 suite:
+61 tests OK; full regression: 852 tests OK.
 
 #### BR4 Ending / Payoff Sequence — P2
 

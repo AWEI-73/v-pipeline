@@ -29,18 +29,41 @@ def _asset_for(cue_type, asset_dir, ordinal):
 
 
 def _timeline_starts(plan):
-    """Timeline start of each clip, accounting for xfade/transition overlap: a
-    clip with a transition crossfades into the previous one and therefore starts
-    `transition_duration` earlier than a naive cumulative sum. Mirrors the
-    render's `_build_transition_filter` overlap so a cue lands at the real time."""
-    starts, cursor = [], 0.0
-    for index, clip in enumerate(plan or []):
+    """Mirror mv_cut._build_transition_filter's contiguous-segment grouping.
+
+    Clips inside one segment group concatenate without overlap. An incoming
+    group may overlap the accumulated timeline by no more than the declared
+    transition, the current timeline duration, or the incoming group duration.
+    """
+    plan = list(plan or [])
+    starts = [0.0] * len(plan)
+    groups = []
+    for index, clip in enumerate(plan):
+        duration = float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0)
+        if not groups or groups[-1]["segment"] != clip.get("segment"):
+            groups.append({
+                "segment": clip.get("segment"),
+                "indices": [index],
+                "duration": duration,
+                "transition": clip.get("transition"),
+                "transition_duration": float(clip.get("transition_duration") or 0.5),
+            })
+        else:
+            groups[-1]["indices"].append(index)
+            groups[-1]["duration"] += duration
+
+    cursor = 0.0
+    for group_index, group in enumerate(groups):
         overlap = 0.0
-        if index > 0 and clip.get("transition") in {"dissolve", "crossfade", "xfade"}:
-            overlap = float(clip.get("transition_duration") or 0.0)
-        start = round(cursor - overlap, 3)
-        starts.append(start)
-        cursor = start + float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0)
+        if group_index > 0 and group["transition"] in {"dissolve", "crossfade", "xfade"}:
+            overlap = min(group["transition_duration"], cursor, group["duration"])
+        group_start = max(0.0, cursor - overlap)
+        clip_cursor = group_start
+        for index in group["indices"]:
+            starts[index] = round(clip_cursor, 3)
+            clip = plan[index]
+            clip_cursor += float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0)
+        cursor = group_start + group["duration"]
     return starts
 
 

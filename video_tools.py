@@ -349,6 +349,17 @@ def cmd_project_material_map(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_visual_diversity_coverage(args):
+    """VD1: report real project-map VD0 label coverage; never rank material."""
+    from video_pipeline_core import visual_diversity_coverage
+    result = visual_diversity_coverage.write_visual_diversity_coverage(
+        args.project_map,
+        args.out,
+        min_visual_family_coverage=args.min_visual_family_coverage,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_semantic_novelty_audit(args):
     """M5a Node 11: perceptual de-duplication of timeline compositions."""
     from video_pipeline_core import semantic_novelty_audit
@@ -1650,6 +1661,13 @@ def main():
                        help="optional canonical material_needs.json")
     p_pmm.add_argument("--out", required=True, help="project_material_map.json output")
 
+    p_vdc = sub.add_parser("visual-diversity-coverage")
+    p_vdc.add_argument("project_map", help="project_material_map.json")
+    p_vdc.add_argument("--out", required=True, help="visual_diversity_coverage.json output")
+    p_vdc.add_argument("--min-visual-family-coverage", type=float, default=0.7,
+                       dest="min_visual_family_coverage",
+                       help="minimum visual_family scene coverage required before VD2")
+
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
     p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
@@ -1819,6 +1837,7 @@ def main():
         "black-frame-audit": cmd_black_frame_audit,
         "validate-needs": cmd_validate_needs,
         "project-material-map": cmd_project_material_map,
+        "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
         "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,

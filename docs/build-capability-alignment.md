@@ -55,6 +55,7 @@ capability, and a VERIFY check creates nothing:
 | Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | — | — | declared_only |
 | Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | — | — | declared_only |
 | VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | scene review verdict | none (no BUILD ranking yet) | stored on scenes | — | declared_only |
+| VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | — | active (evidence only) |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
 
