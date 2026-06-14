@@ -219,6 +219,44 @@ class FallbackValidationTest(unittest.TestCase):
             self.assertFalse(result["ready_for_build"])      # block not relieved
 
 
+class AssetIdentityTest(unittest.TestCase):
+    def _scene_map(self, asset_id, source, need_id):
+        return {"asset_id": asset_id, "source": source, "scenes": [
+            {"start": 0, "end": 3, "satisfies": [{"need_id": need_id, "status": "accepted"}]}]}
+
+    def test_duplicate_asset_id_fails_in_both_orders(self):
+        needs = _needs(("hero", 1, True, None))
+        nid = _first_id(needs)
+        m1 = self._scene_map("dup", "a.mp4", nid)
+        m2 = self._scene_map("dup", "b.mp4", nid)
+        for maps in ([m1, m2], [m2, m1]):     # order must not change the verdict
+            result = md.compute_material_delta(needs, maps)
+            self.assertFalse(result["ok"], maps)
+            self.assertEqual(result["deltas"], [])
+            self.assertFalse(result["ready_for_build"])
+            self.assertEqual(result["summary"]["covered"], 0)
+            self.assertEqual(result["summary"]["missing"], 0)
+            self.assertTrue(any("duplicate asset_id" in e for e in result["errors"]))
+
+    def test_missing_blank_or_nonstring_asset_id_fails(self):
+        needs = _needs(("hero", 1, False, None))
+        for asset_id in (None, "", "   ", 123, ["x"]):
+            maps = [{"asset_id": asset_id, "source": "a.mp4", "scenes": []}]
+            result = md.compute_material_delta(needs, maps)
+            self.assertFalse(result["ok"], asset_id)
+            self.assertEqual(result["deltas"], [])
+            self.assertFalse(result["ready_for_build"])
+
+    def test_unique_asset_ids_still_pass(self):
+        needs = _needs(("a", 1, True, None), ("b", 1, True, None))
+        na, nb = needs["needs"][0]["need_id"], needs["needs"][1]["need_id"]
+        maps = [self._scene_map("x", "a.mp4", na), self._scene_map("y", "b.mp4", nb)]
+        result = md.compute_material_delta(needs, maps)
+        self.assertTrue(result["ok"], result["errors"])
+        self.assertEqual(result["summary"]["covered"], 2)
+        self.assertTrue(result["ready_for_build"])
+
+
 class BoundaryTest(unittest.TestCase):
     def test_no_semantic_or_phase_fields_in_output(self):
         needs = _needs(("cable pull", 1, True, None))

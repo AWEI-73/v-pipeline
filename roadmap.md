@@ -638,6 +638,17 @@ missing-source / invalid-bounds accepted dropped; duplicate accepted counted
 once; `[""]`/`["   "]` fallback fails. Focused: 19 tests OK; full regression:
 **926 tests OK**.
 
+M6b increment-1 identity hardening (2026-06-15): `compute_material_delta` now
+requires every input material map to carry a non-empty-string `asset_id` that is
+unique across the input — `asset_id` is the identity half of the
+`(asset_id, scene_index)` evidence key, so a missing/blank/non-string or
+duplicate id makes evidence resolution ambiguous and order-dependent. Such input
+is a hard failure (`ok=False`, `ready_for_build=False`, `deltas=[]`), never
+silently resolved into covered/missing. Reverse tests: duplicate asset_id fails
+in both map orders (no order-dependent verdict); missing/blank/non-string id
+fails; unique ids still pass. Focused: 22 tests OK; full regression:
+**929 tests OK**.
+
 #### M6c Delta-driven script revision
 
 - Convert accepted delta decisions into a revised `segment_contract.json`.

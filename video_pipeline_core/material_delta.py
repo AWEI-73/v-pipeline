@@ -51,6 +51,30 @@ VALID_OUTCOMES = ("covered", "thin", "missing", "excess")
 _STATUS_PRIORITY = {"accepted": 3, "candidate": 2, "rejected": 1}
 
 
+def _validate_asset_ids(material_maps):
+    """asset_id is the identity half of the (asset_id, scene_index) evidence key.
+    A missing/blank/non-string or duplicate asset_id makes evidence resolution
+    ambiguous and order-dependent, so it is a hard failure — not something to
+    silently resolve into covered/missing. Returns a list of errors."""
+    errors = []
+    seen = set()
+    for index, material_map in enumerate(material_maps or []):
+        if not isinstance(material_map, dict):
+            errors.append(f"material map #{index} must be an object, got {material_map!r}")
+            continue
+        asset_id = material_map.get("asset_id")
+        if not isinstance(asset_id, str) or not asset_id.strip():
+            errors.append(f"material map #{index} asset_id must be a non-empty "
+                          f"string, got {asset_id!r}")
+            continue
+        if asset_id in seen:
+            errors.append(f"duplicate asset_id {asset_id!r} — must be unique "
+                          f"across material maps (ambiguous evidence identity)")
+            continue
+        seen.add(asset_id)
+    return errors
+
+
 def _scene_lookup(material_maps):
     """{(asset_id, scene_index): (source, scene)} from the per-asset maps."""
     lookup = {}
@@ -162,6 +186,8 @@ def compute_material_delta(material_needs, material_maps=None):
     # a dangling/malformed satisfies edge is a broken join, never "missing"
     if not lineage["ok"]:
         errors.extend(lineage["errors"])
+    # asset_id identity must be sound before any (asset_id, scene_index) lookup
+    errors.extend(_validate_asset_ids(material_maps))
     if errors:
         return {"artifact_role": "material_delta", "version": 1, "ok": False,
                 "errors": errors, "ready_for_build": False,
