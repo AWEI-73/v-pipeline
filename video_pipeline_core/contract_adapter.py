@@ -596,6 +596,76 @@ def _apply_creator_profile(out_dir, creator_profile_path, brief_dict, build_prof
     return {"creator_profile": str(cp_path), "creator_profile_applied": str(applied_path)}
 
 
+def _resolve_needs_file(needs_ref, source):
+    """Resolve a declared material_needs_ref to an existing file, or None."""
+    candidates = []
+    if source:
+        candidates.append(Path(source).parent / needs_ref)
+    candidates.append(Path(needs_ref))
+    for prefix in (Path("."), Path("examples")):
+        candidates.append(prefix / needs_ref)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _load_current_material_maps(material_db_payload):
+    """Strict load of the CURRENT per-asset maps. A declared-but-missing or
+    corrupt map file is an error (it must block, not be silently treated as zero
+    material). Returns (maps, error_or_None)."""
+    maps = []
+    for entry in (material_db_payload or {}).get("files") or []:
+        map_path = entry.get("material_map")
+        if not map_path:
+            continue
+        path = Path(map_path)
+        if not path.exists():
+            return None, f"declared material_map not found: {map_path}"
+        try:
+            with path.open(encoding="utf-8-sig") as handle:
+                maps.append(json.load(handle))
+        except (OSError, ValueError) as exc:
+            return None, f"material_map could not be parsed ({map_path}): {exc}"
+    return maps, None
+
+
+def _run_material_delta_gate(contract_obj, source, out_dir, material_db_payload):
+    """M6b pre-BUILD gate. Runs ONLY when the project explicitly declares
+    `material_needs_ref` (existing-material-first projects skip → backward
+    compatible). The verdict is computed FRESH from the current needs + current
+    per-asset maps via material_delta.material_delta_gate (never a stale
+    material_delta.json). Returns the gate verdict, or None to skip."""
+    needs_ref = contract_obj.get("material_needs_ref")
+    if not needs_ref:
+        return None
+    from . import material_delta as _md  # noqa: PLC0415
+    delta_path = Path(out_dir) / "material_delta.json"
+
+    needs_file = _resolve_needs_file(needs_ref, source)
+    if needs_file is None:
+        return _md.material_delta_gate(
+            None, None, material_delta_path=str(delta_path),
+            resolution_error=f"material_needs_ref declared but file not found: {needs_ref}")
+    try:
+        with needs_file.open(encoding="utf-8-sig") as handle:
+            needs = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return _md.material_delta_gate(
+            None, None, material_delta_path=str(delta_path),
+            resolution_error=f"material_needs could not be parsed ({needs_file}): {exc}")
+
+    maps, map_error = _load_current_material_maps(material_db_payload)
+    if map_error:
+        return _md.material_delta_gate(
+            None, None, material_delta_path=str(delta_path), resolution_error=map_error)
+
+    gate = _md.material_delta_gate(needs, maps, material_delta_path=str(delta_path))
+    if gate.get("delta") is not None:   # write fresh evidence (never trust stale)
+        _write_json(delta_path, gate["delta"])
+    return gate
+
+
 def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
                  categories_path=None, generated_payload_path=None, manifest_path=None,
                  music_structure_path=None, every_n_beats=4, model_routes_path=None,
@@ -796,6 +866,31 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     if verbose and review["warnings"]:
         for w in review["warnings"]:
             print(f"[spec-review] warn: {w['message']}")
+
+    # M6b pre-BUILD material-delta gate (only when canonical material_needs is
+    # explicitly declared). Fail-closed and computed fresh from current inputs;
+    # runs BEFORE any music/timeline/render so a blocked build never produces or
+    # overwrites a final video. delivery_gate stays a backstop, not this gate.
+    delta_gate = _run_material_delta_gate(
+        contract_obj, source, out_path.parent, material_db_payload)
+    if delta_gate and delta_gate["status"] == "block":
+        state_path = out_path.parent / "state.json"
+        _write_json(state_path, {
+            "pass": False, "next_action": delta_gate["next_action"],
+            "blocking": delta_gate["blocking_need_ids"],
+            "material_delta_gate": delta_gate["reason"]})
+        if verbose:
+            print(f"[material-delta] BLOCK — {delta_gate['reason']}")
+        return {"ok": False, "stage": "material_delta",
+                "errors": [delta_gate["reason"]],
+                "blocking_need_ids": delta_gate["blocking_need_ids"],
+                "route": delta_gate["route"], "next_action": delta_gate["next_action"],
+                "ready_for_build": delta_gate["ready_for_build"],
+                "delta_ok": delta_gate["ok"],
+                "material_delta": delta_gate["material_delta"],
+                "contract_hash": contract_hash}
+    if verbose and delta_gate:
+        print(f"[material-delta] {delta_gate['status']} — {delta_gate['reason']}")
 
     music_struct = None
     if music_path:

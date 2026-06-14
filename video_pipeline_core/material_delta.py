@@ -232,3 +232,57 @@ def compute_material_delta(material_needs, material_maps=None):
             "errors": [], "ready_for_build": not blocks_any,
             "blocks_ready_for_build": blocks_any, "deltas": deltas,
             "summary": summary}
+
+
+# routes the pre-BUILD gate may emit (a subset of the M6b route enum)
+GATE_ROUTES = ("fix_material_map_or_needs", "await_material")
+
+
+def material_delta_gate(material_needs, material_maps=None, *,
+                        resolution_error=None, material_delta_path=None):
+    """Fail-closed pre-BUILD gate verdict, built ONLY on `compute_material_delta`
+    (no second delta logic). The build may proceed iff BOTH ``delta.ok`` AND
+    ``delta.ready_for_build`` are true — checking ``blocks_ready_for_build`` alone
+    is insufficient (a broken/invalid delta has ``ok=False`` and must also block).
+
+    ``resolution_error`` is a string set by the caller when the project DECLARED
+    material_needs but they (or the maps) could not be resolved — declared but
+    missing / unparseable input is a hard block, never a silent skip.
+
+    Returns a machine-readable verdict::
+
+        {gate, status: pass|block, ok, ready_for_build, blocking_need_ids,
+         reason, route, material_delta (path), next_action, delta}
+    """
+    if resolution_error:
+        return {"gate": "material_delta", "status": "block", "ok": False,
+                "ready_for_build": False, "blocking_need_ids": [],
+                "reason": resolution_error, "route": "fix_material_map_or_needs",
+                "material_delta": material_delta_path,
+                "next_action": "revise:material(material_delta)", "delta": None}
+
+    delta = compute_material_delta(material_needs, material_maps)
+    base = {"gate": "material_delta", "ok": delta["ok"],
+            "ready_for_build": delta["ready_for_build"],
+            "material_delta": material_delta_path, "delta": delta}
+
+    if delta["ok"] and delta["ready_for_build"]:
+        return {**base, "status": "pass", "blocking_need_ids": [],
+                "reason": "all required material is covered or has a permitted fallback",
+                "route": None, "next_action": None}
+
+    if not delta["ok"]:
+        # invalid needs / broken reference chain / bad material map — never a
+        # plain `missing`; the fix is the map or the needs contract, not a reshoot
+        return {**base, "status": "block", "blocking_need_ids": [],
+                "reason": "material_delta could not be computed: "
+                          + "; ".join(delta["errors"]),
+                "route": "fix_material_map_or_needs",
+                "next_action": "revise:material(material_delta)"}
+
+    # ok but not ready: one or more tier-1 must_have gaps with no permitted fallback
+    blocking = [d["need_id"] for d in delta["deltas"] if d["blocks_ready_for_build"]]
+    return {**base, "status": "block", "blocking_need_ids": blocking,
+            "reason": f"{len(blocking)} must_have need(s) missing with no permitted "
+                      f"fallback: {blocking}",
+            "route": "await_material", "next_action": "await_material"}

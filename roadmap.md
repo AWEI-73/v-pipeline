@@ -649,6 +649,45 @@ in both map orders (no order-dependent verdict); missing/blank/non-string id
 fails; unique ids still pass. Focused: 22 tests OK; full regression:
 **929 tests OK**.
 
+##### M6b pre-BUILD gate ✅ integrated (2026-06-15)
+
+`material_delta` is now a real BUILD-blocking dependency. `material_delta.material_delta_gate`
+is a fail-closed verdict built ONLY on `compute_material_delta` (no second delta
+logic): a build may proceed iff `delta.ok is True AND delta.ready_for_build is
+True` — `blocks_ready_for_build` alone is insufficient.
+
+- **Lifecycle position**: `contract_adapter.run_contract`, AFTER the `spec_review`
+  `ready_for_build` gate and BEFORE music/timeline/`mv_chain` render. A blocked
+  build returns `{ok:False, stage:"material_delta", ...}` and never produces or
+  overwrites a final video. `delivery_gate.HARD_AUDITS` is untouched (backstop only).
+- **Existing-material-first skip**: the gate runs only when the contract declares
+  `material_needs_ref`. No declaration → skipped → existing flow unchanged
+  (backward compatible). Declared-but-missing / unparseable needs, or a
+  declared-but-missing/corrupt per-asset map, are hard blocks (fail-closed),
+  never a silent skip or "treated as zero material".
+- **Freshness**: the verdict is computed fresh from the current `material_needs`
+  + current per-asset maps every run; a stale `material_delta.json` is never
+  trusted (it is overwritten with the truth). No second delta judgment path.
+- **Diagnostics on block**: `state.json` + return carry `stage`, `next_action`
+  (`await_material` for tier-1 missing, `revise:material(material_delta)` for
+  broken/invalid), `route` (`await_material` | `fix_material_map_or_needs`),
+  `blocking_need_ids`, `reason`, and the `material_delta.json` evidence path.
+  Non-blocking thin / optional-missing pass with the delta artifact as warning.
+
+Falsification tests `tests/test_material_delta_gate.py` (A no-needs runs existing
+flow; B covered passes; C must_have+no-fallback blocks; D must_have+fallback does
+not tier-1 block; E broken satisfies → fix-route block not missing; F declared
+needs file missing → fail-closed; G corrupt map / invalid asset identity blocks;
+H stale artifact ignored, recomputed and overwritten; I tier-1 block stops before
+render — `mv_chain` not called, no final video; J gate-pass lets render run):
+13 tests. Full regression: **942 tests OK**.
+
+**Next step: M6c delta-driven script revision** (convert accepted delta decisions
+into a revised `segment_contract.json`; preserve director decisions; record
+revision lineage). The M6b gate stays the objective tier-1 block; M6c is a
+separate batch. F2 / `wrong_semantics` / `insufficient_action_phases` remain
+deferred.
+
 #### M6c Delta-driven script revision
 
 - Convert accepted delta decisions into a revised `segment_contract.json`.
