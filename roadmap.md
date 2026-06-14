@@ -810,6 +810,38 @@ plan integration, negative fallbacks, bookend composition, and a true ffmpeg
 render. Focused BR1/BR2/BR3/BR4/VD1 suite: 64 tests OK; full regression:
 869 tests OK.
 
+#### MR1 Map-Based Window Retrieval — PARTIAL → ACTIVE (2026-06-14)
+
+Promotes M2 map retrieval from a clip_list-gated path to the **default** local
+selection path. Previously `plan_ranked_windows` only fired inside the matched
+branch (i.e. after a `match-mv` clip_list existed); a direct `run_mv` with maps
+but no clip_list fell through to live VLM scoring. Now:
+
+- **Single loading entry** `project_material_map.expand_project_material_map`
+  normalizes a `project_material_map` dict / per-asset list / single map into the
+  per-asset maps retrieval consumes (verbatim — no second scene schema). Unknown
+  `artifact_role`, sourceless project asset, and non-numeric scene bounds fail
+  loudly; `run_mv` normalizes once at entry.
+- **Default + fallback** `mv_cut._plan_local_segment`: map-ranked first whenever
+  a valid map exists → **matched_fallback** (clip_list/explicit file picks) →
+  **live_fallback** (VLM on material_root) → honest GAP only when nothing exists.
+  A map with no evidence-fit scene for a segment never emits an empty/GAP segment
+  on its own. Every per-seg entry records `retrieval_path ∈ {map_ranked,
+  matched_fallback, matched, live_fallback, live}`.
+- **Window/source honesty** `plan_ranked_windows`: sourceless and zero/negative
+  length scenes never enter the timeline; the window is clamped strictly within
+  the scene `[start,end]`; slots preserve `source/scene_id/extract_start/
+  extract_dur/retrieval_score`. Existing caption/function/pace evidence scoring
+  unchanged — no `visual_family`/diversity ranking, no VD2, no dHash/CLIP/VLM
+  dependency added.
+- Stock, photo_stack, and `source_speech` (`plan_sound_bite`) paths unchanged.
+
+Falsification tests `tests/test_map_retrieval_wiring.py` (A map-ranked w/o
+clip_list; B matched & live fallback; C no-map compat; D project-map expansion;
+E malformed/sourceless/zero-length; F window-in-bounds; G **real ffmpeg
+map-ranked render**; H stock/source_speech no-regression): 17 tests. Full
+regression: **886 tests OK**.
+
 ### Deferred Until After BUILD Alignment
 
 - M6a lineage integration: `need_id` through shooting brief and revised

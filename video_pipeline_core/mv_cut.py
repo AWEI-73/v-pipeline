@@ -638,30 +638,41 @@ def _apply_anti_presentation_plan(slots, segment):
     return slots
 
 
+def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=None):
+    """MR1: map-based scene/window retrieval for a local segment — the DEFAULT
+    selection path whenever a valid material map exists. Returns concrete slots
+    carrying their material+window evidence (source/scene_id/extract_start/
+    extract_dur/retrieval_score). Empty slots means no evidence-fit scene was
+    found; the caller falls back honestly (matched/live), never to GAP."""
+    from .material_retrieval import plan_ranked_windows
+    vd = s.get("visual_desc", "")
+    slots = plan_ranked_windows(
+        s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
+    )
+    for slot in slots:
+        slot["provider"] = "local"
+        slot["text"] = seg_text
+        slot["keep_audio"] = keep_audio
+    entry = {
+        "segment": s.get("segment"), "visual_desc": vd, "source": "local(scene-ranked)",
+        "provider": "local", "clips_found": len({slot["source"] for slot in slots}),
+        "n_clips": a["n_clips"], "retrieval_path": "map_ranked",
+        "picked_scores": [slot["retrieval_score"] for slot in slots] or [GAP],
+    }
+    msgs = [
+        f"  seg{s.get('segment')} '{vd[:18]}' scene-ranked -> {len(slots)} slots"
+        + (" (no fit)" if not slots else "")
+    ]
+    return slots, entry, msgs
+
+
 def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
                           material_maps=None, ranker=None):
     """local 段:用 match-mv 已配好的 clip 開窗(不 live 重評)。`_winfn` 可注入測試。"""
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
     if material_maps:
-        from .material_retrieval import plan_ranked_windows
-        slots = plan_ranked_windows(
-            s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
-        )
-        for slot in slots:
-            slot["provider"] = "local"
-            slot["text"] = seg_text
-            slot["keep_audio"] = keep_audio
-        entry = {
-            "segment": s.get("segment"), "visual_desc": vd, "source": "local(scene-ranked)",
-            "provider": "local", "clips_found": len({slot["source"] for slot in slots}),
-            "n_clips": a["n_clips"],
-            "picked_scores": [slot["retrieval_score"] for slot in slots] or [GAP],
-        }
-        return slots, entry, [
-            f"  seg{s.get('segment')} '{vd[:18]}' scene-ranked -> {len(slots)} slots"
-            + (" GAP" if not slots else "")
-        ]
+        return _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=ranker)
     paths = (
         [s["file"]]
         if s.get("file")
@@ -689,12 +700,50 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
     for slot in slots:
         slot["provider"] = "local"
     entry = {"segment": s.get("segment"), "visual_desc": vd, "source": "local(matched)",
-             "provider": "local",
+             "provider": "local", "retrieval_path": "matched",
              "clips_found": len(paths), "n_clips": a["n_clips"],
              "picked_scores": ["matched"] * len(slots) or [GAP]}
     msg = (f"  seg{s.get('segment')} '{vd[:18]}' ← match-mv clip x{len(paths)} → "
            f"{len(slots)} slots" + (" GAP" if not slots else ""))
     return slots, entry, [msg]
+
+
+def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
+                        material_maps=None, clip_list=None, ranker=None,
+                        live_kwargs=None):
+    """MR1 dispatcher for a local (non-stock, non-source_speech) segment.
+
+    Priority: **map-ranked** retrieval whenever a valid material map exists →
+    honest **matched** fallback (when a clip_list/explicit file gives picks) →
+    honest **live** fallback (VLM scoring of on-disk material). A map that finds
+    no evidence-fit scene for THIS segment never yields an empty/GAP segment on
+    its own — it falls through. Every entry records `retrieval_path` so the
+    chosen path is measurable downstream."""
+    if material_maps:
+        slots, entry, msgs = _plan_map_ranked_segment(
+            s, a, seg_text, keep_audio, material_maps, ranker=ranker)
+        if slots:
+            return slots, entry, msgs
+    # fallback 1: match-mv picks / explicit file (do NOT re-try the map here)
+    has_matched = clip_list is not None or s.get("file") or clip_by_seg.get(s.get("segment"))
+    if has_matched:
+        slots, entry, msgs = _plan_matched_segment(
+            s, a, clip_by_seg, seg_text, keep_audio, material_maps=None)
+        entry["retrieval_path"] = "matched_fallback" if material_maps else "matched"
+        return slots, entry, msgs
+    # fallback 2: live VLM scoring of on-disk material (needs a material_root)
+    live_kwargs = live_kwargs or {}
+    if live_kwargs.get("material_root"):
+        slots, entry, msgs = _plan_live_segment(s, a, seg_text=seg_text,
+                                                keep_audio=keep_audio, **live_kwargs)
+        entry["retrieval_path"] = "live_fallback" if material_maps else "live"
+        return slots, entry, msgs
+    # nothing to fall back to (no map fit, no picks, no material_root) — honest GAP
+    entry = {"segment": s.get("segment"), "visual_desc": s.get("visual_desc", ""),
+             "source": "local", "provider": "local",
+             "retrieval_path": "map_ranked" if material_maps else "live",
+             "clips_found": 0, "n_clips": a["n_clips"], "picked_scores": [GAP]}
+    return [], entry, [f"  seg{s.get('segment')} no map fit and no fallback material -> GAP"]
 
 
 # Stock honesty floor: a clip whose BEST window scores below this is off-topic
@@ -1061,6 +1110,12 @@ def run_mv(script, material_root, out_path, music_path=None,
 
     mat_dir = mat_dir or resolve_temp_dir()
     segs = script.get("segments") or []
+    # MR1: single normalization entry — accept a project_material_map dict, a list
+    # of per-asset maps, or one per-asset map; malformed input fails loudly here
+    # rather than silently degrading to a needs-less / no-evidence build.
+    if material_maps is not None:
+        from .project_material_map import expand_project_material_map  # noqa: PLC0415
+        material_maps = expand_project_material_map(material_maps)
     # 1) 音樂先(定總長/節奏)。v0:music_path 由呼叫端先用 music-fetch 抓好傳入。
     if not music_path:
         raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
@@ -1104,10 +1159,6 @@ def run_mv(script, material_root, out_path, music_path=None,
             }
             msgs = [f"  seg{s.get('segment')} source_speech -> "
                     + ("speech run" if slots else "GAP")]
-        elif clip_list is not None and s.get("source") != "stock":
-            slots, entry, msgs = _plan_matched_segment(
-                s, a, clip_by_seg, seg_text, keep_audio, material_maps=material_maps,
-            )
         elif s.get("source") == "stock" and stack_items:
             slots, entry, msgs = _plan_stock_stack_segment(s, a, mat_dir, stack_items)
             # Snapping stack still cut times to actual music beat grid timestamps
@@ -1133,10 +1184,18 @@ def run_mv(script, material_root, out_path, music_path=None,
                 model=model, min_score=min_score, prefilter_static=prefilter_static,
                 visual_judge=visual_judge, visual_verdict=visual_verdicts.get(s.get("segment")))
         else:
-            slots, entry, msgs = _plan_live_segment(
-                s, a, material_root, seg_text, keep_audio, model=model, mat_dir=mat_dir,
-                max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
-                min_score=min_score, prefilter_static=prefilter_static)
+            # MR1: local segments default to map-based retrieval whenever a valid
+            # material map exists (no longer gated on clip_list matched picks),
+            # with honest matched/live fallback when no scene fits this segment.
+            slots, entry, msgs = _plan_local_segment(
+                s, a, clip_by_seg, seg_text, keep_audio,
+                material_maps=material_maps, clip_list=clip_list,
+                live_kwargs={
+                    "material_root": material_root, "model": model, "mat_dir": mat_dir,
+                    "max_clips_per_seg": max_clips_per_seg,
+                    "windows_per_clip": windows_per_clip, "min_score": min_score,
+                    "prefilter_static": prefilter_static,
+                })
         # BR2 beat-to-sequence: if a segment opts into a beat recipe, compile its
         # approved windows into a multi-shot sequence and replace the slots so the
         # timeline sequence actually changes. Runs BEFORE anti-presentation so the

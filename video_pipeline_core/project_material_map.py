@@ -128,6 +128,83 @@ def build_project_material_map(material_maps, *, needs=None):
     }
 
 
+def _validate_scene_shape(asset_id, index, scene):
+    """A scene must be an object; declared start/end must be real numbers (not
+    bool). Zero/negative-length and missing-source scenes are NOT malformed —
+    they are valid evidence that the window planner declines to put on the
+    timeline (MR1 honesty: skip-don't-crash). Truly malformed shapes fail."""
+    ref = f"asset {asset_id!r} scene {index}"
+    if not isinstance(scene, dict):
+        raise ValueError(f"{ref} must be an object, got {scene!r}")
+    for key in ("start", "end"):
+        if key in scene and scene[key] is not None:
+            value = scene[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{ref} {key} must be a number, got {value!r}")
+
+
+def expand_project_material_map(source):
+    """Single normalization entry: turn any accepted material-map input into the
+    list of per-asset maps that scene retrieval (`rank_scenes`/`plan_ranked_windows`)
+    consumes. Accepts, in priority order:
+
+      - a ``project_material_map`` dict (``artifact_role == 'project_material_map'``)
+        — its ``assets`` are expanded verbatim (no second scene schema is built);
+      - a list of per-asset maps — passed through after shape validation;
+      - a single per-asset map dict — wrapped in a one-element list.
+
+    Malformed shapes fail loudly so a typo never becomes "valid material":
+    a dict carrying an unknown ``artifact_role`` is rejected; a project asset
+    without a non-empty ``asset_id``/``source`` is rejected; any scene whose
+    declared ``start``/``end`` is non-numeric is rejected. Sourceless or
+    zero-length *scenes* are left for the window planner to skip (they must not
+    enter the timeline, but they are not load-time errors)."""
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        role = source.get("artifact_role")
+        if role == "project_material_map":
+            maps = []
+            for asset in source.get("assets") or []:
+                if not isinstance(asset, dict):
+                    raise ValueError(f"project asset must be an object, got {asset!r}")
+                asset_id = asset.get("asset_id")
+                if not isinstance(asset_id, str) or not asset_id.strip():
+                    raise ValueError(
+                        f"project asset_id must be a non-empty string, got {asset_id!r}")
+                src = asset.get("source")
+                if not isinstance(src, str) or not src.strip():
+                    raise ValueError(
+                        f"project asset {asset_id!r} source must be a non-empty string, got {src!r}")
+                scenes = asset.get("scenes") or []
+                for index, scene in enumerate(scenes):
+                    _validate_scene_shape(asset_id, index, scene)
+                maps.append({
+                    "asset_id": asset_id,
+                    "asset_type": asset.get("asset_type"),
+                    "source": src,
+                    "duration_sec": asset.get("duration_sec"),
+                    "scenes": scenes,                 # verbatim — no re-derivation
+                    "speech": asset.get("speech") or [],
+                })
+            return maps
+        if role is not None and role != "material_map":
+            raise ValueError(
+                f"unknown material-map artifact_role {role!r} — expected "
+                f"'project_material_map' or a per-asset map")
+        # a single per-asset map
+        source = [source]
+    maps = []
+    for item in source:
+        if not isinstance(item, dict):
+            raise ValueError(f"per-asset material map must be an object, got {item!r}")
+        asset_id = item.get("asset_id")
+        for index, scene in enumerate(item.get("scenes") or []):
+            _validate_scene_shape(asset_id, index, scene)
+        maps.append(item)
+    return maps
+
+
 def load_asset_maps(maps_dir):
     """Load every `*.map.json` under a directory (deterministic by filename)."""
     maps = []

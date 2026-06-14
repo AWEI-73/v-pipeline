@@ -87,10 +87,19 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None)
     from .action_progression import classify_function
     slots = []
     for item in rank_scenes(segment, material_maps, ranker=ranker)[:max(0, int(limit))]:
+        # A scene with no playable source cannot become a real window — never
+        # put it on the timeline (it would render a missing/None input).
+        source = item.get("source")
+        if not isinstance(source, str) or not source.strip():
+            continue
         available = max(0.0, item["end"] - item["start"])
         take = min(float(clip_dur), available)
-        if take <= 0:
+        if take <= 0:                       # zero/negative-length scene: drop
             continue
+        # Center the window inside the scene, then clamp so it can never spill
+        # past the scene's [start, end] evidence boundary.
+        start = item["start"] + max(0.0, available - take) / 2
+        start = min(max(start, item["start"]), item["end"] - take)
         scene = _scene_by_id(material_maps, item["scene_id"]) or {}
         function = scene.get("function") or classify_function(
             item.get("caption"),
@@ -98,8 +107,8 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None)
             duration_sec=available,
         )
         slots.append({
-            "source": item["source"],
-            "extract_start": round(item["start"] + max(0, available - take) / 2, 3),
+            "source": source,
+            "extract_start": round(start, 3),
             "extract_dur": round(take, 3),
             "keep_audio": False,
             "segment": segment.get("segment"),
