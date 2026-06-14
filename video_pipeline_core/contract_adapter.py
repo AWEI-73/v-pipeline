@@ -612,19 +612,26 @@ def _resolve_needs_file(needs_ref, source):
 
 def _quarantine_stale_final(out_path):
     """When the gate blocks and a previous build's final exists at out_path, move
-    it aside (never silently delete) so it can't masquerade as this run's output.
-    Returns the stale path string, or None when there was nothing to move."""
+    it aside so it can't masquerade as this run's output. NEVER deletes or
+    overwrites an already-quarantined stale final: it picks the first unused,
+    deterministic name (`stale_previous_final.mp4`, then `_2`, `_3`, ...).
+    Returns (stale_path | None, error | None). On a move/rename failure the path
+    is None and an error string is returned so the caller can keep the block and
+    must NOT claim the canonical final was cleared."""
     out_path = Path(out_path)
     if not out_path.exists():
-        return None
-    stale = out_path.parent / "stale_previous_final.mp4"
+        return None, None
+    parent = out_path.parent
+    candidate = parent / "stale_previous_final.mp4"
+    index = 2
+    while candidate.exists():                 # never clobber a prior quarantine
+        candidate = parent / f"stale_previous_final_{index}.mp4"
+        index += 1
     try:
-        if stale.exists():
-            stale.unlink()          # discard an already-quarantined prior stale
-        out_path.replace(stale)     # atomic move of the OLD final, not a delete
-        return str(stale)
-    except OSError:
-        return None
+        out_path.replace(candidate)           # atomic move of the OLD final
+        return str(candidate), None
+    except OSError as exc:
+        return None, f"failed to quarantine previous final {out_path}: {exc}"
 
 
 def _load_current_material_maps(material_db_payload, db_dir):
@@ -906,18 +913,25 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         contract_obj, source, out_path.parent, material_db, material_db_payload)
     if delta_gate and delta_gate["status"] == "block":
         # A previous build's final must not keep representing this (now-blocked)
-        # run: move it aside with a traceable lineage, never silently delete.
-        stale_final_path = _quarantine_stale_final(out_path)
+        # run: move it aside with a traceable, collision-free lineage. If the
+        # move fails we keep the block and do NOT claim the canonical final was
+        # cleared.
+        stale_final_path, quarantine_error = _quarantine_stale_final(out_path)
+        canonical_final_cleared = quarantine_error is None and stale_final_path is not None
         state_path = out_path.parent / "state.json"
         _write_json(state_path, {
             "pass": False, "final": None, "next_action": delta_gate["next_action"],
             "blocking": delta_gate["blocking_need_ids"],
             "material_delta_gate": delta_gate["reason"],
-            "stale_final_path": stale_final_path})
+            "stale_final_path": stale_final_path,
+            "quarantine_error": quarantine_error,
+            "canonical_final_cleared": canonical_final_cleared})
         if verbose:
             print(f"[material-delta] BLOCK — {delta_gate['reason']}")
             if stale_final_path:
                 print(f"[material-delta] previous final moved to {stale_final_path}")
+            elif quarantine_error:
+                print(f"[material-delta] quarantine FAILED: {quarantine_error}")
         return {"ok": False, "stage": "material_delta",
                 "errors": [delta_gate["reason"]],
                 "blocking_need_ids": delta_gate["blocking_need_ids"],
@@ -926,6 +940,8 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                 "delta_ok": delta_gate["ok"],
                 "material_delta": delta_gate["material_delta"],
                 "stale_final_path": stale_final_path,
+                "quarantine_error": quarantine_error,
+                "canonical_final_cleared": canonical_final_cleared,
                 "contract_hash": contract_hash}
     if verbose and delta_gate:
         print(f"[material-delta] {delta_gate['status']} — {delta_gate['reason']}")

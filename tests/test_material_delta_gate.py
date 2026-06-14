@@ -303,5 +303,63 @@ class FinalHardeningTest(unittest.TestCase):
             self.assertEqual(gate["route"], "fix_material_map_or_needs")
 
 
+class QuarantineIdentityTest(unittest.TestCase):
+    def test_does_not_overwrite_existing_stale(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "final.mp4").write_bytes(b"CURRENT-OLD")
+            (d / "stale_previous_final.mp4").write_bytes(b"EARLIER-OLD")   # pre-existing
+            path, err = ca._quarantine_stale_final(d / "final.mp4")
+            self.assertIsNone(err)
+            self.assertEqual(path, str(d / "stale_previous_final_2.mp4"))
+            self.assertEqual((d / "stale_previous_final.mp4").read_bytes(), b"EARLIER-OLD")  # untouched
+            self.assertEqual(Path(path).read_bytes(), b"CURRENT-OLD")       # both preserved
+            self.assertFalse((d / "final.mp4").exists())
+
+    def test_three_consecutive_quarantines_keep_all(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            produced = []
+            for content in (b"R1", b"R2", b"R3"):
+                (d / "final.mp4").write_bytes(content)
+                path, err = ca._quarantine_stale_final(d / "final.mp4")
+                self.assertIsNone(err)
+                produced.append((path, content))
+            names = {Path(p).name for p, _ in produced}
+            self.assertEqual(names, {"stale_previous_final.mp4",
+                                     "stale_previous_final_2.mp4",
+                                     "stale_previous_final_3.mp4"})
+            for path, content in produced:          # nothing overwritten
+                self.assertEqual(Path(path).read_bytes(), content)
+
+    def test_move_failure_reports_error_and_preserves_final(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "final.mp4").write_bytes(b"CURRENT-OLD")
+            with patch.object(ca.Path, "replace", side_effect=OSError("disk on fire")):
+                path, err = ca._quarantine_stale_final(d / "final.mp4")
+            self.assertIsNone(path)
+            self.assertIn("disk on fire", err)
+            self.assertTrue((d / "final.mp4").exists())   # not moved, not lost
+
+    def test_block_with_quarantine_failure_does_not_claim_cleared(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            outdir.mkdir(parents=True, exist_ok=True)
+            (outdir / "final.mp4").write_bytes(b"OLD")
+            needs = _needs(("the mandatory hero", 1, True, None))
+            contract_path, db, music = GateIntegrationTest()._setup(d, needs_payload=needs)
+            with patch("video_pipeline_core.contract_adapter._quarantine_stale_final",
+                       return_value=(None, "boom")):
+                result, mv_called = GateIntegrationTest()._run(contract_path, db, music, outdir)
+            self.assertEqual(result["stage"], "material_delta")    # still blocked
+            self.assertFalse(mv_called)
+            self.assertEqual(result["quarantine_error"], "boom")
+            self.assertFalse(result["canonical_final_cleared"])    # never claim cleared
+            state = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["quarantine_error"], "boom")
+            self.assertFalse(state["canonical_final_cleared"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -698,6 +698,20 @@ fail-closed; cwd-independent relative-map resolution; unresolvable relative map
 blocks; absent key still skips. Focused: 18 tests OK; full regression:
 **947 tests OK**.
 
+M6b gate quarantine identity hardening (2026-06-15) — **M6b COMPLETE**: the
+stale-final quarantine never deletes or overwrites an already-quarantined file;
+it picks the first unused deterministic name (`stale_previous_final.mp4`, then
+`_2`, `_3`, ...). `state.json`/result record the actual `stale_final_path`. On a
+move/rename failure it returns a `quarantine_error`, keeps the block, and reports
+`canonical_final_cleared: false` — never claiming the canonical final was cleared.
+Reverse tests: pre-existing stale not clobbered (→ `_2`); three consecutive
+quarantines keep all three; simulated `replace` failure is diagnosable and
+preserves the final, and the blocked run never claims it cleared. Focused: 22
+tests OK; full regression: **951 tests OK**.
+
+**M6b is complete.** Next step: **M6c delta-driven script revision** (separate
+batch). F2 / `wrong_semantics` / `insufficient_action_phases` remain deferred.
+
 **Next step: M6c delta-driven script revision** (convert accepted delta decisions
 into a revised `segment_contract.json`; preserve director decisions; record
 revision lineage). The M6b gate stays the objective tier-1 block; M6c is a
