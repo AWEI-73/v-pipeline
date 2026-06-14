@@ -341,6 +341,14 @@ def cmd_validate_needs(args):
         raise ToolError(f"material_needs validation failed: {len(result['errors'])} error(s)")
 
 
+def cmd_project_material_map(args):
+    """MM1: aggregate per-asset *.map.json into project_material_map.json."""
+    from video_pipeline_core import project_material_map
+    result = project_material_map.write_project_material_map(
+        args.maps_dir, args.out, needs_path=args.needs)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_semantic_novelty_audit(args):
     """M5a Node 11: perceptual de-duplication of timeline compositions."""
     from video_pipeline_core import semantic_novelty_audit
@@ -1635,6 +1643,13 @@ def main():
                       help="allocate stable need_ids for needs that lack one (one-time)")
     p_vn.add_argument("--out", help="write canonical needs here if valid")
 
+    p_pmm = sub.add_parser("project-material-map")
+    p_pmm.add_argument("--maps-dir", required=True, dest="maps_dir",
+                       help="directory of per-asset *.map.json files")
+    p_pmm.add_argument("--needs", default=None,
+                       help="optional canonical material_needs.json")
+    p_pmm.add_argument("--out", required=True, help="project_material_map.json output")
+
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
     p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
@@ -1803,6 +1818,7 @@ def main():
         "new-visual-audit": cmd_new_visual_information_audit,
         "black-frame-audit": cmd_black_frame_audit,
         "validate-needs": cmd_validate_needs,
+        "project-material-map": cmd_project_material_map,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
         "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,

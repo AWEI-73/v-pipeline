@@ -20,10 +20,17 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 render are stable enough to pause. The 67th result is accepted as a
 material-limited baseline, not as proof of human-edit-quality parity.
 
-**Only active next direction:** M6a canonical material-lifecycle contracts.
-VD0 shallow-label storage and review lineage are complete. Do not start the
-complete Visual Diversity Guard or `material_delta` before M6a contracts are
-proven.
+**M6a contract layer COMPLETE** (2026-06-14, evidence: 791 tests OK at round 3).
+VD0 shallow-label storage also complete.
+
+**This round:** MM1 Project Material Map V1 implemented (`project_material_map.py`
++ `project-material-map` CLI + tests) and BA1 BUILD Alignment Audit written
+(`docs/build-capability-alignment.md`, documentation only — no BUILD feature).
+Both pending Codex review.
+
+**Only after MM1 + BA1 review pass:** BR1 Opening / Hook Sequence Builder.
+Do not start M6a lineage integration, `material_delta`, the complete Visual
+Diversity Guard, or BR1 before that review.
 
 **Do not start yet:** M5c designed sequences, M5d human-vs-agent automation,
 M5e rerender, effects expansion, CLIP hard dependency, or further 67th-specific
@@ -456,9 +463,9 @@ Do not invent duplicate schemas. Canonicalize the existing artifacts:
 | Requirement-vs-actual delta | `material_delta.json` | Missing |
 | Revised executable story | revised `segment_contract.json` | Exists, but not yet driven by a canonical delta |
 
-#### M6a Canonical contracts — contract implemented; hardening pending Codex re-review (2026-06-14)
+#### M6a Canonical contracts ✅ contract layer complete (2026-06-14)
 
-> 狀態用語依約定:hardening 全數通過 Codex re-review 後才標 "contract layer complete"。
+> Codex re-review passed after hardening rounds 1-3.
 > round 2(`c810ab3`):`fallback_tier` 嚴格型別(拒 boolean `True`/字串/float
 > ——`True in (1,2,3,4)` 在 Python 為 True 的陷阱)+ CLI 驗證失敗回非零 exit code。
 > round 3(本輪):`apply_satisfaction_verdict` 強制 `valid_need_ids`(未提供即
@@ -488,9 +495,9 @@ M6a-hardening 已修正契約 review 抓到的 4 個問題(F1-F4):
 - 向後相容:無 needs / 無 satisfies 的純既有素材流程不受影響;legacy 巢狀與 flat
   皆可輸入;未碰 supply_review / rank-local。**全套件 791 tests OK(round 3)**。
 
-**下一個正式項目:M6a lineage integration** —— 讓同一個 `need_id` 實際穿過
-shooting brief → scene review → revised contract segment(本輪只立契約 + 邊 +
-validator + hardening)。**先不要開始 M6b material_delta。** 原始設計目標保留於下:
+M6a lineage integration remains useful but is deferred until the project-level
+material map and BUILD capability alignment are proven. Do not start M6b
+`material_delta` yet. Original design goals remain below:
 
 - Model one lifecycle with existing-material and planned-capture entry points;
   partial material availability is first-class, not a third branch.
@@ -551,6 +558,174 @@ different problems and must remain separate.
 
 Review handoff:
 `docs/decisions/2026-06-14-roadmap-course-correction.md`.
+
+### MM1 Project Material Map V1 — implemented (2026-06-14), pending Codex review
+
+`project_material_map.py` + `project-material-map` CLI + `tests/test_project_material_map.py`
+(9 tests). All 6 acceptance criteria covered: deterministic aggregate (sorted by
+asset_id), unknown `satisfies.need_id` fails when needs present, projects without
+needs stay valid, truthful metrics (asset/scene count, reviewed_scene_ratio via
+caption presence, visual_label_coverage via VD0 labels), CLI writes
+`project_material_map.json`. Non-goals held (no delta/decision, no BUILD/UI).
+Full regression below.
+
+**Goal:** aggregate the existing per-asset `*.map.json` evidence into one
+project-level material map that can be consumed by agents, BUILD, and a future
+UI without creating another source of truth.
+
+Canonical output: `project_material_map.json`.
+
+Minimum contract:
+
+```json
+{
+  "artifact_role": "project_material_map",
+  "version": 1,
+  "assets": [],
+  "needs": [],
+  "satisfaction_summary": {},
+  "metrics": {
+    "asset_count": 0,
+    "scene_count": 0,
+    "reviewed_scene_ratio": 0,
+    "visual_label_coverage": 0
+  }
+}
+```
+
+Required behavior:
+
+- Aggregate asset and scene identity, caption, speech, motion evidence, VD0
+  shallow labels, and validated scene-level `satisfies` edges.
+- When canonical material needs exist, include the validated needs and a
+  read-only satisfaction summary.
+- When no material needs exist, remain useful as an existing-material-first
+  library.
+- Preserve source evidence and lineage; do not silently invent labels or edges.
+- Produce deterministic output for identical inputs.
+
+Explicit non-goals:
+
+- No `covered` / `thin` / `missing` decision and no `material_delta`.
+- No script revision, BUILD ranking, Dashboard/UI, Node 14, or effects work.
+- Do not replace per-asset maps; the project map is their validated aggregate.
+
+Acceptance:
+
+1. Multiple per-asset maps aggregate into one deterministic project map.
+2. Unknown or invalid `satisfies.need_id` references fail.
+3. Projects without material needs remain valid.
+4. Metrics truthfully report asset/scene count and review/label coverage.
+5. A CLI produces `project_material_map.json`.
+6. Focused tests and the full regression pass.
+
+### BA1 BUILD Alignment Audit — written (2026-06-14), pending Codex review
+
+`docs/build-capability-alignment.md`: capability table grounded in call-site
+grep. Key finding — render-time grammar (transitions/treatments/attention
+budget/SFX/music/micro-rhythm) is genuinely `active` in BUILD; the
+material-evidence layer (M6a needs, satisfies edge, MM1 map, VD0 labels) is
+`declared_only` for BUILD (nothing selects/orders from it yet); M2 window
+retrieval is `partial`. Smallest high-value gap = BR1 opening/hook (uses
+existing active grammar, no new evidence layer). Documentation only, no feature.
+
+**Goal:** identify which existing dictionaries, Skills, and tools actually
+change BUILD output before adding more BUILD features.
+
+Required output: `docs/build-capability-alignment.md`.
+
+Required table:
+
+| Capability | Declared source | Existing tool | BUILD consumer | Timeline evidence | Render evidence | Status |
+|---|---|---|---|---|---|---|
+
+Allowed status values:
+
+```text
+active | partial | declared_only | missing | deprecated
+```
+
+Acceptance:
+
+- Every capability claimed as `active` names a real BUILD consumer and
+  timeline/render evidence.
+- Declared-only policies and unused tools are listed rather than treated as
+  implemented.
+- The audit identifies the smallest high-value BUILD gaps.
+- This is a bounded documentation audit: no new feature, no new quality audit,
+  and no renderer rewrite.
+
+### Tool And Responsibility Boundary
+
+Use this boundary for MM1, BA1, and later BUILD work:
+
+```text
+Agent / Skill
+  chooses creative intent, project vocabulary, and a supported recipe
+
+Deterministic tool
+  validates inputs and compiles the chosen recipe into artifacts/timeline
+
+BUILD
+  consumes approved material evidence and recipes to produce the edit
+
+VERIFY
+  checks the result; it does not create excitement or choose a replacement
+
+Future UI
+  submits review/change-request artifacts; it does not directly mutate
+  canonical material maps, contracts, timeline, or route state
+```
+
+### BUILD Thickening Backlog
+
+After MM1 and BA1 review, implement one bounded capability at a time in this
+priority order:
+
+#### BR1 Opening / Hook Sequence Builder — P0
+
+Compile an approved opening recipe into a designed opening sequence:
+
+```text
+hook visual -> quick context montage -> sound punctuation
+-> title reveal -> story entry
+```
+
+Acceptance must prove the recipe changes the timeline and true render. It must
+gracefully fall back when the required material is unavailable.
+
+#### BR2 Beat-to-Sequence Recipes — P0
+
+Compile a story beat into an optional multi-shot recipe such as:
+
+```text
+context -> primary action -> detail/reaction -> payoff
+```
+
+This is a selectable BUILD recipe, not a universal M5b action-spine gate.
+
+#### VD1 / VD2 Visual Diversity Evidence And Soft Ranking — P1
+
+First prove real-project label coverage, then use labels only as a soft
+tiebreaker after correctness, relevance, and approved material.
+
+#### BR3 Music / Sound Punctuation — P1
+
+Align supported hits, risers, and whooshes with declared story turns and title
+reveals instead of distributing effects uniformly.
+
+#### BR4 Ending / Payoff Sequence — P2
+
+Compile an ending recipe that provides narrative or emotional closure instead
+of ending when available material runs out.
+
+### Deferred Until After BUILD Alignment
+
+- M6a lineage integration: `need_id` through shooting brief and revised
+  contract references.
+- M6b `material_delta` and delta-driven script revision.
+- Dashboard/UI, Node 14, effects expansion, and front/back-end separation.
+- New aesthetic hard gates or further 67th-specific tuning.
 
 ### 執行紀律(防彎路,給 Codex)
 
