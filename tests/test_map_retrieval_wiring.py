@@ -85,6 +85,52 @@ class MapDefaultPathTest(unittest.TestCase):
         self.assertTrue(slots)
         self.assertEqual(entry["retrieval_path"], "live_fallback")
 
+    def test_B_empty_clip_list_assignments_routes_to_live_not_empty_matched(self):
+        """clip_list present but this segment has NO picks → live fallback, never
+        an empty matched_fallback."""
+        maps = [_map(scenes=NO_FIT)]
+        sentinel = ([{"source": "/live/x.mp4", "segment": 4}],
+                    {"segment": 4, "picked_scores": [70]}, ["live"])
+        original = mv_cut._plan_live_segment
+        mv_cut._plan_live_segment = lambda *a, **k: sentinel
+        try:
+            slots, entry, _ = mv_cut._plan_local_segment(
+                _seg("students pull electrical cable"), _alloc(), {}, {}, False,
+                material_maps=maps, clip_list={"assignments": []},
+                live_kwargs={"material_root": "/some/root", "model": None,
+                             "mat_dir": "/tmp", "max_clips_per_seg": 2,
+                             "windows_per_clip": 2, "min_score": 60,
+                             "prefilter_static": False})
+        finally:
+            mv_cut._plan_live_segment = original
+        self.assertTrue(slots)
+        self.assertEqual(entry["retrieval_path"], "live_fallback")
+
+    def test_B_empty_matched_slots_continue_to_live(self):
+        """matched picks exist but yield no usable window → continue to live
+        fallback (do NOT return an empty matched segment)."""
+        maps = [_map(scenes=NO_FIT)]
+        clip_by_seg = {4: {"picks": [{"path": "/m/cable/a.mov"}]}}
+        sentinel = ([{"source": "/live/x.mp4", "segment": 4}],
+                    {"segment": 4, "picked_scores": [70]}, ["live"])
+        orig_win = mv_cut._windows_from_clip
+        orig_live = mv_cut._plan_live_segment
+        mv_cut._windows_from_clip = lambda *a, **k: []          # matched yields nothing
+        mv_cut._plan_live_segment = lambda *a, **k: sentinel
+        try:
+            slots, entry, _ = mv_cut._plan_local_segment(
+                _seg("students pull electrical cable"), _alloc(), clip_by_seg, {}, False,
+                material_maps=maps, clip_list={"assignments": [{"segment": 4}]},
+                live_kwargs={"material_root": "/some/root", "model": None,
+                             "mat_dir": "/tmp", "max_clips_per_seg": 2,
+                             "windows_per_clip": 2, "min_score": 60,
+                             "prefilter_static": False})
+        finally:
+            mv_cut._windows_from_clip = orig_win
+            mv_cut._plan_live_segment = orig_live
+        self.assertTrue(slots)
+        self.assertEqual(entry["retrieval_path"], "live_fallback")
+
     def test_C_no_map_keeps_legacy_matched_behavior(self):
         """C: no map → unchanged matched routing/labelling."""
         clip_by_seg = {4: {"picks": [{"path": "/m/x.mov"}]}}
@@ -152,6 +198,18 @@ class ExpandProjectMapTest(unittest.TestCase):
         slots = plan_ranked_windows(_seg("students pull electrical cable"), maps,
                                     limit=2, clip_dur=2.0)
         self.assertEqual(slots, [])
+
+    def test_unrenderable_top_rank_does_not_starve_valid_lower_rank(self):
+        """Fix: an illegal (zero-length) top-ranked scene must not consume the
+        single limit slot — the valid lower-ranked window is selected."""
+        maps = [_map(scenes=[
+            {"start": 0, "end": 0, "caption": "students pull electrical cable"},   # rank #1, illegal
+            {"start": 0, "end": 3, "caption": "students pull electrical cable"},   # rank #2, valid
+        ])]
+        slots = plan_ranked_windows(_seg("students pull electrical cable"), maps,
+                                    limit=1, clip_dur=2.0)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "a:1")
 
     def test_E_zero_and_negative_length_scene_dropped(self):
         maps = [_map(scenes=[{"start": 3, "end": 3, "caption": "students pull electrical cable"},

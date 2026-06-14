@@ -724,15 +724,19 @@ def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
             s, a, seg_text, keep_audio, material_maps, ranker=ranker)
         if slots:
             return slots, entry, msgs
-    # fallback 1: match-mv picks / explicit file (do NOT re-try the map here)
-    has_matched = clip_list is not None or s.get("file") or clip_by_seg.get(s.get("segment"))
-    if has_matched:
+    live_kwargs = live_kwargs or {}
+    # fallback 1: match-mv picks / explicit file. clip_list being present does
+    # NOT mean THIS segment has picks — only an explicit file or a non-empty
+    # picks list for this segment counts. And if matched produces no usable
+    # slots, keep going (do NOT return an empty matched_fallback).
+    picks = (clip_by_seg.get(s.get("segment")) or {}).get("picks")
+    if s.get("file") or picks:
         slots, entry, msgs = _plan_matched_segment(
             s, a, clip_by_seg, seg_text, keep_audio, material_maps=None)
-        entry["retrieval_path"] = "matched_fallback" if material_maps else "matched"
-        return slots, entry, msgs
+        if slots:
+            entry["retrieval_path"] = "matched_fallback" if material_maps else "matched"
+            return slots, entry, msgs
     # fallback 2: live VLM scoring of on-disk material (needs a material_root)
-    live_kwargs = live_kwargs or {}
     if live_kwargs.get("material_root"):
         slots, entry, msgs = _plan_live_segment(s, a, seg_text=seg_text,
                                                 keep_audio=keep_audio, **live_kwargs)

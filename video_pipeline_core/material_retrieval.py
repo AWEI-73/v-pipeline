@@ -85,8 +85,14 @@ def _scene_by_id(material_maps, scene_id):
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None):
     """Convert top-ranked scenes to concrete editor slots."""
     from .action_progression import classify_function
+    limit = max(0, int(limit))
     slots = []
-    for item in rank_scenes(segment, material_maps, ranker=ranker)[:max(0, int(limit))]:
+    # Filter to renderable candidates BEFORE applying limit: an unrenderable
+    # scene (no source / zero-or-negative length) must not consume a limit slot
+    # and starve a valid lower-ranked window. Ranking order is preserved.
+    for item in rank_scenes(segment, material_maps, ranker=ranker):
+        if len(slots) >= limit:
+            break
         # A scene with no playable source cannot become a real window — never
         # put it on the timeline (it would render a missing/None input).
         source = item.get("source")

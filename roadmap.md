@@ -842,6 +842,18 @@ E malformed/sourceless/zero-length; F window-in-bounds; G **real ffmpeg
 map-ranked render**; H stock/source_speech no-regression): 17 tests. Full
 regression: **886 tests OK**.
 
+MR1 hardening (2026-06-14): two correctness fixes after self/Codex review.
+(1) `_plan_local_segment` fallback now keys on *actual usable slots*, not on
+`clip_list is not None`: a segment with no picks (or whose matched picks yield
+no window) continues to the live fallback instead of returning an empty
+`matched_fallback`; honest GAP only when no `material_root` exists. (2)
+`plan_ranked_windows` filters unrenderable candidates (no source / zero-or-
+negative length) **before** applying `limit`, so an illegal top-ranked scene no
+longer starves a valid lower-ranked window (ranking order preserved; rank_scenes
+scoring untouched). Reverse tests added: empty-assignments→live, empty-matched→
+live, illegal-rank-1+valid-rank-2 picks #2. Focused: 20 tests OK; full
+regression: **889 tests OK**.
+
 ### Deferred Until After BUILD Alignment
 
 - M6a lineage integration: `need_id` through shooting brief and revised
