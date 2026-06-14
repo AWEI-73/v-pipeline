@@ -221,5 +221,87 @@ class GateIntegrationTest(unittest.TestCase):
             self.assertFalse(fresh["ready_for_build"])              # overwritten with truth
 
 
+class FinalHardeningTest(unittest.TestCase):
+    def test_A_block_quarantines_preexisting_final(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            outdir.mkdir(parents=True, exist_ok=True)
+            (outdir / "final.mp4").write_bytes(b"OLD-GOOD-RENDER")   # previous build
+            needs = _needs(("the mandatory hero", 1, True, None))     # current input blocks
+            contract_path, db, music = GateIntegrationTest()._setup(d, needs_payload=needs)
+            result, mv_called = GateIntegrationTest()._run(contract_path, db, music, outdir)
+            self.assertEqual(result["stage"], "material_delta")
+            self.assertFalse(mv_called)
+            # the old final no longer sits at the canonical path
+            self.assertFalse((outdir / "final.mp4").exists())
+            stale = outdir / "stale_previous_final.mp4"
+            self.assertTrue(stale.exists())
+            self.assertEqual(stale.read_bytes(), b"OLD-GOOD-RENDER")   # preserved, not deleted
+            self.assertEqual(result["stale_final_path"], str(stale))
+            state = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertIsNone(state["final"])                         # not claimed as output
+            self.assertEqual(state["stale_final_path"], str(stale))
+
+    def test_B_malformed_material_needs_ref_fails_closed_without_crash(self):
+        with tempfile.TemporaryDirectory() as d:
+            for bad in ("", "   ", 123, [], {}):
+                gate = ca._run_material_delta_gate(
+                    {"material_needs_ref": bad}, source=None, out_dir=d,
+                    material_db=str(Path(d) / "material_db.json"),
+                    material_db_payload={"files": []})
+                self.assertIsNotNone(gate, bad)               # declared -> not skipped
+                self.assertEqual(gate["status"], "block", bad)
+                self.assertFalse(gate["ok"], bad)
+
+    def test_E_absent_key_still_skips(self):
+        gate = ca._run_material_delta_gate(
+            {}, source=None, out_dir=tempfile.gettempdir(),
+            material_db="material_db.json", material_db_payload={"files": []})
+        self.assertIsNone(gate)                               # existing-material-first
+
+    def test_C_relative_map_path_resolves_against_db_dir_not_cwd(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "clip.map.json").write_text(json.dumps(
+                {"asset_id": "clip-a", "source": "a.mp4",
+                 "scenes": [{"start": 0, "end": 3, "caption": "c"}]}), encoding="utf-8")
+            db = d / "material_db.json"
+            db.write_text(json.dumps({"files": [{"path": "a.mp4", "material_map": "clip.map.json"}]}),
+                          encoding="utf-8")
+            needs = _needs(("optional broll", 1, False, None))   # would be ready if maps resolve
+            (d / "material_needs.json").write_text(json.dumps(needs, ensure_ascii=False),
+                                                   encoding="utf-8")
+            contract = {"material_needs_ref": "material_needs.json"}
+            cwd = os.getcwd()
+            other = tempfile.mkdtemp()
+            try:
+                os.chdir(other)         # cwd that knows nothing about clip.map.json
+                gate = ca._run_material_delta_gate(
+                    contract, source=str(d / "contract.json"), out_dir=str(d),
+                    material_db=str(db),
+                    material_db_payload=json.loads(db.read_text(encoding="utf-8")))
+            finally:
+                os.chdir(cwd)
+            self.assertEqual(gate["status"], "pass")           # map resolved via db dir
+            self.assertNotIn("not found", gate["reason"])
+
+    def test_D_unresolvable_relative_map_path_blocks(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            db = d / "material_db.json"
+            db.write_text(json.dumps({"files": [{"path": "a.mp4", "material_map": "nope.map.json"}]}),
+                          encoding="utf-8")
+            needs = _needs(("optional broll", 1, False, None))
+            (d / "material_needs.json").write_text(json.dumps(needs, ensure_ascii=False),
+                                                   encoding="utf-8")
+            gate = ca._run_material_delta_gate(
+                {"material_needs_ref": "material_needs.json"},
+                source=str(d / "contract.json"), out_dir=str(d), material_db=str(db),
+                material_db_payload=json.loads(db.read_text(encoding="utf-8")))
+            self.assertEqual(gate["status"], "block")
+            self.assertEqual(gate["route"], "fix_material_map_or_needs")
+
+
 if __name__ == "__main__":
     unittest.main()

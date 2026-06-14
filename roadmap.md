@@ -658,8 +658,11 @@ True` — `blocks_ready_for_build` alone is insufficient.
 
 - **Lifecycle position**: `contract_adapter.run_contract`, AFTER the `spec_review`
   `ready_for_build` gate and BEFORE music/timeline/`mv_chain` render. A blocked
-  build returns `{ok:False, stage:"material_delta", ...}` and never produces or
-  overwrites a final video. `delivery_gate.HARD_AUDITS` is untouched (backstop only).
+  build returns `{ok:False, stage:"material_delta", ...}` and never renders a new
+  final. If a previous build's `final.mp4` already exists, it is **moved aside**
+  to `stale_previous_final.mp4` (never silently deleted) so it cannot masquerade
+  as this run's output; `state.json`/result record `final: null` and
+  `stale_final_path`. `delivery_gate.HARD_AUDITS` is untouched (backstop only).
 - **Existing-material-first skip**: the gate runs only when the contract declares
   `material_needs_ref`. No declaration → skipped → existing flow unchanged
   (backward compatible). Declared-but-missing / unparseable needs, or a
@@ -681,6 +684,19 @@ needs file missing → fail-closed; G corrupt map / invalid asset identity block
 H stale artifact ignored, recomputed and overwritten; I tier-1 block stops before
 render — `mv_chain` not called, no final video; J gate-pass lets render run):
 13 tests. Full regression: **942 tests OK**.
+
+M6b gate final hardening (2026-06-15): (1) on block, a pre-existing `final.mp4`
+is quarantined to `stale_previous_final.mp4` (atomic move, preserved not
+deleted); `state.json`/result carry `final: null` + `stale_final_path`, so a
+stale render can never be reported as this run's success. (2) `material_needs_ref`
+is strictly validated — only an ABSENT key skips (existing-material-first); a
+present-but-malformed value (`""`/`"   "`/non-string/`[]`/`{}`) is a fail-closed
+verdict, never a crash. (3) Relative `material_map` paths resolve against the
+`material_db.json` directory (not the process cwd); declared-but-unresolvable
+maps block. Reverse tests: stale-final quarantine + lineage; malformed ref
+fail-closed; cwd-independent relative-map resolution; unresolvable relative map
+blocks; absent key still skips. Focused: 18 tests OK; full regression:
+**947 tests OK**.
 
 **Next step: M6c delta-driven script revision** (convert accepted delta decisions
 into a revised `segment_contract.json`; preserve director decisions; record

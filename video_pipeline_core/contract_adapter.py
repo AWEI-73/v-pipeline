@@ -610,16 +610,37 @@ def _resolve_needs_file(needs_ref, source):
     return None
 
 
-def _load_current_material_maps(material_db_payload):
-    """Strict load of the CURRENT per-asset maps. A declared-but-missing or
-    corrupt map file is an error (it must block, not be silently treated as zero
-    material). Returns (maps, error_or_None)."""
+def _quarantine_stale_final(out_path):
+    """When the gate blocks and a previous build's final exists at out_path, move
+    it aside (never silently delete) so it can't masquerade as this run's output.
+    Returns the stale path string, or None when there was nothing to move."""
+    out_path = Path(out_path)
+    if not out_path.exists():
+        return None
+    stale = out_path.parent / "stale_previous_final.mp4"
+    try:
+        if stale.exists():
+            stale.unlink()          # discard an already-quarantined prior stale
+        out_path.replace(stale)     # atomic move of the OLD final, not a delete
+        return str(stale)
+    except OSError:
+        return None
+
+
+def _load_current_material_maps(material_db_payload, db_dir):
+    """Strict load of the CURRENT per-asset maps. Relative `material_map` paths
+    resolve against the material_db.json directory (NOT the process cwd);
+    absolute paths are used as-is. A declared-but-missing or corrupt map file is
+    an error (it must block, not be silently treated as zero material). Returns
+    (maps, error_or_None)."""
     maps = []
     for entry in (material_db_payload or {}).get("files") or []:
         map_path = entry.get("material_map")
         if not map_path:
             continue
         path = Path(map_path)
+        if not path.is_absolute():
+            path = Path(db_dir) / path
         if not path.exists():
             return None, f"declared material_map not found: {map_path}"
         try:
@@ -630,17 +651,26 @@ def _load_current_material_maps(material_db_payload):
     return maps, None
 
 
-def _run_material_delta_gate(contract_obj, source, out_dir, material_db_payload):
-    """M6b pre-BUILD gate. Runs ONLY when the project explicitly declares
-    `material_needs_ref` (existing-material-first projects skip → backward
-    compatible). The verdict is computed FRESH from the current needs + current
+def _run_material_delta_gate(contract_obj, source, out_dir, material_db, material_db_payload):
+    """M6b pre-BUILD gate. Runs ONLY when the project explicitly declares the
+    `material_needs_ref` key (existing-material-first projects omit it → skip,
+    backward compatible). A declared-but-malformed ref is fail-closed, never a
+    crash. The verdict is computed FRESH from the current needs + current
     per-asset maps via material_delta.material_delta_gate (never a stale
     material_delta.json). Returns the gate verdict, or None to skip."""
-    needs_ref = contract_obj.get("material_needs_ref")
-    if not needs_ref:
-        return None
     from . import material_delta as _md  # noqa: PLC0415
     delta_path = Path(out_dir) / "material_delta.json"
+
+    # Only an ABSENT key means existing-material-first; a present-but-malformed
+    # value must fail closed (empty/whitespace/non-string is not a real ref).
+    if "material_needs_ref" not in contract_obj:
+        return None
+    needs_ref = contract_obj.get("material_needs_ref")
+    if not isinstance(needs_ref, str) or not needs_ref.strip():
+        return _md.material_delta_gate(
+            None, None, material_delta_path=str(delta_path),
+            resolution_error=f"material_needs_ref must be a non-empty string, got {needs_ref!r}")
+    needs_ref = needs_ref.strip()
 
     needs_file = _resolve_needs_file(needs_ref, source)
     if needs_file is None:
@@ -655,7 +685,8 @@ def _run_material_delta_gate(contract_obj, source, out_dir, material_db_payload)
             None, None, material_delta_path=str(delta_path),
             resolution_error=f"material_needs could not be parsed ({needs_file}): {exc}")
 
-    maps, map_error = _load_current_material_maps(material_db_payload)
+    db_dir = Path(material_db).parent if material_db else Path(".")
+    maps, map_error = _load_current_material_maps(material_db_payload, db_dir)
     if map_error:
         return _md.material_delta_gate(
             None, None, material_delta_path=str(delta_path), resolution_error=map_error)
@@ -872,15 +903,21 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     # runs BEFORE any music/timeline/render so a blocked build never produces or
     # overwrites a final video. delivery_gate stays a backstop, not this gate.
     delta_gate = _run_material_delta_gate(
-        contract_obj, source, out_path.parent, material_db_payload)
+        contract_obj, source, out_path.parent, material_db, material_db_payload)
     if delta_gate and delta_gate["status"] == "block":
+        # A previous build's final must not keep representing this (now-blocked)
+        # run: move it aside with a traceable lineage, never silently delete.
+        stale_final_path = _quarantine_stale_final(out_path)
         state_path = out_path.parent / "state.json"
         _write_json(state_path, {
-            "pass": False, "next_action": delta_gate["next_action"],
+            "pass": False, "final": None, "next_action": delta_gate["next_action"],
             "blocking": delta_gate["blocking_need_ids"],
-            "material_delta_gate": delta_gate["reason"]})
+            "material_delta_gate": delta_gate["reason"],
+            "stale_final_path": stale_final_path})
         if verbose:
             print(f"[material-delta] BLOCK — {delta_gate['reason']}")
+            if stale_final_path:
+                print(f"[material-delta] previous final moved to {stale_final_path}")
         return {"ok": False, "stage": "material_delta",
                 "errors": [delta_gate["reason"]],
                 "blocking_need_ids": delta_gate["blocking_need_ids"],
@@ -888,6 +925,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                 "ready_for_build": delta_gate["ready_for_build"],
                 "delta_ok": delta_gate["ok"],
                 "material_delta": delta_gate["material_delta"],
+                "stale_final_path": stale_final_path,
                 "contract_hash": contract_hash}
     if verbose and delta_gate:
         print(f"[material-delta] {delta_gate['status']} — {delta_gate['reason']}")
