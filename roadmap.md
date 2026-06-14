@@ -585,6 +585,42 @@ Original design goals (all met by the above):
   `drop_segment`, or `dashboard_review`.
 - Acceptance: no requested beat silently becomes an unrelated clip.
 
+##### M6b increment 1 ✅ coverage-based outcomes (2026-06-15)
+
+Bounded first increment, built ONLY on the validated M6a join
+(`material_needs → satisfies edges → link_lineage`). `material_delta.py`
+`compute_material_delta(needs, material_maps)` emits a deterministic per-need
+outcome — `covered | thin | missing | excess` — each with `tier`, `route`,
+`reason`, and `evidence` (the counts it decided from), plus a machine-readable
+`blocks_ready_for_build` and a top-level `ready_for_build`.
+
+- Deterministic thresholds: `usable = accepted + candidate`. `usable==0` →
+  `missing`; `accepted > count` → `excess`; `accepted >= count` → `covered`;
+  else → `thin` (candidate-only material is thin, never missing).
+- **Only tier-1 case this increment**: a `must_have` need with no usable
+  material AND no permitted `fallback_options` → `tier=1`, route `reshoot`,
+  `blocks_ready_for_build=true`. `must_have` WITH a permitted fallback, and all
+  optional misses, are `tier=2` and do not block.
+- **Broken join ≠ missing**: an invalid `material_needs` or a dangling/malformed
+  satisfies edge makes the whole delta `ok=False` with `errors` and zero deltas
+  — it is never silently classified as `missing`.
+- CLI `material-delta <needs> [--project-map] [--out]`. Reuses
+  `expand_project_material_map` + `link_lineage`; exits non-zero only on `ok=False`.
+
+Deferred to a later batch (confirmed): `wrong_semantics` /
+`insufficient_action_phases` (need the F2 canonical shot-function vocabulary; no
+`action_progression` dependency taken here), and wiring `blocks_ready_for_build`
+into the pre-BUILD gate (`delivery_gate` stays a backstop only, not the primary
+block site). No BUILD ranking / script / timeline change.
+
+Falsification tests `tests/test_material_delta.py` (covered/thin/excess/missing
+thresholds incl. candidate-only=thin and rejected-only=missing; must_have+no-
+fallback+missing → tier-1 blocks; legal fallback → not tier-1; optional miss
+does not block; the minimal one-must_have-zero-material disproof; dangling/
+malformed/invalid → fail-not-missing; no-semantic-field boundary; multi-need
+summary): 14 tests. Full regression: **921 tests OK**. F2 stays deferred until a
+real case proves semantic function classification is needed.
+
 #### M6c Delta-driven script revision
 
 - Convert accepted delta decisions into a revised `segment_contract.json`.

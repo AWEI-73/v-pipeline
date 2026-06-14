@@ -385,6 +385,29 @@ def cmd_lineage_link(args):
         raise ToolError(f"lineage has {len(result['errors'])} dangling reference(s)")
 
 
+def cmd_material_delta(args):
+    """M6b: coverage delta (covered/thin/missing/excess) over the lineage join.
+    Broken reference chain / invalid needs fail; never misread as missing."""
+    from video_pipeline_core import material_delta, project_material_map
+    needs = _load_json(args.needs)
+    material_maps = None
+    if args.project_map:
+        material_maps = project_material_map.expand_project_material_map(
+            _load_json(args.project_map))
+    result = material_delta.compute_material_delta(needs, material_maps)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": result["ok"], "errors": result["errors"],
+                      "ready_for_build": result["ready_for_build"],
+                      "blocks_ready_for_build": result["blocks_ready_for_build"],
+                      "summary": result["summary"]}, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError(
+            f"material_delta failed: {len(result['errors'])} reference/validation error(s)")
+
+
 def cmd_visual_diversity_coverage(args):
     """VD1: report real project-map VD0 label coverage; never rank material."""
     from video_pipeline_core import visual_diversity_coverage
@@ -1704,6 +1727,12 @@ def main():
     p_ll.add_argument("--contract", default=None, help="segment_contract.json (need_refs)")
     p_ll.add_argument("--out", default=None, help="write the brief/lineage artifact here")
 
+    p_md = sub.add_parser("material-delta")
+    p_md.add_argument("needs", help="canonical material_needs.json")
+    p_md.add_argument("--project-map", default=None, dest="project_map",
+                      help="project_material_map.json (satisfies edges)")
+    p_md.add_argument("--out", default=None, help="write material_delta.json here")
+
     p_pmm = sub.add_parser("project-material-map")
     p_pmm.add_argument("--maps-dir", required=True, dest="maps_dir",
                        help="directory of per-asset *.map.json files")
@@ -1898,6 +1927,7 @@ def main():
         "black-frame-audit": cmd_black_frame_audit,
         "validate-needs": cmd_validate_needs,
         "lineage-link": cmd_lineage_link,
+        "material-delta": cmd_material_delta,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
