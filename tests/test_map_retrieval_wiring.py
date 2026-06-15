@@ -389,15 +389,67 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
         # The first slot should be clip-a:0
         self.assertEqual(map_slots[0]["scene_id"], "clip-a:0")
 
-    def test_M_photo_zero_duration_remains_unrenderable(self):
-        """M: photos with zero duration (start=0, end=0) are not selected/planned."""
+    def test_M_non_photo_zero_duration_remains_unrenderable(self):
+        """M: zero duration assets without photo asset_type are unrenderable and dropped."""
         maps = [
-            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
-                {"start": 0.0, "end": 0.0, "caption": "students pull electrical cable", "visual_family": "rope_rescue_action"}
+            {"asset_id": "video-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "students pull electrical cable"}
+            ]},
+            {"asset_id": "unknown-a", "source": "a.mp4", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "students pull electrical cable"}
             ]}
         ]
-        slots = plan_ranked_windows(_seg("students pull electrical cable"), maps, limit=1, clip_dur=2.0)
-        self.assertEqual(slots, []) # zero duration makes it unrenderable, so dropped
+        slots1 = plan_ranked_windows(_seg("students pull electrical cable"), [maps[0]], limit=1, clip_dur=2.0)
+        self.assertEqual(slots1, [])
+        slots2 = plan_ranked_windows(_seg("students pull electrical cable"), [maps[1]], limit=1, clip_dur=2.0)
+        self.assertEqual(slots2, [])
+
+    def test_vd2_photo_H_ffmpeg_render_integration(self):
+        """H: run a real ffmpeg render of photo map-ranked slots to prove they enter the final movie."""
+        d = Path(tempfile.mkdtemp())
+        photo1 = "C:/Users/user/.gemini/antigravity/brain/b9af86b4-38e1-4748-890b-9e2c7d0a991b/n01_gear_medium_02.png"
+        photo2 = "C:/Users/user/.gemini/antigravity/brain/b9af86b4-38e1-4748-890b-9e2c7d0a991b/n01_helmet_close_03.png"
+
+        # Create a dummy music file
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=5:s=44100",
+                        str(music)], capture_output=True, check=True)
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "students gear", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "students gear", "audio_role": "music"}
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": photo1, "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "students gear up", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": photo2, "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "students gear up", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        from video_pipeline_core import mv_cut
+        out = d / "final.mp4"
+        res = mv_cut.run_mv(script, None, str(out), music_path=str(music),
+                            material_maps=maps, skip_render=False, verbose=False)
+
+        self.assertTrue(out.exists())
+        self.assertGreater(out.stat().st_size, 0)
+
+        # Verify that plan has photo map-ranked slots, correct extract_dur, and correct diversified scene_id order
+        plan = res["plan"]
+        self.assertEqual(len(plan), 2)
+        self.assertEqual(plan[0]["scene_id"], "photo-a:0")
+        self.assertEqual(plan[1]["scene_id"], "photo-b:0")
+        self.assertEqual(plan[0]["extract_dur"], 2.264) # allocated dynamically
+        self.assertTrue(plan[0]["is_photo"])
+        self.assertTrue(plan[0]["kenburns"])
 
 
     def test_N_ffmpeg_render_cross_segment_diversified_slots(self):

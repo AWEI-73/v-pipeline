@@ -461,6 +461,131 @@ class MaterialRetrievalTest(unittest.TestCase):
         # Since original stayed, family-A was written to history, so segment 2 selects clip-b:0
         self.assertEqual(plan[1]["scene_id"], "clip-b:0")
 
+    def test_vd2_photo_A_selectable_with_zero_bounds(self):
+        # A. photo start=0/end=0: selectable, extract_start=0, extract_dur=clip_dur
+        segment = {"material_fit": {"visual_desc": "rope rescue"}}
+        maps = [
+            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=3.5)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "photo-a:0")
+        self.assertEqual(slots[0]["extract_start"], 0.0)
+        self.assertEqual(slots[0]["extract_dur"], 3.5)
+        self.assertTrue(slots[0]["is_photo"])
+        self.assertTrue(slots[0]["kenburns"])
+
+    def test_vd2_photo_B_video_preferred_to_photo(self):
+        # B. 同分 video 與 photo: video 優先
+        segment = {"material_fit": {"visual_desc": "rope rescue"}}
+        maps = [
+            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]},
+            {"asset_id": "video-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0.0, "end": 5.0, "caption": "rope rescue"}
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "video-a:0")
+
+    def test_vd2_photo_C_correctness_priority_over_media_type(self):
+        # C. 高 correctness photo 與低 correctness video: 高分 photo 優先
+        segment = {"material_fit": {"visual_desc": "rope rescue climber"}} # exact match for caption
+        maps = [
+            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue climber"} # score=2
+            ]},
+            {"asset_id": "video-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0.0, "end": 5.0, "caption": "rope training"} # score=1
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "photo-a:0")
+
+    def test_vd2_photo_D_only_photo_no_gap(self):
+        # D. 只有 photo 素材: 不得 GAP，產生 timeline slot
+        segment = {"material_fit": {"visual_desc": "rope rescue"}}
+        maps = [
+            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "photo-a:0")
+
+    def test_vd2_photo_E_source_missing_or_empty_dropped(self):
+        # E. photo source 缺失/空白: 不得進 timeline
+        segment = {"material_fit": {"visual_desc": "rope rescue"}}
+        maps = [
+            {"asset_id": "photo-a", "source": "", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]},
+            {"asset_id": "photo-b", "source": None, "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+        self.assertEqual(slots, [])
+
+    def test_vd2_photo_F_invalid_clip_dur_fails(self):
+        # F. 非法 clip_dur: 0、負數、NaN、Infinity 必須 fail/drop
+        segment = {"material_fit": {"visual_desc": "rope rescue"}}
+        maps = [
+            {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                {"start": 0.0, "end": 0.0, "caption": "rope rescue"}
+            ]}
+        ]
+        from video_pipeline_core.material_retrieval import plan_ranked_windows
+        for bad_dur in [0, -1.5, float("nan"), float("inf"), float("-inf")]:
+            slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=bad_dur)
+            self.assertEqual(slots, [], f"Failed to drop invalid clip_dur: {bad_dur}")
+
+    def test_vd2_photo_G_cross_segment_photo_diversity(self):
+        # G. 跨段 photo diversity:
+        # 第一段選 family-A photo
+        # 第二段同分時選 family-B photo
+        # shared_history 正常生效
+        from unittest.mock import patch
+        from video_pipeline_core import mv_cut
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "rope rescue", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "rope rescue", "audio_role": "music"}
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "a.jpg", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "rope rescue", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "b.jpg", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "rope rescue", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])):
+            res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
+                                material_maps=maps, skip_render=True, verbose=False)
+
+        plan = res["plan"]
+        self.assertEqual(len(plan), 2)
+        self.assertEqual(plan[0]["scene_id"], "photo-a:0")
+        self.assertEqual(plan[1]["scene_id"], "photo-b:0")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -92,9 +92,11 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None):
         source = item.get("source")
         if not isinstance(source, str) or not source.strip():
             continue
-        available = max(0.0, item["end"] - item["start"])
-        if available <= 0:
-            continue
+        is_photo = item.get("asset_type") == "photo"
+        if not is_photo:
+            available = max(0.0, item["end"] - item["start"])
+            if available <= 0:
+                continue
         candidates.append(item)
 
     tiers = []
@@ -186,18 +188,30 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
     slots = []
     for item in selected:
         source = item.get("source")
-        available = max(0.0, item["end"] - item["start"])
-        take = min(float(clip_dur), available)
+        is_photo = item.get("asset_type") == "photo"
+        if is_photo:
+            try:
+                take = float(clip_dur)
+            except (ValueError, TypeError):
+                continue
+            import math
+            if not math.isfinite(take) or take <= 0:
+                continue
+            start = 0.0
+            available = take
+        else:
+            available = max(0.0, item["end"] - item["start"])
+            take = min(float(clip_dur), available)
 
-        start = item["start"] + max(0.0, available - take) / 2
-        start = min(max(start, item["start"]), item["end"] - take)
+            start = item["start"] + max(0.0, available - take) / 2
+            start = min(max(start, item["start"]), item["end"] - take)
         scene = _scene_by_id(material_maps, item["scene_id"]) or {}
         function = scene.get("function") or classify_function(
             item.get("caption"),
             motion_peaks=scene.get("motion_peaks"),
             duration_sec=available,
         )
-        slots.append({
+        slot = {
             "source": source,
             "extract_start": round(start, 3),
             "extract_dur": round(take, 3),
@@ -210,7 +224,11 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "visual_family": item.get("visual_family"),
             "angle_scale": item.get("angle_scale"),
             "diversity_selection_reason": item.get("diversity_selection_reason", "default"),
-        })
+        }
+        if is_photo:
+            slot["is_photo"] = True
+            slot["kenburns"] = True
+        slots.append(slot)
     return slots
 
 

@@ -83,8 +83,7 @@ capability, and a VERIFY check creates nothing:
 - **The material-evidence layer has been upgraded with pending-hardening VD2.** Only `visual_family`, `angle_scale`, and `asset_type` are currently consumed by `plan_ranked_windows`
   to order and select diversified candidates during build, without acting as a delivery blocker. Other VD0 labels like `action_family` and `subject` are stored but not yet used.
   Correctness/evidence score tiering remains prioritized.
-- **Photo map-ranked renderability is not yet implemented.** Since photo assets have 0 duration,
-  they remain unrenderable in map-ranked window planning and are dropped. This is recorded as a future improvement.
+- **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
 
@@ -99,6 +98,6 @@ capability, and a VERIFY check creates nothing:
 3. ~~**Promote M2 window retrieval from `partial` to `active`**~~ — DONE (MR1,
    2026-06-14): the map-based path is now the default local selection when a
    valid material map exists, with honest matched/live fallback.
-4. **Photo map-ranked renderability** — future gap to support rendering of photo assets in map-ranked window planning.
+4. **Photo map-ranked renderability** — complete (2026-06-15): supports rendering of photo assets in map-ranked window planning by mapping them to design duration instead of physical video time window bounds.
 
 These are scope notes for later rounds. BA1 itself adds no feature.

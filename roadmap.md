@@ -1283,6 +1283,8 @@ and material-map suite `41 tests OK`; full regression `1067 tests OK`.
 After that evidence exists, labels may be used only as a soft tiebreaker after
 correctness, relevance, and approved material.
 
+Photo map-ranked renderability completed (2026-06-15): Photo assets (where `asset_type == "photo"`) are now fully renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (with `extract_start=0.0`). Photos with zero or missing duration are no longer dropped, while zero-duration video assets or assets with missing/unknown `asset_type` remain correctly unrenderable. This supports rendering of photo assets in map-ranked window planning by mapping them to design duration instead of physical video time window bounds.
+
 #### BR3 Music / Sound Punctuation — COMPLETE (2026-06-14)
 
 `punctuation.py` + `run_mv` post-render hook + `tests/test_punctuation.py`
