@@ -1217,6 +1217,37 @@ The planner (`sequence_recipe_planner.py`) runs during the segment planning loop
 - **Traceability**: Injects `sequence_recipe_source = "auto"`, `sequence_recipe_reason`, and `sequence_recipe_evidence` on both the segment script entry and each slot in the final plan.
 - **Testing**: 12 dedicated tests cover all A-K fallback rules, window/photo integrity, and a real FFmpeg integration test (L) proving auto-sequence output.
 
+### SRP2 Opening / Hook Auto Planner — COMPLETE (2026-06-16)
+
+A deterministic, shallow opening planner that structures a runtime-ephemeral opening recipe from approved story-plan slots and prepends it via the BR1 compiler:
+- **Deduplication**: Qualified candidates are deduplicated by `scene_id` (keeping the best correctness-ranked occurrence) before the opening shape is decided to prevent duplicate beats.
+- **Same-Tier Selection**: Roles are filled correctness-first and greedily by retrieval score tier. Soft preferences (e.g., angle scale, unused visual family) apply only within a tier:
+  - Hook prefers: `close` -> `medium` -> `wide` -> `video` -> `scene_id`.
+  - Context prefers: unused `visual_family` -> `wide` -> `medium` -> `close` -> `video` -> `scene_id`.
+  - Title prefers: unused `scene_id` and different family.
+- **Budgeting**: When the combined duration exceeds `target_sec`, `trim_opening_for_budget` dynamically drops context beats, then title_reveal, then hook duration (never below a legal positive duration, never touching story slots). Manual openings bypass budget checks.
+- **Safety**: Manual `script["opening_recipe"]` always overrides the auto planner. Only approved, scene_id-bearing, renderable slots are eligible (GAP/missing/source_speech/keep_audio/hold/fallback-only/illegal-window excluded).
+- **Testing**: Dynamic-photo true render, 44 focused tests, and full regression pass (1177 tests OK).
+
+### AR1 Runtime Planning Extraction — COMPLETE (2026-06-16)
+
+A zero-behavior-change refactoring of the `run_mv` god-function in `mv_cut.py` to extract planning logic into clean, stateless helper functions:
+- **Structure**: `run_mv` signature is preserved as an orchestrator (~110 lines) delegating to four helpers:
+  - `_plan_story_timeline`: segments planning dispatch, sequence compilation, anti-presentation planning, slot trace, and VD2 shared history updates.
+  - `_apply_opening_bookend`: manual BR1 / auto SRP2 opening compilation and target_sec budgeting.
+  - `_apply_ending_bookend`: BR4 ending sequence compilation.
+  - `_finalize_timeline`: edit-point layout and motion-peak snapping.
+- **Compatibility**: Behavior is verified byte-for-byte identical to the pre-refactor state.
+- **Testing**: Covered by `tests/test_ar1_run_mv_characterization.py` characterization tests (A-L), real ffmpeg render, and full regression pass (1193 tests OK).
+
+### SRP3 Story Arc / Emotional Progression Planner — COMPLETE (2026-06-16)
+
+A whole-film level, shallow, deterministic story arc planner:
+- **Role Assignment**: `story_arc_planner.plan_story_arc(script)` assigns emotional intensity roles (setup -> challenge -> progression -> climax -> resolution, scaled to segment count) and nudges duration weights.
+- **Budget Allocation**: Climax segments receive higher weight multipliers, directing `allocate_segments` to allocate more duration to climax shots while preserving total story duration and `target_sec`.
+- **Safety**: Manual intent always overrides the auto planner (declaring arc_role, pace, weight, or requested duration prevents auto modifications). Protected segments (hold, source_speech, keep_audio) are never shrunk. `disable_auto_story_arc=true` or non-applicable segments (e.g., <3 segments, pure-stock, duplicate identities) disable the planner.
+- **Testing**: Validated with A-R falsification suite, 5-segment dynamic-photo true render, 32 focused tests, and full regression pass (1225 tests OK).
+
 ### BA1 BUILD Alignment Audit — COMPLETE (2026-06-14, Codex review passed)
 
 `docs/build-capability-alignment.md`: split into A) pre-BUILD gates B) BUILD
