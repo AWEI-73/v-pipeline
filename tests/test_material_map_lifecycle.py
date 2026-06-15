@@ -53,6 +53,17 @@ def _w(d, name, obj):
     return str(p)
 
 
+def _covered_db(d, purpose, must_have):
+    """A material_db (single source) covering one need; returns (db_path, needs_path, need_id)."""
+    needs = _needs([(purpose, must_have, None)])
+    nid = needs["needs"][0]["need_id"]
+    (Path(d) / "clip.map.json").write_text(
+        json.dumps(_map("clip", "a.mp4", need_id=nid, status="accepted")), encoding="utf-8")
+    db = _w(d, "materials_db.json", {"files": [{"path": "a.mp4", "material_map": "clip.map.json"}]})
+    needs_path = _w(d, "needs.json", needs)
+    return db, needs_path, nid
+
+
 def _maps_dir(d, maps):
     md = Path(d) / "maps"
     md.mkdir(exist_ok=True)
@@ -96,49 +107,48 @@ class EntryTest(unittest.TestCase):
             self.assertEqual(summ["covered"], 1)
             self.assertEqual(summ["missing"], 1)
 
-    def test_4_all_covered_with_contract_is_build_ready_to_original(self):
+    def test_4_all_covered_via_material_db_is_build_ready_to_original(self):
         with tempfile.TemporaryDirectory() as d:
-            needs = _needs([("one", True, None)])
-            nid = needs["needs"][0]["need_id"]
-            mapdir = _maps_dir(d, [_map("a", "a.mp4", need_id=nid, status="accepted")])
-            contract = _w(d, "contract.json", {"segments": [_seg(1, [nid]), _seg(2, [nid])]})
-            db = _w(d, "materials_db.json", {"files": []})
-            rep = mml.run_lifecycle(out_dir=Path(d) / "out",
-                                    needs_ref=_w(d, "needs.json", needs), maps_dir=mapdir,
-                                    contract_ref=contract, material_db_ref=db)
+            db, needs_path, nid = _covered_db(d, "one", True)
+            contract = _w(d, "contract.json", {"material_needs_ref": "needs.json",
+                          "segments": [_seg(1, [nid]), _seg(2, [nid])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    material_db_ref=db, contract_ref=contract)
             self.assertEqual(rep["stage"], "build_ready")
             self.assertTrue(rep["can_build"])
-            self.assertEqual(rep["build_handoff"]["contract_ref"], contract)
+            self.assertEqual(rep["build_handoff"]["contract_ref"], contract)   # original
+            self.assertEqual(rep["build_handoff"]["material_db_ref"], db)
             self.assertTrue(rep["build_handoff"]["ready_for_build"])
 
-    def test_5_accepted_drop_with_waiver_build_ready_to_revised(self):
+    def test_5_accepted_drop_with_waiver_build_ready_handoff_to_original(self):
         with tempfile.TemporaryDirectory() as d:
             needs = _needs([("mandatory", True, None), ("keep", False, None)])
             ids = [n["need_id"] for n in needs["needs"]]
-            mapdir = _maps_dir(d, [_map("a", "a.mp4", need_id=ids[1], status="accepted")])
-            contract = _w(d, "contract.json",
-                          {"segments": [_seg(1, [ids[0]]), _seg(2, [ids[1]]), _seg(3, [ids[1]])]})
+            (Path(d) / "clip.map.json").write_text(
+                json.dumps(_map("clip", "b.mp4", need_id=ids[1], status="accepted")),
+                encoding="utf-8")
+            db = _w(d, "materials_db.json",
+                    {"files": [{"path": "b.mp4", "material_map": "clip.map.json"}]})
             decisions = _w(d, "decisions.json", [{
                 "decision_id": "x1", "need_id": ids[0], "route": "drop_segment",
                 "status": "accepted", "target_segment": 1,
                 "waiver": {"reviewer": "dir", "reason": "cut"},
                 "lineage": {"reviewer": "dir", "reason": "cut", "at": "2026-06-15T00:00"}}])
-            db = _w(d, "materials_db.json", {"files": []})
-            rep = mml.run_lifecycle(out_dir=Path(d) / "out",
-                                    needs_ref=_w(d, "needs.json", needs), maps_dir=mapdir,
-                                    contract_ref=contract, decisions_ref=decisions,
-                                    material_db_ref=db)
+            contract = _w(d, "contract.json",
+                          {"material_needs_ref": "needs.json", "revision_decisions_ref": "decisions.json",
+                           "segments": [_seg(1, [ids[0]]), _seg(2, [ids[1]]), _seg(3, [ids[1]])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=_w(d, "needs.json", needs),
+                                    material_db_ref=db, contract_ref=contract, decisions_ref=decisions)
             self.assertEqual(rep["stage"], "build_ready")
-            self.assertTrue(rep["build_handoff"]["contract_ref"].endswith(
-                "revised_segment_contract.json"))
-            revised = json.loads(Path(rep["build_handoff"]["contract_ref"]).read_text(encoding="utf-8"))
-            self.assertNotIn(1, [s["segment"] for s in revised["segments"]])
+            self.assertEqual(rep["build_handoff"]["contract_ref"], contract)   # original (re-runs M6c)
+            self.assertTrue(rep["refs"]["revised_contract"].endswith("revised_segment_contract.json"))
+            revised = json.loads(Path(rep["refs"]["revised_contract"]).read_text(encoding="utf-8"))
+            self.assertNotIn(1, [s["segment"] for s in revised["segments"]])   # seg dropped (evidence)
 
-    def test_6_pending_decision_not_applied(self):
+    def test_6_rejected_decision_not_applied(self):
         with tempfile.TemporaryDirectory() as d:
-            needs = _needs([("opt", False, None)])
+            needs = _needs([("opt", False, None)])      # missing optional -> script_rewrite compatible
             nid = needs["needs"][0]["need_id"]
-            mapdir = _maps_dir(d, [_map("a", "a.mp4", need_id=nid, status="accepted")])
             contract = _w(d, "contract.json", {"segments": [_seg(1, [nid]), _seg(2, [nid])]})
             decisions = _w(d, "decisions.json", [{
                 "decision_id": "x1", "need_id": nid, "route": "script_rewrite",
@@ -146,7 +156,7 @@ class EntryTest(unittest.TestCase):
                 "patch": {"material_fit": {"visual_desc": "NO"}},
                 "lineage": {"reviewer": "d", "reason": "r", "at": "t"}}])
             rep = mml.run_lifecycle(out_dir=Path(d) / "out",
-                                    needs_ref=_w(d, "needs.json", needs), maps_dir=mapdir,
+                                    needs_ref=_w(d, "needs.json", needs),
                                     contract_ref=contract, decisions_ref=decisions)
             self.assertEqual(rep["stage"], "await_revision_decision")
             self.assertFalse((Path(d) / "out" / "revised_segment_contract.json").exists())
@@ -226,6 +236,130 @@ class StopWithoutRenderTest(unittest.TestCase):
             br = mml.run_lifecycle(out_dir=Path(d) / "br", needs_ref=_w(d, "needs.json", needs))
             self.assertIsNone(br["build_handoff"])
             self.assertFalse((Path(d) / "br" / "final.mp4").exists())
+
+
+class HandoffBindingTest(unittest.TestCase):
+    def test_A_contract_without_material_needs_ref_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            db, needs_path, nid = _covered_db(d, "one", True)
+            contract = _w(d, "contract.json", {"segments": [_seg(1, [nid]), _seg(2, [nid])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    material_db_ref=db, contract_ref=contract)
+            self.assertEqual(rep["stage"], "invalid")
+            self.assertFalse(rep["can_build"])
+
+    def test_B_contract_pointing_to_different_needs_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            db, needs_path, nid = _covered_db(d, "one", True)
+            _w(d, "other.json", _needs([("x", True, None)]))     # a DIFFERENT needs file
+            contract = _w(d, "contract.json", {"material_needs_ref": "other.json",
+                          "segments": [_seg(1, [nid]), _seg(2, [nid])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    material_db_ref=db, contract_ref=contract)
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_C_corrupt_material_db_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            needs = _needs([("one", True, None)])
+            db = Path(d) / "materials_db.json"
+            db.write_text("{ corrupt", encoding="utf-8")
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out",
+                                    needs_ref=_w(d, "needs.json", needs), material_db_ref=str(db))
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_D_empty_material_db_with_must_have_is_not_build_ready(self):
+        with tempfile.TemporaryDirectory() as d:
+            needs = _needs([("one", True, None)])
+            db = _w(d, "materials_db.json", {"files": []})
+            nid = needs["needs"][0]["need_id"]
+            contract = _w(d, "contract.json", {"material_needs_ref": "needs.json",
+                          "segments": [_seg(1, [nid]), _seg(2, [nid])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=_w(d, "needs.json", needs),
+                                    material_db_ref=db, contract_ref=contract)
+            self.assertEqual(rep["stage"], "await_material")    # missing, not build_ready
+            self.assertFalse(rep["can_build"])
+
+    def test_E_spec_invalid_contract_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            db, needs_path, nid = _covered_db(d, "one", True)
+            bad = _seg(1, [nid]); bad["audio"] = {}              # missing audio.role/reason
+            contract = _w(d, "contract.json", {"material_needs_ref": "needs.json",
+                          "segments": [bad, _seg(2, [nid])]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    material_db_ref=db, contract_ref=contract)
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_categories_missing_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            db, needs_path, nid = _covered_db(d, "one", True)
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    material_db_ref=db,
+                                    categories_path=str(Path(d) / "nope_categories.json"))
+            self.assertEqual(rep["stage"], "invalid")
+
+
+class SourceAmbiguityTest(unittest.TestCase):
+    def test_G_multiple_sources_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            mapdir = _maps_dir(d, [_map("a", "a.mp4")])
+            pm = _w(d, "project_material_map.json",
+                    {"artifact_role": "project_material_map", "assets": []})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", maps_dir=mapdir, project_map_ref=pm)
+            self.assertEqual(rep["stage"], "invalid")
+            self.assertTrue(any("exactly one" in b for b in rep["blocking"]))
+
+    def test_H_missing_maps_dir_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", maps_dir=str(Path(d) / "nope"))
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_I_missing_project_map_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out",
+                                    project_map_ref=str(Path(d) / "nope.json"))
+            self.assertEqual(rep["stage"], "invalid")
+
+
+class DecisionsValidationTest(unittest.TestCase):
+    def _base(self, d):
+        needs = _needs([("opt", False, None)])
+        nid = needs["needs"][0]["need_id"]
+        contract = _w(d, "contract.json", {"segments": [_seg(1, [nid]), _seg(2, [nid])]})
+        return _w(d, "needs.json", needs), contract, nid
+
+    def test_J_non_list_or_malformed_decisions_invalid(self):
+        for payload in ({"not": "a list"}, "a string", [{"decision_id": "d1"}]):
+            with tempfile.TemporaryDirectory() as d:
+                needs_path, contract, nid = self._base(d)
+                dec = _w(d, "decisions.json", payload)
+                rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                        contract_ref=contract, decisions_ref=dec)
+                self.assertEqual(rep["stage"], "invalid", payload)
+
+    def test_K_valid_rejected_only_awaits_decision(self):
+        with tempfile.TemporaryDirectory() as d:
+            needs_path, contract, nid = self._base(d)
+            dec = _w(d, "decisions.json", [{
+                "decision_id": "d1", "need_id": nid, "route": "script_rewrite",
+                "status": "rejected", "target_segment": 1,
+                "patch": {"material_fit": {"visual_desc": "x"}},
+                "lineage": {"reviewer": "r", "reason": "r", "at": "t"}}])
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    contract_ref=contract, decisions_ref=dec)
+            self.assertEqual(rep["stage"], "await_revision_decision")
+            self.assertFalse((Path(d) / "out" / "revised_segment_contract.json").exists())
+
+    def test_L_unknown_need_id_even_when_rejected_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            needs_path, contract, nid = self._base(d)
+            dec = _w(d, "decisions.json", [{
+                "decision_id": "d1", "need_id": "nd_ghost", "route": "script_rewrite",
+                "status": "rejected", "target_segment": 1,
+                "patch": {"material_fit": {"visual_desc": "x"}},
+                "lineage": {"reviewer": "r", "reason": "r", "at": "t"}}])
+            rep = mml.run_lifecycle(out_dir=Path(d) / "out", needs_ref=needs_path,
+                                    contract_ref=contract, decisions_ref=dec)
+            self.assertEqual(rep["stage"], "invalid")
 
 
 class BuildHandoffTest(unittest.TestCase):

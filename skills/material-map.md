@@ -92,12 +92,26 @@ runner 套用後**重跑 `gate_from_delta`(帶 canonical waivers)**:通過才
 
 ## 何時可以交 BUILD,何時必須停
 
-- 只有 `stage=build_ready` 才產 handoff:
-  `{contract_ref, material_db_ref, material_needs_ref, revision_waivers, ready_for_build}`。
-  有 revision 時 handoff 指向 `revised_segment_contract.json`;否則指向原 contract。
-  所有 ref 必須是**真實存在**的檔案,且不得含 stale delta / stale revised contract。
-- handoff 交給 `run_contract` 後,**現有 M6b/M6c fresh gate 會再驗一次**——
-  M6d 不繞過、不取代它。
+`build_ready` 是**有牙齒的**:只有以下全部成立才會出現,否則維持 await/invalid:
+
+- **actual-side source 只能有一個**(`--project-map` / `--maps-dir` / `--material-db`
+  三選一;同時給多個 → `invalid`,不靜默挑優先序)。
+- **`--material-db` 是唯一可 BUILD 的來源**;`--maps-dir` / `--project-map` 只能盤點,
+  即使算出 covered 也**不會** build_ready(避免「用 A 算 covered 卻交 B 給 BUILD」)。
+- contract 通過 `spec_contract.validate_segment_contract`。
+- contract 必須宣告 `material_needs_ref`,且 strict resolve(相對 contract 目錄)到
+  **與 lifecycle 同一個** needs 檔;未宣告 / 指向不同 needs → `invalid`。
+- 有 revision 時,contract 還必須宣告 `revision_decisions_ref` 綁定到同一份 decisions,
+  讓 `run_contract` **重跑 M6c**、重新推導 waivers。
+- handoff `{contract_ref, material_db_ref, material_needs_ref, revision_waivers,
+  ready_for_build}` 的每個 ref 都必須是**真實存在**的檔案。
+
+handoff `contract_ref` 一律指向**原 contract**(它綁定了 needs 與 decisions);
+`run_contract` 收到後**重跑 fresh M6b/M6c gate**——無 revision 時直接過 gate;
+有 revision 時重套 accepted decisions、重推 waivers、再過 gate,並 BUILD revised 結果。
+`revised_segment_contract.json` 仍寫出,記在 `refs.revised_contract` 作為證據/預覽。
+M6d **不繞過、不取代** runtime gate。(把 standalone revised contract + 外部 waiver
+注入直接交 BUILD 的捷徑,留待 M6e。)
 - **可以只完成一個階段就停**:只盤點、只產 brief、停在等料/等決策/等 revision 都算成功。
   **不得**為了宣稱成功而 BUILD/render 或硬湊 `final.mp4`。
 

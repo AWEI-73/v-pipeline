@@ -30,10 +30,13 @@ write_revision_artifacts, and contract_adapter's strict material_db/map loaders.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from . import spec_contract
-from .contract_adapter import _load_current_material_maps, _load_material_db_strict
+from .contract_adapter import (
+    _load_current_material_maps, _load_material_db_strict, _resolve_declared_ref,
+)
 from .material_delta import compute_material_delta, gate_from_delta
 from .material_lineage import build_shooting_brief, link_lineage
 from .material_needs import validate_material_needs
@@ -72,20 +75,29 @@ def _report(stage, *, can_build=False, entry_point=None, refs=None, blocking=Non
     return report
 
 
-def _load_maps(project_map_ref, maps_dir, material_db_ref):
-    """Return (maps|None, error). Priority: project map > maps dir > material_db.
-    Reuses the canonical strict loaders; any malformed input is fail-closed."""
-    if project_map_ref:
+def _same_path(a, b):
+    return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
+
+
+def _load_actual(kind, project_map_ref, maps_dir, material_db_ref):
+    """Strict load of the single declared actual-side source. Returns (maps, error).
+    Reuses the canonical loaders; any malformed/missing input is fail-closed."""
+    if kind == "project_map":
+        if not Path(project_map_ref).exists():
+            return None, f"project_map_ref not found: {project_map_ref}"
         try:
             return expand_project_material_map(_load_json(project_map_ref)), None
         except (OSError, ValueError) as exc:
             return None, f"project_material_map could not be loaded: {exc}"
-    if maps_dir:
+    if kind == "maps_dir":
+        path = Path(maps_dir)
+        if not path.exists() or not path.is_dir():
+            return None, f"maps_dir not found or not a directory: {maps_dir}"
         try:
             return load_asset_maps(maps_dir), None
         except (OSError, ValueError) as exc:
             return None, f"per-asset maps could not be loaded: {exc}"
-    if material_db_ref:
+    if kind == "material_db":
         payload, error = _load_material_db_strict(material_db_ref)
         if error:
             return None, error
@@ -101,6 +113,36 @@ def _total_satisfies(maps):
               for m in maps or [] for scene in (m.get("scenes") or []))
 
 
+def _build_ready_or_error(contract, contract_ref, needs_ref, categories,
+                          *, decisions_ref=None, require_decisions_binding=False):
+    """Return an error string if this is NOT a runnable build_ready, else None.
+    The contract must validate AND its material_needs_ref must bind to the same
+    needs file the lifecycle used, so run_contract's fresh gate re-verifies the
+    same inputs. A revised build also requires the contract to declare the same
+    revision_decisions_ref so run_contract re-derives the waivers."""
+    validation = spec_contract.validate_segment_contract(contract, categories=categories)
+    if not validation["ok"]:
+        return "contract failed spec_contract validation: " + "; ".join(validation["errors"])
+    nref = contract.get("material_needs_ref")
+    if not isinstance(nref, str) or not nref.strip():
+        return "contract does not declare material_needs_ref (run_contract gate cannot re-verify)"
+    npath, nerr = _resolve_declared_ref(nref.strip(), contract_ref)
+    if nerr:
+        return f"contract.material_needs_ref unresolved: {nerr}"
+    if not _same_path(npath, needs_ref):
+        return (f"contract.material_needs_ref ({nref}) does not bind to the lifecycle "
+                f"material_needs ({needs_ref})")
+    if require_decisions_binding:
+        dref = contract.get("revision_decisions_ref")
+        if not isinstance(dref, str) or not dref.strip():
+            return ("a revised build requires the contract to declare revision_decisions_ref "
+                    "so run_contract re-applies the decisions and re-derives the waivers")
+        dpath, derr = _resolve_declared_ref(dref.strip(), contract_ref)
+        if derr or decisions_ref is None or not _same_path(dpath, decisions_ref):
+            return "contract.revision_decisions_ref does not bind to the lifecycle decisions"
+    return None
+
+
 def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=None,
                   material_db_ref=None, contract_ref=None, decisions_ref=None,
                   categories_path=None):
@@ -110,15 +152,31 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     refs = {}
+
+    # ── Fix: exactly ONE actual-side source (no silent priority). material_db is
+    #    the ONLY source that can lead to build_ready; maps_dir/project_map are
+    #    inventory-only. ────────────────────────────────────────────────────────
+    provided = [name for name, val in (("project_map", project_map_ref),
+                                       ("maps_dir", maps_dir),
+                                       ("material_db", material_db_ref)) if val]
+    if len(provided) > 1:
+        return _report("invalid", refs=refs, next_action="provide_inputs",
+                       blocking=[f"multiple actual-side sources provided ({provided}); "
+                                 f"provide exactly one"])
+    source_kind = provided[0] if provided else None
+    build_source = source_kind == "material_db"
+
+    # ── Fix: categories fail-closed (a declared-but-bad categories file blocks). ─
     categories = None
     if categories_path:
         try:
             categories = set(spec_contract.load_material_categories(categories_path))
-        except (OSError, ValueError):
-            categories = None
+        except (OSError, ValueError) as exc:
+            return _report("invalid", refs=refs, next_action="provide_inputs",
+                           blocking=[f"categories could not be loaded: {exc}"])
 
-    # ── resolve actual-side maps (strict) ────────────────────────────────────
-    maps, maps_error = _load_maps(project_map_ref, maps_dir, material_db_ref)
+    # ── resolve the single actual-side source (strict) ───────────────────────
+    maps, maps_error = _load_actual(source_kind, project_map_ref, maps_dir, material_db_ref)
     if maps_error:
         return _report("invalid", blocking=[maps_error],
                        next_action="revise:material(material_delta)", refs=refs)
@@ -204,7 +262,7 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
     warnings = [f"need {d['need_id']} is {d['outcome']}: {d['reason']}"
                 for d in delta["deltas"] if d["outcome"] in ("thin", "excess")]
 
-    # ── revision branch: only when accepted decisions exist ──────────────────
+    # ── revision branch: decisions are ALWAYS canonically validated ──────────
     if decisions_ref:
         refs["revision_decisions"] = str(decisions_ref)
         try:
@@ -212,55 +270,71 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
         except (OSError, ValueError) as exc:
             return _report("invalid", blocking=[f"revision_decisions could not be parsed: {exc}"],
                            next_action="revise:material(material_revision)", refs=refs)
-        accepted = [d for d in (decisions or [])
-                    if isinstance(d, dict) and d.get("status") == "accepted"]
-        if accepted:
-            if contract is None:
+        # a revision is defined against a contract; validate decisions unconditionally
+        # (reuse apply_revisions — the single canonical validator — even if none are
+        # accepted; non-list/dup/unknown/illegal status/route all fail here).
+        if contract is None:
+            return _report("invalid", entry_point=entry_point, refs=refs,
+                           blocking=["revision_decisions require a contract to validate against"],
+                           next_action="revise:material(material_revision)")
+        report, revised = apply_revisions(contract, delta, decisions, categories=categories)
+        if not report["ok"]:
+            return _report("invalid", entry_point=entry_point, refs=refs,
+                           blocking=report["errors"],
+                           next_action="revise:material(material_revision)")
+        accepted = any(isinstance(d, dict) and d.get("status") == "accepted"
+                       for d in decisions)
+        if not accepted:
+            # valid but nothing accepted -> awaiting human acceptance; no revision applied
+            return _report("await_revision_decision", entry_point=entry_point, refs=refs,
+                           warnings=warnings, next_action="await_revision_decision")
+        revised_path = out_dir / "revised_segment_contract.json"
+        revision_path = out_dir / "material_revision.json"
+        try:
+            write_revision_artifacts(revised, report, revised_path, revision_path)
+        except (ValueError, OSError, RuntimeError) as exc:
+            return _report("invalid", entry_point=entry_point, refs=refs,
+                           blocking=[f"could not write revision artifacts: {exc}"],
+                           next_action="revise:material(material_revision)")
+        refs["revised_contract"] = str(revised_path)
+        gate = gate_from_delta(delta, waivers=report["waivers"])
+        if (gate["status"] == "pass") != bool(report["ready_for_build"]):
+            return _report("invalid", entry_point=entry_point, refs=refs,
+                           blocking=["revision/gate disagreement"],
+                           next_action="revise:material(material_revision)")
+        if report["ready_for_build"] and report["next_action"] is None:
+            if not build_source:
+                return _report("await_map_review", entry_point=entry_point, refs=refs,
+                               warnings=warnings + ["revision applied and gate passes; provide "
+                                                    "a --material-db to BUILD the revised result"],
+                               next_action="await_map_review")
+            err = _build_ready_or_error(contract, contract_ref, needs_ref, categories,
+                                        decisions_ref=decisions_ref,
+                                        require_decisions_binding=True)
+            if err:
                 return _report("invalid", entry_point=entry_point, refs=refs,
-                               blocking=["accepted revision decisions but no contract to "
-                                         "revise"], next_action="revise:material(material_revision)")
-            report, revised = apply_revisions(contract, delta, decisions,
-                                              categories=categories)
-            if not report["ok"]:
+                               blocking=[err], next_action="revise:material(material_revision)")
+            # handoff points at the ORIGINAL contract (it declares the bound
+            # material_needs_ref + revision_decisions_ref); run_contract re-runs M6c
+            # fresh, re-derives the waivers, and BUILDs the revised result — the
+            # revised_segment_contract.json is recorded as evidence in refs.
+            handoff = _build_handoff(contract_ref, material_db_ref, needs_ref, report["waivers"])
+            if handoff is None:
                 return _report("invalid", entry_point=entry_point, refs=refs,
-                               blocking=report["errors"],
+                               blocking=["build handoff refs do not all exist"],
                                next_action="revise:material(material_revision)")
-            revised_path = out_dir / "revised_segment_contract.json"
-            revision_path = out_dir / "material_revision.json"
-            try:
-                write_revision_artifacts(revised, report, revised_path, revision_path)
-            except (ValueError, OSError, RuntimeError) as exc:
-                return _report("invalid", entry_point=entry_point, refs=refs,
-                               blocking=[f"could not write revision artifacts: {exc}"],
-                               next_action="revise:material(material_revision)")
-            refs["revised_contract"] = str(revised_path)
-            gate = gate_from_delta(delta, waivers=report["waivers"])
-            if (gate["status"] == "pass") != bool(report["ready_for_build"]):
-                return _report("invalid", entry_point=entry_point, refs=refs,
-                               blocking=["revision/gate disagreement"],
-                               next_action="revise:material(material_revision)")
-            if report["ready_for_build"] and report["next_action"] is None:
-                handoff = _build_handoff(revised_path, material_db_ref, needs_ref,
-                                         report["waivers"])
-                if handoff is None:
-                    return _report("invalid", entry_point=entry_point, refs=refs,
-                                   blocking=["build handoff refs do not all exist"],
-                                   next_action="revise:material(material_revision)")
-                return _report("build_ready", can_build=True, entry_point=entry_point,
-                               refs=refs, warnings=warnings, next_action="build",
-                               build_handoff=handoff)
-            if gate["status"] == "block":
-                return _report("revision_blocked", entry_point=entry_point, refs=refs,
-                               blocking=[f"unresolved after revision: {gate['blocking_need_ids']}"],
-                               warnings=warnings, next_action=report["next_action"] or "await_material")
-            if report["next_action"] == "await_review":
-                return _report("await_revision_decision", entry_point=entry_point, refs=refs,
-                               warnings=warnings, next_action="await_review")
-            return _report("await_material", entry_point=entry_point, refs=refs,
+            return _report("build_ready", can_build=True, entry_point=entry_point,
+                           refs=refs, warnings=warnings, next_action="build",
+                           build_handoff=handoff)
+        if gate["status"] == "block":
+            return _report("revision_blocked", entry_point=entry_point, refs=refs,
+                           blocking=[f"unresolved after revision: {gate['blocking_need_ids']}"],
                            warnings=warnings, next_action=report["next_action"] or "await_material")
-        # decisions present but none accepted -> still awaiting human acceptance
-        return _report("await_revision_decision", entry_point=entry_point, refs=refs,
-                       warnings=warnings, next_action="await_revision_decision")
+        if report["next_action"] == "await_review":
+            return _report("await_revision_decision", entry_point=entry_point, refs=refs,
+                           warnings=warnings, next_action="await_review")
+        return _report("await_material", entry_point=entry_point, refs=refs,
+                       warnings=warnings, next_action=report["next_action"] or "await_material")
 
     # ── no decisions: maps with scenes but no satisfies edges → review first ──
     if maps and _total_satisfies(maps) == 0:
@@ -272,11 +346,21 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
         return _report("await_material", entry_point=entry_point, refs=refs,
                        blocking=[f"unresolved must_have needs: {gate['blocking_need_ids']}"],
                        warnings=warnings, next_action="await_material")
-    # gate passes
+    # gate passes — build_ready needs material_db (the only runnable source) + a
+    # contract whose material_needs_ref binds to the lifecycle needs.
+    if not build_source:
+        return _report("await_map_review", entry_point=entry_point, refs=refs,
+                       warnings=warnings + ["material is sufficient; provide a --material-db "
+                                            "(the only runnable BUILD source) + contract to BUILD"],
+                       next_action="await_map_review")
     if contract is None:
         return _report("await_map_review", entry_point=entry_point, refs=refs,
                        warnings=warnings + ["material is sufficient; attach a contract to BUILD"],
                        next_action="await_map_review")
+    err = _build_ready_or_error(contract, contract_ref, needs_ref, categories)
+    if err:
+        return _report("invalid", entry_point=entry_point, refs=refs,
+                       blocking=[err], next_action="revise:material(material_delta)")
     handoff = _build_handoff(contract_ref, material_db_ref, needs_ref, [])
     if handoff is None:
         return _report("invalid", entry_point=entry_point, refs=refs,

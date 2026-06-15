@@ -887,7 +887,7 @@ Independent Material Map Skill**.
 - Acceptance: the Skill can stop after planning/collection guidance without
   forcing a video render.
 
-##### M6d implementation ✅ COMPLETE (2026-06-15)
+##### M6d implementation — pending Codex review (2026-06-15)
 
 `material_map_lifecycle.run_lifecycle` + CLI `material-map-lifecycle` +
 `skills/material-map.md`. Orchestration only — composes the M6a–M6c canonical
@@ -906,8 +906,25 @@ fresh M6b/M6c gate (M6d never bypasses it — proven by a real run_contract hand
 smoke). The lifecycle report is a projection (refs + summaries), not a canonical
 schema. Tests `tests/test_material_map_lifecycle.py`: entry (×6), freshness (×2),
 failure (×3), stop-without-render, handoff missing-ref + run_contract gate smoke
-(14 tests). Full regression: **1031 tests OK**. Skill doc defines the method and
-decision responsibility; deterministic validate/join/gate/revision stay in Python.
+(14 tests). Skill doc defines the method and decision responsibility;
+deterministic validate/join/gate/revision stay in Python.
+
+M6d hardening (2026-06-15): `build_ready` is now genuinely runnable + gate-bound.
+(1) Exactly ONE actual-side source is allowed (no silent priority); `--material-db`
+is the ONLY source that can reach `build_ready` — `--maps-dir`/`--project-map` are
+inventory-only. (2) `build_ready` requires the contract to pass
+`spec_contract.validate_segment_contract` AND declare a `material_needs_ref` that
+strict-resolves (relative to the contract dir) to the SAME needs file the lifecycle
+used; a revision build also requires a bound `revision_decisions_ref`. The handoff
+`contract_ref` is the original contract (run_contract re-runs the fresh M6b/M6c gate
+and, for revisions, re-applies the decisions + re-derives waivers); the revised
+contract is recorded as evidence in `refs.revised_contract`. (3) Supplied decisions
+are ALWAYS canonically validated via `apply_revisions` (non-list/malformed/unknown
+need_id/dup id/illegal status/route → `invalid`, even when none are accepted);
+valid rejected-only → `await_revision_decision`, nothing applied. (4) A declared
+but missing/corrupt categories file → `invalid` (never silently `None`). Reverse
+tests A–L + categories + source-ambiguity + decisions-validation: 26 tests total.
+Full regression: **1043 tests OK**. Pending Codex review (NOT yet COMPLETE).
 
 **Still open: M6e real-case acceptance** (real ffmpeg render + 67th-style student
 footage replay across the three entry points) is NOT yet done. F2 /
