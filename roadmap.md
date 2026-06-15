@@ -861,6 +861,18 @@ DB all block without exception; optional-only needs + corrupt DB still blocks;
 invalid DB writes no revision artifacts and no final. Focused: 22 tests OK; full
 regression: **1012 tests OK**.
 
+M6c runtime final input-shape hardening (2026-06-15) — **M6c COMPLETE**:
+`_load_material_db_strict` rejects a `None`/non-path-like/empty `material_db` as a
+structured block (no `TypeError`). `_load_current_material_maps` distinguishes an
+ABSENT `material_map` key (skip — not declared) from a PRESENT-but-malformed value:
+`None`/blank/number/bool/list/dict all return a structured `map_error`, and a
+`material_map` pointing at a directory (or an unreadable file) is fail-closed too.
+Reverse tests: `material_db=None`/non-path block without crash; bad `material_map`
+shapes block; absent key skipped; directory map blocks; a bad map in the revision
+lifecycle writes no artifacts and skips BUILD. Focused: 27 tests OK; full
+regression: **1017 tests OK**. The M6 lifecycle is complete; next step is **M6d
+Independent Material Map Skill**.
+
 **Next: M6d Independent Material Map Skill** (deferred). F2 / `wrong_semantics` /
 `insufficient_action_phases` remain deferred. The M6 lifecycle
 (needs → lineage → delta → pre-BUILD gate → revision → runtime) is now end-to-end.

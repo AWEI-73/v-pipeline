@@ -619,6 +619,8 @@ def _load_material_db_strict(material_db):
     """Strict load of the current material_db. Returns (payload, error). A
     missing/corrupt DB, a non-object top level, a non-list `files`, or a non-object
     entry is fail-closed (never degraded to {"files": []})."""
+    if not isinstance(material_db, (str, os.PathLike)) or not str(material_db).strip():
+        return None, f"material_db path must be a non-empty path, got {material_db!r}"
     try:
         with open(material_db, encoding="utf-8-sig") as handle:
             payload = json.load(handle)
@@ -669,19 +671,25 @@ def _load_current_material_maps(material_db_payload, db_dir):
     (maps, error_or_None)."""
     maps = []
     for entry in (material_db_payload or {}).get("files") or []:
+        if not isinstance(entry, dict) or "material_map" not in entry:
+            continue                              # no map declared on this asset
         map_path = entry.get("material_map")
-        if not map_path:
-            continue
-        path = Path(map_path)
+        # a declared map_path must be a real, non-empty string path (reject
+        # None/blank/number/bool/list/dict instead of silently skipping)
+        if not isinstance(map_path, str) or not map_path.strip():
+            return None, f"material_map must be a non-empty string, got {map_path!r}"
+        path = Path(map_path.strip())
         if not path.is_absolute():
             path = Path(db_dir) / path
         if not path.exists():
             return None, f"declared material_map not found: {map_path}"
+        if path.is_dir():
+            return None, f"material_map points to a directory, not a file: {map_path}"
         try:
             with path.open(encoding="utf-8-sig") as handle:
                 maps.append(json.load(handle))
         except (OSError, ValueError) as exc:
-            return None, f"material_map could not be parsed ({map_path}): {exc}"
+            return None, f"material_map could not be read/parsed ({map_path}): {exc}"
     return maps, None
 
 

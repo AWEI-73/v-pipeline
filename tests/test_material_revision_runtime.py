@@ -403,5 +403,50 @@ class MaterialDbFailClosedTest(unittest.TestCase):
         self.assertFalse((d / "out" / "final.mp4").exists())
 
 
+class InputShapeTest(unittest.TestCase):
+    def test_A_db_none_or_nonpath_is_structured_block_no_typeerror(self):
+        for bad in (None, "", "   ", 123, [], {}):
+            payload, error = ca._load_material_db_strict(bad)
+            self.assertIsNone(payload, bad)
+            self.assertTrue(error, bad)
+
+    def test_B_material_map_bad_shapes_are_structured_block(self):
+        for bad in (None, "", " ", 123, True, [], {}):
+            payload = {"files": [{"path": "a.mp4", "material_map": bad}]}
+            maps, error = ca._load_current_material_maps(payload, ".")
+            self.assertIsNone(maps, bad)
+            self.assertTrue(error, bad)
+
+    def test_material_map_key_absent_is_skipped(self):
+        payload = {"files": [{"path": "a.mp4"}, {"path": "b.mp4"}]}   # no material_map key
+        maps, error = ca._load_current_material_maps(payload, ".")
+        self.assertIsNone(error)
+        self.assertEqual(maps, [])
+
+    def test_C_material_map_pointing_to_directory_is_block(self):
+        with tempfile.TemporaryDirectory() as d:
+            sub = Path(d) / "amap"
+            sub.mkdir()
+            payload = {"files": [{"path": "a.mp4", "material_map": "amap"}]}
+            maps, error = ca._load_current_material_maps(payload, d)
+            self.assertIsNone(maps)
+            self.assertIn("directory", error)
+
+    def test_D_bad_material_map_in_revision_blocks_no_artifacts_no_build(self):
+        with tempfile.TemporaryDirectory() as d:
+            needs, ids = _needs([("optional", False, None)])
+            decisions = [_dec("d1", ids[0], "script_rewrite", target_segment=1,
+                              patch={"material_fit": {"visual_desc": "REVISED"}})]
+            # a declared but bad-shaped material_map (numeric) on a db entry
+            db = {"files": [{"path": "a.mp4", "material_map": 123}]}
+            result, calls = _Harness(d).write(
+                segments=[_seg(1, [ids[0]]), _seg(2, [ids[0]])],
+                needs=needs, decisions=decisions, material_db=db).run()
+            self.assertEqual(result["stage"], "material_revision")
+            self.assertFalse(calls["mv"])
+            self.assertFalse((Path(d) / "out" / "revised_segment_contract.json").exists())
+            self.assertFalse((Path(d) / "out" / "material_revision.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
