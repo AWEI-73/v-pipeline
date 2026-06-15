@@ -113,6 +113,119 @@ def _title_text(script):
     return None, None
 
 
+def _dedup_by_scene_id(ranked):
+    """Deduplicate by scene_id, keeping the best correctness-ranked occurrence
+    (input is already sorted best-first). The same source with a DIFFERENT
+    scene_id/window is a distinct approved shot and is kept. Every qualified slot
+    has a scene_id (the eligibility gate requires it)."""
+    seen, out = set(), []
+    for slot in ranked:
+        sid = slot.get("scene_id")
+        if sid in seen:
+            continue
+        seen.add(sid)
+        out.append(slot)
+    return out
+
+
+def _angle_rank(scale, order):
+    """Position of `scale` in a role's preferred angle order; unknown/None sorts
+    last. Deterministic and never raises (req. G)."""
+    try:
+        return order.index(scale)
+    except ValueError:
+        return len(order)
+
+
+def _role_pref_key(role, slot, used_families):
+    """Same-tier soft preference for a role. Applied ONLY to break ties WITHIN a
+    fixed correctness (retrieval_score) tier — a lower-score candidate can never
+    jump a higher-score one for an angle/family preference (req. E)."""
+    scale = slot.get("angle_scale")
+    is_photo = bool(slot.get("is_photo", False))
+    fam = slot.get("visual_family")
+    sid = str(slot.get("scene_id") or "")
+    video_first = 0 if not is_photo else 1
+    if role == "hook":
+        # close > medium > wide > video-over-photo > scene_id
+        return (_angle_rank(scale, ("close", "medium", "wide")), video_first, sid)
+    if role == "context":
+        # unused visual_family > wide > medium > close > video > scene_id
+        unused = 0 if (fam and fam not in used_families) else 1
+        return (unused, _angle_rank(scale, ("wide", "medium", "close")),
+                video_first, sid)
+    # title base: an unused scene_id, preferring a different family; no semantics
+    unused = 0 if (fam and fam not in used_families) else 1
+    return (unused, video_first, sid)
+
+
+def _select_by_roles(candidates, roles_needed):
+    """Greedily fill each role correctness-first: pick from the highest remaining
+    retrieval_score tier, and within that tier by the role's soft preference. A
+    selected scene_id is never reused (it is removed from the pool), so the
+    opening can never pad a beat by repeating a scene_id."""
+    remaining = list(candidates)
+    used_families, selected = set(), []
+    for role in roles_needed:
+        if not remaining:
+            break
+        top = max(_correctness(s) for s in remaining)
+        tier = [s for s in remaining if _correctness(s) == top]
+        pick = min(tier, key=lambda s: _role_pref_key(role, s, used_families))
+        selected.append(pick)
+        remaining = [s for s in remaining if s is not pick]
+        fam = pick.get("visual_family")
+        if fam:
+            used_families.add(fam)
+    return selected
+
+
+def trim_opening_for_budget(opening_clips, budget, *, eps=1e-3):
+    """Fit compiled opening clips into `budget` seconds by BEAT PRIORITY: drop
+    extra context_montage clips first, then title_reveal, then shorten the hook
+    last. The hook is never dropped, only shortened (and only DOWN — a video hook
+    stays within its approved window). Approved STORY slots are never touched.
+
+    Returns (kept_clips, dropped) where `dropped` is a list of
+    {opening_role, scene_id, reason} and `kept_clips` is the surviving prefix in
+    order, or None when no legal positive-duration hook fits the budget.
+    Mutates only the surviving hook's duration; does not reorder."""
+    clips = list(opening_clips)
+    dropped = []
+
+    def total(cs):
+        return sum(float(c.get("extract_dur") or 0.0) for c in cs)
+
+    # 1) drop extra context (from the last), then 2) title_reveal — until it fits
+    while total(clips) > budget + eps and any(
+            c.get("opening_role") in ("context_montage", "title_reveal") for c in clips):
+        ctx = [i for i, c in enumerate(clips)
+               if c.get("opening_role") == "context_montage"]
+        if ctx:
+            i = ctx[-1]
+        else:
+            i = next(j for j, c in enumerate(clips)
+                     if c.get("opening_role") == "title_reveal")
+        dropped.append({"opening_role": clips[i].get("opening_role"),
+                        "scene_id": clips[i].get("scene_id"), "reason": "budget"})
+        clips.pop(i)
+
+    # 3) still over budget → only hook(s) remain; shorten the hook
+    if total(clips) > budget + eps:
+        if budget <= eps:
+            return None                  # cannot keep a legal positive hook
+        hooks = [c for c in clips if c.get("opening_role") == "hook"]
+        if len(clips) != 1 or len(hooks) != 1:
+            return None                  # unexpected residual shape → fail safe
+        new_dur = round(float(budget), 3)
+        if new_dur <= eps:
+            return None
+        clips[0]["extract_dur"] = new_dur
+        clips[0]["slot_dur"] = new_dur
+
+    return clips, dropped
+
+
 def plan_opening_recipe(script, approved_story_plan, *, policy=None):
     """Plan a deterministic opening recipe from approved story-plan slots.
 
@@ -143,7 +256,9 @@ def plan_opening_recipe(script, approved_story_plan, *, policy=None):
         }
 
     candidates = [sl for sl in approved_story_plan if _is_qualified(sl)]
-    ranked = sorted(candidates, key=_rank_key)
+    # correctness-first ranking, THEN deduplicate by scene_id (keep the best
+    # occurrence) so a repeated scene_id can never inflate the count or pad a beat.
+    ranked = _dedup_by_scene_id(sorted(candidates, key=_rank_key))
 
     title_text, title_field = _title_text(script)
     distinct_families = sorted({c.get("visual_family") for c in ranked
@@ -168,27 +283,30 @@ def plan_opening_recipe(script, approved_story_plan, *, policy=None):
             "reason": f"Insufficient qualified opening candidates: {n} (minimum 2)",
         }
 
-    # Determine the shallow opening shape from the qualified candidate count.
+    # Determine the shallow opening shape from the deduped candidate count.
     # story_entry is a marker beat (no clip): the real story follows the opening.
+    # roles_needed lists the clip-producing roles, in opening order, that the BR1
+    # compiler will consume from `shots` (hook, then context_montage, then title).
     if n == 2:
         beats = ["hook", "story_entry"]
         context_count = 0
-        take = 1                          # hook only
+        roles_needed = ["hook"]
     elif n == 3:
         beats = ["hook", "context_montage", "story_entry"]
         context_count = 1
-        take = 2                          # hook + 1 context
+        roles_needed = ["hook", "context"]
     else:                                 # n >= 4
         if title_text:
             beats = ["hook", "context_montage", "title_reveal", "story_entry"]
             context_count = 1
-            take = 3                      # hook + 1 context + title base (distinct)
+            roles_needed = ["hook", "context", "title"]
         else:
             beats = ["hook", "context_montage", "story_entry"]
             context_count = 2
-            take = 3                      # hook + 2 context
+            roles_needed = ["hook", "context", "context"]
 
-    selected = ranked[:take]
+    # correctness-first role assignment with same-tier role/diversity preferences
+    selected = _select_by_roles(ranked, roles_needed)
     shots = [_shot_from_slot(sl) for sl in selected]
     selected_scene_ids = [sl.get("scene_id") for sl in selected]
 

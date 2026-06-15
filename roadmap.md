@@ -58,11 +58,35 @@ same lineage fields as BR2 `_beat_clip`); and because the planner runs AFTER the
 per-segment loop it never pollutes VD2 / SRP1 shared history. Compiler-empty /
 `ValueError` / `TypeError` → graceful fallback that keeps the story plan with a
 diagnostic trace; `RuntimeError` and other unexpected exceptions propagate. No new
-schema, no second opening compiler, no hard gate. Validated with a dynamic-photo true
-render (material map → story plan → auto opening planner → BR1 → prepended timeline →
-final.mp4): focused 28 tests; full regression **1161 tests OK**. Out of scope and NOT
+schema, no second opening compiler, no hard gate. Out of scope and NOT
 started: SRP3 story-arc / emotional planner, VERIFY→BUILD revision loop, VD3,
 dashboard/UI, Node 14 / effects.
+
+**SRP2 selection + duration-budget hardening** (2026-06-16): (1) **scene_id
+uniqueness** — qualified candidates are deduplicated by `scene_id` (keeping the
+best correctness-ranked occurrence) BEFORE the opening shape is decided, so a
+repeated scene_id can neither inflate `qualified_candidate_count` nor pad a beat;
+the same source with a different scene_id/window is still a distinct approved
+shot. (2) **Same-tier role selection** — roles are now filled correctness-first
+and greedily (each role takes the highest remaining retrieval_score tier; a lower
+score never jumps a higher one for an angle/family preference), with soft
+preferences applied ONLY within a tier: hook prefers close→medium→wide→
+video→scene_id; context prefers an unused visual_family→wide→medium→close→
+video→scene_id; the title base prefers an unused scene_id and a different family.
+Missing family/scale degrades deterministically. (3) **target_sec whole-film
+budget** — before prepending, `run_mv` computes `story_duration` and the compiled
+opening duration; with no `target_sec` behavior is unchanged; when the story +
+opening would exceed `target_sec`, `trim_opening_for_budget` drops extra context
+→ then title_reveal → then shortens the hook (never below a legal positive
+duration, never expanding a video window, never touching approved story slots),
+and falls back to no opening if no legal hook fits — so the auto opening can never
+push the plan past the whole-film target. Manual openings keep their existing
+behavior (no auto budget policy). The `opening_plan.execution` trace records
+`target_sec`, `story_duration`, `requested_opening_duration`,
+`applied_opening_duration`, and `dropped_for_budget`. Validated with the A–M
+falsification suite incl. a budget-bounded dynamic-photo true render (plan and
+rendered file both stay within `target_sec`): focused **44 tests**; full
+regression **1177 tests OK**.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.

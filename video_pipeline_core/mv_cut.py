@@ -1376,17 +1376,54 @@ def run_mv(script, material_root, out_path, music_path=None,
                 opening_result = None
                 vp(f"[opening] auto opening compiler failed (fallback): {e}")
             if opening_result is not None and opening_result["clips"]:
-                for c in opening_result["clips"]:
-                    c["opening_recipe_source"] = "auto"
-                    c["opening_recipe_reason"] = opening_plan["reason"]
-                    c["opening_recipe_evidence"] = opening_plan["evidence"]
-                plan = prepend_opening_to_plan(plan, opening_result["clips"])
-                opening_result["recipe_source"] = "auto"
-                opening_plan["execution"] = {"status": "prepended",
-                                             "clip_count": len(opening_result["clips"])}
-                vp(f"[opening] auto-prepended {len(opening_result['clips'])} clip(s); "
-                   f"beats={opening_result['beats_used']} "
-                   f"scene_ids={opening_plan['selected_scene_ids']}")
+                requested_dur = round(sum(float(c.get("extract_dur") or 0.0)
+                                          for c in opening_result["clips"]), 3)
+                story_dur = round(sum(float(c.get("extract_dur") or 0.0)
+                                      for c in story_plan), 3)
+                budget_dropped, budget_trace = [], {}
+                trimmed = True
+                if target_sec is not None:
+                    # target_sec is the WHOLE-film budget — the auto opening must
+                    # not push the plan past it. Trim/drop the opening by beat
+                    # priority (extra context → title → shorten hook); never touch
+                    # approved story slots. No legal hook fits → fallback.
+                    from .opening_recipe_planner import trim_opening_for_budget  # noqa: PLC0415
+                    budget = float(target_sec) - story_dur
+                    result = trim_opening_for_budget(opening_result["clips"], budget)
+                    if result is None:
+                        trimmed = False
+                    else:
+                        opening_result["clips"], budget_dropped = result
+                    budget_trace = {
+                        "target_sec": float(target_sec),
+                        "story_duration": story_dur,
+                        "requested_opening_duration": requested_dur,
+                    }
+                if not trimmed or not opening_result["clips"]:
+                    # whole opening dropped for budget (story already fills target)
+                    opening_plan["execution"] = {
+                        "status": "budget_fallback",
+                        "applied_opening_duration": 0.0,
+                        "dropped_for_budget": budget_dropped, **budget_trace}
+                    opening_result = None
+                    vp("[opening] auto opening dropped for target_sec budget")
+                else:
+                    for c in opening_result["clips"]:
+                        c["opening_recipe_source"] = "auto"
+                        c["opening_recipe_reason"] = opening_plan["reason"]
+                        c["opening_recipe_evidence"] = opening_plan["evidence"]
+                    plan = prepend_opening_to_plan(plan, opening_result["clips"])
+                    opening_result["recipe_source"] = "auto"
+                    applied_dur = round(sum(float(c.get("extract_dur") or 0.0)
+                                            for c in opening_result["clips"]), 3)
+                    opening_plan["execution"] = {
+                        "status": "prepended",
+                        "clip_count": len(opening_result["clips"]),
+                        "applied_opening_duration": applied_dur,
+                        "dropped_for_budget": budget_dropped, **budget_trace}
+                    vp(f"[opening] auto-prepended {len(opening_result['clips'])} clip(s); "
+                       f"beats={opening_result['beats_used']} "
+                       f"scene_ids={opening_plan['selected_scene_ids']}")
             elif opening_result is not None:
                 # compiler produced no clips → keep the story plan, trace fallback
                 opening_plan["execution"] = {"status": "empty_clips_fallback",
