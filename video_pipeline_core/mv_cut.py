@@ -638,7 +638,7 @@ def _apply_anti_presentation_plan(slots, segment):
     return slots
 
 
-def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=None):
+def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=None, history=None):
     """MR1: map-based scene/window retrieval for a local segment — the DEFAULT
     selection path whenever a valid material map exists. Returns concrete slots
     carrying their material+window evidence (source/scene_id/extract_start/
@@ -647,7 +647,7 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
     from .material_retrieval import plan_ranked_windows
     vd = s.get("visual_desc", "")
     slots = plan_ranked_windows(
-        s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
+        s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker, history=history
     )
     for slot in slots:
         slot["provider"] = "local"
@@ -667,12 +667,12 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
 
 
 def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
-                          material_maps=None, ranker=None):
+                          material_maps=None, ranker=None, history=None):
     """local 段:用 match-mv 已配好的 clip 開窗(不 live 重評)。`_winfn` 可注入測試。"""
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
     if material_maps:
-        return _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=ranker)
+        return _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=ranker, history=history)
     paths = (
         [s["file"]]
         if s.get("file")
@@ -710,7 +710,7 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
 
 def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
                         material_maps=None, clip_list=None, ranker=None,
-                        live_kwargs=None):
+                        live_kwargs=None, history=None):
     """MR1 dispatcher for a local (non-stock, non-source_speech) segment.
 
     Priority: **map-ranked** retrieval whenever a valid material map exists →
@@ -721,7 +721,7 @@ def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
     chosen path is measurable downstream."""
     if material_maps:
         slots, entry, msgs = _plan_map_ranked_segment(
-            s, a, seg_text, keep_audio, material_maps, ranker=ranker)
+            s, a, seg_text, keep_audio, material_maps, ranker=ranker, history=history)
         if slots:
             return slots, entry, msgs
     live_kwargs = live_kwargs or {}
@@ -1145,6 +1145,7 @@ def run_mv(script, material_root, out_path, music_path=None,
     # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry
     plan, per_seg = [], []
     sequence_cues = []          # BR2/BR1 punctuation cues, resolved by BR3 post-render
+    shared_history = []
     for s, a in zip(segs, alloc):
         keep_audio = bool(s.get("hold") or s.get("keep_audio")
                           or s.get("audio_role") in ("duck", "diegetic", "source_speech"))
@@ -1199,7 +1200,8 @@ def run_mv(script, material_root, out_path, music_path=None,
                     "max_clips_per_seg": max_clips_per_seg,
                     "windows_per_clip": windows_per_clip, "min_score": min_score,
                     "prefilter_static": prefilter_static,
-                })
+                },
+                history=shared_history)
         # BR2 beat-to-sequence: if a segment opts into a beat recipe, compile its
         # approved windows into a multi-shot sequence and replace the slots so the
         # timeline sequence actually changes. Runs BEFORE anti-presentation so the
@@ -1260,6 +1262,12 @@ def run_mv(script, material_root, out_path, music_path=None,
                 sl.setdefault("reason", reason_str)
             plan.append(sl)
         per_seg.append(entry)
+        if entry.get("retrieval_path") == "map_ranked" and not beat_recipe:
+            for sl in slots:
+                shared_history.append({
+                    "visual_family": sl.get("visual_family"),
+                    "angle_scale": sl.get("angle_scale"),
+                })
         for m in msgs:
             vp(m)
     # Keep the unmodified story plan as the source pool for both bookends. This

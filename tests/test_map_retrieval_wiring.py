@@ -400,5 +400,56 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
         self.assertEqual(slots, []) # zero duration makes it unrenderable, so dropped
 
 
+    def test_N_ffmpeg_render_cross_segment_diversified_slots(self):
+        """E: run a real ffmpeg render of cross-segment diversified slots to prove they enter the final movie."""
+        d = Path(tempfile.mkdtemp())
+        src = d / "footage.mp4"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=320x240:rate=30:duration=8",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)],
+                       capture_output=True, check=True)
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=8:s=44100",
+                        str(music)], capture_output=True, check=True)
+
+        project_map = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {
+                    "asset_id": "clip-a", "source": str(src), "asset_type": "video",
+                    "scenes": [{"start": 0.0, "end": 3.0, "caption": "students pull electrical cable", "visual_family": "rope_rescue_action", "angle_scale": "medium"}],
+                },
+                {
+                    "asset_id": "clip-b", "source": str(src), "asset_type": "video",
+                    "scenes": [{"start": 0.0, "end": 3.0, "caption": "students pull electrical cable", "visual_family": "rope_rescue_action", "angle_scale": "medium"}],
+                },
+                {
+                    "asset_id": "clip-c", "source": str(src), "asset_type": "video",
+                    "scenes": [{"start": 0.0, "end": 3.0, "caption": "students pull electrical cable", "visual_family": "stretcher_carry", "angle_scale": "medium"}],
+                }
+            ],
+        }
+
+        script = {"style": "mv", "segments": [
+            {"segment": 1, "visual_desc": "students pull electrical cable"},
+            {"segment": 2, "visual_desc": "students pull electrical cable"},
+        ]}
+
+        out = d / "out.mp4"
+        res = mv_cut.run_mv(script, None, str(out), music_path=str(music),
+                            model=None, mat_dir=str(d), clip_list=None,
+                            material_maps=project_map, verbose=False)
+
+        self.assertTrue(out.exists() and out.stat().st_size > 0)
+
+        # Let's check the plan slots
+        map_slots = [p for p in res["plan"] if p.get("scene_id")]
+        self.assertTrue(len(map_slots) >= 2)
+        # The first slot should be clip-a:0, and the second should be clip-c:0
+        self.assertEqual(map_slots[0]["scene_id"], "clip-a:0")
+        self.assertEqual(map_slots[1]["scene_id"], "clip-c:0")
+
+
 if __name__ == "__main__":
     unittest.main()

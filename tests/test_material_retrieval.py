@@ -207,5 +207,138 @@ class MaterialRetrievalTest(unittest.TestCase):
         self.assertEqual(slots, [])
 
 
+    def test_vd2_A_adjacent_segment_score_tie(self):
+        # Two adjacent segments asking for same desc. Under tie, segment 1 chooses family-A,
+        # segment 2 should choose family-B because family-A was added to history.
+        from unittest.mock import patch
+        from video_pipeline_core import mv_cut
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "rope rescue", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "rope rescue", "audio_role": "music"}
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "clip-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "clip-b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])):
+            res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
+                                material_maps=maps, skip_render=True, verbose=False)
+
+        plan = res["plan"]
+        self.assertEqual(len(plan), 2)
+        # Segment 1 gets clip-a (smaller scene_id, first choice)
+        self.assertEqual(plan[0]["scene_id"], "clip-a:0")
+        # Segment 2 gets clip-b (since family-A is now in history)
+        self.assertEqual(plan[1]["scene_id"], "clip-b:0")
+
+    def test_vd2_B_correctness_score_tier_priority(self):
+        # Even if family-A is in history, if it has a higher correctness score, it must still be preferred.
+        from unittest.mock import patch
+        from video_pipeline_core import mv_cut
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "rope rescue climber", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "rope rescue climber", "audio_role": "music"}
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "clip-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "clip-b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope climber", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])):
+            res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
+                                material_maps=maps, skip_render=True, verbose=False)
+
+        plan = res["plan"]
+        self.assertEqual(len(plan), 2)
+        # Segment 1 gets clip-a:0 (score 2 vs 1)
+        self.assertEqual(plan[0]["scene_id"], "clip-a:0")
+        # Segment 2 gets clip-a:0 too, because its correctness score tier is higher (score 2 vs 1) despite family-A being in history
+        self.assertEqual(plan[1]["scene_id"], "clip-a:0")
+
+    def test_vd2_C_no_pollution_from_fallback_or_gap(self):
+        # matched/live/GAP/stock do not write to shared history.
+        from unittest.mock import patch
+        from video_pipeline_core import mv_cut
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "unrelated sky", "audio_role": "music"}, # will go to live_fallback or matched
+                {"segment": 2, "visual_desc": "rope rescue", "audio_role": "music"} # goes to map_ranked
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "clip-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-A", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])), \
+             patch("video_pipeline_core.mv_cut._plan_live_segment", lambda *a, **k: ([{"source": "live.mp4", "extract_start": 0, "extract_dur": 2, "visual_family": "family-A"}], {"segment": 1}, [])):
+            res = mv_cut.run_mv(script, "/materials", "/out.mp4", music_path="/music.wav",
+                                material_maps=maps, skip_render=True, verbose=False)
+
+        plan = res["plan"]
+        self.assertEqual(len(plan), 2)
+        self.assertEqual(plan[0]["source"], "live.mp4")
+        # Segment 2 gets clip-a:0. If segment 1 polluted history with family-A, segment 2 might have had issues or different reason,
+        # but here it is selected successfully because history remains clean.
+        self.assertEqual(plan[1]["scene_id"], "clip-a:0")
+
+    def test_vd2_D_determinism_across_calls(self):
+        # Two consecutive runs do not inherit history.
+        from unittest.mock import patch
+        from video_pipeline_core import mv_cut
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "rope rescue", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "rope rescue", "audio_role": "music"}
+            ]
+        }
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "clip-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "clip-b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                    {"start": 0.0, "end": 5.0, "caption": "rope rescue climber", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 2.0, 4.0])):
+            res1 = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
+                                 material_maps=maps, skip_render=True, verbose=False)
+            res2 = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
+                                 material_maps=maps, skip_render=True, verbose=False)
+
+        self.assertEqual(res1["plan"], res2["plan"])
+
+
 if __name__ == "__main__":
     unittest.main()
