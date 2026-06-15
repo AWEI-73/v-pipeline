@@ -1209,6 +1209,15 @@ def run_mv(script, material_root, out_path, music_path=None,
         # (keep_audio/audio_role, text/subtitle/narrative layer).
         beat_recipe = s.get("beat_recipe")
         beat_replaced = False
+        auto_result = None
+        if not beat_recipe and slots:
+            from .sequence_recipe_planner import plan_segment_sequence  # noqa: PLC0415
+            auto_result = plan_segment_sequence(s, slots, entry=entry)
+            if auto_result["status"] == "planned":
+                beat_recipe = auto_result["recipe"]
+                s["sequence_recipe_source"] = "auto"
+                s["sequence_recipe_reason"] = auto_result["reason"]
+                s["sequence_recipe_evidence"] = auto_result["evidence"]
         if beat_recipe and slots:
             from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
             from .opening_sequence import opening_pool_from_plan  # noqa: PLC0415
@@ -1221,6 +1230,10 @@ def run_mv(script, material_root, out_path, music_path=None,
                         bc["keep_audio"] = True                 # never silently drop segment audio
                     if s.get("audio_role"):
                         bc["audio_role"] = s["audio_role"]
+                    if auto_result and auto_result["status"] == "planned":
+                        bc["sequence_recipe_source"] = "auto"
+                        bc["sequence_recipe_reason"] = auto_result["reason"]
+                        bc["sequence_recipe_evidence"] = auto_result["evidence"]
                 slots = beat_seq["clips"]
                 beat_replaced = True
                 sequence_cues.extend(beat_seq["cues"])

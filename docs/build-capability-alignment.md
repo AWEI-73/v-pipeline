@@ -66,6 +66,7 @@ capability, and a VERIFY check creates nothing:
 | VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | — | active (evidence only) |
 | VD1.1 family vocabulary | `visual_family_vocabulary` | `visual-family-normalize` | none (does not block build/delivery) | normalized review with lineage | — | active (evidence prep / VD2 prerequisite) |
 | VD2 visual diversity soft selection | VD0 contract + project map | `plan_ranked_windows` select_diverse_ranked_scenes | `mv_cut._plan_local_segment` | prioritized diversity selection | rendered diversified slots | active |
+| SRP1 Segment Sequence Recipe Planner | approved slots | `plan_segment_sequence` | `mv_cut` run_mv loop | auto-planned beats and trace keys on slots | rendered auto-sequence | active |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
 
@@ -84,6 +85,7 @@ capability, and a VERIFY check creates nothing:
   to order and select diversified candidates during build, without acting as a delivery blocker. Other VD0 labels like `action_family` and `subject` are stored but not yet used.
   Correctness/evidence score tiering remains prioritized.
 - **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
+- **SRP1 Segment Sequence Recipe Planner is active/complete.** Local segments with at least 2 approved map-ranked slots and no manual beat recipe are automatically planned into a sequence (e.g. context -> payoff) preserving window integrity, and rendering a true sequential movie.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
 
@@ -99,5 +101,6 @@ capability, and a VERIFY check creates nothing:
    2026-06-14): the map-based path is now the default local selection when a
    valid material map exists, with honest matched/live fallback.
 4. **Photo map-ranked renderability** — complete (2026-06-15): supports rendering of photo assets in map-ranked window planning by mapping them to design duration instead of physical video time window bounds.
+5. **SRP1 Segment Sequence Recipe Planner** — complete (2026-06-15): automatically plans sequence recipes for eligible segments using only the approved slots, changing both the timeline and true render.
 
 These are scope notes for later rounds. BA1 itself adds no feature.

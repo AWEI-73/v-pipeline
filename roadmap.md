@@ -27,12 +27,14 @@ VD0 shallow-label storage also complete.
 motion_graphics consumer corrected to the `contract_adapter` build path (Node 14
 is scaffold/flow-grouping only).
 
-**BR1 Opening / Hook Sequence Builder implemented** (this round, pending review):
+**BR1 Opening / Hook Sequence Builder implemented** (2026-06-14):
 `opening_sequence.py` compiles an approved recipe (hook → context montage →
 sound-punctuation cue → title reveal → story entry) into render-plan clips that
 are **prepended to the plan and reindexed**, so it changes both timeline and
-true render (real-render test proves it). Graceful fallback drops beats with no
-material. Consumed via `script["opening_recipe"]` in `run_mv`.
+true render. Graceful fallback drops beats with no material. Consumed via `script["opening_recipe"]` in `run_mv`.
+
+**SRP1 Segment Sequence Recipe Planner COMPLETE** (2026-06-15):
+Automatically plans a deterministic sequence recipe (`plan_segment_sequence`) from approved local map-ranked slots when no manual beat recipe is provided. Restructures timeline slots using the existing BR2 compiler while preserving correctness ranking, visual family diversity, and window integrity. Fully validated with dynamic video/photo renders.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
@@ -1077,6 +1079,15 @@ Acceptance:
 4. Metrics truthfully report asset/scene count and review/label coverage.
 5. A CLI produces `project_material_map.json`.
 6. Focused tests and the full regression pass.
+
+### SRP1 Segment Sequence Recipe Planner — COMPLETE (2026-06-15)
+
+The planner (`sequence_recipe_planner.py`) runs during the segment planning loop in `run_mv` to automatically restructure eligible segments:
+- **Eligibility**: Only plans for local map-ranked segments with at least 2 approved slots, no manual `beat_recipe`, no speech/keep_audio requirements, no stock-only assets, and no GAP/fallback segments.
+- **Beat Assignment**: Dynamically chooses a 2-beat (`context` -> `payoff`), 3-beat (`context` -> `primary_action` -> `payoff`), or 4-beat (`context` -> `primary_action` -> `detail_reaction` -> `payoff`) recipe.
+- **Integrity**: Preserves exact source, scene_id, extract_start, and extract_dur by setting recipe durations to the slots' original `extract_dur`.
+- **Traceability**: Injects `sequence_recipe_source = "auto"`, `sequence_recipe_reason`, and `sequence_recipe_evidence` on both the segment script entry and each slot in the final plan.
+- **Testing**: 12 dedicated tests cover all A-K fallback rules, window/photo integrity, and a real FFmpeg integration test (L) proving auto-sequence output.
 
 ### BA1 BUILD Alignment Audit — COMPLETE (2026-06-14, Codex review passed)
 
