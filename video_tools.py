@@ -478,6 +478,21 @@ def cmd_visual_diversity_coverage(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_visual_diversity_review(args):
+    """VD1: apply an Agent-authored shallow-label review to a project map."""
+    from video_pipeline_core import visual_diversity_review
+    try:
+        result = visual_diversity_review.write_visual_diversity_review(
+            args.project_map, args.review, args.out)
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"visual diversity review failed: {exc}")
+    print(json.dumps({
+        "ok": True,
+        "applied_scene_count": result["applied_scene_count"],
+        "project_material_map": str(args.out),
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_semantic_novelty_audit(args):
     """M5a Node 11: perceptual de-duplication of timeline compositions."""
     from video_pipeline_core import semantic_novelty_audit
@@ -1837,6 +1852,11 @@ def main():
                        dest="min_consistency_scenes",
                        help="minimum independently reviewed comparable scenes")
 
+    p_vdr = sub.add_parser("visual-diversity-review")
+    p_vdr.add_argument("project_map", help="project_material_map.json")
+    p_vdr.add_argument("--review", required=True, help="visual_diversity_review.json")
+    p_vdr.add_argument("--out", required=True, help="reviewed project_material_map.json")
+
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
     p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
@@ -2011,6 +2031,7 @@ def main():
         "material-map-lifecycle": cmd_material_map_lifecycle,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
+        "visual-diversity-review": cmd_visual_diversity_review,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
         "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,

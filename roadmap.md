@@ -1210,6 +1210,27 @@ VD2 is truthfully blocked; writing the ranker now would produce a feature that
 usually has no labels to consume. Generated evidence is kept under
 `.tmp/vd1-real-evidence/` and is not a claimed review artifact.
 
+VD1 Agent-review application entry (2026-06-15): `visual_diversity_review.py` +
+`visual-diversity-review` CLI now apply a separate Agent-authored shallow-label
+verdict to a project material map. The tool validates reviewer/timestamp,
+project-map scene references, duplicate verdicts, `wide|medium|close` scale,
+non-empty project-local labels, and existing lineage; invalid input is
+fail-closed and never replaces the output. Applied scenes preserve
+`visual_diversity_lineage`. This closes the Agent-operation gap without
+inventing labels or bypassing VD1: one baseline review may raise coverage, but
+VD2 remains blocked until an independent review supplies the required
+consistency evidence.
+
+Real baseline application evidence (2026-06-15): one Agent review was applied
+to 12 visually inspected photos from the 67th-graduation material set. All four
+shallow axes reached `12/12 = 100%` coverage, while
+`ready_for_vd2=false` remained correctly blocked only by
+`consistency_evidence_missing`. The application entry also rejects malformed
+project-map asset/scene shapes without crashing. Generated review/map/coverage
+artifacts remain under `.tmp/vd1-real-evidence/`; this is baseline operational
+evidence, not an independent consistency review. Verification: focused VD0/VD1
+and material-map suite `41 tests OK`; full regression `1067 tests OK`.
+
 After that evidence exists, labels may be used only as a soft tiebreaker after
 correctness, relevance, and approved material.
 

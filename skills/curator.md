@@ -20,6 +20,34 @@ reviewed material-map scene:
 duplicate it on each scene. These labels support later tier-2 visual-diversity
 review. Missing labels mean `unreviewed`, not pass and not tier-1 failure.
 
+For a project-level Agent review, write a separate verdict artifact and let the
+deterministic tool apply it; do not mutate `project_material_map.json` by hand:
+
+```json
+{
+  "artifact_role": "visual_diversity_review",
+  "version": 1,
+  "reviewer": "agent-or-human-id",
+  "at": "caller-supplied timestamp",
+  "scenes": [
+    {
+      "asset_id": "asset-a",
+      "scene_index": 0,
+      "visual_family": "project-local-family",
+      "angle_scale": "wide",
+      "action_family": "optional-project-local-action",
+      "subject": "optional-project-local-subject"
+    }
+  ]
+}
+```
+
+Apply it with `video_tools.py visual-diversity-review PROJECT_MAP --review
+REVIEW.json --out REVIEWED_PROJECT_MAP.json`, then run
+`visual-diversity-coverage`. Unknown/duplicate scene references and malformed
+labels fail closed. One review can establish coverage but **cannot** satisfy the
+independent-consistency prerequisite for VD2.
+
 > **Facet 擁有權(Node 3,見 [spec-contract.md](spec-contract.md)):小編消費 `material_fit` facet。**
 > 欄位:`visual_desc` / `material_hint` / `required_traits` / `reject_traits` / `must_include` / `fallback_policy` / `reason`。
 > 缺口路由(reshoot/generated/stock_bridge/text_bridge/…)見 Node 8 與 [gap-analyzer.md](gap-analyzer.md);**不靜默用泛用 stock 填 identity 缺口**。

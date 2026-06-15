@@ -54,7 +54,7 @@ capability, and a VERIFY check creates nothing:
 | CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
 | Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | — | — | declared_only |
 | Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | — | — | declared_only |
-| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | scene review verdict | none (no BUILD ranking yet) | stored on scenes | — | declared_only |
+| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | `visual-diversity-review` Agent verdict application | none (no BUILD ranking yet) | stored on scenes with review lineage | — | active evidence input; declared_only for BUILD |
 | VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | — | active (evidence only) |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
