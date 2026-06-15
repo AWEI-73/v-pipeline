@@ -308,5 +308,100 @@ class AdversarialTest(unittest.TestCase):
             self.assertIn("FRESH REVISED", descs)            # fresh, not the stale junk
 
 
+class StrictResolutionTest(unittest.TestCase):
+    def _rewrite_dec(self, ids):
+        return [_dec("d1", ids[0], "script_rewrite", target_segment=1,
+                     patch={"material_fit": {"visual_desc": "REVISED"}})]
+
+    def test_A_missing_decisions_beside_contract_blocks_despite_cwd_copy(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cwd:
+            needs, ids = _needs([("optional", False, None)])
+            h = _Harness(d).write(segments=[_seg(1, [ids[0]]), _seg(2, [ids[0]])],
+                                  needs=needs, decisions=self._rewrite_dec(ids))
+            (Path(d) / "decisions.json").unlink()                  # not beside the contract
+            (Path(cwd) / "decisions.json").write_text(            # but present in the cwd
+                json.dumps(self._rewrite_dec(ids)), encoding="utf-8")
+            old = os.getcwd()
+            try:
+                os.chdir(cwd)
+                result, calls = h.run()
+            finally:
+                os.chdir(old)
+            self.assertEqual(result["stage"], "material_revision")  # cwd copy NOT used
+            self.assertFalse(calls["mv"])
+
+    def test_B_missing_needs_beside_contract_blocks_despite_cwd_copy(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cwd:
+            needs, ids = _needs([("optional", False, None)])
+            h = _Harness(d).write(segments=[_seg(1, [ids[0]]), _seg(2, [ids[0]])],
+                                  needs=needs, decisions=self._rewrite_dec(ids))
+            (Path(d) / "needs.json").unlink()                      # not beside the contract
+            (Path(cwd) / "needs.json").write_text(json.dumps(needs), encoding="utf-8")
+            old = os.getcwd()
+            try:
+                os.chdir(cwd)
+                result, calls = h.run()
+            finally:
+                os.chdir(old)
+            self.assertEqual(result["stage"], "material_revision")
+            self.assertFalse(calls["mv"])
+            self.assertEqual(result["next_action"], "revise:material(material_delta)")
+
+    def test_C_valid_relative_refs_resolve_from_a_different_cwd(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cwd:
+            needs, ids = _needs([("optional", False, None)])
+            h = _Harness(d).write(segments=[_seg(1, [ids[0]]), _seg(2, [ids[0]])],
+                                  needs=needs, decisions=self._rewrite_dec(ids))
+            old = os.getcwd()
+            try:
+                os.chdir(cwd)                                       # unrelated cwd
+                result, calls = h.run()
+            finally:
+                os.chdir(old)
+            self.assertTrue(calls["mv"])                            # resolved beside contract
+            descs = [s.get("visual_desc") for s in calls["script"]["segments"]]
+            self.assertIn("REVISED", descs)
+
+
+class MaterialDbFailClosedTest(unittest.TestCase):
+    def _dec_rewrite(self, ids):
+        return [_dec("d1", ids[0], "script_rewrite", target_segment=1,
+                     patch={"material_fit": {"visual_desc": "REVISED"}})]
+
+    def _run_with_db(self, db_bytes):
+        d = tempfile.mkdtemp()
+        needs, ids = _needs([("optional", False, None)])
+        h = _Harness(d).write(segments=[_seg(1, [ids[0]]), _seg(2, [ids[0]])],
+                              needs=needs, decisions=self._dec_rewrite(ids))
+        if db_bytes is None:
+            (Path(d) / "material_db.json").unlink()                # missing DB
+        else:
+            (Path(d) / "material_db.json").write_bytes(db_bytes)
+        result, calls = h.run()
+        return Path(d), result, calls
+
+    def test_D_corrupt_missing_nonobject_db_all_block_without_exception(self):
+        for db in (None, b"{ not json", b"[1,2,3]",
+                   b'{"files": "notalist"}', b'{"files": [1, 2]}'):
+            d, result, calls = self._run_with_db(db)
+            self.assertEqual(result["stage"], "material_revision", db)
+            self.assertFalse(calls["mv"], db)
+            self.assertEqual(result["next_action"], "revise:material(material_delta)")
+
+    def test_E_optional_only_needs_with_corrupt_db_does_not_pass(self):
+        # would normally pass (optional need) — a corrupt DB must still block,
+        # never be treated as zero material.
+        d, result, calls = self._run_with_db(b"{ corrupt")
+        self.assertEqual(result["stage"], "material_revision")
+        self.assertFalse(calls["mv"])
+
+    def test_F_invalid_db_writes_no_artifacts_and_no_build(self):
+        d, result, calls = self._run_with_db(b'{"files": {"bad": "shape"}}')
+        self.assertFalse(calls["mv"])
+        self.assertFalse((d / "out" / "revised_segment_contract.json").exists())
+        self.assertFalse((d / "out" / "material_revision.json").exists())
+        self.assertFalse((d / "out" / "final.mp4").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

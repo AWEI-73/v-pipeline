@@ -845,6 +845,22 @@ Falsification `tests/test_material_revision_runtime.py` A–L + 5 adversarial
 unrelated tier-1 gap; conflicting accepted decisions; stale revised artifact
 overwritten with fresh): 16 tests. Full regression: **1006 tests OK**.
 
+M6c runtime plumbing hardening (2026-06-15): (1) `material_needs_ref` and
+`revision_decisions_ref` now share ONE strict resolver `_resolve_declared_ref` —
+an absolute ref resolves to itself, a relative ref resolves ONLY against the
+contract file's directory (never the process cwd or `examples/`), and a relative
+ref with an inline (dict) contract is an explicit error rather than a cwd guess;
+missing → fail-closed. (2) The revision lifecycle strict-loads the current
+material_db before doing anything: a missing/corrupt DB, non-object top level,
+non-list `files`, or non-object entry is a structured block
+(`next_action=revise:material(material_delta)`) — never degraded to `{"files":
+[]}`, so `apply_revisions` is not called and no artifacts/BUILD happen. Reverse
+tests: missing decisions/needs beside the contract block despite a cwd/examples
+copy; valid relative refs resolve from a different cwd; corrupt/missing/non-object
+DB all block without exception; optional-only needs + corrupt DB still blocks;
+invalid DB writes no revision artifacts and no final. Focused: 22 tests OK; full
+regression: **1012 tests OK**.
+
 **Next: M6d Independent Material Map Skill** (deferred). F2 / `wrong_semantics` /
 `insufficient_action_phases` remain deferred. The M6 lifecycle
 (needs → lineage → delta → pre-BUILD gate → revision → runtime) is now end-to-end.

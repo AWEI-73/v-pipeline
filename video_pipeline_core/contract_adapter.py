@@ -596,18 +596,45 @@ def _apply_creator_profile(out_dir, creator_profile_path, brief_dict, build_prof
     return {"creator_profile": str(cp_path), "creator_profile_applied": str(applied_path)}
 
 
-def _resolve_needs_file(needs_ref, source):
-    """Resolve a declared material_needs_ref to an existing file, or None."""
-    candidates = []
-    if source:
-        candidates.append(Path(source).parent / needs_ref)
-    candidates.append(Path(needs_ref))
-    for prefix in (Path("."), Path("examples")):
-        candidates.append(prefix / needs_ref)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
+def _resolve_declared_ref(ref, source):
+    """STRICT resolution of a declared ref (material_needs_ref / revision_decisions_ref).
+    Returns (path, error): an absolute ref resolves to itself; a relative ref
+    resolves ONLY against the contract file's directory — never the process cwd
+    or examples/. A relative ref with no file-based contract (inline dict, no
+    `source`) is an explicit error rather than a cwd guess. Missing → fail-closed."""
+    path = Path(ref)
+    if path.is_absolute():
+        return (path, None) if path.exists() else (None, f"declared ref not found: {ref}")
+    if not source:
+        return None, (f"relative ref {ref!r} cannot be resolved: the contract was provided "
+                      f"inline with no base directory — pass a file-based contract or an "
+                      f"absolute ref (refusing to guess the process cwd)")
+    candidate = Path(source).parent / ref
+    if candidate.exists():
+        return candidate, None
+    return None, f"declared ref {ref!r} not found next to the contract: {candidate}"
+
+
+def _load_material_db_strict(material_db):
+    """Strict load of the current material_db. Returns (payload, error). A
+    missing/corrupt DB, a non-object top level, a non-list `files`, or a non-object
+    entry is fail-closed (never degraded to {"files": []})."""
+    try:
+        with open(material_db, encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except FileNotFoundError:
+        return None, f"material_db not found: {material_db}"
+    except (OSError, ValueError) as exc:
+        return None, f"material_db could not be parsed ({material_db}): {exc}"
+    if not isinstance(payload, dict):
+        return None, f"material_db top-level must be an object, got {type(payload).__name__}"
+    files = payload.get("files")
+    if files is not None and not isinstance(files, list):
+        return None, f"material_db.files must be a list, got {type(files).__name__}"
+    for index, entry in enumerate(files or []):
+        if not isinstance(entry, dict):
+            return None, f"material_db.files[{index}] must be an object, got {entry!r}"
+    return payload, None
 
 
 def _quarantine_stale_final(out_path):
@@ -669,9 +696,9 @@ def _resolve_material_inputs(contract_obj, source, material_db, material_db_payl
     needs_ref = contract_obj.get("material_needs_ref")
     if not isinstance(needs_ref, str) or not needs_ref.strip():
         return None, None, f"material_needs_ref must be a non-empty string, got {needs_ref!r}"
-    needs_file = _resolve_needs_file(needs_ref.strip(), source)
-    if needs_file is None:
-        return None, None, f"material_needs_ref declared but file not found: {needs_ref}"
+    needs_file, ref_error = _resolve_declared_ref(needs_ref.strip(), source)
+    if ref_error:
+        return None, None, ref_error
     try:
         with needs_file.open(encoding="utf-8-sig") as handle:
             needs = json.load(handle)
@@ -709,14 +736,14 @@ def _run_material_delta_gate(contract_obj, source, out_dir, material_db, materia
     return gate
 
 
-def _run_material_revision(contract_obj, source, out_dir, material_db, material_db_payload,
-                           *, categories=None):
+def _run_material_revision(contract_obj, source, out_dir, material_db, *, categories=None):
     """M6c runtime plumbing. Runs ONLY when the contract declares the
-    `revision_decisions_ref` key (omit → skip, backward compatible). Computes a
-    FRESH material_delta from current needs+maps, applies ONLY accepted decisions
-    via the single material_revision.apply_revisions, writes
-    revised_segment_contract.json + material_revision.json atomically, and re-runs
-    gate_from_delta with the canonical waivers. Trusts no stale artifact.
+    `revision_decisions_ref` key (omit → skip, backward compatible). Strictly
+    loads the current material_db, computes a FRESH material_delta from current
+    needs+maps, applies ONLY accepted decisions via the single
+    material_revision.apply_revisions, writes revised_segment_contract.json +
+    material_revision.json atomically, and re-runs gate_from_delta with the
+    canonical waivers. Trusts no stale artifact.
 
     Returns a dict: {status: skip|applied|block, revised, waivers, reason,
     next_action, material_revision (path), revised_contract (path), errors}."""
@@ -737,14 +764,20 @@ def _run_material_revision(contract_obj, source, out_dir, material_db, material_
     ref = contract_obj.get("revision_decisions_ref")
     if not isinstance(ref, str) or not ref.strip():
         return block(f"revision_decisions_ref must be a non-empty string, got {ref!r}")
-    decisions_file = _resolve_needs_file(ref.strip(), source)   # same resolver/discipline
-    if decisions_file is None:
-        return block(f"revision_decisions_ref declared but file not found: {ref}")
+    decisions_file, ref_error = _resolve_declared_ref(ref.strip(), source)
+    if ref_error:
+        return block(ref_error)
     try:
         with decisions_file.open(encoding="utf-8-sig") as handle:
             decisions = json.load(handle)
     except (OSError, ValueError) as exc:
         return block(f"revision_decisions could not be parsed ({decisions_file}): {exc}")
+
+    # the material_db must load cleanly before a revision; a corrupt/invalid DB is
+    # fail-closed, never silently treated as zero material.
+    material_db_payload, db_error = _load_material_db_strict(material_db)
+    if db_error:
+        return block(db_error, next_action="revise:material(material_delta)")
 
     # a revision is defined against a material_delta, which needs canonical needs
     needs, maps, error = _resolve_material_inputs(
@@ -827,13 +860,8 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     # written. A blocked revision stops before any render (stale final quarantined).
     revision_waivers = None
     if "revision_decisions_ref" in contract_obj:
-        try:
-            with open(material_db, encoding="utf-8-sig") as _mh:
-                _mdb_payload = json.load(_mh)
-        except (OSError, ValueError):
-            _mdb_payload = {"files": []}
         revision = _run_material_revision(
-            contract_obj, source, out_path.parent, material_db, _mdb_payload,
+            contract_obj, source, out_path.parent, material_db,
             categories=_load_category_ids(categories_path))
         if revision["status"] == "block":
             stale_final_path, quarantine_error = _quarantine_stale_final(out_path)
