@@ -408,6 +408,28 @@ def cmd_material_delta(args):
             f"material_delta failed: {len(result['errors'])} reference/validation error(s)")
 
 
+def cmd_material_map_lifecycle(args):
+    """M6d: orchestrate the material-map lifecycle from whatever artifacts exist;
+    emit the current stage + next action (+ a BUILD handoff only when build_ready).
+    Reuses the canonical M6a-M6c tools; never renders."""
+    from video_pipeline_core import material_map_lifecycle
+    report = material_map_lifecycle.run_lifecycle(
+        out_dir=args.out_dir, needs_ref=args.needs, maps_dir=args.maps_dir,
+        project_map_ref=args.project_map, material_db_ref=args.material_db,
+        contract_ref=args.contract, decisions_ref=args.decisions,
+        categories_path=args.categories)
+    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+    (Path(args.out_dir) / "material_map_lifecycle.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"stage": report["stage"], "can_build": report["can_build"],
+                      "entry_point": report["entry_point"],
+                      "next_action": report["next_action"],
+                      "blocking": report["blocking"]}, ensure_ascii=False, indent=2))
+    if report["stage"] == "invalid":
+        raise ToolError("material-map lifecycle is invalid: "
+                        + "; ".join(report["blocking"]))
+
+
 def cmd_material_revision(args):
     """M6c: apply ACCEPTED human delta decisions to a revised segment_contract.
     Writes both artifacts only on success; invalid input exits non-zero and
@@ -1766,6 +1788,20 @@ def main():
                       help="project_material_map.json (satisfies edges)")
     p_md.add_argument("--out", default=None, help="write material_delta.json here")
 
+    p_mml = sub.add_parser("material-map-lifecycle")
+    p_mml.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for lifecycle artifacts + report")
+    p_mml.add_argument("--needs", default=None, help="material_needs.json (required side)")
+    p_mml.add_argument("--maps-dir", default=None, dest="maps_dir",
+                       help="directory of per-asset *.map.json")
+    p_mml.add_argument("--project-map", default=None, dest="project_map",
+                       help="project_material_map.json")
+    p_mml.add_argument("--material-db", default=None, dest="material_db",
+                       help="materials_db.json (alternative actual-side source)")
+    p_mml.add_argument("--contract", default=None, help="segment_contract.json")
+    p_mml.add_argument("--decisions", default=None, help="revision_decisions.json")
+    p_mml.add_argument("--categories", default=None, help="material_categories.json (optional)")
+
     p_mr = sub.add_parser("material-revision")
     p_mr.add_argument("contract", help="segment_contract.json (not mutated)")
     p_mr.add_argument("--delta", required=True, help="material_delta.json")
@@ -1972,6 +2008,7 @@ def main():
         "lineage-link": cmd_lineage_link,
         "material-delta": cmd_material_delta,
         "material-revision": cmd_material_revision,
+        "material-map-lifecycle": cmd_material_map_lifecycle,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
