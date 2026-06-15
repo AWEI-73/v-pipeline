@@ -1198,7 +1198,7 @@ context -> primary action -> detail/reaction -> payoff
 
 #### VD1 / VD2 Visual Diversity Evidence And Soft Ranking — P1
 
-**VD1 evidence contract completed (2026-06-14); VD2 remains blocked.**
+**VD1 evidence contract completed (2026-06-14); [Historical Blocked: VD2 remained blocked until consistency re-review passed on 2026-06-15. Current State: VD2a BUILD soft-ranking is complete].**
 `visual_diversity_coverage.py` + `visual-diversity-coverage` CLI reads the
 validated `project_material_map.json` and emits
 `visual_diversity_coverage.json`: per-axis labeled/missing counts and scene
@@ -1213,8 +1213,8 @@ mutation.
 
 A reproducible evidence run used 12 real photo assets selected from distinct
 folders under `_整理後`. The resulting project map had 12 scenes, but actual
-VD0 coverage was 0% and no independent consistency review existed. Therefore
-VD2 is truthfully blocked; writing the ranker now would produce a feature that
+VD0 coverage was 0% and no independent consistency review existed. Therefore,
+historically, VD2 was truthfully blocked; writing the ranker then would produce a feature that
 usually has no labels to consume. Generated evidence is kept under
 `.tmp/vd1-real-evidence/` and is not a claimed review artifact.
 
@@ -1226,8 +1226,8 @@ non-empty project-local labels, and existing lineage; invalid input is
 fail-closed and never replaces the output. Applied scenes preserve
 `visual_diversity_lineage`. This closes the Agent-operation gap without
 inventing labels or bypassing VD1: one baseline review may raise coverage, but
-VD2 remains blocked until an independent review supplies the required
-consistency evidence.
+[Historical State: VD2 remained blocked until an independent review supplied the
+required consistency evidence.]
 
 Gemini-generated 36-image consistency replay (2026-06-15): independent Gemini
 and Codex reviews both reached 100% required-axis coverage and agreed on
@@ -1242,15 +1242,16 @@ VD1.1 Project-local Visual Family Vocabulary Contract (2026-06-15): implemented
 vocabulary is a project-local contract that different Agents use to align their
 visual-family definitions before reviewing. It does NOT represent generic built-in
 genre vocabulary in the core engine. Normalization is a deterministic mapping
-(canonical/aliases) and is NOT semantic or fuzzy understanding. VD2 remains blocked
-by default until coverage consistency is re-measured and passes. Re-measuring
+(canonical/aliases) and is NOT semantic or fuzzy understanding. [Historical State:
+VD2 remained blocked by default until coverage consistency was re-measured and passed.]
+Re-measuring
 Gemini vs Codex reviews on the normalized project-local mountain rescue vocabulary
 yielded 94.44% visual_family agreement and 100.00% angle_scale agreement. However,
 this is an offline "normalization replay" on pre-existing reviews and does NOT
-constitute or prove real independent consistency. The actual VD2 soft-ranking
-remains BLOCKED until the vocabulary contract is officially frozen, and both
-review Agents read this frozen contract to perform an independent re-review of the
-images from scratch, passing the consistency check under those conditions.
+constitute or prove real independent consistency. [Historical State: The actual VD2
+soft-ranking remained BLOCKED until the vocabulary contract was officially frozen,
+and both review Agents read this frozen contract to perform an independent re-review of
+the images from scratch, passing the consistency check under those conditions.]
 
 Frozen-vocabulary independent re-review completed (2026-06-15): two isolated
 workers received only the 36 original images, original project map, and frozen
