@@ -1099,53 +1099,20 @@ def trim_beats_to_target(beats, target_sec):
     return kept
 
 
-def run_mv(script, material_root, out_path, music_path=None,
-           model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
-           windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
-           verbose=True, skip_render=False, target_sec=None, burn_text=True,
-           visual_judge="ollama", material_maps=None):
-    """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
-    (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
-    """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
-    →選最佳→對拍/長 hold 組裝→audio_role 混音→render。回傳 {out, plan, per_seg}。"""
-    import copy  # noqa: PLC0415
-    script = copy.deepcopy(script)
+def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
+                         visual_verdicts, clip_list, material_root, model, mat_dir,
+                         max_clips_per_seg, windows_per_clip, min_score,
+                         prefilter_static, visual_judge, vp):
+    """Per-segment material planning → ordered render-plan slots (AR1 extraction;
+    moved verbatim from run_mv, no behavior change).
 
-    def vp(*a):
-        if verbose:
-            print(*a)
-
-    mat_dir = mat_dir or resolve_temp_dir()
-    segs = script.get("segments") or []
-    # MR1: single normalization entry — accept a project_material_map dict, a list
-    # of per-asset maps, or one per-asset map; malformed input fails loudly here
-    # rather than silently degrading to a needs-less / no-evidence build.
-    if material_maps is not None:
-        from .project_material_map import expand_project_material_map  # noqa: PLC0415
-        material_maps = expand_project_material_map(material_maps)
-    # 1) 音樂先(定總長/節奏)。v0:music_path 由呼叫端先用 music-fetch 抓好傳入。
-    if not music_path:
-        raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
-    _tempo, _beats = detect_beats(music_path)
-    music_dur = _beats[-1] if _beats else 0
-    _beats = trim_beats_to_target(_beats, target_sec)
-    total_dur = _beats[-1] if _beats else 0
-    if target_sec and total_dur < music_dur:
-        vp(f"[music] {os.path.basename(music_path)} {round(music_dur,1)}s tempo={round(_tempo)} "
-           f"→ trimmed to target {round(total_dur,1)}s (brief target_length)")
-    else:
-        vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
-
-    # 2) 時長分配(列舉堆疊用「一拍」長度 → 對拍快剪)
-    stack_shot_sec = _stack_shot_duration(_tempo)
-    alloc = allocate_segments(segs, total_dur, stack_shot_sec=stack_shot_sec)
-    clip_by_seg = {as_["segment"]: as_ for as_ in (clip_list or {}).get("assignments", [])}
-    visual_verdicts = {}
-    if visual_judge == "agent":
-        from .visual_review import load_verdict
-        visual_verdicts = load_verdict(os.path.join(mat_dir, "visual_review_verdict.json"))
-
-    # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry
+    Owns: per-segment dispatch (source_speech / stock-stack / stock / local map-
+    ranked), SRP1/BR2 auto+manual beat-sequence replacement and fallback, anti-
+    presentation, per-slot trace + slot_index assignment, and the VD2 shared-
+    history update (a FRESH local list each call — never preserved across run_mv
+    calls). Returns (plan, per_seg, sequence_cues, story_plan); story_plan is a
+    frozen copy used as the bookend source pool.
+    """
     plan, per_seg = [], []
     sequence_cues = []          # BR2/BR1 punctuation cues, resolved by BR3 post-render
     shared_history = []
@@ -1170,20 +1137,20 @@ def run_mv(script, material_root, out_path, music_path=None,
         elif s.get("source") == "stock" and stack_items:
             slots, entry, msgs = _plan_stock_stack_segment(s, a, mat_dir, stack_items)
             # Snapping stack still cut times to actual music beat grid timestamps
-            if _beats:
+            if beats:
                 current_time = sum(sl.get("extract_dur", 0.0) for sl in plan)
                 # Find the closest beat index to current_time
-                k = min(range(len(_beats)), key=lambda idx: abs(_beats[idx] - current_time))
+                k = min(range(len(beats)), key=lambda idx: abs(beats[idx] - current_time))
                 for i, sl in enumerate(slots):
-                    if k + i + 1 < len(_beats):
+                    if k + i + 1 < len(beats):
                         if i == 0:
-                            dur = _beats[k + 1] - current_time
+                            dur = beats[k + 1] - current_time
                         else:
-                            dur = _beats[k + i + 1] - _beats[k + i]
+                            dur = beats[k + i + 1] - beats[k + i]
                         if dur > 0.1:
                             sl["extract_dur"] = round(dur, 3)
                         else:
-                            sl["extract_dur"] = round(_beats[k + i + 1] - _beats[k + i], 3)
+                            sl["extract_dur"] = round(beats[k + i + 1] - beats[k + i], 3)
                     else:
                         sl["extract_dur"] = round(a["clip_dur"], 3)
         elif s.get("source") == "stock":
@@ -1336,13 +1303,15 @@ def run_mv(script, material_root, out_path, music_path=None,
     # Keep the unmodified story plan as the source pool for both bookends. This
     # prevents the opening from selecting ending clips or vice versa.
     story_plan = list(plan)
+    return plan, per_seg, sequence_cues, story_plan
 
-    # 3.5) BR1 opening / hook sequence — prepend a designed opening into the
-    # render plan so it changes both timeline and true render. A MANUAL
-    # `script["opening_recipe"]` keeps the existing BR1 behavior exactly. With no
-    # manual recipe, SRP2 plans a shallow deterministic opening from the approved
-    # story slots (reuse only; the story plan is never modified). The opening runs
-    # AFTER the per-segment loop, so it never pollutes VD2/SRP1 shared history.
+
+def _apply_opening_bookend(script, plan, story_plan, *, target_sec, vp):
+    """BR1 manual opening + SRP2 auto opening bookend (AR1 extraction; moved
+    verbatim from run_mv, no behavior change). A manual `script["opening_recipe"]`
+    keeps the existing BR1 behavior exactly; with none, SRP2 plans a shallow
+    deterministic opening from the approved story slots and applies the target_sec
+    whole-film budget. Returns (plan, opening_result, opening_plan)."""
     opening_result = None
     opening_plan = None
     opening_recipe = script.get("opening_recipe")
@@ -1432,9 +1401,14 @@ def run_mv(script, material_root, out_path, music_path=None,
                 vp("[opening] auto opening produced no clips (fallback)")
         else:
             vp(f"[opening] auto opening not_applicable: {opening_plan['reason']}")
+    return plan, opening_result, opening_plan
 
-    # 3.6) BR4 ending / payoff sequence — append approved closure beats. Missing
-    # recipe/material leaves the existing plan unchanged.
+
+def _apply_ending_bookend(script, plan, story_plan, segs, sequence_cues, *, vp):
+    """BR4 ending / payoff bookend (AR1 extraction; moved verbatim from run_mv,
+    no behavior change). Missing recipe/material leaves the plan unchanged. Ending
+    cues are appended to `sequence_cues` (mutated in place and returned). Returns
+    (plan, ending_result, sequence_cues)."""
     ending_result = None
     ending_recipe = script.get("ending_recipe")
     if ending_recipe:
@@ -1453,6 +1427,85 @@ def run_mv(script, material_root, out_path, music_path=None,
         else:
             vp(f"[ending] no ending clips compiled (fallback); "
                f"dropped={ending_result['dropped']}")
+    return plan, ending_result, sequence_cues
+
+
+def _finalize_timeline(plan, material_maps):
+    """Final render-plan adjustments (AR1 extraction; moved verbatim from run_mv,
+    no behavior change): map-based edit-point planning then motion snapping.
+    Returns the finalized plan."""
+    if material_maps:
+        from .edit_point_planner import plan_render_edit_points  # noqa: PLC0415
+        plan = plan_render_edit_points(plan, material_maps)
+    from .edit_artifacts import snap_render_plan_to_motion  # noqa: PLC0415
+    plan = snap_render_plan_to_motion(plan)
+    return plan
+
+
+def run_mv(script, material_root, out_path, music_path=None,
+           model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
+           windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
+           verbose=True, skip_render=False, target_sec=None, burn_text=True,
+           visual_judge="ollama", material_maps=None):
+    """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
+    (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
+    """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
+    →選最佳→對拍/長 hold 組裝→audio_role 混音→render。回傳 {out, plan, per_seg}。"""
+    import copy  # noqa: PLC0415
+    script = copy.deepcopy(script)
+
+    def vp(*a):
+        if verbose:
+            print(*a)
+
+    mat_dir = mat_dir or resolve_temp_dir()
+    segs = script.get("segments") or []
+    # MR1: single normalization entry — accept a project_material_map dict, a list
+    # of per-asset maps, or one per-asset map; malformed input fails loudly here
+    # rather than silently degrading to a needs-less / no-evidence build.
+    if material_maps is not None:
+        from .project_material_map import expand_project_material_map  # noqa: PLC0415
+        material_maps = expand_project_material_map(material_maps)
+    # 1) 音樂先(定總長/節奏)。v0:music_path 由呼叫端先用 music-fetch 抓好傳入。
+    if not music_path:
+        raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
+    _tempo, _beats = detect_beats(music_path)
+    music_dur = _beats[-1] if _beats else 0
+    _beats = trim_beats_to_target(_beats, target_sec)
+    total_dur = _beats[-1] if _beats else 0
+    if target_sec and total_dur < music_dur:
+        vp(f"[music] {os.path.basename(music_path)} {round(music_dur,1)}s tempo={round(_tempo)} "
+           f"→ trimmed to target {round(total_dur,1)}s (brief target_length)")
+    else:
+        vp(f"[music] {os.path.basename(music_path)} {round(total_dur,1)}s tempo={round(_tempo)}")
+
+    # 2) 時長分配(列舉堆疊用「一拍」長度 → 對拍快剪)
+    stack_shot_sec = _stack_shot_duration(_tempo)
+    alloc = allocate_segments(segs, total_dur, stack_shot_sec=stack_shot_sec)
+    clip_by_seg = {as_["segment"]: as_ for as_ in (clip_list or {}).get("assignments", [])}
+    visual_verdicts = {}
+    if visual_judge == "agent":
+        from .visual_review import load_verdict
+        visual_verdicts = load_verdict(os.path.join(mat_dir, "visual_review_verdict.json"))
+
+    # 3) per-段:派工給對應 planner(matched / stock / live),收 slots+entry。
+    # story timeline 規劃抽到 _plan_story_timeline(AR1:零行為變更,僅搬移)。
+    plan, per_seg, sequence_cues, story_plan = _plan_story_timeline(
+        segs, alloc, _beats,
+        material_maps=material_maps, clip_by_seg=clip_by_seg,
+        visual_verdicts=visual_verdicts, clip_list=clip_list,
+        material_root=material_root, model=model, mat_dir=mat_dir,
+        max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
+        min_score=min_score, prefilter_static=prefilter_static,
+        visual_judge=visual_judge, vp=vp)
+
+    # 3.5) opening bookend (manual BR1 + SRP2 auto + target_sec budget).
+    # 3.6) ending bookend. Both extracted to helpers (AR1: zero behavior change).
+    # They run AFTER the story loop, so they never pollute VD2/SRP1 shared history.
+    plan, opening_result, opening_plan = _apply_opening_bookend(
+        script, plan, story_plan, target_sec=target_sec, vp=vp)
+    plan, ending_result, sequence_cues = _apply_ending_bookend(
+        script, plan, story_plan, segs, sequence_cues, vp=vp)
 
     # 4) render(audio_role:keep_audio 段保留原音 + 音樂墊底)
     pending_visual_review = [entry for entry in per_seg if entry.get("pending_visual_review")]
@@ -1460,11 +1513,7 @@ def run_mv(script, material_root, out_path, music_path=None,
         from .visual_review import write_request
         write_request(pending_visual_review, os.path.join(mat_dir, "visual_review_request.json"))
 
-    if material_maps:
-        from .edit_point_planner import plan_render_edit_points  # noqa: PLC0415
-        plan = plan_render_edit_points(plan, material_maps)
-    from .edit_artifacts import snap_render_plan_to_motion  # noqa: PLC0415
-    plan = snap_render_plan_to_motion(plan)
+    plan = _finalize_timeline(plan, material_maps)
 
     # BR3 punctuation: collect valid cues from BR1 opening + BR2 beats
     punctuation_cues = list((opening_result or {}).get("cues") or []) + sequence_cues

@@ -88,6 +88,24 @@ falsification suite incl. a budget-bounded dynamic-photo true render (plan and
 rendered file both stay within `target_sec`): focused **44 tests**; full
 regression **1177 tests OK**.
 
+**AR1 Runtime Planning Extraction COMPLETE** (2026-06-16): a ZERO-behavior-change
+refactor (not a new feature, not a new Pipeline framework). `run_mv` in
+`mv_cut.py` was a ~400-line god-function; its planning logic is now extracted into
+clear private helpers with explicit inputs/returns and no module-global state:
+`_plan_story_timeline` (per-segment dispatch, SRP1/BR2 auto+manual beat sequence,
+anti-presentation, slot trace + slot_index, and the VD2 shared-history update —
+a fresh local list each call), `_apply_opening_bookend` (manual BR1 + SRP2 auto
+opening + target_sec budget), `_apply_ending_bookend` (BR4 ending), and
+`_finalize_timeline` (edit-point planning + motion snap). `run_mv` is now a
+~110-line orchestrator: normalize → analyze music / allocate → plan story → apply
+opening → apply ending → finalize → render / state / result. The `run_mv` public
+signature and the result schema are unchanged, and SRP1 / SRP2 / VD2 / BR1 /
+ending / target_sec behavior is byte-for-byte identical (locked by a new
+`tests/test_ar1_run_mv_characterization.py` A–L suite incl. a real ffmpeg render;
+full regression **1193 tests OK**). This only establishes the runtime planning
+boundaries needed before SRP3 — it does NOT start SRP3. Audio Graph V2, test
+tier-ing, and the VERIFY→BUILD revision loop remain deferred.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 

@@ -90,6 +90,14 @@ capability, and a VERIFY check creates nothing:
 - **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only. Candidates are deduplicated by `scene_id` (same source + different window stays distinct). Selection is correctness-first and greedy by retrieval_score tier — a lower-score shot never outranks a higher one — with same-tier soft role preferences actually applied: hook prefers close>medium>wide, context prefers an unused `visual_family` then wide>medium>close, title base prefers an unused scene_id / different family (video-over-photo and deterministic scene_id as final tie-breaks; missing family/scale degrades deterministically). Only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded); title text comes only from explicit script fields; evidence/window/photo lineage is preserved; the original story plan is left intact (opening prepended, slot_index reindexed); and VD2/SRP1 shared history is not polluted. When the build declares `target_sec`, the auto opening is duration-budgeted against the whole-film target (drop extra context -> title -> shorten hook -> fallback) so it never pushes the plan past `target_sec`; approved story slots are never trimmed and manual openings are exempt. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
+- **AR1 runtime planning extraction is internal structure, not a capability.**
+  `run_mv` now delegates to private helpers (`_plan_story_timeline`,
+  `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
+  explicit inputs/returns and no module-global state. This is a zero-behavior /
+  zero-schema / zero-API change refactor establishing the runtime planning
+  boundaries needed before SRP3 — it adds no BUILD capability and is NOT a new
+  Pipeline framework. Audio Graph V2, test tier-ing, and VERIFY→BUILD remain
+  deferred.
 
 ## Smallest high-value BUILD gaps (ranked)
 
