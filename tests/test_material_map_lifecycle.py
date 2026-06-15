@@ -228,5 +228,73 @@ class StopWithoutRenderTest(unittest.TestCase):
             self.assertFalse((Path(d) / "br" / "final.mp4").exists())
 
 
+class BuildHandoffTest(unittest.TestCase):
+    def test_handoff_with_missing_ref_returns_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            existing = Path(d) / "c.json"
+            existing.write_text("{}", encoding="utf-8")
+            missing = Path(d) / "nope.json"
+            self.assertIsNone(mml._build_handoff(str(missing), None, None, []))   # contract missing
+            self.assertIsNone(mml._build_handoff(str(existing), None, str(missing), []))  # needs missing
+            self.assertIsNone(mml._build_handoff(str(existing), str(missing), None, []))  # db missing
+            self.assertIsNotNone(mml._build_handoff(str(existing), None, None, []))
+
+    def test_build_ready_handoff_passes_run_contract_fresh_gate(self):
+        """The build_ready handoff, fed to run_contract, re-runs the M6b gate fresh
+        (not bypassed) and reaches BUILD. mv_chain is mocked (real render = M6e)."""
+        from unittest.mock import patch
+        from video_pipeline_core import contract_adapter as ca
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            needs = _needs([("one", True, None)])
+            nid = needs["needs"][0]["need_id"]
+            needs_path = _w(d, "needs.json", needs)
+            # a per-asset map covering the need, referenced by a material_db
+            map_file = d / "clip.map.json"
+            map_file.write_text(json.dumps(_map("clip", "a.mp4", need_id=nid, status="accepted")),
+                                encoding="utf-8")
+            db_path = _w(d, "materials_db.json", {"files": [{"path": "a.mp4",
+                        "material_map": "clip.map.json"}]})
+            # contract declares material_needs_ref so run_contract's gate fires
+            contract = {"style": "mv", "music": {"brief": "x"},
+                        "material_needs_ref": "needs.json",
+                        "segments": [_seg(1, [nid]), _seg(2, [nid])]}
+            contract_path = _w(d, "contract.json", contract)
+
+            rep = mml.run_lifecycle(out_dir=d / "out", needs_ref=needs_path,
+                                    material_db_ref=db_path, contract_ref=contract_path)
+            self.assertEqual(rep["stage"], "build_ready")
+            handoff = rep["build_handoff"]
+            self.assertEqual(handoff["contract_ref"], contract_path)
+
+            calls = {"mv": False}
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None,
+                              mat_dir="/tmp", verbose=True, **kwargs):
+                calls["mv"] = True
+                Path(out_path).write_bytes(b"mp4")
+                st = Path(out_path).parent / "state.json"
+                st.write_text(json.dumps({"final": str(out_path), "next_action": None}),
+                              encoding="utf-8")
+                return {"final": str(out_path), "state": str(st), "plan": []}
+
+            def fake_music(audio_path, out_path, **_k):
+                Path(out_path).write_text("{}", encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path)}
+
+            music = d / "bgm.mp3"
+            music.write_bytes(b"fake")
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music):
+                result = ca.run_contract(
+                    handoff["contract_ref"], material_db=handoff["material_db_ref"],
+                    out_path=d / "out" / "final.mp4", music_path=music,
+                    mat_dir=d / "out", verbose=False)
+            # the fresh M6b gate ran inside run_contract and did NOT block
+            self.assertNotEqual(result.get("stage"), "material_delta")
+            self.assertNotEqual(result.get("stage"), "material_revision")
+            self.assertTrue(calls["mv"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -887,6 +887,32 @@ Independent Material Map Skill**.
 - Acceptance: the Skill can stop after planning/collection guidance without
   forcing a video render.
 
+##### M6d implementation ✅ COMPLETE (2026-06-15)
+
+`material_map_lifecycle.run_lifecycle` + CLI `material-map-lifecycle` +
+`skills/material-map.md`. Orchestration only — composes the M6a–M6c canonical
+tools, adds no editing capability and no second source of truth. The stage is
+derived FRESH from the artifacts present (never a prior lifecycle/delta/revised
+contract): `await_requirements_discussion` (material-only, no invented needs/no
+delta) · `await_material` (must_have missing) · `await_map_review` (maps unlinked
+to needs, or material sufficient but no contract) · `await_revision_decision`
+(pending/none-accepted decisions) · `revision_blocked` · `build_ready` · `invalid`
+(dangling need / duplicate asset / corrupt input — fail-closed). It can stop at
+any planning/await stage WITHOUT rendering. A `build_ready` handoff
+(`{contract_ref, material_db_ref, material_needs_ref, revision_waivers,
+ready_for_build}`) points only at existing files; no-revision → original contract,
+revision → revised contract. The handoff is re-verified by `run_contract`'s own
+fresh M6b/M6c gate (M6d never bypasses it — proven by a real run_contract handoff
+smoke). The lifecycle report is a projection (refs + summaries), not a canonical
+schema. Tests `tests/test_material_map_lifecycle.py`: entry (×6), freshness (×2),
+failure (×3), stop-without-render, handoff missing-ref + run_contract gate smoke
+(14 tests). Full regression: **1031 tests OK**. Skill doc defines the method and
+decision responsibility; deterministic validate/join/gate/revision stay in Python.
+
+**Still open: M6e real-case acceptance** (real ffmpeg render + 67th-style student
+footage replay across the three entry points) is NOT yet done. F2 /
+`wrong_semantics` / `insufficient_action_phases` remain deferred.
+
 #### M6e Validation
 
 - Validate with two cases, not only 67th:
