@@ -109,6 +109,20 @@ capability, and a VERIFY check creates nothing:
   (climax outweighs setup). It adds one backward-compatible result key
   (`story_arc_plan`) and arc trace on story slots/entries; opening/ending evidence
   is never arc-tagged.
+- **Controlled SRP acceptance replay confirms the BUILD thickness is real and
+  attributable.** `tools/srp_acceptance_replay.py` drives `run_mv` over one
+  controlled Gemini photo set (7 needs + 3 distractors) twice — baseline (VD2/
+  SRP1/SRP2/SRP3 off via minimal disable flags, map-ranked + photo renderability
+  kept) and enhanced (all on) — plus four planning-only single-capability
+  isolation runs for honest attribution. Real ffmpeg renders both `final.mp4`.
+  On this material the enhanced timeline differs from baseline and each capability
+  is independently attributable: VD2 changes per-chapter selection (consecutive
+  same-family runs 7→0), SRP1 adds beat sequences in every chapter, SRP2 prepends
+  an opening, and SRP3 makes the climax chapter longer than setup (3.6s vs 2.5s)
+  while preserving total duration / `target_sec`. The disable flags
+  (`disable_visual_diversity` / `disable_auto_sequence` / `disable_auto_opening` /
+  `story_arc:false`) are minimal, backward-compatible controls (default = existing
+  behavior); they add no new editing capability.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with

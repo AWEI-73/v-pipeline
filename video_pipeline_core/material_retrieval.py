@@ -85,8 +85,13 @@ def _scene_by_id(material_maps, scene_id):
     return None
 
 
-def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None):
-    """Select scenes from ranked list with diversity preference within same score tiers."""
+def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
+                                 diversity=True):
+    """Select scenes from ranked list with diversity preference within same score
+    tiers. `diversity=False` (VD2 off / acceptance baseline) skips the same-tier
+    family/scale reorder and the cross-segment history, taking the strict
+    correctness order (`-score`, then `scene_id`) — a minimal, backward-compatible
+    control; the default `True` is the existing behavior."""
     candidates = []
     for item in ranked:
         source = item.get("source")
@@ -98,6 +103,14 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None):
             if available <= 0:
                 continue
         candidates.append(item)
+
+    if not diversity:
+        out = []
+        for c in candidates[:max(0, int(limit))]:
+            c_copy = dict(c)
+            c_copy["diversity_selection_reason"] = "diversity_disabled"
+            out.append(c_copy)
+        return out
 
     tiers = []
     if candidates:
@@ -177,13 +190,16 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None):
     return selected
 
 
-def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None, history=None):
-    """Convert top-ranked scenes to concrete editor slots."""
+def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
+                        history=None, diversity=True):
+    """Convert top-ranked scenes to concrete editor slots. `diversity=False`
+    disables the VD2 same-tier diversity reorder (correctness order only)."""
     from .action_progression import classify_function
     limit = max(0, int(limit))
 
     ranked = rank_scenes(segment, material_maps, ranker=ranker)
-    selected = select_diverse_ranked_scenes(ranked, material_maps, limit, history=history)
+    selected = select_diverse_ranked_scenes(ranked, material_maps, limit,
+                                            history=history, diversity=diversity)
 
     slots = []
     for item in selected:

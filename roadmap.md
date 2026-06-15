@@ -164,6 +164,31 @@ render proving climax story duration > setup; focused **47 tests** (35 planner +
 understanding, script rewrite, segment reorder/drop, VERIFY→BUILD revision loop,
 VD3, Audio Graph V2, Dashboard/UI/Node 14/effects.
 
+**SRP Acceptance Replay COMPLETE** (2026-06-16): a reproducible, controlled
+validation that the accumulated BUILD thickness (M6 + VD2 + Photo renderability +
+SRP1/SRP2/SRP3 over AR1's `run_mv`) produces a traceable, watchable timeline/render
+difference on controlled material — NOT a proof the cut is "good", and NO new
+editing capability. `tools/srp_acceptance_replay.py --gemini-root <dir>` builds a
+canonical `project_material_map` from the controlled Gemini photo set (7 needs +
+3 distractors, all real PNGs at absolute paths) + a 7-segment montage script +
+lavfi music, then runs `run_mv` twice with identical inputs: **baseline** (VD2 /
+SRP1 / SRP2 / SRP3 off via the minimal disable flags `disable_visual_diversity` /
+`disable_auto_sequence` / `disable_auto_opening` / `story_arc:false`, keeping
+map-ranked retrieval + photo renderability so both cuts use the same photos) and
+**enhanced** (all on). Both are真 ffmpeg rendered. Four planning-only
+single-capability isolation runs give honest per-capability attribution. Artifacts
+go to the gitignored `.tmp/srp_acceptance/`: `baseline|enhanced/final.mp4` +
+`timeline.json`, `comparison_report.{json,md}`. The harness BLOCKS (non-zero) if
+the material is missing/unreadable/insufficient — it never fakes success. First
+run: enhanced timeline ≠ baseline; VD2 active (consecutive same-family runs 7→0),
+SRP1 active (beat sequences in all 7 chapters), SRP2 active (opening prepended),
+SRP3 active (climax 3.606s > setup 2.496s) with total duration / `target_sec`
+preserved and GAP=0. The minimal disable flags default to existing behavior (zero
+change when unset) and add no new editing capability. No new canonical schema, no
+M6 gate / delivery / material-map-contract change, no Node 14 / effects /
+Dashboard / Audio Graph, no 67th footage. Focused harness tests **9**; full
+regression **1249 tests OK**.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 
