@@ -138,6 +138,17 @@ class BuildImpactTest(unittest.TestCase):
         seg0_trace = next((t for t in applied if t["segment_index"] == 0), {})
         self.assertNotIn("weight", seg0_trace)
 
+    def test_AB_protected_at_climax_no_weight_or_pace(self):
+        d = Path(tempfile.mkdtemp())
+        # seg4 (index 3) is the climax (fast role) but is a hold segment → must get
+        # neither auto weight nor auto pace, even at the climax position.
+        res = _run(d, _five_seg(overrides={3: {"hold": True}}))
+        applied = res["story_arc_plan"]["execution"]["applied"]
+        climax_trace = next(t for t in applied if t["segment_index"] == 3)
+        self.assertEqual(climax_trace["arc_role"], "climax")
+        self.assertNotIn("weight", climax_trace["applied_fields"])
+        self.assertNotIn("pace", climax_trace["applied_fields"])
+
 
 class SRP1SRP2InteropTest(unittest.TestCase):
     def test_P_srp1_vd2_preserved(self):

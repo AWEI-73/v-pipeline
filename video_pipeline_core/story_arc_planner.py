@@ -68,10 +68,38 @@ def _has_requested_duration(s):
 
 
 def _is_duration_protected(s):
-    """A hold / source_speech / diegetic / keep_audio segment has load-bearing
-    duration that a weight multiplier must never shrink (req. VI.2 / O)."""
-    return bool(s.get("hold") or s.get("keep_audio")
+    """A hold / source_speech / diegetic / duck / keep_audio segment has load-
+    bearing duration and audio semantics. SRP3 must never apply a BUILD-rhythm-
+    changing auto hint to it — no auto `weight`, no auto `pace` (trace-only
+    arc_role / arc_intensity is still allowed). Covers `hold` and `hold_reason`."""
+    return bool(s.get("hold") or s.get("hold_reason") or s.get("keep_audio")
                 or s.get("audio_role") in _DURATION_PROTECTED_AUDIO)
+
+
+def _has_manual_intensity(s):
+    """A segment that already declares manual intensity (`intensity` or
+    `arc_intensity`) owns it — SRP3 must not write a conflicting auto value."""
+    for key in ("intensity", "arc_intensity"):
+        if key in s and s[key] is not None:
+            return True
+    return False
+
+
+def _segment_identity(s):
+    """Return a stable, non-empty segment identity, or None when invalid. SRP3
+    requires every segment to carry one (no segment_index fallback for the runtime
+    trace join). Accepts a non-bool int/float or a non-blank string (trimmed)."""
+    if not isinstance(s, dict) or "segment" not in s:
+        return None
+    v = s["segment"]
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, str):
+        v = v.strip()
+        return v or None
+    if isinstance(v, (int, float)):
+        return v
+    return None
 
 
 def plan_story_arc(script, *, policy=None):
@@ -101,9 +129,13 @@ def plan_story_arc(script, *, policy=None):
     if not all(isinstance(s, dict) for s in segments):
         return _na("non-object segment present (invalid script shape)", segments)
 
-    # Duplicate segment identity is fail-closed (ambiguous, order-dependent hints).
-    ids = [s.get("segment") for s in segments if s.get("segment") is not None]
-    if len(ids) != len(set(ids)):
+    # Segment identity is fail-closed: every segment must carry a stable, non-empty
+    # identity, and they must be unique (the runtime trace join is keyed on it — no
+    # segment_index fallback). Missing / None / blank / non-unique → not_applicable.
+    identities = [_segment_identity(s) for s in segments]
+    if any(idv is None for idv in identities):
+        return _na("missing or invalid segment identity", segments)
+    if len(identities) != len(set(identities)):
         return _na("duplicate segment identity", segments)
 
     # Skip the special whole-film cases SRP3 does not plan for.
@@ -123,7 +155,7 @@ def plan_story_arc(script, *, policy=None):
         else:
             role = auto[i]
         defaults = ARC_DEFAULTS.get(role, _NEUTRAL_HINT)
-        segment_ref = s.get("segment") if s.get("segment") is not None else i
+        segment_ref = s.get("segment")          # validated above; no index fallback
         reason = ("manual arc_role preserved" if manual_role
                   else f"auto role '{role}' at position {i + 1}/{n}")
         hints.append({
@@ -153,48 +185,60 @@ def apply_story_arc_hints(script, plan):
     """Apply auto hints to a RUNTIME script copy, manual intent first. Mutates
     `script['segments']` in place and returns the per-segment applied trace.
 
-    For each segment:
-      * arc_role + arc_intensity (+ auto trace) only when the segment has no manual
-        `arc_role`; a manual role is preserved and never relabeled as auto.
-      * weight = base(1.0) * weight_multiplier only when the segment has no manual
-        `weight`, no positive `requested_duration_sec`, and is not duration-
-        protected (hold / source_speech / keep_audio).
-      * pace = "fast" only for a "fast" pace_hint and only when no manual `pace`
-        ("steady"/"hold" hints are recorded in the plan but never written, since
-        the engine pace vocabulary is {fast, hold} and only "fast" changes
-        allocation).
-
-    Never changes segment identity, text, material needs, or audio role.
+    Contract (conservative + honestly traceable):
+      * MANUAL arc_role → SRP3 derives NOTHING for that segment (no auto
+        weight / pace / intensity / source). The manual role is preserved and is
+        never relabeled as auto. This keeps director intent fully owning the
+        segment and avoids ambiguous "manual role but auto rhythm" states.
+      * AUTO arc_role → write `arc_role` + `story_arc_source="auto"` +
+        `story_arc_reason`, and `arc_intensity` ONLY when the segment declares no
+        manual `intensity`/`arc_intensity` (no conflicting value).
+      * weight / pace are BUILD-rhythm hints applied ONLY to an auto-role,
+        non-duration-protected segment: `weight = 1.0 * weight_multiplier` when no
+        manual `weight` and no positive `requested_duration_sec`; `pace="fast"`
+        for a fast role when no manual `pace`. A duration-protected segment
+        (hold / hold_reason / source_speech / keep_audio / diegetic / duck) never
+        receives auto weight or pace, even at a progression/climax position —
+        only trace-only arc_role/arc_intensity.
+      * Every auto-applied field is recorded in `story_arc_applied_fields` on the
+        segment and in the returned trace, so downstream can see exactly which
+        BUILD fields SRP3 derived. Never changes segment identity, text, material
+        needs, or audio role.
     """
     segments = script.get("segments") or []
     applied = []
     for hint in plan.get("segment_hints", []):
         i = hint["segment_index"]
         s = segments[i]
+        if hint.get("manual_role"):
+            continue                            # conservative: derive nothing
+
+        applied_fields = []
         trace = {"segment_index": i, "segment_ref": hint.get("segment_ref")}
-        applied_any = False
 
-        if not hint.get("manual_role"):
-            s["arc_role"] = hint["arc_role"]
+        s["arc_role"] = hint["arc_role"]
+        s["story_arc_source"] = "auto"
+        s["story_arc_reason"] = hint["reason"]
+        applied_fields.append("arc_role")
+        trace["arc_role"] = hint["arc_role"]
+
+        if not _has_manual_intensity(s):
             s["arc_intensity"] = hint["intensity"]
-            s["story_arc_source"] = "auto"
-            s["story_arc_reason"] = hint["reason"]
-            trace["arc_role"] = hint["arc_role"]
+            applied_fields.append("arc_intensity")
             trace["arc_intensity"] = hint["intensity"]
-            trace["story_arc_source"] = "auto"
-            applied_any = True
 
-        if (s.get("weight") is None and not _has_requested_duration(s)
-                and not _is_duration_protected(s)):
-            s["weight"] = round(1.0 * float(hint["weight_multiplier"]), 4)
-            trace["weight"] = s["weight"]
-            applied_any = True
+        if not _is_duration_protected(s):
+            if s.get("weight") is None and not _has_requested_duration(s):
+                s["weight"] = round(1.0 * float(hint["weight_multiplier"]), 4)
+                applied_fields.append("weight")
+                trace["weight"] = s["weight"]
+            if hint.get("pace_hint") == "fast" and not s.get("pace"):
+                s["pace"] = "fast"
+                applied_fields.append("pace")
+                trace["pace"] = "fast"
 
-        if hint.get("pace_hint") == "fast" and not s.get("pace"):
-            s["pace"] = "fast"
-            trace["pace"] = "fast"
-            applied_any = True
-
-        if applied_any:
-            applied.append(trace)
+        s["story_arc_applied_fields"] = list(applied_fields)
+        trace["story_arc_source"] = "auto"
+        trace["applied_fields"] = applied_fields
+        applied.append(trace)
     return applied

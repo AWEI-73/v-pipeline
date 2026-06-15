@@ -97,11 +97,18 @@ capability, and a VERIFY check creates nothing:
   `apply_story_arc_hints` nudges per-segment intensity/pace/weight hints into the
   existing `allocate_segments` BEFORE allocation. It only re-weights — it does not
   re-pick material, touch the material map, change correctness ranking, or
-  reorder/drop/​rewrite segments. Manual `arc_role`/`pace`/`weight`/
-  `requested_duration_sec` always win; hold/source_speech durations are never
-  shrunk; total story duration and `target_sec` are preserved (climax outweighs
-  setup). It adds one backward-compatible result key (`story_arc_plan`) and arc
-  trace on story slots/entries; opening/ending evidence is never arc-tagged.
+  reorder/drop/​rewrite segments. Manual `arc_role`/`pace`/`weight`/`intensity`/
+  `requested_duration_sec` always win. Hardened contract (2026-06-16): a manual
+  `arc_role` segment derives NOTHING (no auto weight/pace/intensity/source, never
+  relabeled auto); duration-protected segments (hold/hold_reason/source_speech/
+  keep_audio/diegetic/duck) never get auto weight or pace even at progression/
+  climax; manual intensity is never given a conflicting auto value; segment
+  identity is fail-closed (missing/blank/None/non-unique → not_applicable, no
+  segment_index fallback); and every auto-applied field is recorded in
+  `story_arc_applied_fields`. Total story duration and `target_sec` are preserved
+  (climax outweighs setup). It adds one backward-compatible result key
+  (`story_arc_plan`) and arc trace on story slots/entries; opening/ending evidence
+  is never arc-tagged.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with

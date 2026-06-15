@@ -1442,8 +1442,8 @@ def _finalize_timeline(plan, material_maps):
     return plan
 
 
-_STORY_ARC_TRACE_KEYS = ("arc_role", "arc_intensity",
-                         "story_arc_source", "story_arc_reason")
+_STORY_ARC_TRACE_KEYS = ("arc_role", "arc_intensity", "story_arc_source",
+                         "story_arc_reason", "story_arc_applied_fields")
 
 
 def _stamp_story_arc_trace(story_slots, per_seg, segments):

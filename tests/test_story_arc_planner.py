@@ -171,6 +171,97 @@ class ManualPrecedenceTest(unittest.TestCase):
                 self.assertIsNone(s.get("pace"))     # steady/hold never written
 
 
+class HardeningContractTest(unittest.TestCase):
+    """Codex hardening reverse proofs: protected segments, identity fail-closed,
+    manual-role derives nothing, manual-intensity precedence."""
+
+    def _apply(self, script):
+        plan = plan_story_arc(script)
+        runtime = copy.deepcopy(script)
+        applied = apply_story_arc_hints(runtime, plan)
+        return plan, runtime, applied
+
+    # A — protected hold even at the climax position gets no auto weight/pace
+    def test_A_protected_hold_at_climax(self):
+        plan, rt, _ = self._apply({"segments": _segs(5, {3: {"hold": True}})})
+        s3 = rt["segments"][3]                          # position 3 == climax (fast)
+        self.assertEqual(s3.get("arc_role"), "climax")  # trace-only role allowed
+        self.assertIsNone(s3.get("weight"))
+        self.assertIsNone(s3.get("pace"))
+        self.assertEqual(s3.get("story_arc_applied_fields"), ["arc_role", "arc_intensity"])
+
+    def test_A_protected_hold_reason_at_progression(self):
+        plan, rt, _ = self._apply({"segments": _segs(5, {2: {"hold_reason": "ceremony"}})})
+        s2 = rt["segments"][2]                          # position 2 == progression (fast)
+        self.assertIsNone(s2.get("weight"))
+        self.assertIsNone(s2.get("pace"))
+
+    # B — protected source_speech / keep_audio at climax/progression: no weight/pace
+    def test_B_source_speech_at_climax(self):
+        plan, rt, _ = self._apply(
+            {"segments": _segs(5, {3: {"audio_role": "source_speech"}})})
+        s3 = rt["segments"][3]
+        self.assertIsNone(s3.get("weight"))
+        self.assertIsNone(s3.get("pace"))
+
+    def test_B_keep_audio_at_progression(self):
+        plan, rt, _ = self._apply({"segments": _segs(5, {2: {"keep_audio": True}})})
+        s2 = rt["segments"][2]
+        self.assertIsNone(s2.get("weight"))
+        self.assertIsNone(s2.get("pace"))
+
+    # C — segment identity fail-closed
+    def test_C_all_missing_identity_not_applicable(self):
+        segs = [{"visual_desc": "x", "audio_role": "music"} for _ in range(3)]
+        plan = plan_story_arc({"segments": segs})
+        self.assertEqual(plan["status"], "not_applicable")
+        self.assertIn("identity", plan["reason"])
+
+    def test_C_mixed_missing_identity_not_applicable(self):
+        segs = _segs(3)
+        del segs[1]["segment"]
+        plan = plan_story_arc({"segments": segs})
+        self.assertEqual(plan["status"], "not_applicable")
+        self.assertIn("identity", plan["reason"])
+
+    def test_C_blank_and_none_identity_not_applicable(self):
+        for bad in ("", "   ", None):
+            segs = _segs(3)
+            segs[1]["segment"] = bad
+            plan = plan_story_arc({"segments": segs})
+            self.assertEqual(plan["status"], "not_applicable", f"id={bad!r}")
+            self.assertIn("identity", plan["reason"])
+
+    # D — manual arc_role derives nothing; auto fields are traceable
+    def test_D_manual_role_derives_nothing(self):
+        plan, rt, applied = self._apply({"segments": _segs(5, {0: {"arc_role": "climax"}})})
+        s0 = rt["segments"][0]
+        self.assertEqual(s0.get("arc_role"), "climax")        # manual preserved
+        self.assertNotIn("weight", s0)
+        self.assertNotIn("pace", s0)
+        self.assertNotIn("story_arc_source", s0)              # not relabeled auto
+        self.assertNotIn("story_arc_applied_fields", s0)
+        self.assertTrue(all(t["segment_index"] != 0 for t in applied))
+        # an auto-role segment that got weight records it traceably
+        seg3 = next(t for t in applied if t["segment_index"] == 3)   # auto climax
+        self.assertEqual(seg3["story_arc_source"], "auto")
+        self.assertIn("weight", seg3["applied_fields"])
+
+    # E — manual intensity precedence (no conflicting auto intensity)
+    def test_E_manual_intensity_preserved_no_conflict(self):
+        plan, rt, applied = self._apply({"segments": _segs(5, {1: {"intensity": 5}})})
+        s1 = rt["segments"][1]                                # auto role challenge
+        self.assertEqual(s1["intensity"], 5)                  # manual kept
+        self.assertNotIn("arc_intensity", s1)                 # no conflicting value
+        self.assertEqual(s1.get("arc_role"), "challenge")     # role still auto
+        t1 = next(t for t in applied if t["segment_index"] == 1)
+        self.assertNotIn("arc_intensity", t1["applied_fields"])
+
+    def test_E_manual_arc_intensity_preserved(self):
+        plan, rt, _ = self._apply({"segments": _segs(5, {2: {"arc_intensity": 1}})})
+        self.assertEqual(rt["segments"][2]["arc_intensity"], 1)   # untouched
+
+
 class ImmutabilityDeterminismTest(unittest.TestCase):
     def test_J_planner_does_not_mutate_script(self):
         script = {"segments": _segs(5, {0: {"arc_role": "setup"}})}

@@ -118,28 +118,45 @@ story planning. SRP3 never re-picks material, never touches the material map or
 correctness ranking, never reorders/drops/​rewrites segments, and builds no hard
 gate; it is a runtime-ephemeral plan (no new canonical schema).
 
-Manual intent always wins: a segment that declares `arc_role` / `pace` / `weight`
-/ `requested_duration_sec` keeps it (never relabeled auto); the weight multiplier
-is applied only to flexible segments (no manual weight, no requested duration, not
-hold/source_speech/keep_audio — duration-protected segments are never shrunk); and
-`pace="fast"` is written only for fast-pace roles with no manual pace (the engine
-pace vocabulary is {fast, hold}). `story_arc=false` / `disable_auto_story_arc=true`
-or fewer than 3 segments / duplicate-identity / non-object / pure-source_speech /
-pure-stock scripts are `not_applicable` and the existing flow is unchanged. The
-auto hints are applied atomically to a trial copy (committed only on success);
-expected ValueError/TypeError leave the un-applied runtime script + a fallback
-trace, RuntimeError propagates, and the original input script is never mutated.
-`run_mv` gains one backward-compatible result key, `story_arc_plan`; produced
-story slots / per-segment entries carry `arc_role` / `arc_intensity` /
-`story_arc_source="auto"` / `story_arc_reason` trace (opening/ending evidence is
-never arc-tagged). The final duration decision still belongs to
-`allocate_segments` — SRP3 only nudges relative weights, so total story duration
-and `target_sec` are preserved (climax outweighs setup). Validated by an A–R
-falsification suite incl. a 5-segment dynamic-photo true render proving climax
-story duration > setup; focused **32 tests** (20 planner + 12 runtime); full
-regression **1225 tests OK**. NOT started: Agent/VLM story understanding, script
-rewrite, segment reorder/drop, VERIFY→BUILD revision loop, VD3, Audio Graph V2,
-Dashboard/UI/Node 14/effects.
+Manual intent always wins, with the final hardened contracts (2026-06-16):
+- **Manual `arc_role` is conservative**: a segment that declares `arc_role` has
+  SRP3 derive NOTHING for it — no auto weight / pace / intensity / source. The
+  manual role is preserved and never relabeled auto (no ambiguous "manual role,
+  auto rhythm" state).
+- **Duration-protected segments never get a BUILD-rhythm hint**: a `hold` /
+  `hold_reason` / `source_speech` / `keep_audio` / `diegetic` / `duck` segment
+  receives neither auto `weight` nor auto `pace`, even at a progression/climax
+  position; only trace-only `arc_role` / `arc_intensity` may be stamped.
+- **Auto weight/pace** apply only to an auto-role, non-protected segment: weight
+  when no manual `weight` and no positive `requested_duration_sec`; `pace="fast"`
+  for a fast role with no manual `pace` (engine pace vocabulary is {fast, hold}).
+- **Manual intensity precedence**: a manual `intensity` / `arc_intensity` is
+  preserved and SRP3 writes no conflicting auto `arc_intensity`.
+- **Every auto-applied field is traceable**: the segment and the
+  `story_arc_plan.execution.applied` trace record `story_arc_applied_fields`
+  (e.g. `["arc_role","arc_intensity","weight","pace"]`), so downstream can see
+  exactly which BUILD fields SRP3 derived.
+
+`story_arc=false` / `disable_auto_story_arc=true`, fewer than 3 segments,
+non-object segments, **missing / blank / None / non-unique segment identity**
+(identity is now fail-closed — there is no segment_index fallback for the runtime
+trace join), pure-source_speech, and pure-stock scripts are `not_applicable` and
+the existing flow is unchanged. The auto hints are applied atomically to a trial
+copy (committed only on success); expected ValueError/TypeError leave the
+un-applied runtime script + a fallback trace, RuntimeError propagates, and the
+original input script is never mutated. `run_mv` gains one backward-compatible
+result key, `story_arc_plan`; produced story slots / per-segment entries carry
+`arc_role` / `arc_intensity` / `story_arc_source="auto"` / `story_arc_reason` /
+`story_arc_applied_fields` trace (opening/ending evidence is never arc-tagged).
+The final duration decision still belongs to `allocate_segments` — SRP3 only
+nudges relative weights, so total story duration and `target_sec` are preserved
+(climax outweighs setup). Validated by an A–R falsification suite plus the final
+hardening reverse proofs (protected-at-climax, identity fail-closed, manual-role
+derives nothing, manual-intensity precedence) incl. a 5-segment dynamic-photo true
+render proving climax story duration > setup; focused **43 tests** (31 planner +
+12 runtime); full regression **1236 tests OK**. NOT started: Agent/VLM story
+understanding, script rewrite, segment reorder/drop, VERIFY→BUILD revision loop,
+VD3, Audio Graph V2, Dashboard/UI/Node 14/effects.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
