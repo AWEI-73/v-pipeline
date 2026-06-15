@@ -954,6 +954,30 @@ footage replay across the three entry points) is NOT yet done. F2 /
 - Completion requires artifact lineage, route correctness, and human review of
   whether the revised script matches actual supply.
 
+##### M6e automated acceptance ✅ on real 67th footage (2026-06-15)
+
+Ran the M6d lifecycle CLI + `run_contract` on the REAL 67th material
+(`微電影素材/_整理後`; cross-reference table = 22% covered / 55% missing). Harness
+`tools/m6e_acceptance.py`; full write-up `docs/decisions/2026-06-15-m6e-real-case-acceptance.md`.
+- **A existing-material** → `await_requirements_discussion`, no render, no invented needs.
+- **B script-first insufficient** → `shooting_brief.json` + `await_material`;
+  `run_contract` returned `stage=material_delta` and produced **no final.mp4**
+  (blocked before render; blockers = the two un-shot must_haves 晨操/繩結).
+- **C covered** → `build_ready` → `run_contract` **real ffmpeg render → final.mp4
+  (8.47s, verify 98.5 PASS)** from the real `.MOV` sources via MR1 map-ranked.
+- **D revision** (drop+waive the 2 missing must_haves) → `build_ready`(revised
+  3-seg); `run_contract` re-ran M6c, re-derived the waivers, and rendered the
+  revised cut. The handoff never bypassed the runtime gate.
+
+**Finding (M6e.1, open):** a `material_db` with a RELATIVE `material_map` passes
+the gate (resolved relative-to-db-dir) but renders nothing — the legacy
+`mv_cut._load_material_maps` resolves it relative-to-cwd, loading zero maps →
+silent GAP. Workaround: absolute `material_map` paths. Recommended bounded fix:
+make `mv_cut._load_material_maps` resolve relative-to-db-dir (consistent with the
+gate). **Still open:** human viewing sign-off (watch `out_C`/`out_D` finals vs
+`67期結訓影片-終.mp4`) and full-scale curator ingest over all 304 files
+(HEIC not exercised). Automated three-entry acceptance: **PASS**.
+
 **Explicit non-goals for M6:** effects expansion, CLIP as a hard dependency,
 automatic claim of semantic understanding, forced ten-minute duration, and
 further 67th-specific sensory tuning.
