@@ -887,7 +887,7 @@ Independent Material Map Skill**.
 - Acceptance: the Skill can stop after planning/collection guidance without
   forcing a video render.
 
-##### M6d implementation — pending Codex review (2026-06-15)
+##### M6d implementation ✅ COMPLETE (2026-06-15, after final map-input hardening)
 
 `material_map_lifecycle.run_lifecycle` + CLI `material-map-lifecycle` +
 `skills/material-map.md`. Orchestration only — composes the M6a–M6c canonical
@@ -924,7 +924,22 @@ need_id/dup id/illegal status/route → `invalid`, even when none are accepted);
 valid rejected-only → `await_revision_decision`, nothing applied. (4) A declared
 but missing/corrupt categories file → `invalid` (never silently `None`). Reverse
 tests A–L + categories + source-ambiguity + decisions-validation: 26 tests total.
-Full regression: **1043 tests OK**. Pending Codex review (NOT yet COMPLETE).
+Full regression: **1043 tests OK**.
+
+M6d final map-input hardening (2026-06-15): (1) a declared `project_map_ref` /
+`maps_dir` must be a non-empty str/PathLike — blank/int/bool/list/dict →
+structured `invalid` (no `TypeError`); `None` = not provided. (2) ALL three
+sources are canonically normalized through `expand_project_material_map` after
+load (no M6d map schema), so a malformed asset / asset_id / source / non-object
+scene / non-list `scenes` container fails closed BEFORE
+`build_project_material_map`/`_total_satisfies` can crash; the `build_project_material_map`
+calls also catch `TypeError` (malformed `satisfies`). (3) Orchestration catches
+only `TypeError`/`OSError`/`ValueError` (no broad `except Exception`). Reverse
+tests: bad ref shapes; non-object scene; non-list scenes; malformed
+asset/asset_id/source; material_db map with malformed scene; legal project-map
+source still inventories (32 tests total). Full regression: **1049 tests OK**.
+**M6d COMPLETE.** Next: M6e real-case acceptance (real ffmpeg render +
+student-footage replay across the three entry points).
 
 **Still open: M6e real-case acceptance** (real ffmpeg render + 67th-style student
 footage replay across the three entry points) is NOT yet done. F2 /

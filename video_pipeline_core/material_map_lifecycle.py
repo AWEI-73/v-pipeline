@@ -79,14 +79,26 @@ def _same_path(a, b):
     return os.path.normcase(os.path.realpath(str(a))) == os.path.normcase(os.path.realpath(str(b)))
 
 
+def _ref_shape_error(name, value):
+    """A declared actual-side ref must be a non-empty str/PathLike. None means
+    'not provided'. Anything else (blank/int/bool/list/dict) is fail-closed."""
+    if value is None:
+        return None
+    if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+        return f"{name} must be a non-empty path, got {value!r}"
+    return None
+
+
 def _load_actual(kind, project_map_ref, maps_dir, material_db_ref):
-    """Strict load of the single declared actual-side source. Returns (maps, error).
-    Reuses the canonical loaders; any malformed/missing input is fail-closed."""
+    """Load the single declared actual-side source into a RAW object (dict for a
+    project map, list of per-asset maps otherwise). Returns (raw, error). The raw
+    object is canonically normalized by the caller via expand_project_material_map
+    (no M6d-specific map schema)."""
     if kind == "project_map":
         if not Path(project_map_ref).exists():
             return None, f"project_map_ref not found: {project_map_ref}"
         try:
-            return expand_project_material_map(_load_json(project_map_ref)), None
+            return _load_json(project_map_ref), None
         except (OSError, ValueError) as exc:
             return None, f"project_material_map could not be loaded: {exc}"
     if kind == "maps_dir":
@@ -109,6 +121,7 @@ def _load_actual(kind, project_map_ref, maps_dir, material_db_ref):
 
 
 def _total_satisfies(maps):
+    # maps are canonically normalized (scenes are objects) before this runs
     return sum(len(scene.get("satisfies") or [])
               for m in maps or [] for scene in (m.get("scenes") or []))
 
@@ -153,12 +166,20 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
     out_dir.mkdir(parents=True, exist_ok=True)
     refs = {}
 
+    # ── Fix: declared-but-bad actual-side ref shapes fail closed (no TypeError).
+    #    `is not None` means PROVIDED (a blank/typed value is invalid, not absent). ─
+    sources = (("project_map", project_map_ref), ("maps_dir", maps_dir),
+               ("material_db", material_db_ref))
+    for name, val in (("project_map_ref", project_map_ref), ("maps_dir", maps_dir)):
+        shape_error = _ref_shape_error(name, val)
+        if shape_error:
+            return _report("invalid", refs=refs, next_action="provide_inputs",
+                           blocking=[shape_error])
+
     # ── Fix: exactly ONE actual-side source (no silent priority). material_db is
     #    the ONLY source that can lead to build_ready; maps_dir/project_map are
     #    inventory-only. ────────────────────────────────────────────────────────
-    provided = [name for name, val in (("project_map", project_map_ref),
-                                       ("maps_dir", maps_dir),
-                                       ("material_db", material_db_ref)) if val]
+    provided = [name for name, val in sources if val is not None]
     if len(provided) > 1:
         return _report("invalid", refs=refs, next_action="provide_inputs",
                        blocking=[f"multiple actual-side sources provided ({provided}); "
@@ -175,10 +196,18 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
             return _report("invalid", refs=refs, next_action="provide_inputs",
                            blocking=[f"categories could not be loaded: {exc}"])
 
-    # ── resolve the single actual-side source (strict) ───────────────────────
-    maps, maps_error = _load_actual(source_kind, project_map_ref, maps_dir, material_db_ref)
+    # ── load + canonically normalize the single actual-side source. Every source
+    #    (project map / maps dir / material_db) goes through expand_project_material_map
+    #    so malformed asset/scene/scenes/satisfies shapes fail closed here, not deep
+    #    inside build_project_material_map/_total_satisfies. ─────────────────────
+    raw_maps, maps_error = _load_actual(source_kind, project_map_ref, maps_dir, material_db_ref)
     if maps_error:
         return _report("invalid", blocking=[maps_error],
+                       next_action="revise:material(material_delta)", refs=refs)
+    try:
+        maps = expand_project_material_map(raw_maps) if raw_maps is not None else None
+    except (TypeError, ValueError, OSError) as exc:
+        return _report("invalid", blocking=[f"material maps malformed: {exc}"],
                        next_action="revise:material(material_delta)", refs=refs)
 
     # ── existing-material entry: maps but no declared needs ──────────────────
@@ -188,7 +217,7 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
                            next_action="provide_inputs", refs=refs)
         try:
             project_map = build_project_material_map(maps)   # no needs -> library aggregate
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             return _report("invalid", blocking=[f"project map aggregation failed: {exc}"],
                            next_action="revise:material(material_delta)", refs=refs)
         pmm_path = out_dir / "project_material_map.json"
@@ -236,7 +265,7 @@ def run_lifecycle(*, out_dir, needs_ref=None, maps_dir=None, project_map_ref=Non
     if maps:
         try:
             project_map = build_project_material_map(maps, needs=needs)
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             return _report("invalid", blocking=[f"project map / satisfies invalid: {exc}"],
                            next_action="revise:material(material_delta)", refs=refs)
         pmm_path = out_dir / "project_material_map.json"

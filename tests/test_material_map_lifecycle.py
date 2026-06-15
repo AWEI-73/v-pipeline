@@ -362,6 +362,72 @@ class DecisionsValidationTest(unittest.TestCase):
             self.assertEqual(rep["stage"], "invalid")
 
 
+class MapInputShapeTest(unittest.TestCase):
+    def test_A_bad_ref_shapes_are_invalid_not_crash(self):
+        with tempfile.TemporaryDirectory() as d:
+            for bad in ("", "   ", 123, True, [], {}):
+                r1 = mml.run_lifecycle(out_dir=Path(d) / "o", maps_dir=bad)
+                self.assertEqual(r1["stage"], "invalid", ("maps_dir", bad))
+                r2 = mml.run_lifecycle(out_dir=Path(d) / "o", project_map_ref=bad)
+                self.assertEqual(r2["stage"], "invalid", ("project_map_ref", bad))
+
+    def _maps_dir_with(self, d, *map_objs):
+        md = Path(d) / "maps"
+        md.mkdir(exist_ok=True)
+        for i, obj in enumerate(map_objs):
+            (md / f"m{i}.map.json").write_text(json.dumps(obj), encoding="utf-8")
+        return str(md)
+
+    def test_B_non_object_scene_is_invalid_not_crash(self):
+        for bad_scene in (123, [], "scene"):
+            with tempfile.TemporaryDirectory() as d:
+                mapdir = self._maps_dir_with(d, {"asset_id": "a", "source": "s",
+                                                 "scenes": [bad_scene]})
+                rep = mml.run_lifecycle(out_dir=Path(d) / "o", maps_dir=mapdir)
+                self.assertEqual(rep["stage"], "invalid", bad_scene)
+
+    def test_C_scenes_not_a_list_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            mapdir = self._maps_dir_with(d, {"asset_id": "a", "source": "s", "scenes": 123})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "o", maps_dir=mapdir)
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_D_malformed_asset_in_project_map_is_invalid(self):
+        cases = [
+            {"artifact_role": "project_material_map", "assets": [123]},
+            {"artifact_role": "project_material_map",
+             "assets": [{"asset_id": "", "source": "s", "scenes": []}]},
+            {"artifact_role": "project_material_map",
+             "assets": [{"asset_id": "a", "scenes": []}]},     # missing source
+        ]
+        for case in cases:
+            with tempfile.TemporaryDirectory() as d:
+                pm = _w(d, "project_material_map.json", case)
+                rep = mml.run_lifecycle(out_dir=Path(d) / "o", project_map_ref=pm)
+                self.assertEqual(rep["stage"], "invalid", case)
+
+    def test_E_material_db_with_malformed_scene_is_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "clip.map.json").write_text(
+                json.dumps({"asset_id": "a", "source": "s", "scenes": [123]}), encoding="utf-8")
+            db = _w(d, "materials_db.json",
+                    {"files": [{"path": "s", "material_map": "clip.map.json"}]})
+            needs = _needs([("one", True, None)])
+            rep = mml.run_lifecycle(out_dir=Path(d) / "o",
+                                    needs_ref=_w(d, "needs.json", needs), material_db_ref=db)
+            self.assertEqual(rep["stage"], "invalid")
+
+    def test_F_legal_project_map_source_inventories(self):
+        with tempfile.TemporaryDirectory() as d:
+            pm = _w(d, "project_material_map.json", {
+                "artifact_role": "project_material_map",
+                "assets": [{"asset_id": "a", "source": "a.mp4",
+                            "scenes": [{"start": 0, "end": 3, "caption": "c"}]}]})
+            rep = mml.run_lifecycle(out_dir=Path(d) / "o", project_map_ref=pm)
+            self.assertEqual(rep["stage"], "await_requirements_discussion")
+            self.assertEqual(rep["entry_point"], "existing_material")
+
+
 class BuildHandoffTest(unittest.TestCase):
     def test_handoff_with_missing_ref_returns_none(self):
         with tempfile.TemporaryDirectory() as d:
