@@ -431,6 +431,46 @@ class BudgetRuntimeTest(unittest.TestCase):
         self.assertTrue(any(c.get("opening_role") for c in res["plan"]))
 
 
+class EvidenceStrictnessTest(unittest.TestCase):
+    """Final evidence strictness A, B, C — final compiled clips never invent
+    is_photo; a photo's is_photo/kenburns is preserved exactly."""
+
+    def test_A_video_slot_without_is_photo_stays_absent(self):
+        # auto opening from slots that never declare is_photo
+        plan = [_slot("a:0", family="fam-A"), _slot("b:0", family="fam-B"),
+                _slot("c:0", family="fam-C")]
+        res = plan_opening_recipe({}, plan)
+        for shot in res["recipe"]["shots"]:
+            self.assertNotIn("is_photo", shot)            # recipe shot: not invented
+        opening = op.compile_opening_sequence(res["recipe"], res["recipe"]["shots"])
+        for clip in opening["clips"]:
+            self.assertNotIn("is_photo", clip)            # final clip: not invented
+
+    def test_B_photo_is_photo_kenburns_preserved(self):
+        plan = [_slot("photo:0", is_photo=True, dur=0.0, kenburns=True, score=99.0,
+                      family="fam-P"),
+                _slot("v1:0", family="fam-V"), _slot("v2:0", family="fam-W")]
+        res = plan_opening_recipe({}, plan)
+        opening = op.compile_opening_sequence(res["recipe"], res["recipe"]["shots"])
+        photo_clip = next(c for c in opening["clips"] if c["scene_id"] == "photo:0")
+        self.assertIs(photo_clip["is_photo"], True)
+        self.assertIs(photo_clip["kenburns"], True)
+        # the video clips in the same opening must not gain a fabricated is_photo
+        for clip in opening["clips"]:
+            if clip["scene_id"] != "photo:0":
+                self.assertNotIn("is_photo", clip)
+
+    def test_C_manual_video_opening_without_is_photo_compiles(self):
+        # manual BR1 recipe with explicit shots that omit is_photo
+        recipe = {"title_text": "T", "context_count": 1,
+                  "shots": [{"source": "/m/a.mp4", "start": 0.0, "dur": 5.0},
+                            {"source": "/m/b.mp4", "start": 0.0, "dur": 5.0}]}
+        opening = op.compile_opening_sequence(recipe, recipe["shots"])
+        self.assertTrue(opening["clips"])
+        for clip in opening["clips"]:
+            self.assertNotIn("is_photo", clip)            # video clip: absent, ok
+
+
 # vt_core GAP sentinel, imported under an unambiguous name for the H tests
 from video_pipeline_core.vt_core import GAP as GAP_SENTINEL  # noqa: E402
 

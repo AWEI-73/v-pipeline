@@ -47,16 +47,16 @@ def _shot_clip(shot, design_dur, *, role, text=None, treatment=None):
         "extract_dur": dur,
         "slot_dur": dur,
         "keep_audio": False,
-        "is_photo": bool(shot.get("is_photo", False)),
         "segment": 0,                 # opening precedes story segment 1
         "opening_role": role,
     }
     # Preserve approved-slot lineage / evidence fields when the source shot
-    # carries them (SRP2 auto opening). Manual recipe shots / opening_pool shots
-    # lack these, so existing BR1 behavior is unchanged. `is_photo` is set above
-    # as a strict bool and intentionally excluded here.
-    for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale",
-                  "kenburns", "caption", "function"):
+    # carries them (SRP2 auto opening) — never invent them. `is_photo` is copied
+    # only when the shot explicitly declares it (so a photo's True is preserved);
+    # a video shot without it stays absent, and the renderer treats a missing
+    # is_photo as video (it reads `clip.get("is_photo")`).
+    for field in ("is_photo", "scene_id", "retrieval_score", "visual_family",
+                  "angle_scale", "kenburns", "caption", "function"):
         if field in shot:
             clip[field] = shot[field]
     if text:
