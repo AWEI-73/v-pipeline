@@ -1442,6 +1442,31 @@ def _finalize_timeline(plan, material_maps):
     return plan
 
 
+_STORY_ARC_TRACE_KEYS = ("arc_role", "arc_intensity",
+                         "story_arc_source", "story_arc_reason")
+
+
+def _stamp_story_arc_trace(story_slots, per_seg, segments):
+    """Copy SRP3 arc trace from the runtime segments onto the produced story
+    slots and per-segment entries, keyed by segment id (SRP3: trace only — no
+    selection change). Runs BEFORE the opening/ending bookends so auto arc trace
+    never reaches opening/ending clips (segment 0 / ending segment are not in the
+    map). A no-op when SRP3 was not applied (no segment carries arc fields)."""
+    by_id = {}
+    for s in segments:
+        present = {k: s[k] for k in _STORY_ARC_TRACE_KEYS if k in s}
+        if present:
+            by_id[s.get("segment")] = present
+    if not by_id:
+        return
+    for coll in (story_slots, per_seg):
+        for item in coll:
+            trace = by_id.get(item.get("segment"))
+            if trace:
+                for k, v in trace.items():
+                    item.setdefault(k, v)
+
+
 def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
@@ -1459,6 +1484,28 @@ def run_mv(script, material_root, out_path, music_path=None,
             print(*a)
 
     mat_dir = mat_dir or resolve_temp_dir()
+
+    # SRP3 story-arc planning — BEFORE duration allocation so the hints feed
+    # allocate_segments and story planning (never re-picks material, never
+    # reorders/rewrites). Manual intent wins; auto hints are applied atomically to
+    # a trial copy and committed only on success. Failure leaves the un-applied
+    # runtime script and a fallback trace; RuntimeError/unexpected propagate.
+    from .story_arc_planner import plan_story_arc, apply_story_arc_hints  # noqa: PLC0415
+    story_arc_plan = plan_story_arc(script)
+    if story_arc_plan["status"] == "planned":
+        trial = copy.deepcopy(script)
+        try:
+            applied = apply_story_arc_hints(trial, story_arc_plan)
+            script = trial
+            story_arc_plan["execution"] = {"status": "applied", "applied": applied}
+            vp(f"[story_arc] applied {len(applied)} segment hint(s); "
+               f"roles={[h['arc_role'] for h in story_arc_plan['segment_hints']]}")
+        except (ValueError, TypeError) as e:
+            story_arc_plan["execution"] = {"status": "fallback", "error": str(e)}
+            vp(f"[story_arc] hint application failed (fallback): {e}")
+    else:
+        vp(f"[story_arc] not_applicable: {story_arc_plan['reason']}")
+
     segs = script.get("segments") or []
     # MR1: single normalization entry — accept a project_material_map dict, a list
     # of per-asset maps, or one per-asset map; malformed input fails loudly here
@@ -1498,6 +1545,10 @@ def run_mv(script, material_root, out_path, music_path=None,
         max_clips_per_seg=max_clips_per_seg, windows_per_clip=windows_per_clip,
         min_score=min_score, prefilter_static=prefilter_static,
         visual_judge=visual_judge, vp=vp)
+
+    # SRP3 trace stamping (story slots + per-segment entries only; before bookends
+    # so opening/ending evidence is never tagged with arc trace).
+    _stamp_story_arc_trace(plan, per_seg, segs)
 
     # 3.5) opening bookend (manual BR1 + SRP2 auto + target_sec budget).
     # 3.6) ending bookend. Both extracted to helpers (AR1: zero behavior change).
@@ -1548,7 +1599,7 @@ def run_mv(script, material_root, out_path, music_path=None,
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
     return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
             "opening": opening_result, "opening_plan": opening_plan,
-            "ending": ending_result,
+            "ending": ending_result, "story_arc_plan": story_arc_plan,
             "punctuation": punctuation_result,
             "awaiting_visual_review": bool(pending_visual_review)}
 

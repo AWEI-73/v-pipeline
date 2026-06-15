@@ -68,6 +68,7 @@ capability, and a VERIFY check creates nothing:
 | VD2 visual diversity soft selection | VD0 contract + project map | `plan_ranked_windows` select_diverse_ranked_scenes | `mv_cut._plan_local_segment` | prioritized diversity selection | rendered diversified slots | active |
 | SRP1 Segment Sequence Recipe Planner | approved slots | `plan_segment_sequence` | `mv_cut` run_mv loop | auto-planned beats and trace keys on slots | rendered auto-sequence | active |
 | SRP2 Opening / Hook Auto Planner | approved story-plan slots | `plan_opening_recipe` | `mv_cut` run_mv (post story-plan; reuses BR1 `compile_opening_sequence`) | auto opening clips prepended + `opening_recipe_source=auto` trace/lineage | rendered auto opening before story | active |
+| SRP3 Story Arc / Emotional Progression Planner | script segment order + manual metadata | `plan_story_arc` / `apply_story_arc_hints` | `mv_cut` run_mv (BEFORE `allocate_segments`) | arc_role/intensity/pace/weight hints shift relative allocation; `arc_role`/`story_arc_source=auto` trace on story slots & per_seg | climax story duration > setup (true render) | active |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
 
@@ -90,6 +91,17 @@ capability, and a VERIFY check creates nothing:
 - **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only. Candidates are deduplicated by `scene_id` (same source + different window stays distinct). Selection is correctness-first and greedy by retrieval_score tier — a lower-score shot never outranks a higher one — with same-tier soft role preferences actually applied: hook prefers close>medium>wide, context prefers an unused `visual_family` then wide>medium>close, title base prefers an unused scene_id / different family (video-over-photo and deterministic scene_id as final tie-breaks; missing family/scale degrades deterministically). Only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded); title text comes only from explicit script fields; evidence/window/photo lineage is preserved; the original story plan is left intact (opening prepended, slot_index reindexed); and VD2/SRP1 shared history is not polluted. When the build declares `target_sec`, the auto opening is duration-budgeted against the whole-film target (drop extra context -> title -> shorten hook -> fallback) so it never pushes the plan past `target_sec`; approved story slots are never trimmed and manual openings are exempt. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
+- **SRP3 Story Arc Planner is active/complete (shallow, deterministic).** When a
+  build has ≥3 eligible segments and is not disabled, `plan_story_arc` assigns
+  arc roles from segment ORDER + manual metadata (NOT semantic understanding) and
+  `apply_story_arc_hints` nudges per-segment intensity/pace/weight hints into the
+  existing `allocate_segments` BEFORE allocation. It only re-weights — it does not
+  re-pick material, touch the material map, change correctness ranking, or
+  reorder/drop/​rewrite segments. Manual `arc_role`/`pace`/`weight`/
+  `requested_duration_sec` always win; hold/source_speech durations are never
+  shrunk; total story duration and `target_sec` are preserved (climax outweighs
+  setup). It adds one backward-compatible result key (`story_arc_plan`) and arc
+  trace on story slots/entries; opening/ending evidence is never arc-tagged.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
