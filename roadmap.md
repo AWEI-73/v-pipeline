@@ -1221,6 +1221,14 @@ inventing labels or bypassing VD1: one baseline review may raise coverage, but
 VD2 remains blocked until an independent review supplies the required
 consistency evidence.
 
+Gemini-generated 36-image consistency replay (2026-06-15): independent Gemini
+and Codex reviews both reached 100% required-axis coverage and agreed on
+`angle_scale` for `36/36` scenes, but exact `visual_family` agreement was only
+`44.44%` (`ready_for_vd2=false`). This is the real trigger for a project-local
+visual-family vocabulary contract: family granularity must be agreed without
+hard-coding project terms into the generic engine, then independently
+re-reviewed before VD2 soft-ranking begins.
+
 Real baseline application evidence (2026-06-15): one Agent review was applied
 to 12 visually inspected photos from the 67th-graduation material set. All four
 shallow axes reached `12/12 = 100%` coverage, while

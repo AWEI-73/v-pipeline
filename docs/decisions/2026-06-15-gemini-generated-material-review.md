@@ -68,3 +68,35 @@ The review must:
 Codex will apply the verdict with `visual-diversity-review`, run
 `visual-diversity-coverage`, compare it with an independent second review, and
 only then decide whether VD2 soft-ranking has sufficient evidence to begin.
+
+## Independent review result
+
+Gemini inspected all 36 images and produced a structurally valid review:
+
+- 36 unique, known asset references; every `scene_index=0`;
+- all four shallow axes labeled;
+- the intended assembly near-duplicate was grouped into the same family;
+- no style-only family such as `Cinematic documentary` remained.
+
+Applying the Gemini review raised every shallow-axis coverage ratio to `100%`.
+A separate Codex review of the same contact sheet was then compared as the
+independent consistency review:
+
+- comparable scenes: `36`;
+- `angle_scale` agreement: `100%`;
+- `visual_family` agreement: `44.44%`;
+- combined label agreement: `72.22%`;
+- final decision: `ready_for_vd2=false`, blocked by
+  `visual_family_consistency_ratio_below_threshold`.
+
+This is a useful failure. Both Agents produced defensible labels, but used
+different family granularity. For example, one reviewer split night search into
+action/reaction/coordination families while the other kept a coarse
+`night_search` family. VD2 must not be implemented against unstable family
+identity.
+
+The next bounded increment is therefore a project-local visual-family vocabulary
+contract and mapping/review procedure. It must define family granularity without
+hard-coding mountain-rescue terms into the generic engine. After both reviewers
+independently re-apply the agreed project vocabulary, VD1 consistency must be
+re-measured before VD2 begins.
