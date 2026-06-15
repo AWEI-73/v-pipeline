@@ -574,5 +574,94 @@ class ReplaceFailureRollbackTest(unittest.TestCase):
             self.assertEqual(leftovers, [])
 
 
+class BackupTransactionTest(unittest.TestCase):
+    def _inputs(self):
+        return ({"segments": [_seg(1, need_refs=["nd_a"])]},
+                {"artifact_role": "material_revision", "ok": True, "decisions": []})
+
+    def test_A_second_backup_failure_leaves_both_officials_unchanged(self):
+        from unittest.mock import patch
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            bak_r = Path(str(out_r) + ".m6c.bak")
+            real = os.replace
+
+            def fake(src, dst):
+                if str(dst) == str(bak_r):       # the second backup move fails
+                    raise OSError("backup boom")
+                return real(src, dst)
+            with patch.object(mr.os, "replace", fake):
+                with self.assertRaises(OSError):
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertEqual(out_c.read_text(encoding="utf-8"), "OLD-C")   # restored
+            self.assertEqual(out_r.read_text(encoding="utf-8"), "OLD-R")   # never moved
+            leftovers = [p.name for p in Path(d).iterdir()
+                         if p.name.endswith(".m6c.tmp") or p.name.endswith(".m6c.bak")]
+            self.assertEqual(leftovers, [])
+
+    def test_B_backup_rollback_failure_preserves_backup_and_flags_not_atomic(self):
+        from unittest.mock import patch
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("OLD-C", encoding="utf-8")
+            out_r.write_text("OLD-R", encoding="utf-8")
+            bak_c, bak_r = Path(str(out_c) + ".m6c.bak"), Path(str(out_r) + ".m6c.bak")
+            real = os.replace
+
+            def fake(src, dst):
+                # second backup fails; restoring the first backup also fails
+                if str(dst) in (str(bak_r), str(out_c)):
+                    raise OSError("boom")
+                return real(src, dst)
+            with patch.object(mr.os, "replace", fake):
+                with self.assertRaises(RuntimeError) as ctx:
+                    mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertIn("atomic", str(ctx.exception).lower())
+            self.assertTrue(bak_c.exists())                 # preserved for recovery
+            self.assertEqual(bak_c.read_text(encoding="utf-8"), "OLD-C")
+
+    def test_C_preexisting_backup_fails_closed_without_touching_it(self):
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            out_c.write_text("CURRENT-C", encoding="utf-8")
+            stale_bak = Path(str(out_c) + ".m6c.bak")
+            stale_bak.write_text("PRECIOUS-RECOVERY", encoding="utf-8")
+            with self.assertRaises(RuntimeError) as ctx:
+                mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertIn("backup", str(ctx.exception).lower())
+            self.assertEqual(stale_bak.read_text(encoding="utf-8"), "PRECIOUS-RECOVERY")  # untouched
+            self.assertEqual(out_c.read_text(encoding="utf-8"), "CURRENT-C")              # untouched
+
+    def test_D_preexisting_stale_temp_is_cleared_and_run_succeeds(self):
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            out_c, out_r = Path(d) / "revised.json", Path(d) / "revision.json"
+            Path(str(out_c) + ".m6c.tmp").write_text("STALE-SCRATCH", encoding="utf-8")
+            mr.write_revision_artifacts(revised, report, out_c, out_r)
+            self.assertIn("segments", out_c.read_text(encoding="utf-8"))    # fresh content
+            leftovers = [p.name for p in Path(d).iterdir()
+                         if p.name.endswith(".m6c.tmp") or p.name.endswith(".m6c.bak")]
+            self.assertEqual(leftovers, [])
+
+    @unittest.skipUnless(os.path.normcase("A") == os.path.normcase("a"),
+                         "platform path comparison is case-sensitive")
+    def test_E_windows_case_alias_outputs_fail(self):
+        import tempfile
+        revised, report = self._inputs()
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):
+                mr.write_revision_artifacts(revised, report,
+                                            Path(d) / "Out.json", Path(d) / "out.json")
+
+
 if __name__ == "__main__":
     unittest.main()

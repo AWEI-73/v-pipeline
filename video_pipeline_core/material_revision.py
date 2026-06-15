@@ -457,8 +457,13 @@ def write_revision_artifacts(revised, report, out_contract, out_revision, *, _wr
     are preserved and a RuntimeError is raised — atomic success is never claimed.
     """
     out_contract, out_revision = Path(out_contract), Path(out_revision)
-    if os.path.abspath(out_contract) == os.path.abspath(out_revision):
-        raise ValueError("out_contract and out_revision must be different paths")
+    # path identity must be case-insensitive on Windows: A.json and a.json are the
+    # SAME file there, so they can never be two distinct outputs.
+    def _norm(p):
+        return os.path.normcase(os.path.abspath(str(p)))
+    if _norm(out_contract) == _norm(out_revision):
+        raise ValueError("out_contract and out_revision must be different paths "
+                         "(case-insensitive on this platform)")
     out_contract.parent.mkdir(parents=True, exist_ok=True)
     out_revision.parent.mkdir(parents=True, exist_ok=True)
     writer = _writer or (lambda path, text: Path(path).write_text(text, encoding="utf-8"))
@@ -466,6 +471,17 @@ def write_revision_artifacts(revised, report, out_contract, out_revision, *, _wr
     tmp_r = out_revision.with_name(out_revision.name + ".m6c.tmp")
     bak_c = out_contract.with_name(out_contract.name + ".m6c.bak")
     bak_r = out_revision.with_name(out_revision.name + ".m6c.bak")
+
+    # 0) a pre-existing backup means a previous transaction may have failed; it
+    # may hold the only good copy, so refuse rather than overwrite/delete it.
+    for bak in (bak_c, bak_r):
+        if Path(bak).exists():
+            raise RuntimeError(
+                f"refusing to start: existing backup {bak} found (a previous "
+                f"transaction may have failed and left the only good copy here) — "
+                f"manually recover or remove it before retrying")
+    # stale scratch temporaries never hold official content; clear them explicitly
+    _unlink_quietly(tmp_c, tmp_r)
 
     # 1) write both temporaries (no official touched yet)
     try:
@@ -475,16 +491,31 @@ def write_revision_artifacts(revised, report, out_contract, out_revision, *, _wr
         _unlink_quietly(tmp_c, tmp_r)
         raise
 
-    # 2) back up the existing officials so a failed commit can be rolled back
+    # 2) back up existing officials (transactional): if a later backup fails, the
+    # earlier backup is restored to its official path — never unlink a backup that
+    # now holds the only copy of official content.
     had_c, had_r = out_contract.exists(), out_revision.exists()
+    backed_up = []
     try:
         if had_c:
             os.replace(out_contract, bak_c)
+            backed_up.append((out_contract, bak_c))
         if had_r:
             os.replace(out_revision, bak_r)
-    except OSError:
-        _unlink_quietly(tmp_c, tmp_r, bak_c, bak_r)
-        raise
+            backed_up.append((out_revision, bak_r))
+    except OSError as exc:
+        rollback_errors = []
+        for official, bak in reversed(backed_up):
+            try:
+                os.replace(bak, official)              # restore the backed-up official
+            except OSError as rollback_exc:
+                rollback_errors.append(f"{official}: {rollback_exc}")
+        _unlink_quietly(tmp_c, tmp_r)                  # temps never held official data
+        if rollback_errors:
+            raise RuntimeError(
+                "backup failed AND backup-rollback failed (on-disk state is NOT "
+                f"atomic; backups preserved): {exc}; rollback errors: {rollback_errors}")
+        raise OSError(f"backup failed; restored prior state: {exc}")
 
     # 3) commit both; any failure rolls the officials back to their prior state
     try:

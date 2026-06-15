@@ -804,6 +804,21 @@ existing pair unchanged / leaves neither output when none existed; no temp/backu
 residue; rollback-failure is diagnosable; success updates both. Focused: 34 tests
 OK; full regression: **985 tests OK**.
 
+M6c artifact-transaction final hardening (2026-06-15): (1) the BACKUP phase is
+now itself transactional — if the first official is moved to backup but the
+second backup fails, the first backup is restored to its official path (a backup
+holding the only good copy is never unlinked); a failed backup-rollback preserves
+the backup and raises a not-atomic `RuntimeError`. (2) Before a transaction
+starts, a pre-existing `.m6c.bak` is fail-closed (it may hold the only good copy
+from a prior failed run — refuse rather than overwrite/delete), while stale
+`.m6c.tmp` scratch is cleared explicitly. (3) Output-path identity is compared
+with `os.path.normcase(abspath(...))`, so on Windows `A.json` and `a.json` are
+correctly rejected as the same output. Reverse tests: second-backup failure
+leaves both officials unchanged; backup-rollback failure preserves backup + flags
+not-atomic; pre-existing backup fail-closed untouched; stale temp cleared and run
+succeeds; Windows case-alias outputs fail. Focused: 39 tests OK; full regression:
+**990 tests OK**.
+
 **Next increment (separate batch): runtime plumbing** — wire M6c into the
 SPEC→BUILD flow so an accepted revision feeds the M6b gate. Deliberately NOT done
 here so revision and the BUILD gate stay decoupled. F2 / `wrong_semantics` /
