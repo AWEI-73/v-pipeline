@@ -62,9 +62,10 @@ capability, and a VERIFY check creates nothing:
 | CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
 | Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | — | — | declared_only |
 | Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | — | — | declared_only |
-| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | `visual-diversity-review` Agent verdict application | none (no BUILD ranking yet) | stored on scenes with review lineage | — | active evidence input; declared_only for BUILD |
+| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | `visual-diversity-review` Agent verdict application | `material_retrieval` select_diverse_ranked_scenes | stored on scenes with review lineage | — | active |
 | VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | — | active (evidence only) |
 | VD1.1 family vocabulary | `visual_family_vocabulary` | `visual-family-normalize` | none (does not block build/delivery) | normalized review with lineage | — | active (evidence prep / VD2 prerequisite) |
+| VD2 visual diversity soft selection | VD0 contract + project map | `plan_ranked_windows` select_diverse_ranked_scenes | `mv_cut._plan_local_segment` | prioritized diversity selection | rendered diversified slots | active |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
 
@@ -79,12 +80,12 @@ capability, and a VERIFY check creates nothing:
 - **The render-time grammar is genuinely active** (transitions, treatments,
   attention budget, SFX, music align, micro-rhythm). The Sensory phase landed in
   BUILD, not just VERIFY.
-- **The material-evidence layer is mostly `declared_only` for BUILD.** M6a needs,
-  the satisfies edge, MM1 project map, and VD0 labels are stored and validated
-  but **nothing in BUILD selects or orders shots from them yet** — except window
-  retrieval. Window retrieval (M2) is now `active` (MR1, 2026-06-14): a valid
-  material map makes map-based scene/window selection the default local BUILD
-  path, independent of clip_list matched picks.
+- **The material-evidence layer has been upgraded with active VD2.** VD0 labels
+  and visual family / angle scale vocabulary are now fully utilized by `plan_ranked_windows`
+  to order and select diversified candidates during build, without acting as a delivery blocker.
+  Correctness/evidence score tiering remains prioritized.
+- **Photo map-ranked renderability is not yet implemented.** Since photo assets have 0 duration,
+  they remain unrenderable in map-ranked window planning and are dropped. This is recorded as a future improvement.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
 
@@ -94,11 +95,11 @@ capability, and a VERIFY check creates nothing:
    the student-case review's biggest miss was a flat opener. Consumes existing
    active grammar (transitions/treatments/attention budget) — no new evidence
    layer required, so it can ship before VD2.
-2. **VD2 BUILD soft-ranking on `visual_family`** — turns the `declared_only` VD0
-   labels into actual shot ordering (correctness-first, diversity as bonus).
-   Gated on VD1 label-coverage evidence (per roadmap).
+2. ~~**VD2 BUILD soft-ranking on `visual_family`**~~ — DONE (VD2a, 2026-06-15):
+   turns the VD0 labels into actual shot ordering (correctness-first, diversity as bonus).
 3. ~~**Promote M2 window retrieval from `partial` to `active`**~~ — DONE (MR1,
    2026-06-14): the map-based path is now the default local selection when a
    valid material map exists, with honest matched/live fallback.
+4. **Photo map-ranked renderability** — future gap to support rendering of photo assets in map-ranked window planning.
 
 These are scope notes for later rounds. BA1 itself adds no feature.

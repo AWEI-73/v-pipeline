@@ -67,6 +67,9 @@ def rank_scenes(segment, material_maps, *, ranker=None):
                 "score_breakdown": breakdown,
                 "ranker_score": external,
                 "score": evidence_score + external,
+                "visual_family": scene.get("visual_family"),
+                "angle_scale": scene.get("angle_scale"),
+                "asset_type": material_map.get("asset_type"),
             })
     return sorted(ranked, key=lambda item: (-item["score"], item["scene_id"]))
 
@@ -82,28 +85,110 @@ def _scene_by_id(material_maps, scene_id):
     return None
 
 
-def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None):
-    """Convert top-ranked scenes to concrete editor slots."""
-    from .action_progression import classify_function
-    limit = max(0, int(limit))
-    slots = []
-    # Filter to renderable candidates BEFORE applying limit: an unrenderable
-    # scene (no source / zero-or-negative length) must not consume a limit slot
-    # and starve a valid lower-ranked window. Ranking order is preserved.
-    for item in rank_scenes(segment, material_maps, ranker=ranker):
-        if len(slots) >= limit:
-            break
-        # A scene with no playable source cannot become a real window — never
-        # put it on the timeline (it would render a missing/None input).
+def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None):
+    """Select scenes from ranked list with diversity preference within same score tiers."""
+    candidates = []
+    for item in ranked:
         source = item.get("source")
         if not isinstance(source, str) or not source.strip():
             continue
         available = max(0.0, item["end"] - item["start"])
-        take = min(float(clip_dur), available)
-        if take <= 0:                       # zero/negative-length scene: drop
+        if available <= 0:
             continue
-        # Center the window inside the scene, then clamp so it can never spill
-        # past the scene's [start, end] evidence boundary.
+        candidates.append(item)
+
+    tiers = []
+    if candidates:
+        current_score = candidates[0]["score"]
+        current_tier = []
+        for c in candidates:
+            if c["score"] == current_score:
+                current_tier.append(c)
+            else:
+                tiers.append(current_tier)
+                current_score = c["score"]
+                current_tier = [c]
+        if current_tier:
+            tiers.append(current_tier)
+
+    selected = []
+    used_families = set()
+    last_scale = None
+
+    if history:
+        for prev in history:
+            vf = prev.get("visual_family")
+            if vf:
+                used_families.add(vf)
+            scale = prev.get("angle_scale")
+            if scale:
+                last_scale = scale
+
+    for tier in tiers:
+        if len(selected) >= limit:
+            break
+        while tier and len(selected) < limit:
+            scored_candidates = []
+            for c in tier:
+                vf = c.get("visual_family")
+                if vf:
+                    family_priority = 1 if vf not in used_families else -1
+                else:
+                    family_priority = 0
+
+                scale = c.get("angle_scale")
+                if scale:
+                    angle_scale_priority = -1 if (last_scale is not None and scale == last_scale) else 1
+                else:
+                    angle_scale_priority = 0
+
+                asset_type = c.get("asset_type")
+                asset_type_priority = 1 if asset_type == "video" else 0
+
+                reason = f"tier_score={c['score']:.1f}, family_pref={family_priority}, scale_pref={angle_scale_priority}, type_pref={asset_type_priority}"
+                scored_candidates.append((
+                    -family_priority,
+                    -angle_scale_priority,
+                    -asset_type_priority,
+                    c["scene_id"],
+                    c,
+                    reason
+                ))
+
+            scored_candidates.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
+            best_tuple = scored_candidates[0]
+            best_candidate = best_tuple[4]
+            best_reason = best_tuple[5]
+
+            vf = best_candidate.get("visual_family")
+            if vf:
+                used_families.add(vf)
+            scale = best_candidate.get("angle_scale")
+            if scale:
+                last_scale = scale
+
+            c_copy = dict(best_candidate)
+            c_copy["diversity_selection_reason"] = best_reason
+            selected.append(c_copy)
+            tier.remove(best_candidate)
+
+    return selected
+
+
+def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None, history=None):
+    """Convert top-ranked scenes to concrete editor slots."""
+    from .action_progression import classify_function
+    limit = max(0, int(limit))
+
+    ranked = rank_scenes(segment, material_maps, ranker=ranker)
+    selected = select_diverse_ranked_scenes(ranked, material_maps, limit, history=history)
+
+    slots = []
+    for item in selected:
+        source = item.get("source")
+        available = max(0.0, item["end"] - item["start"])
+        take = min(float(clip_dur), available)
+
         start = item["start"] + max(0.0, available - take) / 2
         start = min(max(start, item["start"]), item["end"] - take)
         scene = _scene_by_id(material_maps, item["scene_id"]) or {}
@@ -122,6 +207,9 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None)
             "caption": item.get("caption"),
             "function": function,
             "retrieval_score": item["score"],
+            "visual_family": item.get("visual_family"),
+            "angle_scale": item.get("angle_scale"),
+            "diversity_selection_reason": item.get("diversity_selection_reason", "default"),
         })
     return slots
 
