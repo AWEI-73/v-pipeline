@@ -100,3 +100,36 @@ contract and mapping/review procedure. It must define family granularity without
 hard-coding mountain-rescue terms into the generic engine. After both reviewers
 independently re-apply the agreed project vocabulary, VD1 consistency must be
 re-measured before VD2 begins.
+
+## Frozen-vocabulary independent re-review
+
+The project vocabulary was frozen at SHA256
+`754FA19ED100EAE692BB498012A36E9B8DE09A925F2E7DD47EC08936E996A1D2`.
+Two isolated workers then received only the original images, original project
+map, and frozen vocabulary. Neither worker could read prior reviews,
+normalization outputs, coverage results, or the generated manifest.
+
+Both fresh reviews passed the review artifact contract:
+
+- 36 unique known asset references each;
+- every `scene_index=0`;
+- only canonical frozen-vocabulary families;
+- no aliases, normalization, or prior-answer comparison.
+
+Fresh independent consistency result:
+
+- comparable scenes: `36`;
+- `visual_family` agreement: `97.22%`;
+- `angle_scale` agreement: `97.22%`;
+- combined required-axis agreement: `97.22%`;
+- `ready_for_vd2=true`.
+
+The two remaining disagreements are legitimate boundary cases:
+
+- `f0001`: bad group photo, medium versus wide scale;
+- `f0024`: night-search group studying a map, `night_search` versus
+  `night_search_detail`.
+
+This evidence satisfies VD1's prerequisite. VD2 BUILD soft-ranking may now
+begin as a bounded increment. It remains a soft preference after correctness,
+relevance, approved material, and renderability; it is not a new delivery gate.

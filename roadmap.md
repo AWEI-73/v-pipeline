@@ -1244,6 +1244,18 @@ remains BLOCKED until the vocabulary contract is officially frozen, and both
 review Agents read this frozen contract to perform an independent re-review of the
 images from scratch, passing the consistency check under those conditions.
 
+Frozen-vocabulary independent re-review completed (2026-06-15): two isolated
+workers received only the 36 original images, original project map, and frozen
+vocabulary SHA256
+`754FA19ED100EAE692BB498012A36E9B8DE09A925F2E7DD47EC08936E996A1D2`.
+Both produced complete canonical reviews without prior-answer access.
+Fresh consistency measured `97.22%` for `visual_family` and `97.22%` for
+`angle_scale`; `ready_for_vd2=true`. The remaining two disagreements are
+legitimate boundary cases rather than vocabulary failures. VD1 evidence
+prerequisite is now satisfied; VD2 BUILD soft-ranking may begin, but must remain
+a soft preference after correctness/relevance/renderability and must not become
+a BUILD or delivery hard gate.
+
 
 
 Real baseline application evidence (2026-06-15): one Agent review was applied
