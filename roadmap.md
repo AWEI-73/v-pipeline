@@ -819,10 +819,35 @@ not-atomic; pre-existing backup fail-closed untouched; stale temp cleared and ru
 succeeds; Windows case-alias outputs fail. Focused: 39 tests OK; full regression:
 **990 tests OK**.
 
-**Next increment (separate batch): runtime plumbing** — wire M6c into the
-SPEC→BUILD flow so an accepted revision feeds the M6b gate. Deliberately NOT done
-here so revision and the BUILD gate stay decoupled. F2 / `wrong_semantics` /
-`insufficient_action_phases` and M6d remain deferred.
+##### M6c runtime plumbing ✅ (2026-06-15) — **M6c COMPLETE**
+
+`contract_adapter.run_contract` now wires revision into the SPEC→BUILD flow. When
+the contract declares `revision_decisions_ref`, BEFORE script generation it:
+computes a FRESH `material_delta` from current needs+maps → `apply_revisions`
+(only accepted decisions) → writes `revised_segment_contract.json` +
+`material_revision.json` atomically → re-runs `gate_from_delta` with the canonical
+waivers. The whole downstream pipeline (script, supply, spec_review, M6b gate,
+render) then runs on the **revised** contract, and the M6b gate is re-checked with
+the same waivers. No declaration → existing flow unchanged (backward compatible).
+
+Invariants: the original input contract file is never written; BUILD runs on the
+revised contract only when the post-revision gate passes; every verdict is fresh
+(no stale `material_delta`/`material_revision`/revised contract trusted);
+`material_revision.ready_for_build` and the re-run gate must agree or it blocks;
+only accepted decisions apply. Blocked runs stop before render and reuse the M6b
+stale-final quarantine. Fail-closed on: malformed/missing/unparseable
+decisions_ref, no resolvable needs/maps, broken fresh delta, engine failure,
+ready_for_build=false / pending await (collect/reshoot/review), gate/revision
+disagreement, invalid revised contract.
+
+Falsification `tests/test_material_revision_runtime.py` A–L + 5 adversarial
+(decisions_ref without needs_ref; decisions not a list; revision does NOT mask an
+unrelated tier-1 gap; conflicting accepted decisions; stale revised artifact
+overwritten with fresh): 16 tests. Full regression: **1006 tests OK**.
+
+**Next: M6d Independent Material Map Skill** (deferred). F2 / `wrong_semantics` /
+`insufficient_action_phases` remain deferred. The M6 lifecycle
+(needs → lineage → delta → pre-BUILD gate → revision → runtime) is now end-to-end.
 
 #### M6d Independent Material Map Skill
 

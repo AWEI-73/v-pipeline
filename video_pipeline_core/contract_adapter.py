@@ -658,50 +658,136 @@ def _load_current_material_maps(material_db_payload, db_dir):
     return maps, None
 
 
-def _run_material_delta_gate(contract_obj, source, out_dir, material_db, material_db_payload):
+def _resolve_material_inputs(contract_obj, source, material_db, material_db_payload):
+    """Resolve the CURRENT material_needs + per-asset maps for a contract that
+    declares `material_needs_ref`. Returns (needs, maps, error). `error` is set
+    (fail-closed) when the ref is malformed / missing / unparseable or a declared
+    map is missing/corrupt. needs is None with error=None only when the contract
+    does not declare material_needs_ref at all (caller decides skip)."""
+    if "material_needs_ref" not in contract_obj:
+        return None, None, None
+    needs_ref = contract_obj.get("material_needs_ref")
+    if not isinstance(needs_ref, str) or not needs_ref.strip():
+        return None, None, f"material_needs_ref must be a non-empty string, got {needs_ref!r}"
+    needs_file = _resolve_needs_file(needs_ref.strip(), source)
+    if needs_file is None:
+        return None, None, f"material_needs_ref declared but file not found: {needs_ref}"
+    try:
+        with needs_file.open(encoding="utf-8-sig") as handle:
+            needs = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return None, None, f"material_needs could not be parsed ({needs_file}): {exc}"
+    db_dir = Path(material_db).parent if material_db else Path(".")
+    maps, map_error = _load_current_material_maps(material_db_payload, db_dir)
+    if map_error:
+        return None, None, map_error
+    return needs, maps, None
+
+
+def _run_material_delta_gate(contract_obj, source, out_dir, material_db, material_db_payload,
+                             *, waivers=None):
     """M6b pre-BUILD gate. Runs ONLY when the project explicitly declares the
     `material_needs_ref` key (existing-material-first projects omit it → skip,
     backward compatible). A declared-but-malformed ref is fail-closed, never a
     crash. The verdict is computed FRESH from the current needs + current
     per-asset maps via material_delta.material_delta_gate (never a stale
-    material_delta.json). Returns the gate verdict, or None to skip."""
+    material_delta.json), honoring any canonical `waivers`. Returns the gate
+    verdict, or None to skip."""
     from . import material_delta as _md  # noqa: PLC0415
     delta_path = Path(out_dir) / "material_delta.json"
-
-    # Only an ABSENT key means existing-material-first; a present-but-malformed
-    # value must fail closed (empty/whitespace/non-string is not a real ref).
-    if "material_needs_ref" not in contract_obj:
+    needs, maps, error = _resolve_material_inputs(
+        contract_obj, source, material_db, material_db_payload)
+    if needs is None and error is None:
         return None
-    needs_ref = contract_obj.get("material_needs_ref")
-    if not isinstance(needs_ref, str) or not needs_ref.strip():
+    if error:
         return _md.material_delta_gate(
-            None, None, material_delta_path=str(delta_path),
-            resolution_error=f"material_needs_ref must be a non-empty string, got {needs_ref!r}")
-    needs_ref = needs_ref.strip()
-
-    needs_file = _resolve_needs_file(needs_ref, source)
-    if needs_file is None:
-        return _md.material_delta_gate(
-            None, None, material_delta_path=str(delta_path),
-            resolution_error=f"material_needs_ref declared but file not found: {needs_ref}")
-    try:
-        with needs_file.open(encoding="utf-8-sig") as handle:
-            needs = json.load(handle)
-    except (OSError, ValueError) as exc:
-        return _md.material_delta_gate(
-            None, None, material_delta_path=str(delta_path),
-            resolution_error=f"material_needs could not be parsed ({needs_file}): {exc}")
-
-    db_dir = Path(material_db).parent if material_db else Path(".")
-    maps, map_error = _load_current_material_maps(material_db_payload, db_dir)
-    if map_error:
-        return _md.material_delta_gate(
-            None, None, material_delta_path=str(delta_path), resolution_error=map_error)
-
-    gate = _md.material_delta_gate(needs, maps, material_delta_path=str(delta_path))
+            None, None, material_delta_path=str(delta_path), resolution_error=error)
+    gate = _md.material_delta_gate(needs, maps, waivers=waivers,
+                                   material_delta_path=str(delta_path))
     if gate.get("delta") is not None:   # write fresh evidence (never trust stale)
         _write_json(delta_path, gate["delta"])
     return gate
+
+
+def _run_material_revision(contract_obj, source, out_dir, material_db, material_db_payload,
+                           *, categories=None):
+    """M6c runtime plumbing. Runs ONLY when the contract declares the
+    `revision_decisions_ref` key (omit → skip, backward compatible). Computes a
+    FRESH material_delta from current needs+maps, applies ONLY accepted decisions
+    via the single material_revision.apply_revisions, writes
+    revised_segment_contract.json + material_revision.json atomically, and re-runs
+    gate_from_delta with the canonical waivers. Trusts no stale artifact.
+
+    Returns a dict: {status: skip|applied|block, revised, waivers, reason,
+    next_action, material_revision (path), revised_contract (path), errors}."""
+    from . import material_delta as _md  # noqa: PLC0415
+    from . import material_revision as _mr  # noqa: PLC0415
+
+    if "revision_decisions_ref" not in contract_obj:
+        return {"status": "skip"}
+    out_dir = Path(out_dir)
+    revised_path = out_dir / "revised_segment_contract.json"
+    revision_path = out_dir / "material_revision.json"
+
+    def block(reason, next_action="revise:material(material_revision)", errors=None):
+        return {"status": "block", "revised": None, "waivers": [], "reason": reason,
+                "next_action": next_action, "errors": errors or [reason],
+                "material_revision": None, "revised_contract": None}
+
+    ref = contract_obj.get("revision_decisions_ref")
+    if not isinstance(ref, str) or not ref.strip():
+        return block(f"revision_decisions_ref must be a non-empty string, got {ref!r}")
+    decisions_file = _resolve_needs_file(ref.strip(), source)   # same resolver/discipline
+    if decisions_file is None:
+        return block(f"revision_decisions_ref declared but file not found: {ref}")
+    try:
+        with decisions_file.open(encoding="utf-8-sig") as handle:
+            decisions = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return block(f"revision_decisions could not be parsed ({decisions_file}): {exc}")
+
+    # a revision is defined against a material_delta, which needs canonical needs
+    needs, maps, error = _resolve_material_inputs(
+        contract_obj, source, material_db, material_db_payload)
+    if error:
+        return block(error, next_action="revise:material(material_delta)")
+    if needs is None:
+        return block("revision_decisions_ref declared but the contract declares no "
+                     "material_needs_ref (a revision needs a delta to act on)",
+                     next_action="revise:material(material_delta)")
+
+    fresh_delta = _md.compute_material_delta(needs, maps)   # never trust a stale delta
+    report, revised = _mr.apply_revisions(contract_obj, fresh_delta, decisions,
+                                          categories=categories)
+    if not report["ok"]:
+        return block("revision engine rejected the decisions: "
+                     + "; ".join(report["errors"]), errors=report["errors"])
+
+    # re-run the SAME gate the BUILD gate uses, with the canonical waivers
+    gate = _md.gate_from_delta(fresh_delta, waivers=report["waivers"])
+    if (gate["status"] == "pass") != bool(report["ready_for_build"]):
+        return block("revision/gate disagreement: report.ready_for_build="
+                     f"{report['ready_for_build']} but gate.status={gate['status']}")
+
+    # write evidence atomically (revised contract is a NEW file; source untouched)
+    try:
+        _mr.write_revision_artifacts(revised, report, revised_path, revision_path)
+    except (ValueError, OSError, RuntimeError) as exc:
+        return block(f"could not write revision artifacts: {exc}")
+
+    if not report["ready_for_build"] or report["next_action"] is not None:
+        # pending await (collect/reshoot/review) or unresolved tier-1 -> stop
+        return {"status": "block", "revised": None, "waivers": report["waivers"],
+                "reason": f"revision applied but build is not ready "
+                          f"(next_action={report['next_action']})",
+                "next_action": report["next_action"] or "await_material",
+                "errors": [], "material_revision": str(revision_path),
+                "revised_contract": str(revised_path)}
+    return {"status": "applied", "revised": revised, "waivers": report["waivers"],
+            "reason": "accepted revision decisions applied; gate passes",
+            "next_action": None, "errors": [],
+            "material_revision": str(revision_path),
+            "revised_contract": str(revised_path)}
 
 
 def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
@@ -733,6 +819,50 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     if not v["ok"]:
         return {"ok": False, "errors": v["errors"], "warnings": v["warnings"],
                 "stage": "validate_contract", "contract_hash": contract_hash}
+
+    # M6c runtime plumbing: when the contract declares accepted revision decisions,
+    # transform it BEFORE script generation so the whole downstream pipeline
+    # (script, supply, spec_review, M6b gate, render) uses the revised contract.
+    # Computed fresh from current needs+maps; the original input file is never
+    # written. A blocked revision stops before any render (stale final quarantined).
+    revision_waivers = None
+    if "revision_decisions_ref" in contract_obj:
+        try:
+            with open(material_db, encoding="utf-8-sig") as _mh:
+                _mdb_payload = json.load(_mh)
+        except (OSError, ValueError):
+            _mdb_payload = {"files": []}
+        revision = _run_material_revision(
+            contract_obj, source, out_path.parent, material_db, _mdb_payload,
+            categories=_load_category_ids(categories_path))
+        if revision["status"] == "block":
+            stale_final_path, quarantine_error = _quarantine_stale_final(out_path)
+            canonical_final_cleared = quarantine_error is None and stale_final_path is not None
+            _write_json(out_path.parent / "state.json", {
+                "pass": False, "final": None, "next_action": revision["next_action"],
+                "blocking": revision.get("errors") or [revision["reason"]],
+                "material_revision_gate": revision["reason"],
+                "stale_final_path": stale_final_path,
+                "quarantine_error": quarantine_error,
+                "canonical_final_cleared": canonical_final_cleared})
+            if verbose:
+                print(f"[material-revision] BLOCK — {revision['reason']}")
+            return {"ok": False, "stage": "material_revision",
+                    "errors": revision.get("errors") or [revision["reason"]],
+                    "reason": revision["reason"], "next_action": revision["next_action"],
+                    "material_revision": revision.get("material_revision"),
+                    "revised_contract": revision.get("revised_contract"),
+                    "stale_final_path": stale_final_path,
+                    "quarantine_error": quarantine_error,
+                    "canonical_final_cleared": canonical_final_cleared,
+                    "contract_hash": contract_hash}
+        if revision["status"] == "applied":
+            contract_obj = revision["revised"]            # BUILD uses the revised contract
+            revision_waivers = revision["waivers"]
+            contract_hash = _hash_json(contract_obj)
+            if verbose:
+                print("[material-revision] applied; building on revised contract")
+
     contract_obj, stock_route = _apply_stock_first_if_enabled(contract_obj)
     if stock_route:
         _write_json(stock_first_route_path, stock_route)
@@ -910,7 +1040,8 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     # runs BEFORE any music/timeline/render so a blocked build never produces or
     # overwrites a final video. delivery_gate stays a backstop, not this gate.
     delta_gate = _run_material_delta_gate(
-        contract_obj, source, out_path.parent, material_db, material_db_payload)
+        contract_obj, source, out_path.parent, material_db, material_db_payload,
+        waivers=revision_waivers)
     if delta_gate and delta_gate["status"] == "block":
         # A previous build's final must not keep representing this (now-blocked)
         # run: move it aside with a traceable, collision-free lineage. If the
