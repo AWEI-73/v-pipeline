@@ -51,6 +51,14 @@ def _shot_clip(shot, design_dur, *, role, text=None, treatment=None):
         "segment": 0,                 # opening precedes story segment 1
         "opening_role": role,
     }
+    # Preserve approved-slot lineage / evidence fields when the source shot
+    # carries them (SRP2 auto opening). Manual recipe shots / opening_pool shots
+    # lack these, so existing BR1 behavior is unchanged. `is_photo` is set above
+    # as a strict bool and intentionally excluded here.
+    for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale",
+                  "kenburns", "caption", "function"):
+        if field in shot:
+            clip[field] = shot[field]
     if text:
         clip["text"] = text
     if treatment:

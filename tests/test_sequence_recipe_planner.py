@@ -285,15 +285,18 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         self.assertTrue(out.exists())
         self.assertGreater(out.stat().st_size, 0)
 
+        # SRP2 may prepend an auto opening (no manual opening_recipe); the SRP1
+        # story sequence is the non-opening tail of the plan.
         plan = res["plan"]
-        self.assertEqual(len(plan), 2)
-        self.assertEqual(plan[0]["beat_role"], "context")
-        self.assertEqual(plan[1]["beat_role"], "payoff")
+        story = [c for c in plan if not c.get("opening_role")]
+        self.assertEqual(len(story), 2)
+        self.assertEqual(story[0]["beat_role"], "context")
+        self.assertEqual(story[1]["beat_role"], "payoff")
 
         # Traces must exist
-        self.assertEqual(plan[0]["sequence_recipe_source"], "auto")
-        self.assertIn("Successfully planned sequence recipe with 2 beats", plan[0]["sequence_recipe_reason"])
-        self.assertEqual(plan[0]["sequence_recipe_evidence"]["approved_slot_count"], 2)
+        self.assertEqual(story[0]["sequence_recipe_source"], "auto")
+        self.assertIn("Successfully planned sequence recipe with 2 beats", story[0]["sequence_recipe_reason"])
+        self.assertEqual(story[0]["sequence_recipe_evidence"]["approved_slot_count"], 2)
 
     # --- HARDENING TESTS ---
 
@@ -392,7 +395,9 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         }
         res_auto = mv_cut.run_mv(script_auto, None, str(d / "out_auto.mp4"), music_path=str(music),
                                 material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
-        self.assertEqual(res_auto["plan"][0]["sequence_recipe_source"], "auto")
+        # SRP2 may prepend an auto opening; inspect the SRP1 story clips.
+        auto_story = [c for c in res_auto["plan"] if not c.get("opening_role")]
+        self.assertEqual(auto_story[0]["sequence_recipe_source"], "auto")
         self.assertEqual(res_auto["plan"][-1]["scene_id"], "photo-d:0")
 
         # F. Manual beat recipe -> does NOT update history, segment 2 picks photo-c (family-A)

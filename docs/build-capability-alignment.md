@@ -67,6 +67,7 @@ capability, and a VERIFY check creates nothing:
 | VD1.1 family vocabulary | `visual_family_vocabulary` | `visual-family-normalize` | none (does not block build/delivery) | normalized review with lineage | — | active (evidence prep / VD2 prerequisite) |
 | VD2 visual diversity soft selection | VD0 contract + project map | `plan_ranked_windows` select_diverse_ranked_scenes | `mv_cut._plan_local_segment` | prioritized diversity selection | rendered diversified slots | active |
 | SRP1 Segment Sequence Recipe Planner | approved slots | `plan_segment_sequence` | `mv_cut` run_mv loop | auto-planned beats and trace keys on slots | rendered auto-sequence | active |
+| SRP2 Opening / Hook Auto Planner | approved story-plan slots | `plan_opening_recipe` | `mv_cut` run_mv (post story-plan; reuses BR1 `compile_opening_sequence`) | auto opening clips prepended + `opening_recipe_source=auto` trace/lineage | rendered auto opening before story | active |
 
 ### C. VERIFY audits (inspect only — not BUILD capabilities)
 
@@ -86,6 +87,7 @@ capability, and a VERIFY check creates nothing:
   Correctness/evidence score tiering remains prioritized.
 - **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
 - **SRP1 Segment Sequence Recipe Planner is active/complete.** Local segments with at least 2 approved map-ranked slots and no manual beat recipe are automatically planned into a sequence (e.g. context -> payoff) preserving window integrity, and rendering a true sequential movie.
+- **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only: correctness (retrieval_score) is never overridden by diversity preferences, only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded), title text comes only from explicit script fields, evidence/window/photo lineage is preserved, the original story plan is left intact (opening is prepended, slot_index reindexed), and VD2/SRP1 shared history is not polluted. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
 

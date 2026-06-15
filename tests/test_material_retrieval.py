@@ -235,7 +235,8 @@ class MaterialRetrievalTest(unittest.TestCase):
             res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
                                 material_maps=maps, skip_render=True, verbose=False)
 
-        plan = res["plan"]
+        # SRP2 may prepend an auto opening; this test is about story selection.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(len(plan), 2)
         # Segment 1 gets clip-a (smaller scene_id, first choice)
         self.assertEqual(plan[0]["scene_id"], "clip-a:0")
@@ -269,7 +270,8 @@ class MaterialRetrievalTest(unittest.TestCase):
             res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
                                 material_maps=maps, skip_render=True, verbose=False)
 
-        plan = res["plan"]
+        # SRP2 may prepend an auto opening; this test is about story selection.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(len(plan), 2)
         # Segment 1 gets clip-a:0 (score 2 vs 1)
         self.assertEqual(plan[0]["scene_id"], "clip-a:0")
@@ -376,7 +378,8 @@ class MaterialRetrievalTest(unittest.TestCase):
             res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
                                 material_maps=maps, skip_render=True, verbose=False)
 
-        plan = res["plan"]
+        # SRP2 may prepend an auto opening; this test is about story selection.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(plan[0]["scene_id"], "clip-a:0")
         self.assertEqual(plan[1]["scene_id"], "clip-b:0")
 
@@ -456,7 +459,8 @@ class MaterialRetrievalTest(unittest.TestCase):
             res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
                                 material_maps=maps, skip_render=True, verbose=False)
 
-        plan = res["plan"]
+        # SRP2 may prepend an auto opening; this test is about story selection.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(plan[0]["scene_id"], "clip-a:0") # Original stays
         # Since original stayed, family-A was written to history, so segment 2 selects clip-b:0
         self.assertEqual(plan[1]["scene_id"], "clip-b:0")
@@ -581,7 +585,8 @@ class MaterialRetrievalTest(unittest.TestCase):
             res = mv_cut.run_mv(script, None, "/out.mp4", music_path="/music.wav",
                                 material_maps=maps, skip_render=True, verbose=False)
 
-        plan = res["plan"]
+        # SRP2 may prepend an auto opening; this test is about story selection.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0]["scene_id"], "photo-a:0")
         self.assertEqual(plan[1]["scene_id"], "photo-b:0")

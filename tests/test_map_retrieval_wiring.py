@@ -446,8 +446,9 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
         self.assertTrue(out.exists())
         self.assertGreater(out.stat().st_size, 0)
 
-        # Verify that plan has photo map-ranked slots, correct extract_dur, and correct diversified scene_id order
-        plan = res["plan"]
+        # Verify that plan has photo map-ranked slots, correct extract_dur, and correct diversified scene_id order.
+        # SRP2 may prepend an auto opening; this test is about the story slots.
+        plan = [c for c in res["plan"] if not c.get("opening_role")]
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0]["scene_id"], "photo-a:0")
         self.assertEqual(plan[1]["scene_id"], "photo-b:0")
@@ -499,8 +500,9 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
 
         self.assertTrue(out.exists() and out.stat().st_size > 0)
 
-        # Let's check the plan slots
-        map_slots = [p for p in res["plan"] if p.get("scene_id")]
+        # Let's check the plan slots. SRP2 may prepend an auto opening (whose
+        # clips also carry scene_id lineage); this test is about the story slots.
+        map_slots = [p for p in res["plan"] if p.get("scene_id") and not p.get("opening_role")]
         self.assertTrue(len(map_slots) >= 2)
         # The first slot should be clip-a:0, and the second should be clip-c:0
         self.assertEqual(map_slots[0]["scene_id"], "clip-a:0")

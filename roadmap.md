@@ -36,6 +36,34 @@ true render. Graceful fallback drops beats with no material. Consumed via `scrip
 **SRP1 Segment Sequence Recipe Planner COMPLETE** (2026-06-15):
 Automatically plans a deterministic sequence recipe (`plan_segment_sequence`) from approved local map-ranked slots when no manual beat recipe is provided. Restructures timeline slots using the existing BR2 compiler while preserving correctness ranking, visual family diversity, and window integrity. Fully validated with dynamic video/photo renders.
 
+**SRP2 Opening / Hook Auto Planner COMPLETE** (2026-06-16):
+A deterministic SHALLOW opening planner — NOT full story understanding or aesthetic
+direction, only a re-organization of approved story slots.
+`opening_recipe_planner.plan_opening_recipe(script, approved_story_plan)` derives a
+runtime-ephemeral opening recipe (hook → context_montage → title_reveal → story_entry,
+scaled to the qualified-candidate count) from the already-approved story-plan slots and
+hands it to the existing BR1 `compile_opening_sequence`, which PREPENDS it to the plan
+and reindexes `slot_index` (so it changes both timeline and true render). The original
+story timeline stays fully intact and the original script is never mutated.
+
+Safety (inherited from SRP1): a manual `script["opening_recipe"]` ALWAYS wins (auto
+stands down); only approved, scene_id-bearing, renderable slots are eligible (GAP /
+missing source / source_speech / keep_audio / hold / fallback-only / illegal-window
+excluded); correctness (retrieval_score) is never overridden by diversity preferences
+(diversity is a same-tier soft tie-break only); no material is re-retrieved and no
+source / scene_id / window / evidence is invented; title text comes only from explicit
+`script.opening_title` / `script.title` (never fabricated); evidence / window / photo
+lineage is preserved on the prepended opening clips (BR1 `_shot_clip` now carries the
+same lineage fields as BR2 `_beat_clip`); and because the planner runs AFTER the
+per-segment loop it never pollutes VD2 / SRP1 shared history. Compiler-empty /
+`ValueError` / `TypeError` → graceful fallback that keeps the story plan with a
+diagnostic trace; `RuntimeError` and other unexpected exceptions propagate. No new
+schema, no second opening compiler, no hard gate. Validated with a dynamic-photo true
+render (material map → story plan → auto opening planner → BR1 → prepended timeline →
+final.mp4): focused 28 tests; full regression **1161 tests OK**. Out of scope and NOT
+started: SRP3 story-arc / emotional planner, VERIFY→BUILD revision loop, VD3,
+dashboard/UI, Node 14 / effects.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 

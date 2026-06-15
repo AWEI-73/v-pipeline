@@ -1337,9 +1337,14 @@ def run_mv(script, material_root, out_path, music_path=None,
     # prevents the opening from selecting ending clips or vice versa.
     story_plan = list(plan)
 
-    # 3.5) BR1 opening / hook sequence — prepend an approved opening recipe into
-    # the render plan so it changes both timeline and true render.
+    # 3.5) BR1 opening / hook sequence — prepend a designed opening into the
+    # render plan so it changes both timeline and true render. A MANUAL
+    # `script["opening_recipe"]` keeps the existing BR1 behavior exactly. With no
+    # manual recipe, SRP2 plans a shallow deterministic opening from the approved
+    # story slots (reuse only; the story plan is never modified). The opening runs
+    # AFTER the per-segment loop, so it never pollutes VD2/SRP1 shared history.
     opening_result = None
+    opening_plan = None
     opening_recipe = script.get("opening_recipe")
     if opening_recipe:
         from .opening_sequence import (  # noqa: PLC0415
@@ -1353,6 +1358,43 @@ def run_mv(script, material_root, out_path, music_path=None,
         else:
             vp(f"[opening] no opening clips compiled (fallback); "
                f"dropped={opening_result['dropped']}")
+    else:
+        # SRP2 auto opening planner (only approved story slots; manual wins above)
+        from .opening_recipe_planner import plan_opening_recipe  # noqa: PLC0415
+        opening_plan = plan_opening_recipe(script, story_plan)
+        if opening_plan["status"] == "planned":
+            from .opening_sequence import (  # noqa: PLC0415
+                compile_opening_sequence, prepend_opening_to_plan)
+            recipe = opening_plan["recipe"]
+            try:
+                # expected input errors → graceful fallback (keep story plan);
+                # RuntimeError / unexpected exceptions propagate (req. 九.2 / O).
+                opening_result = compile_opening_sequence(recipe, recipe["shots"])
+            except (ValueError, TypeError) as e:
+                opening_plan["execution"] = {"status": "compiler_error_fallback",
+                                             "error": str(e)}
+                opening_result = None
+                vp(f"[opening] auto opening compiler failed (fallback): {e}")
+            if opening_result is not None and opening_result["clips"]:
+                for c in opening_result["clips"]:
+                    c["opening_recipe_source"] = "auto"
+                    c["opening_recipe_reason"] = opening_plan["reason"]
+                    c["opening_recipe_evidence"] = opening_plan["evidence"]
+                plan = prepend_opening_to_plan(plan, opening_result["clips"])
+                opening_result["recipe_source"] = "auto"
+                opening_plan["execution"] = {"status": "prepended",
+                                             "clip_count": len(opening_result["clips"])}
+                vp(f"[opening] auto-prepended {len(opening_result['clips'])} clip(s); "
+                   f"beats={opening_result['beats_used']} "
+                   f"scene_ids={opening_plan['selected_scene_ids']}")
+            elif opening_result is not None:
+                # compiler produced no clips → keep the story plan, trace fallback
+                opening_plan["execution"] = {"status": "empty_clips_fallback",
+                                             "dropped": opening_result["dropped"]}
+                opening_result = None
+                vp("[opening] auto opening produced no clips (fallback)")
+        else:
+            vp(f"[opening] auto opening not_applicable: {opening_plan['reason']}")
 
     # 3.6) BR4 ending / payoff sequence — append approved closure beats. Missing
     # recipe/material leaves the existing plan unchanged.
@@ -1419,7 +1461,8 @@ def run_mv(script, material_root, out_path, music_path=None,
     except Exception as _e:
         vp(f"[state] build_mv_state failed (non-fatal): {_e}")
     return {"out": out_path, "segments": per_seg, "cuts": len(plan), "plan": plan,
-            "opening": opening_result, "ending": ending_result,
+            "opening": opening_result, "opening_plan": opening_plan,
+            "ending": ending_result,
             "punctuation": punctuation_result,
             "awaiting_visual_review": bool(pending_visual_review)}
 
