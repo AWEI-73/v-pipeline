@@ -235,7 +235,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         self.assertEqual(len(clips), 2)
         self.assertTrue(clips[0]["is_photo"])
         self.assertTrue(clips[0]["kenburns"])
-        self.assertFalse(clips[1]["is_photo"])
+        self.assertNotIn("is_photo", clips[1])
 
     def test_K_determinism(self):
         """K: repeated planning calls on the same slots yield identical results."""
@@ -543,3 +543,127 @@ class SequenceRecipePlannerTest(unittest.TestCase):
             self.assertEqual(script, script_orig)  # Immutability check
             for slot in res_fail["plan"]:
                 self.assertNotIn("sequence_recipe_source", slot)  # No success trace on fallback slots
+
+    def test_R_evidence_strictness(self):
+        """R: verifies segment_pool_from_plan and beat compilation does not invent evidence fields."""
+        # Case A: original slot has no is_photo or other fields
+        no_photo_slots = [
+            {
+                "source": "video1.mp4",
+                "extract_start": 1.0,
+                "extract_dur": 2.0,
+                "segment": 1,
+            },
+            {
+                "source": "video2.mp4",
+                "extract_start": 3.0,
+                "extract_dur": 2.5,
+                "segment": 1,
+            }
+        ]
+        pool = segment_pool_from_plan(no_photo_slots)
+        self.assertEqual(len(pool), 2)
+        self.assertNotIn("is_photo", pool[0])
+        self.assertNotIn("is_photo", pool[1])
+        self.assertNotIn("scene_id", pool[0])
+
+        from video_pipeline_core.beat_sequence import compile_beat_sequence
+        recipe = {
+            "beats": ["context", "payoff"],
+            "durations": {"context": 2.0, "payoff": 2.5}
+        }
+        beat_seq = compile_beat_sequence(recipe, pool, segment=1)
+        clips = beat_seq["clips"]
+        self.assertEqual(len(clips), 2)
+        self.assertNotIn("is_photo", clips[0])
+        self.assertNotIn("is_photo", clips[1])
+        self.assertNotIn("scene_id", clips[0])
+
+        # Case B: original photo slot has is_photo=True / kenburns=True
+        photo_slots = [
+            {
+                "source": "photo1.png",
+                "extract_start": 0.0,
+                "extract_dur": 2.0,
+                "segment": 1,
+                "is_photo": True,
+                "kenburns": True,
+                "visual_family": "fam-P",
+            },
+            {
+                "source": "video2.mp4",
+                "extract_start": 1.0,
+                "extract_dur": 3.0,
+                "segment": 1,
+            }
+        ]
+        pool2 = segment_pool_from_plan(photo_slots)
+        self.assertEqual(len(pool2), 2)
+        self.assertTrue(pool2[0]["is_photo"])
+        self.assertTrue(pool2[0]["kenburns"])
+        self.assertEqual(pool2[0]["visual_family"], "fam-P")
+        self.assertNotIn("is_photo", pool2[1])
+
+        beat_seq2 = compile_beat_sequence(recipe, pool2, segment=1)
+        clips2 = beat_seq2["clips"]
+        self.assertEqual(len(clips2), 2)
+        self.assertTrue(clips2[0]["is_photo"])
+        self.assertTrue(clips2[0]["kenburns"])
+        self.assertEqual(clips2[0]["visual_family"], "fam-P")
+        self.assertNotIn("is_photo", clips2[1])
+
+    def test_S_auto_compiler_type_error_fallback(self):
+        """S: mock auto compiler raise TypeError: run_mv doesn't crash, original slots are kept, has fallback trace."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=TypeError("mock type error")):
+            res = mv_cut.run_mv(script, None, str(d / "out_type.mp4"), music_path=str(music),
+                                material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertTrue(res["plan"])
+            self.assertNotIn("sequence_recipe_source", res["plan"][0])
+            self.assertEqual(res["segments"][0]["auto_sequence_status"], "fallback")
+            self.assertEqual(res["segments"][0]["auto_sequence_error"], "mock type error")
+
+    def test_T_auto_compiler_runtime_error_propagates(self):
+        """T: mock auto compiler raise RuntimeError: propagates exception loudly, does not fallback silently."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=RuntimeError("loud runtime error")):
+            with self.assertRaises(RuntimeError) as ctx:
+                mv_cut.run_mv(script, None, str(d / "out_rt.mp4"), music_path=str(music),
+                              material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertEqual(str(ctx.exception), "loud runtime error")

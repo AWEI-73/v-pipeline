@@ -163,10 +163,9 @@ def segment_pool_from_plan(plan):
             "source": source,
             "start": float(clip.get("extract_start") or clip.get("start_sec") or 0.0),
             "dur": float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0),
-            "is_photo": bool(clip.get("is_photo", False)),
         }
         # Copy all other evidence fields so they pass to _beat_clip
-        for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale", "kenburns", "caption", "function"):
+        for field in ("is_photo", "scene_id", "retrieval_score", "visual_family", "angle_scale", "kenburns", "caption", "function"):
             if field in clip:
                 shot[field] = clip[field]
         # Copy exact window fields to avoid rounding mismatch

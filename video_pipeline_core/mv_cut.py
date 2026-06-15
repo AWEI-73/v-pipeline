@@ -1256,7 +1256,7 @@ def run_mv(script, material_root, out_path, music_path=None,
                             d.pop("sequence_recipe_source", None)
                             d.pop("sequence_recipe_reason", None)
                             d.pop("sequence_recipe_evidence", None)
-                except Exception as e:
+                except (ValueError, TypeError) as e:
                     s["auto_sequence_status"] = "fallback"
                     s["auto_sequence_error"] = str(e)
                     entry["auto_sequence_status"] = "fallback"
