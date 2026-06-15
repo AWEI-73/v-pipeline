@@ -1525,10 +1525,12 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
 def _load_material_maps(material_db_payload, db_dir="."):
     """Back-compat helper: per-asset maps from a db PAYLOAD, resolving a relative
     `material_map` against `db_dir` (default cwd). Delegates to the single
-    canonical loader; returns a list (empty on load error)."""
+    canonical loader and fails closed on a declared-but-bad map."""
     from .project_material_map import material_maps_from_db_payload  # noqa: PLC0415
     maps, _err = material_maps_from_db_payload(material_db_payload, db_dir)
-    return maps or []
+    if _err:
+        raise ToolError(f"material maps could not be loaded: {_err}")
+    return maps
 
 
 def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
@@ -1536,15 +1538,15 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
     把 curator 理解(caption)+ 比對 + 渲染串成一條;render 吃 match 結果,不 live 重評。
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
-    import json as _json
     import video_tools  # noqa: PLC0415
     from .project_material_map import (  # noqa: PLC0415
-        material_maps_from_db, material_maps_from_db_payload)
+        load_material_db, material_maps_from_db, material_maps_from_db_payload)
     mat_dir = mat_dir or resolve_temp_dir()
-    db_path = material_db if isinstance(material_db, str) else None
-    if isinstance(material_db, str):
-        with open(material_db, encoding="utf-8") as f:
-            material_db = _json.load(f)
+    db_path = os.fspath(material_db) if isinstance(material_db, (str, os.PathLike)) else None
+    if db_path:
+        material_db, _db_err = load_material_db(db_path)
+        if _db_err:
+            raise ToolError(f"material db could not be loaded: {_db_err}")
     segs = script.get("segments") or []
     matched = video_tools.match_script_to_material(segs, material_db.get("files", []))
     # Canonical loader: a relative material_map resolves against the material_db

@@ -111,6 +111,24 @@ class RelativePathTest(unittest.TestCase):
             self.assertIsNone(maps)                   # fail-closed, not [] / covered
             self.assertTrue(err)
 
+    def test_G_legacy_build_helper_is_fail_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            payload = {"files": [{"material_map": "missing.map.json"}]}
+            with self.assertRaises(mv_cut.ToolError):
+                mv_cut._load_material_maps(payload, d)
+
+    def test_H_mv_chain_accepts_pathlike_material_db(self):
+        with tempfile.TemporaryDirectory() as d:
+            db = Path(_project(d, material_map=None))
+            matched = {"assignments": []}
+            rendered = {"final": "final.mp4", "plan": []}
+            with patch("video_tools.match_script_to_material", return_value=matched), \
+                 patch("video_pipeline_core.mv_cut.run_mv", return_value=rendered):
+                result = mv_cut.mv_chain(
+                    {"segments": []}, db, str(Path(d) / "final.mp4"),
+                    verbose=False, skip_render=True)
+            self.assertEqual(result["match"], matched)
+
 
 class RunContractIntegrationTest(unittest.TestCase):
     def test_relative_missing_map_blocks_before_render(self):
