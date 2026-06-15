@@ -73,7 +73,7 @@ To ensure different review Agents agree on `visual_family` tag granularity, esta
 >   review_required:
 > ```
 
-小編是 pipeline 裡唯一做「內容理解」的 Skill。  
+小編是 pipeline 裡唯一做「內容理解」的 Skill。
 **方案 A 邊界（2026-05-24）**：小編包辦 search / download / Whisper analyze / 評分，剪輯師只剪檔案。
 
 > **⚠️ 中文優先（2026-05-29 修訂，現行 Pexels/Pixabay 流程）**
@@ -300,14 +300,14 @@ python3 video_tools.py curate \
 ## 已修的兩個重要 bug（2026-05-25）
 
 ### Bug 1：`_find_best_window` 沒做邊界保護
-**症狀**：Whisper 找到的 best_start 太靠後，導致 `best_start + target_sec` 超出素材長度，剪輯師剪出來的段比 TTS 短。  
-**後果**：VERIFY 的 duration_fit 維度扣分（diff > 300ms 就 fail）。  
-**修法**：計算 `max_start = total_dur - target_sec`，跳過任何 anchor.start > max_start 的 segment。  
+**症狀**：Whisper 找到的 best_start 太靠後，導致 `best_start + target_sec` 超出素材長度，剪輯師剪出來的段比 TTS 短。
+**後果**：VERIFY 的 duration_fit 維度扣分（diff > 300ms 就 fail）。
+**修法**：計算 `max_start = total_dur - target_sec`，跳過任何 anchor.start > max_start 的 segment。
 **實測**：Seg 3 從 -1352ms 漂移 → 0ms。
 
 ### Bug 2：curate 下載長度固定 90s 太短
-**症狀**：素材只下 90s，若 Whisper 在後段找到匹配（如 64s），加上 target 27s 就 > 90s 邊界。  
-**修法**：下載長度改成 `max(180, target_sec × 6)`，給 Whisper 更大選擇空間。  
+**症狀**：素材只下 90s，若 Whisper 在後段找到匹配（如 64s），加上 target 27s 就 > 90s 邊界。
+**修法**：下載長度改成 `max(180, target_sec × 6)`，給 Whisper 更大選擇空間。
 **實測**：Seg 3 Whisper 從 64.4s 選到 127.6s（更精準的內容匹配，且不破壞邊界）。
 
 ---
@@ -316,7 +316,7 @@ python3 video_tools.py curate \
 
 ## 本地素材模式（學員上傳）
 
-YouTube 模式是「找不到對的素材」的 fallback。  
+YouTube 模式是「找不到對的素材」的 fallback。
 真正的結訓影片場景：學員按 `shooting_brief.md` 拍，上傳到 `/materials/`，由本模式處理。
 
 ### 流程
@@ -432,12 +432,12 @@ python3 video_tools.py rank-local \
 **未來改進**：用 sentence-transformers 算 embedding cosine 相似度，或 BM25。
 
 ### 2. 沒過濾 talking head
-標題過濾只擋了「interview / podcast」這類關鍵字，但很多 talking-head 影片標題不含這些詞。  
-**症狀**：可能選到「人臉特寫不換鏡頭」的段落（v2 測試的 Seg 3 案例）。  
+標題過濾只擋了「interview / podcast」這類關鍵字，但很多 talking-head 影片標題不含這些詞。
+**症狀**：可能選到「人臉特寫不換鏡頭」的段落（v2 測試的 Seg 3 案例）。
 **未來改進**：下載後做 frame sampling + 簡單畫面變化偵測，動態太低的窗口扣分。
 
 ### 3. 沒過濾自帶字幕/CG 標題
-新聞素材常有跑馬燈、台標、字幕條，跟我們燒的中文字幕打架（v1 軍事素材測試的問題）。  
+新聞素材常有跑馬燈、台標、字幕條，跟我們燒的中文字幕打架（v1 軍事素材測試的問題）。
 **未來改進**：sample 數幀 + OCR 偵測畫面文字，文字密度過高扣分。
 
 ### 4. Whisper 中文表現
@@ -470,7 +470,7 @@ python3 video_tools.py rank-local \
 | 3 | AI applications healthcare medical imaging | How AI is Revolutionizing Medicine | 127.6s | 7 |
 | 4 | future artificial general intelligence AGI | AI2027 BBC | 17.7s | 1 |
 
-下游 VERIFY 結果：**98.5 分**（跟手寫 clip_list 同分），duration_fit 100。  
+下游 VERIFY 結果：**98.5 分**（跟手寫 clip_list 同分），duration_fit 100。
 首支「100% 由正式 Skill 全自動產出（含 search / download / 內容理解）」的影片：`workspace/v4_auto_final.mp4`。
 
 ---

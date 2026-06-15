@@ -1237,8 +1237,13 @@ genre vocabulary in the core engine. Normalization is a deterministic mapping
 (canonical/aliases) and is NOT semantic or fuzzy understanding. VD2 remains blocked
 by default until coverage consistency is re-measured and passes. Re-measuring
 Gemini vs Codex reviews on the normalized project-local mountain rescue vocabulary
-yielded 94.44% visual_family agreement and 100.00% angle_scale agreement,
-resolving the blocked state (ready_for_vd2=True).
+yielded 94.44% visual_family agreement and 100.00% angle_scale agreement. However,
+this is an offline "normalization replay" on pre-existing reviews and does NOT
+constitute or prove real independent consistency. The actual VD2 soft-ranking
+remains BLOCKED until the vocabulary contract is officially frozen, and both
+review Agents read this frozen contract to perform an independent re-review of the
+images from scratch, passing the consistency check under those conditions.
+
 
 
 Real baseline application evidence (2026-06-15): one Agent review was applied

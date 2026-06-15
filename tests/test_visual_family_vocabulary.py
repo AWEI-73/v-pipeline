@@ -64,7 +64,7 @@ class VisualFamilyVocabularyTest(unittest.TestCase):
     def test_canonical_family_retained_and_alias_mapped(self):
         vfv = self._get_module()
         normalized = vfv.normalize_visual_diversity_review(self.review, self.vocab)
-        
+
         # Check that scene 0 (alias "night_search_action") is mapped to "night_search"
         s0 = normalized["scenes"][0]
         self.assertEqual(s0["visual_family"], "night_search")
@@ -82,7 +82,7 @@ class VisualFamilyVocabularyTest(unittest.TestCase):
         vfv = self._get_module()
         bad_review = json.loads(json.dumps(self.review))
         bad_review["scenes"][0]["visual_family"] = "unknown_family_tag"
-        
+
         with self.assertRaises(ValueError):
             vfv.normalize_visual_diversity_review(bad_review, self.vocab)
 
@@ -145,10 +145,10 @@ class VisualFamilyVocabularyTest(unittest.TestCase):
     def test_only_visual_family_modified(self):
         vfv = self._get_module()
         normalized = vfv.normalize_visual_diversity_review(self.review, self.vocab)
-        
+
         orig_s0 = self.review["scenes"][0]
         norm_s0 = normalized["scenes"][0]
-        
+
         self.assertEqual(norm_s0["asset_id"], orig_s0["asset_id"])
         self.assertEqual(norm_s0["scene_index"], orig_s0["scene_index"])
         self.assertEqual(norm_s0["angle_scale"], orig_s0["angle_scale"])
@@ -206,6 +206,67 @@ class VisualFamilyVocabularyTest(unittest.TestCase):
             written = json.loads(out_file.read_text(encoding="utf-8"))
             self.assertEqual(written["scenes"][0]["visual_family"], "night_search")
             self.assertEqual(written["reviewer"], "agent-a")
+
+    # Hardening unit tests
+    def test_version_must_be_strict_int_1(self):
+        # A. version=True/"1"/1.0 全 fail。
+        vfv = self._get_module()
+        for bad_version in (True, "1", 1.0, False, [1]):
+            bad_vocab = json.loads(json.dumps(self.vocab))
+            bad_vocab["version"] = bad_version
+            with self.assertRaises(ValueError):
+                vfv.normalize_visual_diversity_review(self.review, bad_vocab)
+
+    def test_empty_families_fails(self):
+        # B. empty families fail。
+        vfv = self._get_module()
+        bad_vocab = json.loads(json.dumps(self.vocab))
+        bad_vocab["families"] = []
+        with self.assertRaises(ValueError):
+            vfv.normalize_visual_diversity_review(self.review, bad_vocab)
+
+    def test_invalid_asset_ids_fail(self):
+        # C. asset_id=[]/""/" " /123/True 全 fail。
+        vfv = self._get_module()
+        for bad_asset_id in ([], "", "  ", 123, True, False, {}):
+            bad_review = json.loads(json.dumps(self.review))
+            bad_review["scenes"][0]["asset_id"] = bad_asset_id
+            with self.assertRaises(ValueError):
+                vfv.normalize_visual_diversity_review(bad_review, self.vocab)
+
+    def test_invalid_scene_indices_fail(self):
+        # D. scene_index={}/[]/-1/True/"0" 全 fail。
+        vfv = self._get_module()
+        for bad_index in ({}, [], -1, True, False, "0", 1.5):
+            bad_review = json.loads(json.dumps(self.review))
+            bad_review["scenes"][0]["scene_index"] = bad_index
+            with self.assertRaises(ValueError):
+                vfv.normalize_visual_diversity_review(bad_review, self.vocab)
+
+    def test_duplicate_scene_references_fail(self):
+        # E. duplicate scene reference fail。
+        vfv = self._get_module()
+        bad_review = json.loads(json.dumps(self.review))
+        # Add a scene with identical asset_id and scene_index
+        bad_review["scenes"].append({
+            "asset_id": "f0001",
+            "scene_index": 0,
+            "visual_family": "running_training"
+        })
+        with self.assertRaises(ValueError):
+            vfv.normalize_visual_diversity_review(bad_review, self.vocab)
+
+    def test_existing_normalization_lineage_fails(self):
+        # F. existing normalization lineage 不得被無聲覆寫。
+        vfv = self._get_module()
+        bad_review = json.loads(json.dumps(self.review))
+        bad_review["scenes"][0]["visual_family_normalization"] = {
+            "vocabulary_project": "old-project",
+            "original_family": "night_search_action",
+            "canonical_family": "night_search"
+        }
+        with self.assertRaises(ValueError):
+            vfv.normalize_visual_diversity_review(bad_review, self.vocab)
 
 
 if __name__ == "__main__":
