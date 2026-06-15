@@ -616,27 +616,10 @@ def _resolve_declared_ref(ref, source):
 
 
 def _load_material_db_strict(material_db):
-    """Strict load of the current material_db. Returns (payload, error). A
-    missing/corrupt DB, a non-object top level, a non-list `files`, or a non-object
-    entry is fail-closed (never degraded to {"files": []})."""
-    if not isinstance(material_db, (str, os.PathLike)) or not str(material_db).strip():
-        return None, f"material_db path must be a non-empty path, got {material_db!r}"
-    try:
-        with open(material_db, encoding="utf-8-sig") as handle:
-            payload = json.load(handle)
-    except FileNotFoundError:
-        return None, f"material_db not found: {material_db}"
-    except (OSError, ValueError) as exc:
-        return None, f"material_db could not be parsed ({material_db}): {exc}"
-    if not isinstance(payload, dict):
-        return None, f"material_db top-level must be an object, got {type(payload).__name__}"
-    files = payload.get("files")
-    if files is not None and not isinstance(files, list):
-        return None, f"material_db.files must be a list, got {type(files).__name__}"
-    for index, entry in enumerate(files or []):
-        if not isinstance(entry, dict):
-            return None, f"material_db.files[{index}] must be an object, got {entry!r}"
-    return payload, None
+    """Strict materials_db.json load — delegates to the single canonical loader
+    (project_material_map.load_material_db) so there is ONE rule."""
+    from .project_material_map import load_material_db  # noqa: PLC0415
+    return load_material_db(material_db)
 
 
 def _quarantine_stale_final(out_path):
@@ -664,33 +647,12 @@ def _quarantine_stale_final(out_path):
 
 
 def _load_current_material_maps(material_db_payload, db_dir):
-    """Strict load of the CURRENT per-asset maps. Relative `material_map` paths
-    resolve against the material_db.json directory (NOT the process cwd);
-    absolute paths are used as-is. A declared-but-missing or corrupt map file is
-    an error (it must block, not be silently treated as zero material). Returns
-    (maps, error_or_None)."""
-    maps = []
-    for entry in (material_db_payload or {}).get("files") or []:
-        if not isinstance(entry, dict) or "material_map" not in entry:
-            continue                              # no map declared on this asset
-        map_path = entry.get("material_map")
-        # a declared map_path must be a real, non-empty string path (reject
-        # None/blank/number/bool/list/dict instead of silently skipping)
-        if not isinstance(map_path, str) or not map_path.strip():
-            return None, f"material_map must be a non-empty string, got {map_path!r}"
-        path = Path(map_path.strip())
-        if not path.is_absolute():
-            path = Path(db_dir) / path
-        if not path.exists():
-            return None, f"declared material_map not found: {map_path}"
-        if path.is_dir():
-            return None, f"material_map points to a directory, not a file: {map_path}"
-        try:
-            with path.open(encoding="utf-8-sig") as handle:
-                maps.append(json.load(handle))
-        except (OSError, ValueError) as exc:
-            return None, f"material_map could not be read/parsed ({map_path}): {exc}"
-    return maps, None
+    """Per-asset maps from a db payload — delegates to the single canonical loader
+    (project_material_map.material_maps_from_db_payload): relative `material_map`
+    resolves against db_dir (never cwd), declared-but-bad maps are fail-closed,
+    absent keys skipped, loaded maps canonically normalized. One rule."""
+    from .project_material_map import material_maps_from_db_payload  # noqa: PLC0415
+    return material_maps_from_db_payload(material_db_payload, db_dir)
 
 
 def _resolve_material_inputs(contract_obj, source, material_db, material_db_payload):
@@ -1015,23 +977,33 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             brief_dict_for_review = {}
 
     # Node 2 + M1: direct contract-run must materialize the same coverage and
-    # supply evidence as runtime_orchestrator before the SPEC/render gate.
-    with open(material_db, encoding="utf-8-sig") as material_handle:
-        material_db_payload = json.load(material_handle)
+    # supply evidence as runtime_orchestrator before the SPEC/render gate. Maps
+    # load through the SAME canonical loader the gate + BUILD use (db-relative,
+    # fail-closed) so supply judgement and BUILD see identical maps.
+    from .project_material_map import (  # noqa: PLC0415
+        load_material_db, material_maps_from_db_payload)
+    material_db_payload, _db_err = load_material_db(material_db)
+    if _db_err:
+        state_path = out_path.parent / "state.json"
+        _write_json(state_path, {"pass": False, "final": None,
+                                 "next_action": "revise:material(material_delta)",
+                                 "blocking": [_db_err]})
+        return {"ok": False, "stage": "material_db", "errors": [_db_err],
+                "next_action": "revise:material(material_delta)", "contract_hash": contract_hash}
     from .curator import build_material_coverage  # noqa: PLC0415
     coverage = build_material_coverage(payload.get("segments") or [],
                                        material_db_payload.get("files") or [])
     material_coverage_path = out_path.parent / "material_coverage_map.json"
     _write_json(material_coverage_path, coverage)
-    material_maps = []
-    for entry in material_db_payload.get("files") or []:
-        map_path = entry.get("material_map")
-        if map_path and Path(map_path).exists():
-            try:
-                with open(map_path, encoding="utf-8-sig") as map_handle:
-                    material_maps.append(json.load(map_handle))
-            except (OSError, ValueError):
-                pass
+    material_maps, _map_err = material_maps_from_db_payload(
+        material_db_payload, Path(material_db).parent)
+    if _map_err:
+        state_path = out_path.parent / "state.json"
+        _write_json(state_path, {"pass": False, "final": None,
+                                 "next_action": "revise:material(material_delta)",
+                                 "blocking": [_map_err]})
+        return {"ok": False, "stage": "material_map", "errors": [_map_err],
+                "next_action": "revise:material(material_delta)", "contract_hash": contract_hash}
     from .supply_review import fallback_maps_from_coverage, review_supply  # noqa: PLC0415
     known_sources = {str(item.get("source") or "").lower() for item in material_maps}
     material_maps.extend(

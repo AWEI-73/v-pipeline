@@ -1522,19 +1522,13 @@ def build_mv_state(script, per_seg, out_path, music_path=None, plan=None):
     return state
 
 
-def _load_material_maps(material_db):
-    import json as _json
-    maps = []
-    for entry in (material_db or {}).get("files") or []:
-        path = entry.get("material_map")
-        if not path:
-            continue
-        try:
-            with open(path, encoding="utf-8") as handle:
-                maps.append(_json.load(handle))
-        except (OSError, ValueError):
-            continue
-    return maps
+def _load_material_maps(material_db_payload, db_dir="."):
+    """Back-compat helper: per-asset maps from a db PAYLOAD, resolving a relative
+    `material_map` against `db_dir` (default cwd). Delegates to the single
+    canonical loader; returns a list (empty on load error)."""
+    from .project_material_map import material_maps_from_db_payload  # noqa: PLC0415
+    maps, _err = material_maps_from_db_payload(material_db_payload, db_dir)
+    return maps or []
 
 
 def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
@@ -1544,13 +1538,24 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
     import json as _json
     import video_tools  # noqa: PLC0415
+    from .project_material_map import (  # noqa: PLC0415
+        material_maps_from_db, material_maps_from_db_payload)
     mat_dir = mat_dir or resolve_temp_dir()
+    db_path = material_db if isinstance(material_db, str) else None
     if isinstance(material_db, str):
         with open(material_db, encoding="utf-8") as f:
             material_db = _json.load(f)
     segs = script.get("segments") or []
     matched = video_tools.match_script_to_material(segs, material_db.get("files", []))
-    material_maps = _load_material_maps(material_db)
+    # Canonical loader: a relative material_map resolves against the material_db
+    # directory (NOT the process cwd) — the same maps the gate + supply review saw.
+    # A declared-but-bad map is fail-closed at BUILD too (never a silent GAP).
+    if db_path:
+        material_maps, _mm_err = material_maps_from_db(db_path)
+    else:
+        material_maps, _mm_err = material_maps_from_db_payload(material_db, ".")
+    if _mm_err:
+        raise ToolError(f"material maps could not be loaded: {_mm_err}")
     if verbose:
         for as_ in matched["assignments"]:
             tag = GAP if as_["gap"] else f"{as_['picks'][0]['score']}"

@@ -201,8 +201,12 @@ class GateIntegrationTest(unittest.TestCase):
             db = {"files": [{"path": "a.mp4", "material_map": str(bad_map)}]}
             contract_path, db_path, music = self._setup(d, needs_payload=needs, material_db=db)
             result, mv_called = self._run(contract_path, db_path, music, outdir)
-            self.assertEqual(result["stage"], "material_delta")
+            # the unified loader now fail-closes the corrupt map at supply-review
+            # (stage material_map), earlier than the delta gate — still blocked,
+            # still no render.
+            self.assertIn(result["stage"], ("material_map", "material_delta"))
             self.assertFalse(mv_called)
+            self.assertFalse((outdir / "final.mp4").exists())
 
     def test_H_stale_material_delta_artifact_is_ignored(self):
         with tempfile.TemporaryDirectory() as d:

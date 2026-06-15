@@ -969,14 +969,29 @@ Ran the M6d lifecycle CLI + `run_contract` on the REAL 67th material
   3-seg); `run_contract` re-ran M6c, re-derived the waivers, and rendered the
   revised cut. The handoff never bypassed the runtime gate.
 
-**Finding (M6e.1, open):** a `material_db` with a RELATIVE `material_map` passes
-the gate (resolved relative-to-db-dir) but renders nothing — the legacy
-`mv_cut._load_material_maps` resolves it relative-to-cwd, loading zero maps →
-silent GAP. Workaround: absolute `material_map` paths. Recommended bounded fix:
-make `mv_cut._load_material_maps` resolve relative-to-db-dir (consistent with the
-gate). **Still open:** human viewing sign-off (watch `out_C`/`out_D` finals vs
-`67期結訓影片-終.mp4`) and full-scale curator ingest over all 304 files
-(HEIC not exercised). Automated three-entry acceptance: **PASS**.
+**M6e.1 ✅ unified material_map loader (2026-06-15) — M6e automated acceptance
+COMPLETE.** One canonical loader `project_material_map.material_maps_from_db`
+/ `material_maps_from_db_payload` (+ `load_material_db`): a relative
+`material_map` resolves against the materials_db dir (never cwd), absolute stays
+as-is, declared-but-missing/directory/unreadable/malformed maps are fail-closed,
+absent keys skipped, loaded maps canonically normalized. All three consumers
+route through it — run_contract supply-review,
+`contract_adapter._load_current_material_maps` (M6b/M6c gate), and
+`mv_cut._load_material_maps`/`mv_chain` (BUILD) — so supply judgement and the
+render see identical maps. The absolute-path workaround is removed; the harness
+`tools/m6e_acceptance.py` now uses RELATIVE `material_map` paths, runs each entry
+from an unrelated cwd, and asserts all four (exits non-zero on any failure):
+A `await_requirements_discussion` (no render) · B `await_material` + brief + BUILD
+blocked (no final) · C `build_ready` → real final.mp4 (render_ok+verify_ok) ·
+D revision drop+waive → build_ready → real final.mp4. Focused
+`tests/test_material_map_loader.py` (A cross-cwd one-map across all consumers;
+B relative→map-ranked window; C missing/corrupt/dir fail-closed; D absolute compat;
+E absent key skipped; F malformed not covered; + run_contract relative-missing
+blocks before render): 7 tests. Full regression: **1056 tests OK**.
+
+**Still open (do NOT block automated acceptance):** human viewing sign-off (watch
+`out_C`/`out_D` finals vs `67期結訓影片-終.mp4`) and full-scale curator ingest over
+all 304 files (HEIC not exercised). Automated three-entry acceptance: **COMPLETE**.
 
 **Explicit non-goals for M6:** effects expansion, CLIP as a hard dependency,
 automatic claim of semantic understanding, forced ten-minute duration, and

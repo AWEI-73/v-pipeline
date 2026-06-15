@@ -40,23 +40,38 @@ Key confirmations:
 - The handoff did **not** bypass the runtime gate: `contract-run` re-ran the fresh
   M6b/M6c gate each time (block in B, pass in C, re-applied revision in D). ✓
 
-## Finding (real usability risk surfaced) — material_map path resolution mismatch
+## Finding → FIXED in M6e.1 — unified material_map loader
 
 The first render attempt produced `render_mv_audio: no segments rendered` (silent
-GAP). Root cause: a `material_db` with a **relative** `material_map` path is
-resolved differently by two loaders:
+GAP). Root cause: a `material_db` with a **relative** `material_map` was resolved
+differently by two loaders — the gate/lifecycle resolved it relative to the
+material_db dir, but `mv_cut._load_material_maps` and the run_contract
+supply-review loop resolved it relative to the process cwd → loaded **zero** maps
+→ every segment fell to GAP. A project could pass the gate yet render nothing.
 
-- the M6b gate / M6d lifecycle resolve it **relative to the material_db dir**
-  (the MR1/M6c hardening) → gate sees the maps, passes;
-- the legacy BUILD path `mv_cut._load_material_maps` resolves it **relative to the
-  process cwd** → loads **zero** maps → every segment falls to GAP → "no segments".
+**M6e.1 fix (this commit):** one canonical loader —
+`project_material_map.material_maps_from_db` / `material_maps_from_db_payload`
+(+ `load_material_db`). A relative `material_map` resolves against the
+material_db directory (never cwd); absolute stays as-is; declared-but-missing /
+directory / unreadable / malformed maps are fail-closed; an absent `material_map`
+key is skipped; loaded maps are canonically normalized via
+`expand_project_material_map`. All consumers route through it: run_contract
+supply-review, `contract_adapter._load_current_material_maps` (M6b/M6c gate), and
+`mv_cut._load_material_maps`/`mv_chain` (BUILD render) — one rule, three
+consumers. The **absolute-path workaround is removed**: the harness fixture now
+uses relative `material_map` paths and renders for real; run from an unrelated
+cwd, supply-review + gate + render all load the same maps
+(`tests/test_material_map_loader.py`).
 
-So a project can pass the gate yet render nothing. Workaround used here: absolute
-`material_map` paths in `materials_db.json`. **Recommended bounded follow-up
-(M6e.1):** make `mv_cut._load_material_maps` resolve `material_map` relative to
-the material_db directory (consistent with the gate), so relative paths are
-portable end-to-end. (Not changed in this acceptance run — flagged for a separate
-bounded commit.)
+## Reproduce
+
+`python tools/m6e_acceptance.py` (set `M6E_FOOTAGE` / `FFPROBE` if needed) builds a
+fresh fixture (relative `material_map` paths) and drives all four entries with
+assertions, each CLI run from an unrelated cwd; it exits non-zero on any failure.
+Last run: **all four PASS** — A `await_requirements_discussion` (no render),
+B `await_material` + brief + BUILD blocked (no final), C `build_ready` → real
+final.mp4 (render_ok + verify_ok), D revision drop+waive → build_ready → real
+final.mp4.
 
 ## Still pending (cannot be done by the agent)
 
@@ -84,7 +99,10 @@ bounded commit.)
 The M6 lifecycle's three entry points behave correctly on **real 67th material**:
 material-only converges on discussion, script-first shortfalls block BUILD with a
 shooting brief, and covered/revised projects render for real through the handoff
-without bypassing the gate. The remaining risk is genuinely human (viewing
-sign-off) and operational (full ingest + the relative-path loader fix), not a
-code-contract gap. **M6e automated acceptance: PASS. Human sign-off + M6e.1
-loader fix: open.**
+without bypassing the gate. The M6e.1 unified loader makes a relative
+`material_map` portable end-to-end (supply-review + gate + render see the same
+maps), and the acceptance is fully reproducible from the repo with no
+absolute-path workaround. The remaining risk is genuinely human (viewing
+sign-off) and operational (full 304-file ingest), not a code-contract gap.
+**M6e automated acceptance: COMPLETE. Human sign-off + full-scale ingest: open
+(do not block automated acceptance).**

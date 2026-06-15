@@ -205,6 +205,76 @@ def expand_project_material_map(source):
     return maps
 
 
+def load_material_db(material_db):
+    """THE canonical strict load of a materials_db.json PATH. Returns (payload,
+    error). A non-path/empty arg, missing/corrupt DB, non-object top level,
+    non-list `files`, or non-object entry is fail-closed (never degraded to
+    `{"files": []}`)."""
+    if not isinstance(material_db, (str, os.PathLike)) or not str(material_db).strip():
+        return None, f"material_db path must be a non-empty path, got {material_db!r}"
+    try:
+        with open(material_db, encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except FileNotFoundError:
+        return None, f"material_db not found: {material_db}"
+    except (OSError, ValueError) as exc:
+        return None, f"material_db could not be parsed ({material_db}): {exc}"
+    if not isinstance(payload, dict):
+        return None, f"material_db top-level must be an object, got {type(payload).__name__}"
+    files = payload.get("files")
+    if files is not None and not isinstance(files, list):
+        return None, f"material_db.files must be a list, got {type(files).__name__}"
+    for index, entry in enumerate(files or []):
+        if not isinstance(entry, dict):
+            return None, f"material_db.files[{index}] must be an object, got {entry!r}"
+    return payload, None
+
+
+def _resolve_map_path(map_path, db_dir):
+    path = Path(map_path)
+    return path if path.is_absolute() else Path(db_dir) / path
+
+
+def material_maps_from_db_payload(payload, db_dir):
+    """Load the per-asset maps a (validated) db payload references, resolving a
+    RELATIVE `material_map` against ``db_dir`` (NEVER the process cwd), then
+    canonically normalize via `expand_project_material_map`. Returns (maps, error).
+    An absent `material_map` key is skipped (existing-material-first); a declared
+    map that is missing / a directory / unreadable / malformed is fail-closed."""
+    raw = []
+    for entry in (payload or {}).get("files") or []:
+        if not isinstance(entry, dict) or "material_map" not in entry:
+            continue
+        map_path = entry.get("material_map")
+        if not isinstance(map_path, str) or not map_path.strip():
+            return None, f"material_map must be a non-empty string, got {map_path!r}"
+        path = _resolve_map_path(map_path.strip(), db_dir)
+        if not path.exists():
+            return None, f"declared material_map not found: {map_path}"
+        if path.is_dir():
+            return None, f"material_map points to a directory, not a file: {map_path}"
+        try:
+            with path.open(encoding="utf-8-sig") as handle:
+                raw.append(json.load(handle))
+        except (OSError, ValueError) as exc:
+            return None, f"material_map could not be read/parsed ({map_path}): {exc}"
+    try:
+        return expand_project_material_map(raw), None
+    except (TypeError, ValueError) as exc:
+        return None, f"material map malformed: {exc}"
+
+
+def material_maps_from_db(material_db):
+    """Canonical end-to-end loader: a materials_db.json PATH → (maps, error).
+    Strict DB + db-relative `material_map` resolution + canonical normalization.
+    Used by supply-review, the pre-BUILD gate, and the BUILD render path so all
+    three see the SAME maps."""
+    payload, error = load_material_db(material_db)
+    if error:
+        return None, error
+    return material_maps_from_db_payload(payload, Path(material_db).parent)
+
+
 def load_asset_maps(maps_dir):
     """Load every `*.map.json` under a directory (deterministic by filename)."""
     maps = []
