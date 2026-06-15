@@ -232,6 +232,32 @@ class HardeningContractTest(unittest.TestCase):
             self.assertEqual(plan["status"], "not_applicable", f"id={bad!r}")
             self.assertIn("identity", plan["reason"])
 
+    def test_C_nan_infinity_identity_not_applicable(self):
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            segs = _segs(3)
+            segs[1]["segment"] = bad
+            plan = plan_story_arc({"segments": segs})
+            self.assertEqual(plan["status"], "not_applicable", f"id={bad!r}")
+            self.assertIn("identity", plan["reason"])
+
+    def test_C_two_nan_identities_not_applicable(self):
+        # two NaN ids must fail-closed (NaN != NaN would slip past the dup check)
+        segs = _segs(3)
+        segs[0]["segment"] = float("nan")
+        segs[2]["segment"] = float("nan")
+        plan = plan_story_arc({"segments": segs})
+        self.assertEqual(plan["status"], "not_applicable")
+        self.assertIn("identity", plan["reason"])
+
+    def test_C_finite_float_and_string_identity_planned(self):
+        # a finite float id and a string id remain valid (req. C: legal ids plan)
+        segs = _segs(3)
+        segs[0]["segment"] = 1.0
+        segs[1]["segment"] = "mid"
+        segs[2]["segment"] = 3
+        plan = plan_story_arc({"segments": segs})
+        self.assertEqual(plan["status"], "planned")
+
     # D — manual arc_role derives nothing; auto fields are traceable
     def test_D_manual_role_derives_nothing(self):
         plan, rt, applied = self._apply({"segments": _segs(5, {0: {"arc_role": "climax"}})})
@@ -242,10 +268,13 @@ class HardeningContractTest(unittest.TestCase):
         self.assertNotIn("story_arc_source", s0)              # not relabeled auto
         self.assertNotIn("story_arc_applied_fields", s0)
         self.assertTrue(all(t["segment_index"] != 0 for t in applied))
-        # an auto-role segment that got weight records it traceably
+        # an auto-role segment that got weight records it traceably (unified key)
         seg3 = next(t for t in applied if t["segment_index"] == 3)   # auto climax
         self.assertEqual(seg3["story_arc_source"], "auto")
-        self.assertIn("weight", seg3["applied_fields"])
+        self.assertIn("weight", seg3["story_arc_applied_fields"])
+        # the segment carries the SAME field name + same list
+        self.assertEqual(rt["segments"][3]["story_arc_applied_fields"],
+                         seg3["story_arc_applied_fields"])
 
     # E — manual intensity precedence (no conflicting auto intensity)
     def test_E_manual_intensity_preserved_no_conflict(self):
@@ -255,7 +284,7 @@ class HardeningContractTest(unittest.TestCase):
         self.assertNotIn("arc_intensity", s1)                 # no conflicting value
         self.assertEqual(s1.get("arc_role"), "challenge")     # role still auto
         t1 = next(t for t in applied if t["segment_index"] == 1)
-        self.assertNotIn("arc_intensity", t1["applied_fields"])
+        self.assertNotIn("arc_intensity", t1["story_arc_applied_fields"])
 
     def test_E_manual_arc_intensity_preserved(self):
         plan, rt, _ = self._apply({"segments": _segs(5, {2: {"arc_intensity": 1}})})

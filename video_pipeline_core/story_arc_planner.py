@@ -14,6 +14,8 @@ schema/artifact. The final duration decision still belongs to `allocate_segments
 """
 from __future__ import annotations
 
+import math
+
 # Default hints per arc role (shallow, order-based — not semantic understanding).
 ARC_DEFAULTS = {
     "setup":       {"intensity": 2, "pace_hint": "steady", "weight_multiplier": 0.9},
@@ -88,7 +90,9 @@ def _has_manual_intensity(s):
 def _segment_identity(s):
     """Return a stable, non-empty segment identity, or None when invalid. SRP3
     requires every segment to carry one (no segment_index fallback for the runtime
-    trace join). Accepts a non-bool int/float or a non-blank string (trimmed)."""
+    trace join). Accepts a non-bool int, a finite float, or a trimmed non-blank
+    string. NaN / +Inf / -Inf are NOT a stable identity (NaN != NaN would also slip
+    past the duplicate check), so they are rejected here as None → not_applicable."""
     if not isinstance(s, dict) or "segment" not in s:
         return None
     v = s["segment"]
@@ -97,8 +101,10 @@ def _segment_identity(s):
     if isinstance(v, str):
         v = v.strip()
         return v or None
-    if isinstance(v, (int, float)):
+    if isinstance(v, int):
         return v
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
     return None
 
 
@@ -200,9 +206,14 @@ def apply_story_arc_hints(script, plan):
         (hold / hold_reason / source_speech / keep_audio / diegetic / duck) never
         receives auto weight or pace, even at a progression/climax position —
         only trace-only arc_role/arc_intensity.
-      * Every auto-applied field is recorded in `story_arc_applied_fields` on the
-        segment and in the returned trace, so downstream can see exactly which
-        BUILD fields SRP3 derived. Never changes segment identity, text, material
+      * Every auto-applied field is recorded under the SAME key,
+        `story_arc_applied_fields`, in three consistent projections: the runtime
+        segment, the per-segment `execution.applied` trace, and (via stamping) the
+        final story slots / per_seg entries. The concrete auto `weight` / `pace`
+        VALUES live on the segment and in the `execution.applied` trace (they are
+        allocation inputs, not slot fields); the slot projection still exposes
+        `story_arc_applied_fields` so a slot reveals which BUILD fields SRP3
+        derived for its segment. Never changes segment identity, text, material
         needs, or audio role.
     """
     segments = script.get("segments") or []
@@ -239,6 +250,6 @@ def apply_story_arc_hints(script, plan):
 
         s["story_arc_applied_fields"] = list(applied_fields)
         trace["story_arc_source"] = "auto"
-        trace["applied_fields"] = applied_fields
+        trace["story_arc_applied_fields"] = applied_fields   # same key as segment/slot
         applied.append(trace)
     return applied

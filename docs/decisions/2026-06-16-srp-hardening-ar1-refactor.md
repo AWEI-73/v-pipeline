@@ -1,7 +1,7 @@
 # Decision Log: SRP1 Hardening, SRP2/3 Integration, and AR1 Refactoring
 
-**Date:** 2026-06-16  
-**Status:** APPROVED  
+**Date:** 2026-06-16
+**Status:** APPROVED
 **Participants:** Antigravity (Agent), User, Codex (Advisor)
 
 ---

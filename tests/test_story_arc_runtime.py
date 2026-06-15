@@ -146,8 +146,23 @@ class BuildImpactTest(unittest.TestCase):
         applied = res["story_arc_plan"]["execution"]["applied"]
         climax_trace = next(t for t in applied if t["segment_index"] == 3)
         self.assertEqual(climax_trace["arc_role"], "climax")
-        self.assertNotIn("weight", climax_trace["applied_fields"])
-        self.assertNotIn("pace", climax_trace["applied_fields"])
+        self.assertNotIn("weight", climax_trace["story_arc_applied_fields"])
+        self.assertNotIn("pace", climax_trace["story_arc_applied_fields"])
+
+    def test_D_execution_and_slots_track_auto_weight_pace_consistently(self):
+        d = Path(tempfile.mkdtemp())
+        res = _run(d, _five_seg())
+        applied = res["story_arc_plan"]["execution"]["applied"]
+        # climax (segment 4) auto-derived weight + pace
+        climax_exec = next(t for t in applied if t["segment_ref"] == 4)
+        self.assertIn("weight", climax_exec["story_arc_applied_fields"])
+        self.assertIn("pace", climax_exec["story_arc_applied_fields"])
+        # the SAME key + list is visible on the final story slots for segment 4
+        seg4_slots = [c for c in res["plan"] if c.get("segment") == 4]
+        self.assertTrue(seg4_slots)
+        for c in seg4_slots:
+            self.assertEqual(c["story_arc_applied_fields"],
+                             climax_exec["story_arc_applied_fields"])
 
 
 class SRP1SRP2InteropTest(unittest.TestCase):
