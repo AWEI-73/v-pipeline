@@ -1208,6 +1208,7 @@ def run_mv(script, material_root, out_path, music_path=None,
         # final slots keep it, and inherits the segment's required semantics
         # (keep_audio/audio_role, text/subtitle/narrative layer).
         beat_recipe = s.get("beat_recipe")
+        beat_replaced = False
         if beat_recipe and slots:
             from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
             from .opening_sequence import opening_pool_from_plan  # noqa: PLC0415
@@ -1221,6 +1222,7 @@ def run_mv(script, material_root, out_path, music_path=None,
                     if s.get("audio_role"):
                         bc["audio_role"] = s["audio_role"]
                 slots = beat_seq["clips"]
+                beat_replaced = True
                 sequence_cues.extend(beat_seq["cues"])
                 vp(f"  seg{s.get('segment')} beat sequence: beats={beat_seq['beats_used']} "
                    f"dropped={beat_seq['dropped']}")
@@ -1262,7 +1264,7 @@ def run_mv(script, material_root, out_path, music_path=None,
                 sl.setdefault("reason", reason_str)
             plan.append(sl)
         per_seg.append(entry)
-        if entry.get("retrieval_path") == "map_ranked" and not beat_recipe:
+        if entry.get("retrieval_path") == "map_ranked" and not beat_replaced:
             for sl in slots:
                 shared_history.append({
                     "visual_family": sl.get("visual_family"),

@@ -342,7 +342,7 @@ VD1  標籤覆蓋率驗證(開工前的閘):    ✅ 契約完成;真實素材證
        在真實素材上量:標註覆蓋率%、未標比例、
        同素材跨 Agent 分類一致性(粗粒度,不要求完全一致);
        覆蓋率/一致性達標才值得寫 ranker,否則 ranker 多數時間沒資料。
-VD2  BUILD soft-ranking(editor 端)   🟨 pending hardening (VD2a, 2026-06-15)
+VD2  BUILD soft-ranking(editor 端)   ✅ 已完成 (VD2a, 2026-06-15)
 VD3  VERIFY tier-2 warning backstop    ⬜ 擴充 visual_fatigue 吃家族,只警示
 
 M5 component status:
@@ -432,7 +432,7 @@ VD1  標籤覆蓋率驗證(開工前的閘):    ✅ 契約完成;真實素材證
        在真實素材上量:標註覆蓋率%、未標比例、
        同素材跨 Agent 分類一致性(粗粒度,不要求完全一致);
        覆蓋率/一致性達標才值得寫 ranker,否則 ranker 多數時間沒資料。
-VD2  BUILD soft-ranking(editor 端)   🟨 pending hardening (VD2a, 2026-06-15)
+VD2  BUILD soft-ranking(editor 端)   ✅ 已完成 (VD2a, 2026-06-15)
 VD3  VERIFY tier-2 warning backstop    ⬜ 擴充 visual_fatigue 吃家族,只警示
 ```
 
@@ -1260,7 +1260,7 @@ Both produced complete canonical reviews without prior-answer access.
 Fresh consistency measured `97.22%` for `visual_family` and `97.22%` for
 `angle_scale`; `ready_for_vd2=true`. The remaining two disagreements are
 legitimate boundary cases rather than vocabulary failures. VD1 evidence
-prerequisite is now satisfied; VD2 BUILD soft-ranking is pending hardening
+prerequisite is now satisfied; VD2 BUILD soft-ranking is complete
 (VD2a, 2026-06-15): it runs in `material_retrieval.py` during map-ranked window planning.
 Only `visual_family`, `angle_scale`, and `asset_type` are consumed by the BUILD soft selection.
 It acts as a soft preference after correctness/relevance/renderability, prioritizing
