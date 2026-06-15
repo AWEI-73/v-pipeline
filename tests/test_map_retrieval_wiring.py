@@ -407,8 +407,12 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
     def test_vd2_photo_H_ffmpeg_render_integration(self):
         """H: run a real ffmpeg render of photo map-ranked slots to prove they enter the final movie."""
         d = Path(tempfile.mkdtemp())
-        photo1 = "C:/Users/user/.gemini/antigravity/brain/b9af86b4-38e1-4748-890b-9e2c7d0a991b/n01_gear_medium_02.png"
-        photo2 = "C:/Users/user/.gemini/antigravity/brain/b9af86b4-38e1-4748-890b-9e2c7d0a991b/n01_helmet_close_03.png"
+        photo1 = str(d / "photo-a.png")
+        photo2 = str(d / "photo-b.png")
+
+        # Generate visually distinct temporary photos
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:d=1", "-vframes", "1", photo1], capture_output=True, check=True)
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=1", "-vframes", "1", photo2], capture_output=True, check=True)
 
         # Create a dummy music file
         music = d / "music.wav"

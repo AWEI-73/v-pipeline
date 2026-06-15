@@ -80,7 +80,7 @@ capability, and a VERIFY check creates nothing:
 - **The render-time grammar is genuinely active** (transitions, treatments,
   attention budget, SFX, music align, micro-rhythm). The Sensory phase landed in
   BUILD, not just VERIFY.
-- **The material-evidence layer has been upgraded with pending-hardening VD2.** Only `visual_family`, `angle_scale`, and `asset_type` are currently consumed by `plan_ranked_windows`
+- **The material-evidence layer has been upgraded with VD2 active/complete.** Only `visual_family`, `angle_scale`, and `asset_type` are currently consumed by `plan_ranked_windows`
   to order and select diversified candidates during build, without acting as a delivery blocker. Other VD0 labels like `action_family` and `subject` are stored but not yet used.
   Correctness/evidence score tiering remains prioritized.
 - **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
