@@ -493,6 +493,21 @@ def cmd_visual_diversity_review(args):
     }, ensure_ascii=False, indent=2))
 
 
+def cmd_visual_family_normalize(args):
+    """VD1.1: normalize a visual diversity review against a vocabulary contract."""
+    from video_pipeline_core import visual_family_vocabulary
+    try:
+        result = visual_family_vocabulary.write_normalized_review(
+            args.review, args.vocabulary, args.out
+        )
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"visual family normalization failed: {exc}")
+    print(json.dumps({
+        "ok": True,
+        "normalized_review": str(args.out),
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_semantic_novelty_audit(args):
     """M5a Node 11: perceptual de-duplication of timeline compositions."""
     from video_pipeline_core import semantic_novelty_audit
@@ -1857,6 +1872,11 @@ def main():
     p_vdr.add_argument("--review", required=True, help="visual_diversity_review.json")
     p_vdr.add_argument("--out", required=True, help="reviewed project_material_map.json")
 
+    p_vfn = sub.add_parser("visual-family-normalize")
+    p_vfn.add_argument("review", help="visual_diversity_review.json")
+    p_vfn.add_argument("--vocabulary", required=True, help="visual_family_vocabulary.json")
+    p_vfn.add_argument("--out", required=True, help="normalized visual_diversity_review.json output")
+
     p_sna = sub.add_parser("semantic-novelty-audit")
     p_sna.add_argument("timeline", help="timeline_build.json")
     p_sna.add_argument("--video", required=True, help="rendered video for perceptual hashing")
@@ -2032,6 +2052,7 @@ def main():
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "visual-diversity-review": cmd_visual_diversity_review,
+        "visual-family-normalize": cmd_visual_family_normalize,
         "semantic-novelty-audit": cmd_semantic_novelty_audit,
         "action-progression-audit": cmd_action_progression_audit,
         "jumpcut-plan":     cmd_jumpcut_plan,

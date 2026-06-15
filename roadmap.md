@@ -1224,10 +1224,22 @@ consistency evidence.
 Gemini-generated 36-image consistency replay (2026-06-15): independent Gemini
 and Codex reviews both reached 100% required-axis coverage and agreed on
 `angle_scale` for `36/36` scenes, but exact `visual_family` agreement was only
-`44.44%` (`ready_for_vd2=false`). This is the real trigger for a project-local
+`44.44%` (`ready_for_vd2=false`). This was the trigger for a project-local
 visual-family vocabulary contract: family granularity must be agreed without
 hard-coding project terms into the generic engine, then independently
 re-reviewed before VD2 soft-ranking begins.
+
+VD1.1 Project-local Visual Family Vocabulary Contract (2026-06-15): implemented
+`visual_family_vocabulary.py` and the `visual-family-normalize` CLI. The
+vocabulary is a project-local contract that different Agents use to align their
+visual-family definitions before reviewing. It does NOT represent generic built-in
+genre vocabulary in the core engine. Normalization is a deterministic mapping
+(canonical/aliases) and is NOT semantic or fuzzy understanding. VD2 remains blocked
+by default until coverage consistency is re-measured and passes. Re-measuring
+Gemini vs Codex reviews on the normalized project-local mountain rescue vocabulary
+yielded 94.44% visual_family agreement and 100.00% angle_scale agreement,
+resolving the blocked state (ready_for_vd2=True).
+
 
 Real baseline application evidence (2026-06-15): one Agent review was applied
 to 12 visually inspected photos from the 67th-graduation material set. All four

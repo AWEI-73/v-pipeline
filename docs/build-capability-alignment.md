@@ -36,6 +36,15 @@ capability, and a VERIFY check creates nothing:
 | `B5 out_of_capability` | `capability_manifest` (M0) | `capability_manifest.build_capability_manifest` via `spec_review` | `spec_review` pre-BUILD | blocks SPEC requesting unsupported capability | active (gate) |
 | `B6 script_overreach` | `supply_review` (M1) | `review_supply` via `spec_review` | `spec_review` pre-BUILD | forces shorten/merge before BUILD | active (gate) |
 | Supply review | M1 `supply_review` | `review_supply` | pre-BUILD | shortened contract is BUILD input | active (gate) |
+| `VD1.1 family vocabulary` | `visual_family_vocabulary` | `visual-family-normalize` | pre-review check / pre-BUILD consistency | normalizes visual_family aliases to canonical project-local vocabulary before consistency validation | active (gate) |
+
+> [!NOTE]
+> **VD1.1 Vocabulary Contract Principles:**
+> 1. **Project-local contract**: The vocabulary is a project-local contract that different Agents use to align their visual-family definitions before reviewing.
+> 2. **Not Core Engine Words**: The vocabulary does NOT represent generic built-in genre vocabulary in the core video pipeline engine.
+> 3. **Deterministic Mapping**: Normalization is a deterministic mapping (canonical family and aliases) and is NOT semantic or fuzzy understanding.
+> 4. **VD2 Precondition**: VD2 soft-ranking remains blocked by default. The block can only be released after normalization and re-measuring consistency, where the visual family and angle scale consistency metrics pass.
+
 
 ### B. BUILD capabilities (change timeline / render)
 

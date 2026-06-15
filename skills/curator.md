@@ -48,6 +48,14 @@ REVIEW.json --out REVIEWED_PROJECT_MAP.json`, then run
 labels fail closed. One review can establish coverage but **cannot** satisfy the
 independent-consistency prerequisite for VD2.
 
+### Visual Family Vocabulary Contract (VD1.1)
+
+To ensure different review Agents agree on `visual_family` tag granularity, establish a project-local vocabulary contract (`visual_family_vocabulary.json`) before checking review consistency:
+1. **Project-Local Contract**: The vocabulary is a project-local contract that different Agents use to align their family definitions before review.
+2. **Not Core Engine Words**: The vocabulary does NOT represent generic built-in genre vocabulary in the core video pipeline engine.
+3. **Deterministic Mapping**: Normalization (via `python video_tools.py visual-family-normalize`) is a deterministic mapping of aliases to canonical families, NOT semantic or fuzzy understanding.
+4. **VD2 Precondition**: VD2 soft-ranking remains blocked by default. The block can only be released after normalization and re-measuring consistency, where the visual family and angle scale consistency metrics pass.
+
 > **Facet 擁有權(Node 3,見 [spec-contract.md](spec-contract.md)):小編消費 `material_fit` facet。**
 > 欄位:`visual_desc` / `material_hint` / `required_traits` / `reject_traits` / `must_include` / `fallback_policy` / `reason`。
 > 缺口路由(reshoot/generated/stock_bridge/text_bridge/…)見 Node 8 與 [gap-analyzer.md](gap-analyzer.md);**不靜默用泛用 stock 填 identity 缺口**。
