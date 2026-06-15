@@ -23,17 +23,27 @@ DEFAULT_BEAT_DURATIONS = {"context": 1.5, "primary_action": 2.5,
 
 
 def _beat_clip(shot, design_dur, *, beat_role, segment, treatment=None):
-    dur = round(_effective_dur(shot, design_dur), 3)
+    # Check if exact original window is stored in shot
+    if "extract_start" in shot and "extract_dur" in shot:
+        start = shot["extract_start"]
+        dur = shot["extract_dur"]
+    else:
+        start = round(float(shot.get("start", 0.0)), 3)
+        dur = round(_effective_dur(shot, design_dur), 3)
+
     clip = {
         "source": shot["source"],
-        "extract_start": round(float(shot.get("start", 0.0)), 3),
+        "extract_start": start,
         "extract_dur": dur,
         "slot_dur": dur,
         "keep_audio": False,
-        "is_photo": bool(shot.get("is_photo", False)),
         "segment": segment,
         "beat_role": beat_role,
     }
+    # Preserve approved-slot lineage / evidence fields:
+    for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale", "is_photo", "kenburns", "caption", "function"):
+        if field in shot:
+            clip[field] = shot[field]
     if treatment:
         clip["still_treatment"] = treatment
     return clip

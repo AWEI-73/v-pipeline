@@ -2,14 +2,16 @@
 """
 from __future__ import annotations
 
+import copy
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from video_pipeline_core import mv_cut
-from video_pipeline_core.sequence_recipe_planner import plan_segment_sequence
+from video_pipeline_core.sequence_recipe_planner import plan_segment_sequence, segment_pool_from_plan
 from video_pipeline_core.vt_core import FFMPEG
 
 
@@ -36,6 +38,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "segment": 1,
                 "scene_id": "asset1:0",
                 "caption": "test caption 1",
+                "function": "action",
                 "retrieval_score": 90.0,
                 "visual_family": "family-A",
                 "angle_scale": "medium"
@@ -48,6 +51,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "segment": 1,
                 "scene_id": "asset2:0",
                 "caption": "test caption 2",
+                "function": "reaction",
                 "retrieval_score": 85.0,
                 "visual_family": "family-B",
                 "angle_scale": "close"
@@ -63,6 +67,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "segment": 1,
                 "scene_id": "asset3:0",
                 "caption": "test caption 3",
+                "function": "detail",
                 "retrieval_score": 88.0,
                 "visual_family": "family-C",
                 "angle_scale": "wide"
@@ -78,6 +83,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "segment": 1,
                 "scene_id": "asset4:0",
                 "caption": "test caption 4",
+                "function": "payoff",
                 "retrieval_score": 80.0,
                 "visual_family": "family-D",
                 "angle_scale": "medium"
@@ -171,16 +177,14 @@ class SequenceRecipePlannerTest(unittest.TestCase):
 
     def test_H_window_integrity(self):
         """H: auto-planned recipe keeps exact source, scene_id, extract_start, extract_dur."""
-        # We integrate the planner call and verify compile_beat_sequence output
         from video_pipeline_core.beat_sequence import compile_beat_sequence
-        from video_pipeline_core.opening_sequence import opening_pool_from_plan
 
         segment = _seg("integrity segment")
         entry = {"retrieval_path": "map_ranked"}
         res = plan_segment_sequence(segment, self.dummy_slots_2, entry=entry)
         self.assertEqual(res["status"], "planned")
 
-        beat_pool = opening_pool_from_plan(self.dummy_slots_2)
+        beat_pool = segment_pool_from_plan(self.dummy_slots_2)
         beat_seq = compile_beat_sequence(res["recipe"], beat_pool, segment=1)
         clips = beat_seq["clips"]
 
@@ -223,24 +227,15 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         self.assertEqual(res["status"], "planned")
 
         from video_pipeline_core.beat_sequence import compile_beat_sequence
-        from video_pipeline_core.opening_sequence import opening_pool_from_plan
 
-        beat_pool = opening_pool_from_plan(slots)
+        beat_pool = segment_pool_from_plan(slots)
         beat_seq = compile_beat_sequence(res["recipe"], beat_pool, segment=1)
         clips = beat_seq["clips"]
 
         self.assertEqual(len(clips), 2)
         self.assertTrue(clips[0]["is_photo"])
+        self.assertTrue(clips[0]["kenburns"])
         self.assertFalse(clips[1]["is_photo"])
-
-    def test_J_compiler_failure_graceful_fallback(self):
-        """J: if the compiler fails or returns empty clips, original slots are preserved."""
-        # To test this, we can run mv_cut.run_mv where the auto planner succeeds but the compiler returns empty.
-        # However, run_mv expects music and file paths. We can mock compile_beat_sequence or simulate in unit test.
-        # Let's verify that run_mv behaves correctly when compile_beat_sequence returns empty clips.
-        # Inside mv_cut, if beat_seq["clips"] is empty, it does NOT replace slots.
-        # This is already verified by looking at line 1217 in mv_cut.py.
-        pass
 
     def test_K_determinism(self):
         """K: repeated planning calls on the same slots yield identical results."""
@@ -291,8 +286,6 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         self.assertGreater(out.stat().st_size, 0)
 
         plan = res["plan"]
-        # Max clips per segment was 2, so it got 2 slots from maps.
-        # Since it had 2 slots, auto-planner should have triggered and planned context -> payoff.
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0]["beat_role"], "context")
         self.assertEqual(plan[1]["beat_role"], "payoff")
@@ -301,3 +294,252 @@ class SequenceRecipePlannerTest(unittest.TestCase):
         self.assertEqual(plan[0]["sequence_recipe_source"], "auto")
         self.assertIn("Successfully planned sequence recipe with 2 beats", plan[0]["sequence_recipe_reason"])
         self.assertEqual(plan[0]["sequence_recipe_evidence"]["approved_slot_count"], 2)
+
+    # --- HARDENING TESTS ---
+
+    def test_M_lineage_preservation(self):
+        """M: verifies that compile_beat_sequence preserves all lineage and evidence fields from approved slots."""
+        from video_pipeline_core.beat_sequence import compile_beat_sequence
+
+        segment = _seg("lineage")
+        res = plan_segment_sequence(segment, self.dummy_slots_2, entry={"retrieval_path": "map_ranked"})
+        beat_pool = segment_pool_from_plan(self.dummy_slots_2)
+        beat_seq = compile_beat_sequence(res["recipe"], beat_pool, segment=1)
+        clips = beat_seq["clips"]
+
+        for idx, clip in enumerate(clips):
+            orig = self.dummy_slots_2[idx]
+            self.assertEqual(clip["source"], orig["source"])
+            self.assertEqual(clip["scene_id"], orig["scene_id"])
+            self.assertEqual(clip["retrieval_score"], orig["retrieval_score"])
+            self.assertEqual(clip["visual_family"], orig["visual_family"])
+            self.assertEqual(clip["angle_scale"], orig["angle_scale"])
+            self.assertEqual(clip["caption"], orig["caption"])
+            self.assertEqual(clip["function"], orig["function"])
+
+    def test_N_no_deduplication_by_source(self):
+        """N: verifies that same source with different scene/window bounds are NOT de-duplicated."""
+        slots = [
+            {
+                "source": "same.mp4",
+                "extract_start": 0.0,
+                "extract_dur": 2.0,
+                "scene_id": "same:0",
+                "visual_family": "family-A"
+            },
+            {
+                "source": "same.mp4",
+                "extract_start": 5.0,
+                "extract_dur": 2.0,
+                "scene_id": "same:1",
+                "visual_family": "family-B"
+            }
+        ]
+        beat_pool = segment_pool_from_plan(slots)
+        self.assertEqual(len(beat_pool), 2)
+        self.assertEqual(beat_pool[0]["scene_id"], "same:0")
+        self.assertEqual(beat_pool[1]["scene_id"], "same:1")
+
+        # Compile and check bounds & scene_id preservation (Requirement D)
+        from video_pipeline_core.beat_sequence import compile_beat_sequence
+        recipe = {
+            "beats": ["context", "payoff"],
+            "durations": {"context": 2.0, "payoff": 2.0}
+        }
+        beat_seq = compile_beat_sequence(recipe, beat_pool, segment=1)
+        clips = beat_seq["clips"]
+        self.assertEqual(len(clips), 2)
+        self.assertEqual(clips[0]["scene_id"], "same:0")
+        self.assertEqual(clips[0]["extract_start"], 0.0)
+        self.assertEqual(clips[0]["extract_dur"], 2.0)
+        self.assertEqual(clips[1]["scene_id"], "same:1")
+        self.assertEqual(clips[1]["extract_start"], 5.0)
+        self.assertEqual(clips[1]["extract_dur"], 2.0)
+
+    def test_O_vd2_shared_history(self):
+        """O: verifies that history is updated properly for auto sequence success, fallback, and not for manual recipe."""
+        # Setup dummy music
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        # Pulsating audio so librosa works correctly
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-c", "source": "dummy3.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "tool", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-d", "source": "dummy4.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "tool", "visual_family": "family-C", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        # E. Auto sequence success -> updates history, segment 2 picks family-C (photo-d) instead of family-A (photo-c)
+        script_auto = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast",
+                 "pacing": {"preferred_shot_sec": 1.0}},
+                {"segment": 2, "visual_desc": "tool", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        res_auto = mv_cut.run_mv(script_auto, None, str(d / "out_auto.mp4"), music_path=str(music),
+                                material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+        self.assertEqual(res_auto["plan"][0]["sequence_recipe_source"], "auto")
+        self.assertEqual(res_auto["plan"][-1]["scene_id"], "photo-d:0")
+
+        # F. Manual beat recipe -> does NOT update history, segment 2 picks photo-c (family-A)
+        script_manual = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast",
+                 "pacing": {"preferred_shot_sec": 1.0},
+                 "beat_recipe": {"beats": ["context", "payoff"],
+                                 "shots": [{"source": "dummy1.png", "start": 0.0, "dur": 2.0},
+                                           {"source": "dummy2.png", "start": 0.0, "dur": 2.0}]}},
+                {"segment": 2, "visual_desc": "tool", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        res_manual = mv_cut.run_mv(script_manual, None, str(d / "out_man.mp4"), music_path=str(music),
+                                  material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+        self.assertNotIn("sequence_recipe_source", res_manual["plan"][0])
+        self.assertEqual(res_manual["plan"][-1]["scene_id"], "photo-c:0")
+
+        # G. Auto compiler empty/error results退回原 slots -> updates history with original slots, segment 2 picks family-C (photo-d)
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=ValueError("compiler error")):
+            res_fallback = mv_cut.run_mv(script_auto, None, str(d / "out_fallback.mp4"), music_path=str(music),
+                                         material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertEqual(res_fallback["segments"][0]["auto_sequence_status"], "fallback")
+            self.assertNotIn("sequence_recipe_source", res_fallback["plan"][0])
+            self.assertEqual(res_fallback["plan"][-1]["scene_id"], "photo-d:0")
+
+    def test_H_auto_compiler_value_error_fallback(self):
+        """H: mock auto compiler raise ValueError: run_mv doesn't crash, original slots are kept, final plan is not empty, has fallback trace."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=ValueError("mock error")):
+            res = mv_cut.run_mv(script, None, str(d / "out1.mp4"), music_path=str(music),
+                                material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertTrue(res["plan"])
+            self.assertNotIn("sequence_recipe_source", res["plan"][0])
+            self.assertEqual(res["segments"][0]["auto_sequence_status"], "fallback")
+            self.assertEqual(res["segments"][0]["auto_sequence_error"], "mock error")
+
+    def test_I_auto_compiler_clips_empty_fallback(self):
+        """I: mock auto compiler returning clips=[]: original slots are kept, has fallback trace."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", return_value={"clips": [], "cues": [], "beats_used": [], "dropped": []}):
+            res = mv_cut.run_mv(script, None, str(d / "out2.mp4"), music_path=str(music),
+                                material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertTrue(res["plan"])
+            self.assertNotIn("sequence_recipe_source", res["plan"][0])
+            self.assertEqual(res["segments"][0]["auto_sequence_status"], "fallback")
+            self.assertEqual(res["segments"][0]["auto_sequence_error"], "Compiler returned empty clips")
+
+    def test_J_compiler_manual_recipe_raise(self):
+        """J: manual recipe compiler raise propagates exception loudly."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+        script_manual = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast",
+                 "beat_recipe": {"beats": ["context", "payoff"],
+                                 "shots": [{"source": "dummy1.png", "start": 0.0, "dur": 2.0},
+                                           {"source": "dummy2.png", "start": 0.0, "dur": 2.0}]}}
+            ]
+        }
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=ValueError("loud manual error")):
+            with self.assertRaises(ValueError) as ctx:
+                mv_cut.run_mv(script_manual, None, str(d / "out3.mp4"), music_path=str(music),
+                              material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertEqual(str(ctx.exception), "loud manual error")
+
+    def test_Q_immutability_and_trace_only_on_success(self):
+        """Q: verifies that input script deepcopy is unchanged and fallback slots don't have success trace."""
+        d = Path(tempfile.mkdtemp())
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=4:s=44100", str(music)], capture_output=True, check=True)
+        maps = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {"asset_id": "photo-a", "source": "dummy1.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-A", "angle_scale": "medium"}
+                ]},
+                {"asset_id": "photo-b", "source": "dummy2.png", "asset_type": "photo", "scenes": [
+                    {"start": 0.0, "end": 0.0, "caption": "gear", "visual_family": "family-B", "angle_scale": "medium"}
+                ]}
+            ]
+        }
+
+        script = {
+            "segments": [
+                {"segment": 1, "visual_desc": "gear", "audio_role": "music", "pace": "fast"}
+            ]
+        }
+        script_orig = copy.deepcopy(script)
+
+        # Run success path
+        res = mv_cut.run_mv(script, None, str(d / "out_ok.mp4"), music_path=str(music),
+                            material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+        self.assertEqual(script, script_orig)  # Immutability check
+
+        # Run fallback path
+        with patch("video_pipeline_core.beat_sequence.compile_beat_sequence", side_effect=ValueError("error")):
+            res_fail = mv_cut.run_mv(script, None, str(d / "out_fail.mp4"), music_path=str(music),
+                                     material_maps=maps, skip_render=True, verbose=False, max_clips_per_seg=2)
+            self.assertEqual(script, script_orig)  # Immutability check
+            for slot in res_fail["plan"]:
+                self.assertNotIn("sequence_recipe_source", slot)  # No success trace on fallback slots

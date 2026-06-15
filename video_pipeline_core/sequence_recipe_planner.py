@@ -149,3 +149,30 @@ def plan_segment_sequence(segment, approved_slots, *, entry=None, policy=None):
         "evidence": evidence,
         "reason": f"Successfully planned sequence recipe with {len(beats)} beats"
     }
+
+
+def segment_pool_from_plan(plan):
+    """Derive a shot pool from already-planned story clips for segment sequence.
+    Does NOT de-duplicate by source; preserves all evidence fields."""
+    pool = []
+    for clip in plan or []:
+        source = clip.get("source") or clip.get("source_path")
+        if not source:
+            continue
+        shot = {
+            "source": source,
+            "start": float(clip.get("extract_start") or clip.get("start_sec") or 0.0),
+            "dur": float(clip.get("extract_dur") or clip.get("duration_sec") or 0.0),
+            "is_photo": bool(clip.get("is_photo", False)),
+        }
+        # Copy all other evidence fields so they pass to _beat_clip
+        for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale", "kenburns", "caption", "function"):
+            if field in clip:
+                shot[field] = clip[field]
+        # Copy exact window fields to avoid rounding mismatch
+        if "extract_start" in clip:
+            shot["extract_start"] = clip["extract_start"]
+        if "extract_dur" in clip:
+            shot["extract_dur"] = clip["extract_dur"]
+        pool.append(shot)
+    return pool

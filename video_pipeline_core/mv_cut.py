@@ -1108,6 +1108,9 @@ def run_mv(script, material_root, out_path, music_path=None,
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
     →選最佳→對拍/長 hold 組裝→audio_role 混音→render。回傳 {out, plan, per_seg}。"""
+    import copy  # noqa: PLC0415
+    script = copy.deepcopy(script)
+
     def vp(*a):
         if verbose:
             print(*a)
@@ -1215,30 +1218,71 @@ def run_mv(script, material_root, out_path, music_path=None,
             auto_result = plan_segment_sequence(s, slots, entry=entry)
             if auto_result["status"] == "planned":
                 beat_recipe = auto_result["recipe"]
-                s["sequence_recipe_source"] = "auto"
-                s["sequence_recipe_reason"] = auto_result["reason"]
-                s["sequence_recipe_evidence"] = auto_result["evidence"]
         if beat_recipe and slots:
-            from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
-            from .opening_sequence import opening_pool_from_plan  # noqa: PLC0415
-            beat_pool = beat_recipe.get("shots") or opening_pool_from_plan(slots)
-            beat_seq = compile_beat_sequence(beat_recipe, beat_pool, segment=s.get("segment"))
-            if beat_seq["clips"]:
-                for bc in beat_seq["clips"]:
-                    bc["text"] = seg_text                       # text layer (every slot, mirrors _windows_from_clip)
-                    if keep_audio:
-                        bc["keep_audio"] = True                 # never silently drop segment audio
-                    if s.get("audio_role"):
-                        bc["audio_role"] = s["audio_role"]
-                    if auto_result and auto_result["status"] == "planned":
-                        bc["sequence_recipe_source"] = "auto"
-                        bc["sequence_recipe_reason"] = auto_result["reason"]
-                        bc["sequence_recipe_evidence"] = auto_result["evidence"]
-                slots = beat_seq["clips"]
-                beat_replaced = True
-                sequence_cues.extend(beat_seq["cues"])
-                vp(f"  seg{s.get('segment')} beat sequence: beats={beat_seq['beats_used']} "
-                   f"dropped={beat_seq['dropped']}")
+            is_auto = (auto_result is not None and auto_result["status"] == "planned")
+            if is_auto:
+                try:
+                    from .sequence_recipe_planner import segment_pool_from_plan  # noqa: PLC0415
+                    from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
+                    beat_pool = segment_pool_from_plan(slots)
+                    beat_seq = compile_beat_sequence(beat_recipe, beat_pool, segment=s.get("segment"))
+                    if beat_seq["clips"]:
+                        s["sequence_recipe_source"] = "auto"
+                        s["sequence_recipe_reason"] = auto_result["reason"]
+                        s["sequence_recipe_evidence"] = auto_result["evidence"]
+                        for bc in beat_seq["clips"]:
+                            bc["text"] = seg_text
+                            if keep_audio:
+                                bc["keep_audio"] = True
+                            if s.get("audio_role"):
+                                bc["audio_role"] = s["audio_role"]
+                            bc["sequence_recipe_source"] = "auto"
+                            bc["sequence_recipe_reason"] = auto_result["reason"]
+                            bc["sequence_recipe_evidence"] = auto_result["evidence"]
+                        slots = beat_seq["clips"]
+                        beat_replaced = True
+                        sequence_cues.extend(beat_seq["cues"])
+                        entry["sequence_recipe_source"] = "auto"
+                        entry["sequence_recipe_reason"] = auto_result["reason"]
+                        entry["sequence_recipe_evidence"] = auto_result["evidence"]
+                        vp(f"  seg{s.get('segment')} beat sequence: beats={beat_seq['beats_used']} "
+                           f"dropped={beat_seq['dropped']}")
+                    else:
+                        s["auto_sequence_status"] = "fallback"
+                        s["auto_sequence_error"] = "Compiler returned empty clips"
+                        entry["auto_sequence_status"] = "fallback"
+                        entry["auto_sequence_error"] = "Compiler returned empty clips"
+                        for d in (s, entry):
+                            d.pop("sequence_recipe_source", None)
+                            d.pop("sequence_recipe_reason", None)
+                            d.pop("sequence_recipe_evidence", None)
+                except Exception as e:
+                    s["auto_sequence_status"] = "fallback"
+                    s["auto_sequence_error"] = str(e)
+                    entry["auto_sequence_status"] = "fallback"
+                    entry["auto_sequence_error"] = str(e)
+                    for d in (s, entry):
+                        d.pop("sequence_recipe_source", None)
+                        d.pop("sequence_recipe_reason", None)
+                        d.pop("sequence_recipe_evidence", None)
+                    vp(f"  seg{s.get('segment')} auto sequence compiler failed: {e}")
+            else:
+                from .beat_sequence import compile_beat_sequence  # noqa: PLC0415
+                from .opening_sequence import opening_pool_from_plan  # noqa: PLC0415
+                beat_pool = beat_recipe.get("shots") or opening_pool_from_plan(slots)
+                beat_seq = compile_beat_sequence(beat_recipe, beat_pool, segment=s.get("segment"))
+                if beat_seq["clips"]:
+                    for bc in beat_seq["clips"]:
+                        bc["text"] = seg_text
+                        if keep_audio:
+                            bc["keep_audio"] = True
+                        if s.get("audio_role"):
+                            bc["audio_role"] = s["audio_role"]
+                    slots = beat_seq["clips"]
+                    beat_replaced = True
+                    sequence_cues.extend(beat_seq["cues"])
+                    vp(f"  seg{s.get('segment')} beat sequence: beats={beat_seq['beats_used']} "
+                       f"dropped={beat_seq['dropped']}")
         _apply_anti_presentation_plan(slots, s)   # preserve anti_presentation on final slots
         reason_str = None
         for r_path in [
@@ -1277,12 +1321,16 @@ def run_mv(script, material_root, out_path, music_path=None,
                 sl.setdefault("reason", reason_str)
             plan.append(sl)
         per_seg.append(entry)
-        if entry.get("retrieval_path") == "map_ranked" and not beat_replaced:
-            for sl in slots:
-                shared_history.append({
-                    "visual_family": sl.get("visual_family"),
-                    "angle_scale": sl.get("angle_scale"),
-                })
+        if entry.get("retrieval_path") == "map_ranked":
+            is_auto_seq = (s.get("sequence_recipe_source") == "auto")
+            if not beat_replaced or is_auto_seq:
+                for sl in slots:
+                    if sl.get("source") == "GAP" or not sl.get("source"):
+                        continue
+                    shared_history.append({
+                        "visual_family": sl.get("visual_family"),
+                        "angle_scale": sl.get("angle_scale"),
+                    })
         for m in msgs:
             vp(m)
     # Keep the unmodified story plan as the source pool for both bookends. This
