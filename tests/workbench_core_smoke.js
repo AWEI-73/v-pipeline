@@ -62,6 +62,18 @@ check("applyLocalPatch set_source_window updates video start", function () {
   assert.strictEqual(next.clips[1].source_start_sec, 5.0);
 });
 
+check("set_source_window does NOT clobber timeline duration", function () {
+  let state = { clips: Core.computeTimeline(clips) };
+  // user sets duration=6, then adjusts source window to a different length
+  state = Core.applyLocalPatch(state, { op: "set_duration", slot_index: 1, after: { duration_sec: 6.0 } });
+  state = Core.applyLocalPatch(state, {
+    op: "set_source_window", slot_index: 1,
+    after: { source_start_sec: 2.0, source_duration_sec: 1.0 },
+  });
+  assert.strictEqual(state.clips[1].duration_sec, 6.0); // duration stays user-set
+  assert.strictEqual(state.clips[1].source_duration_sec, 1.0);
+});
+
 check("applyLocalPatch move_clip reorders", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const next = Core.applyLocalPatch(state, { op: "move_clip", slot_index: 2, after: { new_index: 0 } });

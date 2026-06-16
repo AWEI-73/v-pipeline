@@ -126,11 +126,10 @@
         const sd = Number(after.source_duration_sec);
         if (sd > 0) {
           clips[idx].source_duration_sec = round6(sd);
-          // A video clip's on-timeline length tracks its source window unless
-          // the duration was independently set.
-          if (clips[idx].type === "video") {
-            clips[idx].duration_sec = round6(sd);
-          }
+          // NOTE: timeline length (duration_sec) and consumed source length
+          // (source_duration_sec) are independent -- the timeline slot can hold
+          // a clip longer/shorter than its source window. duration_sec is owned
+          // solely by set_duration, matching the Python timeline_patch side.
         }
       }
     } else if (op === "move_clip") {

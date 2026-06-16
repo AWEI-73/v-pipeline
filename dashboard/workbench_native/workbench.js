@@ -37,7 +37,7 @@
       "field-source-start", "field-source-duration", "btn-apply-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
-      "btn-download-patch", "btn-save-patch", "btn-export",
+      "btn-download-patch", "btn-save-patch", "btn-sync-contract", "btn-export",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -357,6 +357,36 @@
       .catch(function (err) { els.diagnostics.textContent = "Save failed: " + err; });
   }
 
+  function syncContract() {
+    var patch = buildPatch();
+    if (!patch.patches.length) {
+      els.diagnostics.textContent = "No local edits to sync.";
+      return;
+    }
+    els.diagnostics.textContent = "Syncing edits to a draft pipeline contract…";
+    fetch("/api/workbench/sync-contract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patch: patch }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.ok) {
+          var codes = {};
+          (res.j.diagnostics || []).forEach(function (d) { codes[d.code] = (codes[d.code] || 0) + 1; });
+          var codeStr = Object.keys(codes).map(function (k) { return k + "×" + codes[k]; }).join(", ");
+          els.diagnostics.textContent =
+            "Contract sync: " + res.j.changes + " draft change(s) → " +
+            (res.j.written || []).join(", ") + (codeStr ? " [" + codeStr + "]" : "");
+        } else {
+          // fail-closed: surface the reason (e.g. source window beyond scene bounds)
+          var errs = (res.j.errors || [JSON.stringify(res.j)]).join(" | ");
+          els.diagnostics.textContent = "Contract sync refused (nothing written): " + errs;
+        }
+      })
+      .catch(function (err) { els.diagnostics.textContent = "Sync failed: " + err; });
+  }
+
   function exportFfmpeg() {
     var patch = buildPatch();
     els.diagnostics.textContent = "Exporting via ffmpeg (this can take a while)…";
@@ -391,6 +421,7 @@
     els.btn_move_right.onclick = function () { moveClip(1); };
     els.btn_download_patch.onclick = downloadPatch;
     els.btn_save_patch.onclick = savePatch;
+    els.btn_sync_contract.onclick = syncContract;
     els.btn_export.onclick = exportFfmpeg;
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
   }
