@@ -240,6 +240,27 @@ harness); full regression **1275 tests OK**. Formal replay passed with
 `python tools/srp_real67_sanity.py --footage-root <67th-material-dir>` (fresh M6e
 rebuild, no stale fixture).
 
+**Gemini enhanced-only demo film COMPLETE** (2026-06-16): `tools/gemini_demo_film.py`
+runs the node-shaped flow from controlled Gemini material into one rendered demo:
+script/needs -> project material map -> BUILD/SRP -> render -> review report. It
+does **not** run a baseline comparison and adds no editing capability; it is a
+single enhanced demo proving an agent can fill parameters and drive the existing
+pipeline from manifest to final video. Command:
+`python tools/gemini_demo_film.py --gemini-root <gemini-material-dir> --target-sec 75`.
+Artifacts are gitignored under `.tmp/gemini_demo_film/`: `final.mp4`,
+`generated_mv_script.json`, `project_material_map.json`, `timeline.json`, and
+`review_report.{json,md}`. Real run evidence on the 36-image controlled Gemini
+set: requested **75.0s**, rendered **75.6s**, plan **75.0s**; 36 assets across 7
+needs; SRP2 opening **planned**; SRP1 auto sequences in **7/7** segments; SRP3
+**planned/applied**; slot render check **25/25 pass**. The demo script declares
+`pacing.preferred_shot_sec=[2.8,3.4]` so allocation stays in the 60-90s range
+without changing SRP1's approved-window integrity. Honest boundary: this is
+synthetic Gemini material, not 67th real footage and not an aesthetic verdict.
+The report explicitly discloses distractor usage; this run used
+`distractor_duplicate_assembly` in segment 1 and `distractor_bad_group_photo` in
+segment 7, which is review evidence rather than a silent success. Focused tests
+**6** (41 with SRP acceptance/sanity harnesses); full regression **1281 tests OK**.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 

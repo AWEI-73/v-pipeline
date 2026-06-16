@@ -148,6 +148,19 @@ capability, and a VERIFY check creates nothing:
   not demonstrate climax > setup on this material shape. This replay is a sanity
   check for runtime integration and render correctness, not a full 304-file
   ingest and not a quality/aesthetic verdict.
+- **Gemini enhanced-only demo film confirms the node-shaped flow can be driven
+  without hand-writing a timeline.** `tools/gemini_demo_film.py` starts from the
+  controlled Gemini manifest, builds a shallow 7-need script and project material
+  map, then runs the enhanced BUILD path (VD2 + SRP1 + SRP2 + SRP3) into a real
+  render and review report. It is not a new planner and not a baseline comparison.
+  Current evidence: requested 75.0s, rendered 75.6s, plan 75.0s; 36 synthetic
+  assets across 7 needs; SRP2 opening planned; SRP1 auto sequences in all 7
+  segments; SRP3 planned/applied; slot render checks pass for 25/25 slots.
+  The script uses `pacing.preferred_shot_sec=[2.8,3.4]` as a script-level pacing
+  parameter so the demo reaches 60-90s without changing SRP1's approved-window
+  contract. The report explicitly discloses distractor usage (2 distractor slots
+  in the current run), so curator/review can see material issues instead of
+  accepting a silent success.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
