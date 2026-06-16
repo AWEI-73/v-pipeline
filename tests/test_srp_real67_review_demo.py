@@ -89,15 +89,12 @@ class TestReviewScript(unittest.TestCase):
             DEMO.build_review_script({"segments": []})
 
 
-class TestNeedProjection(unittest.TestCase):
-    def test_stamps_accepted_need_onto_scene(self):
-        projected, count = DEMO.project_scene_need_ids(_covered_map())
-        self.assertEqual(count, 3)
-        scenes = {a["asset_id"]: a["scenes"][0]["need_id"]
-                  for a in projected["assets"]}
-        self.assertEqual(scenes["director_encouragement"], "nd_dir")
-        self.assertEqual(scenes["birthday"], "nd_bday")
-        # original map is not mutated
+class TestNeedLookup(unittest.TestCase):
+    def test_reads_canonical_satisfies_without_scene_need_projection(self):
+        lookup, declared = DEMO.scene_need_lookup(_covered_map())
+        self.assertEqual(lookup["director_encouragement:0"], "nd_dir")
+        self.assertEqual(lookup["birthday:0"], "nd_bday")
+        self.assertEqual(declared, {"nd_dir", "nd_bday", "nd_thx"})
         self.assertNotIn("need_id", _covered_map()["assets"][0]["scenes"][0])
 
 
@@ -132,44 +129,40 @@ class TestReviewSubtitles(unittest.TestCase):
 class TestSemanticAlignment(unittest.TestCase):
     # C. alignment lists matched / drift results per segment
     def test_all_matched(self):
-        proj, _ = DEMO.project_scene_need_ids(_covered_map())
         script = DEMO.build_review_script(_runtime_script())
-        al = DEMO.semantic_alignment(_plan_matched(), proj, script)
+        al = DEMO.semantic_alignment(_plan_matched(), _covered_map(), script)
         self.assertTrue(al["all_matched"])
         self.assertEqual(al["drift_segments"], [])
         self.assertEqual(al["segments"]["1"]["status"], "matched")
         self.assertEqual(al["segments"]["1"]["slots"][0]["selected_need_id"], "nd_dir")
 
     def test_wrong_need_is_flagged_as_drift(self):
-        proj, _ = DEMO.project_scene_need_ids(_covered_map())
         script = DEMO.build_review_script(_runtime_script())
         plan = _plan_matched()
         # bind segment 1 to the birthday clip (wrong need) -> drift
         plan[1]["scene_id"] = "birthday:0"
-        al = DEMO.semantic_alignment(plan, proj, script)
+        al = DEMO.semantic_alignment(plan, _covered_map(), script)
         self.assertIn(1, al["drift_segments"])
         self.assertEqual(al["segments"]["1"]["status"], "wrong_need")
         self.assertFalse(al["all_matched"])
 
     def test_missing_slot_is_gap(self):
-        proj, _ = DEMO.project_scene_need_ids(_covered_map())
         script = DEMO.build_review_script(_runtime_script())
         plan = [c for c in _plan_matched() if c.get("segment") != 3]
-        al = DEMO.semantic_alignment(plan, proj, script)
+        al = DEMO.semantic_alignment(plan, _covered_map(), script)
         self.assertEqual(al["segments"]["3"]["status"], "gap")
 
 
 class TestReport(unittest.TestCase):
     def _report(self):
-        proj, stamped = DEMO.project_scene_need_ids(_covered_map())
         script = DEMO.build_review_script(_runtime_script())
         result = {"plan": _plan_matched(),
                   "opening_plan": {"status": "planned"},
                   "story_arc_plan": {"status": "planned", "execution": {"status": "applied"}}}
         slot_check = {"ok": True, "checked_slots": 4, "failed_slots": []}
         return DEMO.compute_review_report(
-            result, proj, script, footage_root=r"C:\footage",
-            subset_scene_count=3, need_stamped=stamped, render_sec=11.0,
+            result, _covered_map(), script, footage_root=r"C:\footage",
+            subset_scene_count=3, render_sec=11.0,
             slot_check=slot_check, music_name="7感性收尾.mp4")
 
     # E. report discloses the subset boundary
@@ -188,6 +181,8 @@ class TestReport(unittest.TestCase):
         segs = rep["semantic_alignment"]["segments"]
         self.assertEqual(segs["1"]["expected_need_ref"], "nd_dir")
         self.assertEqual(segs["1"]["slots"][0]["scene_id"], "director_encouragement:0")
+        self.assertEqual(rep["need_aware"]["scene_need_ids_stamped"], 0)
+        self.assertIn("satisfies", rep["need_aware"]["deterministic_evidence"])
 
     # SRP1 reports 0 eligible on the 1-slot-per-segment subset, with disclosure
     def test_srp1_zero_eligible_disclosed(self):

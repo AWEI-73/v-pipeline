@@ -59,6 +59,61 @@ class MaterialRetrievalTest(unittest.TestCase):
         self.assertEqual(ranked[0]["score_breakdown"]["need"], 4)
         self.assertEqual(ranked[0]["need_id"], "N02")
 
+    def test_material_fit_need_refs_match_scene_satisfies_edges(self):
+        segment = {
+            "segment": 2,
+            "material_fit": {"need_refs": ["N02"], "visual_desc": "night search"},
+        }
+        maps = [
+            {"asset_id": "n05", "source": "wrong.mp4", "scenes": [
+                {"start": 0, "end": 5, "caption": "night search team",
+                 "satisfies": [{"need_id": "N05", "status": "accepted"}]}
+            ]},
+            {"asset_id": "n02", "source": "right.mp4", "scenes": [
+                {"start": 0, "end": 5, "caption": "quiet boots on trail",
+                 "satisfies": [{"need_id": "N02", "status": "accepted"}]}
+            ]},
+        ]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual([item["scene_id"] for item in ranked[:2]], ["n02:0", "n05:0"])
+        self.assertEqual(ranked[0]["score_breakdown"]["need"], 4)
+        self.assertEqual(ranked[0]["need_id"], "N02")
+
+    def test_material_fit_need_refs_admits_satisfies_match_without_text_overlap(self):
+        segment = {
+            "segment": 2,
+            "material_fit": {"need_refs": ["N02"], "visual_desc": "endurance run"},
+        }
+        maps = [{"asset_id": "n02", "source": "right.mp4", "scenes": [
+            {"start": 0, "end": 5, "caption": "muddy boots closeup",
+             "satisfies": [{"need_id": "N02", "status": "accepted"}]}
+        ]}]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["scene_id"], "n02:0")
+        self.assertEqual(ranked[0]["score_breakdown"]["need"], 4)
+        self.assertEqual(ranked[0]["score_breakdown"]["text"], 0)
+
+    def test_rejected_satisfies_edge_does_not_count_as_need_match(self):
+        segment = {
+            "segment": 2,
+            "material_fit": {"need_refs": ["N02"], "visual_desc": "night search"},
+        }
+        maps = [{"asset_id": "n02", "source": "rejected.mp4", "scenes": [
+            {"start": 0, "end": 5, "caption": "night search team",
+             "satisfies": [{"need_id": "N02", "status": "rejected"}]}
+        ]}]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["score_breakdown"]["need"], 0)
+        self.assertIsNone(ranked[0]["need_id"])
+
     def test_need_ref_match_is_admitted_even_without_text_overlap(self):
         segment = {"segment": 2, "need_ref": "N02", "visual_desc": "endurance run"}
         maps = [{"asset_id": "n02", "source": "right.mp4", "need_id": "N02", "scenes": [

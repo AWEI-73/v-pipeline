@@ -41,10 +41,30 @@ def _pace_score(segment, scene):
     return 0
 
 
+def _expected_need_ids(segment):
+    material_fit = segment.get("material_fit") or {}
+    values = []
+    for value in (segment.get("need_ref"), material_fit.get("need_ref")):
+        if isinstance(value, str) and value.strip():
+            values.append(value.strip())
+    for value in material_fit.get("need_refs") or []:
+        if isinstance(value, str) and value.strip():
+            values.append(value.strip())
+    return {str(value) for value in values}
+
+
+def _scene_need_id(material_map, scene):
+    for status in ("accepted", "candidate"):
+        for edge in scene.get("satisfies") or []:
+            if edge.get("status") == status and edge.get("need_id"):
+                return edge["need_id"]
+    return scene.get("need_id") or material_map.get("need_id")
+
+
 def _need_score(segment, material_map, scene):
-    expected = segment.get("need_ref") or (segment.get("material_fit") or {}).get("need_ref")
-    actual = scene.get("need_id") or material_map.get("need_id")
-    return 4 if expected and actual and str(expected) == str(actual) else 0
+    expected = _expected_need_ids(segment)
+    actual = _scene_need_id(material_map, scene)
+    return 4 if expected and actual and str(actual) in expected else 0
 
 
 def rank_scenes(segment, material_maps, *, ranker=None):
@@ -71,7 +91,7 @@ def rank_scenes(segment, material_maps, *, ranker=None):
                 "start": float(scene.get("start") or 0),
                 "end": float(scene.get("end") or 0),
                 "caption": scene.get("caption"),
-                "need_id": scene.get("need_id") or material_map.get("need_id"),
+                "need_id": _scene_need_id(material_map, scene),
                 "score_breakdown": breakdown,
                 "ranker_score": external,
                 "score": evidence_score + external,

@@ -1,9 +1,9 @@
-"""67th real-footage review demo replay — a human-reviewable short cut.
+"""67th real-footage review demo replay - a human-reviewable short cut.
 
 Scope (bounded): rebuild the M6e real-footage fixture, then render ONE enhanced
 short cut over the M6e covered subset (3 accepted scenes from the 67th graduation
 footage) and emit review artifacts that let a human check, per segment, WHICH real
-clip was bound to WHICH script need. It is intentionally NOT a baseline↔enhanced
+clip was bound to WHICH script need. It is intentionally NOT a baseline/enhanced
 comparison, NOT a 10-minute graduation film, and NOT an aesthetic verdict.
 
 What it proves end-to-end on real material:
@@ -50,7 +50,7 @@ SCOPE = "67th_real_footage_m6e_covered_subset_review_demo"
 
 def _segment_need_ref(segment):
     """The need this segment is contracted to. A segment without a resolvable
-    need_ref is a contract defect — we fail-closed rather than guess a binding."""
+    need_ref is a contract defect; we fail-closed rather than guess a binding."""
     explicit = segment.get("need_ref")
     if explicit:
         return explicit
@@ -88,7 +88,7 @@ def build_review_script(script):
 
 def _accepted_need(scene):
     """The need a scene satisfies: the first ``accepted`` satisfies edge, else any
-    edge's need_id, else a pre-stamped scene.need_id."""
+    edge's need_id, else legacy scene.need_id fallback."""
     edges = scene.get("satisfies") or []
     for edge in edges:
         if edge.get("status") == "accepted" and edge.get("need_id"):
@@ -97,24 +97,6 @@ def _accepted_need(scene):
         if edge.get("need_id"):
             return edge["need_id"]
     return scene.get("need_id")
-
-
-def project_scene_need_ids(material_map):
-    """Stamp each scene's accepted ``satisfies`` need onto ``scene.need_id`` so the
-    deterministic need-aware retrieval score (``segment.need_ref == scene.need_id``)
-    actually fires on the M6e subset, whose scenes express need linkage only via
-    ``satisfies`` edges. Returns ``(projected_map, stamped_count)``. This is a
-    read-side projection for the demo only — it adds NO new schema and changes no
-    core code or the canonical satisfies edges."""
-    out = copy.deepcopy(material_map)
-    stamped = 0
-    for asset in out.get("assets") or []:
-        for scene in asset.get("scenes") or []:
-            need = _accepted_need(scene)
-            if need and not scene.get("need_id"):
-                scene["need_id"] = need
-                stamped += 1
-    return out, stamped
 
 
 def assert_no_synthetic_sources(material_map):
@@ -229,7 +211,7 @@ def srp1_eligibility(plan):
 
 
 def compute_review_report(result, material_map, script, *, footage_root,
-                          subset_scene_count, need_stamped, render_sec,
+                          subset_scene_count, render_sec,
                           slot_check, music_name):
     plan = result.get("plan") or []
     alignment = semantic_alignment(plan, material_map, script)
@@ -244,8 +226,9 @@ def compute_review_report(result, material_map, script, *, footage_root,
         "contact_sheet": "contact_sheet.jpg",
         "final_duration_sec": render_sec,
         "need_aware": {
-            "scene_need_ids_stamped": need_stamped,
-            "deterministic_evidence": "segment.need_ref == scene.need_id",
+            "scene_need_ids_stamped": 0,
+            "deterministic_evidence": "segment.need_ref/material_fit.need_refs == "
+                                      "scene.satisfies[].need_id",
             "all_segments_matched": alignment["all_matched"],
         },
         "semantic_alignment": alignment,
@@ -292,7 +275,7 @@ def report_md(report):
              f"- Music: `{report['music']}`",
              f"- Final duration: **{report['final_duration_sec']}s**",
              f"- Need-aware all-matched: **{report['need_aware']['all_segments_matched']}** "
-             f"({report['need_aware']['scene_need_ids_stamped']} scene need_ids stamped)",
+             f"(canonical satisfies evidence; no scene need_ids stamped)",
              f"- Semantic drift segments: {a['drift_segments']}",
              f"- Review subtitles: `{report['review_subtitles']}`",
              f"- Contact sheet: `{report['contact_sheet']}`",
@@ -300,12 +283,12 @@ def report_md(report):
              "## Per-segment material binding (review this)"]
     for seg, info in sorted(a["segments"].items(), key=lambda kv: int(kv[0])):
         lines.append(f"- **Seg {seg}** expected `{info['expected_need_ref']}` "
-                     f"→ status **{info['status']}** ({info['matched_slots']}/{info['slot_count']})")
+                     f"- status **{info['status']}** ({info['matched_slots']}/{info['slot_count']})")
         for slot in info["slots"]:
-            flag = "" if slot["status"] == "matched" else "  ⚠"
+            flag = "" if slot["status"] == "matched" else "  REVIEW"
             lines.append(f"    - {slot['scene_id']} ({slot['source']}) "
                          f"need={slot['selected_need_id']} arc={slot['arc_role']} "
-                         f"→ {slot['status']}{flag}  «{slot['subtitle']}»")
+                         f"- {slot['status']}{flag}  [{slot['subtitle']}]")
     srp1 = report["srp1_segment_sequence"]
     lines += ["",
               "## SRP capability status",
@@ -383,7 +366,7 @@ def run_demo(footage_root, *, target_sec, max_clips_per_seg, music=None,
 
     raw_map = SANITY._load_json_loose(map_path)
     assert_no_synthetic_sources(raw_map)
-    material_map, need_stamped = project_scene_need_ids(raw_map)
+    material_map = raw_map
     script = build_review_script(SANITY._load_json_loose(script_path))
     music = SANITY.find_music(footage_root, music)
     subset_scene_count = sum(len(a.get("scenes") or [])
@@ -412,7 +395,7 @@ def run_demo(footage_root, *, target_sec, max_clips_per_seg, music=None,
 
     report = compute_review_report(
         result, material_map, script, footage_root=footage_root,
-        subset_scene_count=subset_scene_count, need_stamped=need_stamped,
+        subset_scene_count=subset_scene_count,
         render_sec=_probe(final), slot_check=slot_check, music_name=Path(music).name)
 
     _write_json(out / "generated_mv_script.json", script)

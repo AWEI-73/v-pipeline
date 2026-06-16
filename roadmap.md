@@ -240,6 +240,19 @@ harness); full regression **1275 tests OK**. Formal replay passed with
 `python tools/srp_real67_sanity.py --footage-root <67th-material-dir>` (fresh M6e
 rebuild, no stale fixture).
 
+**67th review-demo canonical need-aware hardening COMPLETE** (2026-06-16):
+Claude review found the earlier review harness had been masking production
+schema drift by stamping `scene.need_id` from `satisfies[]`. Core retrieval now
+reads canonical `material_fit.need_refs[]` and `scene.satisfies[].need_id`
+directly, and the review demo no longer stamps scene-level need ids. Replayed
+with `tools/srp_real67_review_demo.py --skip-m6e`: final **11.3s**,
+`all_matched=True`, `drift=[]`, report states
+`canonical satisfies evidence; no scene need_ids stamped`. The short duration
+and odd representative shots remain a covered-subset/window-quality limitation:
+3 accepted scenes, one scene per need, 0 SRP1-eligible segments, not a full
+ingest or aesthetic verdict. Focused tests **51**; full regression **1307 tests
+OK**.
+
 **Gemini enhanced-only demo film COMPLETE** (2026-06-16): `tools/gemini_demo_film.py`
 runs the node-shaped flow from controlled Gemini material into one rendered demo:
 script/needs -> project material map -> BUILD/SRP -> render -> review report. It
@@ -266,16 +279,19 @@ now maps every selected non-opening slot back to the manifest `need_id` and the
 script segment's `need_ref`. It reports per-segment `matched_slots`,
 `wrong_need_slots`, `distractor_slots`, `matched_ratio`, and `semantic_drift`
 (drift when matched ratio < 0.5 or any distractor is used). Follow-up
-need-aware retrieval now consumes explicit `segment.need_ref` against material
-map `need_id` as correctness evidence before text/function/pace fallback. This is
-not prompt-time semantic guessing: the agent may write/review the labels, but
-BUILD uses the deterministic join key. Wrong-need text matches remain available
-only as fallback when no matching need evidence exists. Replayed result on the
-current Gemini demo improved from historical drift **[1, 2, 3, 7]** to **[]**:
+need-aware retrieval now consumes explicit `segment.need_ref`,
+`material_fit.need_ref`, or canonical `material_fit.need_refs[]` against
+canonical `scene.satisfies[].need_id` (accepted/candidate only) as correctness
+evidence before text/function/pace fallback. Legacy `scene.need_id` /
+material-map `need_id` are fallback only. This is not prompt-time semantic
+guessing: the agent may write/review the labels, but BUILD uses the
+deterministic join key. Wrong-need text matches remain available only as
+fallback when no matching need evidence exists. Replayed result on the current
+Gemini demo improved from historical drift **[1, 2, 3, 7]** to **[]**:
 all 24 story slots match their expected need and no distractors are selected.
 The final timeline also preserves `need_id` through map-ranked slots, SRP1 beat
 clips, and SRP2 opening clips. Focused tests cover need-priority, fallback,
-material-map need projection, and lineage preservation. Focused tests **134**;
+canonical satisfies-edge lookup, and lineage preservation. Focused tests **134**;
 full regression **1286 tests OK**.
 
 **Gemini demo review subtitles COMPLETE** (2026-06-16): the enhanced demo script

@@ -85,8 +85,11 @@ capability, and a VERIFY check creates nothing:
   BUILD, not just VERIFY.
 - **The material-evidence layer has been upgraded with VD2 active/complete plus
   need-aware correctness.** `plan_ranked_windows` now consumes explicit
-  `segment.need_ref` versus material-map `need_id` as deterministic correctness
-  evidence before text/function/pace fallback. This is the practical boundary:
+  `segment.need_ref` / `material_fit.need_ref` / `material_fit.need_refs[]`
+  versus canonical `scene.satisfies[].need_id` (accepted/candidate only) as
+  deterministic correctness evidence before text/function/pace fallback. Legacy
+  `scene.need_id` / material-map `need_id` remain fallback only. This is the
+  practical boundary:
   agents may author/review labels, but BUILD should not rely on prompt-time
   semantic guessing when a join key is available. `visual_family`, `angle_scale`,
   and `asset_type` are still used for same-tier visual diversity and photo/video
