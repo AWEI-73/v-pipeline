@@ -178,3 +178,46 @@ $env:PYTHONUTF8=1; python -m unittest discover -s tests -v   # 541 expected
 - **Secrets in git history:** keys were previously hardcoded in `video_pipeline.py`
   and remain in past commits. Rotating the Pexels/Pixabay keys (or rewriting
   history) is required before any public push.
+
+## 7. Native Preview Workbench (human fine-tuning line)
+
+The workbench is a **human fine-tuning surface** — review material, watch how the
+cut plays, and make small adjustments (clip duration / source window / order).
+It is *not* an editor, not Remotion, not a renderer, and it never writes canonical
+artifacts.
+
+```powershell
+# open the workbench against a built run
+python tools\workbench_server.py --artifact-root <run-dir> --port 8770
+#   -> http://localhost:8770/workbench
+```
+
+Buttons: **Save patch → server** (writes the draft artifacts), **Sync → contract**
+(draft contract patch; fail-closed on out-of-scene windows), **Export (ffmpeg)**
+(optional `workbench_export.mp4` via canonical render; never `final.mp4`).
+
+### What an Agent reads to grasp the current state
+
+After a human fine-tunes, the Agent's entry points to understand "what the film
+looks like now" are exactly two draft artifacts:
+
+- **`patched_draft_timeline.json`** — the current human-adjusted timeline draft.
+- **`workbench_contract_patch.json`** — the human edits expressed as a draft of
+  intent/diagnostics against the pipeline contract (which clips changed duration
+  / source window / order, mapped to segments; cross-segment moves flagged
+  `unsupported_for_contract_sync`).
+
+### Boundaries (do not cross from the workbench)
+
+- **Official delivery still runs the Agent / FFmpeg build.** The drafts feed the
+  build; the workbench never produces the canonical film.
+- **No auto write-back to canonical.** `timeline.json`, `segment_contract.json`,
+  `project_material_map.json`, `material_needs.json`, `final.mp4` are write-blocked.
+  Folding a draft back into the SPEC is a deliberate human/Agent decision.
+- **Intent-level re-cut, effects, and material replacement are out of scope here**
+  — they belong to the later **Node 14** path / a future **`replace_clip`**
+  increment, not the fine-tuning workbench.
+
+With this documented, the Workbench fine-tuning line (NPE1–NPE3) is converged.
+Next functional increment, when opened, is `replace_clip` / material swap
+("drag material from the review panel onto the timeline").
