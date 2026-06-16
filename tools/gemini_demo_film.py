@@ -95,8 +95,62 @@ def _arc_durations(plan):
     return out
 
 
+def semantic_alignment_report(plan, assets, script):
+    by_asset = {a.get("asset_id"): a for a in assets or []}
+    expected = {s.get("segment"): s.get("need_ref") for s in (script or {}).get("segments", [])}
+    segments = {}
+    drift_segments = []
+    for segment, need_id in expected.items():
+        clips = [c for c in plan if c.get("segment") == segment and not c.get("opening_role")]
+        total = len(clips)
+        matched = distractor = wrong = unknown = 0
+        details = []
+        for clip in clips:
+            scene_id = clip.get("scene_id") or ""
+            asset_id = scene_id.rsplit(":", 1)[0]
+            asset = by_asset.get(asset_id)
+            actual_need = asset.get("need_id") if asset else None
+            is_distractor = bool(asset.get("is_distractor")) if asset else False
+            if actual_need == need_id:
+                matched += 1
+                status = "match"
+            elif is_distractor:
+                distractor += 1
+                status = "distractor"
+            elif actual_need:
+                wrong += 1
+                status = "wrong_need"
+            else:
+                unknown += 1
+                status = "unknown_asset"
+            details.append({
+                "slot_index": clip.get("slot_index"),
+                "scene_id": scene_id,
+                "asset_id": asset_id,
+                "actual_need_id": actual_need,
+                "status": status,
+                "beat_role": clip.get("beat_role"),
+            })
+        ratio = round(matched / total, 3) if total else 0.0
+        semantic_drift = bool(total and (ratio < 0.5 or distractor > 0))
+        if semantic_drift:
+            drift_segments.append(segment)
+        segments[str(segment)] = {
+            "expected_need_id": need_id,
+            "slot_count": total,
+            "matched_slots": matched,
+            "matched_ratio": ratio,
+            "distractor_slots": distractor,
+            "wrong_need_slots": wrong,
+            "unknown_slots": unknown,
+            "semantic_drift": semantic_drift,
+            "details": details,
+        }
+    return {"segments": segments, "drift_segments": drift_segments}
+
+
 def compute_demo_report(result, *, asset_count, need_count, requested_target_sec,
-                        render_sec, slot_check, assets=None):
+                        render_sec, slot_check, assets=None, script=None):
     plan = result.get("plan") or []
     opening_count = sum(1 for c in plan if c.get("opening_role"))
     distractors = {a.get("asset_id"): a for a in (assets or []) if a.get("is_distractor")}
@@ -139,6 +193,7 @@ def compute_demo_report(result, *, asset_count, need_count, requested_target_sec
             "used": used_distractors,
             "used_count": len(used_distractors),
         },
+        "semantic_alignment": semantic_alignment_report(plan, assets or [], script or {}),
         "limitations": {
             "synthetic_gemini_material": True,
             "not_real_footage_quality_verdict": True,
@@ -165,6 +220,8 @@ def report_md(report):
         f"checked={report['slot_render_check'].get('checked_slots')} "
         f"failed={report['slot_render_check'].get('failed_slots')}",
         f"- Distractors used: {report.get('distractor_usage', {}).get('used', [])}",
+        f"- Semantic drift segments: "
+        f"{report.get('semantic_alignment', {}).get('drift_segments', [])}",
         "",
         "## Boundary",
         "- Uses synthetic Gemini material, not 67th real footage.",
@@ -225,6 +282,7 @@ def run_demo(gemini_root, *, target_sec=75.0, music_sec=None, max_clips_per_seg=
         render_sec=_probe(final),
         slot_check=slot_check,
         assets=assets,
+        script=script,
     )
 
     _write_json(out / "generated_mv_script.json", script)

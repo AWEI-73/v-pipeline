@@ -37,20 +37,29 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
                  "sequence_recipe_source": "auto", "arc_role": "setup"},
                 {"segment": 2, "scene_id": "b:0", "extract_dur": 5.0,
                  "arc_role": "climax"},
+                {"segment": 2, "scene_id": "c:0", "extract_dur": 5.0,
+                 "arc_role": "climax"},
             ],
             "segments": [{"segment": 1}, {"segment": 2}],
             "opening_plan": {"status": "planned"},
             "story_arc_plan": {"status": "planned", "execution": {"status": "applied"}},
             "cuts": 3,
         }
-        assets = [{"asset_id": "a", "filename": "a.png", "is_distractor": False},
-                  {"asset_id": "b", "filename": "b.png", "is_distractor": True}]
+        assets = [{"asset_id": "a", "filename": "a.png", "need_id": "N01",
+                   "is_distractor": False},
+                  {"asset_id": "b", "filename": "b.png", "need_id": "DISTRACTOR",
+                   "is_distractor": True},
+                  {"asset_id": "c", "filename": "c.png", "need_id": "N03",
+                   "is_distractor": False}]
+        script = {"segments": [{"segment": 1, "need_ref": "N01"},
+                               {"segment": 2, "need_ref": "N02"}]}
         report = D.compute_demo_report(result, asset_count=36, need_count=7,
                                        requested_target_sec=75.0,
                                        render_sec=74.6,
                                        slot_check={"ok": True, "checked_slots": 3,
                                                    "failed_slots": []},
-                                       assets=assets)
+                                       assets=assets,
+                                       script=script)
         self.assertEqual(report["mode"], "enhanced_only_gemini_demo")
         self.assertEqual(report["assets"]["asset_count"], 36)
         self.assertEqual(report["opening"]["status"], "planned")
@@ -58,6 +67,12 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
         self.assertEqual(report["story_arc"]["status"], "planned")
         self.assertTrue(report["slot_render_check"]["ok"])
         self.assertEqual(report["distractor_usage"]["used"][0]["asset_id"], "b")
+        drift = report["semantic_alignment"]["segments"]["2"]
+        self.assertTrue(drift["semantic_drift"])
+        self.assertEqual(drift["expected_need_id"], "N02")
+        self.assertEqual(drift["matched_slots"], 0)
+        self.assertEqual(drift["distractor_slots"], 1)
+        self.assertEqual(drift["wrong_need_slots"], 1)
 
     def test_report_md_contains_viewing_boundary(self):
         report = {
@@ -70,6 +85,10 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
                           "arc_role_durations": {"setup": 8.0, "climax": 12.0}},
             "slot_render_check": {"ok": True, "checked_slots": 15, "failed_slots": []},
             "distractor_usage": {"used": [{"asset_id": "d", "segment": 1}]},
+            "semantic_alignment": {
+                "drift_segments": [2],
+                "segments": {"2": {"semantic_drift": True, "matched_ratio": 0.0}},
+            },
             "limitations": {"synthetic_gemini_material": True},
         }
         md = D.report_md(report)
@@ -77,6 +96,7 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
         self.assertIn("synthetic Gemini material", md)
         self.assertIn("not a real-footage quality verdict", md)
         self.assertIn("Distractors used", md)
+        self.assertIn("Semantic drift", md)
 
     def test_output_root_is_cleaned_before_run(self):
         root = Path(tempfile.mkdtemp())

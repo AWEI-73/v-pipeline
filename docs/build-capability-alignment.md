@@ -160,7 +160,10 @@ capability, and a VERIFY check creates nothing:
   parameter so the demo reaches 60-90s without changing SRP1's approved-window
   contract. The report explicitly discloses distractor usage (2 distractor slots
   in the current run), so curator/review can see material issues instead of
-  accepting a silent success.
+  accepting a silent success. It also includes a review-only `semantic_alignment`
+  section mapping selected slots back to manifest `need_id` versus script
+  `need_ref`. Current replay flags drift segments [1, 2, 3, 7], matching the
+  contact-sheet review; this evidence is not a BUILD gate yet.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with

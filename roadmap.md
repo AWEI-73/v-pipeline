@@ -261,6 +261,18 @@ The report explicitly discloses distractor usage; this run used
 segment 7, which is review evidence rather than a silent success. Focused tests
 **6** (41 with SRP acceptance/sanity harnesses); full regression **1281 tests OK**.
 
+**Gemini demo semantic-alignment review COMPLETE** (2026-06-16): the demo report
+now maps every selected non-opening slot back to the manifest `need_id` and the
+script segment's `need_ref`. It reports per-segment `matched_slots`,
+`wrong_need_slots`, `distractor_slots`, `matched_ratio`, and `semantic_drift`
+(drift when matched ratio < 0.5 or any distractor is used). This is review-only:
+it does not block BUILD and does not change retrieval. Replayed result on the
+current Gemini demo flags drift segments **[1, 2, 3, 7]**: segment 1 and 7 because
+distractors were selected, segment 2 because N05 night-search images entered the
+N02 run segment, and segment 3 because N04/N05/N02 images entered the N03 rope
+rescue segment. Segments 4-6 remain non-drift, with any wrong-need slots preserved
+in details for review. Focused tests **6**; full regression **1281 tests OK**.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 
