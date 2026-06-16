@@ -7,19 +7,26 @@ human can judge whether the BUILD is thick enough on realistic material volume.
 Strategy (honest, no content model, no Gemini):
   * folder == need theme (e.g. `主任勉勵`, `慶生會`, `換桿`);
   * each video in a folder == an asset;
-  * each video is sampled into SEVERAL scene windows AWAY FROM the head/tail (so we
-    skip the title-card / black-frame opening that made the 11s demo look wrong),
-    yielding 2-3 accepted candidate scenes per need without inventing content;
+  * each video is sampled into SEVERAL scene windows AWAY FROM the head/tail, and
+    each candidate window's mid frame is probed so near-black / fade / transition
+    frames are skipped (the defect that left black cells in the first fuller cut);
+    this yields 2-3 renderable accepted candidate scenes per need without inventing
+    content;
   * a need with < min_candidates accepted scenes is listed as an explicit
     `material_gap`, never silently dropped.
 
-Success gate (fail-closed): if the rendered cut is < 60s the report marks
-`success=False` / `insufficient_material` and the CLI exits non-zero — a short cut
-is never reported as success.
+Status (fail-closed, three-valued — `material_gaps` and failed render slots are
+FINDINGS, not a clean pass):
+  * ``fail``               — < 60s, no final render, or wrong-need (drift) binding;
+  * ``pass_with_findings`` — >= 60s and need-correct, but has material_gaps and/or
+                             slots that failed the render gate (dark/transition);
+  * ``clean_pass``         — >= 60s, need-correct, no gaps, every slot rendered.
+The CLI exits 0 only on ``clean_pass``.
 
-Capabilities are attributed with cheap PLAN-ONLY isolation runs (no extra ffmpeg):
-VD2/SRP1/SRP2/SRP3 are each toggled alone on top of the baseline to show it changed
-the timeline. Artifacts go to the gitignored `.tmp/srp_real67_fuller_replay/`.
+Capabilities are attributed from the rendered plan's OWN stamped evidence
+(``diversity_selection_reason`` / ``beat_role`` / ``opening_role`` / ``arc_role``) —
+NO extra isolation renders, because each extra ``run_mv`` re-runs the expensive
+music analysis. Artifacts go to the gitignored `.tmp/srp_real67_fuller_replay/`.
 """
 from __future__ import annotations
 
@@ -68,20 +75,24 @@ def need_id_for(folder):
     return "nd_" + hashlib.sha1(str(folder).encode("utf-8")).hexdigest()[:8]
 
 
-def scene_windows(duration, *, max_scenes=3, clip_len=3.5, head_frac=0.12,
-                  tail_frac=0.08, min_len=1.5):
-    """Evenly spaced scene windows inside ``[head, tail]`` of a clip, so we never
-    sample the very first seconds (often a title card / fade-in) or the tail. The
-    number of windows scales ~1 per 15s, capped at ``max_scenes``."""
+# A rendered slot whose mid frame is flatter than this (max per-channel spatial
+# stdev) reads as a near-black / fade / solid transition card — the slot render gate
+# rejects it, so we avoid choosing such windows up front.
+BLACK_STDEV = 12.0
+
+
+def _even_windows(duration, n, *, clip_len=3.5, head_frac=0.12, tail_frac=0.08,
+                  min_len=1.5):
+    """``n`` evenly spaced ``clip_len`` windows inside ``[head, tail]`` of a clip."""
     duration = float(duration or 0.0)
-    if duration <= 0:
+    n = int(n)
+    if duration <= 0 or n <= 0:
         return []
     start = duration * head_frac
     end = duration * (1.0 - tail_frac)
     span = end - start
     if span <= 0:
         return []
-    n = max(1, min(int(max_scenes), int(duration // 15) + 1))
     wins = []
     for i in range(n):
         center = start + span * (i + 0.5) / n
@@ -92,6 +103,53 @@ def scene_windows(duration, *, max_scenes=3, clip_len=3.5, head_frac=0.12,
     return wins
 
 
+def _scene_count(duration, max_scenes):
+    """Window count scales ~1 per 15s, capped at ``max_scenes`` (min 1)."""
+    return max(1, min(int(max_scenes), int(float(duration or 0.0) // 15) + 1))
+
+
+def scene_windows(duration, *, max_scenes=3, clip_len=3.5, head_frac=0.12,
+                  tail_frac=0.08, min_len=1.5):
+    """Evenly spaced scene windows inside ``[head, tail]`` of a clip, so we never
+    sample the very first seconds (often a title card / fade-in) or the tail."""
+    return _even_windows(duration, _scene_count(duration, max_scenes),
+                         clip_len=clip_len, head_frac=head_frac,
+                         tail_frac=tail_frac, min_len=min_len)
+
+
+def renderable_windows(source, duration, frame_probe, *, max_scenes=3, clip_len=3.5,
+                       black_stdev=BLACK_STDEV, density=3):
+    """Like ``scene_windows`` but each window's mid frame is probed via
+    ``frame_probe(source, t) -> stdev`` and only non-black/non-transition windows are
+    kept. If a base window is black, a denser pool of alternative windows is tried
+    before that slot is dropped. ``frame_probe`` returning ``None`` (unreadable) is
+    treated as not renderable. Pure given an injected ``frame_probe``."""
+    target = _scene_count(duration, max_scenes)
+    base = _even_windows(duration, target, clip_len=clip_len)
+    alts = _even_windows(duration, max(target * int(density), target + 3),
+                         clip_len=clip_len)
+
+    def _ok(win):
+        mid = round((win[0] + win[1]) / 2.0, 3)
+        stdev = frame_probe(source, mid)
+        return stdev is not None and stdev >= black_stdev
+
+    used, out = set(), []
+    for win in base:
+        if win not in used and _ok(win):
+            out.append(win)
+            used.add(win)
+            continue
+        for alt in alts:                      # black window -> try alternatives
+            if alt in used:
+                continue
+            if _ok(alt):
+                out.append(alt)
+                used.add(alt)
+                break
+    return out
+
+
 def _asset_id(folder, filename):
     stem = Path(filename).stem
     raw = f"{folder}_{stem}"
@@ -99,15 +157,20 @@ def _asset_id(folder, filename):
     return safe.strip("_") or need_id_for(raw)
 
 
-def build_need_assets(folder, files, *, max_scenes_per_asset=3):
+def build_need_assets(folder, files, *, max_scenes_per_asset=3, frame_probe=None):
     """Build (assets, candidate_scene_count) for one need from its video files.
 
     ``files`` is ``[(filename, source_path, duration_sec)]``. Every scene carries an
-    ``accepted`` satisfies edge to the folder's need_id (canonical map shape)."""
+    ``accepted`` satisfies edge to the folder's need_id (canonical map shape). When
+    ``frame_probe`` is given, near-black / transition windows are skipped."""
     nid = need_id_for(folder)
     assets, candidates = [], 0
     for filename, source, duration in files:
-        wins = scene_windows(duration, max_scenes=max_scenes_per_asset)
+        if frame_probe is not None:
+            wins = renderable_windows(source, duration, frame_probe,
+                                      max_scenes=max_scenes_per_asset)
+        else:
+            wins = scene_windows(duration, max_scenes=max_scenes_per_asset)
         if not wins:
             continue
         scenes = [{
@@ -126,13 +189,14 @@ def build_need_assets(folder, files, *, max_scenes_per_asset=3):
 
 
 def plan_material(folder_index, *, max_needs=12, min_candidates=2,
-                  max_scenes_per_asset=3, order=None):
+                  max_scenes_per_asset=3, order=None, frame_probe=None):
     """Turn a resolved folder index into (material_map, needs_plan, gaps).
 
     ``folder_index`` maps ``folder -> [(filename, source_path, duration_sec)]``.
     ``order`` is the preferred theme order; folders not listed fall after it by
     descending video count. A need whose accepted candidate scenes < min_candidates
-    is reported in ``gaps`` (it still participates, but its thinness is disclosed)."""
+    is reported in ``gaps`` (it still participates, but its thinness is disclosed).
+    ``frame_probe`` (when given) skips near-black / transition windows."""
     order = order or CURATED_NEED_ORDER
     ranked = [f for f in order if f in folder_index]
     extras = sorted((f for f in folder_index if f not in set(order)),
@@ -144,7 +208,8 @@ def plan_material(folder_index, *, max_needs=12, min_candidates=2,
     for folder in sequence:
         nid = need_id_for(folder)
         assets, candidates = build_need_assets(
-            folder, folder_index[folder], max_scenes_per_asset=max_scenes_per_asset)
+            folder, folder_index[folder], max_scenes_per_asset=max_scenes_per_asset,
+            frame_probe=frame_probe)
         if candidates == 0:
             gaps.append({"need_id": nid, "folder": folder, "candidate_scenes": 0,
                          "reason": "no renderable scene windows"})
@@ -260,10 +325,34 @@ def compute_fuller_report(result, material_map, script, needs_plan, gaps, *,
     opening_count = sum(1 for c in plan if c.get("opening_role"))
     story_slots = sum(1 for c in plan if not c.get("opening_role"))
     duration_ok = bool(render_sec is not None and render_sec >= MIN_DURATION_SEC)
-    success = bool(duration_ok and slot_check.get("ok") and not alignment["drift_segments"])
+    drift = alignment["drift_segments"]
+    slot_ok = bool(slot_check.get("ok"))
+    failed_slots = slot_check.get("failed_slots") or []
+
+    # Three-valued status: material_gaps and failed render slots are FINDINGS, not a
+    # clean pass; only a < 60s / no-render / wrong-need cut is an outright fail.
+    findings = []
+    if gaps:
+        findings.append(f"{len(gaps)} need(s) below the {min_candidates}-candidate "
+                        f"floor: {[g['folder'] for g in gaps]}")
+    if not slot_ok:
+        findings.append(f"{len(failed_slots)} slot(s) failed the render gate "
+                        f"(near-black / transition frames): {failed_slots}")
+    if not duration_ok or drift or render_sec is None:
+        status = "fail"
+        if not duration_ok:
+            findings.insert(0, "rendered cut is under 60s (insufficient material)")
+        if drift:
+            findings.insert(0, f"wrong-need (drift) segments: {drift}")
+    elif findings:
+        status = "pass_with_findings"
+    else:
+        status = "clean_pass"
     return {
         "scope": SCOPE,
-        "success": success,
+        "status": status,
+        "clean_pass": status == "clean_pass",
+        "findings": findings,
         "footage_root": str(footage_root),
         "music": music_name,
         "review_subtitles": "review_subtitles.srt",
@@ -318,7 +407,8 @@ def report_md(report):
     dg = report["duration_gate"]
     lines = ["# R67-F1 — 67th Fuller Material Replay", "",
              f"- Scope: `{report['scope']}`",
-             f"- **Success: {report['success']}**",
+             f"- **Status: {report['status'].upper()}** "
+             f"(clean_pass={report['clean_pass']})",
              f"- Footage root: `{report['footage_root']}`",
              f"- Music: `{report['music']}`",
              f"- Final duration: **{report['final_duration_sec']}s** "
@@ -330,6 +420,11 @@ def report_md(report):
              f"Contact sheet: `{report['contact_sheet']}`"]
     if not dg["met"]:
         lines.append(f"- ⚠ {dg['note']}")
+    lines += ["", "## Findings"]
+    if report["findings"]:
+        lines += [f"- ⚠ {f}" for f in report["findings"]]
+    else:
+        lines.append("- none — clean pass.")
     lines += ["", "## Per-segment material binding (review this)"]
     for seg, info in sorted(a["segments"].items(), key=lambda kv: int(kv[0])):
         lines.append(f"- **Seg {seg}** expected `{info['expected_need_ref']}` "
@@ -407,6 +502,34 @@ def scan_footage(footage_root):
     return index
 
 
+def _make_frame_probe():
+    """A cached ``(source, t) -> mid-frame stdev`` probe (None if unreadable), used
+    to skip near-black / transition windows when building the material map."""
+    import tempfile  # noqa: PLC0415
+    cache = {}
+
+    def probe(source, t):
+        key = (source, round(float(t), 2))
+        if key in cache:
+            return cache[key]
+        tmp = Path(tempfile.gettempdir()) / f"rfp_{abs(hash(key))}.png"
+        extracted = SANITY._extract_frame(source, t, tmp)
+        value = None
+        if extracted:
+            try:
+                value = SANITY.frame_descriptor(str(extracted)).get("stdev")
+            except Exception:
+                value = None
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        cache[key] = value
+        return value
+
+    return probe
+
+
 def prepare_music_wav(music_src, out_wav, seconds):
     """Transcode the real music to a trimmed mono WAV once, so every run_mv loads it
     fast via soundfile instead of slowly decoding the source mp4 through audioread."""
@@ -431,7 +554,7 @@ def run_fuller(footage_root, *, target_sec=90.0, max_needs=12, max_clips_per_seg
         raise Blocked(f"no usable video folders under {footage_root}")
     material_map, needs_plan, gaps = plan_material(
         index, max_needs=max_needs, min_candidates=min_candidates,
-        max_scenes_per_asset=max_clips_per_seg)
+        max_scenes_per_asset=max_clips_per_seg, frame_probe=_make_frame_probe())
     DEMO.assert_no_synthetic_sources(material_map)
     if len(needs_plan) < 8:
         raise Blocked(f"only {len(needs_plan)} needs with usable video (<8); "
@@ -482,8 +605,8 @@ def run_fuller(footage_root, *, target_sec=90.0, max_needs=12, max_clips_per_seg
         timeline_review_srt(result["plan"]), encoding="utf-8")
     # NOTE: a failed slot is review evidence (a frame that does not clearly show its
     # source — a dark/transition/fast-motion moment), NOT a reason to suppress the
-    # report. It is recorded in review_report (success=False) and the contact sheet
-    # is still built so a human can eyeball every flagged slot.
+    # report. It is a FINDING (status=pass_with_findings) and the contact sheet is
+    # still built so a human can eyeball every flagged slot.
     DEMO.build_contact_sheet(final, result["plan"], out / "contact_sheet.jpg")
     DEMO._write_json(out / "review_report.json", report)
     (out / "review_report.md").write_text(report_md(report), encoding="utf-8")
@@ -506,7 +629,7 @@ def main(argv=None):
         music=args.music)
     a = report["semantic_alignment"]
     print(f"[real67-fuller] artifacts={out}")
-    print(f"[real67-fuller] success={report['success']} "
+    print(f"[real67-fuller] status={report['status']} "
           f"final={report['final_duration_sec']}s "
           f"(>= {MIN_DURATION_SEC}s: {report['duration_gate']['met']})")
     print(f"[real67-fuller] needs={report['needs']['need_count']} "
@@ -516,8 +639,10 @@ def main(argv=None):
     print(f"[real67-fuller] caps active: "
           f"VD2={caps['VD2']['active']} SRP1={caps['SRP1']['active']} "
           f"SRP2={caps['SRP2']['active']} SRP3={caps['SRP3']['active']}")
-    print(f"[real67-fuller] slot_render ok={report['slot_render_check']['ok']}")
-    return 0 if report["success"] else 3
+    print(f"[real67-fuller] slot_render ok={report['slot_render_check']['ok']} "
+          f"findings={len(report['findings'])}")
+    # exit 0 only on a clean pass; pass_with_findings -> 3; fail -> 1.
+    return {"clean_pass": 0, "pass_with_findings": 3}.get(report["status"], 1)
 
 
 if __name__ == "__main__":

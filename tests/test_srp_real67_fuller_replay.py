@@ -150,40 +150,86 @@ class TestReportAndGate(unittest.TestCase):
                   "story_arc_plan": {"status": "planned", "execution": {"status": "applied"}}}
         return mp, needs, gaps, script, result
 
-    def test_short_cut_is_not_success(self):
-        mp, needs, gaps, script, result = self._ctx()
-        rep = F.compute_fuller_report(
-            result, mp, script, needs, gaps, footage_root=r"C:\f",
-            render_sec=42.0, slot_check={"ok": True, "checked_slots": 5, "failed_slots": []},
-            music_name="m.mp4", capabilities={}, min_candidates=2)
-        self.assertFalse(rep["success"])
-        self.assertEqual(rep["duration_gate"]["status"], "insufficient_material")
+    def _clean_ctx(self):
+        # an index where every need has >=2 scenes (no gaps): drop the thin 感謝導師.
+        idx = {k: v for k, v in _index().items() if k != "感謝導師"}
+        mp, needs, gaps = F.plan_material(idx, min_candidates=2)
+        assert not gaps, gaps
+        script = F.build_fuller_script(needs)
+        plan = []
+        for i, need in enumerate(needs, start=1):
+            asset = next(a for a in mp["assets"]
+                         if a["scenes"][0]["satisfies"][0]["need_id"] == need["need_id"])
+            plan.append({"segment": i, "scene_id": f"{asset['asset_id']}:0",
+                         "source": asset["source"], "extract_dur": 4.0,
+                         "arc_role": "setup", "text": {"subtitle": f"Seg {i}"}})
+        result = {"plan": plan, "opening_plan": {"status": "planned"},
+                  "story_arc_plan": {"status": "planned", "execution": {"status": "applied"}}}
+        return mp, needs, gaps, script, result
 
-    def test_long_clean_cut_is_success(self):
-        mp, needs, gaps, script, result = self._ctx()
-        rep = F.compute_fuller_report(
+    def _report(self, ctx, *, render_sec, slot_check):
+        mp, needs, gaps, script, result = ctx
+        return F.compute_fuller_report(
             result, mp, script, needs, gaps, footage_root=r"C:\f",
-            render_sec=75.0, slot_check={"ok": True, "checked_slots": 5, "failed_slots": []},
-            music_name="m.mp4", capabilities={}, min_candidates=2)
-        self.assertTrue(rep["success"])
-        self.assertEqual(rep["semantic_alignment"]["drift_segments"], [])
-        self.assertTrue(rep["material_gaps"])  # 感謝導師 thin gap is surfaced
+            render_sec=render_sec, slot_check=slot_check, music_name="m.mp4",
+            capabilities={}, min_candidates=2)
 
-    def test_report_md_renders_gate_and_gaps(self):
-        mp, needs, gaps, script, result = self._ctx()
-        rep = F.compute_fuller_report(
-            result, mp, script, needs, gaps, footage_root=r"C:\f",
-            render_sec=42.0, slot_check={"ok": True, "checked_slots": 5, "failed_slots": []},
-            music_name="m.mp4",
-            capabilities={"VD2": {"active": True, "evidence": "x"},
-                          "SRP1": {"active": True, "evidence": "y"},
-                          "SRP2": {"active": True, "evidence": "z"},
-                          "SRP3": {"active": False, "evidence": "w"}},
-            min_candidates=2)
+    _OK = {"ok": True, "checked_slots": 5, "failed_slots": []}
+    _BAD = {"ok": False, "checked_slots": 5, "failed_slots": [3, 4]}
+
+    # P1: a < 60s cut is an outright fail, never a pass
+    def test_short_cut_is_fail(self):
+        rep = self._report(self._ctx(), render_sec=42.0, slot_check=self._OK)
+        self.assertEqual(rep["status"], "fail")
+        self.assertFalse(rep["clean_pass"])
+
+    # P1: material_gaps must NOT be a clean pass — they are findings
+    def test_gaps_are_pass_with_findings_not_clean(self):
+        rep = self._report(self._ctx(), render_sec=75.0, slot_check=self._OK)
+        self.assertTrue(rep["material_gaps"])             # 感謝導師 thin gap present
+        self.assertEqual(rep["status"], "pass_with_findings")
+        self.assertFalse(rep["clean_pass"])
+        self.assertTrue(any("floor" in f for f in rep["findings"]))
+
+    # P1: failed render slots are findings, not clean
+    def test_slot_failures_are_pass_with_findings(self):
+        rep = self._report(self._clean_ctx(), render_sec=75.0, slot_check=self._BAD)
+        self.assertEqual(rep["status"], "pass_with_findings")
+        self.assertTrue(any("render gate" in f for f in rep["findings"]))
+
+    # P1: only a >=60s, need-correct, no-gap, all-slots-ok cut is clean_pass
+    def test_clean_pass(self):
+        rep = self._report(self._clean_ctx(), render_sec=75.0, slot_check=self._OK)
+        self.assertEqual(rep["status"], "clean_pass")
+        self.assertTrue(rep["clean_pass"])
+        self.assertEqual(rep["findings"], [])
+
+    def test_report_md_renders_status_and_findings(self):
+        rep = self._report(self._ctx(), render_sec=75.0, slot_check=self._BAD)
         md = F.report_md(rep)
-        self.assertIn("Success: False", md)
+        self.assertIn("Status: PASS_WITH_FINDINGS", md)
+        self.assertIn("## Findings", md)
         self.assertIn("Material gaps", md)
-        self.assertIn("insufficient_material", md.lower() + rep["duration_gate"]["status"])
+
+
+class TestRenderableWindows(unittest.TestCase):
+    def test_skips_black_windows(self):
+        # a probe where frames in [40, 60) are black (low stdev), elsewhere bright
+        def probe(_source, t):
+            return 2.0 if 40.0 <= t < 60.0 else 30.0
+        wins = F.renderable_windows("C:\\v.mp4", 100.0, probe, max_scenes=3)
+        self.assertTrue(wins)
+        for s, e in wins:
+            mid = (s + e) / 2.0
+            self.assertFalse(40.0 <= mid < 60.0, f"chose a black window at {mid}")
+
+    def test_all_black_drops_to_empty(self):
+        wins = F.renderable_windows("C:\\v.mp4", 100.0, lambda *_: 1.0, max_scenes=3)
+        self.assertEqual(wins, [])
+
+    def test_unreadable_probe_is_not_renderable(self):
+        wins = F.renderable_windows("C:\\v.mp4", 100.0, lambda *_: None, max_scenes=3)
+        self.assertEqual(wins, [])
 
 
 if __name__ == "__main__":

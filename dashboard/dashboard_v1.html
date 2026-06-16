@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Hermes 影片審驗與管線控制台 V2。提供多軌 NLE 剪輯、拖曳素材置換、預置渲染模擬器與技術安全門禁。">
+    <title>Hermes 影片審驗與管線控制台 V2 (專業剪輯與稽核)</title>
+    <link rel="stylesheet" href="/dashboard_v1.css">
+    <!-- Google Fonts 載入 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    
+    <!-- 標頭列 -->
+    <header class="app-header">
+        <div class="brand">
+            <span class="logo">📐</span>
+            <div class="brand-text">
+                <h1 id="app-title">Hermes 影片審驗與管線控制台 <span class="badge-v2">V2</span></h1>
+                <div class="subtitle">專案運作與多軌剪輯控制台</div>
+            </div>
+        </div>
+        
+        <!-- 分頁切換器 -->
+        <div class="tab-switcher">
+            <button class="tab-btn active" id="btn-tab-editor">🎬 專業剪輯工作區</button>
+            <button class="tab-btn" id="btn-tab-storymap">🗺️ 故事素材地圖</button>
+            <button class="tab-btn" id="btn-tab-pipeline">⚙️ 管線工作與驗收</button>
+        </div>
+        
+        <div class="run-facts">
+            <div class="fact-item" style="justify-content: center;">
+                <button id="btn-trigger-video-modal" class="copy-btn" style="background: #6366f1; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2); transition: all 0.2s ease; font-size: 12px;">📺 預覽成品影片</button>
+            </div>
+            <div class="metadata-item">
+                <span class="label">切換專案案例:</span>
+                <select id="project-selector" style="background: transparent; color: inherit; border: none; font-size: 13px; font-weight: 700; cursor: pointer; outline: none; max-width: 180px;">
+                    <option value="">加載中...</option>
+                </select>
+            </div>
+            <div class="fact-item">
+                <span class="fact-label">專案名稱</span>
+                <span id="meta-project" class="fact-val">—</span>
+            </div>
+            <div class="fact-item">
+                <span class="fact-label">工作目錄</span>
+                <span id="meta-root" class="fact-val val-mono">載入中...</span>
+            </div>
+            <div class="fact-item text-center">
+                <span class="fact-label">時長</span>
+                <span id="meta-duration" class="fact-val val-mono">0.00s</span>
+            </div>
+            <div class="fact-item">
+                <span class="fact-label">門禁狀態</span>
+                <div id="gate-status" class="badge status-unknown">
+                    <span class="text">未稽核</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 配置摘要與背景音樂 (Sub-header) -->
+    <section class="sub-header" aria-label="配置與背景音樂">
+        <div class="profile-group">
+            <span class="profile-title">管線配置摘要:</span>
+            <div class="profile-chip">渲染模式: <strong id="profile-mode">—</strong></div>
+            <div class="profile-chip">備用素材源: <strong id="profile-provider">—</strong></div>
+            <div class="profile-chip">圖形後端: <strong id="profile-graphics">—</strong></div>
+            <div class="profile-chip">視覺特效: <strong id="profile-effects">—</strong></div>
+        </div>
+        <div class="bgm-player-area" id="bgm-player-container">
+            <!-- 背景音樂播放器由 JS 動態嵌入 -->
+        </div>
+    </section>
+
+    <!-- TAB A: 專業剪輯與素材審查 (NLE Editor Panel) -->
+    <div id="view-editor" class="tab-view active">
+        <div class="clipchamp-workspace">
+            
+            <!-- 1. 左側 Sidebar: Issue / Segment List & Contact Sheet -->
+            <div class="clipchamp-sidebar">
+                <!-- 問題與缺陷清單 (Issue List) -->
+                <div class="panel-card issues-card">
+                    <h3 class="panel-title">⚠️ 品質與缺陷稽核 (Issue List)</h3>
+                    <div id="issues-list" class="issues-list-container">
+                        <p class="placeholder-text">無載入問題或稽核報告。</p>
+                    </div>
+                </div>
+                
+                <!-- 故事段落與素材清單 (Segments) -->
+                <div class="panel-card segment-card">
+                    <h3 class="panel-title">📂 故事段落與素材 (Segments)</h3>
+                    <div id="sidebar-segments-list" class="segments-list-container">
+                        <p class="placeholder-text">載入段落中...</p>
+                    </div>
+                </div>
+
+                <!-- 視覺關鍵影格網格 (Contact Sheet) -->
+                <div class="panel-card contact-sheet-card">
+                    <h3 class="panel-title">🖼️ 視覺關鍵影格網格 (Contact Sheet)</h3>
+                    <div id="contact-sheet-container" class="contact-sheet-container">
+                        <p class="placeholder-text">無 Contact Sheet 圖像。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 右側主體工作區 (中央播放器 + 右側詳情 + 下方時間軸) -->
+            <div class="clipchamp-main-content">
+                <div class="clipchamp-top-row">
+                    
+                    <!-- 中央 Video Panel -->
+                    <div class="clipchamp-video-panel">
+                        <h3 class="panel-title">📺 COMPOSITION PLAYER (影片播放器)</h3>
+                        <div class="video-container-box" id="video-player-aspect-wrapper">
+                            <!-- Natively play final.mp4 -->
+                            <video id="final-video" controls preload="metadata">
+                                <source src="" type="video/mp4">
+                                您的瀏覽器不支援 HTML5 影片。
+                            </video>
+                            <div id="no-video-overlay" class="no-video-overlay" style="display: none;">
+                                <div class="no-video-msg">🚫 No final video (未找到成品影片 final.mp4)</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Playback controls -->
+                        <div class="playback-control-bar">
+                            <button id="btn-video-play" class="control-btn play-btn" title="播放/暫停">▶ 播放</button>
+                            <button id="btn-video-stop" class="control-btn stop-btn" title="停止">■ 停止</button>
+                            <span id="video-time-display" class="time-display-text">0.00s / 0.00s</span>
+                        </div>
+                    </div>
+
+                    <!-- 右側 Detail Panel -->
+                    <div class="clipchamp-detail-panel">
+                        <h3 class="panel-title">🎛️ SLOT METADATA (段落屬性詳情)</h3>
+                        <div id="detail-panel-content" class="detail-panel-scrollable">
+                            <p class="placeholder-text">請點擊時間軸片段或左側問題以查看詳細屬性。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下方 Multi-track Timeline -->
+                <div class="clipchamp-timeline-container">
+                    <div class="timeline-header-row">
+                        <span class="timeline-title">🎬 MULTI-TRACK TIMELINE (唯讀審片時間軸)</span>
+                        <div class="timeline-zoom-bar">
+                            <button id="btn-zoom-out" class="zoom-icon-btn" title="縮小">➖</button>
+                            <input type="range" id="timeline-zoom-slider" min="5" max="60" value="15" class="zoom-slider" title="比例縮放">
+                            <button id="btn-zoom-in" class="zoom-icon-btn" title="放大">➕</button>
+                            <button id="btn-zoom-fit" class="zoom-icon-btn fit-btn" title="適合寬度">↔️ 最適</button>
+                        </div>
+                    </div>
+
+                    <div class="timeline-tracks-wrapper">
+                        <!-- Ruler -->
+                        <div class="timeline-ruler-track">
+                            <div class="track-label ruler-label">RULER</div>
+                            <div class="track-slots-container ruler" id="timeline-ruler"></div>
+                        </div>
+
+                        <div class="timeline-tracks-body">
+                            <!-- Playhead line -->
+                            <div class="timeline-playhead-line" id="timeline-playhead"></div>
+
+                            <!-- Track 1: Video/Story -->
+                            <div class="timeline-track-row">
+                                <div class="track-label video-track">🎬 畫面軌 (Video)</div>
+                                <div class="track-slots-container" id="track-video-slots"></div>
+                            </div>
+
+                            <!-- Track 2: Audio/Music -->
+                            <div class="timeline-track-row">
+                                <div class="track-label audio-track">🎵 音訊軌 (Audio)</div>
+                                <div class="track-slots-container" id="track-audio-slots"></div>
+                            </div>
+
+                            <!-- Track 3: Subtitles -->
+                            <div class="timeline-track-row">
+                                <div class="track-label subtitle-track">💬 字幕軌 (Subtitle)</div>
+                                <div class="track-slots-container" id="track-subtitle-slots"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    </div>
+
+    <!-- TAB C: 故事劇情線與素材地圖 (Story Map Panel) -->
+    <div id="view-storymap" class="tab-view">
+        <section class="storyline-section" aria-labelledby="storyline-title" style="margin: 20px;">
+            <div class="section-title-row">
+                <h2 id="storyline-title" class="section-title">📂 故事劇情線與素材地圖 (Story Map)</h2>
+                <p class="section-desc">展示故事段落流程關係與素材關聯。點擊段落定位至時間軸對應點。</p>
+            </div>
+            <div class="storyline-graph-outer" style="min-height: 250px; display: flex; align-items: center; justify-content: center;">
+                <div class="storyline-track" id="storyline-nodes-container">
+                    <p class="placeholder-text">正在加載故事地圖...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 故事段落規格與素材對照 -->
+        <div class="card" style="margin: 0 20px 20px 20px;">
+            <h3 class="card-title">故事段落規格與素材對照 (Storyboard Spec)</h3>
+            <div class="alignment-detail-panel" id="alignment-detail-card-storymap">
+                <p class="placeholder-text">請點擊上方「故事地圖」片段以查看段落契約詳情。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB B: 管線工作與驗收 (Pipeline Workflow & Node Console) -->
+    <div id="view-pipeline" class="tab-view">
+        
+        <!-- 全域錯誤與警告 Banner -->
+        <section class="findings-box" id="findings-section" style="display: none; margin: 20px;">
+            <strong>⚠️ 全域管線錯誤與警告 (Pipeline Issues)</strong>
+            <div class="finding-bullet" id="findings-list">
+                <!-- 錯誤清單 -->
+            </div>
+        </section>
+
+        <!-- 下一步動作 Banner -->
+        <section class="next-action-card" id="next-action-container" style="margin: 20px;">
+            <div class="next-action-title-row">
+                <span class="next-action-badge">NEXT ACTION</span>
+                <span class="next-action-text" id="next-action-val">正在分析管線決策...</span>
+            </div>
+            <div class="command-box" id="next-action-cmd-box" style="display: none;">
+                <div class="command-box-header">
+                    <span>執行指令 (CLI Command):</span>
+                    <button class="copy-btn" id="btn-copy-cmd">複製指令</button>
+                </div>
+                <pre><code id="next-action-cmd">python video_pipeline.py --help</code></pre>
+            </div>
+        </section>
+
+        <main class="pipeline-grid" style="display: grid; grid-template-columns: 350px 1fr; gap: 20px; padding: 0 20px 20px 20px;">
+            <!-- 執行節點 checklist -->
+            <div class="rail-column card">
+                <h3 class="column-title">⚙️ 影片管線執行節點 (Node Checklist)</h3>
+                <div class="node-rail" id="nodes-checklist-rail">
+                    <p class="placeholder-text">正在讀取節點狀態...</p>
+                </div>
+            </div>
+
+            <!-- 節點詳細資料 -->
+            <div class="node-detail-column card" id="node-details-card" style="min-height: 450px;">
+                <h3 class="card-title">節點執行詳情 (Node Details)</h3>
+                <div class="node-detail-content" id="node-details-content" style="padding-top: 15px;">
+                    <p class="placeholder-text">請在左側點選任一管線節點以查看詳情與執行指令。</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+
+    <!-- 成品影片預覽彈窗 (Video Preview Modal) -->
+    <div id="video-preview-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="width: min(90%, 800px); max-width: 800px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
+                <h3 class="modal-title" style="margin: 0; border: none; font-size: 16px;">📺 成品影片預覽與審驗</h3>
+                <button class="modal-close-btn" id="btn-close-video-modal" style="background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary);">&times;</button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="video-aspect-container" style="background: #000; border-radius: 8px; overflow: hidden; width: 100%; aspect-ratio: 16/9; max-height: 400px; display: flex; justify-content: center; align-items: center;">
+                    <!-- Modal video element -->
+                    <video id="modal-video-player" controls preload="metadata" style="width: 100%; height: 100%; object-fit: contain;">
+                        <source src="/static/final.mp4" type="video/mp4">
+                        您的瀏覽器不支援 HTML5 影片。
+                    </video>
+                </div>
+                <div class="modal-desc" style="font-size: 12px; color: var(--text-secondary);">
+                    🎬 本視窗直接載入管線最終產出的實體影片 (<span class="val-mono">final.mp4</span>)。如需修改，請回到剪輯工作區調整素材與時長。
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <button class="modal-btn" id="btn-close-video-modal-bottom">關閉預覽</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈出式置換素材對話盒 (手動輸入時使用) -->
+    <div id="swap-asset-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3 class="modal-title">置換影片片段素材</h3>
+            <div class="modal-body">
+                <p>正在編輯段落: <strong id="modal-seg-name">Seg 1</strong></p>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label class="control-label" style="color: #4b5563;">輸入新的本機素材路徑 (.mp4, .png, .jpg):</label>
+                    <input type="text" id="swap-asset-input" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 5px; font-family: 'JetBrains Mono', monospace;" placeholder="C:\path\to\your\asset.mp4">
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="modal-btn cancel" id="btn-modal-cancel">取消</button>
+                <button class="modal-btn confirm" id="btn-modal-confirm">確認置換</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <p>Hermes 影片審驗與管線控制台 V2 • 多軌素材置換剪輯與稽核套件</p>
+    </footer>
+
+    <script src="/dashboard_v1.js"></script>
+</body>
+</html>
