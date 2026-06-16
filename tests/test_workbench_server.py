@@ -191,6 +191,78 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertFalse((self.root / "workbench_contract_patch.json").exists())
         self.assertFalse((self.root / "patched_draft_timeline.json").exists())
 
+    # ------------------------------------------------------------------ #
+    # NPE4 editorial runtime tracks (save-all + boundaries)
+    # ------------------------------------------------------------------ #
+    def _post(self, path, payload):
+        req = urllib.request.Request(
+            self.url(path), data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        return req
+
+    def _hash(self, name):
+        import hashlib
+        p = self.root / name
+        return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
+
+    def _valid_save_all(self):
+        return {
+            "timeline_patch": {"artifact_role": "timeline_patch", "version": 1,
+                               "base_timeline_ref": "timeline.json", "diagnostics": [],
+                               "patches": [{"op": "set_duration", "slot_index": 0, "after": {"duration_sec": 3.0}}]},
+            "audio_cue_patch": {"artifact_role": "audio_cue_patch", "version": 1, "diagnostics": [],
+                                "patches": [{"op": "add_cue", "cue_id": "c1",
+                                             "after": {"time_sec": 1.0, "cue_type": "impact", "strength": 3}}]},
+            "effect_patch": {"artifact_role": "effect_patch", "version": 1, "diagnostics": [],
+                             "patches": [{"op": "add_effect", "effect_id": "e1", "after": {
+                                 "preset": "flash", "target_slot_index": 0,
+                                 "start_sec": 0.0, "duration_sec": 0.5, "intensity": 3}}]},
+        }
+
+    def test_M_save_all_writes_only_allowed_artifacts(self):
+        result = json.loads(urllib.request.urlopen(
+            self._post("/api/workbench/save-all", self._valid_save_all())).read().decode("utf-8"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["written"]), {
+            "timeline_patch.json", "patched_draft_timeline.json",
+            "audio_cue_patch.json", "effect_patch.json", "workbench_handoff.json"})
+        self.assertEqual(result["summary"]["audio_cues"], 1)
+        self.assertEqual(result["summary"]["effect_intents"], 1)
+
+    def test_N_save_all_invalid_layer_writes_nothing(self):
+        payload = self._valid_save_all()
+        payload["effect_patch"]["patches"][0]["after"]["preset"] = "not_a_preset"  # invalid
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(self._post("/api/workbench/save-all", payload))
+        self.assertEqual(cm.exception.code, 422)
+        for n in ("timeline_patch.json", "patched_draft_timeline.json",
+                  "audio_cue_patch.json", "effect_patch.json", "workbench_handoff.json"):
+            self.assertFalse((self.root / n).exists(), n)
+
+    def test_P_canonical_unchanged_by_hash_after_save_all(self):
+        before = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}
+        urllib.request.urlopen(self._post("/api/workbench/save-all", self._valid_save_all()))
+        after = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}
+        self.assertEqual(before, after)
+
+    def test_Q_static_path_traversal_blocked(self):
+        # the /workbench/<rel> static route must reject traversal
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(self.url("/workbench/..%2Ftimeline.json"))
+        self.assertIn(cm.exception.code, (403, 404))
+
+    def test_subtitle_endpoint_requires_srt_and_writes_only_patch(self):
+        (self.root / "review_subtitles.srt").write_text(
+            "1\n00:00:00,000 --> 00:00:02,000\nHi\n", encoding="utf-8")
+        before_srt = (self.root / "review_subtitles.srt").read_text(encoding="utf-8")
+        patch = {"artifact_role": "subtitle_patch", "version": 1, "diagnostics": [],
+                 "patches": [{"op": "set_subtitle_text", "subtitle_id": "sub-1", "after": {"text": "Yo"}}]}
+        result = json.loads(urllib.request.urlopen(
+            self._post("/api/workbench/subtitle-patch", {"patch": patch})).read().decode("utf-8"))
+        self.assertEqual(result["written"], ["subtitle_patch.json"])
+        # original srt untouched
+        self.assertEqual((self.root / "review_subtitles.srt").read_text(encoding="utf-8"), before_srt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,16 @@
     playing: false,
     selectedSlot: null,
     dirty: false,
+    rawSubs: [],     // baseline subtitles for diffing
+    cues: [],        // audio cue markers (NPE4)
+    effects: [],     // effect intent markers (NPE4)
+    trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
+    seq: 0,
   };
+
+  var PRESETS = ["title_reveal", "zoom_punch", "flash", "speed_ramp_hint",
+                 "freeze_frame_hint", "shake_light", "caption_emphasis"];
+  var CUE_TYPES = ["hit", "whoosh", "riser", "impact", "bell", "transition", "title_pop"];
 
   var els = {};
   var rafId = null;
@@ -38,6 +47,11 @@
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
       "btn-download-patch", "btn-save-patch", "btn-sync-contract", "btn-export",
+      "btn-save-all", "btn-add-cue", "btn-add-fx", "track-inspector",
+      "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
+      "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
+      "tf-start", "tf-duration", "tf-time", "tf-strength",
+      "btn-apply-track", "btn-delete-track",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -59,6 +73,10 @@
           effects: data.effects || [],
           duration_sec: Core.totalDuration(baseline.clips),
         };
+        state.rawSubs = (data.subtitles || []).map(function (s) { return Object.assign({}, s); });
+        state.cues = [];
+        state.effects = [];
+        state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
         renderAll();
@@ -104,33 +122,51 @@
     (state.work.subtitles || []).forEach(function (s) {
       var b = document.createElement("div");
       b.className = "clip-block clip-subtitle";
+      if (state.trackSel && state.trackSel.type === "subtitle" && state.trackSel.id === s.id) b.className += " selected";
       b.style.left = (s.start_sec * scale) + "px";
       b.style.width = Math.max(6, s.duration_sec * scale - 2) + "px";
       b.textContent = s.text;
       b.title = s.text;
+      b.onclick = function () { selectSubtitle(s.id); };
       sub.appendChild(b);
     });
 
+    // audio lane = user cue markers (NPE4); music marker shown faintly behind
     var audio = els.lane_audio;
     audio.innerHTML = "";
     (state.work.audio || []).forEach(function (a) {
-      var b = document.createElement("div");
-      b.className = "clip-block clip-audio";
-      b.style.left = "0px";
-      b.style.width = (Math.max(0.5, a.duration_sec) * scale - 2) + "px";
-      b.textContent = "♪ " + a.label + " (marker)";
-      audio.appendChild(b);
+      var bg = document.createElement("div");
+      bg.className = "clip-block clip-audio";
+      bg.style.left = "0px";
+      bg.style.opacity = "0.25";
+      bg.style.width = (Math.max(0.5, a.duration_sec) * scale - 2) + "px";
+      bg.textContent = "♪ " + a.label;
+      audio.appendChild(bg);
+    });
+    state.cues.forEach(function (c) {
+      var m = document.createElement("div");
+      m.className = "cue-marker";
+      if (state.trackSel && state.trackSel.type === "cue" && state.trackSel.id === c.cue_id) m.className += " selected";
+      m.style.left = (c.time_sec * scale) + "px";
+      m.textContent = c.cue_type.slice(0, 2);
+      m.title = c.cue_type + " @" + c.time_sec.toFixed(2) + "s ×" + c.strength;
+      m.onclick = function () { selectCue(c.cue_id); };
+      audio.appendChild(m);
     });
 
+    // effect lane = user effect intent markers (NPE4)
     var fx = els.lane_effect;
     fx.innerHTML = "";
-    (state.work.effects || []).forEach(function (e) {
-      var b = document.createElement("div");
-      b.className = "clip-block clip-effect";
-      b.style.left = (e.start_sec * scale) + "px";
-      b.style.width = Math.max(6, e.duration_sec * scale - 2) + "px";
-      b.textContent = "✦ " + e.label;
-      fx.appendChild(b);
+    state.effects.forEach(function (e) {
+      var m = document.createElement("div");
+      m.className = "fx-marker";
+      if (state.trackSel && state.trackSel.type === "effect" && state.trackSel.id === e.effect_id) m.className += " selected";
+      m.style.left = (e.start_sec * scale) + "px";
+      m.style.width = Math.max(10, e.duration_sec * scale) + "px";
+      m.textContent = "✦";
+      m.title = e.preset + " on #" + e.target_slot_index + " @" + e.start_sec.toFixed(2) + "s ×" + e.intensity;
+      m.onclick = function () { selectEffect(e.effect_id); };
+      fx.appendChild(m);
     });
 
     els.scrubber.max = String(state.work.duration_sec || 0);
@@ -244,6 +280,147 @@
   function seekTo(t) {
     state.currentTime = Math.max(0, Math.min(state.work.duration_sec || 0, t));
     renderMonitor();
+  }
+
+  // -- track editing (subtitle / cue / effect) -------------------------- //
+  function showTrackFields(fields) {
+    ["text", "preset", "cuetype", "start", "duration", "time", "strength"].forEach(function (f) {
+      els["tf_" + f].style.display = fields.indexOf(f) >= 0 ? "" : "none";
+    });
+    els.track_inspector.hidden = false;
+  }
+
+  function selectSubtitle(id) {
+    state.trackSel = { type: "subtitle", id: id };
+    var s = state.work.subtitles.find(function (x) { return x.id === id; });
+    if (!s) return;
+    els.track_insp_title.textContent = "Subtitle " + id;
+    els.t_text.value = s.text;
+    els.t_start.value = s.start_sec;
+    els.t_duration.value = s.duration_sec;
+    els.btn_delete_track.style.display = "none";
+    showTrackFields(["text", "start", "duration"]);
+    seekTo(s.start_sec + 0.001);
+    renderTimelineLanes();
+  }
+
+  function selectCue(id) {
+    state.trackSel = { type: "cue", id: id };
+    var c = state.cues.find(function (x) { return x.cue_id === id; });
+    if (!c) return;
+    els.track_insp_title.textContent = "Audio cue " + id;
+    els.t_cuetype.value = c.cue_type;
+    els.t_time.value = c.time_sec;
+    els.t_strength.value = c.strength;
+    els.btn_delete_track.style.display = "";
+    showTrackFields(["cuetype", "time", "strength"]);
+    seekTo(c.time_sec);
+    renderTimelineLanes();
+  }
+
+  function selectEffect(id) {
+    state.trackSel = { type: "effect", id: id };
+    var e = state.effects.find(function (x) { return x.effect_id === id; });
+    if (!e) return;
+    els.track_insp_title.textContent = "Effect " + id + " (intent)";
+    els.t_preset.value = e.preset;
+    els.t_start.value = e.start_sec;
+    els.t_duration.value = e.duration_sec;
+    els.t_strength.value = e.intensity;
+    els.btn_delete_track.style.display = "";
+    showTrackFields(["preset", "start", "duration", "strength"]);
+    seekTo(e.start_sec + 0.001);
+    renderTimelineLanes();
+  }
+
+  function addCue() {
+    var active = Core.getActiveClip(state.work.clips, state.currentTime);
+    var id = "cue-" + (++state.seq);
+    state.cues.push({
+      cue_id: id, time_sec: Core.round6(state.currentTime), cue_type: "impact",
+      strength: 3, anchor_clip_slot_index: active ? active.slot_index : null,
+    });
+    state.dirty = true; updateDirty();
+    selectCue(id);
+  }
+
+  function addFx() {
+    if (state.selectedSlot == null) {
+      els.diagnostics.textContent = "Select a clip first, then add an effect on it.";
+      return;
+    }
+    var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
+    if (!clip) return;
+    var id = "fx-" + (++state.seq);
+    state.effects.push({
+      effect_id: id, preset: "zoom_punch", target_slot_index: clip.slot_index,
+      start_sec: Core.round6(clip.timeline_start_sec),
+      duration_sec: Core.round6(Math.min(0.6, clip.duration_sec)), intensity: 3,
+    });
+    state.dirty = true; updateDirty();
+    selectEffect(id);
+  }
+
+  function applyTrack() {
+    if (!state.trackSel) return;
+    var t = state.trackSel;
+    if (t.type === "subtitle") {
+      state.work.subtitles = Core.applySubtitleLocalPatch(state.work.subtitles, {
+        id: t.id, text: els.t_text.value,
+        start_sec: parseFloat(els.t_start.value), duration_sec: parseFloat(els.t_duration.value),
+      });
+    } else if (t.type === "cue") {
+      var c = state.cues.find(function (x) { return x.cue_id === t.id; });
+      if (c) { c.cue_type = els.t_cuetype.value; c.time_sec = Core.round6(parseFloat(els.t_time.value)); c.strength = parseInt(els.t_strength.value, 10); }
+    } else if (t.type === "effect") {
+      var e = state.effects.find(function (x) { return x.effect_id === t.id; });
+      if (e) { e.preset = els.t_preset.value; e.start_sec = Core.round6(parseFloat(els.t_start.value)); e.duration_sec = Core.round6(parseFloat(els.t_duration.value)); e.intensity = parseInt(els.t_strength.value, 10); }
+    }
+    state.dirty = true; updateDirty();
+    renderTimelineLanes();
+    renderMonitor();
+  }
+
+  function deleteTrack() {
+    if (!state.trackSel) return;
+    var t = state.trackSel;
+    if (t.type === "cue") state.cues = state.cues.filter(function (x) { return x.cue_id !== t.id; });
+    else if (t.type === "effect") state.effects = state.effects.filter(function (x) { return x.effect_id !== t.id; });
+    else return; // subtitles are not deletable from the workbench
+    state.trackSel = null;
+    els.track_inspector.hidden = true;
+    state.dirty = true; updateDirty();
+    renderTimelineLanes();
+  }
+
+  function saveAll() {
+    var payload = Core.buildSavePayload({
+      timelineBefore: state.raw.clips, timelineAfter: state.work.clips,
+      subsBefore: state.rawSubs, subsAfter: state.work.subtitles,
+      cues: state.cues, effects: state.effects,
+      base_timeline_ref: (state.raw && state.raw.source_artifact) || "timeline.json",
+    });
+    if (!Object.keys(payload).length) {
+      els.diagnostics.textContent = "Nothing to save across tracks.";
+      return;
+    }
+    els.diagnostics.textContent = "Saving all tracks…";
+    fetch("/api/workbench/save-all", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.ok) {
+          var s = res.j.summary || {};
+          els.diagnostics.textContent = "Saved all → " + (res.j.written || []).join(", ") +
+            " [timeline " + (s.timeline_edits || 0) + ", subs " + (s.subtitle_edits || 0) +
+            ", cues " + (s.audio_cues || 0) + ", fx " + (s.effect_intents || 0) + "]";
+          state.dirty = false; updateDirty();
+        } else {
+          els.diagnostics.textContent = "Save-all refused (nothing written): " + JSON.stringify(res.j.errors || res.j);
+        }
+      })
+      .catch(function (err) { els.diagnostics.textContent = "Save-all failed: " + err; });
   }
 
   // -- inspector / edits ------------------------------------------------ //
@@ -423,6 +600,13 @@
     els.btn_save_patch.onclick = savePatch;
     els.btn_sync_contract.onclick = syncContract;
     els.btn_export.onclick = exportFfmpeg;
+    els.btn_save_all.onclick = saveAll;
+    els.btn_add_cue.onclick = addCue;
+    els.btn_add_fx.onclick = addFx;
+    els.btn_apply_track.onclick = applyTrack;
+    els.btn_delete_track.onclick = deleteTrack;
+    PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
+    CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
   }
 

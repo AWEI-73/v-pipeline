@@ -201,6 +201,54 @@ body {
 .clip-block.status-render_failed { background: var(--bad); }
 .clip-block.status-gap { background: #444; }
 
+.track-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 16px 0;
+}
+.track-tools button {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.track-tools button:hover { border-color: var(--accent); }
+.track-hint { color: var(--muted); font-size: 11px; }
+
+.cue-marker, .fx-marker {
+  position: absolute;
+  top: 2px;
+  height: 26px;
+  width: 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.25);
+  font-size: 9px;
+  color: #fff;
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.cue-marker { background: var(--audio-block); }
+.fx-marker { background: var(--effect-block); }
+.cue-marker.selected, .fx-marker.selected { outline: 2px solid var(--accent); z-index: 3; }
+
+#track-inspector { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+#track-inspector h2 { margin: 0 0 10px; font-size: 14px; }
+#track-inspector select {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px;
+  border-radius: 4px;
+}
+#btn-apply-track { background: var(--accent); border-color: var(--accent); color: #fff; }
+#btn-save-all { background: var(--effect-block); border-color: var(--effect-block); color: #fff; }
+
 .playhead {
   position: absolute;
   top: 8px;

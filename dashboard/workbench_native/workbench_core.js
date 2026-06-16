@@ -218,6 +218,91 @@
     };
   }
 
+  // ---- Editorial runtime tracks (NPE4) ------------------------------- //
+
+  /** Apply a local subtitle edit ({id, text?, start_sec?, duration_sec?}). */
+  function applySubtitleLocalPatch(subs, edit) {
+    return (subs || []).map(function (s) {
+      if (s.id !== edit.id) return s;
+      var next = Object.assign({}, s);
+      if (edit.text != null) next.text = edit.text;
+      if (edit.start_sec != null) next.start_sec = round6(Math.max(0, Number(edit.start_sec)));
+      if (edit.duration_sec != null && Number(edit.duration_sec) > 0) {
+        next.duration_sec = round6(Number(edit.duration_sec));
+      }
+      return next;
+    });
+  }
+
+  /** Diff two subtitle lists into subtitle_patch ops. */
+  function buildSubtitlePatch(before, after, opts) {
+    opts = opts || {};
+    var byId = {};
+    (before || []).forEach(function (s) { byId[s.id] = s; });
+    var patches = [];
+    (after || []).forEach(function (s) {
+      var b = byId[s.id];
+      if (!b) return;
+      if (b.text !== s.text) {
+        patches.push({ op: "set_subtitle_text", subtitle_id: s.id, after: { text: s.text } });
+      }
+      if (round6(b.start_sec) !== round6(s.start_sec) || round6(b.duration_sec) !== round6(s.duration_sec)) {
+        patches.push({
+          op: "set_subtitle_timing", subtitle_id: s.id,
+          after: { start_sec: round6(s.start_sec), duration_sec: round6(s.duration_sec) },
+        });
+      }
+    });
+    return {
+      artifact_role: "subtitle_patch", version: 1,
+      base_subtitle_ref: opts.base_subtitle_ref || "review_subtitles.srt",
+      patches: patches, diagnostics: [],
+    };
+  }
+
+  /** Marker left-ratio [0,1] for rendering a cue/effect onto a track lane. */
+  function computeTrackMarkers(items, total, key) {
+    var t = Number(total) || 1;
+    return (items || []).map(function (it) {
+      var pos = Number(it[key]) || 0;
+      return Object.assign({}, it, { left_ratio: Math.max(0, Math.min(1, pos / t)) });
+    });
+  }
+
+  /** Deterministic save payload for /api/workbench/save-all. */
+  function buildSavePayload(input) {
+    input = input || {};
+    var timeline = buildTimelinePatch(
+      { clips: input.timelineBefore || [] }, { clips: input.timelineAfter || [] },
+      { base_timeline_ref: input.base_timeline_ref });
+    var subtitle = buildSubtitlePatch(input.subsBefore || [], input.subsAfter || [],
+      { base_subtitle_ref: input.base_subtitle_ref });
+    var cues = (input.cues || []).map(function (c) {
+      return {
+        op: "add_cue", cue_id: c.cue_id,
+        after: {
+          time_sec: round6(c.time_sec), cue_type: c.cue_type,
+          strength: c.strength, anchor_clip_slot_index: c.anchor_clip_slot_index == null ? null : c.anchor_clip_slot_index,
+        },
+      };
+    });
+    var effects = (input.effects || []).map(function (e) {
+      return {
+        op: "add_effect", effect_id: e.effect_id,
+        after: {
+          preset: e.preset, target_slot_index: e.target_slot_index,
+          start_sec: round6(e.start_sec), duration_sec: round6(e.duration_sec), intensity: e.intensity,
+        },
+      };
+    });
+    var payload = {};
+    if (timeline.patches.length) payload.timeline_patch = timeline;
+    if (subtitle.patches.length) payload.subtitle_patch = subtitle;
+    if (cues.length) payload.audio_cue_patch = { artifact_role: "audio_cue_patch", version: 1, patches: cues, diagnostics: [] };
+    if (effects.length) payload.effect_patch = { artifact_role: "effect_patch", version: 1, patches: effects, diagnostics: [] };
+    return payload;
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -246,5 +331,9 @@
     applyLocalPatch: applyLocalPatch,
     buildTimelinePatch: buildTimelinePatch,
     validatePreviewState: validatePreviewState,
+    applySubtitleLocalPatch: applySubtitleLocalPatch,
+    buildSubtitlePatch: buildSubtitlePatch,
+    computeTrackMarkers: computeTrackMarkers,
+    buildSavePayload: buildSavePayload,
   };
 });

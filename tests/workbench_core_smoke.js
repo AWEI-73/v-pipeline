@@ -112,4 +112,52 @@ check("getActiveSubtitle resolves overlay by time", function () {
   assert.strictEqual(Core.getActiveSubtitle(subs, 9), null);
 });
 
+check("applySubtitleLocalPatch updates a subtitle in state", function () {
+  const subs = [
+    { id: "sub-1", text: "A", start_sec: 0, duration_sec: 3 },
+    { id: "sub-2", text: "B", start_sec: 3, duration_sec: 2 },
+  ];
+  const next = Core.applySubtitleLocalPatch(subs, { id: "sub-2", text: "B!", start_sec: 3.5 });
+  assert.strictEqual(next[1].text, "B!");
+  assert.strictEqual(next[1].start_sec, 3.5);
+  assert.strictEqual(subs[1].text, "B"); // original untouched
+});
+
+check("buildSubtitlePatch emits text + timing ops", function () {
+  const before = [{ id: "sub-1", text: "A", start_sec: 0, duration_sec: 3 }];
+  const after = [{ id: "sub-1", text: "A2", start_sec: 0.5, duration_sec: 3 }];
+  const patch = Core.buildSubtitlePatch(before, after);
+  assert.strictEqual(patch.artifact_role, "subtitle_patch");
+  const ops = patch.patches.map(function (p) { return p.op; });
+  assert.ok(ops.indexOf("set_subtitle_text") >= 0);
+  assert.ok(ops.indexOf("set_subtitle_timing") >= 0);
+});
+
+check("computeTrackMarkers maps cues/effects to left ratios", function () {
+  const cues = [{ cue_id: "c1", time_sec: 0 }, { cue_id: "c2", time_sec: 3 }];
+  const marks = Core.computeTrackMarkers(cues, 6, "time_sec");
+  assert.strictEqual(marks[0].left_ratio, 0);
+  assert.strictEqual(marks[1].left_ratio, 0.5);
+  const fx = Core.computeTrackMarkers([{ effect_id: "e1", start_sec: 6 }], 6, "start_sec");
+  assert.strictEqual(fx[0].left_ratio, 1); // clamped
+});
+
+check("buildSavePayload is deterministic and layer-selective", function () {
+  const tl = Core.computeTimeline(clips);
+  const after = Core.applyLocalPatch({ clips: tl }, { op: "set_duration", slot_index: 0, after: { duration_sec: 4.0 } });
+  const input = {
+    timelineBefore: tl, timelineAfter: after.clips,
+    subsBefore: [{ id: "sub-1", text: "A", start_sec: 0, duration_sec: 3 }],
+    subsAfter: [{ id: "sub-1", text: "A2", start_sec: 0, duration_sec: 3 }],
+    cues: [{ cue_id: "c1", time_sec: 1, cue_type: "impact", strength: 3 }],
+    effects: [{ effect_id: "e1", preset: "flash", target_slot_index: 0, start_sec: 0, duration_sec: 0.5, intensity: 3 }],
+  };
+  const a = Core.buildSavePayload(input);
+  const b = Core.buildSavePayload(input);
+  assert.deepStrictEqual(a, b); // deterministic
+  assert.ok(a.timeline_patch && a.subtitle_patch && a.audio_cue_patch && a.effect_patch);
+  assert.strictEqual(a.audio_cue_patch.patches[0].op, "add_cue");
+  assert.strictEqual(a.effect_patch.patches[0].after.preset, "flash");
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");

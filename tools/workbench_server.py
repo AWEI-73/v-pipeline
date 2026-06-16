@@ -29,11 +29,19 @@ try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import timeline_patch as tp
     from tools import workbench_export as wx
     from tools import workbench_patch_to_contract as wc
+    from tools import subtitle_patch as sp
+    from tools import audio_cue_patch as ap
+    from tools import effect_patch as ep
+    from tools import workbench_handoff as wh
 except ImportError:  # pragma: no cover - direct-script fallback
     import preview_timeline as pt
     import timeline_patch as tp
     import workbench_export as wx
     import workbench_patch_to_contract as wc
+    import subtitle_patch as sp
+    import audio_cue_patch as ap
+    import effect_patch as ep
+    import workbench_handoff as wh
 
 WORKBENCH_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "workbench_native"
 
@@ -43,6 +51,10 @@ WRITABLE_OUTPUTS = {
     "timeline_patch.json",
     "patched_draft_timeline.json",
     "workbench_contract_patch.json",
+    "subtitle_patch.json",
+    "audio_cue_patch.json",
+    "effect_patch.json",
+    "workbench_handoff.json",
 }
 
 STATIC_MIME = {
@@ -205,6 +217,14 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
 
         self._send_error(404, "Not found")
 
+    def _read_body(self) -> Any:
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            return json.loads(raw.decode("utf-8")) if raw.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            return None
+
     def do_POST(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/workbench/export":
@@ -212,6 +232,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/workbench/sync-contract":
             self._handle_sync_contract()
+            return
+        if parsed.path == "/api/workbench/subtitle-patch":
+            self._handle_track_patch("subtitle_patch.json", sp.validate_subtitle_patch)
+            return
+        if parsed.path == "/api/workbench/audio-cue-patch":
+            self._handle_track_patch("audio_cue_patch.json", ap.validate_audio_cue_patch)
+            return
+        if parsed.path == "/api/workbench/effect-patch":
+            self._handle_track_patch("effect_patch.json", ep.validate_effect_patch)
+            return
+        if parsed.path == "/api/workbench/save-all":
+            self._handle_save_all()
             return
         if parsed.path != "/api/workbench/patch":
             self._send_error(404, "Not found")
@@ -324,7 +356,86 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             "diagnostics": result["diagnostics"],
         })
 
+    def _handle_track_patch(self, out_name: str, validator) -> None:
+        """Validate a single track patch and write only its whitelisted artifact."""
+        body = self._read_body()
+        if body is None:
+            self._send_error(400, "invalid JSON")
+            return
+        patch = body.get("patch") if isinstance(body, dict) and "patch" in body else body
+        ok, errors, diagnostics = validator(str(self.artifact_root), patch)
+        if not ok:
+            self._send_json(422, {"ok": False, "errors": errors, "diagnostics": diagnostics})
+            return
+        written: List[str] = []
+        self._write_artifact(out_name, patch, written)
+        self._send_json(200, {"ok": True, "written": written, "diagnostics": diagnostics})
+
+    # validators for save-all, keyed by handoff/patch name
+    _SAVE_ALL_LAYERS = (
+        ("timeline_patch", "timeline_patch.json"),
+        ("subtitle_patch", "subtitle_patch.json"),
+        ("audio_cue_patch", "audio_cue_patch.json"),
+        ("effect_patch", "effect_patch.json"),
+    )
+
+    def _validate_layer(self, key: str, patch: Any):
+        if key == "timeline_patch":
+            ok, errors = tp.validate_patch(str(self.artifact_root), patch)
+            return ok, errors
+        if key == "subtitle_patch":
+            ok, errors, _ = sp.validate_subtitle_patch(str(self.artifact_root), patch)
+            return ok, errors
+        if key == "audio_cue_patch":
+            ok, errors, _ = ap.validate_audio_cue_patch(str(self.artifact_root), patch)
+            return ok, errors
+        if key == "effect_patch":
+            ok, errors, _ = ep.validate_effect_patch(str(self.artifact_root), patch)
+            return ok, errors
+        return False, [f"unknown layer {key}"]
+
+    def _handle_save_all(self) -> None:
+        """Atomic multi-track save. If any provided layer is invalid, write NOTHING.
+
+        Then build workbench_handoff.json indexing the written draft artifacts.
+        """
+        body = self._read_body()
+        if not isinstance(body, dict):
+            self._send_error(400, "invalid JSON")
+            return
+
+        provided = {k: body[k] for k, _ in self._SAVE_ALL_LAYERS if k in body and body[k]}
+        if not provided:
+            self._send_json(422, {"ok": False, "errors": ["no patches provided"]})
+            return
+
+        # validate-all first (atomic policy: nothing written unless all valid)
+        all_errors: Dict[str, Any] = {}
+        for key, patch in provided.items():
+            ok, errors = self._validate_layer(key, patch)
+            if not ok:
+                all_errors[key] = errors
+        if all_errors:
+            self._send_json(422, {"ok": False, "errors": all_errors})
+            return
+
+        written: List[str] = []
+        for key, name in self._SAVE_ALL_LAYERS:
+            if key not in provided:
+                continue
+            self._write_artifact(name, provided[key], written)
+            if key == "timeline_patch":
+                applied = tp.apply_patch(str(self.artifact_root), provided[key])
+                self._write_artifact("patched_draft_timeline.json", applied, written)
+
+        handoff = wh.build_handoff(str(self.artifact_root))
+        self._write_artifact("workbench_handoff.json", handoff, written)
+        self._send_json(200, {"ok": True, "written": written, "summary": handoff["summary"]})
+
     def _write_artifact(self, name: str, payload: Any, written: List[str]) -> None:
+        # defence-in-depth: only fixed whitelisted basenames, never a path
+        if name != os.path.basename(name) or "/" in name or "\\" in name:
+            raise RuntimeError(f"refusing to write a path, not a basename: {name!r}")
         if name not in WRITABLE_OUTPUTS:
             raise RuntimeError(f"refusing to write non-whitelisted artifact: {name}")
         out = self.artifact_root / name
