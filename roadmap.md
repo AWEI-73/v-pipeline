@@ -215,6 +215,31 @@ schema, no M6 gate / delivery / material-map-contract change, no Node 14 / effec
 / Dashboard / Audio Graph, no 67th footage. Focused harness tests **27**; full
 regression **1267 tests OK**.
 
+**67th real-footage SRP sanity replay COMPLETE** (2026-06-16): `tools/srp_real67_sanity.py`
+formalizes the ad hoc 67th probe. It first rebuilds the M6e fixture from
+`M6E_FOOTAGE` / `--footage-root`, then uses the M6e **covered subset** artifacts
+(`.tmp/m6e/out_C/generated_mv_script.json` + `project_material_map.json`) to run
+the same real `.MOV` sources twice: **baseline** (VD2/SRP1/SRP2/SRP3 disabled,
+map-ranked retrieval still enabled) and **enhanced** (all enabled). Outputs are
+gitignored under `.tmp/srp_real67/`: `baseline/final.mp4`,
+`enhanced/final.mp4`, both `timeline.json`, and
+`comparison_report.{json,md}`. Real run evidence on the 67th covered subset:
+baseline render **6.967s**, enhanced render **10.5s**, timelines differ,
+enhanced auto opening **planned** with 2 opening clips, enhanced story arc
+**planned/applied**, slot render checks pass for **3/3 baseline** and **5/5
+enhanced** slots. Honest boundary: this is only the M6e 3 accepted-scene covered
+subset, not the full 304-file ingest and not an aesthetic score. Because each
+covered segment has only one approved scene, SRP1 auto sequence has **0**
+eligible segments and SRP3 cannot prove climax > setup on this subset
+(setup/climax/resolution all 2.295s); those are reported as material-shape
+limits, not failures. The slot gate is adapted for real video: a low-variance
+near-white frame is allowed only when it strongly matches its own source frame,
+so legitimate bright source cards do not false-block while foreign color-card
+renders still fail. Focused tests **8** (35 with the existing SRP acceptance
+harness); full regression **1275 tests OK**. Formal replay passed with
+`python tools/srp_real67_sanity.py --footage-root <67th-material-dir>` (fresh M6e
+rebuild, no stale fixture).
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 

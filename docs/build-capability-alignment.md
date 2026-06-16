@@ -135,6 +135,19 @@ capability, and a VERIFY check creates nothing:
   (`disable_visual_diversity` / `disable_auto_sequence` / `disable_auto_opening` /
   `story_arc:false`) are minimal, backward-compatible controls (default = existing
   behavior); they add no new editing capability.
+- **67th real-footage SRP sanity replay confirms the SRP stack runs on true
+  footage, but only on the M6e covered subset.** `tools/srp_real67_sanity.py`
+  rebuilds the M6e real-footage fixture, then reuses
+  `.tmp/m6e/out_C/generated_mv_script.json` and `project_material_map.json` to
+  render baseline/enhanced cuts from real `.MOV` sources. Outputs land in
+  `.tmp/srp_real67/`. Current evidence: baseline `final.mp4` 6.967s, enhanced
+  `final.mp4` 10.5s, timelines differ, SRP2 auto opening planned (2 opening
+  clips), SRP3 planned/applied, and slot render checks pass for all slots
+  (3/3 baseline, 5/5 enhanced). Honest boundary: the covered subset has only
+  three accepted scenes, so SRP1 has 0 eligible multi-slot segments and SRP3 does
+  not demonstrate climax > setup on this material shape. This replay is a sanity
+  check for runtime integration and render correctness, not a full 304-file
+  ingest and not a quality/aesthetic verdict.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
