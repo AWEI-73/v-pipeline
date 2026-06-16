@@ -239,3 +239,24 @@ audits. It converts a workbench `timeline_patch` into a **draft** proposal.
 Do **not** cite the workbench as a BUILD capability: it produces drafts/patches
 only. Canonical render remains ffmpeg. See
 `docs/decisions/2026-06-16-native-preview-engine.md`.
+
+## NPE4 — Lightweight editorial runtime tracks (2026-06-17)
+
+Same side-car layer as NPE1–3: previews + edits, never renders, never writes
+canonical. Adds three more **intent/marker** draft contracts, all `declared_only`
+w.r.t. BUILD (they change no rendered output by themselves):
+
+- `subtitle_patch.json` (`subtitle_patch.py`) — subtitle text/timing draft; the
+  source SRT is never rewritten.
+- `audio_cue_patch.json` (`audio_cue_patch.py`) — sound-effect cue markers; a
+  marker layer, **not** a mixer / audio renderer.
+- `effect_patch.json` (`effect_patch.py`) — effect-intent presets. **Intent only**;
+  Node14 consumption is deferred and no effect is rendered. Do not cite it as a
+  BUILD effect capability.
+- `workbench_handoff.json` (`workbench_handoff.py`) — index + per-layer edit
+  counts for the Agent; `save-all` writes track patches atomically.
+
+Boundary unchanged: official delivery runs the Agent / FFmpeg / Node14 pipeline
+on the drafts; the Workbench never produces canonical output and does not
+guarantee pixel-perfect preview. See
+`docs/decisions/2026-06-16-native-preview-engine.md`.

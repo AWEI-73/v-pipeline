@@ -3213,3 +3213,34 @@ Remotion, not Node14/effects, not an Audio Graph, not a final render.
 Tests: `tests/test_workbench_contract_sync.py` (A–I) + sync cases in
 `tests/test_workbench_server.py`. Official delivery still runs through the
 Agent / ffmpeg pipeline consuming the draft/patch, then build.
+
+### 2026-06-17 NPE4 Lightweight Editorial Runtime Tracks — COMPLETE
+
+The Workbench grows from single-video-timeline tuning into a **lightweight
+editorial runtime**: it previews and edits four track layers and writes each as
+an Agent-readable draft patch. It is **not** a final renderer, **not** Remotion,
+does **not** guarantee pixel-perfect preview, and never writes canonical
+artifacts. Official output remains the Agent / FFmpeg / Node14 pipeline.
+
+- **Layer 1 Subtitle** (`subtitle_patch.py`): edit text / start / duration over the
+  parsed SRT; `subtitle_patch.json`; SRT never rewritten; overlap = warning.
+- **Layer 2 Audio cue** (`audio_cue_patch.py`): add/move/delete cue markers
+  (enum cue_type, time ≤ duration+1s, strength 1–5, anchor slot checked);
+  `audio_cue_patch.json`. Marker layer, not a mixer.
+- **Layer 3 Effect intent** (`effect_patch.py`): add effect presets (enum) on a
+  clip with intensity 1–5; window must fit the target clip (fail-closed);
+  `effect_patch.json`. **Intent only — Node14 consumption deferred, no effect
+  rendered.**
+- **Layer 4 Unified save / handoff** (`workbench_handoff.py`): `save-all` writes
+  all provided track patches atomically (any invalid → nothing written) and emits
+  `workbench_handoff.json` indexing artifacts + per-layer edit counts +
+  `next_action: agent_review_and_render_preview`.
+- Server: `POST /api/workbench/{subtitle-patch,audio-cue-patch,effect-patch,save-all}`,
+  all write-limited; canonical (incl. `review_subtitles.srt`) hard-blocked.
+- Frontend: clickable subtitle track, cue/effect marker tracks, track inspector,
+  "Save all + handoff". Effect preview is a CSS/marker hint, not real ffmpeg.
+
+Tests: `tests/test_workbench_tracks.py` (A–L, O), `test_workbench_server` (M/N/P/Q
++ subtitle endpoint), JS smoke +4. Full regression green. Verified live on
+`.tmp/srp_real67_fuller_replay`. Deferred: Node14 effect consumption, real audio
+mixing, replace_clip / material swap, drag-drop NLE.

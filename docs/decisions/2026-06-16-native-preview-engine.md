@@ -133,6 +133,30 @@ as CLI and `POST /api/workbench/sync-contract` (writes only the two draft
 artifacts). Official delivery still runs the Agent / ffmpeg pipeline on the
 draft/patch, then builds.
 
+## Lightweight editorial runtime tracks (NPE4)
+
+The Workbench is now a **lightweight editorial runtime**, not just single-timeline
+tuning. It previews and edits four track layers, each saved as an Agent-readable
+draft patch — and it is explicitly **not** a final renderer, **not** Remotion, and
+makes **no** pixel-perfect guarantee:
+
+- **Subtitle** (`subtitle_patch.py` → `subtitle_patch.json`): text / start /
+  duration; the source SRT is never rewritten; overlap is a warning.
+- **Audio cue** (`audio_cue_patch.py` → `audio_cue_patch.json`): add/move/delete
+  cue markers (enum cue_type, time ≤ duration+1s, strength 1–5, anchor checked).
+  Marker layer, not a mixer.
+- **Effect intent** (`effect_patch.py` → `effect_patch.json`): preset markers on a
+  clip; window must fit the target clip (**fail-closed**). **Intent only — Node14
+  consumption deferred, no effect rendered.**
+- **Unified save / handoff** (`workbench_handoff.py` → `workbench_handoff.json`):
+  `save-all` writes provided track patches atomically (any invalid → nothing
+  written) and emits an index + per-layer edit counts for the Agent.
+
+Server endpoints (`subtitle-patch`, `audio-cue-patch`, `effect-patch`, `save-all`)
+are write-limited; `review_subtitles.srt` and all canonical artifacts are
+hard-blocked. Official output still runs the Agent / FFmpeg / Node14 pipeline on
+the drafts.
+
 ## ffmpeg BUILD remains canonical
 
 A patch is an editorial *proposal*. The optional export reuses the canonical
