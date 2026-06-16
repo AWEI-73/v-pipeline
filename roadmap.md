@@ -181,7 +181,17 @@ go to the gitignored `.tmp/srp_acceptance/`: `baseline|enhanced/final.mp4` +
 `timeline.json`, `comparison_report.{json,md}`. Every DECLARED manifest image is
 fail-closed: a single missing / empty / unreadable declared image BLOCKS the whole
 replay (non-zero) — the controlled set is never silently down-sampled into a
-"successful" report. First run: enhanced timeline ≠ baseline; VD2 active
+"successful" report. The render is also content-verified, not just exists/
+non-empty: each `final.mp4` is sampled (4 frames), and the replay BLOCKS unless
+every video has a non-monochrome frame (max per-channel spatial stdev ≥ 10 — a
+solid red / black / white card scores ~0 and is rejected) AND at least one frame
+visually correlates (grayscale-structure Pearson ≥ 0.30) with a SELECTED source
+photo. This catches the "timeline correct but render faked (flat color card)"
+failure mode the previous exists/non-empty check could not. The controlled set's
+images are JPEG data with a `.png` extension (`mjpeg`/`yuvj420p`); they decode and
+render as real photo content here (`render_content_check`: baseline best
+correlation 0.999, enhanced 0.777). First run: enhanced timeline ≠ baseline; VD2
+active
 (consecutive same-family runs 7→0), SRP1 active (beat sequences in all 7 chapters),
 SRP2 active (opening prepended), SRP3 active (climax 3.606s > setup 2.496s) with
 total duration / `target_sec` preserved and GAP=0. The report does NOT claim
@@ -193,8 +203,8 @@ dedup / reject distractors (that is the VERIFY-side `semantic_novelty_audit`'s j
 out of scope this round). The minimal disable flags default to existing behavior
 (zero change when unset) and add no new editing capability. No new canonical
 schema, no M6 gate / delivery / material-map-contract change, no Node 14 / effects
-/ Dashboard / Audio Graph, no 67th footage. Focused harness tests **13**; full
-regression **1253 tests OK**.
+/ Dashboard / Audio Graph, no 67th footage. Focused harness tests **21**; full
+regression **1261 tests OK**.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.

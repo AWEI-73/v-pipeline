@@ -307,7 +307,7 @@ def timeline_signature(plan):
 
 
 def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
-                   enhanced_probe=None, isolations=None):
+                   enhanced_probe=None, isolations=None, render_content=None):
     """Build the comparison report dict from the two rendered run_mv results plus
     optional single-capability isolation results (planning-only) for HONEST
     per-capability attribution: a capability is `active` iff toggling ONLY it on
@@ -431,6 +431,7 @@ def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
             "used_distractors_enhanced": e_distractors,
             "off_topic_or_distractor_used": bool(b_distractors or e_distractors),
         },
+        "render_content_check": render_content or {},
         "srp3_climax_vs_setup": {
             "climax_duration": climax, "setup_duration": setup,
             "climax_exceeds_setup": (climax is not None and setup is not None
@@ -463,6 +464,89 @@ def _distribution(assets, key):
     for a in assets:
         out[a.get(key)] = out.get(a.get(key), 0) + 1
     return out
+
+
+# ---------------------------------------------------------------------------
+# Render-content verification (guards against "timeline ok but render faked":
+# a solid red / black / white card, or content unrelated to the source photos).
+# Pure analysis below; ffmpeg frame extraction lives in the orchestration section.
+# ---------------------------------------------------------------------------
+
+MONO_STDEV = 10.0       # a frame flatter than this is a near-monochrome card
+MIN_SOURCE_CORR = 0.30  # >=1 frame must visually correlate with a selected source
+
+
+def _spatial_stdev(vals):
+    m = sum(vals) / len(vals)
+    return (sum((v - m) ** 2 for v in vals) / len(vals)) ** 0.5
+
+
+def frame_descriptor(path):
+    """16x16 visual statistics of an image (PIL decodes by content, so a JPEG with
+    a .png extension still works). `stdev` is the MAX per-channel SPATIAL stdev:
+    it is ~0 for a flat color card of ANY color (a solid red card has zero spatial
+    variance in every channel, even though its channels differ) and large for a
+    real photo. Also returns mean rgb and a 256-length grayscale vector for
+    structure correlation."""
+    from PIL import Image  # noqa: PLC0415
+    small = Image.open(path).convert("RGB").resize((16, 16))
+    px = list(small.getdata())
+    n = len(px)
+    rs = [p[0] for p in px]
+    gs = [p[1] for p in px]
+    bs = [p[2] for p in px]
+    chan_stdev = max(_spatial_stdev(rs), _spatial_stdev(gs), _spatial_stdev(bs))
+    gray = [p[0] * 0.299 + p[1] * 0.587 + p[2] * 0.114 for p in px]
+    return {"mean_rgb": (round(sum(rs) / n, 1), round(sum(gs) / n, 1),
+                         round(sum(bs) / n, 1)),
+            "stdev": round(chan_stdev, 3), "gray": gray}
+
+
+def pearson(a, b):
+    n = len(a)
+    if n == 0 or n != len(b):
+        return 0.0
+    ma, mb = sum(a) / n, sum(b) / n
+    num = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+    da = sum((x - ma) ** 2 for x in a) ** 0.5
+    db = sum((y - mb) ** 2 for y in b) ** 0.5
+    return num / (da * db) if da and db else 0.0
+
+
+def evaluate_content(frame_descs, source_descs, *, mono_stdev=MONO_STDEV,
+                     min_corr=MIN_SOURCE_CORR):
+    """Decide whether a render actually shows source-derived content. Requires at
+    least one NON-monochrome frame AND at least one (frame, selected-source) pair
+    whose grayscale structure correlates >= min_corr. A solid-color card fails the
+    monochrome test; color-bars / unrelated content fails the correlation test."""
+    if not frame_descs:
+        return {"ok": False, "frames": 0, "reason": "no frames extracted"}
+    stdevs = [d["stdev"] for d in frame_descs]
+    non_mono = sum(1 for d in frame_descs if d["stdev"] >= mono_stdev)
+    best_corr, best_match = 0.0, None
+    for d in frame_descs:
+        for sd in source_descs:
+            c = pearson(d["gray"], sd["gray"])
+            if c > best_corr:
+                best_corr, best_match = c, sd.get("name")
+    reasons = []
+    if non_mono == 0:
+        reasons.append(f"all {len(frame_descs)} frames near-monochrome "
+                       f"(max stdev {max(stdevs):.1f} < {mono_stdev})")
+    if best_corr < min_corr:
+        reasons.append(f"no frame correlates with a selected source image "
+                       f"(best {best_corr:.2f} < {min_corr})")
+    return {
+        "ok": non_mono > 0 and best_corr >= min_corr,
+        "frames": len(frame_descs),
+        "min_stdev": round(min(stdevs), 2),
+        "max_stdev": round(max(stdevs), 2),
+        "non_monochrome_frames": non_mono,
+        "best_source_correlation": round(best_corr, 3),
+        "best_match_source": best_match,
+        "frame_mean_rgb": [d["mean_rgb"] for d in frame_descs],
+        "reason": "; ".join(reasons) or "ok",
+    }
 
 
 def report_md(report):
@@ -513,6 +597,17 @@ def report_md(report):
                      f"scene={d['scene_id']} family={d['visual_family']} "
                      f"score={d['retrieval_score']}")
     L.append("")
+    rc = report.get("render_content_check") or {}
+    if rc:
+        L += ["## Render content check (anti fake-render)"]
+        for name in ("baseline", "enhanced"):
+            c = rc.get(name, {})
+            L.append(f"- **{name}**: ok={c.get('ok')} — non-monochrome frames "
+                     f"{c.get('non_monochrome_frames')}/{c.get('frames')}, "
+                     f"stdev[min={c.get('min_stdev')},max={c.get('max_stdev')}], "
+                     f"best source correlation={c.get('best_source_correlation')} "
+                     f"(match {c.get('best_match_source')}); {c.get('reason')}")
+        L.append("")
     L += ["## Viewing checklist (objective — no aesthetic score)"]
     for item in report["viewing_checklist"]:
         L.append(f"- [ ] {item}")
@@ -537,6 +632,56 @@ def _probe(path):
              "-of", "csv=p=0", str(path)], text=True).strip()), 3)
     except Exception:
         return None
+
+
+def _extract_frames(mp4, n, tmpdir):
+    dur = _probe(mp4) or 0.0
+    if dur <= 0:
+        return []
+    paths = []
+    for i in range(n):
+        t = dur * (i + 1) / (n + 1)
+        f = Path(tmpdir) / f"frame_{i}.png"
+        subprocess.run([FFMPEG, "-y", "-ss", f"{t:.2f}", "-i", str(mp4),
+                        "-frames:v", "1", str(f)], capture_output=True)
+        if f.exists() and f.stat().st_size > 0:
+            paths.append(str(f))
+    return paths
+
+
+def verify_render_content(mp4, source_paths, *, frames=4):
+    """Extract `frames` frames from a rendered mp4 and verify they are not a flat
+    color card and visually correlate with the selected source photos. Returns the
+    evaluate_content verdict (plus the sampled count)."""
+    import tempfile  # noqa: PLC0415
+    td = tempfile.mkdtemp()
+    fdescs = [frame_descriptor(p) for p in _extract_frames(mp4, frames, td)]
+    sdescs = []
+    for sp in source_paths:
+        try:
+            d = frame_descriptor(sp)
+            d["name"] = Path(sp).name
+            sdescs.append(d)
+        except Exception:
+            continue
+    return evaluate_content(fdescs, sdescs)
+
+
+def assert_render_content(check, label):
+    """Fail-closed: a render that is a flat color card or unrelated to the source
+    photos BLOCKS the replay (prevents 'timeline ok but render faked')."""
+    if not check.get("ok"):
+        raise Blocked(f"{label} render content check failed: {check.get('reason')} "
+                      f"({check})")
+
+
+def _selected_sources(plan):
+    seen = []
+    for c in plan:
+        s = c.get("source")
+        if s and s not in seen:
+            seen.append(s)
+    return seen
 
 
 def _serialize_timeline(result):
@@ -618,10 +763,20 @@ def main(argv=None):
         if not mp4.exists() or mp4.stat().st_size <= 0:
             raise Blocked(f"render produced no usable file: {mp4}")
 
+    # Render-content gate: each final.mp4 must actually show the source photos
+    # (not a flat color card / unrelated content). Fail-closed.
+    render_content = {
+        "baseline": verify_render_content(base_mp4, _selected_sources(base_res["plan"])),
+        "enhanced": verify_render_content(enh_mp4, _selected_sources(enh_res["plan"])),
+    }
+    assert_render_content(render_content["baseline"], "baseline")
+    assert_render_content(render_content["enhanced"], "enhanced")
+
     report = compute_report(base_res, enh_res, assets,
                             baseline_probe=_probe(base_mp4),
                             enhanced_probe=_probe(enh_mp4),
-                            isolations=isolations)
+                            isolations=isolations,
+                            render_content=render_content)
     report["material"]["unreadable_problems"] = problems
     (out / "comparison_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -636,6 +791,11 @@ def main(argv=None):
           f"opening={report['opening_inserted']['enhanced']} "
           f"auto_seq={report['auto_sequence_count']['enhanced']} "
           f"climax>setup={report['srp3_climax_vs_setup']['climax_exceeds_setup']}")
+    print(f"[srp-replay] render_content ok: baseline="
+          f"{render_content['baseline']['ok']} (corr "
+          f"{render_content['baseline']['best_source_correlation']}), enhanced="
+          f"{render_content['enhanced']['ok']} (corr "
+          f"{render_content['enhanced']['best_source_correlation']})")
     return 0
 
 

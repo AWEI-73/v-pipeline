@@ -213,5 +213,68 @@ class ReportTest(unittest.TestCase):
         self.assertIn("Viewing checklist", md)
 
 
+class RenderContentTest(unittest.TestCase):
+    """Render-content verification (anti fake-render). Pure: PIL only, no ffmpeg."""
+
+    def _png(self, d, name, pixels_fn, size=32):
+        from PIL import Image
+        im = Image.new("RGB", (size, size))
+        im.putdata([pixels_fn(i % size, i // size) for i in range(size * size)])
+        p = Path(d) / name
+        im.save(p)
+        return str(p)
+
+    def test_frame_descriptor_flat_card_is_monochrome(self):
+        d = tempfile.mkdtemp()
+        for name, color in (("red.png", (255, 0, 0)), ("black.png", (0, 0, 0)),
+                            ("white.png", (255, 255, 255))):
+            p = self._png(d, name, lambda x, y, c=color: c)
+            desc = R.frame_descriptor(p)
+            self.assertLess(desc["stdev"], R.MONO_STDEV, f"{name} should be flat")
+
+    def test_frame_descriptor_varied_image_not_monochrome(self):
+        d = tempfile.mkdtemp()
+        p = self._png(d, "grad.png", lambda x, y: (x * 8 % 256, y * 8 % 256,
+                                                   (x + y) * 4 % 256))
+        self.assertGreaterEqual(R.frame_descriptor(p)["stdev"], R.MONO_STDEV)
+
+    def test_pearson(self):
+        self.assertAlmostEqual(R.pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1.0, places=6)
+        self.assertAlmostEqual(R.pearson([1, 2, 3, 4], [4, 3, 2, 1]), -1.0, places=6)
+        self.assertEqual(R.pearson([1, 1, 1], [1, 2, 3]), 0.0)   # zero variance
+
+    def test_evaluate_content_blocks_monochrome(self):
+        flat = [{"stdev": 0.0, "gray": [10] * 16, "mean_rgb": (255, 0, 0)}] * 3
+        src = [{"gray": list(range(16)), "name": "s.png"}]
+        res = R.evaluate_content(flat, src)
+        self.assertFalse(res["ok"])
+        self.assertIn("monochrome", res["reason"])
+
+    def test_evaluate_content_blocks_uncorrelated(self):
+        frames = [{"stdev": 50.0, "gray": [i % 4 for i in range(16)],
+                   "mean_rgb": (100, 100, 100)}]
+        src = [{"gray": [(i * 7) % 5 for i in range(16)], "name": "s.png"}]
+        res = R.evaluate_content(frames, src, min_corr=0.95)
+        self.assertFalse(res["ok"])
+        self.assertIn("correlate", res["reason"])
+
+    def test_evaluate_content_ok_when_frame_matches_source(self):
+        g = [float(i) for i in range(16)]
+        frames = [{"stdev": 50.0, "gray": g, "mean_rgb": (100, 100, 100)}]
+        src = [{"gray": [v * 1.0 + 3 for v in g], "name": "match.png"}]  # corr 1.0
+        res = R.evaluate_content(frames, src)
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["best_match_source"], "match.png")
+        self.assertGreaterEqual(res["best_source_correlation"], 0.99)
+
+    def test_assert_render_content_raises_on_fail(self):
+        with self.assertRaises(R.Blocked):
+            R.assert_render_content({"ok": False, "reason": "flat"}, "enhanced")
+        R.assert_render_content({"ok": True, "reason": "ok"}, "enhanced")  # no raise
+
+    def test_no_frames_extracted_is_not_ok(self):
+        self.assertFalse(R.evaluate_content([], [{"gray": [1] * 16}])["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()
