@@ -119,6 +119,20 @@ attempting to export onto one raises. Exposed as CLI and an opt-in
 "a second set they can use to actually output" without introducing a browser
 render pipeline.
 
+## Patch → pipeline contract draft sync (NPE3)
+
+`tools/workbench_patch_to_contract.py` translates a `timeline_patch` into a
+**draft** `workbench_contract_patch.json` describing what the workbench would
+like the pipeline contract to change — it never edits `segment_contract.json`.
+`set_duration` → per-segment duration suggestion; `set_source_window` →
+material window override validated against `project_material_map` scene bounds;
+`move_clip` stays in the timeline draft (intra-segment = info, cross-segment =
+`unsupported_for_contract_sync`, segment order never silently rewritten).
+Fail-closed on unknown slot / non-finite duration / out-of-scene window. Exposed
+as CLI and `POST /api/workbench/sync-contract` (writes only the two draft
+artifacts). Official delivery still runs the Agent / ffmpeg pipeline on the
+draft/patch, then builds.
+
 ## ffmpeg BUILD remains canonical
 
 A patch is an editorial *proposal*. The optional export reuses the canonical

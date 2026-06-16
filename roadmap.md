@@ -3181,3 +3181,35 @@ Two follow-ups on NPE1, both keeping ffmpeg canonical:
 Tests: `tests/test_workbench_export.py` (5) + alignment cases in
 `tests/test_timeline_patch.py`. Clipchamp-style timeline drag/split and
 canvas/WebGL compositing remain deferred (see decision doc).
+
+### 2026-06-17 NPE3 Workbench Patch → Pipeline Contract draft sync — COMPLETE
+
+(The increment requested as "NPE2 Patch → Pipeline Contract Sync"; labelled NPE3
+here because the NPE2 slot was already used by the export + spec-alignment work.)
+
+Translates a workbench `timeline_patch` into a **draft** that the pipeline can
+read, without ever touching canonical artifacts. This is **not** an editor, not
+Remotion, not Node14/effects, not an Audio Graph, not a final render.
+
+- New `tools/workbench_patch_to_contract.py` — `sync` produces
+  `workbench_contract_patch.json` (a draft describing desired contract changes,
+  never applied) + `patched_draft_timeline.json`. Sync rules:
+  - `set_duration` → per-segment `segment_duration_suggestion` (draft only).
+  - `set_source_window` → `material_window_override` (draft), validated to stay
+    inside `project_material_map` scene bounds.
+  - `move_clip` → stays in the timeline draft; intra-segment reorder is info,
+    cross-segment is diagnosed `unsupported_for_contract_sync` (segment order is
+    never silently rewritten). `slot_index` identity is preserved across moves.
+- Fail-closed: unknown slot, non-finite/non-positive duration, or a source
+  window beyond scene bounds aborts with no artifact written. Canonical files
+  (`timeline.json`, `segment_contract.json`, `revised_segment_contract.json`,
+  `project_material_map.json`, `material_needs.json`, `final.mp4`, …) are
+  hard-blocked from writes.
+- Server: `POST /api/workbench/sync-contract` writes only the two draft
+  artifacts; a fail-closed sync writes nothing.
+- Lightweight preview render reuses the existing `workbench_export.py` (canonical
+  ffmpeg) to emit `preview_render.mp4` from a patched draft — never `final.mp4`.
+
+Tests: `tests/test_workbench_contract_sync.py` (A–I) + sync cases in
+`tests/test_workbench_server.py`. Official delivery still runs through the
+Agent / ffmpeg pipeline consuming the draft/patch, then build.

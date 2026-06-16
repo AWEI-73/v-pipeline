@@ -218,3 +218,24 @@ artifacts read-only and emits only a `timeline_patch.json` proposal.
 
 Canonical render remains ffmpeg. See
 `docs/decisions/2026-06-16-native-preview-engine.md`.
+
+## NPE3 — Workbench patch → pipeline contract draft sync (2026-06-17)
+
+Side-car layer, same as NPE1/NPE2: it neither gates the SPEC, nor renders, nor
+audits. It converts a workbench `timeline_patch` into a **draft** proposal.
+
+- `workbench_contract_patch.json` (`tools/workbench_patch_to_contract.py`) —
+  `declared_only` w.r.t. BUILD. It is a *proposal* describing desired contract
+  changes (segment duration suggestion, material window override); it is **not**
+  applied to `segment_contract.json` and changes no BUILD output by itself. The
+  Agent / ffmpeg pipeline may later consume the draft and rebuild — that
+  re-entry is intentionally out of scope here.
+- `move_clip` never rewrites segment order; cross-segment moves are diagnosed
+  `unsupported_for_contract_sync`. `slot_index` is a stable identity.
+- Fail-closed on unknown slot / non-finite duration / source window beyond scene
+  bounds. Canonical artifacts (incl. `segment_contract.json`) are write-blocked.
+- `POST /api/workbench/sync-contract` writes only the two draft artifacts.
+
+Do **not** cite the workbench as a BUILD capability: it produces drafts/patches
+only. Canonical render remains ffmpeg. See
+`docs/decisions/2026-06-16-native-preview-engine.md`.

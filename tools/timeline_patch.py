@@ -31,6 +31,8 @@ VALID_OPS = {"set_duration", "set_source_window", "move_clip"}
 # Canonical artifacts that a patch must never overwrite.
 PROTECTED_OUTPUTS = {
     "timeline.json",
+    "segment_contract.json",
+    "revised_segment_contract.json",
     "project_material_map.json",
     "material_needs.json",
     "final.mp4",

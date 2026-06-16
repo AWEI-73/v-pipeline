@@ -148,6 +148,49 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertFalse((self.root / "timeline_patch.json").exists())
         self.assertFalse((self.root / "patched_draft_timeline.json").exists())
 
+    def test_sync_contract_writes_only_draft_artifacts(self):
+        before_timeline = (self.root / "timeline.json").read_text(encoding="utf-8")
+        before_map = (self.root / "project_material_map.json").read_text(encoding="utf-8")
+        patch = {
+            "artifact_role": "timeline_patch", "version": 1,
+            "base_timeline_ref": "timeline.json",
+            "patches": [{"op": "set_duration", "slot_index": 0, "after": {"duration_sec": 3.0}}],
+            "diagnostics": [],
+        }
+        req = urllib.request.Request(
+            self.url("/api/workbench/sync-contract"),
+            data=json.dumps({"patch": patch}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        result = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["written"]),
+                         {"workbench_contract_patch.json", "patched_draft_timeline.json"})
+        # canonical untouched
+        self.assertEqual((self.root / "timeline.json").read_text(encoding="utf-8"), before_timeline)
+        self.assertEqual((self.root / "project_material_map.json").read_text(encoding="utf-8"), before_map)
+        self.assertFalse((self.root / "segment_contract.json").exists())
+
+    def test_invalid_sync_contract_writes_nothing(self):
+        # source window beyond asset bounds -> fail-closed
+        patch = {
+            "artifact_role": "timeline_patch", "version": 1,
+            "base_timeline_ref": "timeline.json",
+            "patches": [{"op": "set_source_window", "slot_index": 0,
+                         "after": {"source_start_sec": 9.0, "source_duration_sec": 5.0}}],
+            "diagnostics": [],
+        }
+        req = urllib.request.Request(
+            self.url("/api/workbench/sync-contract"),
+            data=json.dumps({"patch": patch}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(req)
+        self.assertEqual(cm.exception.code, 422)
+        self.assertFalse((self.root / "workbench_contract_patch.json").exists())
+        self.assertFalse((self.root / "patched_draft_timeline.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

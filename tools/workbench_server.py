@@ -28,10 +28,12 @@ try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import preview_timeline as pt
     from tools import timeline_patch as tp
     from tools import workbench_export as wx
+    from tools import workbench_patch_to_contract as wc
 except ImportError:  # pragma: no cover - direct-script fallback
     import preview_timeline as pt
     import timeline_patch as tp
     import workbench_export as wx
+    import workbench_patch_to_contract as wc
 
 WORKBENCH_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "workbench_native"
 
@@ -40,6 +42,7 @@ WRITABLE_OUTPUTS = {
     "preview_timeline.json",
     "timeline_patch.json",
     "patched_draft_timeline.json",
+    "workbench_contract_patch.json",
 }
 
 STATIC_MIME = {
@@ -207,6 +210,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/workbench/export":
             self._handle_export()
             return
+        if parsed.path == "/api/workbench/sync-contract":
+            self._handle_sync_contract()
+            return
         if parsed.path != "/api/workbench/patch":
             self._send_error(404, "Not found")
             return
@@ -286,6 +292,37 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"ok": False, "error": f"export failed: {exc}"})
             return
         self._send_json(200, result)
+
+    def _handle_sync_contract(self) -> None:
+        """Translate a timeline_patch into a draft contract patch + timeline draft.
+
+        Writes only workbench_contract_patch.json + patched_draft_timeline.json
+        (both whitelisted); a fail-closed sync writes nothing.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            self._send_error(400, "invalid JSON")
+            return
+
+        patch = body.get("patch") if isinstance(body, dict) and "patch" in body else body
+        result = wc.sync_patch_to_contract(str(self.artifact_root), patch)
+        if not result["ok"]:
+            self._send_json(422, {"ok": False, "errors": result["errors"],
+                                  "diagnostics": result["diagnostics"]})
+            return
+
+        written: List[str] = []
+        self._write_artifact("workbench_contract_patch.json", result["workbench_contract_patch"], written)
+        self._write_artifact("patched_draft_timeline.json", result["patched_draft_timeline"], written)
+        self._send_json(200, {
+            "ok": True,
+            "written": written,
+            "changes": len(result["workbench_contract_patch"]["changes"]),
+            "diagnostics": result["diagnostics"],
+        })
 
     def _write_artifact(self, name: str, payload: Any, written: List[str]) -> None:
         if name not in WRITABLE_OUTPUTS:
