@@ -41,7 +41,8 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "function": "action",
                 "retrieval_score": 90.0,
                 "visual_family": "family-A",
-                "angle_scale": "medium"
+                "angle_scale": "medium",
+                "need_id": "N01",
             },
             {
                 "source": "video2.mp4",
@@ -54,7 +55,8 @@ class SequenceRecipePlannerTest(unittest.TestCase):
                 "function": "reaction",
                 "retrieval_score": 85.0,
                 "visual_family": "family-B",
-                "angle_scale": "close"
+                "angle_scale": "close",
+                "need_id": "N01",
             }
         ]
 
@@ -319,6 +321,7 @@ class SequenceRecipePlannerTest(unittest.TestCase):
             self.assertEqual(clip["angle_scale"], orig["angle_scale"])
             self.assertEqual(clip["caption"], orig["caption"])
             self.assertEqual(clip["function"], orig["function"])
+            self.assertEqual(clip["need_id"], orig["need_id"])
 
     def test_N_no_deduplication_by_source(self):
         """N: verifies that same source with different scene/window bounds are NOT de-duplicated."""

@@ -265,13 +265,18 @@ segment 7, which is review evidence rather than a silent success. Focused tests
 now maps every selected non-opening slot back to the manifest `need_id` and the
 script segment's `need_ref`. It reports per-segment `matched_slots`,
 `wrong_need_slots`, `distractor_slots`, `matched_ratio`, and `semantic_drift`
-(drift when matched ratio < 0.5 or any distractor is used). This is review-only:
-it does not block BUILD and does not change retrieval. Replayed result on the
-current Gemini demo flags drift segments **[1, 2, 3, 7]**: segment 1 and 7 because
-distractors were selected, segment 2 because N05 night-search images entered the
-N02 run segment, and segment 3 because N04/N05/N02 images entered the N03 rope
-rescue segment. Segments 4-6 remain non-drift, with any wrong-need slots preserved
-in details for review. Focused tests **6**; full regression **1281 tests OK**.
+(drift when matched ratio < 0.5 or any distractor is used). Follow-up
+need-aware retrieval now consumes explicit `segment.need_ref` against material
+map `need_id` as correctness evidence before text/function/pace fallback. This is
+not prompt-time semantic guessing: the agent may write/review the labels, but
+BUILD uses the deterministic join key. Wrong-need text matches remain available
+only as fallback when no matching need evidence exists. Replayed result on the
+current Gemini demo improved from historical drift **[1, 2, 3, 7]** to **[]**:
+all 24 story slots match their expected need and no distractors are selected.
+The final timeline also preserves `need_id` through map-ranked slots, SRP1 beat
+clips, and SRP2 opening clips. Focused tests cover need-priority, fallback,
+material-map need projection, and lineage preservation. Focused tests **134**;
+full regression **1286 tests OK**.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.

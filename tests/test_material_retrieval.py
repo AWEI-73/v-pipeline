@@ -1,6 +1,10 @@
 import unittest
 
-from video_pipeline_core.material_retrieval import plan_sound_bite, rank_scenes
+from video_pipeline_core.material_retrieval import (
+    plan_ranked_windows,
+    plan_sound_bite,
+    rank_scenes,
+)
 
 
 class MaterialRetrievalTest(unittest.TestCase):
@@ -37,6 +41,57 @@ class MaterialRetrievalTest(unittest.TestCase):
         ]}]
         ranked = rank_scenes(segment, maps, ranker=lambda _segment, _scene: 100)
         self.assertEqual([item["scene_index"] for item in ranked], [0])
+
+    def test_need_ref_priority_beats_wrong_need_caption_overlap(self):
+        segment = {"segment": 2, "need_ref": "N02", "visual_desc": "night search"}
+        maps = [
+            {"asset_id": "n05", "source": "wrong.mp4", "need_id": "N05", "scenes": [
+                {"start": 0, "end": 5, "caption": "night search team"}
+            ]},
+            {"asset_id": "n02", "source": "right.mp4", "need_id": "N02", "scenes": [
+                {"start": 0, "end": 5, "caption": "boots on trail"}
+            ]},
+        ]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual([item["scene_id"] for item in ranked[:2]], ["n02:0", "n05:0"])
+        self.assertEqual(ranked[0]["score_breakdown"]["need"], 4)
+        self.assertEqual(ranked[0]["need_id"], "N02")
+
+    def test_need_ref_match_is_admitted_even_without_text_overlap(self):
+        segment = {"segment": 2, "need_ref": "N02", "visual_desc": "endurance run"}
+        maps = [{"asset_id": "n02", "source": "right.mp4", "need_id": "N02", "scenes": [
+            {"start": 0, "end": 5, "caption": "muddy boots closeup"}
+        ]}]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["scene_id"], "n02:0")
+        self.assertEqual(ranked[0]["score_breakdown"]["text"], 0)
+
+    def test_wrong_need_still_fallbacks_when_no_matching_need_exists(self):
+        segment = {"segment": 2, "need_ref": "N02", "visual_desc": "night search"}
+        maps = [{"asset_id": "n05", "source": "fallback.mp4", "need_id": "N05", "scenes": [
+            {"start": 0, "end": 5, "caption": "night search team"}
+        ]}]
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(ranked[0]["need_id"], "N05")
+
+    def test_plan_ranked_windows_preserves_need_id_on_slot(self):
+        segment = {"segment": 2, "need_ref": "N02", "visual_desc": "endurance run"}
+        maps = [{"asset_id": "n02", "source": "right.mp4", "need_id": "N02", "scenes": [
+            {"start": 0, "end": 5, "caption": "muddy boots closeup"}
+        ]}]
+
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+
+        self.assertEqual(slots[0]["need_id"], "N02")
+        self.assertEqual(slots[0]["retrieval_score"], 4)
 
     def test_source_speech_selects_transcribed_speech_run(self):
         segment = {"segment": 7, "audio": {"role": "source_speech"}}

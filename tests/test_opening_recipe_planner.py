@@ -225,10 +225,24 @@ class PlannerEvidenceTest(unittest.TestCase):
         for shot in res["recipe"]["shots"]:
             self.assertNotIn("visual_family", shot)
             self.assertNotIn("kenburns", shot)
+            self.assertNotIn("need_id", shot)
         opening = op.compile_opening_sequence(res["recipe"], res["recipe"]["shots"])
         for clip in opening["clips"]:
             self.assertNotIn("kenburns", clip)
             self.assertNotIn("visual_family", clip)
+            self.assertNotIn("need_id", clip)
+
+    def test_J2_need_id_preserved_when_present(self):
+        plan = [
+            _slot("a:0", need_id="N01", family="fam-A"),
+            _slot("b:0", need_id="N01", family="fam-B"),
+            _slot("c:0", need_id="N01", family="fam-C"),
+        ]
+        res = plan_opening_recipe({}, plan)
+        opening = op.compile_opening_sequence(res["recipe"], res["recipe"]["shots"])
+
+        self.assertEqual({shot["need_id"] for shot in res["recipe"]["shots"]}, {"N01"})
+        self.assertEqual({clip["need_id"] for clip in opening["clips"]}, {"N01"})
 
     def test_K_same_source_different_window_not_deduped(self):
         plan = [

@@ -98,7 +98,7 @@ def _shot_from_slot(slot):
         "start": float(slot.get("extract_start") or 0.0),
         "dur": float(slot.get("extract_dur") or 0.0),
     }
-    for field in ("is_photo", "kenburns", "scene_id", "retrieval_score",
+    for field in ("is_photo", "kenburns", "scene_id", "need_id", "retrieval_score",
                   "visual_family", "angle_scale", "caption", "function"):
         if field in slot:
             shot[field] = slot[field]

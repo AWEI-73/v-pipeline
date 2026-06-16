@@ -55,7 +55,7 @@ def _shot_clip(shot, design_dur, *, role, text=None, treatment=None):
     # only when the shot explicitly declares it (so a photo's True is preserved);
     # a video shot without it stays absent, and the renderer treats a missing
     # is_photo as video (it reads `clip.get("is_photo")`).
-    for field in ("is_photo", "scene_id", "retrieval_score", "visual_family",
+    for field in ("is_photo", "scene_id", "need_id", "retrieval_score", "visual_family",
                   "angle_scale", "kenburns", "caption", "function"):
         if field in shot:
             clip[field] = shot[field]

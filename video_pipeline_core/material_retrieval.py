@@ -41,6 +41,12 @@ def _pace_score(segment, scene):
     return 0
 
 
+def _need_score(segment, material_map, scene):
+    expected = segment.get("need_ref") or (segment.get("material_fit") or {}).get("need_ref")
+    actual = scene.get("need_id") or material_map.get("need_id")
+    return 4 if expected and actual and str(expected) == str(actual) else 0
+
+
 def rank_scenes(segment, material_maps, *, ranker=None):
     """Rank evidenced scenes; external rankers may rerank but not admit zero-fit scenes."""
     query = (segment.get("material_fit") or {}).get("visual_desc") or segment.get("visual_desc")
@@ -48,6 +54,7 @@ def rank_scenes(segment, material_maps, *, ranker=None):
     for material_map in material_maps or []:
         for index, scene in enumerate(material_map.get("scenes") or []):
             breakdown = {
+                "need": _need_score(segment, material_map, scene),
                 "text": _text_score(query, scene.get("caption")),
                 "function": _function_score(segment, scene),
                 "pace": _pace_score(segment, scene),
@@ -64,6 +71,7 @@ def rank_scenes(segment, material_maps, *, ranker=None):
                 "start": float(scene.get("start") or 0),
                 "end": float(scene.get("end") or 0),
                 "caption": scene.get("caption"),
+                "need_id": scene.get("need_id") or material_map.get("need_id"),
                 "score_breakdown": breakdown,
                 "ranker_score": external,
                 "score": evidence_score + external,
@@ -237,6 +245,7 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "caption": item.get("caption"),
             "function": function,
             "retrieval_score": item["score"],
+            "need_id": item.get("need_id"),
             "visual_family": item.get("visual_family"),
             "angle_scale": item.get("angle_scale"),
             "diversity_selection_reason": item.get("diversity_selection_reason", "default"),

@@ -41,7 +41,8 @@ def _beat_clip(shot, design_dur, *, beat_role, segment, treatment=None):
         "beat_role": beat_role,
     }
     # Preserve approved-slot lineage / evidence fields:
-    for field in ("scene_id", "retrieval_score", "visual_family", "angle_scale", "is_photo", "kenburns", "caption", "function"):
+    for field in ("scene_id", "need_id", "retrieval_score", "visual_family",
+                  "angle_scale", "is_photo", "kenburns", "caption", "function"):
         if field in shot:
             clip[field] = shot[field]
     if treatment:

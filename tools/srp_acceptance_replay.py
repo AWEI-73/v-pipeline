@@ -158,17 +158,22 @@ def build_material_map(assets):
     schema — exactly the shape `expand_project_material_map` already accepts."""
     out = []
     for a in assets:
-        out.append({
+        scene = {
+            "start": 0.0, "end": 0.0,
+            "caption": a["caption"],
+            "visual_family": a["visual_family"],
+            "angle_scale": a["angle_scale"],
+        }
+        asset = {
             "asset_id": a["asset_id"],
             "source": a["source"],
             "asset_type": "photo",
-            "scenes": [{
-                "start": 0.0, "end": 0.0,
-                "caption": a["caption"],
-                "visual_family": a["visual_family"],
-                "angle_scale": a["angle_scale"],
-            }],
-        })
+            "scenes": [scene],
+        }
+        if a.get("need_id"):
+            asset["need_id"] = a["need_id"]
+            scene["need_id"] = a["need_id"]
+        out.append(asset)
     return {"artifact_role": "project_material_map", "version": 1, "assets": out}
 
 

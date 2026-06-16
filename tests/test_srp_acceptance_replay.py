@@ -61,7 +61,9 @@ class MaterialBuildTest(unittest.TestCase):
         self.assertEqual(mm["artifact_role"], "project_material_map")
         asset = mm["assets"][0]
         self.assertEqual(asset["asset_type"], "photo")
+        self.assertEqual(asset["need_id"], "N01")
         scene = asset["scenes"][0]
+        self.assertEqual(scene["need_id"], "N01")
         self.assertEqual((scene["start"], scene["end"]), (0.0, 0.0))
         self.assertEqual(scene["visual_family"], "assembly_view")
         self.assertIn(R.NEED_THEME["N01"], scene["caption"])

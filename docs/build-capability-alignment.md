@@ -83,9 +83,15 @@ capability, and a VERIFY check creates nothing:
 - **The render-time grammar is genuinely active** (transitions, treatments,
   attention budget, SFX, music align, micro-rhythm). The Sensory phase landed in
   BUILD, not just VERIFY.
-- **The material-evidence layer has been upgraded with VD2 active/complete.** Only `visual_family`, `angle_scale`, and `asset_type` are currently consumed by `plan_ranked_windows`
-  to order and select diversified candidates during build, without acting as a delivery blocker. Other VD0 labels like `action_family` and `subject` are stored but not yet used.
-  Correctness/evidence score tiering remains prioritized.
+- **The material-evidence layer has been upgraded with VD2 active/complete plus
+  need-aware correctness.** `plan_ranked_windows` now consumes explicit
+  `segment.need_ref` versus material-map `need_id` as deterministic correctness
+  evidence before text/function/pace fallback. This is the practical boundary:
+  agents may author/review labels, but BUILD should not rely on prompt-time
+  semantic guessing when a join key is available. `visual_family`, `angle_scale`,
+  and `asset_type` are still used for same-tier visual diversity and photo/video
+  handling, without acting as a delivery blocker. Other VD0 labels like
+  `action_family` and `subject` are stored but not yet used.
 - **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
 - **SRP1 Segment Sequence Recipe Planner is active/complete.** Local segments with at least 2 approved map-ranked slots and no manual beat recipe are automatically planned into a sequence (e.g. context -> payoff) preserving window integrity, and rendering a true sequential movie.
 - **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only. Candidates are deduplicated by `scene_id` (same source + different window stays distinct). Selection is correctness-first and greedy by retrieval_score tier — a lower-score shot never outranks a higher one — with same-tier soft role preferences actually applied: hook prefers close>medium>wide, context prefers an unused `visual_family` then wide>medium>close, title base prefers an unused scene_id / different family (video-over-photo and deterministic scene_id as final tie-breaks; missing family/scale degrades deterministically). Only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded); title text comes only from explicit script fields; evidence/window/photo lineage is preserved; the original story plan is left intact (opening prepended, slot_index reindexed); and VD2/SRP1 shared history is not polluted. When the build declares `target_sec`, the auto opening is duration-budgeted against the whole-film target (drop extra context -> title -> shorten hook -> fallback) so it never pushes the plan past `target_sec`; approved story slots are never trimmed and manual openings are exempt. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
@@ -158,12 +164,13 @@ capability, and a VERIFY check creates nothing:
   segments; SRP3 planned/applied; slot render checks pass for 25/25 slots.
   The script uses `pacing.preferred_shot_sec=[2.8,3.4]` as a script-level pacing
   parameter so the demo reaches 60-90s without changing SRP1's approved-window
-  contract. The report explicitly discloses distractor usage (2 distractor slots
-  in the current run), so curator/review can see material issues instead of
-  accepting a silent success. It also includes a review-only `semantic_alignment`
-  section mapping selected slots back to manifest `need_id` versus script
-  `need_ref`. Current replay flags drift segments [1, 2, 3, 7], matching the
-  contact-sheet review; this evidence is not a BUILD gate yet.
+  contract. The report explicitly discloses distractor usage, so curator/review
+  can see material issues instead of accepting a silent success. After
+  need-aware retrieval, the current replay uses **0** distractor slots and the
+  review-only `semantic_alignment` section reports drift segments **[]**: every
+  story slot selected for N01-N07 maps back to the segment's expected `need_ref`.
+  This remains a BUILD selection improvement and review signal, not a hard
+  delivery gate.
 - **AR1 runtime planning extraction is internal structure, not a capability.**
   `run_mv` now delegates to private helpers (`_plan_story_timeline`,
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
