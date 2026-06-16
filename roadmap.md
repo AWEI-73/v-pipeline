@@ -3128,3 +3128,34 @@ and an empty pending set completes without a false wait. Real city-lite long
 material await/resume and montage sensory review are verified. See
 `docs/decisions/2026-06-12-e7-material-montage-review.md`. Next: integrated
 fresh-film sensory acceptance, then E8.
+
+### 2026-06-16 NPE1 Native Preview Engine (Remotion-like, no Remotion) — COMPLETE
+
+A Hermes-native interactive preview middle-layer. Borrows the Remotion preview
+model (fps / currentTime / durationFrames / composition props / per-clip media
+timing) but adds **zero** Remotion dependency — no install, no runtime, no
+reference-repo edits, and `final.mp4` is never the primary preview.
+
+- New contract `preview_timeline.json` — single input to the native frontend,
+  built (never authored) by `tools/preview_timeline.py` from `timeline.json` /
+  `draft_timeline.json` + `project_material_map.json` + `review_subtitles.srt`.
+  Deterministic `timeline_start_sec`; video `source_start_sec`/`source_duration_sec`;
+  browser-safe `/media?src=` URLs; missing sources → diagnostics.
+- New contract `timeline_patch.json` — only write path for interactive edits
+  (`set_duration` / `set_source_window` / `move_clip`), validated and applied by
+  `tools/timeline_patch.py` into `patched_draft_timeline.json`. `timeline.json`
+  is never overwritten.
+- New frontend `dashboard/workbench_native/` with a pure, node-testable core
+  (`workbench_core.js`): play/pause via rAF, image↔video↔image switching by
+  `currentTime`, source-start seek, subtitle overlay, inspector edits, patch out.
+- New write-limited `tools/workbench_server.py` (separate from the read-only
+  Review Dashboard) — may write only the three workbench artifacts; canonical
+  artifacts are hard-blocked.
+- Tests: `tests/test_preview_timeline.py` + `tests/test_timeline_patch.py`
+  (21 focused) and `tests/workbench_core_smoke.js` (9 node checks).
+- ffmpeg BUILD stays canonical; a patch is an editorial proposal, not a render.
+  See `docs/decisions/2026-06-16-native-preview-engine.md`.
+
+Deferred: Remotion Player adoption, full NLE, precise audio mix, transitions,
+canvas compositing, real export, Node-registry 14 effects, and promoting
+`patched_draft_timeline.json` back into the canonical BUILD chain.

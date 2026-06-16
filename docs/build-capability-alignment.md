@@ -198,3 +198,23 @@ capability, and a VERIFY check creates nothing:
 5. **SRP1 Segment Sequence Recipe Planner** — complete (2026-06-15): automatically plans sequence recipes for eligible segments using only the approved slots, changing both the timeline and true render.
 
 These are scope notes for later rounds. BA1 itself adds no feature.
+
+## NPE1 — Native Preview Engine (2026-06-16)
+
+New **interactive preview middle-layer**, deliberately outside the BUILD A/B/C
+layering above: it neither gates the SPEC, nor renders, nor audits the result.
+It is a fourth, side-car layer — *editorial proposal* — that reads canonical
+artifacts read-only and emits only a `timeline_patch.json` proposal.
+
+- `preview_timeline.json` (`tools/preview_timeline.py`) — `declared_only` w.r.t.
+  BUILD: it changes no timeline and no render; it is a browser-facing projection
+  of existing artifacts for interactive preview.
+- `timeline_patch.json` (`tools/timeline_patch.py`) — `declared_only` w.r.t.
+  BUILD today. It is *not* yet a BUILD consumer: applying a patch produces
+  `patched_draft_timeline.json` only. Re-entry into the canonical BUILD chain is
+  intentionally deferred, so do **not** cite the workbench as a BUILD capability.
+- `tools/workbench_server.py` — write-limited server, separate from the read-only
+  Review Dashboard; canonical artifacts are write-blocked.
+
+Canonical render remains ffmpeg. See
+`docs/decisions/2026-06-16-native-preview-engine.md`.
