@@ -80,20 +80,19 @@ def load_json_file(file_path: Path):
 def scan_available_projects():
     """Scan `.tmp` and `C:/Users/user/Desktop/video_project` to list all valid runs."""
     projects = []
-    
+
     # 1. Add default temp folders if they exist
-    tmp_demo = Path(".tmp/srp_real67_review_demo")
-    if tmp_demo.is_dir():
-        projects.append({
-            "name": "預設展示 (srp_real67_review_demo)",
-            "path": str(tmp_demo.resolve())
-        })
-    tmp_accept = Path(".tmp/srp_acceptance")
-    if tmp_accept.is_dir():
-        projects.append({
-            "name": "預設驗收 (srp_acceptance)",
-            "path": str(tmp_accept.resolve())
-        })
+    default_runs = [
+        ("預設展示 (srp_real67_review_demo)", Path(".tmp/srp_real67_review_demo")),
+        ("67 期完整回放 (srp_real67_fuller_replay)", Path(".tmp/srp_real67_fuller_replay")),
+        ("預設驗收 (srp_acceptance)", Path(".tmp/srp_acceptance")),
+    ]
+    for name, run_path in default_runs:
+        if run_path.is_dir():
+            projects.append({
+                "name": name,
+                "path": str(run_path.resolve())
+            })
 
     # 2. Scan C:/Users/user/Desktop/video_project
     vp_dir = Path("C:/Users/user/Desktop/video_project")
@@ -659,267 +658,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_error_response(404, "Not Found")
 
     def do_POST(self):
-        parsed_url = urllib.parse.urlparse(self.path)
-        path_str = parsed_url.path
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-
-        # Helper to read post body
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else "{}"
-        try:
-            body = json.loads(post_data)
-        except Exception as e:
-            self.send_error_response(400, f"Malformed JSON body: {str(e)}")
-            return
-
-        # POST /api/swap_asset -> update a clip path
-        if path_str == "/api/swap_asset":
-            root_val = body.get("root")
-            segment_val = body.get("segment")
-            source_path = body.get("source_path")
-
-            if not root_val or segment_val is None or not source_path:
-                self.send_error_response(400, "Missing required parameters: root, segment, source_path")
-                return
-
-            active_root = self.get_validated_root({"root": [root_val]})
-            if str(active_root.resolve()) != str(Path(root_val).resolve()):
-                self.send_error_response(403, "Access Denied: path outside allowed directories")
-                return
-
-            segment_num = int(segment_val)
-
-            # 1. Update timeline_build.json
-            tb_path = resolve_artifact_path(active_root, "timeline_build.json")
-            tb_updated = False
-            if tb_path.exists() and tb_path.is_file():
-                tb_data = load_json_file(tb_path)
-                if tb_data and "clips" in tb_data:
-                    for clip in tb_data["clips"]:
-                        if clip.get("segment") == segment_num:
-                            clip["source_path"] = source_path
-                            clip["adjusted"] = True
-                            clip["adjustment_reason"] = "Swapped via Review Dashboard V2"
-                            tb_updated = True
-                    if tb_updated:
-                        try:
-                            tb_path.write_text(json.dumps(tb_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                        except Exception as e:
-                            self.send_error_response(500, f"Failed to save timeline_build.json: {str(e)}")
-                            return
-
-            # 2. Update timeline.json
-            t_path = resolve_artifact_path(active_root, "timeline.json")
-            t_updated = False
-            if t_path.exists() and t_path.is_file():
-                t_data = load_json_file(t_path)
-                plan_list = None
-                if isinstance(t_data, list):
-                    plan_list = t_data
-                elif isinstance(t_data, dict) and "plan" in t_data:
-                    plan_list = t_data["plan"]
-
-                if plan_list:
-                    for slot in plan_list:
-                        if slot.get("segment") == segment_num:
-                            slot["source"] = source_path
-                            t_updated = True
-                    if t_updated:
-                        try:
-                            t_path.write_text(json.dumps(t_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                        except Exception as e:
-                            self.send_error_response(500, f"Failed to save timeline.json: {str(e)}")
-                            return
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "timeline_build_updated": tb_updated, "timeline_updated": t_updated}).encode("utf-8"))
-            return
-
-        # POST /api/update_clip -> update a clip duration
-        if path_str == "/api/update_clip":
-            root_val = body.get("root")
-            segment_val = body.get("segment")
-            duration_val = body.get("duration")
-
-            if not root_val or segment_val is None or duration_val is None:
-                self.send_error_response(400, "Missing required parameters: root, segment, duration")
-                return
-
-            active_root = self.get_validated_root({"root": [root_val]})
-            if str(active_root.resolve()) != str(Path(root_val).resolve()):
-                self.send_error_response(403, "Access Denied: path outside allowed directories")
-                return
-
-            segment_num = int(segment_val)
-            new_duration = float(duration_val)
-
-            # 1. Update timeline_build.json
-            tb_path = resolve_artifact_path(active_root, "timeline_build.json")
-            tb_updated = False
-            if tb_path.exists() and tb_path.is_file():
-                tb_data = load_json_file(tb_path)
-                if tb_data and "clips" in tb_data:
-                    for clip in tb_data["clips"]:
-                        if clip.get("segment") == segment_num:
-                            for field in ["extract_dur", "slot_dur", "duration_sec", "duration"]:
-                                if field in clip or (field == "extract_dur" and "source_path" in clip):
-                                    clip[field] = new_duration
-                            clip["adjusted"] = True
-                            clip["adjustment_reason"] = "Trimmed/Extended via Review Dashboard V4"
-                            tb_updated = True
-                    if tb_updated:
-                        try:
-                            tb_path.write_text(json.dumps(tb_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                        except Exception as e:
-                            self.send_error_response(500, f"Failed to save timeline_build.json: {str(e)}")
-                            return
-
-            # 2. Update timeline.json
-            t_path = resolve_artifact_path(active_root, "timeline.json")
-            t_updated = False
-            if t_path.exists() and t_path.is_file():
-                t_data = load_json_file(t_path)
-                plan_list = None
-                if isinstance(t_data, list):
-                    plan_list = t_data
-                elif isinstance(t_data, dict) and "plan" in t_data:
-                    plan_list = t_data["plan"]
-
-                if plan_list:
-                    for slot in plan_list:
-                        if slot.get("segment") == segment_num:
-                            for field in ["extract_dur", "slot_dur", "duration_sec", "duration"]:
-                                if field in slot or (field == "duration_sec" and "source" in slot):
-                                    slot[field] = new_duration
-                            t_updated = True
-                    if t_updated:
-                        try:
-                            t_path.write_text(json.dumps(t_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                        except Exception as e:
-                            self.send_error_response(500, f"Failed to save timeline.json: {str(e)}")
-                            return
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "timeline_build_updated": tb_updated, "timeline_updated": t_updated}).encode("utf-8"))
-            return
-
-        # POST /api/save_review_settings -> update aspect ratio, LUT, speed, volume
-        if path_str == "/api/save_review_settings":
-            root_val = body.get("root")
-            if not root_val:
-                self.send_error_response(400, "Missing required parameter: root")
-                return
-
-            active_root = self.get_validated_root({"root": [root_val]})
-            if str(active_root.resolve()) != str(Path(root_val).resolve()):
-                self.send_error_response(403, "Access Denied")
-                return
-
-            settings = {
-                "aspect_ratio": body.get("aspect_ratio", "16:9"),
-                "color_lut": body.get("color_lut", "normal"),
-                "playback_speed": float(body.get("playback_speed", 1.0)),
-                "bgm_volume": int(body.get("bgm_volume", 50))
-            }
-
-            settings_path = active_root / "review_settings.json"
-            try:
-                settings_path.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
-            except Exception as e:
-                self.send_error_response(500, f"Failed to save review_settings.json: {str(e)}")
-                return
-
-            resolution_map = {
-                "16:9": "1920x1080",
-                "9:16": "1080x1920",
-                "1:1": "1080x1080"
-            }
-            target_res = resolution_map.get(settings["aspect_ratio"], "1920x1080")
-
-            tb_path = resolve_artifact_path(active_root, "timeline_build.json")
-            if tb_path.exists() and tb_path.is_file():
-                tb_data = load_json_file(tb_path)
-                if tb_data and isinstance(tb_data, dict):
-                    if "settings" not in tb_data:
-                        tb_data["settings"] = {}
-                    tb_data["settings"]["resolution"] = target_res
-                    try:
-                        tb_path.write_text(json.dumps(tb_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                    except Exception:
-                        pass
-
-            t_path = resolve_artifact_path(active_root, "timeline.json")
-            if t_path.exists() and t_path.is_file():
-                t_data = load_json_file(t_path)
-                if t_data and isinstance(t_data, dict):
-                    if "settings" not in t_data:
-                        t_data["settings"] = {}
-                    t_data["settings"]["resolution"] = target_res
-                    try:
-                        t_path.write_text(json.dumps(t_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                    except Exception:
-                        pass
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "settings": settings}).encode("utf-8"))
-            return
-
-        # POST /api/swap_bgm -> swap bgm music
-        if path_str == "/api/swap_bgm":
-            root_val = body.get("root")
-            bgm_path = body.get("bgm_path")
-
-            if not root_val or not bgm_path:
-                self.send_error_response(400, "Missing required parameters: root, bgm_path")
-                return
-
-            active_root = self.get_validated_root({"root": [root_val]})
-            if str(active_root.resolve()) != str(Path(root_val).resolve()):
-                self.send_error_response(403, "Access Denied")
-                return
-
-            src_file = Path(bgm_path).resolve()
-            if not src_file.is_file():
-                self.send_error_response(400, "Source BGM file not found")
-                return
-
-            import shutil
-            dest_file = active_root / "bgm.mp3"
-            try:
-                shutil.copy2(src_file, dest_file)
-            except Exception as e:
-                self.send_error_response(500, f"Failed to copy BGM file: {str(e)}")
-                return
-
-            sc_path = resolve_artifact_path(active_root, "segment_contract.json")
-            sc_updated = False
-            if sc_path.exists() and sc_path.is_file():
-                sc_data = load_json_file(sc_path)
-                if sc_data and isinstance(sc_data, dict):
-                    if "music" not in sc_data:
-                        sc_data["music"] = {}
-                    sc_data["music"]["source"] = "local"
-                    sc_data["music"]["local_path"] = str(dest_file.resolve())
-                    sc_data["music"]["brief"] = f"Swapped: {src_file.name}"
-                    sc_updated = True
-                    try:
-                        sc_path.write_text(json.dumps(sc_data, ensure_ascii=False, indent=2), encoding="utf-8")
-                    except Exception:
-                        pass
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "copied_to": str(dest_file.resolve()), "segment_contract_updated": sc_updated}).encode("utf-8"))
-            return
-
-        self.send_error_response(404, "Not Found")
+        self.send_error_response(
+            405,
+            "Review Dashboard is read-only. Write-back endpoints are disabled."
+        )
 
 
 def run_server(artifact_root: str, port: int):

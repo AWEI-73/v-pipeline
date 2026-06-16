@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from http.server import HTTPServer
 from pathlib import Path
@@ -246,137 +247,78 @@ Second subtitle
         self.assertIn("mapped_clip.mp4", names)
         self.assertNotIn("random.txt", names)
 
-    def test_api_swap_asset(self):
+    def test_write_endpoints_are_disabled_and_do_not_mutate_artifacts(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        # 1. Create timeline_build.json
         tb_data = {
             "clips": [
                 {
                     "segment": 1,
-                    "source_path": "old_video.mp4"
+                    "source_path": "old_video.mp4",
+                    "duration_sec": 3.0
                 }
             ]
         }
-        (self.artifact_root / "timeline_build.json").write_text(json.dumps(tb_data), encoding="utf-8")
+        tb_path = self.artifact_root / "timeline_build.json"
+        tb_path.write_text(json.dumps(tb_data), encoding="utf-8")
 
-        # 2. Create timeline.json
         t_data = [
             {
                 "segment": 1,
-                "source": "old_video.mp4"
+                "source": "old_video.mp4",
+                "duration_sec": 3.0
             }
         ]
-        (self.artifact_root / "timeline.json").write_text(json.dumps(t_data), encoding="utf-8")
+        timeline_path = self.artifact_root / "timeline.json"
+        timeline_path.write_text(json.dumps(t_data), encoding="utf-8")
 
-        # Send swap request
-        req_data = {
-            "root": str(self.artifact_root),
-            "segment": 1,
-            "source_path": "new_awesome_clip.mp4"
-        }
-        req_body = json.dumps(req_data).encode("utf-8")
+        contract_path = self.artifact_root / "segment_contract.json"
+        contract_data = {"music": {"source": "existing"}}
+        contract_path.write_text(json.dumps(contract_data), encoding="utf-8")
 
-        req = urllib.request.Request(
-            f"{base_url}/api/swap_asset",
-            data=req_body,
-            headers={"Content-Type": "application/json"}
-        )
-        resp = urllib.request.urlopen(req).read()
-        res_json = json.loads(resp.decode("utf-8"))
-        self.assertTrue(res_json["success"])
+        bgm_source = self.artifact_root / "candidate_bgm.mp3"
+        bgm_source.write_bytes(b"not-real-audio")
 
-        # Check file updates
-        updated_tb = json.loads((self.artifact_root / "timeline_build.json").read_text(encoding="utf-8"))
-        self.assertEqual(updated_tb["clips"][0]["source_path"], "new_awesome_clip.mp4")
-
-        updated_t = json.loads((self.artifact_root / "timeline.json").read_text(encoding="utf-8"))
-        self.assertEqual(updated_t[0]["source"], "new_awesome_clip.mp4")
-
-    def test_api_save_review_settings(self):
-        self.start_test_server()
-        base_url = f"http://localhost:{self.port}"
-
-        # Send settings request
-        req_data = {
-            "root": str(self.artifact_root),
-            "aspect_ratio": "9:16",
-            "color_lut": "warm",
-            "playback_speed": 1.5,
-            "bgm_volume": 80
-        }
-        req_body = json.dumps(req_data).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{base_url}/api/save_review_settings",
-            data=req_body,
-            headers={"Content-Type": "application/json"}
-        )
-        resp = urllib.request.urlopen(req).read()
-        res_json = json.loads(resp.decode("utf-8"))
-        self.assertTrue(res_json["success"])
-
-        # Verify review_settings.json is written
-        settings_file = self.artifact_root / "review_settings.json"
-        self.assertTrue(settings_file.exists())
-        saved_settings = json.loads(settings_file.read_text(encoding="utf-8"))
-        self.assertEqual(saved_settings["aspect_ratio"], "9:16")
-        self.assertEqual(saved_settings["color_lut"], "warm")
-        self.assertEqual(saved_settings["playback_speed"], 1.5)
-        self.assertEqual(saved_settings["bgm_volume"], 80)
-
-    def test_api_update_clip(self):
-        self.start_test_server()
-        base_url = f"http://localhost:{self.port}"
-
-        # 1. Create timeline_build.json
-        tb_data = {
-            "clips": [
-                {
-                    "segment": 1,
-                    "duration_sec": 3.0,
-                    "source_path": "video.mp4"
-                }
-            ]
-        }
-        (self.artifact_root / "timeline_build.json").write_text(json.dumps(tb_data), encoding="utf-8")
-
-        # 2. Create timeline.json
-        t_data = [
-            {
+        endpoints = [
+            ("/api/swap_asset", {
+                "root": str(self.artifact_root),
                 "segment": 1,
-                "duration_sec": 3.0,
-                "source": "video.mp4"
-            }
+                "source_path": "new_awesome_clip.mp4"
+            }),
+            ("/api/update_clip", {
+                "root": str(self.artifact_root),
+                "segment": 1,
+                "duration": 5.5
+            }),
+            ("/api/save_review_settings", {
+                "root": str(self.artifact_root),
+                "aspect_ratio": "9:16",
+                "color_lut": "warm",
+                "playback_speed": 1.5,
+                "bgm_volume": 80
+            }),
+            ("/api/swap_bgm", {
+                "root": str(self.artifact_root),
+                "bgm_path": str(bgm_source)
+            }),
         ]
-        (self.artifact_root / "timeline.json").write_text(json.dumps(t_data), encoding="utf-8")
 
-        # Send update request
-        req_data = {
-            "root": str(self.artifact_root),
-            "segment": 1,
-            "duration": 5.5
-        }
-        req_body = json.dumps(req_data).encode("utf-8")
+        for endpoint, payload in endpoints:
+            req = urllib.request.Request(
+                f"{base_url}{endpoint}",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(req)
+            self.assertEqual(cm.exception.code, 405)
 
-        req = urllib.request.Request(
-            f"{base_url}/api/update_clip",
-            data=req_body,
-            headers={"Content-Type": "application/json"}
-        )
-        resp = urllib.request.urlopen(req).read()
-        res_json = json.loads(resp.decode("utf-8"))
-        self.assertTrue(res_json["success"])
-
-        # Verify timeline_build.json is updated
-        updated_tb = json.loads((self.artifact_root / "timeline_build.json").read_text(encoding="utf-8"))
-        self.assertEqual(updated_tb["clips"][0]["duration_sec"], 5.5)
-        self.assertEqual(updated_tb["clips"][0]["adjusted"], True)
-
-        # Verify timeline.json is updated
-        updated_t = json.loads((self.artifact_root / "timeline.json").read_text(encoding="utf-8"))
-        self.assertEqual(updated_t[0]["duration_sec"], 5.5)
+        self.assertEqual(json.loads(tb_path.read_text(encoding="utf-8")), tb_data)
+        self.assertEqual(json.loads(timeline_path.read_text(encoding="utf-8")), t_data)
+        self.assertEqual(json.loads(contract_path.read_text(encoding="utf-8")), contract_data)
+        self.assertFalse((self.artifact_root / "review_settings.json").exists())
+        self.assertFalse((self.artifact_root / "bgm.mp3").exists())
 
 
 if __name__ == "__main__":
