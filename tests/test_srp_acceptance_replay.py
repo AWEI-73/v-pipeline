@@ -1,10 +1,12 @@
-"""Unit tests for the SRP acceptance-replay harness pure functions.
+"""Unit tests for the SRP acceptance-replay harness.
 
-No ffmpeg / no Gemini dependency: covers material-map building, asset resolution
-blocking, and the comparison-report attribution logic with hand-built results.
+Mostly ffmpeg/Gemini-free (material-map building, asset-resolution blocking, report
+attribution, content/slot analysis). One slot-level reverse proof builds a tiny
+[red card + gradient] video with ffmpeg using ONLY generated content (no Gemini).
 """
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -274,6 +276,93 @@ class RenderContentTest(unittest.TestCase):
 
     def test_no_frames_extracted_is_not_ok(self):
         self.assertFalse(R.evaluate_content([], [{"gray": [1] * 16}])["ok"])
+
+
+class SlotLevelTest(unittest.TestCase):
+    """Slot-level render verification (catches a per-slot fake render that
+    whole-video sampling can skip — e.g. a red opening card)."""
+
+    def _png(self, d, name, fn, size=64):
+        from PIL import Image
+        im = Image.new("RGB", (size, size))
+        im.putdata([fn(i % size, i // size) for i in range(size * size)])
+        p = Path(d) / name
+        im.save(p)
+        return str(p)
+
+    def test_slot_windows_cumulative(self):
+        plan = [{"slot_index": 0, "extract_dur": 2.0},
+                {"slot_index": 1, "extract_dur": 1.0},
+                {"slot_index": 2, "extract_dur": 3.0}]
+        w = R.slot_windows(plan)
+        self.assertEqual([(s, e, m) for _, s, e, m in w],
+                         [(0.0, 2.0, 1.0), (2.0, 3.0, 2.5), (3.0, 6.0, 4.5)])
+
+    def test_evaluate_slot_monochrome_card_fails(self):
+        flat = {"stdev": 0.0, "gray": [40.0] * 16}     # solid red/blue/black card
+        src = {"gray": list(range(16))}
+        res = R.evaluate_slot(flat, src)
+        self.assertFalse(res["ok"])
+        self.assertIn("monochrome", res["reason"])
+
+    def test_evaluate_slot_uncorrelated_fails(self):
+        frame = {"stdev": 50.0, "gray": [i % 3 for i in range(16)]}
+        src = {"gray": [(i * 5) % 7 for i in range(16)]}
+        res = R.evaluate_slot(frame, src, min_corr=0.95)
+        self.assertFalse(res["ok"])
+        self.assertIn("uncorrelated", res["reason"])
+
+    def test_evaluate_slot_ok_when_matches_source(self):
+        g = [float(i) for i in range(16)]
+        res = R.evaluate_slot({"stdev": 50.0, "gray": g}, {"gray": [v + 2 for v in g]})
+        self.assertTrue(res["ok"])
+
+    def test_summarize_front_color_cards_fail(self):
+        # "only the second half has real images; the front is color cards"
+        records = [
+            {"slot_index": 0, "ok": False}, {"slot_index": 1, "ok": False},
+            {"slot_index": 2, "ok": True}, {"slot_index": 3, "ok": True}]
+        s = R.summarize_slot_records(records)
+        self.assertFalse(s["ok"])
+        self.assertEqual(s["failed_slots"], [0, 1])
+        with self.assertRaises(R.Blocked):
+            R.assert_slots(s, "enhanced")
+
+    def test_verify_slots_blocks_red_opening_clip(self):
+        # END-TO-END (ffmpeg, no external assets): a video whose FIRST slot is a
+        # solid-red card must fail at the slot level, even though a later slot is
+        # real content (the whole-video gate could miss this).
+        from video_pipeline_core.vt_core import FFMPEG, FFPROBE
+        orig = (R.FFMPEG, R.FFPROBE)
+        R.FFMPEG, R.FFPROBE = FFMPEG, FFPROBE
+        try:
+            d = Path(tempfile.mkdtemp())
+            grad = self._png(d, "grad.png",
+                             lambda x, y: (x * 4 % 256, y * 4 % 256, (x + y) * 2 % 256))
+            red, gr, out = d / "red.mp4", d / "gr.mp4", d / "v.mp4"
+            subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:d=1",
+                            "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", str(red)],
+                           capture_output=True, check=True)
+            subprocess.run([FFMPEG, "-y", "-loop", "1", "-i", grad, "-t", "1",
+                            "-vf", "scale=320:240,setsar=1,fps=30,format=yuv420p",
+                            "-c:v", "libx264", str(gr)], capture_output=True, check=True)
+            listf = d / "l.txt"
+            listf.write_text(f"file '{red.as_posix()}'\nfile '{gr.as_posix()}'\n")
+            subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", str(listf),
+                            "-c", "copy", str(out)], capture_output=True, check=True)
+            plan = [
+                {"slot_index": 0, "segment": 1, "source": grad, "extract_dur": 1.0,
+                 "opening_role": "hook", "scene_id": "grad:0"},
+                {"slot_index": 1, "segment": 1, "source": grad, "extract_dur": 1.0,
+                 "beat_role": "payoff", "scene_id": "grad:1"}]
+            chk = R.verify_slots(str(out), plan)
+            self.assertIn(0, chk["failed_slots"])     # red opening slot fails
+            self.assertNotIn(1, chk["failed_slots"])  # real gradient slot passes
+            self.assertFalse(chk["ok"])
+            with self.assertRaises(R.Blocked):
+                R.assert_slots(chk, "enhanced")
+        finally:
+            R.FFMPEG, R.FFPROBE = orig
 
 
 if __name__ == "__main__":

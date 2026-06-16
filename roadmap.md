@@ -181,17 +181,26 @@ go to the gitignored `.tmp/srp_acceptance/`: `baseline|enhanced/final.mp4` +
 `timeline.json`, `comparison_report.{json,md}`. Every DECLARED manifest image is
 fail-closed: a single missing / empty / unreadable declared image BLOCKS the whole
 replay (non-zero) — the controlled set is never silently down-sampled into a
-"successful" report. The render is also content-verified, not just exists/
-non-empty: each `final.mp4` is sampled (4 frames), and the replay BLOCKS unless
-every video has a non-monochrome frame (max per-channel spatial stdev ≥ 10 — a
-solid red / black / white card scores ~0 and is rejected) AND at least one frame
-visually correlates (grayscale-structure Pearson ≥ 0.30) with a SELECTED source
-photo. This catches the "timeline correct but render faked (flat color card)"
-failure mode the previous exists/non-empty check could not. The controlled set's
-images are JPEG data with a `.png` extension (`mjpeg`/`yuvj420p`); they decode and
-render as real photo content here (`render_content_check`: baseline best
-correlation 0.999, enhanced 0.777). First run: enhanced timeline ≠ baseline; VD2
-active
+"successful" report. **Render content is verified at the SLOT level, not just
+exists/non-empty.** Root cause of a prior fake render (a red opening card, blue
+mid card): `run_mv` writes its `mvseg_<slot_index>.mp4` intermediates into the
+SHARED `tempfile.gettempdir()` keyed only by slot_index, so a concurrent/prior
+`run_mv` (incl. the test suite's solid-color renders) collided on those names and
+the concat spliced in foreign red/blue color clips. Fixed by giving each
+acceptance `run_mv` an ISOLATED `mat_dir` (`.tmp/srp_acceptance/<variant>/_work/`)
+— no core render change. The gate now BLOCKS unless, for EVERY plan slot, the
+frame sampled at that slot's mid time is non-monochrome (max per-channel spatial
+stdev ≥ 10 — a solid red/black/white card scores ~0) AND basically correlates
+(grayscale Pearson ≥ 0.08) with that slot's OWN source photo; a coarse whole-video
+check is also kept. `slot_render_checks` records every slot (slot_index, segment,
+opening_role/beat_role, scene_id, source, sample_time, stdev, best_correlation,
+ok, reason) + summary (checked_slots, failed_slots, ok). This catches the
+"timeline correct but render faked (flat color card)" mode the previous
+4-frame-whole-video sample skipped over. The controlled set's images are JPEG data
+with a `.png` extension (`mjpeg`/`yuvj420p`); after the mat_dir fix they render as
+real photo content from frame 0 (0.5s/1.5s/3.0s no longer color cards;
+all 14 baseline / 15 enhanced slots pass). First run: enhanced timeline ≠
+baseline; VD2 active
 (consecutive same-family runs 7→0), SRP1 active (beat sequences in all 7 chapters),
 SRP2 active (opening prepended), SRP3 active (climax 3.606s > setup 2.496s) with
 total duration / `target_sec` preserved and GAP=0. The report does NOT claim
@@ -203,8 +212,8 @@ dedup / reject distractors (that is the VERIFY-side `semantic_novelty_audit`'s j
 out of scope this round). The minimal disable flags default to existing behavior
 (zero change when unset) and add no new editing capability. No new canonical
 schema, no M6 gate / delivery / material-map-contract change, no Node 14 / effects
-/ Dashboard / Audio Graph, no 67th footage. Focused harness tests **21**; full
-regression **1261 tests OK**.
+/ Dashboard / Audio Graph, no 67th footage. Focused harness tests **27**; full
+regression **1267 tests OK**.
 
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.

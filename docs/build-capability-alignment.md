@@ -125,11 +125,13 @@ capability, and a VERIFY check creates nothing:
   can still overlap a segment query — so the report instead DISCLOSES distractor
   usage; on this set both cuts selected the duplicate-assembly and bad-group
   distractors (BUILD-time VD2 does not dedup/reject distractors; that is the
-  VERIFY-side `semantic_novelty_audit`'s job). The render is content-verified (not
-  just exists/non-empty): each `final.mp4` is frame-sampled and the replay BLOCKS
-  unless every video has a non-monochrome frame (solid red/black/white card → max
-  per-channel spatial stdev ~0 → rejected) AND ≥1 frame correlates with a selected
-  source photo — preventing a "timeline ok but render faked" pass. The disable flags
+  VERIFY-side `semantic_novelty_audit`'s job). Render content is verified at the
+  SLOT level: each acceptance `run_mv` uses an isolated `mat_dir` (fixing a shared-
+  temp `mvseg_<slot_index>` collision that previously spliced foreign red/blue
+  color clips into the concat), and the replay BLOCKS unless every plan slot's
+  mid-frame is non-monochrome (solid card → per-channel spatial stdev ~0) AND
+  correlates with that slot's own source photo (`slot_render_checks`) — preventing
+  a "timeline ok but render faked (color card)" pass. The disable flags
   (`disable_visual_diversity` / `disable_auto_sequence` / `disable_auto_opening` /
   `story_arc:false`) are minimal, backward-compatible controls (default = existing
   behavior); they add no new editing capability.

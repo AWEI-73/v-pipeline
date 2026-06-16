@@ -307,7 +307,8 @@ def timeline_signature(plan):
 
 
 def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
-                   enhanced_probe=None, isolations=None, render_content=None):
+                   enhanced_probe=None, isolations=None, render_content=None,
+                   slot_checks=None):
     """Build the comparison report dict from the two rendered run_mv results plus
     optional single-capability isolation results (planning-only) for HONEST
     per-capability attribution: a capability is `active` iff toggling ONLY it on
@@ -432,6 +433,7 @@ def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
             "off_topic_or_distractor_used": bool(b_distractors or e_distractors),
         },
         "render_content_check": render_content or {},
+        "slot_render_checks": slot_checks or {},
         "srp3_climax_vs_setup": {
             "climax_duration": climax, "setup_duration": setup,
             "climax_exceeds_setup": (climax is not None and setup is not None
@@ -549,6 +551,50 @@ def evaluate_content(frame_descs, source_descs, *, mono_stdev=MONO_STDEV,
     }
 
 
+# Per-slot gate thresholds. A flat color card scores stdev ~0 (rejected with a huge
+# margin vs real slots at 34-75); the low correlation floor only asserts the slot's
+# mid-frame is basically related to its OWN source image without false-blocking the
+# weakest real ken-burns crop (~0.16 observed).
+MIN_SLOT_CORR = 0.08
+
+
+def slot_windows(plan):
+    """Map each plan slot to its [start, end) time window and mid time in the
+    concatenated render (durations are preserved through concat; photos are not
+    motion-snapped). Returns [(clip, start, end, mid)]."""
+    t, out = 0.0, []
+    for c in plan:
+        d = float(c.get("extract_dur") or 0.0)
+        out.append((c, round(t, 3), round(t + d, 3), round(t + d / 2.0, 3)))
+        t += d
+    return out
+
+
+def evaluate_slot(frame_desc, source_desc, *, mono_stdev=MONO_STDEV,
+                  min_corr=MIN_SLOT_CORR):
+    """Verdict for one slot's mid-frame: not a near-monochrome card AND basically
+    correlated with that slot's OWN source image."""
+    if frame_desc is None:
+        return {"ok": False, "stdev": None, "best_correlation": None,
+                "reason": "frame not extracted"}
+    stdev = frame_desc["stdev"]
+    corr = pearson(frame_desc["gray"], source_desc["gray"]) if source_desc else 0.0
+    reasons = []
+    if stdev < mono_stdev:
+        reasons.append(f"near-monochrome card (stdev {stdev:.1f} < {mono_stdev})")
+    if corr < min_corr:
+        reasons.append(f"uncorrelated to its source (corr {corr:.2f} < {min_corr})")
+    return {"ok": stdev >= mono_stdev and corr >= min_corr,
+            "stdev": round(stdev, 2), "best_correlation": round(corr, 3),
+            "reason": "; ".join(reasons) or "ok"}
+
+
+def summarize_slot_records(records):
+    failed = [r["slot_index"] for r in records if not r["ok"]]
+    return {"slots": records, "checked_slots": len(records),
+            "failed_slots": failed, "ok": not failed}
+
+
 def report_md(report):
     L = ["# Controlled SRP Acceptance Replay — Comparison Report", ""]
     m = report["material"]
@@ -607,6 +653,20 @@ def report_md(report):
                      f"stdev[min={c.get('min_stdev')},max={c.get('max_stdev')}], "
                      f"best source correlation={c.get('best_source_correlation')} "
                      f"(match {c.get('best_match_source')}); {c.get('reason')}")
+        L.append("")
+    sc = report.get("slot_render_checks") or {}
+    if sc:
+        L += ["## Slot-level render check (every slot shows its own source photo)"]
+        for name in ("baseline", "enhanced"):
+            c = sc.get(name, {})
+            L.append(f"- **{name}**: ok={c.get('ok')} — checked {c.get('checked_slots')} "
+                     f"slots, failed {c.get('failed_slots')}")
+            for r in c.get("slots", []):
+                flag = "" if r["ok"] else "  ❌"
+                L.append(f"  - slot {r['slot_index']} seg{r['segment']} "
+                         f"{r.get('opening_role') or r.get('beat_role')} "
+                         f"{r['scene_id']} t={r['sample_time']}s stdev={r['stdev']} "
+                         f"corr={r['best_correlation']} -> {r['ok']}{flag}")
         L.append("")
     L += ["## Viewing checklist (objective — no aesthetic score)"]
     for item in report["viewing_checklist"]:
@@ -675,6 +735,45 @@ def assert_render_content(check, label):
                       f"({check})")
 
 
+def verify_slots(mp4, plan):
+    """SLOT-LEVEL gate: for EVERY plan slot, sample the frame at the slot's mid
+    time and verify it is not a near-monochrome card and is basically correlated
+    with that slot's own source image. Catches a per-slot fake render (e.g. a red
+    opening card) that whole-video sampling can skip over."""
+    import tempfile  # noqa: PLC0415
+    td = tempfile.mkdtemp()
+    dur = _probe(mp4) or 0.0
+    src_cache, records = {}, []
+    for c, _s, _e, mid in slot_windows(plan):
+        t = min(mid, max(0.0, dur - 0.05)) if dur > 0 else mid
+        f = Path(td) / f"slot_{c.get('slot_index')}.png"
+        subprocess.run([FFMPEG, "-y", "-ss", f"{t:.2f}", "-i", str(mp4),
+                        "-frames:v", "1", str(f)], capture_output=True)
+        fd = (frame_descriptor(str(f))
+              if f.exists() and f.stat().st_size > 0 else None)
+        src = c.get("source")
+        if src not in src_cache:
+            try:
+                src_cache[src] = frame_descriptor(src)
+            except Exception:
+                src_cache[src] = None
+        ev = evaluate_slot(fd, src_cache.get(src))
+        records.append({
+            "slot_index": c.get("slot_index"), "segment": c.get("segment"),
+            "opening_role": c.get("opening_role"), "beat_role": c.get("beat_role"),
+            "scene_id": c.get("scene_id"),
+            "source": Path(src).name if src else None,
+            "sample_time": round(t, 2), **ev})
+    return summarize_slot_records(records)
+
+
+def assert_slots(check, label):
+    if not check.get("ok"):
+        bad = [r for r in check["slots"] if not r["ok"]]
+        raise Blocked(f"{label} slot-level render check failed for slots "
+                      f"{check['failed_slots']}: {bad}")
+
+
 def _selected_sources(plan):
     seen = []
     for c in plan:
@@ -732,15 +831,26 @@ def main(argv=None):
     music = out / "music.wav"
     _gen_music(music, args.music_sec)
 
+    def _work(name):
+        # ISOLATED per-run scratch dir for render intermediates. run_mv otherwise
+        # writes mvseg_<slot_index>.mp4 into the SHARED tempfile.gettempdir(),
+        # keyed only by slot_index, so a concurrent/prior run_mv (incl. the test
+        # suite's solid-color renders) collides on those names and the concat can
+        # splice in a foreign red/blue color clip. A fresh dir per run eliminates
+        # the collision so the final.mp4 shows the Gemini photos from frame 0.
+        w = out / name / "_work"
+        w.mkdir(parents=True, exist_ok=True)
+        return str(w)
+
     common = dict(material_root=None, music_path=str(music),
                   material_maps=material_map, target_sec=args.target_sec,
                   max_clips_per_seg=args.max_clips_per_seg, verbose=False)
 
     # Rendered pair: baseline (all off) and enhanced (all on).
     base_res = mv_cut.run_mv(baseline_script(script), out_path=str(out / "baseline" / "final.mp4"),
-                             skip_render=False, **common)
+                             skip_render=False, mat_dir=_work("baseline"), **common)
     enh_res = mv_cut.run_mv(enhanced_script(script), out_path=str(out / "enhanced" / "final.mp4"),
-                            skip_render=False, **common)
+                            skip_render=False, mat_dir=_work("enhanced"), **common)
 
     # Planning-only isolation runs (no render) for honest per-capability attribution.
     toggles = {"VD2": dict(vd2=True, srp1=False, srp2=False, srp3=False),
@@ -749,7 +859,7 @@ def main(argv=None):
                "SRP3": dict(vd2=False, srp1=False, srp2=False, srp3=True)}
     isolations = {cap: mv_cut.run_mv(variant_script(script, **flags),
                                      out_path=str(out / f"_iso_{cap}.mp4"),
-                                     skip_render=True, **common)
+                                     skip_render=True, mat_dir=_work(f"_iso_{cap}"), **common)
                   for cap, flags in toggles.items()}
 
     for name, res in (("baseline", base_res), ("enhanced", enh_res)):
@@ -763,20 +873,28 @@ def main(argv=None):
         if not mp4.exists() or mp4.stat().st_size <= 0:
             raise Blocked(f"render produced no usable file: {mp4}")
 
-    # Render-content gate: each final.mp4 must actually show the source photos
-    # (not a flat color card / unrelated content). Fail-closed.
+    # Whole-video render-content gate (coarse) + SLOT-LEVEL gate (primary): every
+    # plan slot's mid-frame must show its own source photo, not a flat color card.
+    # Fail-closed on either.
     render_content = {
         "baseline": verify_render_content(base_mp4, _selected_sources(base_res["plan"])),
         "enhanced": verify_render_content(enh_mp4, _selected_sources(enh_res["plan"])),
     }
+    slot_checks = {
+        "baseline": verify_slots(base_mp4, base_res["plan"]),
+        "enhanced": verify_slots(enh_mp4, enh_res["plan"]),
+    }
     assert_render_content(render_content["baseline"], "baseline")
     assert_render_content(render_content["enhanced"], "enhanced")
+    assert_slots(slot_checks["baseline"], "baseline")
+    assert_slots(slot_checks["enhanced"], "enhanced")
 
     report = compute_report(base_res, enh_res, assets,
                             baseline_probe=_probe(base_mp4),
                             enhanced_probe=_probe(enh_mp4),
                             isolations=isolations,
-                            render_content=render_content)
+                            render_content=render_content,
+                            slot_checks=slot_checks)
     report["material"]["unreadable_problems"] = problems
     (out / "comparison_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -796,6 +914,11 @@ def main(argv=None):
           f"{render_content['baseline']['best_source_correlation']}), enhanced="
           f"{render_content['enhanced']['ok']} (corr "
           f"{render_content['enhanced']['best_source_correlation']})")
+    print(f"[srp-replay] slot_render ok: baseline="
+          f"{slot_checks['baseline']['ok']} ({slot_checks['baseline']['checked_slots']} "
+          f"slots, failed {slot_checks['baseline']['failed_slots']}), enhanced="
+          f"{slot_checks['enhanced']['ok']} ({slot_checks['enhanced']['checked_slots']} "
+          f"slots, failed {slot_checks['enhanced']['failed_slots']})")
     return 0
 
 
