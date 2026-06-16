@@ -48,6 +48,10 @@ def build_demo_script(needs_present, *, title="Training Graduation Demo"):
         # slightly longer approved shots so SRP1's 2-4 beat compiler does not
         # discard a large number of short slots and collapse the runtime.
         segment["pacing"] = {"preferred_shot_sec": [2.8, 3.4]}
+        nid = segment.get("need_ref")
+        segment["subtitle"] = (
+            f"Seg {segment.get('segment')} | {nid} {SRP.NEED_THEME.get(nid, nid)}"
+        )
     script["demo_goal"] = "enhanced_only_pipeline_flow"
     script["target_style"] = "energetic_training_graduation_montage"
     return script
@@ -149,6 +153,55 @@ def semantic_alignment_report(plan, assets, script):
     return {"segments": segments, "drift_segments": drift_segments}
 
 
+def _fmt_srt_time(seconds):
+    total_ms = int(round(max(0.0, float(seconds)) * 1000))
+    ms = total_ms % 1000
+    total_s = total_ms // 1000
+    s = total_s % 60
+    total_m = total_s // 60
+    m = total_m % 60
+    h = total_m // 60
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def timeline_review_srt(plan):
+    """Build a review SRT from contiguous story slots carrying the same subtitle.
+
+    This is a review artifact for human inspection; it does not drive selection
+    or act as a delivery gate.
+    """
+    cues = []
+    t = 0.0
+    active = None
+    for clip in plan or []:
+        dur = float(clip.get("extract_dur") or clip.get("slot_dur") or 0.0)
+        text = (clip.get("text") or {}).get("subtitle")
+        if clip.get("opening_role"):
+            text = None
+        if text:
+            if active and active["text"] == text:
+                active["end"] = t + dur
+            else:
+                if active:
+                    cues.append(active)
+                active = {"start": t, "end": t + dur, "text": str(text)}
+        else:
+            if active:
+                cues.append(active)
+                active = None
+        t += dur
+    if active:
+        cues.append(active)
+
+    blocks = []
+    for i, cue in enumerate(cues, start=1):
+        blocks.append(
+            f"{i}\n{_fmt_srt_time(cue['start'])} --> {_fmt_srt_time(cue['end'])}\n"
+            f"{cue['text']}\n"
+        )
+    return "\n".join(blocks)
+
+
 def compute_demo_report(result, *, asset_count, need_count, requested_target_sec,
                         render_sec, slot_check, assets=None, script=None):
     plan = result.get("plan") or []
@@ -222,6 +275,7 @@ def report_md(report):
         f"- Distractors used: {report.get('distractor_usage', {}).get('used', [])}",
         f"- Semantic drift segments: "
         f"{report.get('semantic_alignment', {}).get('drift_segments', [])}",
+        "- Review subtitles: `review_subtitles.srt`",
         "",
         "## Boundary",
         "- Uses synthetic Gemini material, not 67th real footage.",
@@ -294,6 +348,8 @@ def run_demo(gemini_root, *, target_sec=75.0, music_sec=None, max_clips_per_seg=
         "story_arc_plan": result.get("story_arc_plan"),
         "cuts": result.get("cuts"),
     })
+    (out / "review_subtitles.srt").write_text(
+        timeline_review_srt(result["plan"]), encoding="utf-8")
     _write_json(out / "review_report.json", report)
     (out / "review_report.md").write_text(report_md(report), encoding="utf-8")
     return report

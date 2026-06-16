@@ -17,6 +17,8 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
         self.assertTrue(all(s["pace"] == "fast" for s in script["segments"]))
         self.assertTrue(all(s["pacing"]["preferred_shot_sec"] == [2.8, 3.4]
                             for s in script["segments"]))
+        self.assertEqual(script["segments"][0]["subtitle"], "Seg 1 | N01 morning_assembly")
+        self.assertEqual(script["segments"][1]["subtitle"], "Seg 2 | N02 endurance_run")
         self.assertNotIn("disable_visual_diversity", script)
         self.assertNotIn("story_arc", script)
 
@@ -97,6 +99,22 @@ class GeminiDemoFilmPureTest(unittest.TestCase):
         self.assertIn("not a real-footage quality verdict", md)
         self.assertIn("Distractors used", md)
         self.assertIn("Semantic drift", md)
+        self.assertIn("review_subtitles.srt", md)
+
+    def test_review_subtitles_from_timeline_use_segment_subtitles(self):
+        plan = [
+            {"segment": 0, "extract_dur": 1.0, "opening_role": "hook"},
+            {"segment": 1, "extract_dur": 2.0, "text": {"subtitle": "Seg 1 | N01"}},
+            {"segment": 1, "extract_dur": 1.5, "text": {"subtitle": "Seg 1 | N01"}},
+            {"segment": 2, "extract_dur": 3.0, "text": {"subtitle": "Seg 2 | N02"}},
+        ]
+
+        srt = D.timeline_review_srt(plan)
+
+        self.assertIn("00:00:01,000 --> 00:00:04,500", srt)
+        self.assertIn("Seg 1 | N01", srt)
+        self.assertIn("00:00:04,500 --> 00:00:07,500", srt)
+        self.assertIn("Seg 2 | N02", srt)
 
     def test_output_root_is_cleaned_before_run(self):
         root = Path(tempfile.mkdtemp())

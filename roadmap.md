@@ -278,6 +278,13 @@ clips, and SRP2 opening clips. Focused tests cover need-priority, fallback,
 material-map need projection, and lineage preservation. Focused tests **134**;
 full regression **1286 tests OK**.
 
+**Gemini demo review subtitles COMPLETE** (2026-06-16): the enhanced demo script
+now writes per-segment review subtitles (`Seg N | need_id theme`) into the story
+text layer, `run_mv` burns non-auto subtitles at the bottom of rendered clips, and
+the demo emits `review_subtitles.srt` beside `final.mp4` for easier manual review.
+This is review affordance only; it does not alter material selection, gates, or
+semantic scoring. Focused tests **134**; full regression **1288 tests OK**.
+
 **Do not start:** M6a lineage integration, `material_delta`, the complete Visual
 Diversity Guard. Do not expand the MM1 contract further.
 

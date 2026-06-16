@@ -404,6 +404,13 @@ def _drawtext_chain(text, mat_dir, slot_idx):
         tf_esc = tf.replace("\\", "/").replace(":", "\\:")
         parts.append(f"drawtext=fontfile='{ff}':textfile='{tf_esc}':fontsize=46:fontcolor=white:"
                      f"borderw=3:bordercolor=black@0.9:x=(w-text_w)/2:y=h-130")
+    if text.get("subtitle") and text.get("subtitle") != "auto":
+        tf = os.path.join(mat_dir, f"sub_{slot_idx}.txt")
+        with open(tf, "w", encoding="utf-8") as f:
+            f.write(text["subtitle"])
+        tf_esc = tf.replace("\\", "/").replace(":", "\\:")
+        parts.append(f"drawtext=fontfile='{ff}':textfile='{tf_esc}':fontsize=38:fontcolor=white:"
+                     f"borderw=3:bordercolor=black@0.9:x=(w-text_w)/2:y=h-text_h-70")
     ns = text.get("name_super")
     if ns and ns.get("text"):
         nm = ns["text"] + ("  " + ns["title"] if ns.get("title") else "")

@@ -164,6 +164,22 @@ class DrawtextChainTest(unittest.TestCase):
                 self.assertEqual(f.read(), "傳承精技\n篤學不倦")
 
 
+    def test_subtitle_builds_bottom_drawtext(self):
+        original_font = mv_cut._CJK_FONT
+        try:
+            mv_cut._CJK_FONT = "font.ttf"
+            import tempfile, os
+            with tempfile.TemporaryDirectory() as d:
+                out = mv_cut._drawtext_chain({"subtitle": "Seg 1 | N01"}, d, 5)
+                self.assertIn("sub_5.txt", out)
+                self.assertIn("y=h-text_h-70", out)
+                self.assertIn("fontsize=38", out)
+                with open(os.path.join(d, "sub_5.txt"), encoding="utf-8") as f:
+                    self.assertEqual(f.read(), "Seg 1 | N01")
+        finally:
+            mv_cut._CJK_FONT = original_font
+
+
 class BuildMvStateTest(unittest.TestCase):
     def _run(self, tmp, per_seg, segs):
         import os
