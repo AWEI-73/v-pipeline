@@ -3159,3 +3159,25 @@ reference-repo edits, and `final.mp4` is never the primary preview.
 Deferred: Remotion Player adoption, full NLE, precise audio mix, transitions,
 canvas compositing, real export, Node-registry 14 effects, and promoting
 `patched_draft_timeline.json` back into the canonical BUILD chain.
+
+### 2026-06-16 NPE2 Workbench export + save-time spec alignment — COMPLETE
+
+Two follow-ups on NPE1, both keeping ffmpeg canonical:
+
+- **Save-time FALLBACK spec alignment** — `apply_patch` now runs
+  `align_plan_to_contract` over the whole plan, reconciling edited values back
+  onto the canonical timeline field spec and clamping anything that drifted off
+  the material window (source window > material duration, image start ≠ 0,
+  non-positive durations). Corrections are reported in
+  `patched_draft_timeline._spec_alignment` and surfaced in the UI. The saved
+  artifact is contract-conformant even when the base carried drift.
+- **Opt-in export** (`tools/workbench_export.py` + `POST /api/workbench/export`
+  + "Export (ffmpeg)" button) — hands the patched, aligned plan to the canonical
+  `mv_cut.render_mv` (the same ffmpeg path BUILD uses), writing
+  `workbench_export.mp4`. Canonical outputs (`final.mp4`, …) are hard-blocked.
+  This is the "second set you can use to actually output" — not a browser
+  renderer.
+
+Tests: `tests/test_workbench_export.py` (5) + alignment cases in
+`tests/test_timeline_patch.py`. Clipchamp-style timeline drag/split and
+canvas/WebGL compositing remain deferred (see decision doc).

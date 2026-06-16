@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.timeline_patch import apply_patch, validate_patch
+from tools.timeline_patch import (
+    align_clip_to_contract,
+    align_plan_to_contract,
+    apply_patch,
+    validate_patch,
+)
 
 
 def _write(root: Path, name: str, payload) -> None:
@@ -148,6 +153,55 @@ class TimelinePatchApplyTest(unittest.TestCase):
                 {"op": "set_duration", "slot_index": 0, "after": {"duration_sec": 9.0}}))
             after = (root / "timeline.json").read_text(encoding="utf-8")
             self.assertEqual(before, after)
+
+
+class SpecAlignmentTest(unittest.TestCase):
+    def test_clamps_source_window_to_material_duration(self):
+        clip = {"slot_index": 0, "source": "a.mp4", "slot_dur": 5.0,
+                "extract_start": 8.0, "extract_dur": 5.0}
+        aligned, corr = align_clip_to_contract(clip, source_window=10.0)
+        # 8 + 5 = 13 > 10  -> extract_dur clamped to 2.0
+        self.assertEqual(aligned["extract_dur"], 2.0)
+        self.assertTrue(any(c["field"] == "extract_dur" for c in corr))
+
+    def test_image_clip_pinned_to_start_zero(self):
+        clip = {"slot_index": 1, "source": "still.png", "slot_dur": 3.0,
+                "extract_start": 4.0, "extract_dur": 3.0}
+        aligned, corr = align_clip_to_contract(clip, source_window=None)
+        self.assertEqual(aligned["extract_start"], 0.0)
+        self.assertTrue(any(c["field"] == "extract_start" for c in corr))
+
+    def test_missing_extract_dur_mirrors_slot_dur(self):
+        clip = {"slot_index": 2, "source": "a.mp4", "slot_dur": 2.5,
+                "extract_start": 0.0, "extract_dur": None}
+        aligned, corr = align_clip_to_contract(clip, source_window=10.0)
+        self.assertEqual(aligned["extract_dur"], 2.5)
+
+    def test_apply_attaches_spec_alignment_report(self):
+        # Base timeline carries pre-existing drift (extract window past the
+        # material duration). A *valid* unrelated patch still triggers save-time
+        # alignment over the whole plan, clamping and reporting the drift.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vid = root / "clip.mp4"
+            vid.write_bytes(b"\x00")
+            _write(root, "timeline.json", {"plan": [
+                {"slot_index": 0, "source": str(vid), "slot_dur": 5.0,
+                 "extract_start": 9.0, "extract_dur": 5.0},  # 9+5=14 > 10 drift
+                {"slot_index": 1, "source": str(vid), "slot_dur": 2.0,
+                 "extract_start": 0.0, "extract_dur": 2.0},
+            ]})
+            _write(root, "project_material_map.json", {
+                "artifact_role": "project_material_map", "version": 1,
+                "assets": [{"asset_id": "a0", "asset_type": "video",
+                            "source": str(vid), "duration_sec": 10.0}], "needs": []})
+            result = apply_patch(str(root), _patch(
+                {"op": "set_duration", "slot_index": 1, "after": {"duration_sec": 3.0}}))
+
+        self.assertTrue(result["_spec_alignment"]["aligned"])
+        self.assertGreaterEqual(result["_spec_alignment"]["correction_count"], 1)
+        clip0 = next(c for c in result["plan"] if c["slot_index"] == 0)
+        self.assertLessEqual(clip0["extract_start"] + clip0["extract_dur"], 10.0 + 1e-6)
 
 
 if __name__ == "__main__":

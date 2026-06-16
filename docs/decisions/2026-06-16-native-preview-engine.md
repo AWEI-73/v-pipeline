@@ -87,18 +87,54 @@ Ops: `set_duration`, `set_source_window`, `move_clip`. Validation: duration > 0,
 source_start ≥ 0, `source_start + source_duration` ≤ source asset window,
 `slot_index` must exist, `move_clip` index in range. Invalid patches write
 nothing. `apply` emits `patched_draft_timeline.json` and **never** touches
-`timeline.json`.
+`timeline.json`. `slot_index` is a **stable identity** (never renumbered on a
+move); ordering is represented purely by array position, so later ops in the
+same patch keep targeting a clip by its original `slot_index`.
+
+## Save-time FALLBACK spec alignment
+
+On save, `apply_patch` runs `align_plan_to_contract` over the whole plan to
+reconcile the edited values back onto the canonical timeline field spec — a
+safety net that *fixes* drift instead of rejecting it:
+
+- `slot_dur` / `extract_dur` forced > 0 (fall back to each other, else a min);
+- video `extract_start` clamped ≥ 0 and within the source window;
+- `extract_start + extract_dur` clamped to the material's `duration_sec`
+  (the FALLBACK alignment to material spec);
+- image clips pinned to `extract_start = 0`;
+- numeric fields rounded to 3 dp for deterministic artifacts.
+
+Every auto-fix is reported in `patched_draft_timeline._spec_alignment.corrections`
+and echoed to the UI ("spec-aligned N field(s)"). This is why the saved artifact
+is contract-conformant even when the base timeline carried drift.
+
+## Optional export (`tools/workbench_export.py`)
+
+The workbench is a lightweight editor; export is **opt-in**, not a second
+renderer. The patched, spec-aligned `plan` is handed to the **canonical** ffmpeg
+renderer (`mv_cut.render_mv`) — the same code path BUILD uses — and lands on
+`workbench_export.mp4`. Canonical outputs (`final.mp4`, etc.) are hard-blocked;
+attempting to export onto one raises. Exposed as CLI and an opt-in
+`POST /api/workbench/export` (blocks until ffmpeg finishes). This gives the user
+"a second set they can use to actually output" without introducing a browser
+render pipeline.
 
 ## ffmpeg BUILD remains canonical
 
-A patch is an editorial *proposal*. Official rendering still runs through Hermes /
-ffmpeg BUILD on canonical artifacts. The workbench never renders.
+A patch is an editorial *proposal*. The optional export reuses the canonical
+ffmpeg renderer on the patched plan — it does not create a new render path and
+never produces a canonical artifact. The full Hermes BUILD on canonical
+artifacts remains the source of truth for delivery.
 
 ## Deferred (intentional)
 
 - Adopting Remotion `Player` / a full NLE.
-- Precise audio mixing, multi-video simultaneous playback, transitions, canvas
-  compositing, waveforms, drag-resize, real export/final render.
+- Canvas/WebGL multi-layer compositing, transitions, PiP/multi-video, waveforms,
+  and in-browser export (Clipchamp-style). Export here is ffmpeg-backed, not
+  browser-composited, by design.
+- Precise audio mixing (export uses `render_mv`'s music-mux only).
+- Timeline-level drag-resize handles / split / library-add (Tier-1 interaction;
+  the patch model already supports the data side).
 - Node-registry "14" motion-graphics effects pathway.
 - Promoting `patched_draft_timeline.json` back into the canonical chain (a BUILD
   re-entry gate) — out of scope this round.

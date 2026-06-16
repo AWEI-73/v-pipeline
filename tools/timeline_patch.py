@@ -164,6 +164,108 @@ def validate_patch(
 
 
 # --------------------------------------------------------------------------- #
+# Spec FALLBACK alignment (save-time reconciliation)
+# --------------------------------------------------------------------------- #
+def _is_image_source(source: Optional[str]) -> bool:
+    if not source:
+        return False
+    return os.path.splitext(str(source))[1].lower() in {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+    }
+
+
+def align_clip_to_contract(
+    clip: Dict[str, Any],
+    source_window: Optional[float],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Normalize one plan clip back onto the canonical timeline field spec.
+
+    Fallback corrections (never raise -- this is the save-time safety net that
+    *fixes* drift rather than rejecting it):
+      - slot_dur / extract_dur must be > 0 (fall back to each other, else a min).
+      - extract_start clamped to >= 0 and within the source window.
+      - extract_start + extract_dur clamped to the source window.
+      - image clips pinned to extract_start 0.
+      - numeric fields rounded to 3 dp for deterministic artifacts.
+    Returns ``(clip, corrections)`` where corrections lists every auto-fix.
+    """
+    corrections: List[Dict[str, Any]] = []
+    slot = clip.get("slot_index")
+
+    def fix(field: str, old: Any, new: Any, reason: str) -> None:
+        corrections.append({"slot_index": slot, "field": field,
+                            "from": old, "to": new, "reason": reason})
+
+    is_image = _is_image_source(clip.get("source"))
+
+    slot_dur = clip.get("slot_dur")
+    extract_dur = clip.get("extract_dur")
+    extract_start = clip.get("extract_start")
+
+    # 1. slot_dur sane.
+    if not isinstance(slot_dur, (int, float)) or float(slot_dur) <= 0:
+        fallback = float(extract_dur) if isinstance(extract_dur, (int, float)) and extract_dur > 0 else 1.0
+        fix("slot_dur", slot_dur, fallback, "non-positive slot_dur fell back")
+        clip["slot_dur"] = fallback
+        slot_dur = fallback
+
+    # 2. extract_dur sane (mirror slot_dur when missing).
+    if not isinstance(extract_dur, (int, float)) or float(extract_dur) <= 0:
+        fix("extract_dur", extract_dur, float(slot_dur), "missing extract_dur mirrored slot_dur")
+        clip["extract_dur"] = float(slot_dur)
+        extract_dur = float(slot_dur)
+
+    # 3. extract_start spec.
+    if is_image:
+        if extract_start not in (0, 0.0, None):
+            fix("extract_start", extract_start, 0.0, "image clip pinned to source start 0")
+        clip["extract_start"] = 0.0
+        extract_start = 0.0
+    else:
+        if not isinstance(extract_start, (int, float)) or float(extract_start) < 0:
+            fix("extract_start", extract_start, 0.0, "negative/missing extract_start clamped to 0")
+            clip["extract_start"] = 0.0
+            extract_start = 0.0
+
+    # 4. source-window clamp (the FALLBACK alignment to material spec).
+    if source_window is not None and not is_image:
+        if float(extract_start) > float(source_window):
+            fix("extract_start", extract_start, 0.0, "extract_start beyond source window reset to 0")
+            clip["extract_start"] = 0.0
+            extract_start = 0.0
+        overshoot = float(extract_start) + float(extract_dur) - float(source_window)
+        if overshoot > 1e-6:
+            new_dur = round(max(0.0, float(source_window) - float(extract_start)), 3)
+            if new_dur <= 0:
+                new_dur = round(min(float(extract_dur), float(source_window)), 3)
+                fix("extract_start", extract_start, 0.0, "window did not fit; reset start to 0")
+                clip["extract_start"] = 0.0
+            fix("extract_dur", extract_dur, new_dur, "source window clamped to material duration")
+            clip["extract_dur"] = new_dur
+            extract_dur = new_dur
+
+    # 5. deterministic rounding.
+    for f in ("slot_dur", "extract_dur", "extract_start"):
+        if isinstance(clip.get(f), (int, float)):
+            clip[f] = round(float(clip[f]), 3)
+
+    return clip, corrections
+
+
+def align_plan_to_contract(
+    plan: List[Dict[str, Any]],
+    material_map: Optional[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Align every clip to the contract spec; return ``(plan, corrections)``."""
+    all_corrections: List[Dict[str, Any]] = []
+    for clip in plan:
+        window = _source_window_for(clip, material_map if isinstance(material_map, dict) else None)
+        _, corr = align_clip_to_contract(clip, window)
+        all_corrections.extend(corr)
+    return plan, all_corrections
+
+
+# --------------------------------------------------------------------------- #
 # Apply
 # --------------------------------------------------------------------------- #
 def apply_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -202,9 +304,20 @@ def apply_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             cur = plan.index(clip)
             plan.insert(new_index, plan.pop(cur))
 
+    # Save-time FALLBACK alignment: reconcile the edited plan back onto the
+    # canonical timeline field spec and clamp anything that drifted off the
+    # material window. This is what makes the saved artifact contract-conformant.
+    material_map = _load_json(root / "project_material_map.json")
+    _, corrections = align_plan_to_contract(plan, material_map if isinstance(material_map, dict) else None)
+
     result["_patched_from"] = base_name
     result["_patch_base_ref"] = patch.get("base_timeline_ref")
     result["_patch_op_count"] = len(patch.get("patches", []))
+    result["_spec_alignment"] = {
+        "aligned": True,
+        "correction_count": len(corrections),
+        "corrections": corrections,
+    }
     return result
 
 

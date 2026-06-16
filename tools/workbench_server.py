@@ -27,9 +27,11 @@ from typing import Any, Dict, List, Optional
 try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import preview_timeline as pt
     from tools import timeline_patch as tp
+    from tools import workbench_export as wx
 except ImportError:  # pragma: no cover - direct-script fallback
     import preview_timeline as pt
     import timeline_patch as tp
+    import workbench_export as wx
 
 WORKBENCH_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "workbench_native"
 
@@ -202,6 +204,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/workbench/export":
+            self._handle_export()
+            return
         if parsed.path != "/api/workbench/patch":
             self._send_error(404, "Not found")
             return
@@ -238,7 +243,49 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         preview = pt.build_preview_timeline(str(self.artifact_root), self.base_url)
         self._write_artifact("preview_timeline.json", preview, written)
 
-        self._send_json(200, {"ok": True, "written": written})
+        self._send_json(200, {
+            "ok": True,
+            "written": written,
+            "spec_alignment": applied.get("_spec_alignment", {}),
+        })
+
+    def _handle_export(self) -> None:
+        """Opt-in: render the (optionally patched) plan via canonical ffmpeg.
+
+        This is the heavy second path -- it produces workbench_export.mp4 only and
+        never a canonical artifact. Blocks until ffmpeg finishes.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            self._send_error(400, "invalid JSON")
+            return
+
+        patch = body.get("patch") if isinstance(body, dict) else None
+        out = (body.get("out") if isinstance(body, dict) else None) or wx.DEFAULT_OUT
+        if os.path.basename(str(out)) in wx.PROTECTED_OUTPUTS:
+            self._send_error(422, f"refusing to export onto protected artifact: {out}")
+            return
+
+        # Fall back to a previously saved patch if none supplied inline.
+        if patch is None:
+            saved = self.artifact_root / "timeline_patch.json"
+            if saved.is_file():
+                try:
+                    patch = json.loads(saved.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    patch = None
+        try:
+            result = wx.export(str(self.artifact_root), out=out, patch=patch)
+        except ValueError as exc:
+            self._send_json(422, {"ok": False, "error": str(exc)})
+            return
+        except Exception as exc:  # pragma: no cover - ffmpeg/runtime failures
+            self._send_json(500, {"ok": False, "error": f"export failed: {exc}"})
+            return
+        self._send_json(200, result)
 
     def _write_artifact(self, name: str, payload: Any, written: List[str]) -> None:
         if name not in WRITABLE_OUTPUTS:

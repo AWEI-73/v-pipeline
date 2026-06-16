@@ -37,7 +37,7 @@
       "field-source-start", "field-source-duration", "btn-apply-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
-      "btn-download-patch", "btn-save-patch",
+      "btn-download-patch", "btn-save-patch", "btn-export",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -342,7 +342,12 @@
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (res.ok && res.j.ok) {
-          els.diagnostics.textContent = "Saved: " + (res.j.written || []).join(", ");
+          var align = res.j.spec_alignment || {};
+          var note = "Saved: " + (res.j.written || []).join(", ");
+          if (align.correction_count) {
+            note += " · spec-aligned " + align.correction_count + " field(s) (fallback clamp)";
+          }
+          els.diagnostics.textContent = note;
           state.dirty = false;
           updateDirty();
         } else {
@@ -350,6 +355,29 @@
         }
       })
       .catch(function (err) { els.diagnostics.textContent = "Save failed: " + err; });
+  }
+
+  function exportFfmpeg() {
+    var patch = buildPatch();
+    els.diagnostics.textContent = "Exporting via ffmpeg (this can take a while)…";
+    els.btn_export.disabled = true;
+    fetch("/api/workbench/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patch: patch.patches.length ? patch : null }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.ok) {
+          els.diagnostics.textContent =
+            "Exported " + res.j.rendered_clips + " clips → " + res.j.out +
+            " (canonical ffmpeg; final.mp4 untouched)";
+        } else {
+          els.diagnostics.textContent = "Export failed: " + (res.j.error || JSON.stringify(res.j));
+        }
+      })
+      .catch(function (err) { els.diagnostics.textContent = "Export failed: " + err; })
+      .finally(function () { els.btn_export.disabled = false; });
   }
 
   // -- wire -------------------------------------------------------------- //
@@ -363,6 +391,7 @@
     els.btn_move_right.onclick = function () { moveClip(1); };
     els.btn_download_patch.onclick = downloadPatch;
     els.btn_save_patch.onclick = savePatch;
+    els.btn_export.onclick = exportFfmpeg;
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
   }
 
