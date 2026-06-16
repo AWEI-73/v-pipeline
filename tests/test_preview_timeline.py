@@ -7,6 +7,7 @@ from tools.preview_timeline import (
     build_preview_timeline,
     classify_clip_type,
     compute_timeline_starts,
+    main,
     parse_srt,
     path_to_url,
     seconds_to_frame,
@@ -137,6 +138,14 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         codes = {d["code"] for d in preview["diagnostics"]}
         self.assertIn("source_not_found", codes)
         self.assertIn("missing_source", codes)
+
+    def test_build_cli_refuses_canonical_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            before = (root / "timeline.json").read_text(encoding="utf-8")
+            rc = main(["build", "--artifact-root", str(root), "--out", "timeline.json"])
+            self.assertEqual(rc, 2)
+            self.assertEqual((root / "timeline.json").read_text(encoding="utf-8"), before)
 
     def test_build_never_writes_timeline_json(self):
         with tempfile.TemporaryDirectory() as tmp:

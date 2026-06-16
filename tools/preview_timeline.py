@@ -328,7 +328,19 @@ def build_preview_timeline(
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
+# Canonical artifacts the build CLI must never overwrite (defence-in-depth; the
+# server path never writes here, but the CLI accepts an arbitrary --out).
+_PROTECTED_OUTPUTS = {
+    "timeline.json", "draft_timeline.json", "segment_contract.json",
+    "revised_segment_contract.json", "project_material_map.json",
+    "material_needs.json", "final.mp4", "review_report.json", "delivery_gate.json",
+}
+
+
 def _cmd_build(args: argparse.Namespace) -> int:
+    if os.path.basename(str(args.out)) in _PROTECTED_OUTPUTS:
+        print(f"[preview_timeline] refusing to overwrite canonical artifact: {args.out}")
+        return 2
     preview = build_preview_timeline(args.artifact_root, args.base_url, fps=args.fps)
     out_path = Path(args.out)
     if not out_path.is_absolute():
