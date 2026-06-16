@@ -90,17 +90,22 @@ def asset_theme(entry):
 
 
 def build_caption(entry):
-    """Searchable caption: theme token (when on-topic) + subject. Off-topic
-    distractors get only their subject, so they score 0 for every segment."""
+    """Searchable caption: theme token (when on-topic) + subject. An off-topic
+    distractor gets only its subject — which may STILL term-overlap a segment query
+    (e.g. a "group photo" subject overlapping the graduation chapter), so it is NOT
+    guaranteed to score 0. The comparison report discloses whether any distractor
+    was actually selected rather than assuming exclusion."""
     theme = asset_theme(entry)
     subject = str(entry.get("subject") or "").replace("_", " ").strip()
     return f"{theme} {subject}".strip() if theme else (subject or "untitled")
 
 
 def resolve_assets(manifest, gemini_root):
-    """Resolve every manifest entry to an absolute, readable, non-empty path.
-    Returns (assets, problems): assets are usable asset records; problems lists
-    unreadable/missing files (reported, never silently dropped into success)."""
+    """Resolve every DECLARED manifest entry to an absolute, readable, non-empty
+    path. Returns (assets, problems): assets are usable asset records; problems
+    lists every declared image that is missing / empty / unreadable. Each declared
+    filename is load-bearing — the caller (`assert_declared_present`) fail-closes
+    on any problem, so a problem is never silently dropped into a successful run."""
     gemini_root = Path(gemini_root)
     assets, problems = [], []
     for entry in manifest:
@@ -114,6 +119,12 @@ def resolve_assets(manifest, gemini_root):
             continue
         if path.stat().st_size <= 0:
             problems.append({"filename": fn, "reason": "empty file"})
+            continue
+        try:
+            with open(path, "rb") as fh:      # declared image must be readable
+                fh.read(1)
+        except OSError as exc:
+            problems.append({"filename": fn, "reason": f"unreadable: {exc}"})
             continue
         asset_id = Path(fn).stem
         assets.append({
@@ -130,6 +141,16 @@ def resolve_assets(manifest, gemini_root):
             "is_distractor": entry.get("need_id") == "DISTRACTOR",
         })
     return assets, problems
+
+
+def assert_declared_present(problems):
+    """Fail-closed: EVERY declared Gemini image must resolve. Any missing / empty /
+    unreadable declared image blocks the whole replay (non-zero), so the controlled
+    set is never silently down-sampled into a 'successful' report."""
+    if problems:
+        raise Blocked(
+            f"{len(problems)} declared Gemini image(s) missing/empty/unreadable; "
+            f"refusing to run on a degraded set: {problems}")
 
 
 def build_material_map(assets):
@@ -244,6 +265,28 @@ def opening_clip_count(plan):
     return sum(1 for c in plan if c.get("opening_role"))
 
 
+def used_distractors(plan, assets):
+    """List every distractor / off-topic asset actually SELECTED into the story,
+    with the segment, scene_id, visual_family, and retrieval_score it was used at —
+    honesty evidence (BUILD-time VD2 does not dedup near-duplicates; that is the
+    VERIFY-side semantic_novelty_audit's job)."""
+    dmap = {a["asset_id"]: a for a in assets if a.get("is_distractor")}
+    out = []
+    for c in _story_slots(plan):
+        sid = c.get("scene_id") or ""
+        asset_id = sid.rsplit(":", 1)[0]
+        if asset_id in dmap:
+            out.append({
+                "asset_id": asset_id,
+                "filename": dmap[asset_id].get("filename"),
+                "segment": c.get("segment"),
+                "scene_id": sid,
+                "visual_family": c.get("visual_family"),
+                "retrieval_score": c.get("retrieval_score"),
+            })
+    return out
+
+
 def arc_role_durations(plan):
     """Sum story duration per arc_role (from the stamped slot trace)."""
     out = {}
@@ -293,6 +336,9 @@ def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
     e_arc = arc_role_durations(e_plan)
     climax = e_arc.get("climax")
     setup = e_arc.get("setup")
+
+    b_distractors = used_distractors(b_plan, assets)
+    e_distractors = used_distractors(e_plan, assets)
 
     capabilities = {
         "VD2_visual_diversity": {
@@ -380,6 +426,11 @@ def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
             "baseline": gap_count(baseline["segments"]),
             "enhanced": gap_count(enhanced["segments"]),
         },
+        "distractor_usage": {
+            "used_distractors_baseline": b_distractors,
+            "used_distractors_enhanced": e_distractors,
+            "off_topic_or_distractor_used": bool(b_distractors or e_distractors),
+        },
         "srp3_climax_vs_setup": {
             "climax_duration": climax, "setup_duration": setup,
             "climax_exceeds_setup": (climax is not None and setup is not None
@@ -398,9 +449,11 @@ def compute_report(baseline, enhanced, assets, *, baseline_probe=None,
             f"(climax={climax}s vs setup={setup}s)",
             "Do per-chapter shots progress (context -> action -> payoff) in enhanced? "
             f"(auto sequences: {auto_sequence_segments(e_plan)})",
-            "Are both cuts free of off-topic / GAP filler? "
+            "Are both cuts free of off-topic / distractor / GAP filler? "
             f"(GAP: baseline={gap_count(baseline['segments'])}, "
-            f"enhanced={gap_count(enhanced['segments'])})",
+            f"enhanced={gap_count(enhanced['segments'])}; distractors used: "
+            f"baseline={[d['scene_id'] for d in b_distractors]}, "
+            f"enhanced={[d['scene_id'] for d in e_distractors]})",
         ],
     }
 
@@ -449,7 +502,17 @@ def report_md(report):
           f"- photo/video: baseline={report['photo_video']['baseline']}, "
           f"enhanced={report['photo_video']['enhanced']}",
           f"- GAP: baseline={report['gap_count']['baseline']}, "
-          f"enhanced={report['gap_count']['enhanced']}", ""]
+          f"enhanced={report['gap_count']['enhanced']}",
+          f"- **Distractor / off-topic used:** "
+          f"{report['distractor_usage']['off_topic_or_distractor_used']} "
+          f"(baseline={[d['scene_id'] for d in report['distractor_usage']['used_distractors_baseline']]}, "
+          f"enhanced={[d['scene_id'] for d in report['distractor_usage']['used_distractors_enhanced']]})", ""]
+    for label in ("used_distractors_baseline", "used_distractors_enhanced"):
+        for d in report["distractor_usage"][label]:
+            L.append(f"  - {label}: {d['filename']} @ seg{d['segment']} "
+                     f"scene={d['scene_id']} family={d['visual_family']} "
+                     f"score={d['retrieval_score']}")
+    L.append("")
     L += ["## Viewing checklist (objective — no aesthetic score)"]
     for item in report["viewing_checklist"]:
         L.append(f"- [ ] {item}")
@@ -505,6 +568,7 @@ def main(argv=None):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assets, problems = resolve_assets(manifest, root)
+    assert_declared_present(problems)   # fail-closed on ANY missing/unreadable image
     needs_present = [n for n in NEED_THEME if any(a["need_id"] == n for a in assets)]
     if len(needs_present) < 3:
         raise Blocked(f"only {len(needs_present)} usable needs (<3); cannot form an "

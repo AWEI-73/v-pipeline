@@ -64,6 +64,29 @@ class MaterialBuildTest(unittest.TestCase):
         self.assertEqual(scene["visual_family"], "assembly_view")
         self.assertIn(R.NEED_THEME["N01"], scene["caption"])
 
+    def test_declared_missing_image_fails_closed(self):
+        # a declared manifest image that is missing -> resolve reports it ->
+        # assert_declared_present BLOCKS (no successful run on a degraded set).
+        d = self._root_with({"n01_a.png": b"x"})
+        manifest = [_entry("n01_a.png", "N01"), _entry("n02_missing.png", "N02")]
+        assets, problems = R.resolve_assets(manifest, d)
+        self.assertTrue(problems)
+        with self.assertRaises(R.Blocked):
+            R.assert_declared_present(problems)
+
+    def test_unreadable_declared_image_is_a_problem(self):
+        d = self._root_with({"good.png": b"x"})
+        # a directory at a declared path is not a readable file
+        (d / "n02_dir.png").mkdir()
+        manifest = [_entry("good.png", "N01"), _entry("n02_dir.png", "N02")]
+        _assets, problems = R.resolve_assets(manifest, d)
+        self.assertTrue(any(p["filename"] == "n02_dir.png" for p in problems))
+        with self.assertRaises(R.Blocked):
+            R.assert_declared_present(problems)
+
+    def test_all_present_does_not_block(self):
+        R.assert_declared_present([])   # no problems -> no raise
+
     def test_variant_flags(self):
         script = R.build_script(["N01", "N02", "N03"])
         self.assertTrue(all(s["pace"] == "fast" for s in script["segments"]))
@@ -149,6 +172,36 @@ class ReportTest(unittest.TestCase):
         plan = [_slot(1, "a:0", fam="X"), _slot(1, "b:0", fam="X"),
                 _slot(2, "c:0", fam="Y")]
         self.assertEqual(R.consecutive_family_repeats(plan), 1)
+
+    def test_distractor_usage_reported(self):
+        assets = [
+            {"asset_id": "n01_a", "need_id": "N01", "visual_family": "f1",
+             "angle_scale": "wide", "asset_type": "photo", "is_distractor": False,
+             "filename": "n01_a.png"},
+            {"asset_id": "distractor_bad_group_photo", "need_id": "DISTRACTOR",
+             "visual_family": "bad_group", "angle_scale": "wide",
+             "asset_type": "photo", "is_distractor": True,
+             "filename": "distractor_bad_group_photo.png"},
+        ]
+        # enhanced selects the bad-group distractor into segment 7
+        enh = {"plan": [_slot(1, "n01_a:0", fam="f1"),
+                        _slot(7, "distractor_bad_group_photo:0", fam="bad_group")],
+               "segments": [{"segment": 1, "picked_scores": [1.0]},
+                            {"segment": 7, "picked_scores": [1.0]}],
+               "story_arc_plan": {"status": "not_applicable"}}
+        base = {"plan": [_slot(1, "n01_a:0", fam="f1")],
+                "segments": [{"segment": 1, "picked_scores": [1.0]}],
+                "story_arc_plan": {"status": "not_applicable"}}
+        rep = R.compute_report(base, enh, assets, isolations={})
+        du = rep["distractor_usage"]
+        self.assertTrue(du["off_topic_or_distractor_used"])
+        self.assertEqual(du["used_distractors_baseline"], [])
+        self.assertEqual(len(du["used_distractors_enhanced"]), 1)
+        used = du["used_distractors_enhanced"][0]
+        self.assertEqual(used["filename"], "distractor_bad_group_photo.png")
+        self.assertEqual(used["segment"], 7)
+        self.assertEqual(used["visual_family"], "bad_group")
+        self.assertIn("distractor", R.report_md(rep))
 
     def test_report_md_renders(self):
         base = {"plan": [_slot(1, "a:0", fam="f1")],

@@ -119,7 +119,13 @@ capability, and a VERIFY check creates nothing:
   is independently attributable: VD2 changes per-chapter selection (consecutive
   same-family runs 7→0), SRP1 adds beat sequences in every chapter, SRP2 prepends
   an opening, and SRP3 makes the climax chapter longer than setup (3.6s vs 2.5s)
-  while preserving total duration / `target_sec`. The disable flags
+  while preserving total duration / `target_sec`. Every declared manifest image is
+  fail-closed (a missing/empty/unreadable declared image blocks the run). The
+  harness does NOT claim distractors are excluded — a distractor's subject terms
+  can still overlap a segment query — so the report instead DISCLOSES distractor
+  usage; on this set both cuts selected the duplicate-assembly and bad-group
+  distractors (BUILD-time VD2 does not dedup/reject distractors; that is the
+  VERIFY-side `semantic_novelty_audit`'s job). The disable flags
   (`disable_visual_diversity` / `disable_auto_sequence` / `disable_auto_opening` /
   `story_arc:false`) are minimal, backward-compatible controls (default = existing
   behavior); they add no new editing capability.
