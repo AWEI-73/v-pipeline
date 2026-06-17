@@ -86,6 +86,8 @@ WORKBENCH_DRAFT_ARTIFACTS = {
     "subtitle_patch": "subtitle_patch.json",
     "audio_cue_patch": "audio_cue_patch.json",
     "effect_patch": "effect_patch.json",
+    "workbench_review_report": "workbench_review_report.json",
+    "workbench_review_report_md": "workbench_review_report.md",
 }
 
 

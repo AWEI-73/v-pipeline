@@ -33,6 +33,20 @@ class WorkbenchHandoffTest(unittest.TestCase):
         self.assertRegex(detail["sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(handoff["summary"]["timeline_edits"], 1)
 
+    def test_handoff_records_review_report_artifacts_when_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "workbench_review_report.json", {"artifact_role": "workbench_review_report"})
+            (root / "workbench_review_report.md").write_text("# report", encoding="utf-8")
+            handoff = build_handoff(str(root))
+
+        self.assertIn("workbench_review_report", handoff["artifacts"])
+        self.assertIn("workbench_review_report_md", handoff["artifacts"])
+        self.assertRegex(
+            handoff["artifact_details"]["workbench_review_report"]["sha256"],
+            r"^[0-9a-f]{64}$",
+        )
+
     def test_handoff_ignores_canonical_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -47,4 +61,3 @@ class WorkbenchHandoffTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

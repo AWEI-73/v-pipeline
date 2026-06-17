@@ -261,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ["subtitles", drafts.subtitle_patch],
             ["audio", drafts.audio_cue_patch],
             ["effects", drafts.effect_patch],
+            ["review", drafts.workbench_review_report],
         ];
         const chips = tracked.map(([label, item]) => {
             const active = item && item.exists;
