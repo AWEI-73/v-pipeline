@@ -159,6 +159,9 @@ def collect_run_layout_status(root_dir: Path):
     if payload.get("error"):
         return {**base, "error": payload["error"]}
 
+    from video_pipeline_core.project_workspace import validate_run_layout
+    validation = validate_run_layout(root_dir)
+
     return {
         **base,
         "artifact_role": payload.get("artifact_role"),
@@ -170,6 +173,13 @@ def collect_run_layout_status(root_dir: Path):
             else {}
         ),
         "policy": payload.get("policy") if isinstance(payload.get("policy"), dict) else {},
+        "validation": {
+            "ok": bool(validation.get("ok")),
+            "error_count": len(validation.get("errors") or []),
+            "warning_count": len(validation.get("warnings") or []),
+            "errors": validation.get("errors") or [],
+            "warnings": validation.get("warnings") or [],
+        },
     }
 
 

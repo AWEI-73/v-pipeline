@@ -46,6 +46,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "project-new-run": "workspace",
     "state": "workspace",
     "commands-manifest": "workspace",
+    "run-layout-validate": "workspace",
 
     # Frontend/review surfaces.
     "serve": "frontend",

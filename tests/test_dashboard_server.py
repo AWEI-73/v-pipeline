@@ -14,6 +14,7 @@ from tools.dashboard_server import (
     DashboardHandler,
     detect_profile,
 )
+from video_pipeline_core import project_workspace
 
 
 class DashboardServerTest(unittest.TestCase):
@@ -263,24 +264,12 @@ class DashboardServerTest(unittest.TestCase):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        run_layout = {
-            "artifact_role": "run_layout",
-            "version": 1,
-            "folders": {
-                "canonical": "canonical",
-                "drafts": "drafts",
-                "cache": "cache",
-            },
-            "artifact_classes": {
-                "canonical": ["timeline.json", "final.mp4"],
-                "draft": ["timeline_patch.json"],
-                "cache": ["workbench_thumbs/"],
-            },
-            "policy": {
-                "canonical_read_only_for_dashboard": True,
-                "drafts_are_agent_handoff_inputs": True,
-            },
-        }
+        for rel in project_workspace.RUN_LAYOUT:
+            (self.artifact_root / rel).mkdir(parents=True, exist_ok=True)
+        run_layout = project_workspace.build_run_layout(
+            self.artifact_root.parent,
+            self.artifact_root,
+        )
         (self.artifact_root / "run_layout.json").write_text(
             json.dumps(run_layout),
             encoding="utf-8",
@@ -291,9 +280,11 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(status["run_layout"]["artifact_role"], "run_layout")
         self.assertEqual(status["run_layout"]["version"], 1)
         self.assertEqual(status["run_layout"]["path"], "run_layout.json")
-        self.assertEqual(status["run_layout"]["folders"]["canonical"], "canonical")
+        self.assertEqual(status["run_layout"]["folders"]["spec"], "spec")
         self.assertIn("timeline.json", status["run_layout"]["artifact_classes"]["canonical"])
-        self.assertTrue(status["run_layout"]["policy"]["canonical_read_only_for_dashboard"])
+        self.assertTrue(status["run_layout"]["policy"]["official_render_owned_by_backend"])
+        self.assertTrue(status["run_layout"]["validation"]["ok"])
+        self.assertEqual(status["run_layout"]["validation"]["error_count"], 0)
 
         artifacts_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
         artifacts = json.loads(artifacts_resp.decode("utf-8"))

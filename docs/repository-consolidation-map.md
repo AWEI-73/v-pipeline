@@ -97,6 +97,10 @@ directories. It is navigation metadata for agents and frontend shells; it does
 not replace `segment_contract.json`, material maps, `state.json`, or gate
 artifacts.
 
+Use `video_tools.py run-layout-validate <run-dir>` before handing a run to
+another agent or shell. The validator owns folder/artifact ownership checks; UI
+surfaces only display its read-only status.
+
 ### Contract Run
 
 `video_pipeline_core/contract_adapter.py` adapts canonical contracts and runs

@@ -111,6 +111,16 @@ folder roles, canonical artifacts, Workbench draft artifacts, and derived cache
 directories. Treat it as navigation metadata only; it does not override
 `segment_contract.json`, material maps, or gate artifacts.
 
+Validate a run's layout before handing it to another agent or frontend shell:
+
+```powershell
+python video_tools.py run-layout-validate C:\path\to\project\runs\20260618-demo --out C:\path\to\project\runs\20260618-demo\run_layout_validation.json
+```
+
+The validator fails closed on missing/malformed `run_layout.json`, unsafe
+relative paths, duplicate artifact ownership, missing declared folders, and
+cache paths that are files instead of directories.
+
 **Always use the wrapper** — it boots Ollama, warms the model, runs the pipeline,
 and kills Ollama in the same shell session (so WSL idle won't orphan it):
 

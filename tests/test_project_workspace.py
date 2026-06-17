@@ -135,6 +135,109 @@ class ProjectWorkspaceTest(unittest.TestCase):
         ]
         self.assertEqual(project_workspace.RUN_LAYOUT, expected)
 
+    def test_validate_run_layout_accepts_new_project_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            repo = Path(d) / "repo"
+            project = project_workspace.init_project("ETF Demo", root=root, repo_dir=repo)
+            run = project_workspace.create_run_dir(
+                project["project_dir"],
+                label="baseline",
+                repo_dir=repo,
+                timestamp="20260605-153000",
+            )
+            (Path(run["run_dir"]) / "timeline.json").write_text("[]", encoding="utf-8")
+            (Path(run["run_dir"]) / "timeline_patch.json").write_text(
+                json.dumps({"patches": []}),
+                encoding="utf-8",
+            )
+
+            report = project_workspace.validate_run_layout(run["run_dir"])
+
+            self.assertTrue(report["ok"], report["errors"])
+            self.assertEqual(report["artifact_role"], "run_layout_validation")
+            self.assertEqual(report["present_artifacts"]["canonical"], ["timeline.json"])
+            self.assertEqual(report["present_artifacts"]["workbench_draft"], ["timeline_patch.json"])
+            self.assertEqual(report["folders"]["spec"]["status"], "ok")
+
+    def test_validate_run_layout_fails_closed_on_missing_or_bad_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            run_dir = Path(d) / "run"
+            run_dir.mkdir()
+
+            missing = project_workspace.validate_run_layout(run_dir)
+            self.assertFalse(missing["ok"])
+            self.assertEqual(missing["errors"][0]["code"], "missing_layout")
+
+            (run_dir / "run_layout.json").write_text("{bad", encoding="utf-8")
+            malformed = project_workspace.validate_run_layout(run_dir)
+            self.assertFalse(malformed["ok"])
+            self.assertEqual(malformed["errors"][0]["code"], "malformed_layout")
+
+    def test_validate_run_layout_rejects_unsafe_and_duplicate_ownership(self):
+        with tempfile.TemporaryDirectory() as d:
+            run_dir = Path(d) / "run"
+            run_dir.mkdir()
+            layout = project_workspace.build_run_layout(run_dir.parent, run_dir)
+            layout["folders"]["escape"] = "../outside"
+            layout["artifact_classes"]["workbench_draft"].append("final.mp4")
+            (run_dir / "run_layout.json").write_text(
+                json.dumps(layout),
+                encoding="utf-8",
+            )
+
+            report = project_workspace.validate_run_layout(run_dir)
+
+            self.assertFalse(report["ok"])
+            codes = {e["code"] for e in report["errors"]}
+            self.assertIn("unsafe_folder_path", codes)
+            self.assertIn("duplicate_artifact_owner", codes)
+
+    def test_validate_run_layout_rejects_cache_dir_as_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            repo = Path(d) / "repo"
+            project = project_workspace.init_project("ETF Demo", root=root, repo_dir=repo)
+            run = project_workspace.create_run_dir(
+                project["project_dir"],
+                label="baseline",
+                repo_dir=repo,
+                timestamp="20260605-153000",
+            )
+            thumbs = Path(run["run_dir"]) / "workbench_thumbs"
+            thumbs.write_text("not a directory", encoding="utf-8")
+
+            report = project_workspace.validate_run_layout(run["run_dir"])
+
+            self.assertFalse(report["ok"])
+            self.assertIn("cache_path_not_directory", {e["code"] for e in report["errors"]})
+
+    def test_video_tools_run_layout_validate_writes_report_and_fails_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            repo = Path(d) / "repo"
+            project = project_workspace.init_project("ETF Demo", root=root, repo_dir=repo)
+            run = project_workspace.create_run_dir(
+                project["project_dir"],
+                label="baseline",
+                repo_dir=repo,
+                timestamp="20260605-153000",
+            )
+            out = Path(d) / "layout_validation.json"
+
+            with redirect_stdout(StringIO()):
+                video_tools.cmd_run_layout_validate(
+                    SimpleNamespace(run_dir=run["run_dir"], out=str(out))
+                )
+            self.assertTrue(json.loads(out.read_text(encoding="utf-8"))["ok"])
+
+            (Path(run["run_dir"]) / "run_layout.json").unlink()
+            with self.assertRaises(Exception):
+                with redirect_stdout(StringIO()):
+                    video_tools.cmd_run_layout_validate(
+                        SimpleNamespace(run_dir=run["run_dir"], out=None)
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

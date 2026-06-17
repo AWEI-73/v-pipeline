@@ -9,6 +9,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 
 
 REPO_DIR = Path(__file__).resolve().parents[1]
@@ -144,6 +145,181 @@ def build_run_layout(project_dir, run_dir):
             "official_render_owned_by_backend": True,
             "material_map_is_source_of_truth": True,
         },
+    }
+
+
+def _layout_error(errors, code, message, **extra):
+    item = {"code": code, "message": message}
+    item.update(extra)
+    errors.append(item)
+
+
+def _safe_layout_rel(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace("\\", "/")
+    if ":" in text:
+        return None
+    path = PurePosixPath(text)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return path.as_posix()
+
+
+def _load_run_layout(layout_path, errors):
+    if not layout_path.is_file():
+        _layout_error(errors, "missing_layout", "run_layout.json is missing")
+        return None
+    try:
+        payload = json.loads(layout_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _layout_error(errors, "malformed_layout", f"run_layout.json is malformed: {exc}")
+        return None
+    except OSError as exc:
+        _layout_error(errors, "unreadable_layout", f"run_layout.json is unreadable: {exc}")
+        return None
+    if not isinstance(payload, dict):
+        _layout_error(errors, "invalid_layout_shape", "run_layout.json must be a JSON object")
+        return None
+    return payload
+
+
+def validate_run_layout(run_dir):
+    """Validate run_layout.json and artifact ownership for a run directory."""
+    run_dir = Path(run_dir).expanduser()
+    layout_path = run_dir / "run_layout.json"
+    errors = []
+    warnings = []
+    folder_report = {}
+    present_artifacts = {
+        "canonical": [],
+        "workbench_draft": [],
+        "derived_cache_dirs": [],
+    }
+
+    layout = _load_run_layout(layout_path, errors)
+    if layout is None:
+        return {
+            "artifact_role": "run_layout_validation",
+            "version": 1,
+            "ok": False,
+            "run_dir": str(run_dir),
+            "layout_path": str(layout_path),
+            "errors": errors,
+            "warnings": warnings,
+            "folders": folder_report,
+            "present_artifacts": present_artifacts,
+        }
+
+    if layout.get("artifact_role") != "run_layout":
+        _layout_error(errors, "invalid_artifact_role", "artifact_role must be run_layout")
+    if layout.get("version") != 1:
+        _layout_error(errors, "invalid_version", "run_layout version must be 1")
+
+    declared_run = layout.get("run_dir")
+    if isinstance(declared_run, str) and declared_run.strip():
+        try:
+            if Path(declared_run).expanduser().resolve() != run_dir.resolve():
+                warnings.append({
+                    "code": "run_dir_mismatch",
+                    "message": "run_layout run_dir differs from the validated directory",
+                    "declared": declared_run,
+                })
+        except OSError:
+            warnings.append({
+                "code": "run_dir_unresolvable",
+                "message": "declared run_dir could not be resolved",
+                "declared": declared_run,
+            })
+
+    folders = layout.get("folders")
+    if not isinstance(folders, dict):
+        _layout_error(errors, "invalid_folders_shape", "folders must be an object")
+        folders = {}
+    for key, rel in sorted(folders.items()):
+        safe = _safe_layout_rel(rel)
+        if safe is None:
+            _layout_error(
+                errors,
+                "unsafe_folder_path",
+                "folder path must be a non-empty relative path inside the run directory",
+                key=key,
+                value=rel,
+            )
+            folder_report[str(key)] = {"path": rel, "status": "unsafe"}
+            continue
+        path = run_dir / safe
+        if not path.exists():
+            _layout_error(errors, "missing_folder", "declared folder is missing", key=key, path=safe)
+            status = "missing"
+        elif not path.is_dir():
+            _layout_error(errors, "folder_path_not_directory", "declared folder is not a directory", key=key, path=safe)
+            status = "not_directory"
+        else:
+            status = "ok"
+        folder_report[str(key)] = {"path": safe, "status": status}
+
+    classes = layout.get("artifact_classes")
+    if not isinstance(classes, dict):
+        _layout_error(errors, "invalid_artifact_classes_shape", "artifact_classes must be an object")
+        classes = {}
+
+    owners = {}
+    for class_name in ("canonical", "workbench_draft", "derived_cache_dirs"):
+        entries = classes.get(class_name)
+        if not isinstance(entries, list):
+            _layout_error(errors, "invalid_artifact_class", f"{class_name} must be a list", class_name=class_name)
+            continue
+        for raw in entries:
+            safe = _safe_layout_rel(raw)
+            if safe is None:
+                _layout_error(
+                    errors,
+                    "unsafe_artifact_path",
+                    "artifact path must be a non-empty relative path inside the run directory",
+                    class_name=class_name,
+                    value=raw,
+                )
+                continue
+            previous = owners.setdefault(safe, class_name)
+            if previous != class_name:
+                _layout_error(
+                    errors,
+                    "duplicate_artifact_owner",
+                    "artifact path is owned by multiple classes",
+                    path=safe,
+                    first_owner=previous,
+                    second_owner=class_name,
+                )
+            path = run_dir / safe
+            if class_name == "derived_cache_dirs":
+                if path.exists():
+                    if path.is_dir():
+                        present_artifacts[class_name].append(safe)
+                    else:
+                        _layout_error(
+                            errors,
+                            "cache_path_not_directory",
+                            "derived cache path exists but is not a directory",
+                            path=safe,
+                        )
+                continue
+            if path.exists():
+                present_artifacts[class_name].append(safe)
+
+    for key in present_artifacts:
+        present_artifacts[key] = sorted(set(present_artifacts[key]))
+
+    return {
+        "artifact_role": "run_layout_validation",
+        "version": 1,
+        "ok": not errors,
+        "run_dir": str(run_dir),
+        "layout_path": str(layout_path),
+        "errors": errors,
+        "warnings": warnings,
+        "folders": folder_report,
+        "present_artifacts": present_artifacts,
     }
 
 
