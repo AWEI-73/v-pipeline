@@ -3270,3 +3270,21 @@ Tests: `tests/test_workbench_thumbs.py` (4) + server thumbnails/allow-list-cache
 cases; JS smoke unchanged. Full regression green. Verified live on
 `.tmp/srp_real67_fuller_replay`: filmstrip on all 43 clips, thumbnails served via
 /media, canonical untouched.
+
+### 2026-06-17 NPE6 Workbench preview proxy cache — COMPLETE
+
+Adds a derived preview-proxy cache for smoother monitor playback without turning
+the workbench into a full render engine. `workbench_proxy.py` trims each video
+clip window into a browser-friendly low-bitrate MP4 under
+`<root>/workbench_proxy/` (cached by source + mtime + clip window). The workbench
+loads `GET /api/workbench/proxies` asynchronously; once a proxy exists, monitor
+playback uses that proxy URL with `source_start_sec=0`, while the original
+`source_path` / material-map timing stays intact for patch and contract sync.
+
+This is **not** Tier C: no WebCodecs, no frame cache, no Remotion, no new npm
+dependency, and no canonical artifact writes. Missing/failed proxies gracefully
+fall back to the original media. `/media` allows only canonical preview sources,
+`workbench_thumbs/`, and `workbench_proxy/`.
+
+Tests: `tests/test_workbench_proxy.py` (4), server proxy endpoint/cache access
+cases, and JS smoke for proxy playback timing. Full regression green.

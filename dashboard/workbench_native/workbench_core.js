@@ -326,6 +326,23 @@
     };
   }
 
+  /** Return a playback-only clip using a proxy when available.
+   *
+   * The original clip remains the contract/patch source of truth. A proxy is a
+   * trimmed video file for browser preview, so its media time starts at zero.
+   */
+  function clipForPreviewPlayback(clip, proxies) {
+    proxies = proxies || {};
+    var proxy = clip && (proxies[String(clip.slot_index)] || proxies[clip.slot_index]);
+    if (!proxy || !proxy.src_url) return clip;
+    return Object.assign({}, clip, {
+      src_url: proxy.src_url,
+      source_start_sec: Number(proxy.source_start_sec) || 0,
+      source_duration_sec: Number(proxy.source_duration_sec) || clip.source_duration_sec,
+      preview_proxy_ref: proxy.proxy_ref || null,
+    });
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -359,5 +376,6 @@
     computeTrackMarkers: computeTrackMarkers,
     buildSavePayload: buildSavePayload,
     planVideoElementUpdate: planVideoElementUpdate,
+    clipForPreviewPlayback: clipForPreviewPlayback,
   };
 });

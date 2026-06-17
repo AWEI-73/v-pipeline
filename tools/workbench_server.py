@@ -34,6 +34,7 @@ try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import effect_patch as ep
     from tools import workbench_handoff as wh
     from tools import workbench_thumbs as wt
+    from tools import workbench_proxy as wp
 except ImportError:  # pragma: no cover - direct-script fallback
     import preview_timeline as pt
     import timeline_patch as tp
@@ -44,6 +45,7 @@ except ImportError:  # pragma: no cover - direct-script fallback
     import effect_patch as ep
     import workbench_handoff as wh
     import workbench_thumbs as wt
+    import workbench_proxy as wp
 
 WORKBENCH_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "workbench_native"
 
@@ -83,6 +85,7 @@ MEDIA_MIME = {
 
 
 THUMBS_DIRNAME = "workbench_thumbs"
+PROXY_DIRNAME = "workbench_proxy"
 
 # Cache the /media allow-list per root. Rebuilding preview_timeline on every byte
 # -range request was the main server-side stall during playback/scrub (NPE5).
@@ -122,6 +125,14 @@ def _is_under_thumbs(resolved: str, root: Path) -> bool:
     except OSError:
         return False
     return resolved.startswith(thumbs + os.sep)
+
+
+def _is_under_proxy(resolved: str, root: Path) -> bool:
+    try:
+        proxy = os.path.normcase(str((root / PROXY_DIRNAME).resolve()))
+    except OSError:
+        return False
+    return resolved.startswith(proxy + os.sep)
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
@@ -165,7 +176,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             return
 
         allow = _media_allowlist(self.artifact_root, self.base_url)
-        if resolved not in allow and not _is_under_thumbs(resolved, self.artifact_root):
+        if (resolved not in allow and
+                not _is_under_thumbs(resolved, self.artifact_root) and
+                not _is_under_proxy(resolved, self.artifact_root)):
             self._send_error(403, "source not in preview allow-list")
             return
 
@@ -254,6 +267,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if path == "/api/workbench/thumbnails":
             # one-time (cached) ffmpeg filmstrip thumbnails; first call is slow
             manifest = wt.build_thumbnails(str(self.artifact_root), self.base_url)
+            self._send_json(200, manifest)
+            return
+
+        if path == "/api/workbench/proxies":
+            # one-time (cached) ffmpeg preview proxies; first call can be slow
+            manifest = wp.build_proxies(str(self.artifact_root), self.base_url)
             self._send_json(200, manifest)
             return
 

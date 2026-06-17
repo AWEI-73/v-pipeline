@@ -164,6 +164,21 @@ ffmpeg renderer on the patched plan — it does not create a new render path and
 never produces a canonical artifact. The full Hermes BUILD on canonical
 artifacts remains the source of truth for delivery.
 
+## Preview proxy cache (NPE6)
+
+For `.MOV` / large source playback, the workbench can build derived preview
+proxies: `tools/workbench_proxy.py` trims each approved video window into a
+browser-friendly MP4 under `<root>/workbench_proxy/`. The frontend loads
+`/api/workbench/proxies` asynchronously; when a proxy is ready, the monitor uses
+the proxy URL and resets media seek time to zero. The original source path and
+source window remain the data of record for patches, contract sync, and ffmpeg
+BUILD.
+
+This is still not a second canonical renderer. Proxies are cached previews only,
+may fail independently, and fall back to original media. They are allowed through
+the workbench `/media` gate only because they are derived files under the
+artifact root.
+
 ## Deferred (intentional)
 
 - Adopting Remotion `Player` / a full NLE.

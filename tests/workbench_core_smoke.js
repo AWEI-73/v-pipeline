@@ -178,4 +178,19 @@ check("planVideoElementUpdate reloads different source and keeps poster fallback
   assert.strictEqual(plan.poster_url, "/media?src=thumb2.jpg");
 });
 
+check("clipForPreviewPlayback uses proxy url and resets source timing", function () {
+  const clip = {
+    slot_index: 4, type: "video", src_url: "/media?src=original.mov",
+    source_start_sec: 13.4, source_duration_sec: 1.2,
+    timeline_start_sec: 20, duration_sec: 1.2,
+  };
+  const proxied = Core.clipForPreviewPlayback(clip, {
+    4: { src_url: "/media?src=proxy.mp4", source_start_sec: 0, source_duration_sec: 1.2 },
+  });
+  assert.strictEqual(proxied.src_url, "/media?src=proxy.mp4");
+  assert.strictEqual(proxied.source_start_sec, 0);
+  assert.strictEqual(Core.getVideoPlaybackTime(proxied, 20.5), 0.5);
+  assert.strictEqual(clip.source_start_sec, 13.4); // original clip unchanged
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");

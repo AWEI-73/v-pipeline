@@ -24,6 +24,7 @@
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     seq: 0,
     thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
+    proxies: {},     // slot_index -> trimmed preview mp4 (NPE6 proxy cache)
   };
 
   var PRESETS = ["title_reveal", "zoom_punch", "flash", "speed_ramp_hint",
@@ -82,6 +83,7 @@
         state.currentTime = 0;
         renderAll();
         loadThumbnails();
+        loadProxies();
       })
       .catch(function (err) {
         els.diagnostics.textContent = "Failed to load preview_timeline: " + err;
@@ -98,6 +100,18 @@
       })
       .catch(function () { /* thumbnails are best-effort */ });
   }
+
+  // Preview proxies (NPE6): trimmed browser-friendly MP4s for video clips.
+  // First call can be slow; missing proxies gracefully fall back to originals.
+  function loadProxies() {
+      fetch("/api/workbench/proxies")
+        .then(function (r) { return r.json(); })
+        .then(function (m) {
+          state.proxies = (m && m.proxies) || {};
+          renderMonitor();
+        })
+        .catch(function () { /* proxies are best-effort */ });
+    }
 
   // -- render ----------------------------------------------------------- //
   function renderAll() {
@@ -220,11 +234,12 @@
       img.hidden = true;
       empty.hidden = true;
       vid.hidden = false;
-      var wantTime = Core.getVideoPlaybackTime(clip, state.currentTime);
+      var playbackClip = Core.clipForPreviewPlayback(clip, state.proxies);
+      var wantTime = Core.getVideoPlaybackTime(playbackClip, state.currentTime);
       var videoPlan = Core.planVideoElementUpdate({
         slot_index: vid.getAttribute("data-slot"),
         src_url: vid.getAttribute("data-src-url") || "",
-      }, clip, state.thumbs);
+      }, playbackClip, state.thumbs);
       if (videoPlan.poster_url) {
         vid.poster = videoPlan.poster_url;
       }

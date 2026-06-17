@@ -260,3 +260,12 @@ Boundary unchanged: official delivery runs the Agent / FFmpeg / Node14 pipeline
 on the drafts; the Workbench never produces canonical output and does not
 guarantee pixel-perfect preview. See
 `docs/decisions/2026-06-16-native-preview-engine.md`.
+
+## NPE6 — Workbench preview proxy cache (2026-06-17)
+
+Side-car preview performance only. `tools/workbench_proxy.py` creates derived,
+trimmed MP4 proxies under `<root>/workbench_proxy/`; `/api/workbench/proxies`
+returns a manifest and the frontend uses those proxies for monitor playback when
+available. This reduces `.MOV` seek/load stalls for short clips. It does not
+change selection, timeline contracts, material maps, delivery gates, or final
+rendering. Failed/missing proxies fall back to original media.

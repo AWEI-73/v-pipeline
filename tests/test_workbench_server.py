@@ -280,6 +280,33 @@ class WorkbenchServerTest(unittest.TestCase):
         second = ws._media_allowlist(self.root, self.handler_class.base_url)
         self.assertIs(first, second)  # same cached object, not rebuilt
 
+    def test_proxies_endpoint_returns_manifest_no_canonical_write(self):
+        import hashlib
+        before = hashlib.sha256((self.root / "timeline.json").read_bytes()).hexdigest()
+        # dummy clip.mp4 makes ffmpeg fail; endpoint must still return 200 + dict
+        m = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/proxies")).read().decode("utf-8"))
+        self.assertEqual(m["artifact_role"], "workbench_proxies")
+        self.assertIsInstance(m["proxies"], dict)
+        self.assertEqual(hashlib.sha256((self.root / "timeline.json").read_bytes()).hexdigest(), before)
+
+    def test_media_allows_proxy_cache_but_not_outside(self):
+        proxy_dir = self.root / "workbench_proxy"
+        proxy_dir.mkdir()
+        proxy = proxy_dir / "slot-0-test.mp4"
+        proxy.write_bytes(b"proxy-video")
+        src = urllib.parse.quote(str(proxy), safe="")
+        resp = urllib.request.urlopen(self.url(f"/media?src={src}"))
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(resp.read(), b"proxy-video")
+
+        outside = self.root / "not_proxy.mp4"
+        outside.write_bytes(b"nope")
+        outside_src = urllib.parse.quote(str(outside), safe="")
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(self.url(f"/media?src={outside_src}"))
+        self.assertEqual(cm.exception.code, 403)
+
     def test_subtitle_endpoint_requires_srt_and_writes_only_patch(self):
         (self.root / "review_subtitles.srt").write_text(
             "1\n00:00:00,000 --> 00:00:02,000\nHi\n", encoding="utf-8")
