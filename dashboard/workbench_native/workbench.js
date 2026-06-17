@@ -41,7 +41,7 @@
 
   function cacheEls() {
     [
-      "monitor", "stage-image", "stage-video", "stage-empty", "subtitle-overlay",
+      "monitor", "stage-image", "stage-video", "stage-poster", "stage-empty", "subtitle-overlay",
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
       "time-label", "frame-label", "inspector-empty", "inspector-body",
       "inspector-meta", "in-duration", "in-source-start", "in-source-duration",
@@ -216,13 +216,15 @@
     var clip = Core.getActiveClip(state.work.clips, state.currentTime);
     var img = els.stage_image;
     var vid = els.stage_video;
+    var poster = els.stage_poster;
     var empty = els.stage_empty;
 
     if (!clip) {
-      img.hidden = true; vid.hidden = true; empty.hidden = false;
+      img.hidden = true; vid.hidden = true; poster.hidden = true; empty.hidden = false;
       els.stage_meta.textContent = "";
     } else if (clip.type === "image") {
       vid.hidden = true; vid.pause && vid.pause();
+      poster.hidden = true;
       empty.hidden = true;
       img.hidden = false;
       if (img.getAttribute("data-slot") !== String(clip.slot_index)) {
@@ -242,23 +244,55 @@
       }, playbackClip, state.thumbs);
       if (videoPlan.poster_url) {
         vid.poster = videoPlan.poster_url;
+      } else {
+        poster.hidden = true;
+      }
+      function showPoster() {
+        if (!videoPlan.poster_url) return;
+        if (poster.getAttribute("data-slot") !== String(clip.slot_index)) {
+          poster.src = videoPlan.poster_url;
+          poster.setAttribute("data-slot", String(clip.slot_index));
+        }
+        poster.hidden = false;
+      }
+      function hidePoster(loadSeq) {
+        if (loadSeq != null && vid.getAttribute("data-load-seq") !== String(loadSeq)) return;
+        poster.hidden = true;
       }
       if (videoPlan.set_source) {
         // New source: show the clip thumbnail while the browser loads/seeks.
         // This prevents short clips from disappearing into a black wait state.
+        showPoster();
+        var loadSeq = String((Number(vid.getAttribute("data-load-seq")) || 0) + 1);
+        vid.setAttribute("data-load-seq", loadSeq);
         vid.setAttribute("data-slot", String(clip.slot_index));
         vid.setAttribute("data-src-url", videoPlan.src_url);
         vid.src = videoPlan.src_url;
         var seekTarget = wantTime;
+        function revealIfReady() {
+          if (Math.abs((vid.currentTime || 0) - seekTarget) <= 0.08 || seekTarget <= 0.05) {
+            hidePoster(loadSeq);
+            if (state.playing) { vid.play().catch(function () {}); }
+          }
+        }
         vid.onloadeddata = function () {
           try { vid.currentTime = seekTarget; } catch (e) { /* not seekable yet */ }
-          if (state.playing) { vid.play().catch(function () {}); }
+          revealIfReady();
         };
+        vid.onseeked = revealIfReady;
+        vid.oncanplay = revealIfReady;
       } else if (vid.getAttribute("data-slot") !== String(clip.slot_index)) {
         // Same source, different approved window: keep the decoded .MOV and
         // only seek. This is critical for adjacent 1-2s source windows.
         vid.setAttribute("data-slot", String(clip.slot_index));
         if (Math.abs((vid.currentTime || 0) - wantTime) > 0.03) {
+          showPoster();
+          var seekSeq = String((Number(vid.getAttribute("data-load-seq")) || 0) + 1);
+          vid.setAttribute("data-load-seq", seekSeq);
+          vid.onseeked = function () { hidePoster(seekSeq); };
+          vid.oncanplay = function () {
+            if (Math.abs((vid.currentTime || 0) - wantTime) <= 0.08) hidePoster(seekSeq);
+          };
           try { vid.currentTime = wantTime; } catch (e) {}
         }
       } else if (!state.playing) {

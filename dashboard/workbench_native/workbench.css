@@ -71,6 +71,12 @@ body {
   display: block;
   object-fit: contain;
 }
+.wb-monitor .stage-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #000;
+}
 .stage-empty { color: var(--muted); }
 .subtitle-overlay {
   position: absolute;
@@ -83,6 +89,7 @@ body {
   text-shadow: 0 2px 6px #000, 0 0 2px #000;
   padding: 0 24px;
   pointer-events: none;
+  z-index: 3;
 }
 .stage-meta {
   position: absolute;
@@ -93,6 +100,7 @@ body {
   background: rgba(0,0,0,0.45);
   padding: 2px 6px;
   border-radius: 4px;
+  z-index: 4;
 }
 
 .wb-transport {
