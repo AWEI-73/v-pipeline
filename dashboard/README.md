@@ -85,6 +85,9 @@ python -m unittest tests.test_workbench_frontend_smoke -q
 - `workbench_materials.js`: pure material-browser search/filter helpers.
 - `workbench.js`: DOM controller, browser preview, and user interaction.
 
+The browser/server API is documented in
+`dashboard/workbench_native/API_CONTRACT.md`.
+
 Keep canonical artifact rules in the Python server/backend. Browser modules
 should produce draft patches and handoff artifacts, not official pipeline truth.
 

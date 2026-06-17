@@ -142,6 +142,9 @@ The native Workbench frontend is intentionally small and dependency-light:
 - `tools/workbench_server.py`: write-limited server enforcing artifact
   ownership.
 
+The browser/server API is documented in
+`dashboard/workbench_native/API_CONTRACT.md`.
+
 Do not add backend gate logic to the browser. Browser edits should become draft
 patches; backend/Agent review decides whether they become official pipeline
 changes.
