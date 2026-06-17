@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const metaRoot = document.getElementById("meta-root");
     const metaDuration = document.getElementById("meta-duration");
     const gateStatus = document.getElementById("gate-status");
+    const btnOpenWorkbench = document.getElementById("btn-open-workbench");
 
     const btnTabEditor = document.getElementById("btn-tab-editor");
     const btnTabStorymap = document.getElementById("btn-tab-storymap");
@@ -89,6 +90,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnTabEditor) btnTabEditor.addEventListener("click", () => switchTab(btnTabEditor, viewEditor));
     if (btnTabStorymap) btnTabStorymap.addEventListener("click", () => switchTab(btnTabStorymap, viewStorymap));
     if (btnTabPipeline) btnTabPipeline.addEventListener("click", () => switchTab(btnTabPipeline, viewPipeline));
+    if (btnOpenWorkbench) {
+        btnOpenWorkbench.addEventListener("click", () => {
+            const url = (artifactData && artifactData.workbench && artifactData.workbench.url) || "http://localhost:8770/workbench";
+            window.open(url, "_blank", "noopener");
+        });
+    }
 
     // ==========================================
     // Fetch and Load Projects List

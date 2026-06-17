@@ -3331,3 +3331,11 @@ effect/sfx assets excluded). The Workbench displays a left-side material panel
 with asset cards, family/search filtering, and selection diagnostics. This does
 not yet implement drag-to-replace, material-map editing, or canonical contract
 write-back; it is the stable visual inventory surface for those later steps.
+# 2026-06-17 Update — EF5 Dashboard Workbench Entrypoint
+
+Dashboard integration is implemented as an explicit entrypoint, not a merge of
+the two apps. `/api/artifacts` now exposes `workbench` metadata with the
+recommended `tools/workbench_server.py` command and default
+`http://localhost:8770/workbench` URL. `dashboard_v1.html/js` adds a Workbench
+button that opens that external write-limited workbench. The Review Dashboard
+remains read-only; Workbench retains its own write-limited patch/export server.

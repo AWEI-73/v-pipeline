@@ -81,6 +81,12 @@ class DashboardServerTest(unittest.TestCase):
         (self.artifact_root / "delivery_gate.json").write_text("{}", encoding="utf-8")
         self.assertEqual(detect_profile(self.artifact_root), "verify_bundle")
 
+    def test_dashboard_html_has_workbench_entrypoint(self):
+        html = (Path(__file__).resolve().parent.parent / "dashboard" /
+                "dashboard_v1.html").read_text(encoding="utf-8")
+        self.assertIn('id="btn-open-workbench"', html)
+        self.assertIn("Workbench", html)
+
     def test_static_routes_and_security(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
@@ -128,6 +134,9 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(data["profile"], "unknown")
         self.assertIsNone(data["timeline"])
         self.assertIsNone(data["review_report"])
+        self.assertEqual(data["workbench"]["mode"], "external_server")
+        self.assertIn("tools/workbench_server.py", data["workbench"]["command"])
+        self.assertIn(str(self.artifact_root), data["workbench"]["command"])
 
         # 2. Test malformed JSON files - must return error message in field, not crash
         (self.artifact_root / "timeline.json").write_text("{invalid json", encoding="utf-8")

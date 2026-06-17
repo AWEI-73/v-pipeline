@@ -516,6 +516,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
             aggregated = {
                 "profile": profile,
                 "artifact_root": str(active_root.resolve()),
+                "workbench": {
+                    "mode": "external_server",
+                    "url": "http://localhost:8770/workbench",
+                    "command": (
+                        f"python tools/workbench_server.py --artifact-root "
+                        f"\"{active_root.resolve()}\" --port 8770"
+                    ),
+                    "note": "Workbench is the write-limited interactive editor; Dashboard stays read-only.",
+                },
                 "final_video_url": final_video_url,
                 "contact_sheet_url": contact_sheet_url,
                 "timeline_slots": timeline_slots,

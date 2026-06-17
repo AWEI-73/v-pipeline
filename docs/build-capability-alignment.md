@@ -312,3 +312,10 @@ project material map, and exposes search/family filtering beside the preview
 timeline. This supports human/Agent review of available material without
 changing timeline selection, material-map schema, or pipeline contracts. Drag
 replacement and material-map editing remain separate future increments.
+# 2026-06-17 — EF5 Dashboard Workbench Entrypoint
+
+Status: active. The read-only Review Dashboard exposes a Workbench entrypoint
+through `/api/artifacts.workbench` and a header button. This deliberately links
+to the separate write-limited Workbench server instead of embedding the editor
+inside the Dashboard process, keeping review and proposal/edit surfaces
+separate while making the handoff obvious.
