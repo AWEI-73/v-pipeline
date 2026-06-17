@@ -171,6 +171,20 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertFalse((self.root / "timeline_patch.json").exists())
         self.assertFalse((self.root / "patched_draft_timeline.json").exists())
 
+    def test_malformed_patch_json_returns_structured_error_and_writes_nothing(self):
+        req = urllib.request.Request(
+            self.url("/api/workbench/patch"),
+            data=b"{not-json",
+            headers={"Content-Type": "application/json"},
+        )
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(req)
+        self.assertEqual(cm.exception.code, 400)
+        payload = json.loads(cm.exception.read().decode("utf-8"))
+        self.assertIn("error", payload)
+        self.assertFalse((self.root / "timeline_patch.json").exists())
+        self.assertFalse((self.root / "patched_draft_timeline.json").exists())
+
     def test_post_replace_clip_patch_writes_draft_not_canonical(self):
         before_timeline = (self.root / "timeline.json").read_text(encoding="utf-8")
         patch = {
@@ -291,6 +305,8 @@ class WorkbenchServerTest(unittest.TestCase):
             "audio_cue_patch.json", "effect_patch.json", "workbench_handoff.json"})
         self.assertEqual(result["summary"]["audio_cues"], 1)
         self.assertEqual(result["summary"]["effect_intents"], 1)
+        handoff = json.loads((self.root / "workbench_handoff.json").read_text(encoding="utf-8"))
+        self.assertRegex(handoff["artifact_details"]["timeline_patch"]["sha256"], r"^[0-9a-f]{64}$")
 
     def test_N_save_all_invalid_layer_writes_nothing(self):
         payload = self._valid_save_all()

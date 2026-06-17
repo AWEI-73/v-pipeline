@@ -8,6 +8,7 @@ summary. It references only draft artifacts and never canonical files.
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +33,15 @@ def _load_json(path: Path) -> Optional[Any]:
         return None
 
 
+def _artifact_detail(path: Path) -> Dict[str, Any]:
+    data = path.read_bytes()
+    return {
+        "path": path.name,
+        "size_bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
 def _count_ops(patch: Optional[Dict[str, Any]], op_filter: Optional[str] = None) -> int:
     if not isinstance(patch, dict):
         return 0
@@ -45,9 +55,12 @@ def build_handoff(artifact_root: str) -> Dict[str, Any]:
     """Scan the root for draft artifacts and produce the handoff index."""
     root = Path(artifact_root)
     present: Dict[str, str] = {}
+    details: Dict[str, Dict[str, Any]] = {}
     for key, name in DRAFT_ARTIFACTS.items():
-        if (root / name).is_file():
+        path = root / name
+        if path.is_file():
             present[key] = name
+            details[key] = _artifact_detail(path)
 
     timeline_patch = _load_json(root / DRAFT_ARTIFACTS["timeline_patch"])
     subtitle_patch = _load_json(root / DRAFT_ARTIFACTS["subtitle_patch"])
@@ -65,6 +78,7 @@ def build_handoff(artifact_root: str) -> Dict[str, Any]:
         "artifact_role": ARTIFACT_ROLE,
         "version": SCHEMA_VERSION,
         "artifacts": present,
+        "artifact_details": details,
         "summary": summary,
         "next_action": "agent_review_and_render_preview",
     }
