@@ -231,9 +231,11 @@ python -m unittest tests.test_workbench_review_report -q
 ```
 
 Dashboard `/api/artifacts` exposes Workbench handoff readiness through
-`workbench.draft_summary.agent_ready`. It becomes true only when both
-`workbench_handoff.json` and `workbench_review_report.json` exist. This is a
-review routing flag, not proof that edits should be accepted.
+`workbench.draft_summary.agent_ready`. It becomes true only when
+`workbench_handoff.json` exists, `workbench_review_report.json` exists, and the
+same handoff passes `video_tools.py workbench-handoff-validate`. This is a
+review routing flag for Agent handoff, not proof that edits should be accepted
+or rendered without further backend checks.
 
 Control Index should prefer `/api/control/status` over `/api/artifacts`.
 Dashboard keeps `/api/artifacts` because it needs the full review payload.
