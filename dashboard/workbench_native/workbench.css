@@ -28,10 +28,10 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
   font-size: 13px;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* --- HEADER --- */
@@ -103,9 +103,9 @@ body {
 
 /* --- MAIN CONTAINER --- */
 .wb-main-container {
-  flex: 1;
+  flex: 0 0 clamp(380px, calc(100vh - 265px), 720px);
   display: flex;
-  height: calc(100vh - 120px);
+  min-height: 380px;
   background: var(--bg);
   position: relative;
 }
@@ -141,6 +141,13 @@ body {
 .tab-item.active {
   border-left: 3px solid var(--accent);
   background: var(--accent-light);
+}
+.tab-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.tab-item:disabled:hover {
+  color: var(--muted);
 }
 .wb-content-layout {
   flex: 1;
@@ -194,6 +201,7 @@ body {
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 2px;
 }
 .material-card {
@@ -206,7 +214,9 @@ body {
   border-radius: 8px;
   cursor: grab;
   transition: all 0.2s;
+  min-width: 0;
 }
+.material-card > div { min-width: 0; }
 .material-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
 .material-card.selected { outline: 2px solid var(--accent); }
 .material-thumb {
