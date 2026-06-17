@@ -324,6 +324,24 @@ class WorkbenchServerTest(unittest.TestCase):
         after = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}
         self.assertEqual(before, after)
 
+    def test_review_report_endpoint_writes_only_draft_report(self):
+        before = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}
+        urllib.request.urlopen(self._post("/api/workbench/save-all", self._valid_save_all()))
+
+        result = json.loads(urllib.request.urlopen(
+            self._post("/api/workbench/review-report", {})).read().decode("utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["written"]), {
+            "workbench_review_report.json",
+            "workbench_review_report.md",
+        })
+        self.assertEqual(result["summary"]["timeline_edits"], 1)
+        payload = json.loads((self.root / "workbench_review_report.json").read_text(encoding="utf-8"))
+        self.assertFalse(payload["canonical_changed"])
+        after = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}
+        self.assertEqual(before, after)
+
     def test_Q_static_path_traversal_blocked(self):
         # the /workbench/<rel> static route must reject traversal
         with self.assertRaises(urllib.error.HTTPError) as cm:

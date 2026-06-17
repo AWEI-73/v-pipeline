@@ -50,6 +50,7 @@ SPEC / contract
    + patched_draft_timeline.json
    + workbench_contract_patch.json
    + workbench_handoff.json
+   + workbench_review_report.json / .md
 -> Agent review
 -> backend rerender / contract revision / reject patch
 ```
@@ -82,6 +83,8 @@ Workbench may write these files under the active artifact root:
 - `workbench_contract_patch.json`
 - `workbench_handoff.json`
 - subtitle/audio/effect draft patch files
+- `workbench_review_report.json`
+- `workbench_review_report.md`
 - optional workbench export files that are explicitly non-canonical
 
 Draft artifacts are evidence for a later agent/backend decision. They are not
@@ -90,6 +93,19 @@ automatic truth.
 ## Backend Consumption
 
 The backend or agent should inspect draft artifacts before official rerender.
+
+Primary Agent entrypoints:
+
+1. `workbench_handoff.json` tells the Agent which draft artifacts exist and
+   includes per-artifact hashes.
+2. `workbench_review_report.json` summarizes what changed across timeline,
+   subtitles, audio cues, and effect intents.
+3. `workbench_contract_patch.json` is a draft interpretation of timeline edits
+   at the pipeline-contract layer.
+
+The Agent should not infer that `final.mp4` or canonical `timeline.json` changed
+just because these draft files exist. The report must keep
+`canonical_changed=false` unless a future explicit canonical writer exists.
 
 Expected decision routes:
 
@@ -121,6 +137,7 @@ node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_core.js
 node tests\workbench_core_smoke.js
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q
+python -m unittest tests.test_workbench_review_report -q
 ```
 
 Full regression:
@@ -157,4 +174,3 @@ python -m unittest discover -s tests -q
 - Heavy motion graphics / Node 14 effects authoring.
 - Material library folder-management workflow.
 - Dashboard visual redesign beyond integration clarity.
-

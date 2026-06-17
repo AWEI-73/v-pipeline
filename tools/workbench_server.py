@@ -34,6 +34,7 @@ try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import audio_cue_patch as ap
     from tools import effect_patch as ep
     from tools import workbench_handoff as wh
+    from tools import workbench_review_report as wr
     from tools import workbench_thumbs as wt
     from tools import workbench_proxy as wp
 except ImportError:  # pragma: no cover - direct-script fallback
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover - direct-script fallback
     import audio_cue_patch as ap
     import effect_patch as ep
     import workbench_handoff as wh
+    import workbench_review_report as wr
     import workbench_thumbs as wt
     import workbench_proxy as wp
 
@@ -60,6 +62,8 @@ WRITABLE_OUTPUTS = {
     "audio_cue_patch.json",
     "effect_patch.json",
     "workbench_handoff.json",
+    "workbench_review_report.json",
+    "workbench_review_report.md",
 }
 
 STATIC_MIME = {
@@ -308,6 +312,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/workbench/save-all":
             self._handle_save_all()
             return
+        if parsed.path == "/api/workbench/review-report":
+            self._handle_review_report()
+            return
         if parsed.path != "/api/workbench/patch":
             self._send_error(404, "Not found")
             return
@@ -348,6 +355,14 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             "ok": True,
             "written": written,
             "spec_alignment": applied.get("_spec_alignment", {}),
+        })
+
+    def _handle_review_report(self) -> None:
+        result = wr.write_review_report(str(self.artifact_root))
+        self._send_json(200, {
+            "ok": True,
+            "written": [result["json"], result["markdown"]],
+            "summary": result["summary"],
         })
 
     def _handle_export(self) -> None:

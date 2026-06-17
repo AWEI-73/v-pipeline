@@ -873,6 +873,20 @@ The cleanup is complete only when:
 - Decision log is updated to `verified`.
 - Worktree has no unexpected tracked changes.
 
+## Continuation Scope (2026-06-17)
+
+After the first dashboard/workbench cleanup pass, continue with these bounded
+alignment tasks:
+
+1. Add a Workbench patch review report that an Agent can consume without opening
+   the browser.
+2. Keep the report draft-only; it must not imply canonical render changes.
+3. Document material organization policy: material-map references are canonical;
+   physical asset relocation is optional projection work, not required for the
+   current pipeline.
+4. Keep Dashboard read-only and Workbench write-limited.
+5. Verify via focused tests, full regression, and HTTP API checks.
+
 ---
 
 ## Stop Conditions
@@ -885,4 +899,3 @@ Stop and report instead of pushing forward if:
 - A change requires modifying M6 gates or official render semantics.
 - Full regression fails for reasons not caused by this cleanup.
 - Browser preview becomes materially worse than the current state.
-
