@@ -18,6 +18,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -30,12 +32,15 @@ if _REPO_ROOT not in sys.path:
 
 try:
     from tools import timeline_patch as tp
+    from tools import effect_patch as ep
 except ImportError:  # pragma: no cover - direct-script fallback
     import timeline_patch as tp
+    import effect_patch as ep
 
 # Canonical outputs the export must never produce/overwrite.
 PROTECTED_OUTPUTS = set(tp.PROTECTED_OUTPUTS)
 DEFAULT_OUT = "workbench_export.mp4"
+RENDERABLE_EFFECT_PRESETS = {"flash", "title_reveal", "caption_emphasis"}
 
 
 def _load_json(path: Path) -> Optional[Any]:
@@ -48,6 +53,129 @@ def _load_json(path: Path) -> Optional[Any]:
 def _default_renderer(plan, music_path, out_path, mat_dir=None):  # pragma: no cover - thin ffmpeg shim
     from video_pipeline_core.mv_cut import render_mv  # lazy: only when truly rendering
     return render_mv(plan, music_path, out_path, mat_dir=mat_dir)
+
+
+def _resolve_ffmpeg() -> str:
+    try:  # pragma: no cover - depends on local bundled runtime
+        from video_pipeline_core.platform_tools import resolve_ffmpeg
+        return resolve_ffmpeg()
+    except Exception:
+        return shutil.which("ffmpeg") or "ffmpeg"
+
+
+def _effect_window(effect: Dict[str, Any]) -> Optional[Dict[str, float]]:
+    try:
+        start = float(effect.get("start_sec", 0.0))
+        dur = float(effect.get("duration_sec", 0.0))
+    except (TypeError, ValueError):
+        return None
+    if not (start >= 0 and dur > 0):
+        return None
+    return {"start": start, "end": start + dur}
+
+
+def resolve_renderable_effects(artifact_root: str) -> Dict[str, Any]:
+    """Return validated workbench effects that this export renderer can realize.
+
+    The workbench may carry richer effect intents for later Node 14 / manual
+    work. EF3 intentionally renders only simple ffmpeg-safe overlay flashes, and
+    reports the rest as skipped instead of pretending they were applied.
+    """
+    root = Path(artifact_root)
+    patch_path = root / "effect_patch.json"
+    if not patch_path.is_file():
+        return {"renderable": [], "skipped": [], "diagnostics": ["no effect_patch.json"]}
+    try:
+        patch = json.loads(patch_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"invalid effect_patch.json: {exc}") from exc
+
+    applied = ep.apply_effect_patch(artifact_root, patch)
+    renderable: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    for effect in applied.get("effects", []):
+        preset = effect.get("preset")
+        window = _effect_window(effect)
+        if preset in RENDERABLE_EFFECT_PRESETS and window is not None:
+            e = dict(effect)
+            e["_render_window"] = window
+            renderable.append(e)
+        else:
+            skipped.append(dict(effect))
+    return {
+        "renderable": renderable,
+        "skipped": skipped,
+        "diagnostics": applied.get("diagnostics", []),
+    }
+
+
+def _drawbox_filter(effect: Dict[str, Any]) -> str:
+    window = effect["_render_window"]
+    try:
+        intensity = float(effect.get("intensity", 1.0))
+    except (TypeError, ValueError):
+        intensity = 1.0
+    alpha = max(0.08, min(0.60, 0.12 * intensity))
+    start = window["start"]
+    end = window["end"]
+    enable = f"between(t\\,{start:.3f}\\,{end:.3f})"
+    return f"drawbox=x=0:y=0:w=iw:h=ih:color=white@{alpha:.3f}:t=fill:enable='{enable}'"
+
+
+def apply_effects_to_video(
+    artifact_root: str,
+    input_video: str,
+    output_video: str,
+    *,
+    ffmpeg: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Apply supported workbench effect intents to an exported video.
+
+    This is an official *workbench export* renderer path, not a canonical BUILD
+    output. It writes only ``output_video`` and leaves final.mp4 untouched.
+    """
+    resolved = resolve_renderable_effects(artifact_root)
+    renderable = resolved["renderable"]
+    skipped = resolved["skipped"]
+    output_path = Path(output_video)
+    input_path = Path(input_video)
+    if not renderable:
+        if input_path.resolve() != output_path.resolve():
+            output_path.write_bytes(input_path.read_bytes())
+        return {
+            "ok": True,
+            "out": str(output_path),
+            "applied_count": 0,
+            "skipped_count": len(skipped),
+            "supported_presets": sorted(RENDERABLE_EFFECT_PRESETS),
+        }
+
+    ffmpeg_bin = ffmpeg or _resolve_ffmpeg()
+    filters = ",".join(_drawbox_filter(effect) for effect in renderable)
+    same_path = input_path.resolve() == output_path.resolve()
+    tmp_path = output_path.with_suffix(output_path.suffix + ".effects.tmp.mp4") if same_path else output_path
+    if tmp_path.exists():
+        tmp_path.unlink()
+    cmd = [
+        ffmpeg_bin, "-y", "-i", str(input_path),
+        "-vf", filters,
+        "-map", "0:v:0", "-map", "0:a?",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy",
+        "-movflags", "+faststart", str(tmp_path),
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0 or not tmp_path.is_file():
+        raise RuntimeError(f"effect render failed: {proc.stderr.strip()[:500]}")
+    if same_path:
+        os.replace(tmp_path, output_path)
+    return {
+        "ok": True,
+        "out": str(output_path),
+        "applied_count": len(renderable),
+        "skipped_count": len(skipped),
+        "supported_presets": sorted(RENDERABLE_EFFECT_PRESETS),
+        "effects": [{"effect_id": e.get("effect_id"), "preset": e.get("preset")} for e in renderable],
+    }
 
 
 def _resolve_music(root: Path) -> Optional[str]:
@@ -98,6 +226,8 @@ def export(
     patched_timeline: Optional[Dict[str, Any]] = None,
     music: Optional[str] = None,
     renderer: Callable = _default_renderer,
+    render_effects: bool = False,
+    effect_renderer: Callable = apply_effects_to_video,
 ) -> Dict[str, Any]:
     """Render the (patched, spec-aligned) plan via the canonical ffmpeg renderer.
 
@@ -121,7 +251,7 @@ def export(
     os.makedirs(mat_dir, exist_ok=True)
 
     rendered = renderer(plan, music_path, str(out_path), mat_dir)
-    return {
+    result = {
         "ok": True,
         "out": str(rendered or out_path),
         "rendered_clips": len(plan),
@@ -130,6 +260,11 @@ def export(
         "corrections": prepared["corrections"],
         "note": "rendered via canonical ffmpeg (mv_cut.render_mv); final.mp4 untouched",
     }
+    if render_effects:
+        effect_result = effect_renderer(artifact_root, str(rendered or out_path), str(out_path))
+        result["out"] = effect_result.get("out", str(out_path))
+        result["effect_render"] = effect_result
+    return result
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -139,13 +274,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--patched", help="an existing patched_draft_timeline.json to render")
     parser.add_argument("--music", help="override music path (defaults to music.wav in root)")
     parser.add_argument("--out", default=DEFAULT_OUT)
+    parser.add_argument("--effects", action="store_true", help="apply supported effect_patch.json overlays")
     args = parser.parse_args(argv)
 
     patch = _load_json(Path(args.patch)) if args.patch else None
     patched = _load_json(Path(args.patched)) if args.patched else None
 
     try:
-        result = export(args.artifact_root, out=args.out, patch=patch, patched_timeline=patched, music=args.music)
+        result = export(args.artifact_root, out=args.out, patch=patch, patched_timeline=patched,
+                        music=args.music, render_effects=args.effects)
     except ValueError as exc:
         print(f"[workbench_export] {exc}")
         return 1

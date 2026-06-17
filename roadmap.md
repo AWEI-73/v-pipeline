@@ -3312,3 +3312,13 @@ overlay/motion asset reference.
 
 Boundary: still draft-only. No canonical artifact is rewritten and no final
 render path consumes these assets yet.
+# 2026-06-17 Update — EF3 Workbench Effect Export Renderer
+
+EF3 is implemented as a bounded, opt-in workbench export path. `tools/workbench_export.py --effects`
+and `/api/workbench/export` with `effects:true` now consume validated `effect_patch.json` and render
+simple ffmpeg-safe overlays (`flash`, `title_reveal`, `caption_emphasis`) onto `workbench_export.mp4`.
+Unsupported effect intents stay in the patch and are reported as skipped; they are not silently claimed.
+Canonical `final.mp4`, delivery gates, material maps, Node 14, and Dashboard remain untouched.
+
+Validation: focused `tests.test_workbench_export` + server export flag test + JS smoke passed. Full
+regression is required before marking this bounded increment committed.

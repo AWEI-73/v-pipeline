@@ -296,3 +296,11 @@ an effect intent marker; saved `effect_patch.json` preserves `asset_id`.
 Boundary remains unchanged: this is an Agent-readable draft/intent bridge. It
 does not composite the effect asset into `final.mp4`, does not change canonical
 material maps, and does not turn the preview into a pixel-perfect renderer.
+# 2026-06-17 — EF3 Workbench Effect Export Renderer
+
+Status: active for Workbench export only. Supported `effect_patch.json` presets
+(`flash`, `title_reveal`, `caption_emphasis`) can be rendered into
+`workbench_export.mp4` through the canonical ffmpeg-based export path. This is a
+lightweight review/export aid and does not change canonical BUILD output,
+delivery gates, material-map contracts, Node 14, Dashboard, or effect asset
+selection policy. Unsupported presets remain explicit skipped intents.

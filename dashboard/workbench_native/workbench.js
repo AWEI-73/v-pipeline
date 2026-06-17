@@ -719,7 +719,7 @@
     fetch("/api/workbench/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patch: patch.patches.length ? patch : null }),
+      body: JSON.stringify({ patch: patch.patches.length ? patch : null, effects: true }),
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {

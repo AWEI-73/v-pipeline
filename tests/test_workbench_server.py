@@ -307,6 +307,27 @@ class WorkbenchServerTest(unittest.TestCase):
             urllib.request.urlopen(self.url(f"/media?src={outside_src}"))
         self.assertEqual(cm.exception.code, 403)
 
+    def test_export_endpoint_passes_effects_flag_to_exporter(self):
+        from tools import workbench_server as ws
+        calls = []
+        old_export = ws.wx.export
+
+        def fake_export(artifact_root, out="workbench_export.mp4", patch=None, **kwargs):
+            calls.append({"root": artifact_root, "out": out, "patch": patch, "kwargs": kwargs})
+            return {"ok": True, "out": str(self.root / out), "rendered_clips": 1}
+
+        ws.wx.export = fake_export
+        try:
+            result = json.loads(urllib.request.urlopen(self._post(
+                "/api/workbench/export",
+                {"patch": None, "effects": True},
+            )).read().decode("utf-8"))
+        finally:
+            ws.wx.export = old_export
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0]["kwargs"].get("render_effects"), True)
+
     def test_subtitle_endpoint_requires_srt_and_writes_only_patch(self):
         (self.root / "review_subtitles.srt").write_text(
             "1\n00:00:00,000 --> 00:00:02,000\nHi\n", encoding="utf-8")
