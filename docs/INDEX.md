@@ -34,6 +34,11 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-16-native-preview-engine.md` — Workbench preview/edit
   middle layer: material-composition preview, draft patch artifacts, contract
   sync boundary, and Dashboard/Workbench separation.
+- `docs/workbench-dashboard-integration.md` -- current Dashboard/Workbench
+  integration contract: Dashboard is read/review, Workbench is write-limited
+  draft patching, backend remains official renderer.
+- `dashboard/README.md` -- operator-facing frontend entrypoints, safety rules,
+  and local Workbench commands.
 
 ## Working conventions (read before contributing)
 
@@ -44,6 +49,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-17-dashboard-workbench-integration-cleanup.md`,
 `2026-06-14-working-loop-and-tdd-evidence.md`,
 `2026-06-14-m6a-review-response.md`,
 `2026-06-13-m5-real-render-sensory-acceptance.md`,

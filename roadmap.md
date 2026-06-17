@@ -14,6 +14,17 @@ tags: [project, video, pipeline, roadmap, agent-workflow]
 
 ---
 
+## Current Frontend Integration State (2026-06-17)
+
+- Dashboard = node/status/review surface.
+- Workbench = interactive preview/patch/handoff surface.
+- Workbench writes draft artifacts only.
+- Official render remains ffmpeg/backend.
+- Current cleanup focus: integration contract, layout stability, artifact
+  handoff, and technical-debt reduction.
+
+---
+
 ## 2026-06-14 Executive Status
 
 **Current accepted baseline:** M0-M4 material-aware planning and the M5 true
