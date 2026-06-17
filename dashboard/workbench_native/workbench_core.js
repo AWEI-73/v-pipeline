@@ -416,6 +416,25 @@
     };
   }
 
+  /** Decide how a material browser card may preview an asset.
+   *
+   * The material browser is an inventory surface, not the timeline preview.
+   * Do not point an <img> at MOV/MP4 sources; browsers render that as a broken
+   * image icon. Video thumbnails are derived elsewhere when available.
+   */
+  function materialAssetPreview(asset) {
+    asset = asset || {};
+    var type = String(asset.asset_type || "").toLowerCase();
+    var src = asset.src_url || "";
+    if (type === "photo" || type === "image" || type === "effect_overlay" || type === "effect_image") {
+      return { kind: "image", img_url: src, label: "" };
+    }
+    if (type === "video") {
+      return { kind: "placeholder", img_url: "", label: "VIDEO" };
+    }
+    return { kind: "placeholder", img_url: "", label: (type || "ASSET").toUpperCase() };
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -454,5 +473,6 @@
     planAudioElementUpdate: planAudioElementUpdate,
     getActiveEffects: getActiveEffects,
     buildEffectPreviewStyle: buildEffectPreviewStyle,
+    materialAssetPreview: materialAssetPreview,
   };
 });

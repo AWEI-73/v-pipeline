@@ -188,10 +188,17 @@
     assets.forEach(function (a) {
       var card = document.createElement("div");
       card.className = "material-card" + (a.asset_id === state.selectedAssetId ? " selected" : "");
-      var thumb = document.createElement("img");
-      thumb.className = "material-thumb";
-      thumb.src = a.src_url || "";
-      thumb.alt = "";
+      var preview = Core.materialAssetPreview(a);
+      var thumb;
+      if (preview.kind === "image" && preview.img_url) {
+        thumb = document.createElement("img");
+        thumb.src = preview.img_url;
+        thumb.alt = "";
+      } else {
+        thumb = document.createElement("div");
+        thumb.textContent = preview.label || "ASSET";
+      }
+      thumb.className = "material-thumb material-thumb-" + preview.kind;
       var body = document.createElement("div");
       var title = document.createElement("div");
       title.className = "material-title";
@@ -792,12 +799,23 @@
 
   function exportFfmpeg() {
     var patch = buildPatch();
+    var savePayload = Core.buildSavePayload({
+      timelineBefore: state.raw.clips, timelineAfter: state.work.clips,
+      subsBefore: state.rawSubs, subsAfter: state.work.subtitles,
+      cues: state.cues, effects: state.effects,
+      base_timeline_ref: (state.raw && state.raw.source_artifact) || "timeline.json",
+    });
+    var effectPatch = savePayload.effect_patch || null;
     els.diagnostics.textContent = "Exporting via ffmpeg (this can take a while)…";
     els.btn_export.disabled = true;
     fetch("/api/workbench/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patch: patch.patches.length ? patch : null, effects: true }),
+      body: JSON.stringify({
+        patch: patch.patches.length ? patch : null,
+        effects: true,
+        effect_patch: effectPatch,
+      }),
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {

@@ -365,6 +365,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         patch = body.get("patch") if isinstance(body, dict) else None
         out = (body.get("out") if isinstance(body, dict) else None) or wx.DEFAULT_OUT
         render_effects = bool(body.get("effects")) if isinstance(body, dict) else False
+        effect_patch = body.get("effect_patch") if isinstance(body, dict) else None
         if os.path.basename(str(out)) in wx.PROTECTED_OUTPUTS:
             self._send_error(422, f"refusing to export onto protected artifact: {out}")
             return
@@ -379,7 +380,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     patch = None
         try:
             result = wx.export(str(self.artifact_root), out=out, patch=patch,
-                               render_effects=render_effects)
+                               render_effects=render_effects,
+                               effect_patch=effect_patch)
         except ValueError as exc:
             self._send_json(422, {"ok": False, "error": str(exc)})
             return

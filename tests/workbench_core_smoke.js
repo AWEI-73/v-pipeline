@@ -242,4 +242,19 @@ check("buildEffectPreviewStyle maps intent to css preview state", function () {
   assert.ok(shake.transform.indexOf("translate(") >= 0);
 });
 
+check("materialAssetPreview never treats video sources as img thumbnails", function () {
+  const video = Core.materialAssetPreview({
+    asset_id: "v1", asset_type: "video", src_url: "/media?src=a.mov",
+  });
+  assert.strictEqual(video.kind, "placeholder");
+  assert.strictEqual(video.img_url, "");
+  assert.strictEqual(video.label, "VIDEO");
+
+  const image = Core.materialAssetPreview({
+    asset_id: "p1", asset_type: "photo", src_url: "/media?src=a.jpg",
+  });
+  assert.strictEqual(image.kind, "image");
+  assert.strictEqual(image.img_url, "/media?src=a.jpg");
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");

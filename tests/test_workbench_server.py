@@ -328,6 +328,35 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertIs(calls[0]["kwargs"].get("render_effects"), True)
 
+    def test_export_endpoint_passes_inline_effect_patch_to_exporter(self):
+        from tools import workbench_server as ws
+        calls = []
+        old_export = ws.wx.export
+        inline_effect = {
+            "artifact_role": "effect_patch",
+            "version": 1,
+            "diagnostics": [],
+            "patches": [{"op": "add_effect", "effect_id": "inline-fx", "after": {
+                "preset": "flash", "target_slot_index": 0,
+                "start_sec": 0.0, "duration_sec": 0.5, "intensity": 3}}],
+        }
+
+        def fake_export(artifact_root, out="workbench_export.mp4", patch=None, **kwargs):
+            calls.append({"root": artifact_root, "out": out, "patch": patch, "kwargs": kwargs})
+            return {"ok": True, "out": str(self.root / out), "rendered_clips": 1}
+
+        ws.wx.export = fake_export
+        try:
+            result = json.loads(urllib.request.urlopen(self._post(
+                "/api/workbench/export",
+                {"patch": None, "effects": True, "effect_patch": inline_effect},
+            )).read().decode("utf-8"))
+        finally:
+            ws.wx.export = old_export
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["kwargs"].get("effect_patch"), inline_effect)
+
     def test_subtitle_endpoint_requires_srt_and_writes_only_patch(self):
         (self.root / "review_subtitles.srt").write_text(
             "1\n00:00:00,000 --> 00:00:02,000\nHi\n", encoding="utf-8")

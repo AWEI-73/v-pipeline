@@ -74,7 +74,10 @@ def _effect_window(effect: Dict[str, Any]) -> Optional[Dict[str, float]]:
     return {"start": start, "end": start + dur}
 
 
-def resolve_renderable_effects(artifact_root: str) -> Dict[str, Any]:
+def resolve_renderable_effects(
+    artifact_root: str,
+    effect_patch: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Return validated workbench effects that this export renderer can realize.
 
     The workbench may carry richer effect intents for later Node 14 / manual
@@ -82,13 +85,15 @@ def resolve_renderable_effects(artifact_root: str) -> Dict[str, Any]:
     reports the rest as skipped instead of pretending they were applied.
     """
     root = Path(artifact_root)
-    patch_path = root / "effect_patch.json"
-    if not patch_path.is_file():
-        return {"renderable": [], "skipped": [], "diagnostics": ["no effect_patch.json"]}
-    try:
-        patch = json.loads(patch_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"invalid effect_patch.json: {exc}") from exc
+    patch = effect_patch
+    if patch is None:
+        patch_path = root / "effect_patch.json"
+        if not patch_path.is_file():
+            return {"renderable": [], "skipped": [], "diagnostics": ["no effect_patch.json"]}
+        try:
+            patch = json.loads(patch_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"invalid effect_patch.json: {exc}") from exc
 
     applied = ep.apply_effect_patch(artifact_root, patch)
     renderable: List[Dict[str, Any]] = []
@@ -128,13 +133,14 @@ def apply_effects_to_video(
     output_video: str,
     *,
     ffmpeg: Optional[str] = None,
+    effect_patch: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Apply supported workbench effect intents to an exported video.
 
     This is an official *workbench export* renderer path, not a canonical BUILD
     output. It writes only ``output_video`` and leaves final.mp4 untouched.
     """
-    resolved = resolve_renderable_effects(artifact_root)
+    resolved = resolve_renderable_effects(artifact_root, effect_patch=effect_patch)
     renderable = resolved["renderable"]
     skipped = resolved["skipped"]
     output_path = Path(output_video)
@@ -228,6 +234,7 @@ def export(
     renderer: Callable = _default_renderer,
     render_effects: bool = False,
     effect_renderer: Callable = apply_effects_to_video,
+    effect_patch: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Render the (patched, spec-aligned) plan via the canonical ffmpeg renderer.
 
@@ -261,7 +268,12 @@ def export(
         "note": "rendered via canonical ffmpeg (mv_cut.render_mv); final.mp4 untouched",
     }
     if render_effects:
-        effect_result = effect_renderer(artifact_root, str(rendered or out_path), str(out_path))
+        if effect_patch is not None:
+            effect_result = effect_renderer(
+                artifact_root, str(rendered or out_path), str(out_path),
+                effect_patch=effect_patch)
+        else:
+            effect_result = effect_renderer(artifact_root, str(rendered or out_path), str(out_path))
         result["out"] = effect_result.get("out", str(out_path))
         result["effect_render"] = effect_result
     return result

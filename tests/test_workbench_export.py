@@ -56,8 +56,9 @@ class FakeEffectRenderer:
     def __init__(self):
         self.calls = []
 
-    def __call__(self, artifact_root, input_path, output_path):
-        self.calls.append({"root": artifact_root, "input": input_path, "output": output_path})
+    def __call__(self, artifact_root, input_path, output_path, **kwargs):
+        self.calls.append({"root": artifact_root, "input": input_path, "output": output_path,
+                           "kwargs": kwargs})
         Path(output_path).write_bytes(Path(input_path).read_bytes() + b"fx")
         return {"applied_count": 1, "skipped_count": 0, "out": output_path}
 
@@ -143,6 +144,25 @@ class WorkbenchExportTest(unittest.TestCase):
             self.assertEqual(len(effects.calls), 1)
             self.assertEqual(res["effect_render"]["applied_count"], 1)
             self.assertTrue(Path(res["out"]).read_bytes().endswith(b"fx"))
+
+    def test_export_can_apply_inline_unsaved_effect_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            inline_effect = {
+                "artifact_role": "effect_patch",
+                "version": 1,
+                "patches": [
+                    {"op": "add_effect", "effect_id": "fx_inline",
+                     "after": {"preset": "flash", "target_slot_index": 0,
+                               "start_sec": 0.0, "duration_sec": 0.5, "intensity": 1}},
+                ],
+            }
+            effects = FakeEffectRenderer()
+            res = export(str(root), out=DEFAULT_OUT, renderer=FakeRenderer(),
+                         render_effects=True, effect_renderer=effects,
+                         effect_patch=inline_effect)
+            self.assertEqual(res["effect_render"]["applied_count"], 1)
+            self.assertEqual(effects.calls[0]["kwargs"].get("effect_patch"), inline_effect)
 
     def test_export_without_effect_flag_preserves_existing_behavior(self):
         with tempfile.TemporaryDirectory() as tmp:
