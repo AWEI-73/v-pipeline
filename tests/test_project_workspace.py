@@ -66,6 +66,42 @@ class ProjectWorkspaceTest(unittest.TestCase):
             _project_dir, resolved_run = project_workspace.resolve_active_pointer(active, repo_dir=repo)
             self.assertEqual(resolved_run.resolve(), Path(run["run_dir"]).resolve())
 
+    def test_create_run_dir_writes_machine_readable_layout_manifest(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "projects"
+            repo = Path(d) / "repo"
+            project = project_workspace.init_project("ETF Demo", root=root, repo_dir=repo)
+            run = project_workspace.create_run_dir(
+                project["project_dir"],
+                label="baseline",
+                repo_dir=repo,
+                timestamp="20260605-153000",
+            )
+
+            manifest_path = Path(run["run_dir"]) / "run_layout.json"
+            self.assertTrue(manifest_path.is_file())
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["artifact_role"], "run_layout")
+            self.assertEqual(manifest["version"], 1)
+            self.assertEqual(manifest["project_dir"], str(Path(project["project_dir"])))
+            self.assertEqual(manifest["run_dir"], str(Path(run["run_dir"])))
+            self.assertEqual(manifest["folders"]["spec"], "spec")
+            self.assertEqual(manifest["folders"]["build"], "build")
+            self.assertEqual(manifest["folders"]["verify"], "verify")
+            self.assertEqual(manifest["folders"]["materials_selected"], "materials/selected")
+            self.assertEqual(manifest["artifact_classes"]["canonical"], [
+                "segment_contract.json",
+                "material_needs.json",
+                "project_material_map.json",
+                "materials_db.json",
+                "timeline.json",
+                "final.mp4",
+                "state.json",
+                "artifact_manifest.json",
+            ])
+            self.assertIn("timeline_patch.json", manifest["artifact_classes"]["workbench_draft"])
+            self.assertIn("workbench_proxy", manifest["artifact_classes"]["derived_cache_dirs"])
+
     def test_video_tools_project_commands_use_repo_active_pointer(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / "projects"

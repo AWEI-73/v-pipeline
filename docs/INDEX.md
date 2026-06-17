@@ -40,6 +40,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-17-frontend-api-contract-hardening.md` --
   Control Index / Workbench health response-shape lock for future frontend
   integration.
+- `docs/decisions/2026-06-17-run-layout-manifest.md` --
+  machine-readable run folder/artifact ownership manifest for agents and
+  frontend shells.
 - `docs/workbench-dashboard-integration.md` -- current Dashboard/Workbench
   integration contract: Dashboard is read/review, Workbench is write-limited
   draft patching, backend remains official renderer.
@@ -60,6 +63,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-17-run-layout-manifest.md`,
 `2026-06-17-frontend-api-contract-hardening.md`,
 `2026-06-17-frontend-stability-and-modularization.md`,
 `2026-06-17-dashboard-workbench-integration-cleanup.md`,

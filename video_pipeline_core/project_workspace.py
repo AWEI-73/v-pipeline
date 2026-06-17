@@ -27,6 +27,51 @@ RUN_LAYOUT = [
     "brownfield",
 ]
 
+RUN_LAYOUT_FOLDERS = {
+    "spec": "spec",
+    "build": "build",
+    "verify": "verify",
+    "materials_raw": "materials/raw",
+    "materials_selected": "materials/selected",
+    "materials_generated": "materials/generated",
+    "materials_stock": "materials/stock",
+    "nodes": "nodes",
+    "logs": "logs",
+    "thumbs": "thumbs",
+    "brownfield": "brownfield",
+}
+
+RUN_ARTIFACT_CLASSES = {
+    "canonical": [
+        "segment_contract.json",
+        "material_needs.json",
+        "project_material_map.json",
+        "materials_db.json",
+        "timeline.json",
+        "final.mp4",
+        "state.json",
+        "artifact_manifest.json",
+    ],
+    "workbench_draft": [
+        "preview_timeline.json",
+        "timeline_patch.json",
+        "patched_draft_timeline.json",
+        "workbench_contract_patch.json",
+        "subtitle_patch.json",
+        "audio_cue_patch.json",
+        "effect_patch.json",
+        "workbench_handoff.json",
+        "workbench_review_report.json",
+        "workbench_review_report.md",
+        "workbench_export.mp4",
+    ],
+    "derived_cache_dirs": [
+        "thumbs",
+        "workbench_thumbs",
+        "workbench_proxy",
+    ],
+}
+
 
 def default_project_root():
     raw = os.environ.get("VIDEO_PIPELINE_PROJECT_ROOT")
@@ -80,6 +125,28 @@ def _project_pointer(project_dir, active_run=None, *, repo_dir=None):
     return payload
 
 
+def build_run_layout(project_dir, run_dir):
+    project_dir = Path(project_dir).expanduser()
+    run_dir = Path(run_dir).expanduser()
+    return {
+        "artifact_role": "run_layout",
+        "version": 1,
+        "project_dir": str(project_dir),
+        "run_dir": str(run_dir),
+        "folders": dict(RUN_LAYOUT_FOLDERS),
+        "artifact_classes": {
+            key: list(value)
+            for key, value in RUN_ARTIFACT_CLASSES.items()
+        },
+        "policy": {
+            "repo_is_engine": True,
+            "workbench_is_draft_only": True,
+            "official_render_owned_by_backend": True,
+            "material_map_is_source_of_truth": True,
+        },
+    }
+
+
 def resolve_active_pointer(active, *, repo_dir=None):
     base = Path(repo_dir) if repo_dir else REPO_DIR
     root = Path(active["project_root"]).expanduser()
@@ -124,6 +191,7 @@ def create_run_dir(project_dir, *, label=None, repo_dir=None, timestamp=None):
     run_dir = project_dir / "runs" / f"{ts}{suffix}"
     for rel in RUN_LAYOUT:
         (run_dir / rel).mkdir(parents=True, exist_ok=True)
+    _write_json(run_dir / "run_layout.json", build_run_layout(project_dir, run_dir))
     active = write_active_project(project_dir, repo_dir=repo_dir, active_run=run_dir)
     return {
         "status": "ok",

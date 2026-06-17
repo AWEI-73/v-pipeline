@@ -81,6 +81,17 @@ dispatches the next action.
 
 Use it when continuing a project run.
 
+### Project Workspace
+
+`video_pipeline_core/project_workspace.py` creates external project/run folders
+and writes the repo-local `.project/active.json` pointer.
+
+New runs also include `run_layout.json`, a machine-readable map of folder roles,
+canonical artifact names, Workbench draft artifact names, and derived cache
+directories. It is navigation metadata for agents and frontend shells; it does
+not replace `segment_contract.json`, material maps, `state.json`, or gate
+artifacts.
+
 ### Contract Run
 
 `video_pipeline_core/contract_adapter.py` adapts canonical contracts and runs

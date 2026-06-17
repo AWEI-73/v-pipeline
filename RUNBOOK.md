@@ -106,6 +106,10 @@ under `verify/`, and node-specific details under `nodes/` only after the node
 contract is confirmed. Root-level files such as
 `state.json`, `artifact_manifest.json`, `final.mp4`, `assembly_plan.json`, and
 `timeline_build.json` remain at the run root for dashboard/route compatibility.
+New runs include `run_layout.json`, which is the machine-readable guide for
+folder roles, canonical artifacts, Workbench draft artifacts, and derived cache
+directories. Treat it as navigation metadata only; it does not override
+`segment_contract.json`, material maps, or gate artifacts.
 
 **Always use the wrapper** — it boots Ollama, warms the model, runs the pipeline,
 and kills Ollama in the same shell session (so WSL idle won't orphan it):

@@ -121,6 +121,11 @@ be added only after the node contract is confirmed. Root-level run artifacts
 remain the route/dashboard surface (`state.json`, `artifact_manifest.json`,
 `final.mp4`, etc.).
 
+Each newly created run also writes `run_layout.json`, a machine-readable layout
+manifest for agents and frontend shells. It records folder roles, canonical
+artifact names, Workbench draft artifact names, and derived cache directories.
+It is navigation metadata, not a replacement for the video contract.
+
 Validate a script:
 
 ```bash
