@@ -37,6 +37,8 @@
   var els = {};
   var rafId = null;
   var lastTick = 0;
+  var TRACK_LABEL_WIDTH = 72;
+  var TIMELINE_PX_PER_SEC = 72;
 
   function $(id) {
     return document.getElementById(id);
@@ -53,6 +55,7 @@
       "field-source-start", "field-source-duration", "btn-apply-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
+      "timeline-scroll", "timeline-canvas", "timeline-ruler",
       "btn-download-patch", "btn-save-patch", "btn-sync-contract", "btn-export",
       "btn-save-all", "btn-add-cue", "effect-asset-select", "btn-add-fx", "track-inspector",
       "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
@@ -224,15 +227,69 @@
     });
   }
 
-  function pxScale(laneWidth) {
-    var total = state.work.duration_sec || 1;
-    return laneWidth / total;
+  function timelineMetrics() {
+    var total = Math.max(0.1, (state.work && state.work.duration_sec) || 0.1);
+    var viewport = els.timeline_scroll ? els.timeline_scroll.clientWidth : 800;
+    var laneWidth = Math.max(240, viewport - TRACK_LABEL_WIDTH);
+    var timelineWidth = Math.max(laneWidth, Math.ceil(total * TIMELINE_PX_PER_SEC));
+    var scale = timelineWidth / total;
+    return {
+      total: total,
+      viewport: viewport,
+      timelineWidth: timelineWidth,
+      canvasWidth: timelineWidth + TRACK_LABEL_WIDTH,
+      scale: scale,
+    };
+  }
+
+  function formatTimeLabel(sec) {
+    var s = Math.max(0, Math.round(sec));
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return m + ":" + String(r).padStart(2, "0");
+  }
+
+  function renderTimelineRuler(metrics) {
+    if (!els.timeline_ruler) return;
+    els.timeline_ruler.innerHTML = "";
+    els.timeline_ruler.style.width = metrics.canvasWidth + "px";
+    var total = Math.ceil(metrics.total);
+    var step = total > 120 ? 10 : 5;
+    for (var t = 0; t <= total; t += step) {
+      var x = TRACK_LABEL_WIDTH + t * metrics.scale;
+      var tick = document.createElement("div");
+      tick.className = "ruler-tick ruler-tick-major";
+      tick.style.left = x + "px";
+      els.timeline_ruler.appendChild(tick);
+      var label = document.createElement("div");
+      label.className = "ruler-label";
+      label.style.left = x + "px";
+      label.textContent = formatTimeLabel(t);
+      els.timeline_ruler.appendChild(label);
+    }
+  }
+
+  function ensurePlayheadVisible(metrics) {
+    if (!els.timeline_scroll || !state.playing) return;
+    var x = TRACK_LABEL_WIDTH + state.currentTime * metrics.scale;
+    var left = els.timeline_scroll.scrollLeft;
+    var right = left + els.timeline_scroll.clientWidth;
+    if (x > right - 80) {
+      els.timeline_scroll.scrollLeft = Math.max(0, x - els.timeline_scroll.clientWidth + 120);
+    }
   }
 
   function renderTimelineLanes() {
     var lane = els.lane_video;
-    var width = lane.clientWidth || 800;
-    var scale = pxScale(width);
+    var metrics = timelineMetrics();
+    var scale = metrics.scale;
+    if (els.timeline_canvas) {
+      els.timeline_canvas.style.width = metrics.canvasWidth + "px";
+    }
+    [els.lane_video, els.lane_subtitle, els.lane_audio, els.lane_effect].forEach(function (l) {
+      if (l) l.style.width = metrics.timelineWidth + "px";
+    });
+    renderTimelineRuler(metrics);
     lane.innerHTML = "";
     state.work.clips.forEach(function (c) {
       var b = document.createElement("div");
@@ -384,11 +441,9 @@
     els.subtitle_overlay.textContent = sub ? sub.text : "";
 
     // Playhead position.
-    var lane = els.lane_video;
-    var width = lane.clientWidth || 800;
-    var scale = pxScale(width);
-    var laneLeft = lane.getBoundingClientRect().left - els.lane_video.parentElement.parentElement.getBoundingClientRect().left;
-    els.playhead.style.left = (72 + state.currentTime * scale) + "px";
+    var metrics = timelineMetrics();
+    els.playhead.style.left = (TRACK_LABEL_WIDTH + state.currentTime * metrics.scale) + "px";
+    ensurePlayheadVisible(metrics);
 
     els.time_label.textContent =
       state.currentTime.toFixed(2) + " / " + (state.work.duration_sec || 0).toFixed(2) + "s";

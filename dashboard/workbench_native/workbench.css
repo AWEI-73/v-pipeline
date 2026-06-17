@@ -479,6 +479,40 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.timeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+.timeline-canvas {
+  position: relative;
+  min-width: 100%;
+}
+.timeline-ruler {
+  position: relative;
+  height: 24px;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(108, 92, 231, 0.18);
+}
+.ruler-tick-major {
+  background: rgba(108, 92, 231, 0.36);
+}
+.ruler-label {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 .track {
   display: flex;
@@ -495,7 +529,7 @@ body {
 }
 .track-lane {
   position: relative;
-  flex: 1;
+  flex: 0 0 auto;
   height: 32px;
   background: var(--panel-2);
   border-radius: 6px;
@@ -590,7 +624,7 @@ body {
 
 .playhead {
   position: absolute;
-  top: 8px;
+  top: 36px;
   bottom: 8px;
   left: 80px;
   width: 2px;

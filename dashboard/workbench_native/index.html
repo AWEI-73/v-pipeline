@@ -83,9 +83,9 @@
         </div>
 
         <div class="wb-transport">
-          <button id="btn-play" type="button">▶ Play</button>
-          <button id="btn-pause" type="button" hidden>⏸ Pause</button>
-          <button id="btn-rewind" type="button">⏮</button>
+          <button id="btn-play" type="button">Play</button>
+          <button id="btn-pause" type="button" hidden>Pause</button>
+          <button id="btn-rewind" type="button">Back</button>
           <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
           <span id="time-label" class="time-label">0.00 / 0.00s</span>
           <span id="frame-label" class="frame-label">f0</span>
@@ -112,8 +112,8 @@
           </div>
           <div class="field-row">
             <button id="btn-apply-clip" type="button">Apply</button>
-            <button id="btn-move-left" type="button">◀ Move left</button>
-            <button id="btn-move-right" type="button">Move right ▶</button>
+            <button id="btn-move-left" type="button">Move left</button>
+            <button id="btn-move-right" type="button">Move right</button>
           </div>
         </div>
 
@@ -145,23 +145,28 @@
   </div>
 
   <section class="wb-timeline">
-    <div class="track">
-      <span class="track-label">video</span>
-      <div class="track-lane" id="lane-video"></div>
+    <div class="timeline-scroll" id="timeline-scroll">
+      <div class="timeline-canvas" id="timeline-canvas">
+        <div class="timeline-ruler" id="timeline-ruler"></div>
+        <div class="track">
+          <span class="track-label">video</span>
+          <div class="track-lane" id="lane-video"></div>
+        </div>
+        <div class="track">
+          <span class="track-label">subtitle</span>
+          <div class="track-lane" id="lane-subtitle"></div>
+        </div>
+        <div class="track">
+          <span class="track-label">audio</span>
+          <div class="track-lane" id="lane-audio"></div>
+        </div>
+        <div class="track">
+          <span class="track-label">effect</span>
+          <div class="track-lane" id="lane-effect"></div>
+        </div>
+        <div class="playhead" id="playhead"></div>
+      </div>
     </div>
-    <div class="track">
-      <span class="track-label">subtitle</span>
-      <div class="track-lane" id="lane-subtitle"></div>
-    </div>
-    <div class="track">
-      <span class="track-label">audio</span>
-      <div class="track-lane" id="lane-audio"></div>
-    </div>
-    <div class="track">
-      <span class="track-label">effect</span>
-      <div class="track-lane" id="lane-effect"></div>
-    </div>
-    <div class="playhead" id="playhead"></div>
   </section>
 
   <footer class="wb-footer">
@@ -169,8 +174,8 @@
     <div class="footer-actions">
       <span id="dirty-flag" class="muted">no local edits</span>
       <button id="btn-download-patch" type="button">Download patch</button>
-      <button id="btn-save-patch" type="button">Save patch → server</button>
-      <button id="btn-sync-contract" type="button" title="Translate edits into a draft pipeline-contract patch (never overwrites canonical). Fail-closed on out-of-scene source windows.">Sync → contract</button>
+      <button id="btn-save-patch" type="button">Save patch to server</button>
+      <button id="btn-sync-contract" type="button" title="Translate edits into a draft pipeline-contract patch (never overwrites canonical). Fail-closed on out-of-scene source windows.">Sync to contract</button>
       <button id="btn-save-all" type="button" title="Save timeline + subtitle + audio-cue + effect-intent patches together and build a workbench_handoff.json for the Agent.">Save all + handoff</button>
       <button id="btn-export" type="button" title="Optional: render via canonical ffmpeg (slow). Writes workbench_export.mp4, never final.mp4.">Export (ffmpeg)</button>
     </div>
