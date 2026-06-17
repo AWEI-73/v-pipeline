@@ -303,6 +303,29 @@
     return payload;
   }
 
+  /**
+   * Decide how the browser <video> element should be updated for the active
+   * clip. Slot identity and media source identity are separate: adjacent clips
+   * can be different approved windows from the same large .MOV. In that case
+   * the preview should keep the current src and only seek, otherwise very short
+   * clips can pass before the browser finishes reloading the same file.
+   */
+  function planVideoElementUpdate(previous, clip, thumbnails) {
+    previous = previous || {};
+    clip = clip || {};
+    thumbnails = thumbnails || {};
+    var nextSrc = clip.src_url || "";
+    var prevSrc = previous.src_url || "";
+    var sameSource = !!nextSrc && nextSrc === prevSrc;
+    return {
+      slot_index: clip.slot_index,
+      src_url: nextSrc,
+      poster_url: thumbnails[String(clip.slot_index)] || thumbnails[clip.slot_index] || "",
+      reuse_source: sameSource,
+      set_source: !sameSource,
+    };
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -335,5 +358,6 @@
     buildSubtitlePatch: buildSubtitlePatch,
     computeTrackMarkers: computeTrackMarkers,
     buildSavePayload: buildSavePayload,
+    planVideoElementUpdate: planVideoElementUpdate,
   };
 });

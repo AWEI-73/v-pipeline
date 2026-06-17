@@ -221,16 +221,31 @@
       empty.hidden = true;
       vid.hidden = false;
       var wantTime = Core.getVideoPlaybackTime(clip, state.currentTime);
-      if (vid.getAttribute("data-slot") !== String(clip.slot_index)) {
-        // Clip changed: load the new source ONCE and seek after it's ready.
-        // (Per-frame src/seek churn was the main scrub stall — NPE5.)
+      var videoPlan = Core.planVideoElementUpdate({
+        slot_index: vid.getAttribute("data-slot"),
+        src_url: vid.getAttribute("data-src-url") || "",
+      }, clip, state.thumbs);
+      if (videoPlan.poster_url) {
+        vid.poster = videoPlan.poster_url;
+      }
+      if (videoPlan.set_source) {
+        // New source: show the clip thumbnail while the browser loads/seeks.
+        // This prevents short clips from disappearing into a black wait state.
         vid.setAttribute("data-slot", String(clip.slot_index));
-        vid.src = clip.src_url || "";
+        vid.setAttribute("data-src-url", videoPlan.src_url);
+        vid.src = videoPlan.src_url;
         var seekTarget = wantTime;
         vid.onloadeddata = function () {
           try { vid.currentTime = seekTarget; } catch (e) { /* not seekable yet */ }
           if (state.playing) { vid.play().catch(function () {}); }
         };
+      } else if (vid.getAttribute("data-slot") !== String(clip.slot_index)) {
+        // Same source, different approved window: keep the decoded .MOV and
+        // only seek. This is critical for adjacent 1-2s source windows.
+        vid.setAttribute("data-slot", String(clip.slot_index));
+        if (Math.abs((vid.currentTime || 0) - wantTime) > 0.03) {
+          try { vid.currentTime = wantTime; } catch (e) {}
+        }
       } else if (!state.playing) {
         // scrubbing within the same clip: seek precisely
         if (Math.abs((vid.currentTime || 0) - wantTime) > 0.05) {

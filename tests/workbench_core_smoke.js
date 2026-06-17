@@ -160,4 +160,22 @@ check("buildSavePayload is deterministic and layer-selective", function () {
   assert.strictEqual(a.effect_patch.patches[0].after.preset, "flash");
 });
 
+check("planVideoElementUpdate reuses same source across adjacent windows", function () {
+  const prev = { slot_index: 1, src_url: "/media?src=a.mov" };
+  const clip = { slot_index: 2, type: "video", src_url: "/media?src=a.mov" };
+  const plan = Core.planVideoElementUpdate(prev, clip, { 2: "/media?src=thumb2.jpg" });
+  assert.strictEqual(plan.reuse_source, true);
+  assert.strictEqual(plan.set_source, false);
+  assert.strictEqual(plan.poster_url, "/media?src=thumb2.jpg");
+});
+
+check("planVideoElementUpdate reloads different source and keeps poster fallback", function () {
+  const prev = { slot_index: 1, src_url: "/media?src=a.mov" };
+  const clip = { slot_index: 2, type: "video", src_url: "/media?src=b.mov" };
+  const plan = Core.planVideoElementUpdate(prev, clip, { 2: "/media?src=thumb2.jpg" });
+  assert.strictEqual(plan.reuse_source, false);
+  assert.strictEqual(plan.set_source, true);
+  assert.strictEqual(plan.poster_url, "/media?src=thumb2.jpg");
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");
