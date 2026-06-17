@@ -1480,6 +1480,18 @@ def cmd_run_layout_validate(args):
         raise ToolError(f"run_layout validation failed: {len(report.get('errors') or [])} error(s)")
 
 
+def cmd_workbench_handoff_validate(args):
+    from tools.workbench_handoff import validate_handoff
+    report = validate_handoff(args.artifact_root)
+    text = json.dumps(report, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    if not report.get("ok"):
+        raise ToolError(f"workbench handoff validation failed: {len(report.get('errors') or [])} error(s)")
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1526,6 +1538,7 @@ def _build_video_tools_dispatch():
         "project-new-run": cmd_project_new_run,
         "commands-manifest": cmd_commands_manifest,
         "run-layout-validate": cmd_run_layout_validate,
+        "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -1818,6 +1831,10 @@ def main():
     p_rlv = sub.add_parser("run-layout-validate")
     p_rlv.add_argument("run_dir", help="project run directory containing run_layout.json")
     p_rlv.add_argument("--out", help="write run_layout_validation.json")
+
+    p_whv = sub.add_parser("workbench-handoff-validate")
+    p_whv.add_argument("artifact_root", help="run/artifact root containing workbench_handoff.json")
+    p_whv.add_argument("--out", help="write workbench_handoff_validation.json")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

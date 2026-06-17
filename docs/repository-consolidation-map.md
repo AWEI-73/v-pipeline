@@ -101,6 +101,11 @@ Use `video_tools.py run-layout-validate <run-dir>` before handing a run to
 another agent or shell. The validator owns folder/artifact ownership checks; UI
 surfaces only display its read-only status.
 
+Use `video_tools.py workbench-handoff-validate <run-dir>` before consuming
+Workbench human edits. It validates the draft handoff index, referenced draft
+artifact presence, and size/hash integrity; canonical artifacts remain outside
+the handoff surface.
+
 ### Contract Run
 
 `video_pipeline_core/contract_adapter.py` adapts canonical contracts and runs

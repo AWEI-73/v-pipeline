@@ -121,6 +121,16 @@ The validator fails closed on missing/malformed `run_layout.json`, unsafe
 relative paths, duplicate artifact ownership, missing declared folders, and
 cache paths that are files instead of directories.
 
+Validate Workbench draft handoff before an Agent consumes human edits:
+
+```powershell
+python video_tools.py workbench-handoff-validate C:\path\to\run --out C:\path\to\run\workbench_handoff_validation.json
+```
+
+This checks that `workbench_handoff.json` references only Workbench draft
+artifacts, that referenced files exist, and that their recorded size/hash still
+match the files on disk.
+
 **Always use the wrapper** — it boots Ollama, warms the model, runs the pipeline,
 and kills Ollama in the same shell session (so WSL idle won't orphan it):
 

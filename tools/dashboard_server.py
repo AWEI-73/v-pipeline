@@ -136,7 +136,30 @@ def collect_workbench_draft_status(root_dir: Path):
     }
     summary["has_handoff"] = artifacts["workbench_handoff"]["exists"]
     summary["has_review_report"] = artifacts["workbench_review_report"]["exists"]
-    summary["agent_ready"] = summary["has_handoff"] and summary["has_review_report"]
+    if summary["has_handoff"]:
+        from tools.workbench_handoff import validate_handoff
+        validation = validate_handoff(str(root_dir))
+        summary["handoff_validation"] = {
+            "ok": bool(validation.get("ok")),
+            "error_count": len(validation.get("errors") or []),
+            "warning_count": len(validation.get("warnings") or []),
+            "errors": validation.get("errors") or [],
+            "warnings": validation.get("warnings") or [],
+        }
+    else:
+        summary["handoff_validation"] = {
+            "ok": None,
+            "status": "not_present",
+            "error_count": 0,
+            "warning_count": 0,
+            "errors": [],
+            "warnings": [],
+        }
+    summary["agent_ready"] = (
+        summary["has_handoff"]
+        and summary["has_review_report"]
+        and bool(summary["handoff_validation"].get("ok"))
+    )
     return artifacts, summary
 
 

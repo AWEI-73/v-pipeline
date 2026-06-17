@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.workbench_handoff import build_handoff
+from types import SimpleNamespace
+from contextlib import redirect_stdout
+from io import StringIO
+
+import video_tools
+from tools.workbench_handoff import build_handoff, validate_handoff
 
 
 def _write(path: Path, payload) -> None:
@@ -57,6 +62,132 @@ class WorkbenchHandoffTest(unittest.TestCase):
         self.assertEqual(handoff["artifacts"], {})
         self.assertEqual(handoff["artifact_details"], {})
         self.assertEqual(handoff["summary"]["timeline_edits"], 0)
+
+    def test_validate_handoff_accepts_consistent_draft_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "timeline_patch.json", {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [{"op": "set_duration"}],
+            })
+            _write(root / "patched_draft_timeline.json", {
+                "artifact_role": "patched_draft_timeline",
+                "plan": [],
+            })
+            _write(root / "workbench_review_report.json", {
+                "artifact_role": "workbench_review_report",
+                "summary": {"ok": True},
+            })
+            _write(root / "workbench_handoff.json", build_handoff(str(root)))
+
+            report = validate_handoff(str(root))
+
+        self.assertTrue(report["ok"], report["errors"])
+        self.assertEqual(report["artifact_role"], "workbench_handoff_validation")
+        self.assertCountEqual(report["present_artifacts"], [
+            "timeline_patch",
+            "patched_draft_timeline",
+            "workbench_review_report",
+        ])
+        self.assertEqual(report["missing_artifacts"], [])
+
+    def test_validate_handoff_fails_missing_handoff_or_missing_referenced_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing = validate_handoff(str(root))
+            self.assertFalse(missing["ok"])
+            self.assertEqual(missing["errors"][0]["code"], "missing_handoff")
+
+            _write(root / "workbench_handoff.json", {
+                "artifact_role": "workbench_handoff",
+                "version": 1,
+                "artifacts": {"timeline_patch": "timeline_patch.json"},
+                "artifact_details": {
+                    "timeline_patch": {
+                        "path": "timeline_patch.json",
+                        "size_bytes": 10,
+                        "sha256": "0" * 64,
+                    }
+                },
+            })
+            report = validate_handoff(str(root))
+
+        self.assertFalse(report["ok"])
+        self.assertIn("missing_referenced_artifact", {e["code"] for e in report["errors"]})
+
+    def test_validate_handoff_rejects_hash_mismatch_and_canonical_reference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "timeline_patch.json", {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [],
+            })
+            _write(root / "workbench_handoff.json", {
+                "artifact_role": "workbench_handoff",
+                "version": 1,
+                "artifacts": {
+                    "timeline_patch": "timeline_patch.json",
+                    "bad_final": "final.mp4",
+                },
+                "artifact_details": {
+                    "timeline_patch": {
+                        "path": "timeline_patch.json",
+                        "size_bytes": 999,
+                        "sha256": "f" * 64,
+                    },
+                    "bad_final": {
+                        "path": "final.mp4",
+                        "size_bytes": 1,
+                        "sha256": "0" * 64,
+                    },
+                },
+            })
+            (root / "final.mp4").write_bytes(b"x")
+
+            report = validate_handoff(str(root))
+
+        self.assertFalse(report["ok"])
+        codes = {e["code"] for e in report["errors"]}
+        self.assertIn("hash_mismatch", codes)
+        self.assertIn("size_mismatch", codes)
+        self.assertIn("canonical_artifact_reference", codes)
+
+    def test_validate_handoff_rejects_malformed_referenced_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "timeline_patch.json").write_text("{bad", encoding="utf-8")
+            _write(root / "workbench_handoff.json", build_handoff(str(root)))
+
+            report = validate_handoff(str(root))
+
+        self.assertFalse(report["ok"])
+        self.assertIn("malformed_referenced_json", {e["code"] for e in report["errors"]})
+
+    def test_video_tools_workbench_handoff_validate_writes_report_and_fails_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "timeline_patch.json", {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [],
+            })
+            _write(root / "workbench_handoff.json", build_handoff(str(root)))
+            out = root / "handoff_validation.json"
+
+            with redirect_stdout(StringIO()):
+                video_tools.cmd_workbench_handoff_validate(
+                    SimpleNamespace(artifact_root=str(root), out=str(out))
+                )
+            self.assertTrue(json.loads(out.read_text(encoding="utf-8"))["ok"])
+
+            (root / "timeline_patch.json").unlink()
+            with self.assertRaises(Exception):
+                with redirect_stdout(StringIO()):
+                    video_tools.cmd_workbench_handoff_validate(
+                        SimpleNamespace(artifact_root=str(root), out=None)
+                    )
 
 
 if __name__ == "__main__":

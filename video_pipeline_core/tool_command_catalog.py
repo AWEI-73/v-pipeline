@@ -47,6 +47,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "state": "workspace",
     "commands-manifest": "workspace",
     "run-layout-validate": "workspace",
+    "workbench-handoff-validate": "workspace",
 
     # Frontend/review surfaces.
     "serve": "frontend",

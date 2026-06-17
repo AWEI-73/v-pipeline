@@ -27,6 +27,18 @@ DRAFT_ARTIFACTS = {
     "workbench_review_report_md": "workbench_review_report.md",
 }
 
+CANONICAL_ARTIFACTS = {
+    "timeline.json",
+    "segment_contract.json",
+    "revised_segment_contract.json",
+    "project_material_map.json",
+    "material_needs.json",
+    "materials_db.json",
+    "final.mp4",
+    "state.json",
+    "delivery_gate.json",
+}
+
 
 def _load_json(path: Path) -> Optional[Any]:
     try:
@@ -83,4 +95,154 @@ def build_handoff(artifact_root: str) -> Dict[str, Any]:
         "artifact_details": details,
         "summary": summary,
         "next_action": "agent_review_and_render_preview",
+    }
+
+
+def _error(errors: List[Dict[str, Any]], code: str, message: str, **extra: Any) -> None:
+    item = {"code": code, "message": message}
+    item.update(extra)
+    errors.append(item)
+
+
+def _safe_handoff_path(value: Any) -> Optional[str]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace("\\", "/")
+    if text.startswith("/") or ":" in text or ".." in Path(text).parts:
+        return None
+    return text
+
+
+def _json_role_for(key: str) -> Optional[str]:
+    roles = {
+        "timeline_patch": "timeline_patch",
+        "subtitle_patch": "subtitle_patch",
+        "audio_cue_patch": "audio_cue_patch",
+        "effect_patch": "effect_patch",
+        "workbench_contract_patch": "workbench_contract_patch",
+        "workbench_review_report": "workbench_review_report",
+    }
+    return roles.get(key)
+
+
+def _validate_referenced_json(path: Path, key: str, errors: List[Dict[str, Any]]) -> None:
+    if path.suffix.lower() not in {".json"}:
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _error(errors, "malformed_referenced_json", f"{key} JSON is malformed", key=key, path=path.name, detail=str(exc))
+        return
+    if not isinstance(payload, dict):
+        _error(errors, "invalid_referenced_json_shape", f"{key} JSON must be an object", key=key, path=path.name)
+        return
+    expected_role = _json_role_for(key)
+    if expected_role and payload.get("artifact_role") not in (expected_role, None):
+        _error(
+            errors,
+            "unexpected_artifact_role",
+            f"{key} artifact_role does not match the referenced draft artifact",
+            key=key,
+            path=path.name,
+            expected=expected_role,
+            actual=payload.get("artifact_role"),
+        )
+
+
+def validate_handoff(artifact_root: str) -> Dict[str, Any]:
+    """Validate workbench_handoff.json before an Agent consumes draft artifacts."""
+    root = Path(artifact_root)
+    handoff_path = root / "workbench_handoff.json"
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    present: List[str] = []
+    missing: List[str] = []
+
+    if not handoff_path.is_file():
+        _error(errors, "missing_handoff", "workbench_handoff.json is missing")
+        return {
+            "artifact_role": "workbench_handoff_validation",
+            "version": 1,
+            "ok": False,
+            "artifact_root": str(root),
+            "errors": errors,
+            "warnings": warnings,
+            "present_artifacts": present,
+            "missing_artifacts": missing,
+        }
+
+    try:
+        handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _error(errors, "malformed_handoff", f"workbench_handoff.json is malformed: {exc}")
+        handoff = None
+
+    if not isinstance(handoff, dict):
+        if handoff is not None:
+            _error(errors, "invalid_handoff_shape", "workbench_handoff.json must be an object")
+        return {
+            "artifact_role": "workbench_handoff_validation",
+            "version": 1,
+            "ok": False,
+            "artifact_root": str(root),
+            "errors": errors,
+            "warnings": warnings,
+            "present_artifacts": present,
+            "missing_artifacts": missing,
+        }
+
+    if handoff.get("artifact_role") != ARTIFACT_ROLE:
+        _error(errors, "invalid_handoff_role", "artifact_role must be workbench_handoff")
+    if handoff.get("version") != SCHEMA_VERSION:
+        _error(errors, "invalid_handoff_version", "workbench_handoff version must be 1")
+
+    artifacts = handoff.get("artifacts")
+    details = handoff.get("artifact_details")
+    if not isinstance(artifacts, dict):
+        _error(errors, "invalid_artifacts_shape", "artifacts must be an object")
+        artifacts = {}
+    if not isinstance(details, dict):
+        _error(errors, "invalid_artifact_details_shape", "artifact_details must be an object")
+        details = {}
+
+    allowed_names = set(DRAFT_ARTIFACTS.values())
+    for key, raw_rel in sorted(artifacts.items()):
+        rel = _safe_handoff_path(raw_rel)
+        if rel is None:
+            _error(errors, "unsafe_artifact_reference", "handoff artifact path must be a safe relative path", key=key, value=raw_rel)
+            continue
+        name = Path(rel).name
+        if name in CANONICAL_ARTIFACTS or rel not in allowed_names:
+            _error(errors, "canonical_artifact_reference", "handoff may only reference Workbench draft artifacts", key=key, path=rel)
+        path = root / rel
+        if not path.is_file():
+            missing.append(str(key))
+            _error(errors, "missing_referenced_artifact", "handoff references a missing draft artifact", key=key, path=rel)
+            continue
+        present.append(str(key))
+
+        detail = details.get(key)
+        if not isinstance(detail, dict):
+            _error(errors, "missing_artifact_detail", "artifact_details entry is missing or invalid", key=key)
+            continue
+        recorded_path = _safe_handoff_path(detail.get("path"))
+        if recorded_path != rel:
+            _error(errors, "artifact_detail_path_mismatch", "artifact detail path differs from artifacts entry", key=key, path=rel, detail_path=detail.get("path"))
+
+        actual = _artifact_detail(path)
+        if detail.get("size_bytes") != actual["size_bytes"]:
+            _error(errors, "size_mismatch", "artifact size differs from handoff detail", key=key, path=rel)
+        if detail.get("sha256") != actual["sha256"]:
+            _error(errors, "hash_mismatch", "artifact hash differs from handoff detail", key=key, path=rel)
+        _validate_referenced_json(path, str(key), errors)
+
+    return {
+        "artifact_role": "workbench_handoff_validation",
+        "version": 1,
+        "ok": not errors,
+        "artifact_root": str(root),
+        "errors": errors,
+        "warnings": warnings,
+        "present_artifacts": sorted(set(present)),
+        "missing_artifacts": sorted(set(missing)),
     }

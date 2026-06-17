@@ -200,12 +200,17 @@ class DashboardServerTest(unittest.TestCase):
             encoding="utf-8",
         )
         (self.artifact_root / "final.mp4").write_bytes(b"fake")
-        (self.artifact_root / "workbench_handoff.json").write_text(
-            json.dumps({"artifact_role": "workbench_handoff"}),
+        (self.artifact_root / "timeline_patch.json").write_text(
+            json.dumps({"artifact_role": "timeline_patch", "version": 1, "patches": []}),
             encoding="utf-8",
         )
         (self.artifact_root / "workbench_review_report.json").write_text(
             json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+        from tools.workbench_handoff import build_handoff
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps(build_handoff(str(self.artifact_root))),
             encoding="utf-8",
         )
 
@@ -312,12 +317,17 @@ class DashboardServerTest(unittest.TestCase):
         data = json.loads(api_resp.decode("utf-8"))
         self.assertEqual(data["recommended_next_action"], "open_dashboard_or_workbench")
 
-        (self.artifact_root / "workbench_handoff.json").write_text(
-            json.dumps({"artifact_role": "workbench_handoff"}),
+        (self.artifact_root / "timeline_patch.json").write_text(
+            json.dumps({"artifact_role": "timeline_patch", "version": 1, "patches": []}),
             encoding="utf-8",
         )
         (self.artifact_root / "workbench_review_report.json").write_text(
             json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+        from tools.workbench_handoff import build_handoff
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps(build_handoff(str(self.artifact_root))),
             encoding="utf-8",
         )
         api_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
@@ -380,11 +390,17 @@ class DashboardServerTest(unittest.TestCase):
         base_url = f"http://localhost:{self.port}"
 
         (self.artifact_root / "timeline_patch.json").write_text(
-            json.dumps({"patches": [{"op": "replace_clip"}]}),
+            json.dumps({"artifact_role": "timeline_patch", "version": 1,
+                        "patches": [{"op": "replace_clip"}]}),
             encoding="utf-8",
         )
+        (self.artifact_root / "patched_draft_timeline.json").write_text(
+            json.dumps({"artifact_role": "patched_draft_timeline", "plan": []}),
+            encoding="utf-8",
+        )
+        from tools.workbench_handoff import build_handoff
         (self.artifact_root / "workbench_handoff.json").write_text(
-            json.dumps({"artifact_role": "workbench_handoff"}),
+            json.dumps(build_handoff(str(self.artifact_root))),
             encoding="utf-8",
         )
         api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
@@ -393,9 +409,14 @@ class DashboardServerTest(unittest.TestCase):
         self.assertTrue(summary["has_handoff"])
         self.assertFalse(summary["has_review_report"])
         self.assertFalse(summary["agent_ready"])
+        self.assertTrue(summary["handoff_validation"]["ok"])
 
         (self.artifact_root / "workbench_review_report.json").write_text(
             json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps(build_handoff(str(self.artifact_root))),
             encoding="utf-8",
         )
         api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
@@ -404,6 +425,40 @@ class DashboardServerTest(unittest.TestCase):
         self.assertTrue(summary["has_handoff"])
         self.assertTrue(summary["has_review_report"])
         self.assertTrue(summary["agent_ready"])
+        self.assertTrue(summary["handoff_validation"]["ok"])
+
+    def test_workbench_agent_ready_requires_valid_handoff(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps({
+                "artifact_role": "workbench_handoff",
+                "version": 1,
+                "artifacts": {"timeline_patch": "timeline_patch.json"},
+                "artifact_details": {
+                    "timeline_patch": {
+                        "path": "timeline_patch.json",
+                        "size_bytes": 1,
+                        "sha256": "0" * 64,
+                    }
+                },
+            }),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_review_report.json").write_text(
+            json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+
+        api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
+        data = json.loads(api_resp.decode("utf-8"))
+        summary = data["workbench"]["draft_summary"]
+
+        self.assertTrue(summary["has_handoff"])
+        self.assertTrue(summary["has_review_report"])
+        self.assertFalse(summary["handoff_validation"]["ok"])
+        self.assertFalse(summary["agent_ready"])
 
     def test_timeline_and_subtitles_normalization(self):
         self.start_test_server()
