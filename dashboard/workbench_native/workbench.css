@@ -124,7 +124,8 @@ body {
 }
 .wb-transport button:hover { border-color: var(--accent); }
 #scrubber { flex: 1; }
-.time-label, .frame-label { color: var(--muted); font-variant-numeric: tabular-nums; }
+.time-label, .frame-label, .audio-status { color: var(--muted); font-variant-numeric: tabular-nums; }
+.audio-status { min-width: 86px; }
 
 .wb-inspector {
   background: var(--panel);

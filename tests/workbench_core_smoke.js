@@ -193,4 +193,21 @@ check("clipForPreviewPlayback uses proxy url and resets source timing", function
   assert.strictEqual(clip.source_start_sec, 13.4); // original clip unchanged
 });
 
+check("getAudioPlaybackTime maps playhead to audio source time", function () {
+  const audio = { src_url: "/media?src=music.wav", start_sec: 2.0, source_start_sec: 10.0, duration_sec: 8.0 };
+  assert.strictEqual(Core.getAudioPlaybackTime(audio, 1.0), null);
+  assert.strictEqual(Core.getAudioPlaybackTime(audio, 2.0), 10.0);
+  assert.strictEqual(Core.getAudioPlaybackTime(audio, 5.5), 13.5);
+  assert.strictEqual(Core.getAudioPlaybackTime(audio, 11.0), null);
+});
+
+check("planAudioElementUpdate reloads source only when needed", function () {
+  const a = { src_url: "/media?src=music.wav" };
+  const reload = Core.planAudioElementUpdate({ src_url: "" }, a);
+  assert.strictEqual(reload.set_source, true);
+  assert.strictEqual(reload.src_url, "/media?src=music.wav");
+  const reuse = Core.planAudioElementUpdate({ src_url: "/media?src=music.wav" }, a);
+  assert.strictEqual(reuse.set_source, false);
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");

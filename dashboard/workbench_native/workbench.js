@@ -41,9 +41,9 @@
 
   function cacheEls() {
     [
-      "monitor", "stage-image", "stage-video", "stage-empty", "subtitle-overlay",
+      "monitor", "stage-image", "stage-video", "preview-audio", "stage-empty", "subtitle-overlay",
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
-      "time-label", "frame-label", "inspector-empty", "inspector-body",
+      "time-label", "frame-label", "audio-status", "inspector-empty", "inspector-body",
       "inspector-meta", "in-duration", "in-source-start", "in-source-duration",
       "field-source-start", "field-source-duration", "btn-apply-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
@@ -292,6 +292,58 @@
       state.currentTime.toFixed(2) + " / " + (state.work.duration_sec || 0).toFixed(2) + "s";
     els.frame_label.textContent = "f" + Core.secondsToFrame(state.currentTime, state.fps);
     els.scrubber.value = String(state.currentTime);
+    syncAudioPreview(!state.playing);
+  }
+
+  function previewAudioTrack() {
+    return (state.work.audio || []).find(function (a) { return a && a.src_url; }) || null;
+  }
+
+  function syncAudioPreview(precise) {
+    var aud = els.preview_audio;
+    if (!aud) return;
+    var track = previewAudioTrack();
+    var plan = Core.planAudioElementUpdate({
+      src_url: aud.getAttribute("data-src-url") || "",
+    }, track || {});
+    if (!track || !track.src_url) {
+      aud.pause();
+      if (els.audio_status) els.audio_status.textContent = "audio: off";
+      return;
+    }
+    if (plan.set_source) {
+      aud.setAttribute("data-src-url", plan.src_url);
+      aud.src = plan.src_url;
+      aud.volume = 0.55;
+    }
+    var mediaTime = Core.getAudioPlaybackTime(track, state.currentTime);
+    if (mediaTime == null) {
+      aud.pause();
+      if (els.audio_status) els.audio_status.textContent = "audio: off";
+      return;
+    }
+    function seek() {
+      if (precise || Math.abs((aud.currentTime || 0) - mediaTime) > 0.5) {
+        try { aud.currentTime = mediaTime; } catch (e) {}
+      }
+      if (state.playing) {
+        aud.play()
+          .then(function () {
+            if (els.audio_status) els.audio_status.textContent = "audio: playing";
+          })
+          .catch(function () {
+            if (els.audio_status) els.audio_status.textContent = "audio: blocked";
+          });
+      } else {
+        aud.pause();
+        if (els.audio_status) els.audio_status.textContent = "audio: ready";
+      }
+    }
+    if (aud.readyState === 0) {
+      aud.onloadedmetadata = seek;
+    } else {
+      seek();
+    }
   }
 
   function renderTransport() {
@@ -311,6 +363,7 @@
     lastTick = performance.now();
     var vid = els.stage_video;
     if (!vid.hidden) { vid.play().catch(function () {}); }
+    syncAudioPreview(true);
     renderTransport();
     rafId = requestAnimationFrame(tick);
   }
@@ -321,6 +374,7 @@
     rafId = null;
     var vid = els.stage_video;
     if (!vid.hidden) { vid.pause(); }
+    if (els.preview_audio) { els.preview_audio.pause(); }
     renderTransport();
   }
 

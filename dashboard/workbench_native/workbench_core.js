@@ -343,6 +343,29 @@
     });
   }
 
+  /** Local audio media time for the global playhead, or null when inactive. */
+  function getAudioPlaybackTime(audio, currentTime) {
+    if (!audio || !audio.src_url) return null;
+    var start = Number(audio.start_sec) || 0;
+    var dur = Number(audio.duration_sec) || 0;
+    var t = Number(currentTime) || 0;
+    if (!(dur > 0) || t < start || t >= start + dur) return null;
+    return round6((Number(audio.source_start_sec) || 0) + (t - start));
+  }
+
+  /** Decide if the browser <audio> element needs a new src. */
+  function planAudioElementUpdate(previous, audio) {
+    previous = previous || {};
+    audio = audio || {};
+    var nextSrc = audio.src_url || "";
+    var prevSrc = previous.src_url || "";
+    return {
+      src_url: nextSrc,
+      set_source: !!nextSrc && nextSrc !== prevSrc,
+      reuse_source: !!nextSrc && nextSrc === prevSrc,
+    };
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -377,5 +400,7 @@
     buildSavePayload: buildSavePayload,
     planVideoElementUpdate: planVideoElementUpdate,
     clipForPreviewPlayback: clipForPreviewPlayback,
+    getAudioPlaybackTime: getAudioPlaybackTime,
+    planAudioElementUpdate: planAudioElementUpdate,
   };
 });
