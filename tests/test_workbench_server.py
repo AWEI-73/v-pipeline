@@ -191,6 +191,16 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertFalse((self.root / "workbench_contract_patch.json").exists())
         self.assertFalse((self.root / "patched_draft_timeline.json").exists())
 
+    def test_stage_media_css_uses_fixed_monitor_box(self):
+        css = (Path(__file__).resolve().parent.parent / "dashboard" /
+               "workbench_native" / "workbench.css").read_text(encoding="utf-8")
+        start = css.index(".wb-monitor img,\n.wb-monitor video")
+        block = css[start:css.index("}", start)]
+        lines = {line.strip() for line in block.splitlines()}
+        self.assertIn("width: 100%;", lines)
+        self.assertIn("height: 100%;", lines)
+        self.assertIn("object-fit: contain;", block)
+
     # ------------------------------------------------------------------ #
     # NPE4 editorial runtime tracks (save-all + boundaries)
     # ------------------------------------------------------------------ #
