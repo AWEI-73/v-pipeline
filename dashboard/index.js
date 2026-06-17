@@ -2,6 +2,7 @@
     const dashboardFacts = document.getElementById("dashboard-facts");
     const controlStatus = document.getElementById("control-status");
     const workbenchReadiness = document.getElementById("workbench-readiness");
+    const workbenchHealth = document.getElementById("workbench-health");
     const workbenchDrafts = document.getElementById("workbench-drafts");
     const workbenchCommand = document.getElementById("workbench-command");
     const btnOpenWorkbench = document.getElementById("btn-open-workbench");
@@ -84,6 +85,29 @@
         }
     }
 
+    function renderWorkbenchHealth(payload) {
+        if (!workbenchHealth) return;
+        const ok = Boolean(payload && payload.ok);
+        workbenchHealth.innerHTML = [
+            '<span class="readiness-pill ' + (ok ? "ready" : "draft") + '">' + (ok ? "server_ok" : "server_off") + '</span>',
+            '<span class="readiness-text">',
+            ok
+                ? "Workbench server is reachable."
+                : "Workbench server is not reachable yet. Use the start command below.",
+            "</span>"
+        ].join("");
+    }
+
+    async function loadWorkbenchHealth() {
+        try {
+            const response = await fetch("/api/control/workbench-health");
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            renderWorkbenchHealth(await response.json());
+        } catch (err) {
+            renderWorkbenchHealth({ ok: false, error: String(err && err.message || err) });
+        }
+    }
+
     async function loadArtifacts() {
         const params = new URLSearchParams(window.location.search);
         const root = params.get("root");
@@ -93,11 +117,11 @@
         }
 
         try {
-            const response = await fetch("/api/artifacts" + query);
+            const response = await fetch("/api/control/status" + query);
             if (!response.ok) throw new Error("HTTP " + response.status);
             const data = await response.json();
-            const duration = durationFromSlots(data.timeline_slots);
-            const hasFinal = Boolean(data.final_video_url);
+            const duration = Number(data.timeline && data.timeline.duration_sec || 0);
+            const hasFinal = Boolean(data.final_video && data.final_video.exists);
             setText('[data-field="artifact-root"]', data.artifact_root || "-");
             setText('[data-field="duration"]', duration.toFixed(2) + "s");
             setText('[data-field="final-video"]', hasFinal ? "present" : "missing");
@@ -105,14 +129,16 @@
 
             const ready = data.workbench && data.workbench.draft_summary && data.workbench.draft_summary.agent_ready;
             renderStatus(ready ? "ready" : "warning", ready ? "Agent-ready drafts detected" : "Control index ready");
+            loadWorkbenchHealth();
         } catch (err) {
             setText('[data-field="artifact-root"]', "-");
             setText('[data-field="duration"]', "-");
             setText('[data-field="final-video"]', "-");
-            renderStatus("error", "Unable to load /api/artifacts");
+            renderStatus("error", "Unable to load /api/control/status");
             if (workbenchReadiness) {
                 workbenchReadiness.innerHTML = '<span class="readiness-pill unknown">error</span><span class="readiness-text">' + String(err.message || err) + '</span>';
             }
+            renderWorkbenchHealth({ ok: false });
         }
     }
 

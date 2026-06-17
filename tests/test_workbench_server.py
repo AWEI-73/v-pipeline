@@ -90,6 +90,19 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertEqual(asset["scenes"][0]["start_sec"], 3.0)
         self.assertEqual(asset["scenes"][0]["end_sec"], 6.0)
 
+    def test_workbench_health_endpoint_reports_root_and_contract(self):
+        payload = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/health")
+        ).read().decode("utf-8"))
+
+        self.assertEqual(payload["artifact_role"], "workbench_health")
+        self.assertEqual(payload["version"], 1)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["artifact_root"], str(self.root.resolve()))
+        self.assertTrue(payload["can_preview"])
+        self.assertTrue(payload["write_limited"])
+        self.assertIn("timeline_patch.json", payload["writable_artifacts"])
+
     def test_media_serves_only_allowlisted_sources_with_range_support(self):
         src = urllib.parse.quote(str(self.media), safe="")
         req = urllib.request.Request(

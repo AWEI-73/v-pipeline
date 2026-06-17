@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
@@ -211,6 +212,123 @@ def parse_srt(srt_content: str):
     return cues
 
 
+def _timeline_slots_for_summary(active_root: Path):
+    """Return normalized minimal timeline slots for the control status API."""
+    timeline_data = None
+    for filename in ("timeline.plan", "timeline.json", "timeline_build.json"):
+        loaded = load_json_file(resolve_artifact_path(active_root, filename))
+        if loaded:
+            timeline_data = loaded
+            break
+
+    plan_list = []
+    if isinstance(timeline_data, list):
+        plan_list = timeline_data
+    elif isinstance(timeline_data, dict):
+        for key in ("plan", "clips", "slots"):
+            if isinstance(timeline_data.get(key), list):
+                plan_list = timeline_data[key]
+                break
+
+    slots = []
+    accumulated = 0.0
+    for idx, raw_slot in enumerate(plan_list):
+        if not isinstance(raw_slot, dict):
+            continue
+        duration = raw_slot.get("duration_sec") or raw_slot.get("extract_dur") or raw_slot.get("target_duration_sec") or raw_slot.get("duration") or 0.0
+        try:
+            duration = float(duration)
+        except (TypeError, ValueError):
+            duration = 0.0
+        start = raw_slot.get("start_sec") or raw_slot.get("start")
+        try:
+            start = float(start) if start is not None else accumulated
+        except (TypeError, ValueError):
+            start = accumulated
+        end = raw_slot.get("end_sec") or raw_slot.get("end")
+        try:
+            end = float(end) if end is not None else start + duration
+        except (TypeError, ValueError):
+            end = start + duration
+        accumulated = end
+        slots.append({
+            "slot_index": raw_slot.get("slot_index", idx),
+            "start_sec": start,
+            "end_sec": end,
+            "duration_sec": max(0.0, duration),
+        })
+    return slots
+
+
+def build_control_status(active_root: Path):
+    """Small frontend manifest shared by the Control Index and future dashboard shell."""
+    slots = _timeline_slots_for_summary(active_root)
+    duration = max([s["end_sec"] for s in slots], default=0.0)
+    final_path = resolve_artifact_path(active_root, "final.mp4")
+    drafts, summary = collect_workbench_draft_status(active_root)
+    agent_ready = bool(summary.get("agent_ready"))
+    final_exists = final_path.is_file()
+
+    if agent_ready:
+        next_action = "review_workbench_drafts"
+    elif not final_exists:
+        next_action = "run_pipeline_or_open_dashboard"
+    else:
+        next_action = "open_dashboard_or_workbench"
+
+    return {
+        "artifact_role": "frontend_control_status",
+        "version": 1,
+        "artifact_root": str(active_root.resolve()),
+        "dashboard": {
+            "url": "/dashboard",
+            "mode": "read_only_review",
+        },
+        "workbench": {
+            "url": "http://localhost:8770/workbench",
+            "health_url": "http://localhost:8770/api/workbench/health",
+            "mode": "write_limited_draft_editor",
+            "command": (
+                f"python tools/workbench_server.py --artifact-root "
+                f"\"{active_root.resolve()}\" --port 8770"
+            ),
+            "draft_artifacts": drafts,
+            "draft_summary": summary,
+        },
+        "final_video": {
+            "exists": final_exists,
+            "path": "final.mp4" if final_exists else None,
+        },
+        "timeline": {
+            "slot_count": len(slots),
+            "duration_sec": duration,
+        },
+        "recommended_next_action": next_action,
+    }
+
+
+def probe_workbench_health():
+    """Probe the external Workbench server without exposing cross-origin browser calls."""
+    url = "http://localhost:8770/api/workbench/health"
+    try:
+        with urllib.request.urlopen(url, timeout=0.35) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        ok = resp.status == 200 and isinstance(payload, dict) and payload.get("status") == "ok"
+        return {
+            "ok": bool(ok),
+            "status": "ok" if ok else "invalid_response",
+            "url": url,
+            "payload": payload if isinstance(payload, dict) else None,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status": "unreachable",
+            "url": url,
+            "error": str(exc),
+        }
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     artifact_root: Path = Path(".")
     dashboard_dir: Path = Path(".")
@@ -354,6 +472,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(projects, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        if path_str == "/api/control/status":
+            active_root = self.get_validated_root(query_params)
+            payload = build_control_status(active_root)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        if path_str == "/api/control/workbench-health":
+            payload = probe_workbench_health()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
             return
 
         # Route /api/artifacts -> aggregate JSON data

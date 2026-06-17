@@ -191,11 +191,16 @@ dd {
     font-size: 13px;
 }
 
-.workbench-readiness {
+.workbench-readiness,
+.workbench-health {
     display: flex;
     align-items: center;
     gap: 10px;
     margin: 22px 0 14px;
+}
+
+.workbench-health {
+    margin-top: -6px;
 }
 
 .readiness-pill {

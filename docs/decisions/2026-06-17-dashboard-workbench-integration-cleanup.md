@@ -246,3 +246,40 @@ Boundary:
 - Dashboard remains read-only.
 - Workbench remains write-limited and draft-only.
 - The Control Index is only a shell for routing and status visibility.
+
+## Frontend Control API Closure
+
+Date: 2026-06-17
+Status: implemented
+
+Added the first shared frontend control API layer:
+
+- `GET /api/control/status` returns a compact `frontend_control_status`
+  manifest for Control Index and future shell consumers.
+- `GET /api/control/workbench-health` probes the external Workbench server from
+  the Dashboard server, avoiding browser cross-origin health checks.
+- `GET /api/workbench/health` returns a cheap Workbench diagnostic payload
+  without building thumbnails, proxies, or preview timelines.
+- Control Index now reads `/api/control/status` instead of the heavier
+  `/api/artifacts` payload and displays Workbench server liveness separately
+  from draft readiness.
+
+Verification run:
+
+- `python -m unittest tests.test_dashboard_server tests.test_workbench_server tests.test_workbench_frontend_smoke -q`
+- `node --check dashboard\index.js`
+- `node --check dashboard\dashboard_v1.js`
+- `node --check dashboard\workbench_native\workbench.js`
+- `node tests\workbench_api_smoke.js`
+- `node tests\workbench_materials_smoke.js`
+- `node tests\workbench_core_smoke.js`
+- HTTP smoke with Dashboard and Workbench servers running:
+  `/api/control/status`, `/api/control/workbench-health`,
+  `/api/workbench/health`, and `/` all passed.
+- `python -m unittest discover -s tests -q` -> 1458 tests OK
+
+Boundary:
+
+- Dashboard still owns read-only review state.
+- Workbench still owns draft editing and draft artifacts.
+- Control API is a manifest/proxy layer, not an editing API.

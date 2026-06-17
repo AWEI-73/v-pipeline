@@ -14,7 +14,10 @@ frontend surfaces together without merging their responsibilities:
 - Workbench for interactive draft preview and patch creation.
 
 The index also exposes the Workbench start command and draft readiness from
-`/api/artifacts`.
+`/api/control/status`. It checks the external Workbench server through
+`/api/control/workbench-health`, which proxies
+`http://localhost:8770/api/workbench/health` without making the browser perform
+cross-origin health checks.
 
 ### Dashboard
 

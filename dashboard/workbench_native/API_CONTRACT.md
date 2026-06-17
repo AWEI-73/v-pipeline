@@ -248,6 +248,35 @@ Dashboard reads Workbench draft status through its own `/api/artifacts` response
 `workbench_review_report.json` exist. It means "ready for Agent review", not
 "safe to accept".
 
+Control Index reads the compact frontend manifest from
+`/api/control/status`. It uses `/api/control/workbench-health` as a same-origin
+proxy for Workbench server liveness.
+
+## Workbench Health
+
+### `GET /api/workbench/health`
+
+Returns a small diagnostic payload for tooling and the Dashboard server proxy.
+It must not build thumbnails, proxies, or preview timelines.
+
+Example:
+
+```json
+{
+  "artifact_role": "workbench_health",
+  "version": 1,
+  "status": "ok",
+  "artifact_root": "C:/path/to/run",
+  "can_preview": true,
+  "write_limited": true,
+  "writable_artifacts": ["timeline_patch.json"]
+}
+```
+
+Browsers should normally use the Dashboard same-origin proxy
+`/api/control/workbench-health` instead of calling this cross-origin endpoint
+directly.
+
 ## Extension Rules
 
 When adding a new Workbench feature:

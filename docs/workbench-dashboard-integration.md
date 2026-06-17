@@ -22,6 +22,27 @@ It should show:
 The Control Index is read-only. It must not duplicate Dashboard review panels or
 Workbench editing behavior.
 
+Control Index reads the compact frontend manifest from:
+
+```text
+GET /api/control/status
+```
+
+It checks whether the external Workbench server is reachable through the
+same-origin proxy:
+
+```text
+GET /api/control/workbench-health
+```
+
+The browser should not call `localhost:8770` directly for health checks because
+that creates avoidable cross-origin behavior. The direct Workbench health
+endpoint is still available for tools and diagnostics:
+
+```text
+GET http://localhost:8770/api/workbench/health
+```
+
 ### Dashboard
 
 Dashboard is the read-oriented review surface.
@@ -213,6 +234,9 @@ Dashboard `/api/artifacts` exposes Workbench handoff readiness through
 `workbench.draft_summary.agent_ready`. It becomes true only when both
 `workbench_handoff.json` and `workbench_review_report.json` exist. This is a
 review routing flag, not proof that edits should be accepted.
+
+Control Index should prefer `/api/control/status` over `/api/artifacts`.
+Dashboard keeps `/api/artifacts` because it needs the full review payload.
 
 Full regression:
 

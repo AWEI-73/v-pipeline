@@ -265,6 +265,19 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             self._serve_media(query)
             return
 
+        if path == "/api/workbench/health":
+            payload = {
+                "artifact_role": "workbench_health",
+                "version": 1,
+                "status": "ok",
+                "artifact_root": str(self.artifact_root.resolve()),
+                "can_preview": (self.artifact_root / "timeline.json").is_file() or (self.artifact_root / "timeline.plan").is_file(),
+                "write_limited": True,
+                "writable_artifacts": sorted(WRITABLE_OUTPUTS),
+            }
+            self._send_json(200, payload)
+            return
+
         if path == "/api/workbench/preview-timeline":
             preview = pt.build_preview_timeline(str(self.artifact_root), self.base_url)
             self._send_json(200, preview)
