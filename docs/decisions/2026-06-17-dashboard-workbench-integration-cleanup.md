@@ -127,7 +127,11 @@ Related files:
 
 Related commits:
 
-- Pending implementation.
+- `f4cb3a5` docs(workbench): plan dashboard integration cleanup
+- `43ab9f3` docs(workbench): define dashboard integration contract
+- `bcce523` fix(workbench): stabilize preview and timeline layout
+- `b543a01` fix(workbench): harden draft artifact handoff
+- `e330de1` feat(dashboard): surface workbench draft status
 
 Graphify anchors:
 
@@ -146,3 +150,40 @@ Search tags:
 - native-preview-engine
 - video-pipeline
 
+## Implementation Closure
+
+Date: 2026-06-17
+Status: implemented
+
+Completed chunks:
+
+- Chunk 0: focused preflight for Workbench JS core and Python preview/server/patch tests.
+- Chunk 1: integration contract documentation in `docs/workbench-dashboard-integration.md` and `dashboard/README.md`.
+- Chunk 2: Workbench layout stabilization so the preview and timeline stay within the viewport and the timeline scrolls internally.
+- Chunk 3: Workbench handoff hardening with `artifact_details` (`path`, `size_bytes`, `sha256`) and malformed patch JSON structured errors.
+- Chunk 4: Dashboard read-only Workbench status integration. `/api/artifacts` now reports draft artifact presence, counts, sizes, and hashes under `workbench.draft_artifacts` / `workbench.draft_summary`; Dashboard displays that state without adding write endpoints.
+
+Verification run:
+
+- `node --check dashboard\dashboard_v1.js`
+- `node --check dashboard\workbench_native\workbench.js`
+- `node --check dashboard\workbench_native\workbench_core.js`
+- `node tests\workbench_core_smoke.js`
+- `python -m unittest tests.test_dashboard_server tests.test_workbench_server tests.test_workbench_handoff tests.test_preview_timeline tests.test_timeline_patch -q`
+- `python -m unittest discover -s tests -q` -> 1441 tests OK
+- `git diff --check`
+
+Review result:
+
+- Dashboard is still read-only.
+- Workbench remains write-limited and draft-only.
+- Canonical timeline/final render are not consumed or overwritten by Dashboard.
+- Agent/backend handoff is discoverable from one API payload and one handoff artifact.
+
+Still deferred:
+
+- Full Dashboard visual redesign.
+- Material library organization or physical asset relocation.
+- Deep browser-side NLE rendering parity with ffmpeg.
+- Node 14/effects authoring beyond draft intent markers.
+- Automated consumption of Workbench drafts by official pipeline rerender.
