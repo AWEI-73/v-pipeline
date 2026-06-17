@@ -5,6 +5,7 @@ Lightweight HTTP server for viewing Hermes video pipeline artifacts.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -75,6 +76,62 @@ def load_json_file(file_path: Path):
         return {"error": f"Malformed JSON: {str(e)}"}
     except Exception as e:
         return {"error": f"Failed to read file: {str(e)}"}
+
+
+WORKBENCH_DRAFT_ARTIFACTS = {
+    "timeline_patch": "timeline_patch.json",
+    "patched_draft_timeline": "patched_draft_timeline.json",
+    "workbench_contract_patch": "workbench_contract_patch.json",
+    "workbench_handoff": "workbench_handoff.json",
+    "subtitle_patch": "subtitle_patch.json",
+    "audio_cue_patch": "audio_cue_patch.json",
+    "effect_patch": "effect_patch.json",
+}
+
+
+def _json_patch_op_count(path: Path) -> int:
+    data = load_json_file(path)
+    if not isinstance(data, dict):
+        return 0
+    patches = data.get("patches")
+    if not isinstance(patches, list):
+        return 0
+    return len([p for p in patches if isinstance(p, dict)])
+
+
+def collect_workbench_draft_status(root_dir: Path):
+    """Return read-only status for draft artifacts produced by the Workbench."""
+    artifacts = {}
+    present_count = 0
+    for key, filename in WORKBENCH_DRAFT_ARTIFACTS.items():
+        path = root_dir / filename
+        detail = {
+            "filename": filename,
+            "exists": False,
+            "path": None,
+            "size_bytes": 0,
+            "sha256": None,
+        }
+        if path.is_file():
+            data = path.read_bytes()
+            detail.update({
+                "exists": True,
+                "path": filename,
+                "size_bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            })
+            present_count += 1
+        artifacts[key] = detail
+
+    summary = {
+        "present_count": present_count,
+        "timeline_edits": _json_patch_op_count(root_dir / "timeline_patch.json"),
+        "contract_edits": _json_patch_op_count(root_dir / "workbench_contract_patch.json"),
+        "subtitle_edits": _json_patch_op_count(root_dir / "subtitle_patch.json"),
+        "audio_cues": _json_patch_op_count(root_dir / "audio_cue_patch.json"),
+        "effect_intents": _json_patch_op_count(root_dir / "effect_patch.json"),
+    }
+    return artifacts, summary
 
 
 def scan_available_projects():
@@ -513,6 +570,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
+            workbench_draft_artifacts, workbench_draft_summary = collect_workbench_draft_status(active_root)
+
             aggregated = {
                 "profile": profile,
                 "artifact_root": str(active_root.resolve()),
@@ -524,6 +583,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         f"\"{active_root.resolve()}\" --port 8770"
                     ),
                     "note": "Workbench is the write-limited interactive editor; Dashboard stays read-only.",
+                    "draft_artifacts": workbench_draft_artifacts,
+                    "draft_summary": workbench_draft_summary,
                 },
                 "final_video_url": final_video_url,
                 "contact_sheet_url": contact_sheet_url,

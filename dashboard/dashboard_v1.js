@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const profileGraphics = document.getElementById("profile-graphics");
     const profileEffects = document.getElementById("profile-effects");
     const bgmContainer = document.getElementById("bgm-player-container");
+    const workbenchStatus = document.getElementById("workbench-status");
 
     // Left Sidebar Elements
     const issuesList = document.getElementById("issues-list");
@@ -240,8 +241,42 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTimeline();
 
         // 5. Populate Tabs B & C
+        renderWorkbenchStatus();
         renderStorylineTrack();
         renderPipelineConsole();
+    }
+
+    function renderWorkbenchStatus() {
+        if (!workbenchStatus) return;
+        const workbench = artifactData.workbench || {};
+        const summary = workbench.draft_summary || {};
+        const drafts = workbench.draft_artifacts || {};
+        const presentCount = Number(summary.present_count || 0);
+        const badgeClass = presentCount > 0 ? "badge warn" : "badge status-pass";
+        const badgeText = presentCount > 0 ? `${presentCount} draft file(s)` : "clean";
+        const tracked = [
+            ["timeline", drafts.timeline_patch],
+            ["contract", drafts.workbench_contract_patch],
+            ["handoff", drafts.workbench_handoff],
+            ["subtitles", drafts.subtitle_patch],
+            ["audio", drafts.audio_cue_patch],
+            ["effects", drafts.effect_patch],
+        ];
+        const chips = tracked.map(([label, item]) => {
+            const active = item && item.exists;
+            return `<span class="workbench-draft-chip ${active ? "active" : ""}">${label}: ${active ? "present" : "none"}</span>`;
+        }).join("");
+
+        workbenchStatus.innerHTML = `
+            <div class="workbench-status-head">
+                <span class="workbench-status-label">Workbench drafts</span>
+                <span class="${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="workbench-status-body">
+                <span>Read-only dashboard. Edit in Workbench, then let Agent consume draft patches.</span>
+                <div class="workbench-draft-chips">${chips}</div>
+            </div>
+        `;
     }
 
     function getTimelineDuration() {

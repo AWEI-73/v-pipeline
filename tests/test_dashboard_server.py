@@ -137,6 +137,8 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(data["workbench"]["mode"], "external_server")
         self.assertIn("tools/workbench_server.py", data["workbench"]["command"])
         self.assertIn(str(self.artifact_root), data["workbench"]["command"])
+        self.assertEqual(data["workbench"]["draft_summary"]["present_count"], 0)
+        self.assertFalse(data["workbench"]["draft_artifacts"]["timeline_patch"]["exists"])
 
         # 2. Test malformed JSON files - must return error message in field, not crash
         (self.artifact_root / "timeline.json").write_text("{invalid json", encoding="utf-8")
@@ -152,6 +154,41 @@ class DashboardServerTest(unittest.TestCase):
         
         # review_report is correct
         self.assertEqual(data2["review_report"], {"all_matched": True})
+
+    def test_workbench_draft_artifact_status_is_read_only_and_hashes_present_files(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        timeline_patch = {"patches": [{"op": "set_duration", "clip_id": "c1", "duration_sec": 2.5}]}
+        contract_patch = {"patches": [{"op": "sync_clip", "clip_id": "c1"}]}
+        (self.artifact_root / "timeline_patch.json").write_text(
+            json.dumps(timeline_patch),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_contract_patch.json").write_text(
+            json.dumps(contract_patch),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "timeline.json").write_text("[]", encoding="utf-8")
+
+        api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
+        data = json.loads(api_resp.decode("utf-8"))
+
+        drafts = data["workbench"]["draft_artifacts"]
+        self.assertTrue(drafts["timeline_patch"]["exists"])
+        self.assertTrue(drafts["workbench_contract_patch"]["exists"])
+        self.assertFalse(drafts["patched_draft_timeline"]["exists"])
+        self.assertEqual(drafts["timeline_patch"]["path"], "timeline_patch.json")
+        self.assertEqual(drafts["workbench_contract_patch"]["path"], "workbench_contract_patch.json")
+        self.assertGreater(drafts["timeline_patch"]["size_bytes"], 0)
+        self.assertRegex(drafts["timeline_patch"]["sha256"], r"^[0-9a-f]{64}$")
+
+        summary = data["workbench"]["draft_summary"]
+        self.assertEqual(summary["present_count"], 2)
+        self.assertEqual(summary["timeline_edits"], 1)
+        self.assertEqual(summary["contract_edits"], 1)
+
+        self.assertFalse((self.artifact_root / "final.mp4").exists())
 
     def test_timeline_and_subtitles_normalization(self):
         self.start_test_server()

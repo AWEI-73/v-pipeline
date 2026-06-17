@@ -181,6 +181,58 @@ body {
     gap: 8px;
 }
 
+.workbench-status {
+    min-width: 260px;
+    max-width: 520px;
+    padding: 8px 10px;
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.workbench-status-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.workbench-status-label {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.workbench-status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.workbench-draft-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.workbench-draft-chip {
+    padding: 2px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.workbench-draft-chip.active {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+    color: #5b21b6;
+}
+
 /* Next Action Banner */
 .next-action-card {
     background: var(--bg-dark);
@@ -3002,5 +3054,4 @@ code {
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     white-space: nowrap;
 }
-
 
