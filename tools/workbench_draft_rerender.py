@@ -51,9 +51,13 @@ def _artifact_ref(validation: Dict[str, Any], key: str) -> Optional[str]:
 
 
 def _write_report(root: Path, report: Dict[str, Any], report_out: Optional[str]) -> str:
-    out_path = Path(report_out) if report_out else root / DEFAULT_REPORT
-    if not out_path.is_absolute():
+    if report_out:
+        out_path = Path(report_out)
+    else:
+        out_path = root / DEFAULT_REPORT
+    if report_out and not out_path.is_absolute():
         out_path = root / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return str(out_path)
 

@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -197,6 +198,27 @@ class WorkbenchDraftRerenderTest(unittest.TestCase):
             self.assertTrue((root / "preview.mp4").is_file())
             report = json.loads((root / "workbench_rerender_report.json").read_text(encoding="utf-8"))
             self.assertTrue(report["ok"])
+
+    def test_default_report_path_with_relative_artifact_root_is_not_double_prefixed(self):
+        tmp_parent = Path.cwd() / ".tmp"
+        tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp:
+            root = _make_root(tmp)
+            _write(root / "patched_draft_timeline.json", {
+                "artifact_role": "patched_draft_timeline",
+                "plan": [{"slot_index": 0, "source": str(root / "clip.mp4"), "slot_dur": 1.0}],
+            })
+            _write(root / "workbench_review_report.json", {"artifact_role": "workbench_review_report"})
+            rel_root = Path(os.path.relpath(root, Path.cwd()))
+            _write(rel_root / "workbench_handoff.json", build_handoff(str(rel_root)))
+
+            result = rerender_from_handoff(str(rel_root), renderer=FakeRenderer())
+
+            expected = rel_root / "workbench_rerender_report.json"
+            double_prefixed = rel_root / rel_root / "workbench_rerender_report.json"
+            self.assertEqual(Path(result["report_path"]), expected)
+            self.assertTrue(expected.is_file())
+            self.assertFalse(double_prefixed.exists())
 
 
 if __name__ == "__main__":
