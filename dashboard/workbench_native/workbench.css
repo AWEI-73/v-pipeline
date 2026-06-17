@@ -28,14 +28,15 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
   font-size: 13px;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
 }
 
 /* --- HEADER --- */
 .wb-header {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -103,11 +104,12 @@ body {
 
 /* --- MAIN CONTAINER --- */
 .wb-main-container {
-  flex: 0 0 clamp(380px, calc(100vh - 265px), 720px);
+  flex: 1 1 auto;
   display: flex;
-  min-height: 380px;
+  min-height: 0;
   background: var(--bg);
   position: relative;
+  overflow: hidden;
 }
 .tab-bar {
   width: 64px;
@@ -153,6 +155,8 @@ body {
   flex: 1;
   display: flex;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -248,10 +252,13 @@ body {
   flex-direction: column;
   padding: 16px;
   background: var(--bg);
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 .wb-monitor-container {
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -265,7 +272,8 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border);
   aspect-ratio: 16 / 9;
-  width: 100%;
+  width: min(100%, 820px);
+  max-height: 100%;
   max-width: 640px;
   overflow: hidden;
   display: flex;
@@ -419,6 +427,7 @@ body {
 
 /* --- INSPECTOR --- */
 .wb-inspector {
+  flex: 0 0 300px;
   width: 300px;
   background: var(--panel);
   border-left: 1px solid var(--border);
@@ -473,6 +482,7 @@ body {
 
 /* --- TIMELINE --- */
 .wb-timeline {
+  flex: 0 0 auto;
   position: relative;
   margin: 0 16px;
   padding: 8px;
@@ -484,7 +494,8 @@ body {
 }
 .timeline-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  max-height: min(230px, 30vh);
   padding-bottom: 4px;
 }
 .timeline-canvas {
@@ -599,6 +610,7 @@ body {
 .clip-block.status-gap { background: #cbd5e0; color: #4a5568; }
 
 .track-tools {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -673,6 +685,7 @@ body {
 
 /* --- FOOTER --- */
 .wb-footer {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
