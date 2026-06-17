@@ -125,6 +125,25 @@ Expected decision routes:
   current contract constraints;
 - route future effect-heavy work to Node 14 / effects workflow.
 
+## Workbench Module Boundary
+
+The native Workbench frontend is intentionally small and dependency-light:
+
+- `dashboard/workbench_native/workbench_core.js`: pure timeline/editing data
+  functions. This is the safest place for deterministic clip math, patch
+  construction, local trimming, replacement, and track-marker projection.
+- `dashboard/workbench_native/workbench_api.js`: HTTP client for Workbench API
+  endpoints. This centralizes endpoint names and response wrapping.
+- `dashboard/workbench_native/workbench.js`: DOM controller and browser media
+  preview. Keep it thin where possible; do not put new canonical artifact rules
+  here.
+- `tools/workbench_server.py`: write-limited server enforcing artifact
+  ownership.
+
+Do not add backend gate logic to the browser. Browser edits should become draft
+patches; backend/Agent review decides whether they become official pipeline
+changes.
+
 ## Local Commands
 
 Start Workbench against the current real 67th fuller replay artifact:
@@ -143,9 +162,13 @@ Focused checks:
 
 ```powershell
 node --check dashboard\workbench_native\workbench.js
+node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_core.js
+node tests\workbench_api_smoke.js
 node tests\workbench_core_smoke.js
+python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q
+python -m unittest tests.test_workbench_frontend_smoke -q
 python -m unittest tests.test_workbench_review_report -q
 ```
 

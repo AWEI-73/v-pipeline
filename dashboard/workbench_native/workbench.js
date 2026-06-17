@@ -9,6 +9,7 @@
 (function () {
   "use strict";
   var Core = window.WorkbenchCore;
+  var Api = window.WorkbenchApi;
 
   var state = {
     raw: null, // last server snapshot (baseline for diff)
@@ -70,8 +71,7 @@
 
   // -- data ------------------------------------------------------------- //
   function loadPreview() {
-    return fetch("/api/workbench/preview-timeline")
-      .then(function (r) { return r.json(); })
+    return Api.fetchPreviewTimeline()
       .then(function (data) {
         state.raw = data;
         state.fps = data.fps || 30;
@@ -106,8 +106,7 @@
 
   // Filmstrip thumbnails (NPE5): fetched async; first build runs ffmpeg server-side.
   function loadThumbnails() {
-    fetch("/api/workbench/thumbnails")
-      .then(function (r) { return r.json(); })
+    Api.fetchThumbnails()
       .then(function (m) {
         state.thumbs = (m && m.thumbnails) || {};
         renderTimelineLanes();
@@ -118,8 +117,7 @@
   // Preview proxies (NPE6): trimmed browser-friendly MP4s for video clips.
   // First call can be slow; missing proxies gracefully fall back to originals.
   function loadProxies() {
-      fetch("/api/workbench/proxies")
-        .then(function (r) { return r.json(); })
+      Api.fetchProxies()
         .then(function (m) {
           state.proxies = (m && m.proxies) || {};
           renderMonitor();
@@ -803,10 +801,7 @@
       return;
     }
     els.diagnostics.textContent = "Saving all tracks…";
-    fetch("/api/workbench/save-all", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    Api.saveAll(payload)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var s = res.j.summary || {};
@@ -950,12 +945,7 @@
       els.diagnostics.textContent = "No local edits to save.";
       return;
     }
-    fetch("/api/workbench/patch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patch: patch }),
-    })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    Api.savePatch(patch)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var align = res.j.spec_alignment || {};
@@ -980,12 +970,7 @@
       return;
     }
     els.diagnostics.textContent = "Syncing edits to a draft pipeline contract…";
-    fetch("/api/workbench/sync-contract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patch: patch }),
-    })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    Api.syncContract(patch)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var codes = {};
@@ -1014,16 +999,11 @@
     var effectPatch = savePayload.effect_patch || null;
     els.diagnostics.textContent = "Exporting via ffmpeg (this can take a while)…";
     els.btn_export.disabled = true;
-    fetch("/api/workbench/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patch: patch.patches.length ? patch : null,
-        effects: true,
-        effect_patch: effectPatch,
-      }),
+    Api.exportFfmpeg({
+      patch: patch.patches.length ? patch : null,
+      effects: true,
+      effect_patch: effectPatch,
     })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (res.ok && res.j.ok) {
           els.diagnostics.textContent =

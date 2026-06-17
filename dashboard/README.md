@@ -66,10 +66,23 @@ Focused checks:
 
 ```powershell
 node --check dashboard\workbench_native\workbench.js
+node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_core.js
+node tests\workbench_api_smoke.js
 node tests\workbench_core_smoke.js
+python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q
+python -m unittest tests.test_workbench_frontend_smoke -q
 ```
+
+## Frontend Module Boundary
+
+- `workbench_core.js`: pure deterministic timeline/editing logic.
+- `workbench_api.js`: Workbench HTTP API client.
+- `workbench.js`: DOM controller, browser preview, and user interaction.
+
+Keep canonical artifact rules in the Python server/backend. Browser modules
+should produce draft patches and handoff artifacts, not official pipeline truth.
 
 ## Workbench Layout Acceptance
 
@@ -95,4 +108,3 @@ python -m unittest tests.test_preview_timeline tests.test_workbench_server tests
 - Heavy effects authoring.
 - Full multi-track NLE behavior.
 - Full preview/output visual parity.
-
