@@ -366,6 +366,54 @@
     };
   }
 
+  /** Active effect intent markers at currentTime. */
+  function getActiveEffects(effects, currentTime) {
+    var t = Number(currentTime) || 0;
+    return (effects || []).filter(function (e) {
+      var start = Number(e.start_sec) || 0;
+      var dur = Number(e.duration_sec) || 0;
+      return dur > 0 && t >= start && t < start + dur;
+    });
+  }
+
+  function _effectProgress(e, currentTime) {
+    var start = Number(e.start_sec) || 0;
+    var dur = Number(e.duration_sec) || 1;
+    return Math.max(0, Math.min(1, ((Number(currentTime) || 0) - start) / dur));
+  }
+
+  /** Map effect intent markers to lightweight monitor CSS preview state. */
+  function buildEffectPreviewStyle(effects, currentTime) {
+    var active = getActiveEffects(effects, currentTime);
+    var scale = 1;
+    var tx = 0;
+    var ty = 0;
+    var overlay = 0;
+    var label = "";
+    active.forEach(function (e) {
+      var intensity = Math.max(1, Math.min(5, Number(e.intensity) || 1));
+      var progress = _effectProgress(e, currentTime);
+      var pulse = Math.sin(progress * Math.PI);
+      if (e.preset === "flash" || e.preset === "title_reveal" || e.preset === "caption_emphasis") {
+        overlay = Math.max(overlay, Math.min(0.8, 0.12 * intensity * (1 - progress)));
+      } else if (e.preset === "zoom_punch") {
+        scale = Math.max(scale, 1 + (0.012 * intensity * pulse));
+      } else if (e.preset === "shake_light") {
+        tx += Math.sin(progress * Math.PI * 8) * intensity;
+        ty += Math.cos(progress * Math.PI * 6) * intensity * 0.5;
+      } else if (e.preset === "speed_ramp_hint" || e.preset === "freeze_frame_hint") {
+        label = e.preset;
+      }
+    });
+    var transform = "translate(" + round6(tx) + "px, " + round6(ty) + "px) scale(" + round6(scale) + ")";
+    return {
+      active: active.length > 0,
+      transform: transform,
+      overlay_opacity: round6(overlay),
+      label: label,
+    };
+  }
+
   /** Lightweight invariants check; returns {ok, errors}. */
   function validatePreviewState(state) {
     const errors = [];
@@ -402,5 +450,7 @@
     clipForPreviewPlayback: clipForPreviewPlayback,
     getAudioPlaybackTime: getAudioPlaybackTime,
     planAudioElementUpdate: planAudioElementUpdate,
+    getActiveEffects: getActiveEffects,
+    buildEffectPreviewStyle: buildEffectPreviewStyle,
   };
 });

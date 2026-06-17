@@ -77,6 +77,8 @@ body {
   background: #000;
   border: 0;
   outline: 0;
+  transform-origin: center center;
+  transition: transform 80ms linear;
 }
 .wb-monitor video:focus,
 .wb-monitor video:focus-visible,
@@ -85,6 +87,27 @@ body {
   outline: 0;
 }
 .stage-empty { color: var(--muted); }
+.effect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.effect-label {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 3;
+  color: #fff;
+  background: rgba(79,156,249,0.45);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  pointer-events: none;
+}
 .subtitle-overlay {
   position: absolute;
   bottom: 18px;
@@ -96,6 +119,7 @@ body {
   text-shadow: 0 2px 6px #000, 0 0 2px #000;
   padding: 0 24px;
   pointer-events: none;
+  z-index: 4;
 }
 .stage-meta {
   position: absolute;
@@ -106,6 +130,7 @@ body {
   background: rgba(0,0,0,0.45);
   padding: 2px 6px;
   border-radius: 4px;
+  z-index: 5;
 }
 
 .wb-transport {

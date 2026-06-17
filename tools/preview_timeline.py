@@ -28,6 +28,11 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+try:
+    from tools import effect_patch as ep
+except ImportError:  # pragma: no cover - direct-script fallback
+    import effect_patch as ep
+
 ARTIFACT_ROLE = "preview_timeline"
 SCHEMA_VERSION = 1
 DEFAULT_FPS = 30
@@ -174,6 +179,7 @@ def build_preview_timeline(
     artifact_root: str,
     base_url: str,
     fps: int = DEFAULT_FPS,
+    include_effect_patch: bool = True,
 ) -> Dict[str, Any]:
     """Translate editorial artifacts into a preview_timeline contract dict.
 
@@ -302,6 +308,23 @@ def build_preview_timeline(
                 "start_sec": clip["timeline_start_sec"],
                 "duration_sec": clip["duration_sec"],
                 "marker_only": True,
+            })
+
+    effect_patch_path = root / "effect_patch.json"
+    if include_effect_patch and effect_patch_path.is_file():
+        try:
+            patch = json.loads(effect_patch_path.read_text(encoding="utf-8"))
+            draft = ep.apply_effect_patch(str(root), patch)
+            for effect in draft.get("effects", []):
+                item = dict(effect)
+                item["id"] = item.get("effect_id")
+                item["marker_only"] = False
+                effects.append(item)
+        except (OSError, TypeError, ValueError) as exc:
+            diagnostics.append({
+                "level": "warning",
+                "code": "effect_patch_unreadable",
+                "message": f"effect_patch.json present but could not be applied: {exc}",
             })
 
     return {

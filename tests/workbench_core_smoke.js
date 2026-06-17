@@ -210,4 +210,23 @@ check("planAudioElementUpdate reloads source only when needed", function () {
   assert.strictEqual(reuse.set_source, false);
 });
 
+check("getActiveEffects returns only effects active at playhead", function () {
+  const effects = [
+    { effect_id: "e1", preset: "flash", start_sec: 2, duration_sec: 1, intensity: 3 },
+    { effect_id: "e2", preset: "zoom_punch", start_sec: 4, duration_sec: 1, intensity: 3 },
+  ];
+  assert.deepStrictEqual(Core.getActiveEffects(effects, 1.9), []);
+  assert.strictEqual(Core.getActiveEffects(effects, 2.5)[0].effect_id, "e1");
+  assert.deepStrictEqual(Core.getActiveEffects(effects, 3.0), []);
+});
+
+check("buildEffectPreviewStyle maps intent to css preview state", function () {
+  const flash = Core.buildEffectPreviewStyle([{ preset: "flash", start_sec: 2, duration_sec: 1, intensity: 5 }], 2.1);
+  assert.ok(flash.overlay_opacity > 0.5);
+  const zoom = Core.buildEffectPreviewStyle([{ preset: "zoom_punch", start_sec: 2, duration_sec: 1, intensity: 4 }], 2.5);
+  assert.ok(zoom.transform.indexOf("scale(") >= 0);
+  const shake = Core.buildEffectPreviewStyle([{ preset: "shake_light", start_sec: 2, duration_sec: 1, intensity: 3 }], 2.25);
+  assert.ok(shake.transform.indexOf("translate(") >= 0);
+});
+
 console.log("\nworkbench_core smoke: " + count + " checks passed");

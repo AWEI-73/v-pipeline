@@ -41,7 +41,8 @@
 
   function cacheEls() {
     [
-      "monitor", "stage-image", "stage-video", "preview-audio", "stage-empty", "subtitle-overlay",
+      "monitor", "stage-image", "stage-video", "preview-audio", "stage-empty",
+      "effect-overlay", "effect-label", "subtitle-overlay",
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
       "time-label", "frame-label", "audio-status", "inspector-empty", "inspector-body",
       "inspector-meta", "in-duration", "in-source-start", "in-source-duration",
@@ -77,7 +78,9 @@
         };
         state.rawSubs = (data.subtitles || []).map(function (s) { return Object.assign({}, s); });
         state.cues = [];
-        state.effects = [];
+        state.effects = (data.effects || []).filter(function (e) {
+          return e.effect_id && !e.marker_only;
+        }).map(function (e) { return Object.assign({}, e); });
         state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
@@ -293,6 +296,18 @@
     els.frame_label.textContent = "f" + Core.secondsToFrame(state.currentTime, state.fps);
     els.scrubber.value = String(state.currentTime);
     syncAudioPreview(!state.playing);
+    renderEffectPreview();
+  }
+
+  function renderEffectPreview() {
+    var style = Core.buildEffectPreviewStyle(state.effects, state.currentTime);
+    var transform = style.transform || "";
+    els.stage_video.style.transform = transform;
+    els.stage_image.style.transform = transform;
+    els.effect_overlay.hidden = !style.active || !(style.overlay_opacity > 0);
+    els.effect_overlay.style.opacity = String(style.overlay_opacity || 0);
+    els.effect_label.hidden = !style.label;
+    els.effect_label.textContent = style.label || "";
   }
 
   function previewAudioTrack() {

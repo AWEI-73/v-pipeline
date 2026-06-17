@@ -157,6 +157,30 @@ class PreviewTimelineBuildTest(unittest.TestCase):
             # build is pure: it must not create preview_timeline.json by itself
             self.assertFalse((root / "preview_timeline.json").exists())
 
+    def test_effect_patch_becomes_preview_effect_intent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            _write(root, "effect_patch.json", {
+                "artifact_role": "effect_patch",
+                "version": 1,
+                "patches": [{
+                    "op": "add_effect",
+                    "effect_id": "fx-demo",
+                    "after": {
+                        "preset": "flash",
+                        "target_slot_index": 0,
+                        "start_sec": 0.2,
+                        "duration_sec": 0.5,
+                        "intensity": 4,
+                    },
+                }],
+            })
+            preview = build_preview_timeline(str(root), BASE_URL)
+        effect = next(e for e in preview["effects"] if e.get("effect_id") == "fx-demo")
+        self.assertEqual(effect["preset"], "flash")
+        self.assertEqual(effect["target_slot_index"], 0)
+        self.assertEqual(effect["start_sec"], 0.2)
+
 
 if __name__ == "__main__":
     unittest.main()

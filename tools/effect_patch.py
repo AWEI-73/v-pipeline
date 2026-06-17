@@ -44,7 +44,7 @@ def _is_finite(x: Any) -> bool:
 
 def _clip_windows(artifact_root: str) -> Dict[Any, Tuple[float, float]]:
     """slot_index -> (timeline_start_sec, timeline_end_sec)."""
-    preview = pt.build_preview_timeline(artifact_root, "")
+    preview = pt.build_preview_timeline(artifact_root, "", include_effect_patch=False)
     out: Dict[Any, Tuple[float, float]] = {}
     for c in preview.get("clips", []):
         start = float(c.get("timeline_start_sec") or 0.0)
