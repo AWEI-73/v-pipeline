@@ -22,6 +22,8 @@
     cues: [],        // audio cue markers (NPE4)
     effects: [],     // effect intent markers (NPE4)
     effectAssets: [], // selectable effect assets from project_material_map (EF2)
+    materialAssets: [], // read-only project material browser (EF4)
+    selectedAssetId: null,
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     seq: 0,
     thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
@@ -43,6 +45,7 @@
   function cacheEls() {
     [
       "monitor", "stage-image", "stage-video", "preview-audio", "stage-empty",
+      "material-map-summary", "asset-search", "asset-family-filter", "material-assets-list",
       "effect-overlay", "effect-label", "subtitle-overlay",
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
       "time-label", "frame-label", "audio-status", "inspector-empty", "inspector-body",
@@ -83,6 +86,8 @@
           return e.effect_id && !e.marker_only;
         }).map(function (e) { return Object.assign({}, e); });
         state.effectAssets = (data.effect_assets || []).map(function (a) { return Object.assign({}, a); });
+        state.materialAssets = (data.material_assets || []).map(function (a) { return Object.assign({}, a); });
+        state.selectedAssetId = null;
         state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
@@ -120,6 +125,7 @@
 
   // -- render ----------------------------------------------------------- //
   function renderAll() {
+    renderMaterialBrowser();
     renderTimelineLanes();
     renderEffectAssetSelect();
     renderDiagnostics();
@@ -136,6 +142,78 @@
       opt.value = asset.asset_id;
       opt.textContent = asset.asset_id + " (" + asset.asset_type + ")";
       els.effect_asset_select.appendChild(opt);
+    });
+  }
+
+  function materialFamilies() {
+    var seen = {};
+    state.materialAssets.forEach(function (a) {
+      var fam = a.visual_family || "";
+      if (fam) seen[fam] = true;
+    });
+    return Object.keys(seen).sort();
+  }
+
+  function renderMaterialBrowser() {
+    if (!els.material_assets_list) return;
+    var families = materialFamilies();
+    var current = els.asset_family_filter ? els.asset_family_filter.value : "";
+    if (els.asset_family_filter) {
+      els.asset_family_filter.innerHTML = '<option value="">all families</option>';
+      families.forEach(function (fam) {
+        var opt = document.createElement("option");
+        opt.value = fam;
+        opt.textContent = fam;
+        els.asset_family_filter.appendChild(opt);
+      });
+      els.asset_family_filter.value = families.indexOf(current) >= 0 ? current : "";
+    }
+
+    var q = ((els.asset_search && els.asset_search.value) || "").toLowerCase();
+    var famFilter = (els.asset_family_filter && els.asset_family_filter.value) || "";
+    var assets = state.materialAssets.filter(function (a) {
+      if (famFilter && a.visual_family !== famFilter) return false;
+      if (!q) return true;
+      var hay = [
+        a.asset_id, a.asset_type, a.visual_family, a.angle_scale,
+        a.action_family, a.subject, a.caption,
+      ].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+
+    if (els.material_map_summary) {
+      els.material_map_summary.textContent = assets.length + "/" + state.materialAssets.length + " assets";
+    }
+    els.material_assets_list.innerHTML = "";
+    assets.forEach(function (a) {
+      var card = document.createElement("div");
+      card.className = "material-card" + (a.asset_id === state.selectedAssetId ? " selected" : "");
+      var thumb = document.createElement("img");
+      thumb.className = "material-thumb";
+      thumb.src = a.src_url || "";
+      thumb.alt = "";
+      var body = document.createElement("div");
+      var title = document.createElement("div");
+      title.className = "material-title";
+      title.textContent = a.asset_id;
+      var meta = document.createElement("div");
+      meta.className = "material-meta";
+      meta.textContent = [
+        a.asset_type || "asset",
+        a.visual_family || "no-family",
+        a.angle_scale || "no-angle",
+        (a.scene_count || 0) + " scene(s)",
+      ].join(" · ");
+      body.appendChild(title);
+      body.appendChild(meta);
+      card.appendChild(thumb);
+      card.appendChild(body);
+      card.onclick = function () {
+        state.selectedAssetId = a.asset_id;
+        els.diagnostics.textContent = "Selected material asset " + a.asset_id + " (read-only browser)";
+        renderMaterialBrowser();
+      };
+      els.material_assets_list.appendChild(card);
     });
   }
 
@@ -753,6 +831,8 @@
     els.btn_add_fx.onclick = addFx;
     els.btn_apply_track.onclick = applyTrack;
     els.btn_delete_track.onclick = deleteTrack;
+    if (els.asset_search) els.asset_search.oninput = renderMaterialBrowser;
+    if (els.asset_family_filter) els.asset_family_filter.onchange = renderMaterialBrowser;
     PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
     CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });

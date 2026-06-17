@@ -192,6 +192,43 @@ def _build_effect_assets(material_map: Optional[Dict[str, Any]], base_url: str) 
     return sorted(out, key=lambda a: a["asset_id"])
 
 
+def _build_material_assets(material_map: Optional[Dict[str, Any]], base_url: str) -> List[Dict[str, Any]]:
+    """Project-map main visual assets exposed to the Workbench browser.
+
+    This is a read-only projection for review/search. It is not a second
+    material-map schema and it intentionally excludes effect/sfx-only assets.
+    """
+    if not isinstance(material_map, dict):
+        return []
+    out: List[Dict[str, Any]] = []
+    for asset in material_map.get("assets", []) or []:
+        if not isinstance(asset, dict):
+            continue
+        atype = asset.get("asset_type")
+        if atype not in ("video", "photo", "image"):
+            continue
+        src = asset.get("source")
+        aid = asset.get("asset_id")
+        if not isinstance(src, str) or not src.strip() or not isinstance(aid, str) or not aid.strip():
+            continue
+        scenes = asset.get("scenes") if isinstance(asset.get("scenes"), list) else []
+        scene0 = scenes[0] if scenes and isinstance(scenes[0], dict) else {}
+        out.append({
+            "asset_id": aid,
+            "asset_type": atype,
+            "source_path": src,
+            "src_url": path_to_url(str(Path(src).resolve()), base_url),
+            "duration_sec": asset.get("duration_sec"),
+            "scene_count": len(scenes),
+            "visual_family": scene0.get("visual_family"),
+            "angle_scale": scene0.get("angle_scale"),
+            "action_family": scene0.get("action_family"),
+            "subject": scene0.get("subject"),
+            "caption": scene0.get("caption"),
+        })
+    return sorted(out, key=lambda a: a["asset_id"])
+
+
 def _asset_for(source_path: Optional[str], index: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     if not source_path:
         return {}
@@ -230,6 +267,7 @@ def build_preview_timeline(
     material_map = material_map if isinstance(material_map, dict) else None
     asset_index = _build_asset_index(material_map)
     effect_assets = _build_effect_assets(material_map, base_url)
+    material_assets = _build_material_assets(material_map, base_url)
 
     # Order clips deterministically by slot_index (stable for equal/missing).
     ordered = sorted(
@@ -373,6 +411,7 @@ def build_preview_timeline(
         "audio": audio,
         "effects": effects,
         "effect_assets": effect_assets,
+        "material_assets": material_assets,
         "diagnostics": diagnostics,
     }
 

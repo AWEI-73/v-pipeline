@@ -304,3 +304,11 @@ Status: active for Workbench export only. Supported `effect_patch.json` presets
 lightweight review/export aid and does not change canonical BUILD output,
 delivery gates, material-map contracts, Node 14, Dashboard, or effect asset
 selection policy. Unsupported presets remain explicit skipped intents.
+# 2026-06-17 — EF4 Workbench Material Browser
+
+Status: active as read-only review UI. Workbench now consumes
+`preview_timeline.material_assets`, a projection of main visual assets from the
+project material map, and exposes search/family filtering beside the preview
+timeline. This supports human/Agent review of available material without
+changing timeline selection, material-map schema, or pipeline contracts. Drag
+replacement and material-map editing remain separate future increments.

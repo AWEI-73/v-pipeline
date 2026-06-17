@@ -19,6 +19,18 @@
   </header>
 
   <main class="wb-main">
+    <aside class="wb-materials">
+      <div class="materials-head">
+        <h2>Materials</h2>
+        <span id="material-map-summary" class="muted">loading...</span>
+      </div>
+      <input id="asset-search" class="asset-search" type="search" placeholder="Search asset / family / caption" />
+      <select id="asset-family-filter" class="asset-family-filter">
+        <option value="">all families</option>
+      </select>
+      <div id="material-assets-list" class="material-assets-list"></div>
+    </aside>
+
     <section class="wb-stage">
       <div class="wb-monitor" id="monitor">
         <img id="stage-image" alt="" hidden />

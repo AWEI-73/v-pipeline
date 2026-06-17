@@ -200,6 +200,36 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(preview["effect_assets"][0]["asset_type"], "effect_overlay")
         self.assertTrue(preview["effect_assets"][0]["src_url"].startswith(BASE_URL))
 
+    def test_project_material_assets_are_projected_for_browser(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            project = json.loads((root / "project_material_map.json").read_text(encoding="utf-8"))
+            project["assets"][0]["scenes"] = [{
+                "index": 0,
+                "start": 0.0,
+                "end": 3.5,
+                "visual_family": "training_wide",
+                "angle_scale": "wide",
+                "caption": "training field",
+            }]
+            project["assets"].append({
+                "asset_id": "sfx-hit",
+                "asset_type": "sfx",
+                "source": str(root / "hit.wav"),
+                "duration_sec": 0.2,
+                "scenes": [],
+            })
+            _write(root, "project_material_map.json", project)
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        assets = preview["material_assets"]
+        self.assertEqual([a["asset_id"] for a in assets], ["a0", "a1"])
+        self.assertEqual(assets[0]["asset_type"], "video")
+        self.assertEqual(assets[0]["scene_count"], 1)
+        self.assertEqual(assets[0]["visual_family"], "training_wide")
+        self.assertEqual(assets[0]["angle_scale"], "wide")
+        self.assertTrue(assets[0]["src_url"].startswith(BASE_URL))
+
 
 if __name__ == "__main__":
     unittest.main()

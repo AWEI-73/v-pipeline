@@ -3322,3 +3322,12 @@ Canonical `final.mp4`, delivery gates, material maps, Node 14, and Dashboard rem
 
 Validation: focused `tests.test_workbench_export` + server export flag test + JS smoke passed. Full
 regression is required before marking this bounded increment committed.
+# 2026-06-17 Update — EF4 Workbench Material Browser
+
+EF4 initial support is implemented as a read-only material browser in the native
+Workbench. `preview_timeline.json` now projects main visual assets from
+`project_material_map.json` into `material_assets` (video/photo/image only;
+effect/sfx assets excluded). The Workbench displays a left-side material panel
+with asset cards, family/search filtering, and selection diagnostics. This does
+not yet implement drag-to-replace, material-map editing, or canonical contract
+write-back; it is the stable visual inventory surface for those later steps.
