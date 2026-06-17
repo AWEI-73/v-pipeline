@@ -551,6 +551,30 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
   box-sizing: border-box;
 }
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 4;
+  cursor: ew-resize;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.7);
+  border-style: solid;
+  opacity: 0;
+}
+.clip-block:hover .trim-handle,
+.clip-block.selected .trim-handle {
+  opacity: 1;
+}
+.trim-left {
+  left: 0;
+  border-width: 0 1px 0 0;
+}
+.trim-right {
+  right: 0;
+  border-width: 0 0 0 1px;
+}
 .clip-block.has-thumb {
   background-size: cover;
   background-position: center;

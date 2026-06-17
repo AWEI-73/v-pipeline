@@ -25,6 +25,7 @@
     materialAssets: [], // read-only project material browser (EF4)
     selectedAssetId: null,
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
+    trimDrag: null,
     seq: 0,
     thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
     proxies: {},     // slot_index -> trimmed preview mp4 (NPE6 proxy cache)
@@ -305,6 +306,7 @@
       b.textContent = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
       b.title = c.type + " " + c.duration_sec.toFixed(2) + "s";
       b.onclick = function () { selectClip(c.slot_index); };
+      attachTrimHandles(b, c);
       lane.appendChild(b);
     });
 
@@ -361,6 +363,81 @@
     });
 
     els.scrubber.max = String(state.work.duration_sec || 0);
+  }
+
+  function cloneWorkState(work) {
+    return {
+      clips: (work.clips || []).map(function (c) { return Object.assign({}, c); }),
+      subtitles: (work.subtitles || []).map(function (s) { return Object.assign({}, s); }),
+      audio: (work.audio || []).map(function (a) { return Object.assign({}, a); }),
+      effects: (work.effects || []).map(function (e) { return Object.assign({}, e); }),
+      duration_sec: work.duration_sec,
+    };
+  }
+
+  function attachTrimHandles(block, clip) {
+    ["left", "right"].forEach(function (edge) {
+      var h = document.createElement("span");
+      h.className = "trim-handle trim-" + edge;
+      h.title = edge === "left" ? "Trim clip head" : "Trim clip tail";
+      h.onpointerdown = function (ev) {
+        beginTrimDrag(ev, clip.slot_index, edge);
+      };
+      block.appendChild(h);
+    });
+  }
+
+  function beginTrimDrag(ev, slotIndex, edge) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (state.playing) pause();
+    state.selectedSlot = slotIndex;
+    state.trimDrag = {
+      slot_index: slotIndex,
+      edge: edge,
+      start_x: ev.clientX,
+      base: cloneWorkState(state.work),
+      changed: false,
+    };
+    document.addEventListener("pointermove", onTrimDragMove);
+    document.addEventListener("pointerup", onTrimDragEnd);
+    renderTimelineLanes();
+  }
+
+  function onTrimDragMove(ev) {
+    if (!state.trimDrag) return;
+    var metrics = timelineMetrics();
+    var deltaSec = Core.round6((ev.clientX - state.trimDrag.start_x) / metrics.scale);
+    var next = Core.trimClipEdge(state.trimDrag.base, {
+      slot_index: state.trimDrag.slot_index,
+      edge: state.trimDrag.edge,
+      delta_sec: deltaSec,
+      min_duration_sec: 0.1,
+    });
+    var before = state.trimDrag.base.clips.find(function (c) { return c.slot_index === state.trimDrag.slot_index; });
+    var after = next.clips.find(function (c) { return c.slot_index === state.trimDrag.slot_index; });
+    state.trimDrag.changed = !!before && !!after && (
+      Core.round6(before.duration_sec) !== Core.round6(after.duration_sec) ||
+      Core.round6(before.source_start_sec) !== Core.round6(after.source_start_sec) ||
+      Core.round6(before.source_duration_sec) !== Core.round6(after.source_duration_sec)
+    );
+    state.work = next;
+    renderTimelineLanes();
+    renderMonitor();
+  }
+
+  function onTrimDragEnd() {
+    if (!state.trimDrag) return;
+    var changed = state.trimDrag.changed;
+    var slotIndex = state.trimDrag.slot_index;
+    state.trimDrag = null;
+    document.removeEventListener("pointermove", onTrimDragMove);
+    document.removeEventListener("pointerup", onTrimDragEnd);
+    if (changed) {
+      state.dirty = true;
+      updateDirty();
+    }
+    selectClip(slotIndex);
   }
 
   function renderDiagnostics() {

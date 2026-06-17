@@ -31,6 +31,9 @@ One page that says what is current and what is historical, so old/new no longer 
   (honest status grading: proven / thin / scaffold / known gaps). Share-ready.
 - `docs/reference-repos-map.md` — external reference repos: what to take, license limits,
   integration triggers (ai-media-generator / NarratoAI). Do not re-evaluate; read this.
+- `docs/decisions/2026-06-16-native-preview-engine.md` — Workbench preview/edit
+  middle layer: material-composition preview, draft patch artifacts, contract
+  sync boundary, and Dashboard/Workbench separation.
 
 ## Working conventions (read before contributing)
 

@@ -74,6 +74,26 @@ check("set_source_window does NOT clobber timeline duration", function () {
   assert.strictEqual(state.clips[1].source_duration_sec, 1.0);
 });
 
+check("trimClipEdge left handle trims video head into duration and source window edits", function () {
+  const state = { clips: Core.computeTimeline(clips) };
+  const next = Core.trimClipEdge(state, { slot_index: 1, edge: "left", delta_sec: 0.5 });
+  assert.strictEqual(next.clips[1].duration_sec, 2.5);
+  assert.strictEqual(next.clips[1].source_start_sec, 2.0);
+  assert.strictEqual(next.clips[1].source_duration_sec, 2.5);
+  const patch = Core.buildTimelinePatch(state, next);
+  const ops = patch.patches.map(function (p) { return p.op; });
+  assert.ok(ops.indexOf("set_duration") >= 0);
+  assert.ok(ops.indexOf("set_source_window") >= 0);
+});
+
+check("trimClipEdge right handle trims photo duration without inventing source timing", function () {
+  const state = { clips: Core.computeTimeline(clips) };
+  const next = Core.trimClipEdge(state, { slot_index: 0, edge: "right", delta_sec: -0.75 });
+  assert.strictEqual(next.clips[0].duration_sec, 1.25);
+  assert.strictEqual(next.clips[0].source_start_sec, 0);
+  assert.strictEqual(next.clips[0].source_duration_sec, 2.0);
+});
+
 check("applyLocalPatch move_clip reorders", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const next = Core.applyLocalPatch(state, { op: "move_clip", slot_index: 2, after: { new_index: 0 } });

@@ -157,6 +157,24 @@ are write-limited; `review_subtitles.srt` and all canonical artifacts are
 hard-blocked. Official output still runs the Agent / FFmpeg / Node14 pipeline on
 the drafts.
 
+## Timeline trim handles (NPE7)
+
+The Workbench now supports direct left/right edge trimming on clip blocks. This
+is still a draft-patch operation, not canonical editing:
+
+- left trim shortens the clip head; video clips also advance `source_start_sec`
+  and reduce `source_duration_sec`;
+- right trim adjusts duration; video clips adjust the preview source window,
+  while photo clips do not invent source timing;
+- the saved payload remains `timeline_patch.json` / `patched_draft_timeline.json`
+  and can be translated to `workbench_contract_patch.json`;
+- canonical `timeline.json`, `segment_contract.json`, material maps, and
+  `final.mp4` remain write-blocked.
+
+This closes the first practical "human can trim the material composition"
+interaction. It does not add split, drag-in replacement, multi-layer compositing,
+or browser-native final rendering.
+
 ## ffmpeg BUILD remains canonical
 
 A patch is an editorial *proposal*. The optional export reuses the canonical
@@ -192,8 +210,8 @@ artifact root.
   (Remotion's `timeline-utils` does this via `mediabunny` + WebCodecs). That is a
   different tier, carries a `.MOV`/HEVC decode-support risk, and is deferred.
 - Precise audio mixing (export uses `render_mv`'s music-mux only).
-- Timeline-level drag-resize handles / split / library-add (Tier-1 interaction;
-  the patch model already supports the data side).
+- Split / library-add / replace-clip material swap (the patch model supports the
+  data side for trim/order; replacement stays a future bounded increment).
 - Node-registry "14" motion-graphics effects pathway.
 - Promoting `patched_draft_timeline.json` back into the canonical chain (a BUILD
   re-entry gate) — out of scope this round.

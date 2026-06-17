@@ -192,20 +192,44 @@ python tools\workbench_server.py --artifact-root <run-dir> --port 8770
 #   -> http://localhost:8770/workbench
 ```
 
+The Review Dashboard links to this same surface. Start it when you want a
+read-only project overview first, then open the Workbench for review edits:
+
+```powershell
+python tools\dashboard_server.py --root <run-dir> --port 8765
+#   -> dashboard exposes the Workbench URL/command in its artifact metadata
+```
+
 Buttons: **Save patch → server** (writes the draft artifacts), **Sync → contract**
 (draft contract patch; fail-closed on out-of-scene windows), **Export (ffmpeg)**
 (optional `workbench_export.mp4` via canonical render; never `final.mp4`).
 
+Timeline interactions currently supported:
+
+- drag the left / right edge handles on a clip to trim duration;
+- edit duration / source window in the Inspector;
+- move clips left / right;
+- add subtitle, audio-cue, and effect-intent markers as draft patch layers;
+- scrub and preview material composition with proxy video, subtitles, BGM, and
+  intent markers.
+
 ### What an Agent reads to grasp the current state
 
 After a human fine-tunes, the Agent's entry points to understand "what the film
-looks like now" are exactly two draft artifacts:
+looks like now" are the draft artifacts below. Read these instead of guessing
+from screenshots, and never treat them as canonical delivery artifacts:
 
 - **`patched_draft_timeline.json`** — the current human-adjusted timeline draft.
 - **`workbench_contract_patch.json`** — the human edits expressed as a draft of
   intent/diagnostics against the pipeline contract (which clips changed duration
   / source window / order, mapped to segments; cross-segment moves flagged
   `unsupported_for_contract_sync`).
+- **`workbench_handoff.json`** — the layer index and edit counts written by
+  unified save; use it as the first file to inspect when multiple patch layers
+  exist.
+- **`subtitle_patch.json` / `audio_cue_patch.json` / `effect_patch.json`** —
+  optional layer patches. They are intent data for the Agent/BUILD path, not
+  canonical subtitles, audio, or rendered effects.
 
 ### Boundaries (do not cross from the workbench)
 

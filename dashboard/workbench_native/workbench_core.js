@@ -143,6 +143,54 @@
     return next;
   }
 
+  /** Trim a clip edge by seconds and return a recomputed NEW state.
+   *
+   * edge="left": shorten from the head. For video this also advances
+   * source_start_sec and reduces source_duration_sec so the patch remains a
+   * real source-window trim. For photos, only timeline duration changes.
+   *
+   * edge="right": extend/shorten the tail. For video this mirrors the timeline
+   * duration into source_duration_sec; photos keep their source timing intact.
+   */
+  function trimClipEdge(state, edit) {
+    const next = Object.assign({}, state);
+    const clips = (state.clips || []).map(function (c) {
+      return Object.assign({}, c);
+    });
+    const idx = clips.findIndex(function (c) {
+      return c.slot_index === edit.slot_index;
+    });
+    if (idx === -1) return state;
+
+    const clip = clips[idx];
+    const delta = Number(edit.delta_sec) || 0;
+    const minDur = Number(edit.min_duration_sec) > 0 ? Number(edit.min_duration_sec) : 0.1;
+    if (!delta) return state;
+
+    if (edit.edge === "left") {
+      const maxDelta = Math.max(0, (Number(clip.duration_sec) || 0) - minDur);
+      const applied = Math.max(-0, Math.min(delta, maxDelta));
+      if (!applied) return state;
+      clip.duration_sec = round6((Number(clip.duration_sec) || 0) - applied);
+      if (clip.type === "video") {
+        clip.source_start_sec = round6((Number(clip.source_start_sec) || 0) + applied);
+        clip.source_duration_sec = round6(Math.max(minDur, (Number(clip.source_duration_sec) || 0) - applied));
+      }
+    } else if (edit.edge === "right") {
+      const desired = (Number(clip.duration_sec) || 0) + delta;
+      clip.duration_sec = round6(Math.max(minDur, desired));
+      if (clip.type === "video") {
+        clip.source_duration_sec = round6(Math.max(minDur, (Number(clip.source_duration_sec) || 0) + delta));
+      }
+    } else {
+      return state;
+    }
+
+    next.clips = computeTimeline(clips);
+    next.duration_sec = totalDuration(next.clips);
+    return next;
+  }
+
   /**
    * Diff two preview states (same slot set) into a timeline_patch op list.
    * Order changes emit move_clip; field changes emit set_duration /
@@ -461,6 +509,7 @@
     getVideoPlaybackTime: getVideoPlaybackTime,
     getActiveSubtitle: getActiveSubtitle,
     applyLocalPatch: applyLocalPatch,
+    trimClipEdge: trimClipEdge,
     buildTimelinePatch: buildTimelinePatch,
     validatePreviewState: validatePreviewState,
     applySubtitleLocalPatch: applySubtitleLocalPatch,
