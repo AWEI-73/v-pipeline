@@ -79,6 +79,11 @@ command catalog. The implementation uses `VIDEO_TOOLS_DISPATCH` plus
 `video_pipeline_core/tool_command_catalog.py`; agents should inspect that
 manifest before guessing which command group owns a feature.
 
+`video_tools.py workflow-manifest [--out FILE]` emits the machine-readable
+workflow catalog for bounded Agent operations: run setup, material-map
+lifecycle, canonical build, and Workbench draft rerender. It is an execution
+guide, not a new orchestrator.
+
 ### Runtime Resume
 
 `runtime.py` is the route/resume/status surface. It reads `state.json` and

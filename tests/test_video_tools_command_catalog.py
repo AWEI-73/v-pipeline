@@ -55,6 +55,44 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertIn("commands-manifest", payload["commands"])
 
+    def test_workflow_manifest_references_registered_commands(self):
+        manifest = video_tools.build_video_tools_workflow_manifest()
+        commands = set(video_tools.VIDEO_TOOLS_DISPATCH)
+
+        self.assertEqual(manifest["artifact_role"], "video_tools_workflow_manifest")
+        self.assertEqual(manifest["version"], 1)
+        self.assertIn("canonical_build", manifest["workflows"])
+        self.assertIn("workbench_review_rerender", manifest["workflows"])
+
+        for workflow in manifest["workflows"].values():
+            self.assertIsInstance(workflow["steps"], list)
+            self.assertGreater(len(workflow["steps"]), 0)
+            for step in workflow["steps"]:
+                self.assertIn(step["command"], commands)
+                for dep in step.get("requires", []):
+                    self.assertTrue(dep)
+
+        wb_steps = manifest["workflows"]["workbench_review_rerender"]["steps"]
+        self.assertEqual([s["command"] for s in wb_steps], [
+            "workbench-handoff-validate",
+            "workbench-draft-rerender",
+        ])
+        self.assertEqual(wb_steps[1]["requires"], ["workbench-handoff-validate:ok"])
+
+    def test_workflow_manifest_cli_prints_or_writes_json(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "workflows.json"
+            video_tools.cmd_workflow_manifest(SimpleNamespace(out=str(out)))
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["artifact_role"], "video_tools_workflow_manifest")
+            self.assertIn("material_map_lifecycle", payload["workflows"])
+
+        buf = StringIO()
+        with redirect_stdout(buf):
+            video_tools.cmd_workflow_manifest(SimpleNamespace(out=None))
+        payload = json.loads(buf.getvalue())
+        self.assertIn("workbench_review_rerender", payload["workflows"])
+
 
 if __name__ == "__main__":
     unittest.main()

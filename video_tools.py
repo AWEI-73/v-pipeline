@@ -1454,13 +1454,25 @@ from video_pipeline_core.vt_stock import (  # noqa: F401,E402
 
 # ── project workspace（repo 外 project/run 整理）─────────────────────────────
 from video_pipeline_core.project_workspace import cmd_project_init, cmd_project_new_run  # noqa: F401,E402
-from video_pipeline_core.tool_command_catalog import build_command_manifest  # noqa: E402
+from video_pipeline_core.tool_command_catalog import (  # noqa: E402
+    build_command_manifest,
+    build_workflow_manifest,
+)
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def cmd_commands_manifest(args):
     payload = build_video_tools_command_manifest()
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+
+
+def cmd_workflow_manifest(args):
+    payload = build_video_tools_workflow_manifest()
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     if getattr(args, "out", None):
         Path(args.out).write_text(text, encoding="utf-8")
@@ -1560,6 +1572,7 @@ def _build_video_tools_dispatch():
         "project-init":   cmd_project_init,
         "project-new-run": cmd_project_new_run,
         "commands-manifest": cmd_commands_manifest,
+        "workflow-manifest": cmd_workflow_manifest,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
@@ -1608,6 +1621,10 @@ VIDEO_TOOLS_DISPATCH = _build_video_tools_dispatch()
 
 def build_video_tools_command_manifest():
     return build_command_manifest(VIDEO_TOOLS_DISPATCH.keys())
+
+
+def build_video_tools_workflow_manifest():
+    return build_workflow_manifest(VIDEO_TOOLS_DISPATCH.keys())
 
 
 def main():
@@ -1851,6 +1868,9 @@ def main():
 
     p_cmdm = sub.add_parser("commands-manifest")
     p_cmdm.add_argument("--out", help="write video_tools command manifest JSON")
+
+    p_wfm = sub.add_parser("workflow-manifest")
+    p_wfm.add_argument("--out", help="write video_tools workflow manifest JSON")
 
     p_rlv = sub.add_parser("run-layout-validate")
     p_rlv.add_argument("run_dir", help="project run directory containing run_layout.json")

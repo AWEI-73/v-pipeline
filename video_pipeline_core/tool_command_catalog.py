@@ -46,6 +46,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "project-new-run": "workspace",
     "state": "workspace",
     "commands-manifest": "workspace",
+    "workflow-manifest": "workspace",
     "run-layout-validate": "workspace",
     "workbench-handoff-validate": "workspace",
     "workbench-draft-rerender": "render",
@@ -122,6 +123,86 @@ GROUP_DESCRIPTIONS = {
 }
 
 
+WORKFLOWS = {
+    "run_setup": {
+        "description": "Create and validate a project run workspace.",
+        "steps": [
+            {
+                "id": "project_init",
+                "command": "project-init",
+                "purpose": "create or confirm the project workspace",
+            },
+            {
+                "id": "project_new_run",
+                "command": "project-new-run",
+                "purpose": "create a run folder with run_layout.json",
+                "requires": ["project-init"],
+            },
+            {
+                "id": "validate_run_layout",
+                "command": "run-layout-validate",
+                "purpose": "fail closed on invalid run artifact ownership",
+                "requires": ["project-new-run"],
+            },
+        ],
+    },
+    "material_map_lifecycle": {
+        "description": "Resolve requirements, actual material maps, delta, and build handoff.",
+        "steps": [
+            {
+                "id": "validate_needs",
+                "command": "validate-needs",
+                "purpose": "validate canonical material_needs.json when present",
+            },
+            {
+                "id": "material_map_lifecycle",
+                "command": "material-map-lifecycle",
+                "purpose": "compute the material-map lifecycle stage and build handoff",
+                "requires": ["validate-needs:ok_or_absent"],
+            },
+        ],
+    },
+    "canonical_build": {
+        "description": "Run canonical backend build and verification gates.",
+        "steps": [
+            {
+                "id": "spec_review",
+                "command": "spec-review",
+                "purpose": "validate contract readiness before build",
+            },
+            {
+                "id": "contract_run",
+                "command": "contract-run",
+                "purpose": "run canonical ffmpeg build with fresh material gates",
+                "requires": ["spec-review:ok"],
+            },
+            {
+                "id": "verify",
+                "command": "verify",
+                "purpose": "run delivery verification on the rendered output",
+                "requires": ["contract-run:ok"],
+            },
+        ],
+    },
+    "workbench_review_rerender": {
+        "description": "Consume Workbench draft edits and render a non-canonical preview candidate.",
+        "steps": [
+            {
+                "id": "validate_workbench_handoff",
+                "command": "workbench-handoff-validate",
+                "purpose": "validate draft artifact references, hashes, and canonical write boundary",
+            },
+            {
+                "id": "rerender_workbench_draft",
+                "command": "workbench-draft-rerender",
+                "purpose": "render a non-canonical candidate from the validated draft",
+                "requires": ["workbench-handoff-validate:ok"],
+            },
+        ],
+    },
+}
+
+
 def build_command_manifest(commands: Iterable[str]) -> dict:
     names = sorted(str(c) for c in commands)
     command_entries = {}
@@ -149,6 +230,31 @@ def build_command_manifest(commands: Iterable[str]) -> dict:
         },
         "commands": command_entries,
         "unclassified_commands": unclassified,
+    }
+
+
+def build_workflow_manifest(commands: Iterable[str]) -> dict:
+    available = set(str(c) for c in commands)
+    workflows = {}
+    missing = []
+    for name, workflow in WORKFLOWS.items():
+        steps = []
+        for step in workflow["steps"]:
+            item = dict(step)
+            item.setdefault("requires", [])
+            if item["command"] not in available:
+                missing.append({"workflow": name, "step": item["id"], "command": item["command"]})
+            steps.append(item)
+        workflows[name] = {
+            "description": workflow["description"],
+            "steps": steps,
+        }
+    return {
+        "artifact_role": "video_tools_workflow_manifest",
+        "version": 1,
+        "workflow_count": len(workflows),
+        "workflows": workflows,
+        "missing_commands": missing,
     }
 
 

@@ -121,6 +121,17 @@ The validator fails closed on missing/malformed `run_layout.json`, unsafe
 relative paths, duplicate artifact ownership, missing declared folders, and
 cache paths that are files instead of directories.
 
+Inspect the canonical command and workflow surfaces:
+
+```powershell
+python video_tools.py commands-manifest --out C:\path\to\run\video_tools_commands.json
+python video_tools.py workflow-manifest --out C:\path\to\run\video_tools_workflows.json
+```
+
+`commands-manifest` classifies every `video_tools.py` command. `workflow-manifest`
+lists the bounded Agent workflows for run setup, material-map lifecycle,
+canonical build, and Workbench draft rerender.
+
 Validate Workbench draft handoff before an Agent consumes human edits:
 
 ```powershell
