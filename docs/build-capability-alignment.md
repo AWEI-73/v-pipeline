@@ -269,3 +269,19 @@ returns a manifest and the frontend uses those proxies for monitor playback when
 available. This reduces `.MOV` seek/load stalls for short clips. It does not
 change selection, timeline contracts, material maps, delivery gates, or final
 rendering. Failed/missing proxies fall back to original media.
+## EF1 — Effect assets in the material map (2026-06-17)
+
+Contract groundwork only. Project material maps may carry non-main-timeline
+assets such as `asset_type: effect_overlay`, `motion_asset`, and `sfx` so the
+same material inventory can describe visual footage, audio cues, and future
+effect overlays. These assets are **library assets**, not ordinary story shots:
+
+- `material_retrieval.rank_scenes` excludes `effect_overlay`, `motion_asset`,
+  and `sfx` from map-ranked video/photo selection, so they cannot be accidentally
+  chosen as main picture.
+- `effect_patch.json` may reference an `asset_id`, but that id must point to an
+  effect asset (`effect_overlay` or `motion_asset`) in `project_material_map`.
+  Referencing a regular `video`/`photo` asset as an effect fails closed.
+- This still does **not** render effects. Workbench shows intent/preview only;
+  official effect consumption remains deferred to a future renderer/Node14
+  integration.

@@ -212,6 +212,37 @@ class EffectIntentTrackTest(unittest.TestCase):
             self.assertFalse(ok)
             self.assertTrue(any("outside target clip" in e for e in errors))
 
+    def test_effect_patch_may_reference_effect_overlay_asset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            effect_asset = root / "light_sweep.webm"
+            effect_asset.write_bytes(b"\x00")
+            _write(root, "project_material_map.json", {
+                "artifact_role": "project_material_map", "version": 1,
+                "assets": [
+                    {"asset_id": "a0", "asset_type": "video", "source": str(root / "clip.mp4"),
+                     "duration_sec": 30.0, "scenes": []},
+                    {"asset_id": "fx-light", "asset_type": "effect_overlay", "source": str(effect_asset),
+                     "duration_sec": 1.2, "scenes": []},
+                ], "needs": []})
+            patch = _fx_patch({"op": "add_effect", "effect_id": "e1", "after": {
+                "preset": "flash", "asset_id": "fx-light", "target_slot_index": 0,
+                "start_sec": 0.0, "duration_sec": 0.5, "intensity": 3}})
+            ok, errors, _ = validate_effect_patch(str(root), patch)
+            self.assertTrue(ok, errors)
+            result = apply_effect_patch(str(root), patch)
+            self.assertEqual(result["effects"][0]["asset_id"], "fx-light")
+
+    def test_effect_patch_rejects_non_effect_asset_reference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            patch = _fx_patch({"op": "add_effect", "effect_id": "e1", "after": {
+                "preset": "flash", "asset_id": "a0", "target_slot_index": 0,
+                "start_sec": 0.0, "duration_sec": 0.5, "intensity": 3}})
+            ok, errors, _ = validate_effect_patch(str(root), patch)
+            self.assertFalse(ok)
+            self.assertTrue(any("effect asset" in e for e in errors))
+
 
 # --------------------------------------------------------------------------- #
 # Layer 4 — Handoff

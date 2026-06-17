@@ -3288,3 +3288,16 @@ fall back to the original media. `/media` allows only canonical preview sources,
 
 Tests: `tests/test_workbench_proxy.py` (4), server proxy endpoint/cache access
 cases, and JS smoke for proxy playback timing. Full regression green.
+### 2026-06-17 EF1 Effect asset material-map compatibility — COMPLETE
+
+Effect-related assets can now be represented in the project material map without
+being mistaken for ordinary story footage. `effect_overlay`, `motion_asset`, and
+`sfx` are accepted as library asset types, but map-ranked video/photo retrieval
+excludes them from the main picture timeline. `effect_patch.json` may reference
+an `asset_id`, and validation requires that referenced id to be an effect asset
+(`effect_overlay` or `motion_asset`) from `project_material_map`; regular
+video/photo ids fail closed.
+
+Boundary: this is contract groundwork only. Workbench may preview effect intent,
+but official final rendering of those effect assets remains deferred to a future
+renderer/Node14 increment.

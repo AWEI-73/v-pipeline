@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+NON_MAIN_TIMELINE_ASSET_TYPES = {"effect_overlay", "motion_asset", "sfx"}
+
 
 def _terms(value):
     return {
@@ -72,6 +74,8 @@ def rank_scenes(segment, material_maps, *, ranker=None):
     query = (segment.get("material_fit") or {}).get("visual_desc") or segment.get("visual_desc")
     ranked = []
     for material_map in material_maps or []:
+        if material_map.get("asset_type") in NON_MAIN_TIMELINE_ASSET_TYPES:
+            continue
         for index, scene in enumerate(material_map.get("scenes") or []):
             breakdown = {
                 "need": _need_score(segment, material_map, scene),

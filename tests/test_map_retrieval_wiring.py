@@ -404,6 +404,22 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
         slots2 = plan_ranked_windows(_seg("students pull electrical cable"), [maps[1]], limit=1, clip_dur=2.0)
         self.assertEqual(slots2, [])
 
+    def test_effect_assets_do_not_enter_main_video_selection(self):
+        """EF1: effect/material-library assets are valid map entries but never main video slots."""
+        maps = [
+            {"asset_id": "fx-light", "source": "light_sweep.webm", "asset_type": "effect_overlay", "scenes": [
+                {"start": 0.0, "end": 2.0, "caption": "students pull electrical cable"}
+            ]},
+            {"asset_id": "sfx-hit", "source": "hit.wav", "asset_type": "sfx", "scenes": [
+                {"start": 0.0, "end": 1.0, "caption": "students pull electrical cable"}
+            ]},
+            {"asset_id": "motion-title", "source": "title.mov", "asset_type": "motion_asset", "scenes": [
+                {"start": 0.0, "end": 2.0, "caption": "students pull electrical cable"}
+            ]},
+        ]
+        slots = plan_ranked_windows(_seg("students pull electrical cable"), maps, limit=3, clip_dur=1.0)
+        self.assertEqual(slots, [])
+
     def test_vd2_photo_H_ffmpeg_render_integration(self):
         """H: run a real ffmpeg render of photo map-ranked slots to prove they enter the final movie."""
         d = Path(tempfile.mkdtemp())

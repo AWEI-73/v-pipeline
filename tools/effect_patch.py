@@ -32,6 +32,7 @@ PRESETS = {
     "title_reveal", "zoom_punch", "flash", "speed_ramp_hint",
     "freeze_frame_hint", "shake_light", "caption_emphasis",
 }
+EFFECT_ASSET_TYPES = {"effect_overlay", "motion_asset"}
 EPS = 1e-6
 
 
@@ -52,6 +53,24 @@ def _clip_windows(artifact_root: str) -> Dict[Any, Tuple[float, float]]:
     return out
 
 
+def _effect_assets(artifact_root: str) -> Dict[str, Dict[str, Any]]:
+    project_map = Path(artifact_root) / "project_material_map.json"
+    if not project_map.is_file():
+        return {}
+    try:
+        payload = json.loads(project_map.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for asset in payload.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        aid = asset.get("asset_id")
+        if isinstance(aid, str) and aid.strip():
+            out[aid] = asset
+    return out
+
+
 def validate_effect_patch(
     artifact_root: str, patch: Dict[str, Any]
 ) -> Tuple[bool, List[str], List[Dict[str, Any]]]:
@@ -67,6 +86,7 @@ def validate_effect_patch(
         return False, errors + ["'patches' must be a list"], diagnostics
 
     windows = _clip_windows(artifact_root)
+    effect_assets = _effect_assets(artifact_root)
     live: set = set()
 
     for i, op in enumerate(ops):
@@ -88,6 +108,16 @@ def validate_effect_patch(
             preset = after.get("preset")
             if preset not in PRESETS:
                 errors.append(f"{prefix}: preset {preset!r} not in {sorted(PRESETS)}")
+            asset_id = after.get("asset_id")
+            if asset_id is not None:
+                if not isinstance(asset_id, str) or not asset_id.strip():
+                    errors.append(f"{prefix}: asset_id must be a non-empty string when present")
+                elif asset_id not in effect_assets:
+                    errors.append(f"{prefix}: effect asset_id {asset_id!r} not found in project_material_map")
+                elif effect_assets[asset_id].get("asset_type") not in EFFECT_ASSET_TYPES:
+                    errors.append(
+                        f"{prefix}: asset_id {asset_id!r} is not an effect asset "
+                        f"(asset_type must be one of {sorted(EFFECT_ASSET_TYPES)})")
             target = after.get("target_slot_index")
             if target not in windows:
                 errors.append(f"{prefix}: target_slot_index {target!r} not found")
@@ -137,6 +167,8 @@ def apply_effect_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, A
                 "duration_sec": round(float(after["duration_sec"]), 3),
                 "intensity": int(after["intensity"]),
             }
+            if after.get("asset_id") is not None:
+                effects[eid]["asset_id"] = after["asset_id"]
         elif kind == "delete_effect":
             effects.pop(eid, None)
 
