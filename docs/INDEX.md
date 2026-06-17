@@ -37,6 +37,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/workbench-dashboard-integration.md` -- current Dashboard/Workbench
   integration contract: Dashboard is read/review, Workbench is write-limited
   draft patching, backend remains official renderer.
+- `docs/material-organization-policy.md` -- material-map-first policy for
+  folders, projections, Workbench material browsing, and source-file movement.
 - `dashboard/README.md` -- operator-facing frontend entrypoints, safety rules,
   and local Workbench commands.
 

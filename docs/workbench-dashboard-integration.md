@@ -90,6 +90,15 @@ Workbench may write these files under the active artifact root:
 Draft artifacts are evidence for a later agent/backend decision. They are not
 automatic truth.
 
+## Material Organization
+
+Material-map references are the canonical way to identify usable media.
+Workbench material browsing and replacement should use `asset_id` +
+`scene_index` from the project material map. Do not require physical source
+files to be moved into UI-specific folders.
+
+For the folder policy, see `docs/material-organization-policy.md`.
+
 ## Backend Consumption
 
 The backend or agent should inspect draft artifacts before official rerender.

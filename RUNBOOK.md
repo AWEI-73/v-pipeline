@@ -223,6 +223,8 @@ looks like now" are the draft artifacts below. Read these instead of guessing
 from screenshots, and never treat them as canonical delivery artifacts:
 
 - **`patched_draft_timeline.json`** — the current human-adjusted timeline draft.
+- **`workbench_review_report.json` / `workbench_review_report.md`** — the concise
+  summary of what changed, generated from draft patch layers for Agent review.
 - **`workbench_contract_patch.json`** — the human edits expressed as a draft of
   intent/diagnostics against the pipeline contract (which clips changed duration
   / source window / order, mapped to segments; cross-segment moves flagged
@@ -233,6 +235,26 @@ from screenshots, and never treat them as canonical delivery artifacts:
 - **`subtitle_patch.json` / `audio_cue_patch.json` / `effect_patch.json`** —
   optional layer patches. They are intent data for the Agent/BUILD path, not
   canonical subtitles, audio, or rendered effects.
+
+Generate the review report from an artifact root:
+
+```powershell
+python tools\workbench_review_report.py --artifact-root <run-dir>
+```
+
+Workbench server endpoint:
+
+```text
+POST /api/workbench/review-report
+```
+
+Material organization policy:
+
+- `project_material_map.json` and per-asset maps are the source of truth.
+- Physical folders are convenience projections only.
+- Do not move/delete original source files during normal Workbench or Dashboard
+  operation.
+- See `docs/material-organization-policy.md`.
 
 ### Boundaries (do not cross from the workbench)
 
