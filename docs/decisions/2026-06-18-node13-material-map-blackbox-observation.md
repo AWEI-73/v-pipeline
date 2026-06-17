@@ -185,15 +185,32 @@ Mixing these produces correct fail-closed behavior but poor operator experience.
 
 ## Recommended Next Step
 
-Do not change core pipeline behavior yet.
+Implemented follow-up: `operator-flow-acceptance`.
 
-Create a bounded `operator_flow_acceptance` fixture/tool that constructs a
-complete run package before replaying it. It should make the stage explicit:
+The new command is a bounded acceptance harness over an existing artifact root:
+
+```powershell
+python video_tools.py operator-flow-acceptance ARTIFACT_ROOT
+```
+
+It validates package completeness, runs the material lifecycle, regenerates and
+validates Workbench handoff, and produces a non-canonical draft rerender. It
+does not write canonical `final.mp4`.
+
+If a root contains `project_material_map.json` with `satisfies` edges but lacks
+`material_needs.json`, it now fails early with:
+
+```text
+stage=incomplete_replay_package
+code=missing_material_needs
+```
+
+This turns the previous operator ambiguity into a direct package-shape error.
+
+Remaining future work: create a richer fixture generator if we want this command
+to construct a complete run package from scratch instead of validating an
+existing one. The stage boundaries remain:
 
 1. material-map generic lifecycle
 2. canonical build when complete contract/needs/maps exist
 3. workbench patch/handoff/rerender
-
-The tool should fail with a clear "incomplete replay package" error when required
-artifacts are absent, instead of making operators infer that from a Node 2
-`invalid` result.

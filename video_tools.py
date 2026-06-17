@@ -1546,6 +1546,25 @@ def cmd_workbench_draft_rerender(args):
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
+def cmd_operator_flow_acceptance(args):
+    from tools.operator_flow_acceptance import run_operator_flow_acceptance
+    injected_renderer = getattr(args, "renderer", None)
+    extra = {}
+    if injected_renderer is not None:
+        extra["renderer"] = injected_renderer
+    report = run_operator_flow_acceptance(
+        args.artifact_root,
+        report_out=getattr(args, "out", None),
+        rerender_out=getattr(args, "rerender_out", "operator_flow_rerender.mp4"),
+        rerender_report_out=getattr(args, "rerender_report_out", "operator_flow_rerender_report.json"),
+        render_effects=bool(getattr(args, "effects", False)),
+        **extra,
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if not report.get("ok"):
+        raise ToolError(f"operator flow acceptance failed: {report.get('stage')}")
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1596,6 +1615,7 @@ def _build_video_tools_dispatch():
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
+        "operator-flow-acceptance": cmd_operator_flow_acceptance,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -1911,6 +1931,17 @@ def main():
     p_wdr.add_argument("--report-out", help="write workbench_rerender_report.json elsewhere")
     p_wdr.add_argument("--music", help="override music path")
     p_wdr.add_argument("--effects", action="store_true", help="apply supported effect_patch.json overlays")
+
+    p_ofa = sub.add_parser("operator-flow-acceptance")
+    p_ofa.add_argument("artifact_root", help="run/artifact root to validate as a bounded operator replay package")
+    p_ofa.add_argument("--out", default=None,
+                       help="operator flow acceptance report")
+    p_ofa.add_argument("--rerender-out", default="operator_flow_rerender.mp4",
+                       help="non-canonical rerender output video")
+    p_ofa.add_argument("--rerender-report-out", default="operator_flow_rerender_report.json",
+                       help="non-canonical rerender report")
+    p_ofa.add_argument("--effects", action="store_true",
+                       help="apply supported Workbench effect_patch overlays during draft rerender")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

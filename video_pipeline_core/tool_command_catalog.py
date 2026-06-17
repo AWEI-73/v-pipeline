@@ -108,6 +108,7 @@ COMMAND_GROUPS: Dict[str, str] = {
 
     # Replay / acceptance proof commands.
     "replay-acceptance": "acceptance",
+    "operator-flow-acceptance": "acceptance",
 }
 
 
@@ -198,6 +199,16 @@ WORKFLOWS = {
                 "command": "workbench-draft-rerender",
                 "purpose": "render a non-canonical candidate from the validated draft",
                 "requires": ["workbench-handoff-validate:ok"],
+            },
+        ],
+    },
+    "operator_flow_acceptance": {
+        "description": "Run a bounded black-box acceptance over a complete operator artifact root.",
+        "steps": [
+            {
+                "id": "operator_flow_acceptance",
+                "command": "operator-flow-acceptance",
+                "purpose": "validate package completeness, material lifecycle, Workbench handoff, and non-canonical rerender",
             },
         ],
     },
