@@ -192,6 +192,18 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
   box-sizing: border-box;
 }
+.clip-block.has-thumb {
+  background-size: cover;
+  background-position: center;
+  text-shadow: 0 1px 3px #000, 0 0 2px #000;
+}
+.clip-block.has-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(0,0,0,0.05), rgba(0,0,0,0.45));
+  pointer-events: none;
+}
 .clip-video { background: var(--video-block); }
 .clip-image { background: var(--image-block); }
 .clip-subtitle { background: var(--subtitle-block); }

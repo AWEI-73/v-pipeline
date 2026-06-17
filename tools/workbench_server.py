@@ -33,6 +33,7 @@ try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import audio_cue_patch as ap
     from tools import effect_patch as ep
     from tools import workbench_handoff as wh
+    from tools import workbench_thumbs as wt
 except ImportError:  # pragma: no cover - direct-script fallback
     import preview_timeline as pt
     import timeline_patch as tp
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover - direct-script fallback
     import audio_cue_patch as ap
     import effect_patch as ep
     import workbench_handoff as wh
+    import workbench_thumbs as wt
 
 WORKBENCH_DIR = Path(__file__).resolve().parent.parent / "dashboard" / "workbench_native"
 
@@ -80,8 +82,14 @@ MEDIA_MIME = {
 }
 
 
-def _media_allowlist(root: Path, base_url: str) -> set:
-    """Resolved source paths the server is permitted to serve via /media."""
+THUMBS_DIRNAME = "workbench_thumbs"
+
+# Cache the /media allow-list per root. Rebuilding preview_timeline on every byte
+# -range request was the main server-side stall during playback/scrub (NPE5).
+_ALLOW_CACHE: Dict[str, set] = {}
+
+
+def _build_allowlist(root: Path, base_url: str) -> set:
     preview = pt.build_preview_timeline(str(root), base_url)
     allow = set()
     for clip in preview.get("clips", []):
@@ -91,14 +99,29 @@ def _media_allowlist(root: Path, base_url: str) -> set:
                 allow.add(os.path.normcase(str(Path(sp).resolve())))
             except OSError:
                 pass
-    for audio in preview.get("audio", []):
-        # audio src_url is itself a /media url; the underlying file lives in root.
-        pass
     for name in ("music.wav", "bgm.webm", "narration.wav", "voiceover.wav"):
         p = root / name
         if p.is_file():
             allow.add(os.path.normcase(str(p.resolve())))
     return allow
+
+
+def _media_allowlist(root: Path, base_url: str) -> set:
+    """Cached resolved source paths the server may serve via /media."""
+    key = os.path.normcase(str(root.resolve()))
+    cached = _ALLOW_CACHE.get(key)
+    if cached is None:
+        cached = _build_allowlist(root, base_url)
+        _ALLOW_CACHE[key] = cached
+    return cached
+
+
+def _is_under_thumbs(resolved: str, root: Path) -> bool:
+    try:
+        thumbs = os.path.normcase(str((root / THUMBS_DIRNAME).resolve()))
+    except OSError:
+        return False
+    return resolved.startswith(thumbs + os.sep)
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
@@ -142,7 +165,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             return
 
         allow = _media_allowlist(self.artifact_root, self.base_url)
-        if resolved not in allow:
+        if resolved not in allow and not _is_under_thumbs(resolved, self.artifact_root):
             self._send_error(403, "source not in preview allow-list")
             return
 
@@ -154,6 +177,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         ext = path.suffix.lower()
         ctype = MEDIA_MIME.get(ext, "application/octet-stream")
         size = path.stat().st_size
+        CHUNK = 262144  # 256 KiB — stream instead of loading the whole file
 
         # Minimal HTTP Range support so <video> can seek to source_start.
         range_header = self.headers.get("Range")
@@ -166,27 +190,39 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 end = min(end, size - 1)
                 start = max(0, min(start, end))
                 length = end - start + 1
-                with path.open("rb") as fh:
-                    fh.seek(start)
-                    chunk = fh.read(length)
                 self.send_response(206)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Accept-Ranges", "bytes")
                 self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
-                self.send_header("Content-Length", str(len(chunk)))
+                self.send_header("Content-Length", str(length))
                 self.end_headers()
-                self.wfile.write(chunk)
+                self._stream(path, start, length, CHUNK)
                 return
             except (ValueError, OSError):
                 pass  # fall through to full body
 
-        body = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Length", str(size))
         self.end_headers()
-        self.wfile.write(body)
+        self._stream(path, 0, size, CHUNK)
+
+    def _stream(self, path: Path, start: int, length: int, chunk: int) -> None:
+        """Stream ``length`` bytes from ``path`` starting at ``start`` in chunks."""
+        remaining = length
+        try:
+            with path.open("rb") as fh:
+                fh.seek(start)
+                while remaining > 0:
+                    buf = fh.read(min(chunk, remaining))
+                    if not buf:
+                        break
+                    self.wfile.write(buf)
+                    remaining -= len(buf)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            # client aborted the range (normal during seeking) — ignore
+            pass
 
     # -- routing ---------------------------------------------------------- #
     def do_GET(self) -> None:  # noqa: N802
@@ -213,6 +249,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if path == "/api/workbench/preview-timeline":
             preview = pt.build_preview_timeline(str(self.artifact_root), self.base_url)
             self._send_json(200, preview)
+            return
+
+        if path == "/api/workbench/thumbnails":
+            # one-time (cached) ffmpeg filmstrip thumbnails; first call is slow
+            manifest = wt.build_thumbnails(str(self.artifact_root), self.base_url)
+            self._send_json(200, manifest)
             return
 
         self._send_error(404, "Not found")

@@ -251,6 +251,25 @@ class WorkbenchServerTest(unittest.TestCase):
             urllib.request.urlopen(self.url("/workbench/..%2Ftimeline.json"))
         self.assertIn(cm.exception.code, (403, 404))
 
+    def test_thumbnails_endpoint_returns_manifest_no_canonical_write(self):
+        import hashlib
+        before = hashlib.sha256((self.root / "timeline.json").read_bytes()).hexdigest()
+        # dummy clip.mp4 makes ffmpeg fail; endpoint must still return 200 + dict
+        m = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/thumbnails")).read().decode("utf-8"))
+        self.assertEqual(m["artifact_role"], "workbench_thumbnails")
+        self.assertIsInstance(m["thumbnails"], dict)
+        self.assertEqual(hashlib.sha256((self.root / "timeline.json").read_bytes()).hexdigest(), before)
+
+    def test_media_allowlist_is_cached(self):
+        from tools import workbench_server as ws
+        key = __import__("os").path.normcase(str(self.root.resolve()))
+        ws._ALLOW_CACHE.pop(key, None)
+        first = ws._media_allowlist(self.root, self.handler_class.base_url)
+        self.assertIn(key, ws._ALLOW_CACHE)
+        second = ws._media_allowlist(self.root, self.handler_class.base_url)
+        self.assertIs(first, second)  # same cached object, not rebuilt
+
     def test_subtitle_endpoint_requires_srt_and_writes_only_patch(self):
         (self.root / "review_subtitles.srt").write_text(
             "1\n00:00:00,000 --> 00:00:02,000\nHi\n", encoding="utf-8")

@@ -3244,3 +3244,29 @@ Tests: `tests/test_workbench_tracks.py` (A–L, O), `test_workbench_server` (M/N
 + subtitle endpoint), JS smoke +4. Full regression green. Verified live on
 `.tmp/srp_real67_fuller_replay`. Deferred: Node14 effect consumption, real audio
 mixing, replace_clip / material swap, drag-drop NLE.
+
+### 2026-06-17 NPE5 Workbench preview perf pass + filmstrip thumbnails — COMPLETE
+
+A smoothness/usability pass (Tier A + Tier B from the perf consult). Not a real
+NLE: no frame cache / GPU compositing / WebCodecs, no Remotion, no new npm dep.
+
+- **Tier A perf**: the `/media` allow-list is now cached per root (it was
+  rebuilding the whole `preview_timeline` on every byte-range request — the main
+  server stall during playback/scrub); `/media` streams in 256 KiB chunks
+  instead of reading the whole file into memory; the frontend only seeks the
+  `<video>` on a clip change (and corrects only on >0.5s drift) instead of every
+  animation frame.
+- **Tier B filmstrip**: `workbench_thumbs.py` extracts one 320px JPEG per video
+  clip with the existing ffmpeg (cached under `<root>/workbench_thumbs/`, a
+  derived cache, never canonical); `GET /api/workbench/thumbnails` returns the
+  manifest; clip blocks render the thumbnail as a background so the timeline is
+  readable without playing. Image clips reuse their own src.
+
+Residual boundary stutter when switching `.MOV` clips is inherent to a single
+`<video>` + browser decode and only Tier C (frame cache / WebCodecs) removes it —
+intentionally deferred (and .MOV/HEVC may not decode in WebCodecs anyway).
+
+Tests: `tests/test_workbench_thumbs.py` (4) + server thumbnails/allow-list-cache
+cases; JS smoke unchanged. Full regression green. Verified live on
+`.tmp/srp_real67_fuller_replay`: filmstrip on all 43 clips, thumbnails served via
+/media, canonical untouched.

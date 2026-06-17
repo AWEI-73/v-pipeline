@@ -23,6 +23,7 @@
     effects: [],     // effect intent markers (NPE4)
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     seq: 0,
+    thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
   };
 
   var PRESETS = ["title_reveal", "zoom_punch", "flash", "speed_ramp_hint",
@@ -80,10 +81,22 @@
         state.dirty = false;
         state.currentTime = 0;
         renderAll();
+        loadThumbnails();
       })
       .catch(function (err) {
         els.diagnostics.textContent = "Failed to load preview_timeline: " + err;
       });
+  }
+
+  // Filmstrip thumbnails (NPE5): fetched async; first build runs ffmpeg server-side.
+  function loadThumbnails() {
+    fetch("/api/workbench/thumbnails")
+      .then(function (r) { return r.json(); })
+      .then(function (m) {
+        state.thumbs = (m && m.thumbnails) || {};
+        renderTimelineLanes();
+      })
+      .catch(function () { /* thumbnails are best-effort */ });
   }
 
   // -- render ----------------------------------------------------------- //
@@ -111,6 +124,11 @@
       if (c.slot_index === state.selectedSlot) b.className += " selected";
       b.style.left = (c.timeline_start_sec * scale) + "px";
       b.style.width = Math.max(8, c.duration_sec * scale - 2) + "px";
+      var thumb = state.thumbs[String(c.slot_index)];
+      if (thumb) {
+        b.classList.add("has-thumb");
+        b.style.backgroundImage = "url('" + thumb + "')";
+      }
       b.textContent = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
       b.title = c.type + " " + c.duration_sec.toFixed(2) + "s";
       b.onclick = function () { selectClip(c.slot_index); };
@@ -202,14 +220,28 @@
       img.hidden = true;
       empty.hidden = true;
       vid.hidden = false;
-      if (vid.getAttribute("data-slot") !== String(clip.slot_index)) {
-        vid.src = clip.src_url || "";
-        vid.setAttribute("data-slot", String(clip.slot_index));
-      }
       var wantTime = Core.getVideoPlaybackTime(clip, state.currentTime);
-      // Only hard-seek when drifted (avoids fighting native playback).
-      if (Math.abs((vid.currentTime || 0) - wantTime) > 0.25 || !state.playing) {
-        try { vid.currentTime = wantTime; } catch (e) { /* not seekable yet */ }
+      if (vid.getAttribute("data-slot") !== String(clip.slot_index)) {
+        // Clip changed: load the new source ONCE and seek after it's ready.
+        // (Per-frame src/seek churn was the main scrub stall — NPE5.)
+        vid.setAttribute("data-slot", String(clip.slot_index));
+        vid.src = clip.src_url || "";
+        var seekTarget = wantTime;
+        vid.onloadeddata = function () {
+          try { vid.currentTime = seekTarget; } catch (e) { /* not seekable yet */ }
+          if (state.playing) { vid.play().catch(function () {}); }
+        };
+      } else if (!state.playing) {
+        // scrubbing within the same clip: seek precisely
+        if (Math.abs((vid.currentTime || 0) - wantTime) > 0.05) {
+          try { vid.currentTime = wantTime; } catch (e) {}
+        }
+      } else {
+        // playing within the same clip: let native playback run, correct only
+        // on large drift so we don't trigger a re-decode every frame
+        if (Math.abs((vid.currentTime || 0) - wantTime) > 0.5) {
+          try { vid.currentTime = wantTime; } catch (e) {}
+        }
       }
       els.stage_meta.textContent =
         "VID #" + clip.slot_index + " · src " + wantTime.toFixed(2) + "s (start " +

@@ -170,6 +170,12 @@ artifacts remains the source of truth for delivery.
 - Canvas/WebGL multi-layer compositing, transitions, PiP/multi-video, waveforms,
   and in-browser export (Clipchamp-style). Export here is ffmpeg-backed, not
   browser-composited, by design.
+- **Frame-cache / WebCodecs smooth scrubbing (Tier C).** NPE5 added a perf pass
+  (cached `/media` allow-list, streamed media, seek-on-clip-change) and ffmpeg
+  filmstrip thumbnails (`workbench_thumbs.py`) so the timeline is readable; but a
+  real-NLE-smooth main monitor needs a frame cache / GPU decode pipeline
+  (Remotion's `timeline-utils` does this via `mediabunny` + WebCodecs). That is a
+  different tier, carries a `.MOV`/HEVC decode-support risk, and is deferred.
 - Precise audio mixing (export uses `render_mv`'s music-mux only).
 - Timeline-level drag-resize handles / split / library-add (Tier-1 interaction;
   the patch model already supports the data side).
