@@ -273,6 +273,10 @@ Example:
 }
 ```
 
+`can_preview` is true when the artifact root contains one of the timeline inputs
+the preview builder can consume: `draft_timeline.json`, `timeline.json`, or the
+legacy `timeline.plan`.
+
 Browsers should normally use the Dashboard same-origin proxy
 `/api/control/workbench-health` instead of calling this cross-origin endpoint
 directly.

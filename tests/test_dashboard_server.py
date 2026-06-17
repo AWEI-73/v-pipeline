@@ -9,7 +9,11 @@ import urllib.request
 from http.server import HTTPServer
 from pathlib import Path
 
-from tools.dashboard_server import detect_profile, DashboardHandler
+from tools.dashboard_server import (
+    WORKBENCH_DRAFT_ARTIFACTS,
+    DashboardHandler,
+    detect_profile,
+)
 
 
 class DashboardServerTest(unittest.TestCase):
@@ -205,16 +209,74 @@ class DashboardServerTest(unittest.TestCase):
         api_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
         data = json.loads(api_resp.decode("utf-8"))
 
+        self.assertEqual(set(data), {
+            "artifact_role",
+            "version",
+            "artifact_root",
+            "dashboard",
+            "workbench",
+            "final_video",
+            "timeline",
+            "recommended_next_action",
+        })
         self.assertEqual(data["artifact_role"], "frontend_control_status")
         self.assertEqual(data["version"], 1)
         self.assertEqual(data["artifact_root"], str(self.artifact_root.resolve()))
-        self.assertEqual(data["dashboard"]["url"], "/dashboard")
+        self.assertEqual(set(data["dashboard"]), {"url", "mode"})
+        self.assertEqual(data["dashboard"], {
+            "url": "/dashboard",
+            "mode": "read_only_review",
+        })
+        self.assertEqual(set(data["workbench"]), {
+            "url",
+            "health_url",
+            "mode",
+            "command",
+            "draft_artifacts",
+            "draft_summary",
+        })
         self.assertEqual(data["workbench"]["url"], "http://localhost:8770/workbench")
         self.assertEqual(data["workbench"]["health_url"], "http://localhost:8770/api/workbench/health")
+        self.assertEqual(data["workbench"]["mode"], "write_limited_draft_editor")
+        self.assertIn("tools/workbench_server.py", data["workbench"]["command"])
+        self.assertEqual(set(data["workbench"]["draft_artifacts"]),
+                         set(WORKBENCH_DRAFT_ARTIFACTS))
         self.assertTrue(data["workbench"]["draft_summary"]["agent_ready"])
-        self.assertTrue(data["final_video"]["exists"])
-        self.assertEqual(data["timeline"]["slot_count"], 2)
-        self.assertEqual(data["timeline"]["duration_sec"], 5.5)
+        self.assertEqual(data["final_video"], {
+            "exists": True,
+            "path": "final.mp4",
+        })
+        self.assertEqual(data["timeline"], {
+            "slot_count": 2,
+            "duration_sec": 5.5,
+        })
+        self.assertEqual(data["recommended_next_action"], "review_workbench_drafts")
+
+    def test_control_status_next_action_contract(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        api_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        data = json.loads(api_resp.decode("utf-8"))
+        self.assertEqual(data["recommended_next_action"], "run_pipeline_or_open_dashboard")
+        self.assertFalse(data["final_video"]["exists"])
+        self.assertIsNone(data["final_video"]["path"])
+
+        (self.artifact_root / "final.mp4").write_bytes(b"fake")
+        api_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        data = json.loads(api_resp.decode("utf-8"))
+        self.assertEqual(data["recommended_next_action"], "open_dashboard_or_workbench")
+
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps({"artifact_role": "workbench_handoff"}),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_review_report.json").write_text(
+            json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+        api_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        data = json.loads(api_resp.decode("utf-8"))
         self.assertEqual(data["recommended_next_action"], "review_workbench_drafts")
 
     def test_control_workbench_health_proxy_is_structured_when_unreachable(self):

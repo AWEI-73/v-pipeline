@@ -141,6 +141,10 @@ def _is_under_proxy(resolved: str, root: Path) -> bool:
     return resolved.startswith(proxy + os.sep)
 
 
+def _can_preview(root: Path) -> bool:
+    return any((root / name).is_file() for name in ("draft_timeline.json", "timeline.json", "timeline.plan"))
+
+
 class WorkbenchHandler(BaseHTTPRequestHandler):
     artifact_root: Path = Path(".")
     base_url: str = "http://localhost:8770"
@@ -271,7 +275,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 "version": 1,
                 "status": "ok",
                 "artifact_root": str(self.artifact_root.resolve()),
-                "can_preview": (self.artifact_root / "timeline.json").is_file() or (self.artifact_root / "timeline.plan").is_file(),
+                "can_preview": _can_preview(self.artifact_root),
                 "write_limited": True,
                 "writable_artifacts": sorted(WRITABLE_OUTPUTS),
             }

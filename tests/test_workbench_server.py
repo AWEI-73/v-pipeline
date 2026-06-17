@@ -8,7 +8,7 @@ import urllib.request
 from http.server import HTTPServer
 from pathlib import Path
 
-from tools.workbench_server import WorkbenchHandler
+from tools.workbench_server import WorkbenchHandler, WRITABLE_OUTPUTS
 
 
 def _write_json(path: Path, payload) -> None:
@@ -95,13 +95,43 @@ class WorkbenchServerTest(unittest.TestCase):
             self.url("/api/workbench/health")
         ).read().decode("utf-8"))
 
+        self.assertEqual(set(payload), {
+            "artifact_role",
+            "version",
+            "status",
+            "artifact_root",
+            "can_preview",
+            "write_limited",
+            "writable_artifacts",
+        })
         self.assertEqual(payload["artifact_role"], "workbench_health")
         self.assertEqual(payload["version"], 1)
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["artifact_root"], str(self.root.resolve()))
         self.assertTrue(payload["can_preview"])
         self.assertTrue(payload["write_limited"])
-        self.assertIn("timeline_patch.json", payload["writable_artifacts"])
+        self.assertEqual(payload["writable_artifacts"], sorted(WRITABLE_OUTPUTS))
+
+    def test_workbench_health_can_preview_matches_preview_timeline_sources(self):
+        (self.root / "timeline.json").unlink()
+        _write_json(self.root / "draft_timeline.json", {
+            "plan": [
+                {
+                    "slot_index": 0,
+                    "segment": 1,
+                    "source": str(self.media),
+                    "slot_dur": 2.0,
+                    "extract_start": 0.0,
+                    "extract_dur": 2.0,
+                }
+            ]
+        })
+
+        payload = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/health")
+        ).read().decode("utf-8"))
+
+        self.assertTrue(payload["can_preview"])
 
     def test_media_serves_only_allowlisted_sources_with_range_support(self):
         src = urllib.parse.quote(str(self.media), safe="")
