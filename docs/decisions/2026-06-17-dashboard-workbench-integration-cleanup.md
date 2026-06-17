@@ -187,3 +187,35 @@ Still deferred:
 - Deep browser-side NLE rendering parity with ffmpeg.
 - Node 14/effects authoring beyond draft intent markers.
 - Automated consumption of Workbench drafts by official pipeline rerender.
+
+## Continuation Closure
+
+Date: 2026-06-17
+Status: implemented
+
+Added after the initial cleanup:
+
+- `workbench_review_report.json` / `.md` draft artifacts summarize timeline,
+  subtitle, audio cue, and effect intent edits for Agent review.
+- `POST /api/workbench/review-report` writes only draft report artifacts.
+- `workbench_handoff.json` and Dashboard draft status now include review report
+  artifacts when present.
+- `docs/material-organization-policy.md` fixes the material-map-first rule:
+  folders are projections; source-file moves are not part of normal Workbench or
+  Dashboard operation.
+
+Verification run:
+
+- `python -m unittest tests.test_workbench_review_report tests.test_workbench_server tests.test_workbench_handoff tests.test_dashboard_server -q`
+- `node --check dashboard\dashboard_v1.js`
+- `node --check dashboard\workbench_native\workbench.js`
+- `node --check dashboard\workbench_native\workbench_core.js`
+- `node tests\workbench_core_smoke.js`
+- `python -m unittest discover -s tests -q` -> 1448 tests OK
+- HTTP E2E against `.tmp\srp_real67_fuller_replay`: `POST /api/workbench/review-report` returned `ok=true`, `canonical_changed=false`, and Dashboard draft summary reported the review report artifacts as present.
+
+Related commits:
+
+- `ef5f626` feat(workbench): add draft review report
+- `00bdf87` docs(materials): define map-first organization policy
+- `0e2c041` fix(workbench): include review report in handoff status
