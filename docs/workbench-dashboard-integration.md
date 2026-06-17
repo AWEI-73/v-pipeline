@@ -134,6 +134,8 @@ The native Workbench frontend is intentionally small and dependency-light:
   construction, local trimming, replacement, and track-marker projection.
 - `dashboard/workbench_native/workbench_api.js`: HTTP client for Workbench API
   endpoints. This centralizes endpoint names and response wrapping.
+- `dashboard/workbench_native/workbench_materials.js`: pure material-browser
+  helpers for family extraction and search/filter behavior.
 - `dashboard/workbench_native/workbench.js`: DOM controller and browser media
   preview. Keep it thin where possible; do not put new canonical artifact rules
   here.
@@ -163,14 +165,22 @@ Focused checks:
 ```powershell
 node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_api.js
+node --check dashboard\workbench_native\workbench_materials.js
 node --check dashboard\workbench_native\workbench_core.js
 node tests\workbench_api_smoke.js
+node tests\workbench_materials_smoke.js
 node tests\workbench_core_smoke.js
 python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay
+python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay --exercise-replace
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q
 python -m unittest tests.test_workbench_frontend_smoke -q
 python -m unittest tests.test_workbench_review_report -q
 ```
+
+Dashboard `/api/artifacts` exposes Workbench handoff readiness through
+`workbench.draft_summary.agent_ready`. It becomes true only when both
+`workbench_handoff.json` and `workbench_review_report.json` exist. This is a
+review routing flag, not proof that edits should be accepted.
 
 Full regression:
 

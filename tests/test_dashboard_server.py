@@ -187,8 +187,41 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(summary["present_count"], 2)
         self.assertEqual(summary["timeline_edits"], 1)
         self.assertEqual(summary["contract_edits"], 1)
+        self.assertFalse(summary["has_handoff"])
+        self.assertFalse(summary["has_review_report"])
+        self.assertFalse(summary["agent_ready"])
 
         self.assertFalse((self.artifact_root / "final.mp4").exists())
+
+    def test_workbench_agent_ready_requires_handoff_and_review_report(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        (self.artifact_root / "timeline_patch.json").write_text(
+            json.dumps({"patches": [{"op": "replace_clip"}]}),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_handoff.json").write_text(
+            json.dumps({"artifact_role": "workbench_handoff"}),
+            encoding="utf-8",
+        )
+        api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
+        data = json.loads(api_resp.decode("utf-8"))
+        summary = data["workbench"]["draft_summary"]
+        self.assertTrue(summary["has_handoff"])
+        self.assertFalse(summary["has_review_report"])
+        self.assertFalse(summary["agent_ready"])
+
+        (self.artifact_root / "workbench_review_report.json").write_text(
+            json.dumps({"artifact_role": "workbench_review_report"}),
+            encoding="utf-8",
+        )
+        api_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
+        data = json.loads(api_resp.decode("utf-8"))
+        summary = data["workbench"]["draft_summary"]
+        self.assertTrue(summary["has_handoff"])
+        self.assertTrue(summary["has_review_report"])
+        self.assertTrue(summary["agent_ready"])
 
     def test_timeline_and_subtitles_normalization(self):
         self.start_test_server()

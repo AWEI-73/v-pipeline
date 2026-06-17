@@ -128,7 +128,56 @@ def build_duration_patch(preview: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def run_smoke(artifact_root: str | Path, base_url: str) -> Dict[str, Any]:
+def build_replacement_patch(preview: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a replace_clip patch using preview material_assets.
+
+    This verifies the material-browser handoff path without requiring browser
+    drag/drop automation. The patch remains draft-only and is resolved again by
+    the Python server from project_material_map.
+    """
+    clips = preview.get("clips")
+    assets = preview.get("material_assets")
+    if not isinstance(clips, list) or not isinstance(assets, list):
+        raise SmokeError("preview_timeline missing clips or material_assets")
+    clip = next((c for c in clips if isinstance(c, dict) and c.get("status") != "gap"), None)
+    if clip is None or not isinstance(clip.get("slot_index"), int):
+        raise SmokeError("preview_timeline has no editable clip")
+    current_asset = clip.get("asset_id")
+    current_source = clip.get("source_path")
+    candidates = []
+    for asset in assets:
+        if not isinstance(asset, dict):
+            continue
+        scenes = asset.get("scenes")
+        if not asset.get("asset_id") or not isinstance(scenes, list) or not scenes:
+            continue
+        if current_asset is not None and asset.get("asset_id") == current_asset:
+            continue
+        if current_source and asset.get("source_path") == current_source:
+            continue
+        candidates.append(asset)
+    if not candidates:
+        raise SmokeError("preview_timeline has no replacement material candidate")
+    asset = candidates[0]
+    scene = asset["scenes"][0]
+    scene_index = scene.get("scene_index", 0) if isinstance(scene, dict) else 0
+    return {
+        "artifact_role": "timeline_patch",
+        "version": 1,
+        "base_timeline_ref": "timeline.json",
+        "patches": [{
+            "op": "replace_clip",
+            "slot_index": clip["slot_index"],
+            "after": {
+                "asset_id": asset["asset_id"],
+                "scene_index": scene_index,
+            },
+        }],
+        "diagnostics": [],
+    }
+
+
+def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: bool = False) -> Dict[str, Any]:
     """Run the Workbench smoke flow against a running server."""
     root = Path(artifact_root)
     before = canonical_hashes(root)
@@ -143,7 +192,7 @@ def run_smoke(artifact_root: str | Path, base_url: str) -> Dict[str, Any]:
     if preview.get("artifact_role") != "preview_timeline":
         raise SmokeError("preview endpoint did not return preview_timeline")
 
-    patch = build_duration_patch(preview)
+    patch = build_replacement_patch(preview) if exercise_replace else build_duration_patch(preview)
     save = _post_json_url(f"{base_url}/api/workbench/save-all", {"timeline_patch": patch})
     if not save.get("ok"):
         raise SmokeError(f"save-all failed: {save}")
@@ -174,6 +223,7 @@ def run_smoke(artifact_root: str | Path, base_url: str) -> Dict[str, Any]:
         "clips": len(preview.get("clips") or []),
         "canonical_checked": sorted(before),
         "draft_artifacts": sorted(expected),
+        "exercised": "replace_clip" if exercise_replace else "set_duration",
         "save_written": save.get("written", []),
         "review_summary": report.get("summary", {}),
     }
@@ -196,6 +246,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Run a Workbench frontend/API smoke test")
     parser.add_argument("--artifact-root", required=True)
     parser.add_argument("--base-url", help="Use an already running Workbench server")
+    parser.add_argument("--exercise-replace", action="store_true",
+                        help="Use replace_clip instead of a no-op duration patch")
     parser.add_argument("--port", type=int, default=0, help="Port for the temporary server")
     parser.add_argument("--out", help="Optional JSON output path")
     args = parser.parse_args(argv)
@@ -207,7 +259,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         base_url = args.base_url
         if not base_url:
             server, thread, base_url = start_threaded_server(root, args.port)
-        result = run_smoke(root, base_url)
+        result = run_smoke(root, base_url, exercise_replace=args.exercise_replace)
         text = json.dumps(result, ensure_ascii=False, indent=2)
         if args.out:
             Path(args.out).write_text(text, encoding="utf-8")

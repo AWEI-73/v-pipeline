@@ -10,6 +10,7 @@
   "use strict";
   var Core = window.WorkbenchCore;
   var Api = window.WorkbenchApi;
+  var Materials = window.WorkbenchMaterials;
 
   var state = {
     raw: null, // last server snapshot (baseline for diff)
@@ -148,12 +149,7 @@
   }
 
   function materialFamilies() {
-    var seen = {};
-    state.materialAssets.forEach(function (a) {
-      var fam = a.visual_family || "";
-      if (fam) seen[fam] = true;
-    });
-    return Object.keys(seen).sort();
+    return Materials.families(state.materialAssets);
   }
 
   function renderMaterialBrowser() {
@@ -173,14 +169,9 @@
 
     var q = ((els.asset_search && els.asset_search.value) || "").toLowerCase();
     var famFilter = (els.asset_family_filter && els.asset_family_filter.value) || "";
-    var assets = state.materialAssets.filter(function (a) {
-      if (famFilter && a.visual_family !== famFilter) return false;
-      if (!q) return true;
-      var hay = [
-        a.asset_id, a.asset_type, a.visual_family, a.angle_scale,
-        a.action_family, a.subject, a.caption,
-      ].join(" ").toLowerCase();
-      return hay.indexOf(q) >= 0;
+    var assets = Materials.filterAssets(state.materialAssets, {
+      query: q,
+      family: famFilter,
     });
 
     if (els.material_map_summary) {

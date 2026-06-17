@@ -133,6 +133,9 @@ def collect_workbench_draft_status(root_dir: Path):
         "audio_cues": _json_patch_op_count(root_dir / "audio_cue_patch.json"),
         "effect_intents": _json_patch_op_count(root_dir / "effect_patch.json"),
     }
+    summary["has_handoff"] = artifacts["workbench_handoff"]["exists"]
+    summary["has_review_report"] = artifacts["workbench_review_report"]["exists"]
+    summary["agent_ready"] = summary["has_handoff"] and summary["has_review_report"]
     return artifacts, summary
 
 
