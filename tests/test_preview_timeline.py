@@ -181,6 +181,25 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(effect["target_slot_index"], 0)
         self.assertEqual(effect["start_sec"], 0.2)
 
+    def test_project_effect_assets_are_projected_for_workbench(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            fx = root / "light_sweep.webm"
+            fx.write_bytes(b"\x00")
+            project = json.loads((root / "project_material_map.json").read_text(encoding="utf-8"))
+            project["assets"].append({
+                "asset_id": "fx-light",
+                "asset_type": "effect_overlay",
+                "source": str(fx),
+                "duration_sec": 1.2,
+                "scenes": [{"start": 0, "end": 1.2, "visual_family": "light_sweep"}],
+            })
+            _write(root, "project_material_map.json", project)
+            preview = build_preview_timeline(str(root), BASE_URL)
+        self.assertEqual(preview["effect_assets"][0]["asset_id"], "fx-light")
+        self.assertEqual(preview["effect_assets"][0]["asset_type"], "effect_overlay")
+        self.assertTrue(preview["effect_assets"][0]["src_url"].startswith(BASE_URL))
+
 
 if __name__ == "__main__":
     unittest.main()

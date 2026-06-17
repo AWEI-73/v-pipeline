@@ -160,6 +160,19 @@ check("buildSavePayload is deterministic and layer-selective", function () {
   assert.strictEqual(a.effect_patch.patches[0].after.preset, "flash");
 });
 
+check("buildSavePayload preserves effect asset_id", function () {
+  const input = {
+    timelineBefore: clips,
+    timelineAfter: clips,
+    effects: [{
+      effect_id: "e1", preset: "flash", asset_id: "fx-light",
+      target_slot_index: 0, start_sec: 0, duration_sec: 0.5, intensity: 3,
+    }],
+  };
+  const payload = Core.buildSavePayload(input);
+  assert.strictEqual(payload.effect_patch.patches[0].after.asset_id, "fx-light");
+});
+
 check("planVideoElementUpdate reuses same source across adjacent windows", function () {
   const prev = { slot_index: 1, src_url: "/media?src=a.mov" };
   const clip = { slot_index: 2, type: "video", src_url: "/media?src=a.mov" };

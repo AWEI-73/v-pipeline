@@ -3301,3 +3301,14 @@ video/photo ids fail closed.
 Boundary: this is contract groundwork only. Workbench may preview effect intent,
 but official final rendering of those effect assets remains deferred to a future
 renderer/Node14 increment.
+
+### 2026-06-17 EF2 Workbench effect asset selection — COMPLETE
+
+`preview_timeline` now projects material-map effect assets into
+`effect_assets[]`, and the Workbench exposes them as an optional selector when
+adding an effect intent. `effect_patch` save payloads preserve `asset_id`, so an
+Agent or future renderer can distinguish pure preset intent from an effect
+overlay/motion asset reference.
+
+Boundary: still draft-only. No canonical artifact is rewritten and no final
+render path consumes these assets yet.

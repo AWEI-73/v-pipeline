@@ -166,6 +166,32 @@ def _build_asset_index(material_map: Optional[Dict[str, Any]]) -> Dict[str, Dict
     return index
 
 
+def _build_effect_assets(material_map: Optional[Dict[str, Any]], base_url: str) -> List[Dict[str, Any]]:
+    """Project-map effect library assets exposed to the Workbench."""
+    if not isinstance(material_map, dict):
+        return []
+    out: List[Dict[str, Any]] = []
+    for asset in material_map.get("assets", []) or []:
+        if not isinstance(asset, dict):
+            continue
+        if asset.get("asset_type") not in ("effect_overlay", "motion_asset"):
+            continue
+        src = asset.get("source")
+        aid = asset.get("asset_id")
+        if not isinstance(src, str) or not src.strip() or not isinstance(aid, str) or not aid.strip():
+            continue
+        scene0 = ((asset.get("scenes") or [{}])[0] or {})
+        out.append({
+            "asset_id": aid,
+            "asset_type": asset.get("asset_type"),
+            "source_path": src,
+            "src_url": path_to_url(str(Path(src).resolve()), base_url),
+            "duration_sec": asset.get("duration_sec"),
+            "visual_family": scene0.get("visual_family"),
+        })
+    return sorted(out, key=lambda a: a["asset_id"])
+
+
 def _asset_for(source_path: Optional[str], index: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     if not source_path:
         return {}
@@ -201,7 +227,9 @@ def build_preview_timeline(
         plan = timeline.get("plan") or timeline.get("clips") or []
 
     material_map = _load_json(root / "project_material_map.json")
-    asset_index = _build_asset_index(material_map if isinstance(material_map, dict) else None)
+    material_map = material_map if isinstance(material_map, dict) else None
+    asset_index = _build_asset_index(material_map)
+    effect_assets = _build_effect_assets(material_map, base_url)
 
     # Order clips deterministically by slot_index (stable for equal/missing).
     ordered = sorted(
@@ -344,6 +372,7 @@ def build_preview_timeline(
         "subtitles": subtitles,
         "audio": audio,
         "effects": effects,
+        "effect_assets": effect_assets,
         "diagnostics": diagnostics,
     }
 

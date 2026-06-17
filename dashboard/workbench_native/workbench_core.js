@@ -287,12 +287,14 @@
       };
     });
     var effects = (input.effects || []).map(function (e) {
+      var after = {
+        preset: e.preset, target_slot_index: e.target_slot_index,
+        start_sec: round6(e.start_sec), duration_sec: round6(e.duration_sec), intensity: e.intensity,
+      };
+      if (e.asset_id) after.asset_id = e.asset_id;
       return {
         op: "add_effect", effect_id: e.effect_id,
-        after: {
-          preset: e.preset, target_slot_index: e.target_slot_index,
-          start_sec: round6(e.start_sec), duration_sec: round6(e.duration_sec), intensity: e.intensity,
-        },
+        after: after,
       };
     });
     var payload = {};

@@ -285,3 +285,14 @@ effect overlays. These assets are **library assets**, not ordinary story shots:
 - This still does **not** render effects. Workbench shows intent/preview only;
   official effect consumption remains deferred to a future renderer/Node14
   integration.
+
+## EF2 — Workbench effect asset selection (2026-06-17)
+
+Workbench now receives `preview_timeline.effect_assets`, a projection of
+`project_material_map.assets[]` where `asset_type` is `effect_overlay` or
+`motion_asset`. The UI exposes those assets as an optional selector when adding
+an effect intent marker; saved `effect_patch.json` preserves `asset_id`.
+
+Boundary remains unchanged: this is an Agent-readable draft/intent bridge. It
+does not composite the effect asset into `final.mp4`, does not change canonical
+material maps, and does not turn the preview into a pixel-perfect renderer.

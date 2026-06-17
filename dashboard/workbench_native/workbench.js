@@ -21,6 +21,7 @@
     rawSubs: [],     // baseline subtitles for diffing
     cues: [],        // audio cue markers (NPE4)
     effects: [],     // effect intent markers (NPE4)
+    effectAssets: [], // selectable effect assets from project_material_map (EF2)
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     seq: 0,
     thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
@@ -50,7 +51,7 @@
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
       "btn-download-patch", "btn-save-patch", "btn-sync-contract", "btn-export",
-      "btn-save-all", "btn-add-cue", "btn-add-fx", "track-inspector",
+      "btn-save-all", "btn-add-cue", "effect-asset-select", "btn-add-fx", "track-inspector",
       "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
       "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
       "tf-start", "tf-duration", "tf-time", "tf-strength",
@@ -81,6 +82,7 @@
         state.effects = (data.effects || []).filter(function (e) {
           return e.effect_id && !e.marker_only;
         }).map(function (e) { return Object.assign({}, e); });
+        state.effectAssets = (data.effect_assets || []).map(function (a) { return Object.assign({}, a); });
         state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
@@ -119,10 +121,22 @@
   // -- render ----------------------------------------------------------- //
   function renderAll() {
     renderTimelineLanes();
+    renderEffectAssetSelect();
     renderDiagnostics();
     renderMonitor();
     renderTransport();
     updateDirty();
+  }
+
+  function renderEffectAssetSelect() {
+    if (!els.effect_asset_select) return;
+    els.effect_asset_select.innerHTML = '<option value="">preset only</option>';
+    state.effectAssets.forEach(function (asset) {
+      var opt = document.createElement("option");
+      opt.value = asset.asset_id;
+      opt.textContent = asset.asset_id + " (" + asset.asset_type + ")";
+      els.effect_asset_select.appendChild(opt);
+    });
   }
 
   function pxScale(laneWidth) {
@@ -483,11 +497,14 @@
     var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
     if (!clip) return;
     var id = "fx-" + (++state.seq);
-    state.effects.push({
+    var fx = {
       effect_id: id, preset: "zoom_punch", target_slot_index: clip.slot_index,
       start_sec: Core.round6(clip.timeline_start_sec),
       duration_sec: Core.round6(Math.min(0.6, clip.duration_sec)), intensity: 3,
-    });
+    };
+    var assetId = els.effect_asset_select ? els.effect_asset_select.value : "";
+    if (assetId) fx.asset_id = assetId;
+    state.effects.push(fx);
     state.dirty = true; updateDirty();
     selectEffect(id);
   }
