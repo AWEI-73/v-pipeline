@@ -132,6 +132,19 @@ python video_tools.py workflow-manifest --out C:\path\to\run\video_tools_workflo
 lists the bounded Agent workflows for run setup, material-map lifecycle,
 canonical build, and Workbench draft rerender.
 
+Use bounded test tiers before full regression:
+
+```powershell
+python video_tools.py test-tiers --out C:\path\to\run\test_tiers.json
+python video_tools.py test-tiers --tier backend-smoke --dry-run
+python video_tools.py test-tiers --tier workbench
+python video_tools.py test-tiers --tier full
+```
+
+`test-tiers` defines the standard focused sets (`backend-smoke`, `workbench`,
+`material-map`, `render-e2e`, `full`). Use the smallest relevant tier first,
+then run `full` before claiming cross-cutting backend changes complete.
+
 Validate Workbench draft handoff before an Agent consumes human edits:
 
 ```powershell

@@ -1480,6 +1480,25 @@ def cmd_workflow_manifest(args):
         print(text)
 
 
+def cmd_test_tiers(args):
+    from tools.test_tiers import build_test_tier_manifest, run_test_tier
+    try:
+        payload = (
+            run_test_tier(args.tier, dry_run=bool(getattr(args, "dry_run", False)))
+            if getattr(args, "tier", None)
+            else build_test_tier_manifest()
+        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    if payload.get("ok") is False:
+        raise ToolError(f"test tier failed: {payload.get('tier')} command {payload.get('failed_command_index')}")
+
+
 def cmd_run_layout_validate(args):
     from video_pipeline_core.project_workspace import validate_run_layout
     report = validate_run_layout(args.run_dir)
@@ -1573,6 +1592,7 @@ def _build_video_tools_dispatch():
         "project-new-run": cmd_project_new_run,
         "commands-manifest": cmd_commands_manifest,
         "workflow-manifest": cmd_workflow_manifest,
+        "test-tiers": cmd_test_tiers,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
@@ -1871,6 +1891,11 @@ def main():
 
     p_wfm = sub.add_parser("workflow-manifest")
     p_wfm.add_argument("--out", help="write video_tools workflow manifest JSON")
+
+    p_tt = sub.add_parser("test-tiers")
+    p_tt.add_argument("--tier", help="test tier to run; omit to print tier manifest")
+    p_tt.add_argument("--dry-run", action="store_true", help="print commands without executing")
+    p_tt.add_argument("--out", help="write test tier JSON")
 
     p_rlv = sub.add_parser("run-layout-validate")
     p_rlv.add_argument("run_dir", help="project run directory containing run_layout.json")

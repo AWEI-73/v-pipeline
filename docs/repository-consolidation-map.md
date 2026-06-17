@@ -84,6 +84,10 @@ workflow catalog for bounded Agent operations: run setup, material-map
 lifecycle, canonical build, and Workbench draft rerender. It is an execution
 guide, not a new orchestrator.
 
+`video_tools.py test-tiers [--tier NAME] [--dry-run]` emits or runs the standard
+verification tiers. Use it to choose focused checks before the full regression;
+it is a thin command runner over existing Python/Node tests.
+
 ### Runtime Resume
 
 `runtime.py` is the route/resume/status surface. It reads `state.json` and
