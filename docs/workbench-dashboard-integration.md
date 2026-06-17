@@ -153,6 +153,17 @@ The Agent should not infer that `final.mp4` or canonical `timeline.json` changed
 just because these draft files exist. The report must keep
 `canonical_changed=false` unless a future explicit canonical writer exists.
 
+The bounded backend preview path is:
+
+```powershell
+python video_tools.py workbench-handoff-validate <run-dir>
+python video_tools.py workbench-draft-rerender <run-dir> --out workbench_rerender.mp4
+```
+
+`workbench-draft-rerender` produces a non-canonical candidate render from the
+validated Workbench draft. It must not write `final.mp4`; official delivery
+still remains owned by the normal backend pipeline.
+
 Expected decision routes:
 
 - accept patch and rerender from backend;

@@ -1492,6 +1492,29 @@ def cmd_workbench_handoff_validate(args):
         raise ToolError(f"workbench handoff validation failed: {len(report.get('errors') or [])} error(s)")
 
 
+def cmd_workbench_draft_rerender(args):
+    from tools.workbench_draft_rerender import rerender_from_handoff
+    injected_renderer = getattr(args, "renderer", None)
+    injected_effect_renderer = getattr(args, "effect_renderer", None)
+    extra = {}
+    if injected_renderer is not None:
+        extra["renderer"] = injected_renderer
+    if injected_effect_renderer is not None:
+        extra["effect_renderer"] = injected_effect_renderer
+    try:
+        report = rerender_from_handoff(
+            args.artifact_root,
+            out=getattr(args, "out", "workbench_rerender.mp4"),
+            report_out=getattr(args, "report_out", None),
+            music=getattr(args, "music", None),
+            render_effects=bool(getattr(args, "effects", False)),
+            **extra,
+        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1539,6 +1562,7 @@ def _build_video_tools_dispatch():
         "commands-manifest": cmd_commands_manifest,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
+        "workbench-draft-rerender": cmd_workbench_draft_rerender,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -1835,6 +1859,13 @@ def main():
     p_whv = sub.add_parser("workbench-handoff-validate")
     p_whv.add_argument("artifact_root", help="run/artifact root containing workbench_handoff.json")
     p_whv.add_argument("--out", help="write workbench_handoff_validation.json")
+
+    p_wdr = sub.add_parser("workbench-draft-rerender")
+    p_wdr.add_argument("artifact_root", help="run/artifact root containing validated Workbench draft artifacts")
+    p_wdr.add_argument("--out", default="workbench_rerender.mp4", help="non-canonical output video name/path")
+    p_wdr.add_argument("--report-out", help="write workbench_rerender_report.json elsewhere")
+    p_wdr.add_argument("--music", help="override music path")
+    p_wdr.add_argument("--effects", action="store_true", help="apply supported effect_patch.json overlays")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

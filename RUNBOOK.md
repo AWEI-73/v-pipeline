@@ -131,6 +131,16 @@ This checks that `workbench_handoff.json` references only Workbench draft
 artifacts, that referenced files exist, and that their recorded size/hash still
 match the files on disk.
 
+Render a non-canonical preview candidate from a validated Workbench handoff:
+
+```powershell
+python video_tools.py workbench-draft-rerender C:\path\to\run --out workbench_rerender.mp4
+```
+
+This writes `workbench_rerender.mp4` and `workbench_rerender_report.json` only.
+It refuses invalid handoffs and still refuses protected canonical outputs such
+as `final.mp4`.
+
 **Always use the wrapper** — it boots Ollama, warms the model, runs the pipeline,
 and kills Ollama in the same shell session (so WSL idle won't orphan it):
 
