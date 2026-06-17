@@ -219,3 +219,30 @@ Related commits:
 - `ef5f626` feat(workbench): add draft review report
 - `00bdf87` docs(materials): define map-first organization policy
 - `0e2c041` fix(workbench): include review report in handoff status
+
+## Control Index Closure
+
+Date: 2026-06-17
+Status: implemented
+
+Added a top-level Control Index for the dashboard server:
+
+- `/` and `/index.html` now serve `dashboard/index.html`.
+- `/dashboard` keeps the existing read-only Dashboard surface.
+- the Control Index displays artifact-root facts, final-video presence,
+  Workbench start command, and Workbench draft readiness.
+- the page is read-only and does not duplicate Workbench editing behavior or
+  Dashboard review panels.
+
+Verification run:
+
+- `python -m unittest tests.test_dashboard_server -q`
+- `node --check dashboard\index.js`
+- `node --check dashboard\dashboard_v1.js`
+- `git diff --check`
+
+Boundary:
+
+- Dashboard remains read-only.
+- Workbench remains write-limited and draft-only.
+- The Control Index is only a shell for routing and status visibility.

@@ -6,6 +6,22 @@ where a change belongs before editing code.
 
 ## Surfaces
 
+### Control Index
+
+The Control Index is the top-level entry page served by `tools/dashboard_server.py`
+at `/`.
+
+It should show:
+
+- the active artifact root and final-video presence;
+- the Dashboard entrypoint for read-oriented review;
+- the Workbench entrypoint and start command;
+- Workbench draft artifact readiness, including
+  `workbench.draft_summary.agent_ready`.
+
+The Control Index is read-only. It must not duplicate Dashboard review panels or
+Workbench editing behavior.
+
 ### Dashboard
 
 Dashboard is the read-oriented review surface.
@@ -160,12 +176,25 @@ python tools\workbench_server.py --artifact-root .tmp\srp_real67_fuller_replay -
 Open:
 
 ```text
+http://localhost:8000/
+```
+
+Dashboard:
+
+```text
+http://localhost:8000/dashboard
+```
+
+Workbench:
+
+```text
 http://localhost:8770/workbench
 ```
 
 Focused checks:
 
 ```powershell
+node --check dashboard\index.js
 node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_materials.js
@@ -204,6 +233,7 @@ python -m unittest discover -s tests -q
 
 ## Safety Rules
 
+- Keep `/` as a read-only Control Index.
 - Do not add Dashboard editing behavior.
 - Do not let Workbench write canonical artifacts.
 - Do not add a new frontend framework for this cleanup.

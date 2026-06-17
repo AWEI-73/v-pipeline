@@ -23,6 +23,9 @@ class DashboardServerTest(unittest.TestCase):
         self.dashboard_dir = Path(self.dashboard_dir_temp)
         
         # Create dummy HTML/CSS/JS files
+        (self.dashboard_dir / "index.html").write_text("<html>Control Index</html>", encoding="utf-8")
+        (self.dashboard_dir / "index.css").write_text("/* INDEX CSS */", encoding="utf-8")
+        (self.dashboard_dir / "index.js").write_text("// INDEX JS", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.html").write_text("<html>Dashboard HTML</html>", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.css").write_text("/* CSS */", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.js").write_text("// JS", encoding="utf-8")
@@ -87,13 +90,34 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn('id="btn-open-workbench"', html)
         self.assertIn("Workbench", html)
 
+    def test_control_index_declares_dashboard_and_workbench_surfaces(self):
+        root = Path(__file__).resolve().parent.parent / "dashboard"
+        html = (root / "index.html").read_text(encoding="utf-8")
+        js = (root / "index.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="surface-dashboard"', html)
+        self.assertIn('id="surface-workbench"', html)
+        self.assertIn('id="btn-open-dashboard"', html)
+        self.assertIn('id="btn-open-workbench"', html)
+        self.assertIn("/api/artifacts", js)
+        self.assertIn("workbench.draft_summary.agent_ready", js)
+
     def test_static_routes_and_security(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        # Try fetching dashboard pages
+        # Try fetching control shell and dashboard pages
         html_resp = urllib.request.urlopen(f"{base_url}/").read()
-        self.assertEqual(html_resp, b"<html>Dashboard HTML</html>")
+        self.assertEqual(html_resp, b"<html>Control Index</html>")
+
+        dash_resp = urllib.request.urlopen(f"{base_url}/dashboard").read()
+        self.assertEqual(dash_resp, b"<html>Dashboard HTML</html>")
+
+        index_css_resp = urllib.request.urlopen(f"{base_url}/index.css").read()
+        self.assertEqual(index_css_resp, b"/* INDEX CSS */")
+
+        index_js_resp = urllib.request.urlopen(f"{base_url}/index.js").read()
+        self.assertEqual(index_js_resp, b"// INDEX JS")
 
         css_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.css").read()
         self.assertEqual(css_resp, b"/* CSS */")

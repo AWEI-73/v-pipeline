@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Control Index</title>
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <main class="control-shell">
+        <header class="control-hero">
+            <div>
+                <p class="eyebrow">Hermes Video Pipeline</p>
+                <h1>Control Index</h1>
+                <p class="hero-copy">
+                    Dashboard handles run review and node status. Workbench handles interactive
+                    material-composition preview and draft patches. Canonical render remains owned
+                    by the ffmpeg pipeline.
+                </p>
+            </div>
+            <div class="hero-status" id="control-status">
+                <span class="status-dot loading"></span>
+                <span>Loading artifact status</span>
+            </div>
+        </header>
+
+        <section class="surface-grid" aria-label="Control surfaces">
+            <article class="surface-card primary" id="surface-dashboard">
+                <div class="surface-kicker">Review Surface</div>
+                <h2>Dashboard</h2>
+                <p>
+                    Inspect final render, timeline, subtitles, verification findings,
+                    node status, contact sheets, and Workbench draft readiness.
+                </p>
+                <dl class="surface-facts" id="dashboard-facts">
+                    <div><dt>Artifact root</dt><dd data-field="artifact-root">-</dd></div>
+                    <div><dt>Duration</dt><dd data-field="duration">-</dd></div>
+                    <div><dt>Final video</dt><dd data-field="final-video">-</dd></div>
+                </dl>
+                <a class="surface-action" id="btn-open-dashboard" href="/dashboard">Open Dashboard</a>
+            </article>
+
+            <article class="surface-card workbench" id="surface-workbench">
+                <div class="surface-kicker">Interactive Draft Surface</div>
+                <h2>Workbench</h2>
+                <p>
+                    Preview material composition, adjust draft timeline/source windows,
+                    replace material candidates, and write patch artifacts for Agent review.
+                </p>
+                <div class="workbench-readiness" id="workbench-readiness">
+                    <span class="readiness-pill unknown">checking</span>
+                    <span class="readiness-text">Waiting for /api/artifacts</span>
+                </div>
+                <div class="draft-grid" id="workbench-drafts" aria-label="Workbench draft artifacts"></div>
+                <div class="command-box">
+                    <div class="command-title">Start command</div>
+                    <code id="workbench-command">python tools/workbench_server.py --artifact-root ... --port 8770</code>
+                </div>
+                <a class="surface-action dark" id="btn-open-workbench" href="http://localhost:8770/workbench" target="_blank" rel="noopener">Open Workbench</a>
+            </article>
+        </section>
+
+        <section class="contract-note">
+            <h2>Boundary</h2>
+            <p>
+                This page is a read-only control shell. It does not write timeline patches,
+                contracts, material maps, or final videos. Workbench writes draft artifacts only;
+                the Agent/backend decides whether to accept, revise, rerender, or reject them.
+            </p>
+        </section>
+    </main>
+    <script src="/index.js"></script>
+</body>
+</html>

@@ -5,6 +5,17 @@ have the same responsibility.
 
 ## Surfaces
 
+### Control Index
+
+The Dashboard server root (`/`) serves a small Control Index. It links the two
+frontend surfaces together without merging their responsibilities:
+
+- Dashboard for read-only run/node/status review;
+- Workbench for interactive draft preview and patch creation.
+
+The index also exposes the Workbench start command and draft readiness from
+`/api/artifacts`.
+
 ### Dashboard
 
 Dashboard is for review and status:
@@ -59,12 +70,25 @@ python tools\workbench_server.py --artifact-root .tmp\srp_real67_fuller_replay -
 Open:
 
 ```text
+http://localhost:8000/
+```
+
+Dashboard:
+
+```text
+http://localhost:8000/dashboard
+```
+
+Workbench:
+
+```text
 http://localhost:8770/workbench
 ```
 
 Focused checks:
 
 ```powershell
+node --check dashboard\index.js
 node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_materials.js

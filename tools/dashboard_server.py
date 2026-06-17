@@ -313,13 +313,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path_str = parsed_url.path
         query_params = urllib.parse.parse_qs(parsed_url.query)
 
-        # Route / -> dashboard_v1.html
+        # Route / -> control index. Keep /dashboard for the legacy review UI.
         if path_str == "/" or path_str == "/index.html":
+            html_path = self.dashboard_dir / "index.html"
+            if not html_path.exists():
+                html_path = self.dashboard_dir / "dashboard_v1.html"
+            self.serve_file(html_path, "text/html; charset=utf-8")
+            return
+
+        if path_str == "/dashboard" or path_str == "/dashboard/":
             html_path = self.dashboard_dir / "dashboard_v1.html"
             self.serve_file(html_path, "text/html; charset=utf-8")
             return
 
         # Serve static dashboard assets
+        if path_str == "/index.css":
+            css_path = self.dashboard_dir / "index.css"
+            self.serve_file(css_path, "text/css; charset=utf-8")
+            return
+
+        if path_str == "/index.js":
+            js_path = self.dashboard_dir / "index.js"
+            self.serve_file(js_path, "application/javascript; charset=utf-8")
+            return
+
         if path_str == "/dashboard_v1.css":
             css_path = self.dashboard_dir / "dashboard_v1.css"
             self.serve_file(css_path, "text/css; charset=utf-8")
