@@ -1454,9 +1454,111 @@ from video_pipeline_core.vt_stock import (  # noqa: F401,E402
 
 # ── project workspace（repo 外 project/run 整理）─────────────────────────────
 from video_pipeline_core.project_workspace import cmd_project_init, cmd_project_new_run  # noqa: F401,E402
+from video_pipeline_core.tool_command_catalog import build_command_manifest  # noqa: E402
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
+
+def cmd_commands_manifest(args):
+    payload = build_video_tools_command_manifest()
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+
+
+def _build_video_tools_dispatch():
+    return {
+        "search":      cmd_search,
+        "meta":        cmd_meta,
+        "download":    cmd_download,
+        "probe":       cmd_probe,
+        "cut":         cmd_cut,
+        "concat":      cmd_concat,
+        "subtitle":    cmd_subtitle,
+        "mksrt":       cmd_mksrt,
+        "burnsub":     cmd_burnsub,
+        "validate":    cmd_validate,
+        "script-run":  cmd_script_run,
+        "title":       cmd_title,
+        "tts":         cmd_tts,
+        "mix-audio":   cmd_mix_audio,
+        "sfx-mix":     cmd_mix_sfx,
+        "srt":         cmd_srt,
+        "assemble":    cmd_assemble,
+        "merge-final": cmd_merge_final,
+        "verify":      cmd_verify,
+        "analyze":     cmd_analyze,
+        "curate":      cmd_curate,
+        "state":       cmd_state,
+        "serve":       cmd_serve,
+        "dashboard":   cmd_dashboard,
+        "story-map":   cmd_story_map,
+        "ingest-meta": cmd_ingest_meta,
+        "caption-meta": cmd_caption_meta,
+        "material-map": cmd_material_map,
+        "match-mv":     cmd_match_mv,
+        "rank-local":  cmd_rank_local,
+        "kenburns":      cmd_kenburns,
+        "pexels-search": cmd_pexels_search,
+        "pexels-download": cmd_pexels_download,
+        "grade":         cmd_grade,
+        "title-card":    cmd_title_card,
+        "title-sequence": cmd_title_sequence,
+        "gen-bgm":       cmd_gen_bgm,
+        "music-fetch":   cmd_music_fetch,
+        "collage":       cmd_collage,
+        "montage":       cmd_montage,
+        "project-init":   cmd_project_init,
+        "project-new-run": cmd_project_new_run,
+        "commands-manifest": cmd_commands_manifest,
+        "contract-adapt": cmd_contract_adapt,
+        "spec-review": cmd_spec_review,
+        "capability-manifest": cmd_capability_manifest,
+        "supply-review": cmd_supply_review,
+        "contract-dry-build": cmd_contract_dry_build,
+        "contract-run":   cmd_contract_run,
+        "generated-manifest": cmd_generated_manifest,
+        "light-effects-plan": cmd_light_effects_plan,
+        "timeline-audit": cmd_timeline_audit,
+        "broll-audit":     cmd_broll_audit,
+        "new-visual-audit": cmd_new_visual_information_audit,
+        "black-frame-audit": cmd_black_frame_audit,
+        "validate-needs": cmd_validate_needs,
+        "lineage-link": cmd_lineage_link,
+        "material-delta": cmd_material_delta,
+        "material-revision": cmd_material_revision,
+        "material-map-lifecycle": cmd_material_map_lifecycle,
+        "project-material-map": cmd_project_material_map,
+        "visual-diversity-coverage": cmd_visual_diversity_coverage,
+        "visual-diversity-review": cmd_visual_diversity_review,
+        "visual-family-normalize": cmd_visual_family_normalize,
+        "semantic-novelty-audit": cmd_semantic_novelty_audit,
+        "action-progression-audit": cmd_action_progression_audit,
+        "jumpcut-plan":     cmd_jumpcut_plan,
+        "jumpcut-apply":    cmd_jumpcut_apply,
+        "jumpcut-review":   cmd_jumpcut_review,
+        "caption-audit":   cmd_caption_audit,
+        "keyframe-grid":   cmd_keyframe_grid,
+        "visual-audit":    cmd_visual_audit,
+        "verify-evidence": cmd_verify_evidence,
+        "replay-acceptance": cmd_replay_acceptance,
+        "creator-profile": cmd_creator_profile,
+        "blueprint-coverage": cmd_blueprint_coverage,
+        "blueprint-compile": cmd_blueprint_compile,
+        "blueprint-to-contract": cmd_blueprint_to_contract,
+        "capcut-draft":    cmd_capcut_draft,
+        "capcut-finalize": cmd_capcut_finalize,
+    }
+
+
+VIDEO_TOOLS_DISPATCH = _build_video_tools_dispatch()
+
+
+def build_video_tools_command_manifest():
+    return build_command_manifest(VIDEO_TOOLS_DISPATCH.keys())
+
 
 def main():
     parser = argparse.ArgumentParser(description="video_tools — agent 影片工具")
@@ -1696,6 +1798,9 @@ def main():
     p_run = sub.add_parser("project-new-run")
     p_run.add_argument("--project", help="project 目錄；省略則讀 repo/.project/active.json")
     p_run.add_argument("--label", help="run 名稱後綴，如 first-cut / baseline")
+
+    p_cmdm = sub.add_parser("commands-manifest")
+    p_cmdm.add_argument("--out", help="write video_tools command manifest JSON")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")
@@ -1989,87 +2094,7 @@ def main():
 
     args = parser.parse_args()
 
-    dispatch = {
-        "search":      cmd_search,
-        "meta":        cmd_meta,
-        "download":    cmd_download,
-        "probe":       cmd_probe,
-        "cut":         cmd_cut,
-        "concat":      cmd_concat,
-        "subtitle":    cmd_subtitle,
-        "mksrt":       cmd_mksrt,
-        "burnsub":     cmd_burnsub,
-        "validate":    cmd_validate,
-        "script-run":  cmd_script_run,
-        "title":       cmd_title,
-        "tts":         cmd_tts,
-        "mix-audio":   cmd_mix_audio,
-        "sfx-mix":     cmd_mix_sfx,
-        "srt":         cmd_srt,
-        "assemble":    cmd_assemble,
-        "merge-final": cmd_merge_final,
-        "verify":      cmd_verify,
-        "analyze":     cmd_analyze,
-        "curate":      cmd_curate,
-        "state":       cmd_state,
-        "serve":       cmd_serve,
-        "dashboard":   cmd_dashboard,
-        "story-map":   cmd_story_map,
-        "ingest-meta": cmd_ingest_meta,
-        "caption-meta": cmd_caption_meta,
-        "material-map": cmd_material_map,
-        "match-mv":     cmd_match_mv,
-        "rank-local":  cmd_rank_local,
-        "kenburns":      cmd_kenburns,
-        "pexels-search": cmd_pexels_search,
-        "pexels-download": cmd_pexels_download,
-        "grade":         cmd_grade,
-        "title-card":    cmd_title_card,
-        "title-sequence": cmd_title_sequence,
-        "gen-bgm":       cmd_gen_bgm,
-        "music-fetch":   cmd_music_fetch,
-        "collage":       cmd_collage,
-        "montage":       cmd_montage,
-        "project-init":   cmd_project_init,
-        "project-new-run": cmd_project_new_run,
-        "contract-adapt": cmd_contract_adapt,
-        "spec-review": cmd_spec_review,
-        "capability-manifest": cmd_capability_manifest,
-        "supply-review": cmd_supply_review,
-        "contract-dry-build": cmd_contract_dry_build,
-        "contract-run":   cmd_contract_run,
-        "generated-manifest": cmd_generated_manifest,
-        "light-effects-plan": cmd_light_effects_plan,
-        "timeline-audit": cmd_timeline_audit,
-        "broll-audit":     cmd_broll_audit,
-        "new-visual-audit": cmd_new_visual_information_audit,
-        "black-frame-audit": cmd_black_frame_audit,
-        "validate-needs": cmd_validate_needs,
-        "lineage-link": cmd_lineage_link,
-        "material-delta": cmd_material_delta,
-        "material-revision": cmd_material_revision,
-        "material-map-lifecycle": cmd_material_map_lifecycle,
-        "project-material-map": cmd_project_material_map,
-        "visual-diversity-coverage": cmd_visual_diversity_coverage,
-        "visual-diversity-review": cmd_visual_diversity_review,
-        "visual-family-normalize": cmd_visual_family_normalize,
-        "semantic-novelty-audit": cmd_semantic_novelty_audit,
-        "action-progression-audit": cmd_action_progression_audit,
-        "jumpcut-plan":     cmd_jumpcut_plan,
-        "jumpcut-apply":    cmd_jumpcut_apply,
-        "jumpcut-review":   cmd_jumpcut_review,
-        "caption-audit":   cmd_caption_audit,
-        "keyframe-grid":   cmd_keyframe_grid,
-        "visual-audit":    cmd_visual_audit,
-        "verify-evidence": cmd_verify_evidence,
-        "replay-acceptance": cmd_replay_acceptance,
-        "creator-profile": cmd_creator_profile,
-        "blueprint-coverage": cmd_blueprint_coverage,
-        "blueprint-compile": cmd_blueprint_compile,
-        "blueprint-to-contract": cmd_blueprint_to_contract,
-        "capcut-draft":    cmd_capcut_draft,
-        "capcut-finalize": cmd_capcut_finalize,
-    }
+    dispatch = VIDEO_TOOLS_DISPATCH
 
     if not args.command or args.command not in dispatch:
         parser.print_help()

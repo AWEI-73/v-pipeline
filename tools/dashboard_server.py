@@ -140,6 +140,39 @@ def collect_workbench_draft_status(root_dir: Path):
     return artifacts, summary
 
 
+def collect_run_layout_status(root_dir: Path):
+    """Return a small read-only summary of run_layout.json for frontend routing."""
+    path = root_dir / "run_layout.json"
+    if not path.is_file():
+        return {
+            "exists": False,
+            "path": None,
+        }
+
+    payload = load_json_file(path)
+    base = {
+        "exists": True,
+        "path": "run_layout.json",
+    }
+    if not isinstance(payload, dict):
+        return {**base, "error": "run_layout.json must be a JSON object"}
+    if payload.get("error"):
+        return {**base, "error": payload["error"]}
+
+    return {
+        **base,
+        "artifact_role": payload.get("artifact_role"),
+        "version": payload.get("version"),
+        "folders": payload.get("folders") if isinstance(payload.get("folders"), dict) else {},
+        "artifact_classes": (
+            payload.get("artifact_classes")
+            if isinstance(payload.get("artifact_classes"), dict)
+            else {}
+        ),
+        "policy": payload.get("policy") if isinstance(payload.get("policy"), dict) else {},
+    }
+
+
 def scan_available_projects():
     """Scan `.tmp` and `C:/Users/user/Desktop/video_project` to list all valid runs."""
     projects = []
@@ -266,6 +299,7 @@ def build_control_status(active_root: Path):
     duration = max([s["end_sec"] for s in slots], default=0.0)
     final_path = resolve_artifact_path(active_root, "final.mp4")
     drafts, summary = collect_workbench_draft_status(active_root)
+    run_layout = collect_run_layout_status(active_root)
     agent_ready = bool(summary.get("agent_ready"))
     final_exists = final_path.is_file()
 
@@ -295,6 +329,7 @@ def build_control_status(active_root: Path):
             "draft_artifacts": drafts,
             "draft_summary": summary,
         },
+        "run_layout": run_layout,
         "final_video": {
             "exists": final_exists,
             "path": "final.mp4" if final_exists else None,
@@ -728,10 +763,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     pass
 
             workbench_draft_artifacts, workbench_draft_summary = collect_workbench_draft_status(active_root)
+            run_layout = collect_run_layout_status(active_root)
 
             aggregated = {
                 "profile": profile,
                 "artifact_root": str(active_root.resolve()),
+                "run_layout": run_layout,
                 "workbench": {
                     "mode": "external_server",
                     "url": "http://localhost:8770/workbench",

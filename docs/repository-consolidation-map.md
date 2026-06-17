@@ -74,6 +74,11 @@ replay, project workspace helpers, CapCut draft helpers, and legacy media tools.
 
 Use it when the operation is a canonical pipeline command.
 
+`video_tools.py commands-manifest [--out FILE]` emits the machine-readable
+command catalog. The implementation uses `VIDEO_TOOLS_DISPATCH` plus
+`video_pipeline_core/tool_command_catalog.py`; agents should inspect that
+manifest before guessing which command group owns a feature.
+
 ### Runtime Resume
 
 `runtime.py` is the route/resume/status surface. It reads `state.json` and
@@ -114,6 +119,9 @@ Use it when adding or changing interactive draft-edit behavior.
 `/api/projects`, `/api/artifacts`, and material listing endpoints.
 
 Use it when changing read/status surfaces or Control Index integration.
+It reads `run_layout.json` as read-only navigation metadata through
+`/api/control/status` and `/api/artifacts`; it must not write or repair layout
+artifacts.
 
 ## Backend Domain Ownership
 

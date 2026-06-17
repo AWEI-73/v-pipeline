@@ -104,8 +104,10 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn('id="btn-open-dashboard"', html)
         self.assertIn('id="btn-open-workbench"', html)
         self.assertIn('id="workbench-health"', html)
+        self.assertIn('data-field="run-layout"', html)
         self.assertIn("/api/control/status", js)
         self.assertIn("/api/control/workbench-health", js)
+        self.assertIn("data.run_layout", js)
         self.assertIn("workbench.draft_summary.agent_ready", js)
 
     def test_static_routes_and_security(self):
@@ -215,6 +217,7 @@ class DashboardServerTest(unittest.TestCase):
             "artifact_root",
             "dashboard",
             "workbench",
+            "run_layout",
             "final_video",
             "timeline",
             "recommended_next_action",
@@ -250,7 +253,58 @@ class DashboardServerTest(unittest.TestCase):
             "slot_count": 2,
             "duration_sec": 5.5,
         })
+        self.assertEqual(data["run_layout"], {
+            "exists": False,
+            "path": None,
+        })
         self.assertEqual(data["recommended_next_action"], "review_workbench_drafts")
+
+    def test_control_and_artifacts_api_expose_run_layout_summary(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        run_layout = {
+            "artifact_role": "run_layout",
+            "version": 1,
+            "folders": {
+                "canonical": "canonical",
+                "drafts": "drafts",
+                "cache": "cache",
+            },
+            "artifact_classes": {
+                "canonical": ["timeline.json", "final.mp4"],
+                "draft": ["timeline_patch.json"],
+                "cache": ["workbench_thumbs/"],
+            },
+            "policy": {
+                "canonical_read_only_for_dashboard": True,
+                "drafts_are_agent_handoff_inputs": True,
+            },
+        }
+        (self.artifact_root / "run_layout.json").write_text(
+            json.dumps(run_layout),
+            encoding="utf-8",
+        )
+
+        status_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        status = json.loads(status_resp.decode("utf-8"))
+        self.assertEqual(status["run_layout"]["artifact_role"], "run_layout")
+        self.assertEqual(status["run_layout"]["version"], 1)
+        self.assertEqual(status["run_layout"]["path"], "run_layout.json")
+        self.assertEqual(status["run_layout"]["folders"]["canonical"], "canonical")
+        self.assertIn("timeline.json", status["run_layout"]["artifact_classes"]["canonical"])
+        self.assertTrue(status["run_layout"]["policy"]["canonical_read_only_for_dashboard"])
+
+        artifacts_resp = urllib.request.urlopen(f"{base_url}/api/artifacts").read()
+        artifacts = json.loads(artifacts_resp.decode("utf-8"))
+        self.assertEqual(artifacts["run_layout"], status["run_layout"])
+
+        (self.artifact_root / "run_layout.json").write_text("{bad", encoding="utf-8")
+        status_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        status = json.loads(status_resp.decode("utf-8"))
+        self.assertTrue(status["run_layout"]["exists"])
+        self.assertEqual(status["run_layout"]["path"], "run_layout.json")
+        self.assertIn("error", status["run_layout"])
 
     def test_control_status_next_action_contract(self):
         self.start_test_server()

@@ -25,6 +25,15 @@
         }, 0);
     }
 
+    function runLayoutLabel(runLayout) {
+        if (!runLayout || !runLayout.exists) return "missing";
+        if (runLayout.error) return "error";
+        const folders = runLayout.folders && typeof runLayout.folders === "object"
+            ? Object.keys(runLayout.folders).length
+            : 0;
+        return "available (" + folders + " folders)";
+    }
+
     function renderStatus(kind, text) {
         if (!controlStatus) return;
         controlStatus.innerHTML = '<span class="status-dot ' + kind + '"></span><span>' + text + '</span>';
@@ -125,6 +134,7 @@
             setText('[data-field="artifact-root"]', data.artifact_root || "-");
             setText('[data-field="duration"]', duration.toFixed(2) + "s");
             setText('[data-field="final-video"]', hasFinal ? "present" : "missing");
+            setText('[data-field="run-layout"]', runLayoutLabel(data.run_layout));
             renderWorkbench(data.workbench || {});
 
             const ready = data.workbench && data.workbench.draft_summary && data.workbench.draft_summary.agent_ready;
@@ -134,6 +144,7 @@
             setText('[data-field="artifact-root"]', "-");
             setText('[data-field="duration"]', "-");
             setText('[data-field="final-video"]', "-");
+            setText('[data-field="run-layout"]', "-");
             renderStatus("error", "Unable to load /api/control/status");
             if (workbenchReadiness) {
                 workbenchReadiness.innerHTML = '<span class="readiness-pill unknown">error</span><span class="readiness-text">' + String(err.message || err) + '</span>';
