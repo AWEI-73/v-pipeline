@@ -220,6 +220,7 @@
       card.appendChild(thumb);
       card.appendChild(body);
       card.draggable = true;
+      card.title = "Drag onto a timeline clip, or double-click after selecting a clip, to replace material.";
       card.ondragstart = function (ev) {
         state.selectedAssetId = a.asset_id;
         ev.dataTransfer.setData("application/x-hermes-asset-id", a.asset_id);
@@ -231,6 +232,15 @@
         state.selectedAssetId = a.asset_id;
         els.diagnostics.textContent = "Selected material asset " + a.asset_id + " (ready to replace selected clip)";
         renderMaterialBrowser();
+      };
+      card.ondblclick = function () {
+        state.selectedAssetId = a.asset_id;
+        if (state.selectedSlot == null) {
+          els.diagnostics.textContent = "Select a timeline clip, then double-click material to replace";
+          renderMaterialBrowser();
+          return;
+        }
+        replaceClipWithAsset(state.selectedSlot, a.asset_id);
       };
       els.material_assets_list.appendChild(card);
     });
@@ -442,6 +452,9 @@
       Core.round6(before.source_duration_sec) !== Core.round6(after.source_duration_sec)
     );
     state.work = next;
+    if (next._trim_clamped) {
+      els.diagnostics.textContent = "Trim clamped at the approved source window; use material replacement for more footage.";
+    }
     renderTimelineLanes();
     renderMonitor();
   }

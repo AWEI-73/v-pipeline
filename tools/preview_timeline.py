@@ -340,6 +340,7 @@ def build_preview_timeline(
             "duration_sec": round(duration_sec, 3),
             "source_start_sec": round(source_start_sec, 3),
             "source_duration_sec": round(source_duration_sec, 3),
+            "source_asset_duration_sec": asset.get("duration_sec"),
             "scene_id": raw.get("scene_id"),
             "need_id": raw.get("need_id"),
             "visual_family": raw.get("visual_family"),

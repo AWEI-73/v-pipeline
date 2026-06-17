@@ -98,6 +98,7 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         # source window preserved on the video clip
         self.assertEqual(v["source_start_sec"], 1.2)
         self.assertEqual(v["source_duration_sec"], 3.5)
+        self.assertEqual(v["source_asset_duration_sec"], 70.0)
         # image clip has source_start 0
         self.assertEqual(i["source_start_sec"], 0.0)
         # deterministic timeline starts

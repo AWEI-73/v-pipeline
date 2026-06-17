@@ -166,6 +166,7 @@
     const delta = Number(edit.delta_sec) || 0;
     const minDur = Number(edit.min_duration_sec) > 0 ? Number(edit.min_duration_sec) : 0.1;
     if (!delta) return state;
+    let clamped = false;
 
     if (edit.edge === "left") {
       const maxDelta = Math.max(0, (Number(clip.duration_sec) || 0) - minDur);
@@ -178,9 +179,17 @@
       }
     } else if (edit.edge === "right") {
       const desired = (Number(clip.duration_sec) || 0) + delta;
-      clip.duration_sec = round6(Math.max(minDur, desired));
       if (clip.type === "video") {
-        clip.source_duration_sec = round6(Math.max(minDur, (Number(clip.source_duration_sec) || 0) + delta));
+        const start = Number(clip.source_start_sec) || 0;
+        const assetDur = Number(clip.source_asset_duration_sec);
+        const maxSourceDur = assetDur > 0 ? Math.max(minDur, assetDur - start) : null;
+        const requestedSourceDur = Math.max(minDur, (Number(clip.source_duration_sec) || 0) + delta);
+        const nextSourceDur = maxSourceDur == null ? requestedSourceDur : Math.min(requestedSourceDur, maxSourceDur);
+        clamped = maxSourceDur != null && requestedSourceDur > maxSourceDur + 1e-6;
+        clip.source_duration_sec = round6(nextSourceDur);
+        clip.duration_sec = round6(Math.max(minDur, Math.min(desired, nextSourceDur)));
+      } else {
+        clip.duration_sec = round6(Math.max(minDur, desired));
       }
     } else {
       return state;
@@ -188,6 +197,7 @@
 
     next.clips = computeTimeline(clips);
     next.duration_sec = totalDuration(next.clips);
+    if (clamped) next._trim_clamped = true;
     return next;
   }
 
@@ -243,6 +253,7 @@
       asset_type: asset.asset_type,
       source_start_sec: start,
       source_duration_sec: sourceDur,
+      source_asset_duration_sec: asset.duration_sec,
       duration_sec: duration,
       visual_family: scene.visual_family || asset.visual_family || null,
       angle_scale: scene.angle_scale || asset.angle_scale || null,

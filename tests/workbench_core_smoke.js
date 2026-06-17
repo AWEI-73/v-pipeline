@@ -94,6 +94,19 @@ check("trimClipEdge right handle trims photo duration without inventing source t
   assert.strictEqual(next.clips[0].source_duration_sec, 2.0);
 });
 
+check("trimClipEdge right handle clamps video to available source window", function () {
+  const state = {
+    clips: Core.computeTimeline([
+      { id: "slot-1", slot_index: 1, type: "video", duration_sec: 3.0,
+        source_start_sec: 8.0, source_duration_sec: 2.0, source_asset_duration_sec: 10.0 },
+    ]),
+  };
+  const next = Core.trimClipEdge(state, { slot_index: 1, edge: "right", delta_sec: 5.0 });
+  assert.strictEqual(next.clips[0].duration_sec, 2.0);
+  assert.strictEqual(next.clips[0].source_duration_sec, 2.0);
+  assert.strictEqual(next._trim_clamped, true);
+});
+
 check("replaceClipWithAsset swaps selected clip with material asset scene", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const asset = {
