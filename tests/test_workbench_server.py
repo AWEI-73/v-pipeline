@@ -21,6 +21,8 @@ class WorkbenchServerTest(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.media = self.root / "clip.mp4"
         self.media.write_bytes(b"0123456789" * 100)
+        self.media_b = self.root / "clip_b.mp4"
+        self.media_b.write_bytes(b"abcdefghij" * 100)
         _write_json(self.root / "timeline.json", {
             "plan": [
                 {
@@ -42,6 +44,14 @@ class WorkbenchServerTest(unittest.TestCase):
                     "asset_type": "video",
                     "source": str(self.media),
                     "duration_sec": 10.0,
+                    "scenes": [{"start": 0.0, "end": 2.0, "caption": "original"}],
+                },
+                {
+                    "asset_id": "b0",
+                    "asset_type": "video",
+                    "source": str(self.media_b),
+                    "duration_sec": 10.0,
+                    "scenes": [{"start": 3.0, "end": 6.0, "caption": "replacement"}],
                 }
             ],
         })
@@ -76,6 +86,9 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertEqual(payload["artifact_role"], "preview_timeline")
         self.assertEqual(len(payload["clips"]), 1)
         self.assertIn("/media?src=", payload["clips"][0]["src_url"])
+        asset = next(a for a in payload["material_assets"] if a["asset_id"] == "b0")
+        self.assertEqual(asset["scenes"][0]["start_sec"], 3.0)
+        self.assertEqual(asset["scenes"][0]["end_sec"], 6.0)
 
     def test_media_serves_only_allowlisted_sources_with_range_support(self):
         src = urllib.parse.quote(str(self.media), safe="")
@@ -91,6 +104,16 @@ class WorkbenchServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(self.url(f"/media?src={outside}"))
         self.assertEqual(cm.exception.code, 403)
+
+    def test_media_serves_material_browser_assets_not_yet_on_timeline(self):
+        src = urllib.parse.quote(str(self.media_b), safe="")
+        req = urllib.request.Request(
+            self.url(f"/media?src={src}"),
+            headers={"Range": "bytes=0-3"},
+        )
+        resp = urllib.request.urlopen(req)
+        self.assertEqual(resp.status, 206)
+        self.assertEqual(resp.read(), b"abcd")
 
     def test_post_patch_writes_only_workbench_artifacts(self):
         before_timeline = (self.root / "timeline.json").read_text(encoding="utf-8")
@@ -147,6 +170,36 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 422)
         self.assertFalse((self.root / "timeline_patch.json").exists())
         self.assertFalse((self.root / "patched_draft_timeline.json").exists())
+
+    def test_post_replace_clip_patch_writes_draft_not_canonical(self):
+        before_timeline = (self.root / "timeline.json").read_text(encoding="utf-8")
+        patch = {
+            "artifact_role": "timeline_patch",
+            "version": 1,
+            "base_timeline_ref": "timeline.json",
+            "patches": [
+                {
+                    "op": "replace_clip",
+                    "slot_index": 0,
+                    "after": {"asset_id": "b0", "scene_index": 0},
+                }
+            ],
+            "diagnostics": [],
+        }
+        req = urllib.request.Request(
+            self.url("/api/workbench/patch"),
+            data=json.dumps(patch).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        result = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+        self.assertTrue(result["ok"])
+        draft = json.loads((self.root / "patched_draft_timeline.json").read_text(encoding="utf-8"))
+        clip = draft["plan"][0]
+        self.assertEqual(clip["scene_id"], "b0:0")
+        self.assertEqual(clip["extract_start"], 3.0)
+        self.assertEqual(clip["extract_dur"], 3.0)
+        self.assertEqual(clip["caption"], "replacement")
+        self.assertEqual((self.root / "timeline.json").read_text(encoding="utf-8"), before_timeline)
 
     def test_sync_contract_writes_only_draft_artifacts(self):
         before_timeline = (self.root / "timeline.json").read_text(encoding="utf-8")

@@ -195,8 +195,10 @@ def _build_effect_assets(material_map: Optional[Dict[str, Any]], base_url: str) 
 def _build_material_assets(material_map: Optional[Dict[str, Any]], base_url: str) -> List[Dict[str, Any]]:
     """Project-map main visual assets exposed to the Workbench browser.
 
-    This is a read-only projection for review/search. It is not a second
+    This is a projection for review/search/replacement. It is not a second
     material-map schema and it intentionally excludes effect/sfx-only assets.
+    Replacement still re-resolves ``asset_id`` / ``scene_index`` from the
+    canonical project material map on the Python side.
     """
     if not isinstance(material_map, dict):
         return []
@@ -213,6 +215,22 @@ def _build_material_assets(material_map: Optional[Dict[str, Any]], base_url: str
             continue
         scenes = asset.get("scenes") if isinstance(asset.get("scenes"), list) else []
         scene0 = scenes[0] if scenes and isinstance(scenes[0], dict) else {}
+        projected_scenes: List[Dict[str, Any]] = []
+        for scene_index, scene in enumerate(scenes):
+            if not isinstance(scene, dict):
+                continue
+            start = scene.get("start")
+            end = scene.get("end")
+            projected_scenes.append({
+                "scene_index": scene_index,
+                "start_sec": start,
+                "end_sec": end,
+                "visual_family": scene.get("visual_family"),
+                "angle_scale": scene.get("angle_scale"),
+                "action_family": scene.get("action_family"),
+                "subject": scene.get("subject"),
+                "caption": scene.get("caption"),
+            })
         out.append({
             "asset_id": aid,
             "asset_type": atype,
@@ -225,6 +243,7 @@ def _build_material_assets(material_map: Optional[Dict[str, Any]], base_url: str
             "action_family": scene0.get("action_family"),
             "subject": scene0.get("subject"),
             "caption": scene0.get("caption"),
+            "scenes": projected_scenes,
         })
     return sorted(out, key=lambda a: a["asset_id"])
 

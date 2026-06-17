@@ -209,6 +209,9 @@ Timeline interactions currently supported:
 - drag the left / right edge handles on a clip to trim duration;
 - edit duration / source window in the Inspector;
 - move clips left / right;
+- select or drag a material asset onto a timeline clip to replace that clip
+  (`replace_clip` draft op; Python re-resolves the asset from
+  `project_material_map.json`);
 - add subtitle, audio-cue, and effect-intent markers as draft patch layers;
 - scrub and preview material composition with proxy video, subtitles, BGM, and
   intent markers.

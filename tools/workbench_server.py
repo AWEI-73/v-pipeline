@@ -3,8 +3,9 @@
 
 Serves the native preview workbench (``dashboard/workbench_native``) plus a tiny
 API for the interactive preview engine. This is a *write-limited* server: it may
-only write the three workbench artifacts (preview_timeline / timeline_patch /
-patched_draft_timeline) and is hard-blocked from touching any canonical artifact.
+only write whitelisted workbench draft artifacts (preview_timeline /
+timeline_patch / patched_draft_timeline / layer patches / handoff) and is
+hard-blocked from touching any canonical artifact.
 
 It is deliberately separate from the read-only Review Dashboard. The workbench is
 for interactive editorial proposals; official rendering still happens via Hermes /
@@ -95,13 +96,14 @@ _ALLOW_CACHE: Dict[str, set] = {}
 def _build_allowlist(root: Path, base_url: str) -> set:
     preview = pt.build_preview_timeline(str(root), base_url)
     allow = set()
-    for clip in preview.get("clips", []):
-        sp = clip.get("source_path")
-        if sp:
-            try:
-                allow.add(os.path.normcase(str(Path(sp).resolve())))
-            except OSError:
-                pass
+    for section in ("clips", "material_assets", "effect_assets"):
+        for item in preview.get(section, []) or []:
+            sp = item.get("source_path")
+            if sp:
+                try:
+                    allow.add(os.path.normcase(str(Path(sp).resolve())))
+                except OSError:
+                    pass
     for name in ("music.wav", "bgm.webm", "narration.wav", "voiceover.wav"):
         p = root / name
         if p.is_file():

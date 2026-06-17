@@ -29,10 +29,19 @@ def _make_root(tmp: str) -> Path:
              "extract_start": 0.0, "extract_dur": 1.5},
         ],
     })
+    img = root / "still.png"
+    img.write_bytes(b"\x00")
     _write(root, "project_material_map.json", {
         "artifact_role": "project_material_map", "version": 1,
         "assets": [{"asset_id": "a0", "asset_type": "video",
-                    "source": str(vid), "duration_sec": 10.0}],
+                    "source": str(vid), "duration_sec": 10.0,
+                    "scenes": [
+                        {"start": 0.0, "end": 4.0, "caption": "video scene 0"},
+                        {"start": 4.0, "end": 8.0, "caption": "video scene 1"},
+                    ]},
+                   {"asset_id": "p0", "asset_type": "photo",
+                    "source": str(img), "duration_sec": 0.0,
+                    "scenes": [{"start": 0.0, "end": 0.0, "caption": "photo scene"}]}],
         "needs": [],
     })
     return root
@@ -101,6 +110,32 @@ class TimelinePatchValidateTest(unittest.TestCase):
                 {"op": "move_clip", "slot_index": 0, "after": {"new_index": 9}}))
         self.assertFalse(ok)
 
+    def test_replace_clip_validates_asset_and_scene(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "replace_clip", "slot_index": 0,
+                 "after": {"asset_id": "a0", "scene_index": 1}}))
+        self.assertTrue(ok, errors)
+
+    def test_replace_clip_unknown_asset_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "replace_clip", "slot_index": 0,
+                 "after": {"asset_id": "ghost", "scene_index": 0}}))
+        self.assertFalse(ok)
+        self.assertTrue(any("asset_id" in e for e in errors))
+
+    def test_replace_clip_bad_scene_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "replace_clip", "slot_index": 0,
+                 "after": {"asset_id": "a0", "scene_index": 9}}))
+        self.assertFalse(ok)
+        self.assertTrue(any("scene_index" in e for e in errors))
+
 
 class TimelinePatchApplyTest(unittest.TestCase):
     def test_move_clip_is_deterministic(self):
@@ -137,6 +172,32 @@ class TimelinePatchApplyTest(unittest.TestCase):
         clip = next(c for c in result["plan"] if c.get("scene_id") is None and c["slot_dur"] == 4.0)
         self.assertEqual(clip["extract_start"], 2.0)
         self.assertEqual(clip["extract_dur"], 4.0)
+
+    def test_apply_replace_clip_uses_project_material_map_scene(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            result = apply_patch(str(root), _patch(
+                {"op": "replace_clip", "slot_index": 0,
+                 "after": {"asset_id": "a0", "scene_index": 1}}))
+        clip = next(c for c in result["plan"] if c["slot_index"] == 0)
+        self.assertEqual(clip["scene_id"], "a0:1")
+        self.assertTrue(clip["source"].endswith("clip.mp4"))
+        self.assertEqual(clip["extract_start"], 4.0)
+        self.assertEqual(clip["extract_dur"], 4.0)
+        self.assertEqual(clip["caption"], "video scene 1")
+
+    def test_apply_replace_photo_preserves_timeline_duration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            result = apply_patch(str(root), _patch(
+                {"op": "replace_clip", "slot_index": 1,
+                 "after": {"asset_id": "p0", "scene_index": 0}}))
+        clip = next(c for c in result["plan"] if c["slot_index"] == 1)
+        self.assertEqual(clip["scene_id"], "p0:0")
+        self.assertTrue(clip["source"].endswith("still.png"))
+        self.assertEqual(clip["slot_dur"], 2.0)
+        self.assertEqual(clip["extract_start"], 0.0)
+        self.assertEqual(clip["extract_dur"], 2.0)
 
     def test_invalid_patch_raises_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:

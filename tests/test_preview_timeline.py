@@ -229,6 +229,10 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(assets[0]["visual_family"], "training_wide")
         self.assertEqual(assets[0]["angle_scale"], "wide")
         self.assertTrue(assets[0]["src_url"].startswith(BASE_URL))
+        self.assertEqual(assets[0]["scenes"][0]["scene_index"], 0)
+        self.assertEqual(assets[0]["scenes"][0]["start_sec"], 0.0)
+        self.assertEqual(assets[0]["scenes"][0]["end_sec"], 3.5)
+        self.assertEqual(assets[0]["scenes"][0]["caption"], "training field")
 
 
 if __name__ == "__main__":

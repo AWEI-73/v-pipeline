@@ -191,6 +191,71 @@
     return next;
   }
 
+  function _assetScene(asset, sceneIndex) {
+    asset = asset || {};
+    var scenes = Array.isArray(asset.scenes) ? asset.scenes : [];
+    var idx = Number.isInteger(sceneIndex) ? sceneIndex : 0;
+    for (var i = 0; i < scenes.length; i++) {
+      if (scenes[i] && scenes[i].scene_index === idx) return scenes[i];
+    }
+    return scenes[idx] || null;
+  }
+
+  /** Replace one timeline clip with a project material-map asset scene.
+   *
+   * This is a draft operation only. The browser updates its preview state so
+   * the user can inspect the swap immediately; the saved patch carries only
+   * asset_id/scene_index as the canonical target, and Python re-resolves it
+   * from project_material_map before writing patched_draft_timeline.json.
+   */
+  function replaceClipWithAsset(state, edit) {
+    const next = Object.assign({}, state);
+    const clips = (state.clips || []).map(function (c) {
+      return Object.assign({}, c);
+    });
+    const idx = clips.findIndex(function (c) {
+      return c.slot_index === edit.slot_index;
+    });
+    if (idx === -1) return state;
+
+    const asset = edit.asset || {};
+    if (!asset.asset_id || !asset.source_path) return state;
+    const sceneIndex = Number.isInteger(edit.scene_index) ? edit.scene_index : 0;
+    const scene = _assetScene(asset, sceneIndex);
+    if (!scene) return state;
+
+    const old = clips[idx];
+    const assetType = String(asset.asset_type || "").toLowerCase();
+    const isImage = assetType === "photo" || assetType === "image";
+    const start = isImage ? 0 : round6(Number(scene.start_sec) || 0);
+    const end = isImage ? null : round6(Number(scene.end_sec) || 0);
+    const sourceDur = isImage
+      ? round6(Number(old.duration_sec) || 0)
+      : round6(Math.max(0.1, end - start));
+    const duration = round6(Number(old.duration_sec) || sourceDur || 1);
+
+    clips[idx] = Object.assign({}, old, {
+      type: isImage ? "image" : "video",
+      source_path: asset.source_path,
+      src_url: asset.src_url,
+      scene_id: asset.asset_id + ":" + sceneIndex,
+      asset_id: asset.asset_id,
+      asset_type: asset.asset_type,
+      source_start_sec: start,
+      source_duration_sec: sourceDur,
+      duration_sec: duration,
+      visual_family: scene.visual_family || asset.visual_family || null,
+      angle_scale: scene.angle_scale || asset.angle_scale || null,
+      caption: scene.caption || asset.caption || null,
+      _replacement_asset_id: asset.asset_id,
+      _replacement_scene_index: sceneIndex,
+    });
+
+    next.clips = computeTimeline(clips);
+    next.duration_sec = totalDuration(next.clips);
+    return next;
+  }
+
   /**
    * Diff two preview states (same slot set) into a timeline_patch op list.
    * Order changes emit move_clip; field changes emit set_duration /
@@ -225,6 +290,30 @@
           after: { duration_sec: round6(c.duration_sec) },
           reason: opts.reason || "manual timing adjustment",
         });
+      }
+
+      const replacementChanged =
+        b.source_path !== c.source_path ||
+        b.scene_id !== c.scene_id ||
+        b.asset_id !== c.asset_id ||
+        b.type !== c.type;
+      if (replacementChanged && c.asset_id != null) {
+        patches.push({
+          op: "replace_clip",
+          slot_id: c.id,
+          slot_index: c.slot_index,
+          before: {
+            scene_id: b.scene_id || null,
+            source_path: b.source_path || null,
+          },
+          after: {
+            asset_id: c.asset_id,
+            scene_index: Number.isInteger(c._replacement_scene_index) ? c._replacement_scene_index : 0,
+            duration_sec: round6(c.duration_sec),
+          },
+          reason: opts.reason || "material replacement",
+        });
+        return;
       }
 
       const startChanged = round6(b.source_start_sec) !== round6(c.source_start_sec);
@@ -510,6 +599,7 @@
     getActiveSubtitle: getActiveSubtitle,
     applyLocalPatch: applyLocalPatch,
     trimClipEdge: trimClipEdge,
+    replaceClipWithAsset: replaceClipWithAsset,
     buildTimelinePatch: buildTimelinePatch,
     validatePreviewState: validatePreviewState,
     applySubtitleLocalPatch: applySubtitleLocalPatch,

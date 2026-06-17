@@ -22,7 +22,7 @@
     cues: [],        // audio cue markers (NPE4)
     effects: [],     // effect intent markers (NPE4)
     effectAssets: [], // selectable effect assets from project_material_map (EF2)
-    materialAssets: [], // read-only project material browser (EF4)
+    materialAssets: [], // project material browser; can replace selected timeline clips
     selectedAssetId: null,
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     trimDrag: null,
@@ -53,7 +53,7 @@
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
       "time-label", "frame-label", "audio-status", "inspector-empty", "inspector-body",
       "inspector-meta", "in-duration", "in-source-start", "in-source-duration",
-      "field-source-start", "field-source-duration", "btn-apply-clip",
+      "field-source-start", "field-source-duration", "btn-apply-clip", "btn-replace-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
       "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
       "timeline-scroll", "timeline-canvas", "timeline-ruler",
@@ -219,9 +219,17 @@
       body.appendChild(meta);
       card.appendChild(thumb);
       card.appendChild(body);
+      card.draggable = true;
+      card.ondragstart = function (ev) {
+        state.selectedAssetId = a.asset_id;
+        ev.dataTransfer.setData("application/x-hermes-asset-id", a.asset_id);
+        ev.dataTransfer.setData("text/plain", a.asset_id);
+        ev.dataTransfer.effectAllowed = "copy";
+        renderMaterialBrowser();
+      };
       card.onclick = function () {
         state.selectedAssetId = a.asset_id;
-        els.diagnostics.textContent = "Selected material asset " + a.asset_id + " (read-only browser)";
+        els.diagnostics.textContent = "Selected material asset " + a.asset_id + " (ready to replace selected clip)";
         renderMaterialBrowser();
       };
       els.material_assets_list.appendChild(card);
@@ -306,6 +314,18 @@
       b.textContent = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
       b.title = c.type + " " + c.duration_sec.toFixed(2) + "s";
       b.onclick = function () { selectClip(c.slot_index); };
+      b.ondragover = function (ev) {
+        if (!ev.dataTransfer.types || Array.prototype.indexOf.call(ev.dataTransfer.types, "application/x-hermes-asset-id") < 0) return;
+        ev.preventDefault();
+        b.classList.add("drop-target");
+      };
+      b.ondragleave = function () { b.classList.remove("drop-target"); };
+      b.ondrop = function (ev) {
+        ev.preventDefault();
+        b.classList.remove("drop-target");
+        var assetId = ev.dataTransfer.getData("application/x-hermes-asset-id") || ev.dataTransfer.getData("text/plain");
+        replaceClipWithAsset(c.slot_index, assetId);
+      };
       attachTrimHandles(b, c);
       lane.appendChild(b);
     });
@@ -842,6 +862,47 @@
     selectClip(state.selectedSlot);
   }
 
+  function replaceClipWithAsset(slotIndex, assetId) {
+    var asset = state.materialAssets.find(function (a) { return a.asset_id === assetId; });
+    if (!asset) {
+      els.diagnostics.textContent = "Replace failed: material asset not found";
+      return;
+    }
+    var before = state.work;
+    var next = Core.replaceClipWithAsset(before, {
+      slot_index: slotIndex,
+      asset: asset,
+      scene_index: 0,
+    });
+    if (next === before) {
+      els.diagnostics.textContent = "Replace failed: asset has no usable scene/source";
+      return;
+    }
+    state.work = next;
+    state.selectedSlot = slotIndex;
+    state.selectedAssetId = asset.asset_id;
+    state.dirty = true;
+    els.diagnostics.textContent = "Replaced clip #" + slotIndex + " with material " + asset.asset_id + " (draft patch)";
+    renderTimelineLanes();
+    renderMaterialBrowser();
+    renderMonitor();
+    renderTransport();
+    updateDirty();
+    selectClip(slotIndex);
+  }
+
+  function replaceSelectedClip() {
+    if (state.selectedSlot == null) {
+      els.diagnostics.textContent = "Select a timeline clip first";
+      return;
+    }
+    if (!state.selectedAssetId) {
+      els.diagnostics.textContent = "Select a material asset first";
+      return;
+    }
+    replaceClipWithAsset(state.selectedSlot, state.selectedAssetId);
+  }
+
   function moveClip(dir) {
     if (state.selectedSlot == null) return;
     var idx = state.work.clips.findIndex(function (c) { return c.slot_index === state.selectedSlot; });
@@ -970,6 +1031,7 @@
     els.btn_rewind.onclick = function () { seekTo(0); };
     els.scrubber.oninput = function () { if (state.playing) pause(); seekTo(parseFloat(els.scrubber.value)); };
     els.btn_apply_clip.onclick = applyInspector;
+    els.btn_replace_clip.onclick = replaceSelectedClip;
     els.btn_move_left.onclick = function () { moveClip(-1); };
     els.btn_move_right.onclick = function () { moveClip(1); };
     els.btn_download_patch.onclick = downloadPatch;

@@ -94,6 +94,33 @@ check("trimClipEdge right handle trims photo duration without inventing source t
   assert.strictEqual(next.clips[0].source_duration_sec, 2.0);
 });
 
+check("replaceClipWithAsset swaps selected clip with material asset scene", function () {
+  const state = { clips: Core.computeTimeline(clips) };
+  const asset = {
+    asset_id: "b-roll",
+    asset_type: "video",
+    source_path: "b.mp4",
+    src_url: "/media?src=b.mp4",
+    visual_family: "training",
+    angle_scale: "wide",
+    scenes: [{ scene_index: 1, start_sec: 4.0, end_sec: 7.5, caption: "replacement" }],
+  };
+  const next = Core.replaceClipWithAsset(state, { slot_index: 1, asset: asset, scene_index: 1 });
+  const clip = next.clips[1];
+  assert.strictEqual(clip.scene_id, "b-roll:1");
+  assert.strictEqual(clip.source_path, "b.mp4");
+  assert.strictEqual(clip.src_url, "/media?src=b.mp4");
+  assert.strictEqual(clip.source_start_sec, 4.0);
+  assert.strictEqual(clip.source_duration_sec, 3.5);
+  assert.strictEqual(clip.duration_sec, 3.0);
+  assert.strictEqual(clip.caption, "replacement");
+  const patch = Core.buildTimelinePatch(state, next);
+  const op = patch.patches.find(function (p) { return p.op === "replace_clip"; });
+  assert.ok(op, "expected replace_clip op");
+  assert.strictEqual(op.after.asset_id, "b-roll");
+  assert.strictEqual(op.after.scene_index, 1);
+});
+
 check("applyLocalPatch move_clip reorders", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const next = Core.applyLocalPatch(state, { op: "move_clip", slot_index: 2, after: { new_index: 0 } });

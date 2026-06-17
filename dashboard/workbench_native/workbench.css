@@ -216,6 +216,7 @@ body {
   transition: all 0.2s;
   min-width: 0;
 }
+.material-card:active { cursor: grabbing; }
 .material-card > div { min-width: 0; }
 .material-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
 .material-card.selected { outline: 2px solid var(--accent); }
@@ -593,6 +594,7 @@ body {
 .clip-audio { background: var(--audio-block); }
 .clip-effect { background: var(--effect-block); }
 .clip-block.selected { outline: 2px solid var(--accent); z-index: 3; }
+.clip-block.drop-target { outline: 2px dashed var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
 .clip-block.status-render_failed { background: var(--bad); }
 .clip-block.status-gap { background: #cbd5e0; color: #4a5568; }
 

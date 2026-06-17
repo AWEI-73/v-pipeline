@@ -2,9 +2,10 @@
 """Hermes-native ``timeline_patch`` contract.
 
 The native workbench never overwrites canonical artifacts. Every interactive
-edit (duration / source window / clip order) is captured as a ``timeline_patch``
-op-list. This module validates a patch against the base timeline and applies it
-into a *new* ``patched_draft_timeline.json`` -- it never writes ``timeline.json``.
+edit (duration / source window / clip order / material replacement) is captured
+as a ``timeline_patch`` op-list. This module validates a patch against the base
+timeline and applies it into a *new* ``patched_draft_timeline.json`` -- it never
+writes ``timeline.json``.
 
 Official rendering still goes through Hermes / ffmpeg BUILD using the canonical
 artifacts; a patch is an editorial proposal, not a render.
@@ -19,6 +20,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -26,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ARTIFACT_ROLE = "timeline_patch"
 SCHEMA_VERSION = 1
 
-VALID_OPS = {"set_duration", "set_source_window", "move_clip"}
+VALID_OPS = {"set_duration", "set_source_window", "move_clip", "replace_clip"}
 
 # Canonical artifacts that a patch must never overwrite.
 PROTECTED_OUTPUTS = {
@@ -90,6 +92,65 @@ def _source_window_for(clip: Dict[str, Any], material_map: Optional[Dict[str, An
             dur = asset.get("duration_sec")
             return float(dur) if dur is not None else None
     return None
+
+
+def _finite_number(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if not isinstance(value, (int, float)):
+        return None
+    f = float(value)
+    return f if math.isfinite(f) else None
+
+
+def _asset_by_id(material_map: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(material_map, dict):
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for asset in material_map.get("assets", []) or []:
+        if isinstance(asset, dict) and isinstance(asset.get("asset_id"), str):
+            out[asset["asset_id"]] = asset
+    return out
+
+
+def _replacement_asset_scene(
+    material_map: Optional[Dict[str, Any]],
+    after: Dict[str, Any],
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[int], List[str]]:
+    """Resolve a replace_clip target from the canonical project material map."""
+    errors: List[str] = []
+    if not isinstance(after, dict):
+        return None, None, None, ["replace_clip after must be an object"]
+    asset_id = after.get("asset_id")
+    if not isinstance(asset_id, str) or not asset_id.strip():
+        return None, None, None, ["replace_clip asset_id must be a non-empty string"]
+    scene_index = after.get("scene_index", 0)
+    if isinstance(scene_index, bool) or not isinstance(scene_index, int) or scene_index < 0:
+        return None, None, None, ["replace_clip scene_index must be a non-negative integer"]
+
+    assets = _asset_by_id(material_map)
+    asset = assets.get(asset_id)
+    if asset is None:
+        return None, None, None, [f"replace_clip asset_id {asset_id!r} not found in project_material_map"]
+    source = asset.get("source")
+    if not isinstance(source, str) or not source.strip():
+        errors.append(f"replace_clip asset_id {asset_id!r} has no renderable source")
+    scenes = asset.get("scenes")
+    if not isinstance(scenes, list) or scene_index >= len(scenes):
+        errors.append(f"replace_clip scene_index {scene_index!r} not found for asset_id {asset_id!r}")
+        return asset, None, scene_index, errors
+    scene = scenes[scene_index]
+    if not isinstance(scene, dict):
+        errors.append(f"replace_clip scene_index {scene_index!r} must refer to an object scene")
+        return asset, None, scene_index, errors
+
+    asset_type = str(asset.get("asset_type") or "").lower()
+    if asset_type == "video":
+        start = _finite_number(scene.get("start"))
+        end = _finite_number(scene.get("end"))
+        if start is None or end is None or end <= start:
+            errors.append(f"replace_clip video scene {asset_id}:{scene_index} must have finite end > start")
+    return asset, scene, scene_index, errors
 
 
 # --------------------------------------------------------------------------- #
@@ -161,6 +222,13 @@ def validate_patch(
                 errors.append(f"{prefix}: move_clip requires integer after.new_index")
             elif new_index < 0 or new_index >= n:
                 errors.append(f"{prefix}: new_index {new_index} out of range [0,{n - 1}]")
+
+        elif kind == "replace_clip":
+            _asset, _scene, _scene_index, repl_errors = _replacement_asset_scene(
+                material_map if isinstance(material_map, dict) else None,
+                after,
+            )
+            errors.extend(f"{prefix}: {e}" for e in repl_errors)
 
     return (len(errors) == 0), errors
 
@@ -285,6 +353,7 @@ def apply_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, Any]:
     result = copy.deepcopy(base)
     plan = _plan_of(result)
     by_slot = _index_by_slot(plan)
+    material_map = _load_json(root / "project_material_map.json")
 
     for op in patch.get("patches", []):
         kind = op.get("op")
@@ -306,10 +375,40 @@ def apply_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             cur = plan.index(clip)
             plan.insert(new_index, plan.pop(cur))
 
+        elif kind == "replace_clip":
+            asset, scene, scene_index, _errors = _replacement_asset_scene(
+                material_map if isinstance(material_map, dict) else None,
+                after,
+            )
+            if not asset or scene is None or scene_index is None:
+                continue
+            asset_type = str(asset.get("asset_type") or "").lower()
+            is_photo = asset_type in {"photo", "image"}
+            source = str(asset["source"])
+            keep_dur = clip.get("slot_dur") or clip.get("duration_sec") or clip.get("extract_dur")
+            duration = float(after.get("duration_sec") or keep_dur or 1.0)
+            clip["source"] = source
+            clip["scene_id"] = f"{asset['asset_id']}:{scene_index}"
+            clip["slot_dur"] = duration
+            if is_photo:
+                clip["extract_start"] = 0.0
+                clip["extract_dur"] = duration
+            else:
+                start = float(scene["start"])
+                end = float(scene["end"])
+                clip["extract_start"] = start
+                clip["extract_dur"] = round(end - start, 3)
+            for key in ("caption", "visual_family", "angle_scale", "action_family", "subject", "function"):
+                if scene.get(key) is not None:
+                    clip[key] = scene.get(key)
+                elif key in clip:
+                    clip.pop(key, None)
+            clip["asset_id"] = asset["asset_id"]
+            clip["asset_type"] = asset.get("asset_type")
+
     # Save-time FALLBACK alignment: reconcile the edited plan back onto the
     # canonical timeline field spec and clamp anything that drifted off the
     # material window. This is what makes the saved artifact contract-conformant.
-    material_map = _load_json(root / "project_material_map.json")
     _, corrections = align_plan_to_contract(plan, material_map if isinstance(material_map, dict) else None)
 
     result["_patched_from"] = base_name

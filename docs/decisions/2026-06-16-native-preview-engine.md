@@ -175,6 +175,27 @@ This closes the first practical "human can trim the material composition"
 interaction. It does not add split, drag-in replacement, multi-layer compositing,
 or browser-native final rendering.
 
+## Material replacement draft op (NPE8)
+
+The material browser is now an active replacement source. A human can select a
+project material asset and replace a timeline clip, either through the Inspector
+button or by dragging the asset onto a clip block.
+
+The saved contract remains intentionally narrow:
+
+- the frontend previews the swap immediately, but the saved `timeline_patch`
+  uses `op: "replace_clip"` with `asset_id` + `scene_index`;
+- `tools/timeline_patch.py` re-resolves the replacement from
+  `project_material_map.json`, so the browser cannot forge an arbitrary source
+  path;
+- the result is still `patched_draft_timeline.json`; canonical timeline,
+  material map, contract, and `final.mp4` remain write-blocked;
+- replacing material does not rewrite SPEC intent automatically. Promoting the
+  draft back to SPEC remains a deliberate Agent/human step.
+
+This closes the first practical "素材區 → timeline material swap" loop. It does
+not add split, insert-new-clip, multi-track compositing, or final browser render.
+
 ## ffmpeg BUILD remains canonical
 
 A patch is an editorial *proposal*. The optional export reuses the canonical
@@ -210,8 +231,7 @@ artifact root.
   (Remotion's `timeline-utils` does this via `mediabunny` + WebCodecs). That is a
   different tier, carries a `.MOV`/HEVC decode-support risk, and is deferred.
 - Precise audio mixing (export uses `render_mv`'s music-mux only).
-- Split / library-add / replace-clip material swap (the patch model supports the
-  data side for trim/order; replacement stays a future bounded increment).
+- Split / insert-new-clip / library-add beyond replacing an existing clip.
 - Node-registry "14" motion-graphics effects pathway.
 - Promoting `patched_draft_timeline.json` back into the canonical chain (a BUILD
   re-entry gate) — out of scope this round.
