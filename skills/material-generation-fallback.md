@@ -1,33 +1,37 @@
 ---
 name: material-generation-fallback
-description: 缺素材時的生成式素材補救 Skill。讀 material_delta + 上游故事/導演資訊，產 provider-neutral 生成任務；生成品必須回到 material-map 複核，不得直接當真實素材或繞過 M6 gate。
+description: Use when fresh material_delta.json has missing/thin needs and the project should plan generated image/video fallback jobs without bypassing material-map review or M6 gates.
 ---
 
-# Material Generation Fallback Skill
+# Material Generation Fallback
 
-本 skill 負責把 `material_delta.json` 裡的 `missing` / `thin` 需求，轉成可交給
-Antigravity、Gemini、assistant_imagegen、Codex imagegen 或其他 provider 的
-`material_generation_fallback.json`。
+This skill plans generated-material jobs from real material gaps.
 
-它不是生成 provider，也不是素材地圖第二套 schema。
+It does not generate files. It produces `material_generation_fallback.json`,
+which is then executed by `skills/generated-material-producer.md`.
 
-## 何時使用
+## When To Use
 
-使用條件：
+Use this when:
 
-- M6 `material_delta.json` 已 fresh 計算且 `ok=true`
-- 某些 need 是 `missing` 或 `thin`
-- 劇本/導演設計允許該 need 用 generated image/video、symbolic insert、
-  reenactment、chapter bridge 或 title/background 補足
+- `material_delta.json` is fresh and `ok=true`
+- one or more needs are `missing` or `thin`
+- the need can safely be represented by generated material:
+  - comic/photo story panel
+  - symbolic insert
+  - generic chapter bridge
+  - title/background/card
+  - non-identifying reenactment detail
 
-不可使用：
+Do not use this when:
 
 - `material_delta.ok=false`
-- dangling reference / asset identity 壞掉
-- real person proof、official speech、身份關鍵、活動證據需要真素材
-- 使用生成圖假裝實拍
+- the material map has dangling references or invalid asset identity
+- the need is proof-critical, identity-sensitive, official speech, certificate,
+  logo, name badge, real-event evidence, or anything the audience must trust as
+  actual footage
 
-## 唯一工具入口
+## Command
 
 ```powershell
 python video_tools.py material-generation-fallback material_delta.json `
@@ -37,70 +41,67 @@ python video_tools.py material-generation-fallback material_delta.json `
   --out material_generation_fallback.json
 ```
 
-可選上下文：
+Optional context:
 
 - `story_world.json`
-- `creative_concept.json`
 - `screenplay_beats.json`
-- `director_shot_plan.json`
 
-## 輸出邊界
+## Output Contract
 
-`generation_jobs[]` 每筆都必須：
+Each `generation_jobs[]` item must carry:
 
-- 帶 `need_id`
-- 帶 `source_type: generated`
-- 帶 `status: planned`
-- 帶 prompt / negative_prompt / review_criteria
-- 宣告回素材地圖時只能先用 `candidate` satisfies edge
-- 宣告 `must_not_claim_real_event: true`
+- `need_id`
+- `source_type: generated`
+- `status: planned`
+- `media_type`
+- `panel_count`
+- `story_function`
+- `visual_family`
+- `angle_scale`
+- `action_family`
+- `subject`
+- `prompt`
+- `negative_prompt`
+- `review_criteria`
+- `material_map_return.initial_satisfies_status: candidate`
+- `honesty.must_not_claim_real_event: true`
 
-生成完成後流程：
+Generated material must re-enter the material-map lifecycle as candidate
+evidence. It must never bypass review or become accepted automatically.
+
+## Standard Flow
 
 ```text
-generation job
-  -> provider 產圖片/影片
-  -> ingest / material-map
-  -> reviewer 建 satisfies(candidate)
-  -> material_delta fresh 重算
-  -> reviewer accept 或 revision
-  -> BUILD
+material_delta missing/thin
+  -> material-generation-fallback plans jobs
+  -> generated-material-producer creates/imports files
+  -> project_material_map with candidate satisfies edges
+  -> material_delta fresh rerun
+  -> reviewer accepts/rejects candidates
+  -> BUILD only after accepted evidence or explicit revision/waiver
 ```
 
-任何生成素材都不得直接讓 BUILD ready。
+## Prompt Planning Rules
 
-## 導演判斷規則
+For each generated job:
 
-生成素材適合：
-
-- 記憶框架、象徵畫面、章節橋、空景、抽象情緒、漫畫/照片故事 panel
-- 沒有真實身份壓力的手部/物件/背影/空間重演
-
-生成素材不適合：
-
-- 真實主任/老師致詞
-- 學員具名反應
-- 實際課程證據
-- 官方 Logo / 證書 / 名牌 / 場地招牌
-- 任何會讓觀眾以為「這就是當天拍到」的畫面
-
-## Prompt 原則
-
-延用 `skills/generative-director.md` 的高訊號 prompt 規則：
-
-- 主體清楚
-- 焦段 / 構圖 / 光源 / 質感 / 色調明確
-- 不寫 generic 廢詞
-- negative prompt 要短而精
-- 圖中文字、Logo、真名、證件、官方標誌預設禁用
+1. State the story function first.
+2. Preserve the project style and character anchors.
+3. Include camera language: angle, scale, lens, composition, or motion intent.
+4. Include negative prompts for text, watermark, logo, distorted hands/faces,
+   fake official signs, and unrelated subjects.
+5. Split long needs into `panel_count` panels instead of asking one image to
+   do too much.
 
 ## Review Checklist
 
-每張生成素材進 material-map 前要檢查：
+Before sending jobs to a provider, confirm:
 
-- 是否真的服務該 need 的 story function
-- 是否和 `visual_family` / `angle_scale` / `action_family` 一致
-- 是否有假證據、假 Logo、可讀假文字
-- 是否誤導為真實紀錄素材
-- 是否能以 `candidate` 狀態掛回正確 need_id
+- every job maps to a real `need_id`
+- the prompt supports the need purpose, not decorative filler
+- generated output cannot be mistaken for documentary proof
+- `visual_family`, `angle_scale`, and `action_family` are filled
+- the fallback if generation fails is explicit
 
+After provider output returns, use `generated-material-producer` to validate and
+write candidate material-map evidence.

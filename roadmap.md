@@ -238,6 +238,39 @@ Rules:
   provider output metadata; mismatch fails the quality gate.
 - successful imports still produce `candidate` material-map evidence only.
 
+### GMP3 Generated-Material Skill Acceptance Harness
+
+Status: implemented / acceptance review.
+
+Purpose: prove the generated-material skill can be driven from the beginning of
+a small project, not just unit-tested in isolation.
+
+Tool:
+
+- `tools/generated_material_flow_acceptance.py`
+
+Flow under test:
+
+```text
+material_needs.json with no material
+  -> material_delta missing
+  -> material_generation_fallback jobs
+  -> generated_material_produce images/maps/review
+  -> project_material_map with candidate satisfies
+  -> material_delta rerun
+  -> director-style score/report
+```
+
+Acceptance cases:
+
+- `Rain Station Apprentice`: watercolor comic, lead apprentice + amber lantern,
+  4 generated panels, score 88/100.
+- `Rooftop Postcard`: manga watercolor, red scarf courier + postcard, 4
+  generated panels, score 85/100.
+
+Important reading: the expected post-generation state is `thin`, not `covered`,
+because generated assets remain candidate until reviewer promotion.
+
 ## Stable Foundations — Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:

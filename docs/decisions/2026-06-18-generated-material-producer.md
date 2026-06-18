@@ -118,3 +118,40 @@ The import layer:
 
 This keeps external model behavior outside the deterministic backend while
 making generated assets usable by the material-map lifecycle.
+
+## GMP3 Skill Acceptance Harness
+
+Date: 2026-06-19
+
+Add a reproducible harness:
+
+```powershell
+python tools/generated_material_flow_acceptance.py .tmp/generated_material_skill_acceptance
+```
+
+It runs two comic-style projects from no material:
+
+- `case_a_rain_station`
+- `case_b_rooftop_postcard`
+
+Each case performs:
+
+```text
+material_needs
+  -> material_delta missing
+  -> material_generation_fallback
+  -> generated_material_produce
+  -> generated project_material_map
+  -> material_delta after generation
+  -> director-style score + contact sheet
+```
+
+Expected outcome:
+
+- initial delta: `missing=2`
+- generated images: `4`
+- post-generation delta: `missing=0`, `thin=2`
+- director score: `>=80`
+
+The `thin` result is correct. Generated panels are usable material candidates,
+but they must be reviewed before promotion to `accepted`.

@@ -20,6 +20,9 @@ One page that says what is current and what is historical, so old/new no longer 
   generated assets return through material-map review as candidates.
 - Skill: `skills/generated-material-producer.md` — executes MGF1 jobs into
   generated files, manifests, candidate material maps, and quality review.
+- Harness: `tools/generated_material_flow_acceptance.py` — replays two
+  generated comic-style cases from empty material through candidate material maps
+  and quality review.
 - `docs/editorial-layer.md` — **read first**; consolidated conceptual map.
 - `docs/narrative-blueprint-spec.md` — WHY: prose thesis + ordered beats (gate).
 - `docs/editing-intent-sequence-grammar-spec.md` — HOW-structure: cut/hold reasons, shot_slots.
