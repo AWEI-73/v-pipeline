@@ -200,6 +200,7 @@ def score_windows(video_path, windows, verify_desc, group=None,
     group = group or (os.path.basename(os.path.dirname(video_path)) if video_path else None)
     name = os.path.basename(video_path) if video_path else None  # ④ 渲染要 full path,顯示用 name
     mat_dir = mat_dir or resolve_temp_dir()
+    os.makedirs(mat_dir, exist_ok=True)
     cands = []
     for i, (s, e) in enumerate(windows):
         t = (s + e) / 2.0
@@ -1500,6 +1501,7 @@ def run_mv(script, material_root, out_path, music_path=None,
             print(*a)
 
     mat_dir = mat_dir or resolve_temp_dir()
+    os.makedirs(mat_dir, exist_ok=True)
 
     # SRP3 story-arc planning — BEFORE duration allocation so the hints feed
     # allocate_segments and story planning (never re-picks material, never
@@ -1533,9 +1535,15 @@ def run_mv(script, material_root, out_path, music_path=None,
     if not music_path:
         raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
     _tempo, _beats = detect_beats(music_path)
-    music_dur = _beats[-1] if _beats else 0
-    _beats = trim_beats_to_target(_beats, target_sec)
-    total_dur = _beats[-1] if _beats else 0
+    if _beats:
+        music_dur = _beats[-1]
+        _beats = trim_beats_to_target(_beats, target_sec)
+        total_dur = _beats[-1] if _beats else 0
+    else:
+        from .vt_core import _audio_duration  # noqa: PLC0415
+        music_dur = _audio_duration(music_path)
+        total_dur = min(float(music_dur), float(target_sec)) if target_sec else float(music_dur)
+        _beats = [0.0, total_dur] if total_dur > 0 else []
     if target_sec and total_dur < music_dur:
         vp(f"[music] {os.path.basename(music_path)} {round(music_dur,1)}s tempo={round(_tempo)} "
            f"→ trimmed to target {round(total_dur,1)}s (brief target_length)")

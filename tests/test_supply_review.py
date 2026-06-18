@@ -96,6 +96,86 @@ class SupplyReviewTest(unittest.TestCase):
         )
         self.assertEqual(result["segments"][0]["feasibility"], "ok")
 
+    def test_need_refs_select_canonical_satisfies_edges_without_coverage(self):
+        maps = [
+            dict(_map("p1", "photo"), scenes=[{
+                "start": 0,
+                "end": 0,
+                "satisfies": [{"need_id": "nd_intro", "status": "accepted"}],
+            }]),
+            dict(_map("p2", "photo"), scenes=[{
+                "start": 0,
+                "end": 0,
+                "satisfies": [{"need_id": "nd_intro", "status": "candidate"}],
+            }]),
+            dict(_map("p3", "photo"), scenes=[{
+                "start": 0,
+                "end": 0,
+                "satisfies": [{"need_id": "nd_intro", "status": "accepted"}],
+            }]),
+            dict(_map("wrong", "photo"), scenes=[{
+                "start": 0,
+                "end": 0,
+                "satisfies": [{"need_id": "nd_other", "status": "accepted"}],
+            }]),
+        ]
+
+        result = review_supply({"segments": [{
+            "segment": 1,
+            "requested_duration_sec": 10,
+            "target_shot_sec": 4,
+            "material_fit": {"need_refs": ["nd_intro"]},
+        }]}, maps)
+
+        segment = result["segments"][0]
+        self.assertEqual(segment["estimated_effective_shots"], 3)
+        self.assertEqual(segment["unique_sources"], 3)
+        self.assertEqual(segment["max_honest_duration_sec"], 12.0)
+        self.assertEqual(segment["feasibility"], "ok")
+
+    def test_need_refs_ignore_rejected_edges_and_do_not_fallback_to_coverage(self):
+        maps = [
+            dict(_map("p1", "photo"), source="matched.jpg", scenes=[{
+                "start": 0,
+                "end": 0,
+                "satisfies": [{"need_id": "nd_intro", "status": "rejected"}],
+            }]),
+        ]
+        coverage = {"assignments": [{"segment": 1, "picks": [{"path": "matched.jpg"}]}]}
+
+        result = review_supply({"segments": [{
+            "segment": 1,
+            "requested_duration_sec": 4,
+            "target_shot_sec": 4,
+            "material_fit": {"need_refs": ["nd_intro"]},
+        }]}, maps, coverage_map=coverage)
+
+        segment = result["segments"][0]
+        self.assertEqual(segment["estimated_effective_shots"], 0)
+        self.assertEqual(segment["feasibility"], "gap")
+
+    def test_need_refs_filter_matching_scenes_before_counting_video_windows(self):
+        maps = [dict(_map("v1", "video"), scenes=[
+            {"start": 0, "end": 4,
+             "satisfies": [{"need_id": "nd_intro", "status": "accepted"}]},
+            {"start": 4, "end": 8,
+             "satisfies": [{"need_id": "nd_other", "status": "accepted"}]},
+            {"start": 8, "end": 12,
+             "satisfies": [{"need_id": "nd_other", "status": "accepted"}]},
+        ])]
+
+        result = review_supply({"segments": [{
+            "segment": 1,
+            "requested_duration_sec": 8,
+            "target_shot_sec": 4,
+            "material_fit": {"need_refs": ["nd_intro"]},
+        }]}, maps)
+
+        segment = result["segments"][0]
+        self.assertEqual(segment["estimated_effective_shots"], 1)
+        self.assertEqual(segment["max_honest_duration_sec"], 4.0)
+        self.assertEqual(segment["feasibility"], "thin")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,48 @@ def _map_ids(segment):
     return set(segment.get("material_map_ids") or segment.get("asset_ids") or [])
 
 
+def _expected_need_ids(segment):
+    material_fit = segment.get("material_fit") or {}
+    out = []
+    for value in (segment.get("need_ref"), material_fit.get("need_ref")):
+        if isinstance(value, str) and value.strip():
+            out.append(value.strip())
+    for value in material_fit.get("need_refs") or []:
+        if isinstance(value, str) and value.strip():
+            out.append(value.strip())
+    return set(out)
+
+
+def _scene_matches_need(scene, need_ids):
+    if not need_ids:
+        return False
+    if str(scene.get("need_id") or "") in need_ids:
+        return True
+    for edge in scene.get("satisfies") or []:
+        if not isinstance(edge, dict):
+            continue
+        if edge.get("status") in ("accepted", "candidate") and str(edge.get("need_id") or "") in need_ids:
+            return True
+    return False
+
+
+def _maps_for_need_refs(segment, material_maps):
+    need_ids = _expected_need_ids(segment)
+    if not need_ids:
+        return None
+    selected = []
+    for material_map in material_maps or []:
+        scenes = [
+            scene for scene in (material_map.get("scenes") or [])
+            if isinstance(scene, dict) and _scene_matches_need(scene, need_ids)
+        ]
+        if scenes:
+            item = dict(material_map)
+            item["scenes"] = scenes
+            selected.append(item)
+    return selected
+
+
 def _useful_shots(material_map):
     scene_count = len(material_map.get("scenes") or [])
     if material_map.get("asset_type") == "video":
@@ -82,6 +124,8 @@ def review_supply(contract, material_maps, *, coverage_map=None, target_duration
         ids = _map_ids(segment)
         if ids:
             selected = [indexed[value] for value in ids if value in indexed]
+        elif _expected_need_ids(segment):
+            selected = _maps_for_need_refs(segment, material_maps) or []
         else:
             assignment = assignments.get(sid) or {}
             selected = [

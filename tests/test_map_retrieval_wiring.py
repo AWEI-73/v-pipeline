@@ -218,6 +218,48 @@ class ExpandProjectMapTest(unittest.TestCase):
                                     limit=5, clip_dur=2.0)
         self.assertEqual(slots, [])
 
+    def test_photo_need_refs_with_zero_bounds_enter_map_ranked_timeline(self):
+        """Canonical M6 photo maps use satisfies edges; BUILD must not require
+        text coverage or positive scene duration to select them."""
+        maps = [
+            {
+                "asset_id": "comic-a",
+                "source": "panel-a.png",
+                "asset_type": "photo",
+                "scenes": [{
+                    "start": 0,
+                    "end": 0,
+                    "caption": "different wording",
+                    "satisfies": [{"need_id": "nd_intro", "status": "accepted"}],
+                }],
+            },
+            {
+                "asset_id": "comic-b",
+                "source": "panel-b.png",
+                "asset_type": "photo",
+                "scenes": [{
+                    "start": 0,
+                    "end": 0,
+                    "caption": "another panel",
+                    "satisfies": [{"need_id": "nd_intro", "status": "candidate"}],
+                }],
+            },
+        ]
+        segment = {
+            "segment": 1,
+            "visual_desc": "story text that does not match captions",
+            "material_fit": {"need_refs": ["nd_intro"]},
+        }
+
+        slots, entry, _ = mv_cut._plan_local_segment(
+            segment, _alloc(n_clips=2, clip_dur=3.5), {}, {}, False,
+            material_maps=maps, clip_list=None)
+
+        self.assertEqual(entry["retrieval_path"], "map_ranked")
+        self.assertEqual([slot["scene_id"] for slot in slots], ["comic-a:0", "comic-b:0"])
+        self.assertTrue(all(slot["is_photo"] for slot in slots))
+        self.assertEqual([slot["extract_dur"] for slot in slots], [3.5, 3.5])
+
 
 class WindowEvidenceTest(unittest.TestCase):
     def test_F_window_stays_within_scene_bounds(self):

@@ -409,6 +409,53 @@ class RunMvArtifactTest(unittest.TestCase):
         self.assertEqual(result["plan"][0]["segment"], 1)
         self.assertEqual(result["plan"][0]["attention_budget"]["owner"], "music")
 
+    def test_run_mv_uses_audio_duration_when_beat_detection_returns_empty(self):
+        script = {"segments": [
+            {"segment": 1, "visual_desc": "beatless bgm still allocates", "weight": 1.0,
+             "pace": "hold", "audio_role": "music"}
+        ]}
+        clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/a.mp4"}]}]}
+
+        def fake_windows(path, n_clips, clip_dur, keep_audio, text=None, segment=None):
+            return [{"source": path, "extract_start": 1.0, "extract_dur": 2.0,
+                     "keep_audio": keep_audio, "text": text, "segment": segment}]
+
+        with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (0.0, [])), \
+             patch("video_pipeline_core.vt_core._audio_duration", lambda _p: 12.0), \
+             patch("video_pipeline_core.mv_cut._windows_from_clip", fake_windows), \
+             patch("video_pipeline_core.mv_cut.render_mv_audio", lambda *a, **k: None), \
+             patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+            result = mv_cut.run_mv(script, "/materials", "/out/final.mp4",
+                                   music_path="/music.mp3", clip_list=clip_list,
+                                   verbose=False)
+
+        self.assertEqual(result["cuts"], 1)
+        self.assertEqual(result["plan"][0]["source"], "/m/a.mp4")
+
+    def test_run_mv_creates_declared_mat_dir_before_render(self):
+        with tempfile.TemporaryDirectory() as d:
+            mat_dir = Path(d) / "nested" / "render_tmp"
+            script = {"segments": [
+                {"segment": 1, "visual_desc": "create mat dir", "weight": 1.0,
+                 "pace": "hold", "audio_role": "music"}
+            ]}
+            clip_list = {"assignments": [{"segment": 1, "picks": [{"path": "/m/a.mp4"}]}]}
+
+            def fake_windows(path, n_clips, clip_dur, keep_audio, text=None, segment=None):
+                return [{"source": path, "extract_start": 1.0, "extract_dur": 2.0,
+                         "keep_audio": keep_audio, "text": text, "segment": segment}]
+
+            def fake_render(_plan, _music_path, _out_path, **_kwargs):
+                self.assertTrue(mat_dir.exists())
+
+            with patch("video_pipeline_core.mv_cut.detect_beats", lambda _p: (120.0, [0.0, 4.0])), \
+                 patch("video_pipeline_core.mv_cut._windows_from_clip", fake_windows), \
+                 patch("video_pipeline_core.mv_cut.render_mv_audio", fake_render), \
+                 patch("video_pipeline_core.mv_cut.build_mv_state", lambda *a, **k: None):
+                mv_cut.run_mv(script, "/materials", "/out/final.mp4",
+                              music_path="/music.mp3", clip_list=clip_list,
+                              mat_dir=mat_dir, verbose=False)
+
     def test_run_mv_propagates_explicit_hold_reason_from_material_category(self):
         script = {"segments": [{
             "segment": 1, "visual_desc": "group photo", "weight": 1.0,
