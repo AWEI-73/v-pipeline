@@ -38,12 +38,24 @@ material_needs.json
 
 ## Command
 
+Offline deterministic renderer:
+
 ```powershell
 python video_tools.py generated-material-produce material_generation_fallback.json `
   --needs material_needs.json `
   --out-dir generated_materials `
   --renderer test_pil `
   --provider codex_imagegen
+```
+
+Externally generated provider files:
+
+```powershell
+python video_tools.py generated-material-import material_generation_fallback.json `
+  --needs material_needs.json `
+  --provider-outputs generated_provider_outputs.json `
+  --style-profile style_profile.json `
+  --out-dir generated_materials
 ```
 
 Outputs:
@@ -61,7 +73,24 @@ Outputs:
 artifact shape and candidate evidence. It is not final art.
 
 For real images, execute the same jobs through Gemini / Antigravity /
-assistant_imagegen / Codex imagegen and write outputs in the same manifest shape.
+assistant_imagegen / Codex imagegen and write provider outputs like:
+
+```json
+{
+  "items": [
+    {
+      "job_id": "gen_hero",
+      "file": "provider/hero-a.png",
+      "provider": "codex_imagegen",
+      "style_anchors": ["watercolor", "soft ink line"],
+      "character_anchors": ["lead apprentice", "amber lantern"]
+    }
+  ]
+}
+```
+
+The import tool copies validated files into the generated-material output
+directory and writes the standard manifest/map/review artifacts.
 
 ## Prompt Design Rules
 
@@ -89,6 +118,8 @@ Pass only if:
 - negative_prompt blocks text/logo/watermark/fake proof where relevant
 - generated material map has candidate satisfies edge
 - quality review score is acceptable
+- provider outputs match required `style_anchors` and `character_anchors` when
+  a style profile declares them
 
 Fail or send back to generation if:
 
@@ -97,6 +128,8 @@ Fail or send back to generation if:
 - it lacks camera/shot language
 - it does not match the need_id purpose
 - it creates fake official evidence
+- the provider output is missing, unreadable, undersupplied for `panel_count`,
+  or mismatches the declared style/character anchors
 
 ## Practical Use
 

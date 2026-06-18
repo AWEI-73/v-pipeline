@@ -199,6 +199,45 @@ Hard boundaries:
 - quality review checks story function, style anchors, camera language, and
   truth boundary, but it is not a human aesthetic sign-off.
 
+### GMP2 Provider Output Intake + Style/Character Lock
+
+Status: implemented / acceptance review.
+
+Purpose: accept real generated files from GPT image / Gemini / Antigravity
+without letting arbitrary files bypass material-map truth boundaries.
+
+Canonical files:
+
+- Tool: `video_tools.py generated-material-import`
+- Module function:
+  `generated_material_producer.produce_generated_materials_from_provider_outputs`
+- Tests: `tests/test_generated_material_provider_intake.py`
+
+Input shape:
+
+```json
+{
+  "items": [
+    {
+      "job_id": "gen_hero",
+      "file": "provider/hero-a.png",
+      "provider": "codex_imagegen",
+      "style_anchors": ["watercolor", "soft ink line"],
+      "character_anchors": ["lead apprentice", "amber lantern"]
+    }
+  ]
+}
+```
+
+Rules:
+
+- every `job_id` must match a planned generation job.
+- each job must provide at least `panel_count` readable image files.
+- relative provider file paths resolve relative to the provider output JSON.
+- style/character anchors declared by `style_profile.json` must be present in
+  provider output metadata; mismatch fails the quality gate.
+- successful imports still produce `candidate` material-map evidence only.
+
 ## Stable Foundations — Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:

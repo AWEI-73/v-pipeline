@@ -456,6 +456,31 @@ def cmd_generated_material_produce(args):
                         + "; ".join(result.get("errors") or []))
 
 
+def cmd_generated_material_import(args):
+    """GMP2: import externally generated provider image files into the GMP
+    artifact shape. This validates files and style anchors before writing
+    candidate material-map evidence."""
+    from video_pipeline_core import generated_material_producer
+    style_profile = _load_json(args.style_profile) if args.style_profile else None
+    provider_outputs = _load_json(args.provider_outputs)
+    if isinstance(provider_outputs, dict):
+        provider_outputs = dict(provider_outputs)
+        provider_outputs["_path"] = args.provider_outputs
+    result = generated_material_producer.produce_generated_materials_from_provider_outputs(
+        _load_json(args.fallback),
+        provider_outputs,
+        args.out_dir,
+        material_needs=_load_json(args.needs) if args.needs else None,
+        style_profile=style_profile,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "quality_gate": result.get("quality_gate"),
+                      "summary": result["summary"]}, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("generated material import failed: "
+                        + "; ".join(result.get("errors") or []))
+
+
 def cmd_material_map_lifecycle(args):
     """M6d: orchestrate the material-map lifecycle from whatever artifacts exist;
     emit the current stage + next action (+ a BUILD handoff only when build_ready).
@@ -1673,6 +1698,7 @@ def _build_video_tools_dispatch():
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
+        "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
@@ -2072,6 +2098,16 @@ def main():
                        help="provider label recorded in generated manifest")
     p_gmp.add_argument("--renderer", default="test_pil",
                        help="renderer adapter; test_pil is deterministic and offline")
+
+    p_gmi = sub.add_parser("generated-material-import")
+    p_gmi.add_argument("fallback", help="material_generation_fallback.json")
+    p_gmi.add_argument("--needs", required=True, help="material_needs.json")
+    p_gmi.add_argument("--provider-outputs", required=True, dest="provider_outputs",
+                       help="provider output JSON with items[].job_id/file/provider/style anchors")
+    p_gmi.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for imported generated files, manifest, maps, and review")
+    p_gmi.add_argument("--style-profile", default=None, dest="style_profile",
+                       help="optional style_profile.json with style_anchors/character_anchors")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

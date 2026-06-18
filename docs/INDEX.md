@@ -58,7 +58,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-18-material-generation-fallback.md` -- MGF1
   delta-to-generated-job bridge and generated-material honesty boundary.
 - `docs/decisions/2026-06-18-generated-material-producer.md` -- GMP1
-  generated-job execution into files, manifests, candidate maps, and review.
+  generated-job execution into files, manifests, candidate maps, provider-output
+  intake, style/character lock, and review.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.

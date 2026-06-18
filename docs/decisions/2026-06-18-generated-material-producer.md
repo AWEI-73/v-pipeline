@@ -84,8 +84,37 @@ python -m unittest tests.test_video_tools_command_catalog -q
 
 ## Deferred
 
-- Real provider adapter that copies/moves built-in imagegen / Gemini outputs into
-  `generated_asset_outputs.json`.
-- Character/style reference locking for long comic/photo stories.
+- Direct API callers for GPT image / Gemini / Antigravity. Current integration
+  intentionally starts from completed provider files.
+- Strong visual consistency scoring from pixels. Current lock is metadata-based
+  style/character anchor validation.
 - Human/agent review step that can promote generated candidate evidence to
   accepted.
+
+## GMP2 Provider Output Intake
+
+Date: 2026-06-19
+
+The real-provider boundary is now a file intake contract, not an API caller.
+External tools such as GPT image, Gemini, or Antigravity write images and a
+provider output JSON. The pipeline imports those files with:
+
+```powershell
+python video_tools.py generated-material-import material_generation_fallback.json `
+  --needs material_needs.json `
+  --provider-outputs generated_provider_outputs.json `
+  --style-profile style_profile.json `
+  --out-dir generated_materials
+```
+
+The import layer:
+
+- requires each provider output to match a planned `job_id`;
+- requires at least `panel_count` readable image files per job;
+- copies files into `generated_images/`;
+- writes the same manifest/map/review artifacts as the offline renderer;
+- fails quality if declared style or character anchors are missing;
+- still emits only `candidate` satisfies edges.
+
+This keeps external model behavior outside the deterministic backend while
+making generated assets usable by the material-map lifecycle.

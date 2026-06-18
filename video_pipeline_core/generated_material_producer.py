@@ -11,6 +11,7 @@ can be validated without external model quota.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -214,6 +215,288 @@ def _material_map_for(job: Mapping[str, Any], output: Mapping[str, Any],
         ],
         "speech": [],
     }
+
+
+def _output_items(payload: Any) -> list:
+    if isinstance(payload, Mapping):
+        return _as_list(payload.get("items"))
+    if isinstance(payload, list):
+        return payload
+    return []
+
+
+def _provider_outputs_by_job(payload: Any) -> dict[str, list[Mapping[str, Any]]]:
+    indexed: dict[str, list[Mapping[str, Any]]] = {}
+    for item in _output_items(payload):
+        if not isinstance(item, Mapping):
+            continue
+        job_id = _text(item.get("job_id"))
+        if job_id:
+            indexed.setdefault(job_id, []).append(item)
+    return indexed
+
+
+def _required_panel_count(job: Mapping[str, Any]) -> int:
+    panel_count = job.get("panel_count", 1)
+    if isinstance(panel_count, bool) or not isinstance(panel_count, int) or panel_count < 1:
+        return 1
+    return panel_count
+
+
+def _resolve_provider_file(item: Mapping[str, Any], base_dir: Path) -> Path:
+    raw = _text(item.get("file"))
+    if not raw:
+        raise ValueError("provider output requires file")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = base_dir / path
+    return path
+
+
+def _ensure_readable_image(path: Path) -> None:
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(str(path))
+    with Image.open(path) as im:
+        im.verify()
+
+
+def _copy_provider_image(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    _ensure_readable_image(destination)
+
+
+def _lower_set(value: Any) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {str(item).strip().lower() for item in value if str(item).strip()}
+
+
+def _provider_quality(job: Mapping[str, Any], output_item: Mapping[str, Any],
+                      style: Mapping[str, Any], segment_id: str) -> dict:
+    quality = _job_quality(job, style)
+    quality["job_id"] = segment_id
+    required_style = _lower_set(style.get("style_anchors"))
+    required_characters = _lower_set(style.get("character_anchors"))
+    actual_style = _lower_set(output_item.get("style_anchors") or output_item.get("style_tags"))
+    actual_characters = _lower_set(output_item.get("character_anchors"))
+    findings = list(quality["findings"])
+    score = int(quality["score"])
+
+    missing_style = sorted(required_style - actual_style)
+    missing_characters = sorted(required_characters - actual_characters)
+    if missing_style:
+        score -= 20
+        findings.append("style_anchor_mismatch:" + ",".join(missing_style))
+    if missing_characters:
+        score -= 30
+        findings.append("character_anchor_mismatch:" + ",".join(missing_characters))
+
+    quality["score"] = max(0, score)
+    quality["pass"] = quality["score"] >= 80
+    quality["findings"] = findings
+    return quality
+
+
+def _write_provider_error(out: Path, errors: list[str], *, quality_items: Optional[list] = None) -> dict:
+    report = {
+        "artifact_role": "generated_material_production",
+        "version": 1,
+        "ok": False,
+        "errors": errors,
+        "outputs": [],
+        "summary": {"image_count": 0, "map_count": 0},
+    }
+    if quality_items is not None:
+        report["quality_gate"] = {
+            "pass": all(item.get("pass") for item in quality_items),
+            "min_score": min([item.get("score", 0) for item in quality_items], default=0),
+            "avg_score": round(
+                sum(item.get("score", 0) for item in quality_items) / len(quality_items), 2)
+                if quality_items else 0,
+        }
+    if quality_items:
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "generated_material_quality_review.json").write_text(
+            json.dumps({
+                "artifact_role": "generated_material_quality_review",
+                "version": 1,
+                "pass": report["quality_gate"]["pass"],
+                "items": quality_items,
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    return report
+
+
+def produce_generated_materials_from_provider_outputs(
+    fallback_artifact: Mapping[str, Any],
+    provider_outputs: Mapping[str, Any] | list,
+    out_dir: str | Path,
+    *,
+    material_needs: Optional[Mapping[str, Any]] = None,
+    style_profile: Optional[Mapping[str, Any]] = None,
+) -> dict:
+    """Import externally generated image files into GMP1 artifacts.
+
+    The provider has already produced files. This function verifies that every
+    planned job has enough readable image outputs, copies them under the GMP
+    output directory, checks declared style/character anchors, then writes the
+    same manifest + candidate material-map artifacts as the offline renderer.
+    """
+    out = Path(out_dir)
+    style = dict(DEFAULT_STYLE)
+    if isinstance(style_profile, Mapping):
+        style.update(style_profile)
+    if not isinstance(fallback_artifact, Mapping) or fallback_artifact.get("ok") is not True:
+        return _write_provider_error(out, ["material_generation_fallback is not ok"])
+    if material_needs is None:
+        return _write_provider_error(
+            out, ["material_needs is required to write candidate satisfies edges"])
+
+    base_dir = Path(".")
+    if isinstance(provider_outputs, Mapping) and _text(provider_outputs.get("_path")):
+        base_dir = Path(str(provider_outputs["_path"])).parent
+    indexed = _provider_outputs_by_job(provider_outputs)
+    errors: list[str] = []
+    quality_items = []
+    staged: list[tuple[Mapping[str, Any], Mapping[str, Any], Path, str, int, dict]] = []
+
+    for job in fallback_artifact.get("generation_jobs") or []:
+        if not isinstance(job, Mapping):
+            continue
+        job_id = _text(job.get("job_id"))
+        supplied = indexed.get(job_id, [])
+        required = _required_panel_count(job)
+        if len(supplied) < required:
+            errors.append(f"missing provider output for {job_id}: required {required}, got {len(supplied)}")
+            continue
+        for panel_index, item in enumerate(supplied[:required], start=1):
+            try:
+                source = _resolve_provider_file(item, base_dir)
+                _ensure_readable_image(source)
+            except (OSError, ValueError) as exc:
+                errors.append(f"unreadable provider output for {job_id}: {exc}")
+                continue
+            segment_id = f"{job_id}_p{panel_index:02d}"
+            quality = _provider_quality(job, item, style, segment_id)
+            quality_items.append(quality)
+            staged.append((job, item, source, segment_id, panel_index, quality))
+
+    if errors:
+        return _write_provider_error(out, errors, quality_items=quality_items)
+    if quality_items and not all(item["pass"] for item in quality_items):
+        return _write_provider_error(out, ["generated provider quality gate failed"],
+                                     quality_items=quality_items)
+
+    images_dir = out / "generated_images"
+    maps_dir = out / "generated_material_maps"
+    request = {
+        "artifact_role": "generated_asset_requests",
+        "generated_asset_requests_version": 1,
+        "provider_priority": [],
+        "items": [],
+    }
+    outputs = []
+    material_maps = []
+    for job, item, source, segment_id, panel_index, quality in staged:
+        provider = _text(item.get("provider"), "codex_imagegen")
+        if provider not in request["provider_priority"]:
+            request["provider_priority"].append(provider)
+        extension = source.suffix.lower() if source.suffix else ".png"
+        dest = images_dir / f"{_slug(_text(job.get('need_id')))}_{_slug(segment_id)}{extension}"
+        _copy_provider_image(source, dest)
+        output = {
+            "segment": segment_id,
+            "job_id": _text(job.get("job_id")),
+            "need_id": _text(job.get("need_id")),
+            "panel_index": panel_index,
+            "provider": provider,
+            "file": str(dest),
+            "prompt": _text(item.get("prompt"), _text(job.get("prompt"))),
+            "reason": _text(job.get("story_function")),
+            "source": "generated",
+            "forbidden_as_truth": True,
+            "quality_score": quality["score"],
+            "metadata": {
+                "style_anchors": item.get("style_anchors") or item.get("style_tags") or [],
+                "character_anchors": item.get("character_anchors") or [],
+            },
+        }
+        request["items"].append({
+            "segment": segment_id,
+            "provider": provider,
+            "prompt": output["prompt"],
+            "reason": output["reason"],
+            "forbidden_as_truth": True,
+            "source": "generated",
+        })
+        outputs.append(output)
+        material_map = _material_map_for(job, output, quality)
+        material_maps.append(material_map)
+        map_path = maps_dir / f"{material_map['asset_id']}.map.json"
+        map_path.parent.mkdir(parents=True, exist_ok=True)
+        map_path.write_text(json.dumps(material_map, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+
+    out.mkdir(parents=True, exist_ok=True)
+    request_path = out / "generated_asset_requests.json"
+    outputs_path = out / "generated_asset_outputs.json"
+    manifest_path = out / "generated_asset_manifest.json"
+    request_path.write_text(json.dumps(request, ensure_ascii=False, indent=2), encoding="utf-8")
+    outputs_path.write_text(json.dumps({"items": outputs}, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+    generated_assets.write_generated_asset_manifest(request, outputs, manifest_path)
+    project_map = project_material_map.build_project_material_map(
+        material_maps, needs=material_needs)
+    project_map_path = out / "project_material_map.json"
+    project_map_path.write_text(json.dumps(project_map, ensure_ascii=False, indent=2),
+                                encoding="utf-8")
+    quality_review = {
+        "artifact_role": "generated_material_quality_review",
+        "version": 1,
+        "pass": all(item["pass"] for item in quality_items),
+        "style_profile": style,
+        "items": quality_items,
+        "summary": {
+            "item_count": len(quality_items),
+            "min_score": min([item["score"] for item in quality_items], default=0),
+            "avg_score": round(
+                sum(item["score"] for item in quality_items) / len(quality_items), 2)
+                if quality_items else 0,
+        },
+    }
+    quality_path = out / "generated_material_quality_review.json"
+    quality_path.write_text(json.dumps(quality_review, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+    report = {
+        "artifact_role": "generated_material_production",
+        "version": 1,
+        "ok": True,
+        "errors": [],
+        "renderer": "provider_outputs",
+        "outputs": outputs,
+        "refs": {
+            "generated_asset_requests": str(request_path),
+            "generated_asset_outputs": str(outputs_path),
+            "generated_asset_manifest": str(manifest_path),
+            "generated_material_maps_dir": str(maps_dir),
+            "project_material_map": str(project_map_path),
+            "quality_review": str(quality_path),
+        },
+        "quality_gate": {
+            "pass": quality_review["pass"],
+            "min_score": quality_review["summary"]["min_score"],
+            "avg_score": quality_review["summary"]["avg_score"],
+        },
+        "summary": {
+            "image_count": len(outputs),
+            "map_count": len(material_maps),
+        },
+    }
+    (out / "generated_material_production.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
 
 
 def produce_generated_materials(
