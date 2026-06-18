@@ -408,6 +408,32 @@ def cmd_material_delta(args):
             f"material_delta failed: {len(result['errors'])} reference/validation error(s)")
 
 
+def cmd_material_generation_fallback(args):
+    """MGF1: turn material_delta missing/thin needs into provider-neutral
+    generated-asset requests. Output is a planning artifact only; generated
+    assets still must return through material-map review as candidate evidence."""
+    from video_pipeline_core import material_generation_fallback
+    delta = _load_json(args.delta)
+    result = material_generation_fallback.plan_material_generation_fallback(
+        delta,
+        material_needs=_load_json(args.needs) if args.needs else None,
+        story_world=_load_json(args.story_world) if args.story_world else None,
+        creative_concept=_load_json(args.creative_concept) if args.creative_concept else None,
+        screenplay_beats=_load_json(args.screenplay_beats) if args.screenplay_beats else None,
+        director_shot_plan=_load_json(args.director_shot_plan)
+        if args.director_shot_plan else None,
+    )
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": result["ok"], "errors": result["errors"],
+                      "summary": result["summary"]}, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("material generation fallback failed: "
+                        + "; ".join(result["errors"]))
+
+
 def cmd_material_map_lifecycle(args):
     """M6d: orchestrate the material-map lifecycle from whatever artifacts exist;
     emit the current stage + next action (+ a BUILD handoff only when build_ready).
@@ -1633,6 +1659,7 @@ def _build_video_tools_dispatch():
         "validate-needs": cmd_validate_needs,
         "lineage-link": cmd_lineage_link,
         "material-delta": cmd_material_delta,
+        "material-generation-fallback": cmd_material_generation_fallback,
         "material-revision": cmd_material_revision,
         "material-map-lifecycle": cmd_material_map_lifecycle,
         "project-material-map": cmd_project_material_map,
@@ -2069,6 +2096,20 @@ def main():
     p_md.add_argument("--project-map", default=None, dest="project_map",
                       help="project_material_map.json (satisfies edges)")
     p_md.add_argument("--out", default=None, help="write material_delta.json here")
+
+    p_mgf = sub.add_parser("material-generation-fallback")
+    p_mgf.add_argument("delta", help="material_delta.json")
+    p_mgf.add_argument("--needs", default=None, help="material_needs.json")
+    p_mgf.add_argument("--story-world", default=None, dest="story_world",
+                       help="story_world.json (optional prompt context)")
+    p_mgf.add_argument("--creative-concept", default=None, dest="creative_concept",
+                       help="creative_concept.json (optional prompt context)")
+    p_mgf.add_argument("--screenplay-beats", default=None, dest="screenplay_beats",
+                       help="screenplay_beats.json (optional prompt context)")
+    p_mgf.add_argument("--director-shot-plan", default=None, dest="director_shot_plan",
+                       help="director_shot_plan.json (optional prompt context)")
+    p_mgf.add_argument("--out", default=None,
+                       help="write material_generation_fallback.json here")
 
     p_mml = sub.add_parser("material-map-lifecycle")
     p_mml.add_argument("--out-dir", required=True, dest="out_dir",

@@ -5,12 +5,19 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Start here (entry points, in order)
 
 1. `README.md` — what this project is.
-2. `roadmap.md` — canonical long-term roadmap (current direction at top, history below).
+2. `roadmap.md` — canonical current roadmap and navigation index. Long history
+   now lives in `docs/roadmap-history/`.
 3. `HANDOFF_CURRENT.md` — clean resume anchor for the next agent.
 4. `RUNBOOK.md` — how to run the pipeline on Windows.
 
 ## Editorial "soul" layer (front of pipeline)
 
+- `docs/story-soul-blueprint-skills.md` — planned upstream creative skill layer:
+  story world, narrative device, screenplay beats, director shot/material prompt
+  compiler. This is the next consolidation target before more runtime features.
+- Skill: `skills/material-generation-fallback.md` — MGF1 rescue layer that turns
+  fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
+  generated assets return through material-map review as candidates.
 - `docs/editorial-layer.md` — **read first**; consolidated conceptual map.
 - `docs/narrative-blueprint-spec.md` — WHY: prose thesis + ordered beats (gate).
 - `docs/editing-intent-sequence-grammar-spec.md` — HOW-structure: cut/hold reasons, shot_slots.
@@ -22,6 +29,9 @@ One page that says what is current and what is historical, so old/new no longer 
 
 ## Build / runtime / infra (current)
 
+- `docs/material-map-lifecycle.md` — canonical summary of the completed
+  M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
+  stage machine, build handoff, and current boundaries.
 - `docs/build-tool-runner-spec.md` — BUILD runner tool selection + P1 audit pack.
 - `docs/video-autopilot-tool-integration-spec.md` — editing/VERIFY tool integration.
 - `docs/capcut-pipeline-integration-design.md` — optional CapCut finishing backend.
@@ -43,6 +53,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-17-run-layout-manifest.md` --
   machine-readable run folder/artifact ownership manifest for agents and
   frontend shells.
+- `docs/decisions/2026-06-18-material-generation-fallback.md` -- MGF1
+  delta-to-generated-job bridge and generated-material honesty boundary.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -66,6 +78,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-18-material-generation-fallback.md`,
 `2026-06-17-tool-surface-and-run-layout-consolidation.md`,
 `2026-06-17-run-layout-manifest.md`,
 `2026-06-17-frontend-api-contract-hardening.md`,
@@ -75,7 +88,8 @@ One page that says what is current and what is historical, so old/new no longer 
 `2026-06-14-m6a-review-response.md`,
 `2026-06-13-m5-real-render-sensory-acceptance.md`,
 `2026-06-13-spec-field-census.md`.
-Material Phase (M0-M6a) lives in `roadmap.md` top section + these decision files.
+Material-map current summary lives in `docs/material-map-lifecycle.md`; full
+pre-split roadmap evidence lives in `docs/roadmap-history/2026-06-18-roadmap-pre-split.md`.
 
 ## Design notes (still referenced by skills — keep)
 
@@ -86,5 +100,7 @@ Material Phase (M0-M6a) lives in `roadmap.md` top section + these decision files
 
 ## Historical (moved out, not deleted)
 
-`archive/` — superseded handoffs and early design/plan notes; see `archive/README.md`.
-Do not treat as current.
+- `docs/roadmap-history/` — long-form roadmap history moved out of the active
+  roadmap. Do not treat as current unless a current doc links to it.
+- `archive/` — superseded handoffs and early design/plan notes; see `archive/README.md`.
+  Do not treat as current.

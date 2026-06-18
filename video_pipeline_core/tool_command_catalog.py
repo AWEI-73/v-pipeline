@@ -81,6 +81,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "validate-needs": "material",
     "lineage-link": "material",
     "material-delta": "material",
+    "material-generation-fallback": "material",
     "material-revision": "material",
     "material-map-lifecycle": "material",
     "project-material-map": "material",

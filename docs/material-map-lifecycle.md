@@ -1,0 +1,142 @@
+# Material Map Lifecycle — Canonical Summary
+
+Status: complete as a backend lifecycle, with real-case automated acceptance.
+Last consolidated: 2026-06-18
+
+This document is the short, current reference for the material-map work that used
+to be spread through the long roadmap. The full historical evidence remains in
+`docs/roadmap-history/2026-06-18-roadmap-pre-split.md`.
+
+## Purpose
+
+The material map is the pipeline's supply/demand contract layer. It prevents the
+system from silently using wrong material, faking missing footage, or treating a
+thin material pool as a complete film.
+
+It supports three entry modes:
+
+1. Existing material first: scan/curate actual material, then discuss story.
+2. Script first: declare `material_needs`, then prove coverage or request more
+   material.
+3. Partial material: combine covered needs, missing needs, accepted waivers, and
+   revised contracts without bypassing the BUILD gate.
+
+## Canonical Artifacts
+
+- `material_needs.json` — required material demand, stable `need_id`, fallback
+  options, and validation.
+- Per-asset `*.map.json` — actual scenes, sources, captions, labels, and
+  `satisfies[]` edges.
+- `project_material_map.json` — deterministic project-level aggregation of
+  per-asset maps. It is a projection, not a second canonical truth source.
+- `material_delta.json` — coverage outcomes: `covered`, `thin`, `missing`,
+  `excess`, plus tier/route/evidence.
+- `revision_decisions.json` — accepted/rejected/pending human decisions for
+  missing material.
+- `revised_segment_contract.json` — revised executable contract when decisions
+  change the script.
+- `material_map_lifecycle.json` — stage report and handoff status.
+
+## Implemented Lifecycle
+
+### M6a — Contract And Lineage
+
+Completed:
+
+- `material_needs` validator.
+- Stable project-local `need_id`.
+- Scene-level `satisfies[]` edges with `accepted | candidate | rejected`.
+- End-to-end reference chain:
+  `need_id -> shooting brief -> scene satisfies edge -> segment_contract need_refs`.
+
+Boundary:
+
+- M6a validates joins and reference integrity. It does not decide covered/thin/
+  missing.
+
+### M6b — Material Delta And Pre-BUILD Gate
+
+Completed:
+
+- Coverage outcomes based on validated needs and satisfies edges.
+- Renderable-evidence filtering.
+- Asset identity validation.
+- Fail-closed pre-BUILD gate in `contract_adapter`.
+- Stale final quarantine when a blocked run would otherwise leave an old
+  `final.mp4` at the canonical path.
+
+Gate rule:
+
+- BUILD may proceed only when `delta.ok is True` and
+  `delta.ready_for_build is True`.
+
+### M6c — Delta-Driven Script Revision
+
+Completed:
+
+- Revision decisions: collect/reshoot/review/shorten/rewrite/drop/waive.
+- Canonical waiver contract.
+- Atomic revised-contract + material-revision artifact writes.
+- Runtime plumbing: declared decisions trigger fresh delta, revision application,
+  and gate re-check before BUILD.
+
+Boundary:
+
+- M6c does not invent story content. It applies accepted decisions only.
+
+### M6d — Independent Material Map Skill
+
+Completed:
+
+- `skills/material-map.md` and `material-map-lifecycle` orchestration.
+- Stage machine:
+  `await_requirements_discussion`, `await_material`, `await_map_review`,
+  `await_revision_decision`, `revision_blocked`, `build_ready`, `invalid`.
+- Build handoff only when runtime gate can re-validate the contract.
+
+Boundary:
+
+- M6d orchestrates canonical tools. It does not create a second material-map
+  schema and does not render.
+
+### M6e — Real-Case Automated Acceptance
+
+Completed:
+
+- Four entry replay on real 67th footage:
+  only-material, script-first insufficient material, covered material, and
+  revision/waiver.
+- Unified relative-path material map loader across lifecycle, gate, and BUILD.
+- Acceptance harness can be rerun from repo.
+
+Open but non-blocking:
+
+- Human sign-off on final film quality.
+- Full-scale ingest of all raw footage and HEIC coverage in production-like runs.
+
+## Current Boundary
+
+The material-map backend is stable enough to treat as infrastructure. Future work
+should not reopen M6 unless a real run proves a contract bug.
+
+Upcoming creative work should happen above it:
+
+```text
+Story World / Creative Blueprint
+  -> Screenplay Beats / Director Shot Plan
+  -> material_needs + generation_manifest
+  -> Material Map Lifecycle
+  -> BUILD
+```
+
+## Useful Links
+
+- Full pre-split evidence: `docs/roadmap-history/2026-06-18-roadmap-pre-split.md`
+- Real-case M6e decision: `docs/decisions/2026-06-15-m6e-real-case-acceptance.md`
+- Material-map blackbox observation: `docs/decisions/2026-06-18-node13-material-map-blackbox-observation.md`
+- Skill: `skills/material-map.md`
+- Core modules: `video_pipeline_core/material_needs.py`,
+  `video_pipeline_core/project_material_map.py`,
+  `video_pipeline_core/material_delta.py`,
+  `video_pipeline_core/material_revision.py`,
+  `video_pipeline_core/material_map_lifecycle.py`
