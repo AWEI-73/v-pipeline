@@ -481,6 +481,25 @@ def cmd_generated_material_import(args):
                         + "; ".join(result.get("errors") or []))
 
 
+def cmd_generated_image_provider_packet(args):
+    """GMP provider handoff: write executable prompts, target filenames, and
+    provider-output import template for real image-generation tools."""
+    from video_pipeline_core import generated_image_provider_packet
+    style_profile = _load_json(args.style_profile) if args.style_profile else None
+    result = generated_image_provider_packet.build_generated_image_provider_packet(
+        _load_json(args.fallback),
+        args.out_dir,
+        style_profile=style_profile,
+        providers=args.providers,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "refs": result.get("refs", {}),
+                      "summary": result["summary"]}, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("generated image provider packet failed: "
+                        + "; ".join(result.get("errors") or []))
+
+
 def cmd_generated_material_review(args):
     """GMP4: apply explicit reviewer decisions to generated candidate material
     map edges, producing a reviewed project_material_map."""
@@ -1736,6 +1755,7 @@ def _build_video_tools_dispatch():
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
+        "generated-image-provider-packet": cmd_generated_image_provider_packet,
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "generated-material-review": cmd_generated_material_review,
@@ -2138,6 +2158,15 @@ def main():
                        help="provider label recorded in generated manifest")
     p_gmp.add_argument("--renderer", default="test_pil",
                        help="renderer adapter; test_pil is deterministic and offline")
+
+    p_gipp = sub.add_parser("generated-image-provider-packet")
+    p_gipp.add_argument("fallback", help="material_generation_fallback.json")
+    p_gipp.add_argument("--out-dir", required=True, dest="out_dir",
+                        help="directory for provider prompts, target files, and import template")
+    p_gipp.add_argument("--style-profile", default=None, dest="style_profile",
+                        help="optional style_profile.json with style/character anchors")
+    p_gipp.add_argument("--providers", default="codex_imagegen,gemini,antigravity",
+                        help="comma-separated real image provider candidates")
 
     p_gmi = sub.add_parser("generated-material-import")
     p_gmi.add_argument("fallback", help="material_generation_fallback.json")

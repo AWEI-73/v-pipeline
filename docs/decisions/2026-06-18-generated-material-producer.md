@@ -85,7 +85,8 @@ python -m unittest tests.test_video_tools_command_catalog -q
 ## Deferred
 
 - Direct API callers for GPT image / Gemini / Antigravity. Current integration
-  intentionally starts from completed provider files.
+  intentionally starts from completed provider files or from a provider packet
+  that a model-driving agent executes externally.
 - Strong visual consistency scoring from pixels. Current lock is metadata-based
   style/character anchor validation.
 - Human/agent review step that can promote generated candidate evidence to
@@ -118,6 +119,37 @@ The import layer:
 
 This keeps external model behavior outside the deterministic backend while
 making generated assets usable by the material-map lifecycle.
+
+## GMP2.5 Provider Packet / Real Image Generation Handoff
+
+Date: 2026-06-19
+
+Add a deterministic handoff packet for agents that can call real image models:
+
+```powershell
+python video_tools.py generated-image-provider-packet material_generation_fallback.json `
+  --style-profile style_profile.json `
+  --out-dir provider_packet `
+  --providers codex_imagegen,gemini,antigravity
+```
+
+Outputs:
+
+- `generated_provider_packet.json`: one item per required panel, including
+  prompt, target file, story function, style/character anchors, and provider
+  candidates;
+- `generated_provider_prompts.md`: copyable prompts and import command;
+- `generated_provider_outputs.template.json`: the exact JSON shape consumed by
+  `generated-material-import`;
+- `provider_outputs/`: target directory for generated images.
+
+Boundary:
+
+- the core backend still does not call external models;
+- `test_pil` is explicitly rejected as a final-art provider in this packet;
+- every real image must be saved to the declared target file, then imported
+  through the existing provider-output quality gate;
+- generated images still enter material-map as `candidate`, never `accepted`.
 
 ## GMP3 Skill Acceptance Harness
 

@@ -67,6 +67,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "contract-run": "contract",
     "generated-manifest": "contract",
     "generated-material-import": "material",
+    "generated-image-provider-packet": "material",
     "generated-material-produce": "material",
     "generated-material-review": "material",
     "light-effects-plan": "contract",

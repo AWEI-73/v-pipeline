@@ -69,7 +69,7 @@ One page that says what is current and what is historical, so old/new no longer 
   delta-to-generated-job bridge and generated-material honesty boundary.
 - `docs/decisions/2026-06-18-generated-material-producer.md` -- GMP1
   generated-job execution into files, manifests, candidate maps, provider-output
-  intake, style/character lock, and review.
+  intake, provider packet handoff, style/character lock, and review.
 - `docs/decisions/2026-06-19-story-soul-blueprint.md` -- SSB1 upstream
   creative scaffold: story world, concept, beats, shot plan, material needs, and
   review checklist.

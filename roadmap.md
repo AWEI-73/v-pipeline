@@ -310,6 +310,41 @@ Rules:
   provider output metadata; mismatch fails the quality gate.
 - successful imports still produce `candidate` material-map evidence only.
 
+### GMP2.5 Real Image Provider Packet
+
+Status: implemented / acceptance review.
+
+Purpose: force real generated-image work through explicit model/provider
+execution instead of relying on the offline `test_pil` renderer.
+
+Canonical files:
+
+- Tool: `video_tools.py generated-image-provider-packet`
+- Module: `video_pipeline_core/generated_image_provider_packet.py`
+- Tests: `tests/test_generated_image_provider_packet.py`
+- Skill: `skills/generated-material-producer.md`
+
+Flow:
+
+```text
+material_generation_fallback.json
+  -> generated-image-provider-packet
+  -> agent calls real image provider and saves target files
+  -> generated-material-import
+  -> generated-material-review
+```
+
+Rules:
+
+- the packet writes `generated_provider_packet.json`,
+  `generated_provider_prompts.md`, and
+  `generated_provider_outputs.template.json`;
+- every panel gets a deterministic `target_file` under `provider_outputs/`;
+- provider candidates can include Codex imagegen, Gemini, Antigravity, or other
+  configured model tools;
+- `test_pil` is rejected as a final-art provider in this path;
+- the backend still does not trust model output until import + review pass.
+
 ### GMP3 Generated-Material Skill Acceptance Harness
 
 Status: implemented / acceptance review.

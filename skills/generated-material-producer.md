@@ -73,6 +73,27 @@ Outputs:
 `test_pil` is an offline deterministic renderer for flow tests. It proves
 artifact shape and candidate evidence. It is not final art.
 
+Real provider handoff packet:
+
+```powershell
+python video_tools.py generated-image-provider-packet material_generation_fallback.json `
+  --style-profile style_profile.json `
+  --out-dir provider_packet `
+  --providers codex_imagegen,gemini,antigravity
+```
+
+This writes:
+
+- `generated_provider_packet.json`
+- `generated_provider_prompts.md`
+- `generated_provider_outputs.template.json`
+- `provider_outputs/` target directory
+
+For final art, an agent must read the packet, call an actual image-generation
+tool for every item, save each image exactly to `target_file`, then run
+`generated-material-import`. Do not use `test_pil` for final art or quality
+review beyond flow validation.
+
 For real images, execute the same jobs through Gemini / Antigravity /
 assistant_imagegen / Codex imagegen and write provider outputs like:
 
