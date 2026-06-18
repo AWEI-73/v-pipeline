@@ -19,7 +19,8 @@ One page that says what is current and what is historical, so old/new no longer 
   fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
   generated assets return through material-map review as candidates.
 - Skill: `skills/generated-material-producer.md` — executes MGF1 jobs into
-  generated files, manifests, candidate material maps, and quality review.
+  generated files, manifests, candidate material maps, quality review, and
+  explicit candidate promotion review.
 - Harness: `tools/generated_material_flow_acceptance.py` — replays two
   generated comic-style cases from empty material through candidate material maps
   and quality review.

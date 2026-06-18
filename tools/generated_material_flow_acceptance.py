@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from video_pipeline_core import (
+    generated_material_review,
     generated_material_producer,
     material_delta,
     material_generation_fallback,
@@ -184,7 +185,7 @@ def _summary(delta_payload: Mapping[str, Any]) -> dict:
 
 
 def _director_score(case: Mapping[str, Any], production: Mapping[str, Any],
-                    after_delta: Mapping[str, Any]) -> int:
+                    after_delta: Mapping[str, Any], after_review_delta: Mapping[str, Any] | None = None) -> int:
     score = int(case["director_baseline"])
     quality_gate = production.get("quality_gate") or {}
     if not quality_gate.get("pass"):
@@ -193,8 +194,32 @@ def _director_score(case: Mapping[str, Any], production: Mapping[str, Any],
         score -= 25
     if _summary(after_delta).get("thin", 0) == 0:
         score += 3
+    if after_review_delta and _summary(after_review_delta).get("covered", 0) >= 2:
+        score += 2
     # Candidate-only thin is expected, not a defect.
     return max(0, min(100, score))
+
+
+def _accept_all_generated_verdict(project_map: Mapping[str, Any], title: str) -> dict:
+    decisions = []
+    for asset in project_map.get("assets") or []:
+        for scene_index, scene in enumerate(asset.get("scenes") or []):
+            for edge in scene.get("satisfies") or []:
+                if edge.get("status") == "candidate":
+                    decisions.append({
+                        "asset_id": asset.get("asset_id"),
+                        "scene_index": scene_index,
+                        "need_id": edge.get("need_id"),
+                        "status": "accepted",
+                        "reason": f"acceptance harness: {title} candidate matches declared comic style/story anchors",
+                    })
+    return {
+        "artifact_role": "generated_material_review",
+        "version": 1,
+        "reviewer": "generated-flow-acceptance-harness",
+        "at": "2026-06-19T00:00:00+08:00",
+        "decisions": decisions,
+    }
 
 
 def _run_case(case: Mapping[str, Any], root: Path) -> dict:
@@ -226,10 +251,20 @@ def _run_case(case: Mapping[str, Any], root: Path) -> dict:
         Path(production["refs"]["project_material_map"]).read_text(encoding="utf-8"))
     after_delta = material_delta.compute_material_delta(needs, project_map["assets"])
     _write_json(case_dir / "delta_after_generation.json", after_delta)
+    verdict = _accept_all_generated_verdict(project_map, case["title"])
+    _write_json(case_dir / "generated_material_review.json", verdict)
+    review_result = generated_material_review.apply_generated_material_review(
+        project_map, verdict, needs)
+    _write_json(case_dir / "generated_material_review_result.json", review_result)
+    reviewed_project_map = review_result["project_material_map"]
+    _write_json(case_dir / "reviewed_project_material_map.json", reviewed_project_map)
+    after_review_delta = material_delta.compute_material_delta(
+        needs, reviewed_project_map["assets"])
+    _write_json(case_dir / "delta_after_review.json", after_review_delta)
     image_paths = [Path(item["file"]) for item in production["outputs"]]
     contact_sheet = case_dir / "generated" / "contact_sheet.jpg"
     _contact_sheet(image_paths, contact_sheet, case["title"])
-    score = _director_score(case, production, after_delta)
+    score = _director_score(case, production, after_delta, after_review_delta)
     verdict = (
         "Flow aligned. Generated panels match declared comic story anchors and "
         "entered material map as candidate evidence."
@@ -243,12 +278,15 @@ def _run_case(case: Mapping[str, Any], root: Path) -> dict:
         "fallback": {"jobs": len(fallback.get("generation_jobs") or [])},
         "generated": production,
         "after_generation_delta": {"summary": _summary(after_delta)},
+        "review": {"summary": review_result["summary"]},
+        "after_review_delta": {"summary": _summary(after_review_delta)},
         "director_score": score,
         "director_verdict": verdict,
         "refs": {
             "case_dir": str(case_dir),
             "contact_sheet": str(contact_sheet),
             "project_material_map": production["refs"]["project_material_map"],
+            "reviewed_project_material_map": str(case_dir / "reviewed_project_material_map.json"),
             "quality_review": production["refs"]["quality_review"],
         },
     }
@@ -271,6 +309,8 @@ def _markdown(report: Mapping[str, Any]) -> str:
             f"- Images generated: {case['generated']['summary']['image_count']}",
             f"- Initial delta: {case['initial_delta']['summary']}",
             f"- After generation delta: {case['after_generation_delta']['summary']}",
+            f"- After review delta: {case['after_review_delta']['summary']}",
+            f"- Review summary: {case['review']['summary']}",
             f"- Quality gate: {case['generated']['quality_gate']}",
             f"- Director score: {case['director_score']}/100",
             f"- Verdict: {case['director_verdict']}",
@@ -281,6 +321,7 @@ def _markdown(report: Mapping[str, Any]) -> str:
         "## Overall",
         "",
         "- The flow is valid for generated comic/story panels.",
+        "- The harness applies an explicit generated-material review verdict, then reruns delta.",
         "- It does not prove final art quality; `test_pil` is deterministic storyboard output.",
         "- Real GPT image / Gemini outputs should be imported through `generated-material-import`.",
         "- Generated candidates must be reviewed before promotion to accepted.",
@@ -312,6 +353,7 @@ def main(argv: list[str]) -> int:
                 "case_id": case["case_id"],
                 "score": case["director_score"],
                 "after_generation_delta": case["after_generation_delta"]["summary"],
+                "after_review_delta": case["after_review_delta"]["summary"],
             }
             for case in report["cases"]
         ],

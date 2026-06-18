@@ -32,7 +32,8 @@ material_needs.json
   -> generated-material-produce creates provider outputs
   -> generated material maps as candidate evidence
   -> material_delta fresh rerun
-  -> reviewer accept / revision
+  -> generated-material-review accepts/rejects candidates
+  -> material_delta fresh rerun
   -> BUILD
 ```
 
@@ -92,6 +93,38 @@ assistant_imagegen / Codex imagegen and write provider outputs like:
 The import tool copies validated files into the generated-material output
 directory and writes the standard manifest/map/review artifacts.
 
+Explicit review / promotion:
+
+```powershell
+python video_tools.py generated-material-review project_material_map.json `
+  --needs material_needs.json `
+  --verdict generated_material_review.json `
+  --out reviewed_project_material_map.json
+```
+
+Review verdict:
+
+```json
+{
+  "artifact_role": "generated_material_review",
+  "version": 1,
+  "reviewer": "director-agent",
+  "at": "2026-06-19T00:00:00+08:00",
+  "decisions": [
+    {
+      "asset_id": "generated_a",
+      "scene_index": 0,
+      "need_id": "nd_panel",
+      "status": "accepted",
+      "reason": "matches story beat and style anchors"
+    }
+  ]
+}
+```
+
+Only explicit `accepted` decisions can make a generated candidate count as
+coverage. `rejected` decisions remain visible but do not satisfy delta.
+
 ## Prompt Design Rules
 
 Use the reference repo as inspiration, not dependency:
@@ -120,6 +153,8 @@ Pass only if:
 - quality review score is acceptable
 - provider outputs match required `style_anchors` and `character_anchors` when
   a style profile declares them
+- generated candidates are promoted only by explicit reviewer decisions with a
+  non-empty reason
 
 Fail or send back to generation if:
 
@@ -130,6 +165,8 @@ Fail or send back to generation if:
 - it creates fake official evidence
 - the provider output is missing, unreadable, undersupplied for `panel_count`,
   or mismatches the declared style/character anchors
+- the review target is not a generated candidate, references unknown need/asset,
+  lacks reviewer/reason, or uses any status other than accepted/rejected
 
 ## Practical Use
 

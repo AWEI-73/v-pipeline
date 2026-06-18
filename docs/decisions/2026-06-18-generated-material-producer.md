@@ -155,3 +155,36 @@ Expected outcome:
 
 The `thin` result is correct. Generated panels are usable material candidates,
 but they must be reviewed before promotion to `accepted`.
+
+## GMP4 Candidate Review / Promotion
+
+Date: 2026-06-19
+
+Add a review gate for generated candidates:
+
+```powershell
+python video_tools.py generated-material-review project_material_map.json `
+  --needs material_needs.json `
+  --verdict generated_material_review.json `
+  --out reviewed_project_material_map.json
+```
+
+The verdict is explicit and auditable:
+
+- `reviewer` is required;
+- each decision requires `asset_id`, `scene_index`, `need_id`, `status`, and
+  `reason`;
+- only `accepted` or `rejected` are valid statuses;
+- only generated `candidate` edges can be modified;
+- unknown references and non-generated targets fail closed.
+
+This closes the generated-material lifecycle:
+
+```text
+missing -> generated candidate -> review accepted -> covered
+```
+
+The acceptance harness now demonstrates both stages:
+
+- after generation: `thin=2`;
+- after review: `covered=2`, `thin=0`.

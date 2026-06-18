@@ -271,6 +271,44 @@ Acceptance cases:
 Important reading: the expected post-generation state is `thin`, not `covered`,
 because generated assets remain candidate until reviewer promotion.
 
+### GMP4 Generated Candidate Review / Promotion
+
+Status: implemented / acceptance review.
+
+Purpose: safely promote generated material-map candidates after explicit review.
+
+Canonical files:
+
+- Tool: `video_tools.py generated-material-review`
+- Module: `video_pipeline_core/generated_material_review.py`
+- Tests: `tests/test_generated_material_review.py`
+
+Flow:
+
+```text
+project_material_map with generated candidate edges
+  -> generated_material_review.json verdict
+  -> reviewed_project_material_map.json
+  -> material_delta fresh rerun
+```
+
+Rules:
+
+- only generated `candidate` edges can be reviewed by this tool.
+- each decision requires reviewer, reason, asset_id, scene_index, need_id, and
+  status `accepted` or `rejected`.
+- accepted edges can satisfy material_delta; rejected edges remain visible but
+  do not count as coverage.
+- unknown asset/scene/need, non-generated targets, bad status, or missing reason
+  fails closed.
+
+Acceptance harness update:
+
+- `tools/generated_material_flow_acceptance.py` now applies an explicit review
+  verdict in both comic cases.
+- Post-generation delta: `thin=2`.
+- Post-review delta: `covered=2`, `thin=0`.
+
 ## Stable Foundations — Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:

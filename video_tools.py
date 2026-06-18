@@ -481,6 +481,28 @@ def cmd_generated_material_import(args):
                         + "; ".join(result.get("errors") or []))
 
 
+def cmd_generated_material_review(args):
+    """GMP4: apply explicit reviewer decisions to generated candidate material
+    map edges, producing a reviewed project_material_map."""
+    from video_pipeline_core import generated_material_review
+    result = generated_material_review.apply_generated_material_review(
+        _load_json(args.project_map),
+        _load_json(args.verdict),
+        _load_json(args.needs),
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "summary": result.get("summary")},
+                     ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("generated material review failed: "
+                        + "; ".join(result.get("errors") or []))
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(result["project_material_map"],
+                                   ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+
+
 def cmd_material_map_lifecycle(args):
     """M6d: orchestrate the material-map lifecycle from whatever artifacts exist;
     emit the current stage + next action (+ a BUILD handoff only when build_ready).
@@ -1700,6 +1722,7 @@ def _build_video_tools_dispatch():
         "generated-manifest": cmd_generated_manifest,
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
+        "generated-material-review": cmd_generated_material_review,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
@@ -2108,6 +2131,12 @@ def main():
                        help="directory for imported generated files, manifest, maps, and review")
     p_gmi.add_argument("--style-profile", default=None, dest="style_profile",
                        help="optional style_profile.json with style_anchors/character_anchors")
+
+    p_gmr = sub.add_parser("generated-material-review")
+    p_gmr.add_argument("project_map", help="project_material_map.json with generated candidate edges")
+    p_gmr.add_argument("--needs", required=True, help="material_needs.json")
+    p_gmr.add_argument("--verdict", required=True, help="generated_material_review.json")
+    p_gmr.add_argument("--out", required=True, help="reviewed project_material_map.json")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

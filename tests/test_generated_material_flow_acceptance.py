@@ -18,6 +18,7 @@ class GeneratedMaterialFlowAcceptanceTest(unittest.TestCase):
                 self.assertGreaterEqual(case["generated"]["summary"]["image_count"], 4)
                 self.assertEqual(case["after_generation_delta"]["summary"]["missing"], 0)
                 self.assertEqual(case["after_generation_delta"]["summary"]["thin"], 2)
+                self.assertEqual(case["after_review_delta"]["summary"]["covered"], 2)
                 self.assertGreaterEqual(case["director_score"], 80)
                 self.assertTrue(Path(case["refs"]["contact_sheet"]).exists())
             self.assertTrue((Path(td) / "FLOW_REVIEW.md").exists())
