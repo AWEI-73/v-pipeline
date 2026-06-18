@@ -143,9 +143,22 @@ Outputs:
   `generated-material-import`;
 - `provider_outputs/`: target directory for generated images.
 
+Codex imagegen helper:
+
+```powershell
+python video_tools.py codex-imagegen-provider-fill provider_packet/generated_provider_packet.json `
+  --image-files image_001.png image_002.png
+```
+
+If `--image-files` is omitted, the helper scans the newest session under
+`~/.codex/generated_images`. It copies readable generated images into the
+packet's target files and writes `generated_provider_outputs.json`.
+
 Boundary:
 
 - the core backend still does not call external models;
+- `codex-imagegen-provider-fill` only consumes completed local image files; it
+  does not invoke a model or fabricate missing panels;
 - `test_pil` is explicitly rejected as a final-art provider in this packet;
 - every real image must be saved to the declared target file, then imported
   through the existing provider-output quality gate;

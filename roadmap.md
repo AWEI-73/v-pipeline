@@ -320,6 +320,7 @@ execution instead of relying on the offline `test_pil` renderer.
 Canonical files:
 
 - Tool: `video_tools.py generated-image-provider-packet`
+- Tool: `video_tools.py codex-imagegen-provider-fill`
 - Module: `video_pipeline_core/generated_image_provider_packet.py`
 - Tests: `tests/test_generated_image_provider_packet.py`
 - Skill: `skills/generated-material-producer.md`
@@ -329,7 +330,8 @@ Flow:
 ```text
 material_generation_fallback.json
   -> generated-image-provider-packet
-  -> agent calls real image provider and saves target files
+  -> agent calls real image provider
+  -> codex-imagegen-provider-fill OR manual generated_provider_outputs.json
   -> generated-material-import
   -> generated-material-review
 ```
@@ -342,6 +344,8 @@ Rules:
 - every panel gets a deterministic `target_file` under `provider_outputs/`;
 - provider candidates can include Codex imagegen, Gemini, Antigravity, or other
   configured model tools;
+- Codex imagegen outputs can be copied from explicit image files or from the
+  newest `~/.codex/generated_images` session into `generated_provider_outputs.json`;
 - `test_pil` is rejected as a final-art provider in this path;
 - the backend still does not trust model output until import + review pass.
 

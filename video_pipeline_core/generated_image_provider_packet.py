@@ -8,8 +8,11 @@ existing generated-material import gate.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from PIL import Image
 
 
 DEFAULT_PROVIDERS = ["codex_imagegen", "gemini", "antigravity", "assistant_imagegen"]
@@ -76,6 +79,43 @@ def _target_file(out: Path, job: Mapping[str, Any], panel_index: int) -> Path:
 
 def _path_text(path: Path) -> str:
     return str(path.resolve()).replace("\\", "/")
+
+
+def _image_files(root: Path) -> list[Path]:
+    suffixes = {".png", ".jpg", ".jpeg", ".webp"}
+    if not root.exists():
+        return []
+    if root.is_file():
+        return [root] if root.suffix.lower() in suffixes else []
+    return sorted(
+        (path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in suffixes),
+        key=lambda path: (path.stat().st_mtime, path.name),
+    )
+
+
+def _latest_generated_session(generated_root: Path) -> tuple[Path | None, list[Path]]:
+    if not generated_root.exists() or not generated_root.is_dir():
+        return None, []
+    sessions = [path for path in generated_root.iterdir() if path.is_dir()]
+    candidates: list[tuple[float, Path, list[Path]]] = []
+    for session in sessions:
+        images = _image_files(session)
+        if images:
+            newest = max(path.stat().st_mtime for path in images)
+            candidates.append((newest, session, images))
+    if not candidates:
+        return None, []
+    _, session, images = max(candidates, key=lambda item: (item[0], item[1].name))
+    return session, images
+
+
+def _readable_image(path: Path) -> bool:
+    try:
+        with Image.open(path) as image:
+            image.verify()
+        return True
+    except Exception:
+        return False
 
 
 def _style_profile(style_profile: Mapping[str, Any] | None) -> dict:
@@ -183,6 +223,136 @@ def _outputs_template(items: list[dict]) -> dict:
             }
             for item in items
         ],
+    }
+
+
+def _provider_outputs_item(packet_item: Mapping[str, Any], source: Path, target: Path,
+                           provider: str) -> dict:
+    item = {
+        "job_id": _text(packet_item.get("job_id")),
+        "need_id": _text(packet_item.get("need_id")),
+        "panel_index": packet_item.get("panel_index"),
+        "file": _path_text(target),
+        "provider": provider,
+        "prompt": _text(packet_item.get("prompt")),
+        "style_anchors": _as_list(packet_item.get("style_anchors")),
+        "character_anchors": _as_list(packet_item.get("character_anchors")),
+        "source_image": _path_text(source),
+    }
+    return {key: value for key, value in item.items() if value not in ("", None)}
+
+
+def fill_provider_outputs_from_codex_images(
+    packet_path: str | Path,
+    *,
+    image_files: Sequence[str | Path] | None = None,
+    generated_root: str | Path | None = None,
+    out_path: str | Path | None = None,
+    provider: str = "codex_imagegen",
+) -> dict:
+    """Copy Codex imagegen outputs into a provider packet's target files.
+
+    This helper does not call an image model. It only turns already-generated
+    files into the standard `generated_provider_outputs.json` shape expected by
+    `generated-material-import`.
+    """
+    packet_file = Path(packet_path)
+    errors: list[str] = []
+    source_session: Path | None = None
+    packet: dict[str, Any] = {}
+    items: list[Any] = []
+
+    try:
+        packet = json.loads(packet_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        errors.append(f"cannot read provider packet: {exc}")
+    if packet and packet.get("artifact_role") != "generated_image_provider_packet":
+        errors.append("packet artifact_role must be generated_image_provider_packet")
+    if packet:
+        items = _as_list(packet.get("items"))
+        if not items:
+            errors.append("provider packet contains no items")
+        if not all(isinstance(item, Mapping) for item in items):
+            errors.append("provider packet items must be objects")
+
+    if image_files is not None:
+        sources = [Path(path) for path in image_files]
+    else:
+        root = Path(generated_root) if generated_root is not None else Path.home() / ".codex" / "generated_images"
+        source_session, sources = _latest_generated_session(root)
+
+    if len(sources) < len(items):
+        errors.append(f"not enough image files: need {len(items)}, got {len(sources)}")
+    unreadable = [str(path) for path in sources[:len(items)] if not path.exists() or not path.is_file() or not _readable_image(path)]
+    if unreadable:
+        errors.append("unreadable image file(s): " + ", ".join(unreadable))
+
+    targets: list[Path] = []
+    if not errors:
+        for index, item in enumerate(items, start=1):
+            target_text = _text(item.get("target_file"))
+            if not target_text:
+                errors.append(f"provider packet item #{index} requires target_file")
+                continue
+            targets.append(Path(target_text))
+
+    if errors:
+        return {
+            "artifact_role": "codex_imagegen_provider_fill_result",
+            "version": 1,
+            "ok": False,
+            "errors": errors,
+            "summary": {
+                "required_count": len(items),
+                "source_count": len(sources),
+                "copied_count": 0,
+            },
+        }
+
+    output_items: list[dict] = []
+    try:
+        for item, source, target in zip(items, sources, targets):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            if not _readable_image(target):
+                raise ValueError(f"copied image is unreadable: {target}")
+            output_items.append(_provider_outputs_item(item, source, target, provider))
+        provider_outputs = {
+            "artifact_role": "generated_provider_outputs",
+            "version": 1,
+            "items": output_items,
+        }
+        output_file = Path(out_path) if out_path is not None else packet_file.parent / "generated_provider_outputs.json"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(json.dumps(provider_outputs, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:
+        return {
+            "artifact_role": "codex_imagegen_provider_fill_result",
+            "version": 1,
+            "ok": False,
+            "errors": [f"failed to fill provider outputs: {exc}"],
+            "summary": {
+                "required_count": len(items),
+                "source_count": len(sources),
+                "copied_count": len(output_items),
+            },
+        }
+
+    refs = {"provider_outputs": _path_text(output_file)}
+    if source_session is not None:
+        refs["source_session"] = _path_text(source_session)
+    return {
+        "artifact_role": "codex_imagegen_provider_fill_result",
+        "version": 1,
+        "ok": True,
+        "errors": [],
+        "refs": refs,
+        "provider_outputs": provider_outputs,
+        "summary": {
+            "required_count": len(items),
+            "source_count": len(sources),
+            "copied_count": len(output_items),
+        },
     }
 
 

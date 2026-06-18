@@ -500,6 +500,26 @@ def cmd_generated_image_provider_packet(args):
                         + "; ".join(result.get("errors") or []))
 
 
+def cmd_codex_imagegen_provider_fill(args):
+    """Copy already-generated Codex imagegen files into a provider packet and
+    write generated_provider_outputs.json for generated-material-import."""
+    from video_pipeline_core import generated_image_provider_packet
+    result = generated_image_provider_packet.fill_provider_outputs_from_codex_images(
+        args.packet,
+        image_files=args.image_files,
+        generated_root=args.generated_root,
+        out_path=args.out,
+        provider=args.provider,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "refs": result.get("refs", {}),
+                      "summary": result.get("summary", {})},
+                     ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("codex imagegen provider fill failed: "
+                        + "; ".join(result.get("errors") or []))
+
+
 def cmd_generated_material_review(args):
     """GMP4: apply explicit reviewer decisions to generated candidate material
     map edges, producing a reviewed project_material_map."""
@@ -1756,6 +1776,7 @@ def _build_video_tools_dispatch():
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
         "generated-image-provider-packet": cmd_generated_image_provider_packet,
+        "codex-imagegen-provider-fill": cmd_codex_imagegen_provider_fill,
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "generated-material-review": cmd_generated_material_review,
@@ -2167,6 +2188,17 @@ def main():
                         help="optional style_profile.json with style/character anchors")
     p_gipp.add_argument("--providers", default="codex_imagegen,gemini,antigravity",
                         help="comma-separated real image provider candidates")
+
+    p_cig = sub.add_parser("codex-imagegen-provider-fill")
+    p_cig.add_argument("packet", help="generated_provider_packet.json")
+    p_cig.add_argument("--image-files", nargs="+", default=None,
+                       help="explicit Codex imagegen output files, in packet item order")
+    p_cig.add_argument("--generated-root", default=None,
+                       help="Codex generated_images root; defaults to ~/.codex/generated_images")
+    p_cig.add_argument("--out", default=None,
+                       help="write generated_provider_outputs.json here")
+    p_cig.add_argument("--provider", default="codex_imagegen",
+                       help="provider label written into generated_provider_outputs.json")
 
     p_gmi = sub.add_parser("generated-material-import")
     p_gmi.add_argument("fallback", help="material_generation_fallback.json")

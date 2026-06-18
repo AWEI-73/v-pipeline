@@ -68,6 +68,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "generated-manifest": "contract",
     "generated-material-import": "material",
     "generated-image-provider-packet": "material",
+    "codex-imagegen-provider-fill": "material",
     "generated-material-produce": "material",
     "generated-material-review": "material",
     "light-effects-plan": "contract",

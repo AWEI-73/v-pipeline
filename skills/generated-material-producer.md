@@ -89,8 +89,24 @@ This writes:
 - `generated_provider_outputs.template.json`
 - `provider_outputs/` target directory
 
-For final art, an agent must read the packet, call an actual image-generation
-tool for every item, save each image exactly to `target_file`, then run
+For final art, an agent must read the packet and call an actual
+image-generation tool for every item. If using Codex imagegen, either pass the
+explicit generated image files in packet order:
+
+```powershell
+python video_tools.py codex-imagegen-provider-fill provider_packet/generated_provider_packet.json `
+  --image-files image_001.png image_002.png
+```
+
+or omit `--image-files` to use the newest session under
+`~/.codex/generated_images`:
+
+```powershell
+python video_tools.py codex-imagegen-provider-fill provider_packet/generated_provider_packet.json
+```
+
+This copies readable generated images into the packet's deterministic
+`target_file` paths and writes `generated_provider_outputs.json`. Then run
 `generated-material-import`. Do not use `test_pil` for final art or quality
 review beyond flow validation.
 

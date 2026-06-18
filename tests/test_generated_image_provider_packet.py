@@ -5,8 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 from video_pipeline_core.generated_image_provider_packet import (
     build_generated_image_provider_packet,
+    fill_provider_outputs_from_codex_images,
 )
 
 
@@ -48,6 +51,11 @@ def _style_profile():
         "character_anchors": ["young courier", "red scarf"],
         "palette": ["#203040", "#f2a65a", "#f6ecd2"],
     }
+
+
+def _png(path: Path, color):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (640, 360), color).save(path)
 
 
 class GeneratedImageProviderPacketTest(unittest.TestCase):
@@ -136,6 +144,131 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
                 "generated-material-import",
                 (out / "generated_provider_prompts.md").read_text(encoding="utf-8"),
             )
+
+    def test_fill_provider_outputs_from_explicit_image_files(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            build_generated_image_provider_packet(
+                _fallback(),
+                packet_dir,
+                style_profile=_style_profile(),
+                providers=["codex_imagegen"],
+            )
+            img1 = d / "codex" / "a.png"
+            img2 = d / "codex" / "b.png"
+            _png(img1, (200, 60, 60))
+            _png(img2, (60, 80, 200))
+
+            result = fill_provider_outputs_from_codex_images(
+                packet_dir / "generated_provider_packet.json",
+                image_files=[img1, img2],
+                out_path=packet_dir / "generated_provider_outputs.json",
+            )
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            self.assertEqual(result["summary"]["copied_count"], 2)
+            provider_outputs = json.loads(
+                (packet_dir / "generated_provider_outputs.json").read_text(encoding="utf-8"))
+            self.assertEqual(provider_outputs["artifact_role"], "generated_provider_outputs")
+            for item in provider_outputs["items"]:
+                self.assertEqual(item["provider"], "codex_imagegen")
+                self.assertTrue(Path(item["file"]).exists())
+                with Image.open(item["file"]) as im:
+                    self.assertEqual(im.size, (640, 360))
+
+    def test_fill_provider_outputs_from_latest_generated_images_session(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            build_generated_image_provider_packet(
+                _fallback(),
+                packet_dir,
+                style_profile=_style_profile(),
+                providers=["codex_imagegen"],
+            )
+            old_session = d / "generated_images" / "old"
+            new_session = d / "generated_images" / "new"
+            _png(old_session / "old.png", (10, 10, 10))
+            _png(new_session / "one.png", (120, 10, 10))
+            _png(new_session / "two.png", (10, 120, 10))
+
+            result = fill_provider_outputs_from_codex_images(
+                packet_dir / "generated_provider_packet.json",
+                generated_root=d / "generated_images",
+            )
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            self.assertEqual(result["refs"]["source_session"].replace("\\", "/").split("/")[-1], "new")
+            target_files = [Path(item["file"]) for item in result["provider_outputs"]["items"]]
+            self.assertEqual(len(target_files), 2)
+            self.assertTrue(all(path.exists() for path in target_files))
+
+    def test_fill_provider_outputs_fails_when_images_are_insufficient(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            build_generated_image_provider_packet(_fallback(), packet_dir)
+            img1 = d / "only.png"
+            _png(img1, (200, 60, 60))
+
+            result = fill_provider_outputs_from_codex_images(
+                packet_dir / "generated_provider_packet.json",
+                image_files=[img1],
+            )
+
+            self.assertFalse(result["ok"])
+            self.assertIn("not enough image files", "; ".join(result["errors"]))
+            self.assertFalse((packet_dir / "generated_provider_outputs.json").exists())
+
+    def test_cli_fills_provider_outputs_from_explicit_image_files(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            fallback = d / "fallback.json"
+            packet_dir = d / "packet"
+            fallback.write_text(json.dumps(_fallback(), ensure_ascii=False), encoding="utf-8")
+            subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "generated-image-provider-packet",
+                    str(fallback),
+                    "--out-dir",
+                    str(packet_dir),
+                    "--providers",
+                    "codex_imagegen",
+                ],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            img1 = d / "a.png"
+            img2 = d / "b.png"
+            _png(img1, (200, 60, 60))
+            _png(img2, (60, 80, 200))
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "codex-imagegen-provider-fill",
+                    str(packet_dir / "generated_provider_packet.json"),
+                    "--image-files",
+                    str(img1),
+                    str(img2),
+                ],
+                cwd=root,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertTrue((packet_dir / "generated_provider_outputs.json").exists())
 
 
 if __name__ == "__main__":
