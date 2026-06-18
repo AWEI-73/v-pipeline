@@ -1846,8 +1846,8 @@ def _mv_music_mix(have_keep_audio, music_vol=0.7):
     - 全 montage(無原音)→ 音樂直接當主音軌(全音量)。
     輸入約定:input0=拼好的 AV、input1=音樂。"""
     if have_keep_audio:
-        fc = ("[0:a]asplit=2[a0][ak];"
-              f"[1:a]volume={music_vol}[m];"
+        fc = ("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[a0][ak];"
+              f"[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume={music_vol}[m];"
               "[m][ak]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];"
               "[a0][md]amix=inputs=2:duration=first:dropout_transition=0[a]")
         return fc, "[a]"
@@ -1959,6 +1959,8 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
     segs = []
     for p in plan:
         seg = os.path.join(mat_dir, f"mvseg_{p['slot_index']:03d}.mp4")
+        if os.path.exists(seg):
+            os.remove(seg)
         text_filter = _drawtext_chain(p.get("text"), mat_dir, p["slot_index"]) if burn_text else ""
         vf = _video_vf(p.get("crop_center")) + text_filter
         if p.get("is_photo"):
@@ -2055,13 +2057,22 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
         subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
                         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
                         "-c:a", "aac", av], capture_output=True, timeout=600)
-    have_keep = any(p.get("keep_audio") for p in plan)
+    # Photo slots are rendered with generated silent audio, so an upstream
+    # keep_audio flag on a still image must not activate the sidechain mixer.
+    have_keep = any(p.get("keep_audio") and not p.get("is_photo") for p in plan)
     fc, amap = _mv_music_mix(have_keep, music_vol=music_vol)
     cmd = [FFMPEG, "-y", "-i", av, "-i", music_path]
     if fc:
         cmd += ["-filter_complex", fc]
     cmd += ["-map", "0:v:0", "-map", amap, "-c:v", "copy", "-c:a", "aac", "-shortest", out_path]
-    subprocess.run(cmd, capture_output=True, timeout=180)
+    if os.path.exists(out_path):
+        os.remove(out_path)
+    result = subprocess.run(cmd, capture_output=True, timeout=180)
+    if result.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) <= 0:
+        if os.path.exists(out_path) and os.path.getsize(out_path) <= 0:
+            os.remove(out_path)
+        stderr = result.stderr.decode(errors="ignore") if isinstance(result.stderr, bytes) else result.stderr
+        raise ToolError(f"render_mv_audio: final mux failed: {stderr[-1200:]}")
     return out_path
 
 

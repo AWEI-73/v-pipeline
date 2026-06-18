@@ -615,6 +615,69 @@ class XfadeRenderTest(unittest.TestCase):
 
             self.assertTrue(out.exists())
 
+    def test_photo_keep_audio_slots_do_not_trigger_sidechain_mix(self):
+        """Photo-only plans have no source audio to preserve; even if upstream
+        marks them keep_audio, final mix should use music directly and render
+        a playable output."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo = root / "photo.png"
+            subprocess.run([
+                mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                "color=c=purple:s=320x180:d=1", "-vframes", "1", str(photo),
+            ], capture_output=True, check=True)
+            music = root / "music.wav"
+            subprocess.run([
+                mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                "sine=frequency=440:duration=2", str(music),
+            ], capture_output=True, check=True)
+            out = root / "final.mp4"
+            plan = [{
+                "slot_index": 0,
+                "segment": 1,
+                "source": str(photo),
+                "extract_start": 0.0,
+                "extract_dur": 1.5,
+                "keep_audio": True,
+                "is_photo": True,
+                "kenburns": True,
+            }]
+
+            mv_cut.render_mv_audio(plan, str(music), str(out), mat_dir=tmp, burn_text=False)
+
+            probe = subprocess.run([
+                mv_cut.FFMPEG.replace("ffmpeg", "ffprobe"),
+                "-v", "error", "-show_entries", "stream=codec_type",
+                "-of", "csv=p=0", str(out),
+            ], capture_output=True, text=True, check=True)
+            self.assertIn("video", probe.stdout)
+            self.assertIn("audio", probe.stdout)
+
+    def test_final_mux_failure_is_fail_closed_and_removes_zero_byte_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            subprocess.run([
+                mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                "color=c=red:s=320x180:d=1", "-an", str(source),
+            ], capture_output=True, check=True)
+            bad_music = root / "bad.wav"
+            bad_music.write_text("not audio", encoding="utf-8")
+            out = root / "final.mp4"
+            plan = [{
+                "slot_index": 0,
+                "segment": 1,
+                "source": str(source),
+                "extract_start": 0.0,
+                "extract_dur": 1.0,
+                "keep_audio": False,
+            }]
+
+            with self.assertRaises(Exception):
+                mv_cut.render_mv_audio(plan, str(bad_music), str(out), mat_dir=tmp, burn_text=False)
+
+            self.assertFalse(out.exists() and out.stat().st_size == 0)
+
 
 class StaticPrefilterTest(unittest.TestCase):
     def test_parse_freeze_ratio_pair(self):
