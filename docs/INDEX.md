@@ -27,6 +27,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - Harness: `tools/generated_material_flow_acceptance.py` — replays two
   generated comic-style cases from empty material through candidate material maps
   and quality review.
+- Harness: `tools/story_to_generated_material_e2e.py` — runs project brief
+  through SSB1, generated fallback, generated material production, explicit
+  review, and fresh delta coverage.
 - `docs/editorial-layer.md` — **read first**; consolidated conceptual map.
 - `docs/narrative-blueprint-spec.md` — WHY: prose thesis + ordered beats (gate).
 - `docs/editing-intent-sequence-grammar-spec.md` — HOW-structure: cut/hold reasons, shot_slots.

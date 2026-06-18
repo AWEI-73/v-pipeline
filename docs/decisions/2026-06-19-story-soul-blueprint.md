@@ -55,3 +55,37 @@ Focused tests cover:
 SSB1 is a baseline scaffold, not a final writer model. It provides deterministic
 structure and minimum story logic. A human or high-end model can improve prose
 inside the same artifacts without changing downstream contracts.
+
+## End-To-End Acceptance
+
+Add:
+
+```powershell
+python tools/story_to_generated_material_e2e.py .tmp/story_to_generated_material_e2e
+```
+
+The harness runs:
+
+```text
+project brief
+  -> story-soul-blueprint
+  -> material_delta missing
+  -> material_generation_fallback
+  -> generated_material_produce
+  -> generated_material_review
+  -> material_delta covered
+```
+
+Current evidence:
+
+- case: `postcard_city_sky`
+- beats: `5`
+- needs: `5`
+- generated panels: `21`
+- initial delta: `missing=5`
+- after generation: `thin=5`, `missing=0`
+- after review: `covered=5`, `thin=0`, `missing=0`
+
+This proves the current upstream story artifacts can drive the generated
+material lifecycle end to end. It does not prove final art quality because the
+test renderer intentionally emits deterministic storyboard cards.

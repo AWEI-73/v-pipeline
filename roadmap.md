@@ -158,6 +158,40 @@ Boundary:
   artifact shape and minimum story logic; it is not a substitute for a human or
   high-end writer model improving the prose.
 
+### SSB1→GMP End-To-End Acceptance
+
+Status: implemented / acceptance review.
+
+Tool:
+
+- `tools/story_to_generated_material_e2e.py`
+
+Flow:
+
+```text
+project brief
+  -> story-soul-blueprint artifacts
+  -> material_delta missing
+  -> material_generation_fallback
+  -> generated_material_produce
+  -> generated_material_review
+  -> material_delta covered
+```
+
+Current case:
+
+- `postcard_city_sky`
+- 5 screenplay beats
+- 5 material needs
+- 21 generated storyboard panels
+- initial delta: `missing=5`
+- after generation: `thin=5`, `missing=0`
+- after review: `covered=5`, `thin=0`, `missing=0`
+
+Boundary: this proves the contract chain and material counts. The deterministic
+storyboard cards are not final art; real GPT image / Gemini outputs must enter
+through `generated-material-import` before review.
+
 ### MGF1 Material Generation Fallback Skill
 
 Status: in implementation / review.
