@@ -434,6 +434,28 @@ def cmd_material_generation_fallback(args):
                         + "; ".join(result["errors"]))
 
 
+def cmd_generated_material_produce(args):
+    """GMP1: produce generated material files from MGF1 jobs, then write generated
+    manifest + material-map candidate evidence. The built-in renderer is a
+    deterministic test renderer; real providers can write the same output shape."""
+    from video_pipeline_core import generated_material_producer
+    style_profile = _load_json(args.style_profile) if args.style_profile else None
+    result = generated_material_producer.produce_generated_materials(
+        _load_json(args.fallback),
+        args.out_dir,
+        material_needs=_load_json(args.needs) if args.needs else None,
+        style_profile=style_profile,
+        provider=args.provider,
+        renderer=args.renderer,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "quality_gate": result.get("quality_gate"),
+                      "summary": result["summary"]}, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("generated material production failed: "
+                        + "; ".join(result.get("errors") or []))
+
+
 def cmd_material_map_lifecycle(args):
     """M6d: orchestrate the material-map lifecycle from whatever artifacts exist;
     emit the current stage + next action (+ a BUILD handoff only when build_ready).
@@ -1651,6 +1673,7 @@ def _build_video_tools_dispatch():
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
+        "generated-material-produce": cmd_generated_material_produce,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
@@ -2037,6 +2060,18 @@ def main():
     p_gm.add_argument("--artifact-manifest", help="artifact_manifest.json to update")
     p_gm.add_argument("--no-require-files", action="store_true",
                       help="do not require output files to exist")
+
+    p_gmp = sub.add_parser("generated-material-produce")
+    p_gmp.add_argument("fallback", help="material_generation_fallback.json")
+    p_gmp.add_argument("--needs", required=True, help="material_needs.json")
+    p_gmp.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for generated files, manifest, maps, and review")
+    p_gmp.add_argument("--style-profile", default=None, dest="style_profile",
+                       help="optional style_profile.json with palette/look/aspect_ratio")
+    p_gmp.add_argument("--provider", default="codex_imagegen",
+                       help="provider label recorded in generated manifest")
+    p_gmp.add_argument("--renderer", default="test_pil",
+                       help="renderer adapter; test_pil is deterministic and offline")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

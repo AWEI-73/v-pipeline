@@ -18,6 +18,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - Skill: `skills/material-generation-fallback.md` — MGF1 rescue layer that turns
   fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
   generated assets return through material-map review as candidates.
+- Skill: `skills/generated-material-producer.md` — executes MGF1 jobs into
+  generated files, manifests, candidate material maps, and quality review.
 - `docs/editorial-layer.md` — **read first**; consolidated conceptual map.
 - `docs/narrative-blueprint-spec.md` — WHY: prose thesis + ordered beats (gate).
 - `docs/editing-intent-sequence-grammar-spec.md` — HOW-structure: cut/hold reasons, shot_slots.
@@ -55,6 +57,8 @@ One page that says what is current and what is historical, so old/new no longer 
   frontend shells.
 - `docs/decisions/2026-06-18-material-generation-fallback.md` -- MGF1
   delta-to-generated-job bridge and generated-material honesty boundary.
+- `docs/decisions/2026-06-18-generated-material-producer.md` -- GMP1
+  generated-job execution into files, manifests, candidate maps, and review.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -78,6 +82,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-18-generated-material-producer.md`,
 `2026-06-18-material-generation-fallback.md`,
 `2026-06-17-tool-surface-and-run-layout-consolidation.md`,
 `2026-06-17-run-layout-manifest.md`,

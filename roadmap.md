@@ -165,6 +165,40 @@ Practical use:
 - Not valid for real-person proof, official speeches, identity-sensitive
   scenes, or event evidence.
 
+### GMP1 Generated Material Producer Skill
+
+Status: implemented / acceptance review.
+
+Purpose: execute MGF1 jobs into generated files and write the artifacts needed
+for the material-map lifecycle to review them.
+
+Canonical files:
+
+- Skill: `skills/generated-material-producer.md`
+- Tool: `video_tools.py generated-material-produce`
+- Module: `video_pipeline_core/generated_material_producer.py`
+
+Flow:
+
+```text
+material_generation_fallback.json + material_needs.json
+  -> generated images / provider outputs
+  -> generated_asset_manifest.json
+  -> generated_material_maps/*.map.json
+  -> project_material_map.json
+  -> generated_material_quality_review.json
+```
+
+Hard boundaries:
+
+- generated assets remain `source=generated`.
+- generated assets are `candidate` satisfies edges, never accepted evidence.
+- `test_pil` renderer is only an offline flow/proof renderer; final art should
+  use Gemini / Antigravity / imagegen or another provider that writes the same
+  output shape.
+- quality review checks story function, style anchors, camera language, and
+  truth boundary, but it is not a human aesthetic sign-off.
+
 ## Stable Foundations — Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:
