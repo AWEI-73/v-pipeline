@@ -110,10 +110,10 @@ def _extract_frame(video, t, out_path):
     return out_path if out_path.exists() and out_path.stat().st_size > 0 else None
 
 
-def _source_descriptor(clip, tmpdir, cache):
+def _source_descriptors(clip, tmpdir, cache):
     src = clip.get("source")
     if not src:
-        return None
+        return []
     if clip.get("is_photo"):
         key = ("photo", src)
         if key not in cache:
@@ -121,19 +121,39 @@ def _source_descriptor(clip, tmpdir, cache):
                 cache[key] = frame_descriptor(src)
             except Exception:
                 cache[key] = None
-        return cache[key]
+        return [cache[key]] if cache[key] else []
     start = float(clip.get("extract_start") or 0.0)
     dur = max(0.0, float(clip.get("extract_dur") or 0.0))
-    mid = round(start + dur / 2.0, 3)
-    key = ("video", src, mid)
-    if key not in cache:
-        frame = Path(tmpdir) / f"src_{abs(hash(key))}.png"
-        extracted = _extract_frame(src, mid, frame)
-        try:
-            cache[key] = frame_descriptor(str(extracted)) if extracted else None
-        except Exception:
-            cache[key] = None
-    return cache[key]
+    sample_times = [
+        start,
+        start + dur * 0.25,
+        start + dur / 2.0,
+        start + dur * 0.75,
+        start + dur,
+        start + 0.5,
+        start + 1.0,
+        start + 2.0,
+    ]
+    out = []
+    seen = set()
+    for t in sample_times:
+        if t < 0:
+            continue
+        t = round(t, 3)
+        if t in seen:
+            continue
+        seen.add(t)
+        key = ("video", src, t)
+        if key not in cache:
+            frame = Path(tmpdir) / f"src_{abs(hash(key))}.png"
+            extracted = _extract_frame(src, t, frame)
+            try:
+                cache[key] = frame_descriptor(str(extracted)) if extracted else None
+            except Exception:
+                cache[key] = None
+        if cache[key]:
+            out.append(cache[key])
+    return out
 
 
 def real67_slot_verdict(frame_desc, source_desc):
@@ -145,6 +165,17 @@ def real67_slot_verdict(frame_desc, source_desc):
     own source frame, it should pass even when spatial stdev is below the generic
     photo threshold.
     """
+    if isinstance(source_desc, list):
+        candidates = [s for s in source_desc if s]
+    else:
+        candidates = [source_desc] if source_desc else []
+    if candidates and frame_desc:
+        source_desc = max(
+            candidates,
+            key=lambda s: pearson(frame_desc.get("gray") or [], s.get("gray") or []),
+        )
+    else:
+        source_desc = None
     base = evaluate_slot(frame_desc, source_desc)
     if base.get("ok") or not frame_desc or not source_desc:
         return base
@@ -160,6 +191,23 @@ def real67_slot_verdict(frame_desc, source_desc):
     return base
 
 
+def actual_slot_windows(plan, segment_durations=None):
+    """Map plan slots to final-render windows using actual rendered segment
+    durations when available. Plan ``extract_dur`` can differ by a few frames after
+    ffmpeg encoding; using real mvseg duration avoids sampling the wrong slot in
+    long concatenations."""
+    segment_durations = segment_durations or {}
+    t, out = 0.0, []
+    for c in plan:
+        idx = c.get("slot_index")
+        d = segment_durations.get(idx)
+        if d is None or d <= 0:
+            d = float(c.get("extract_dur") or 0.0)
+        out.append((c, round(t, 3), round(t + d, 3), round(t + d / 2.0, 3)))
+        t += d
+    return out
+
+
 def verify_video_slots(mp4, plan):
     """Slot-level render gate for video/photo sources.
 
@@ -170,13 +218,32 @@ def verify_video_slots(mp4, plan):
     tmpdir = tempfile.mkdtemp()
     dur = _probe(mp4) or 0.0
     source_cache, records = {}, []
-    for clip, _start, _end, mid in slot_windows(plan):
+    seg_dir = Path(mp4).parent / "_work"
+    segment_durations = {}
+    for clip in plan:
+        idx = clip.get("slot_index")
+        seg = seg_dir / f"mvseg_{idx:03d}.mp4"
+        if seg.exists():
+            segment_durations[idx] = _probe(seg) or 0.0
+    for clip, start, end, mid in actual_slot_windows(plan, segment_durations):
         t = min(mid, max(0.0, dur - 0.05)) if dur > 0 else mid
         final_frame = Path(tmpdir) / f"final_{clip.get('slot_index')}.png"
         extracted = _extract_frame(mp4, t, final_frame)
         frame_desc = frame_descriptor(str(extracted)) if extracted else None
-        source_desc = _source_descriptor(clip, tmpdir, source_cache)
-        verdict = real67_slot_verdict(frame_desc, source_desc)
+        source_descs = []
+        idx = clip.get("slot_index")
+        seg = seg_dir / f"mvseg_{idx:03d}.mp4"
+        if seg.exists() and segment_durations.get(idx, 0.0) > 0:
+            seg_frame = Path(tmpdir) / f"seg_{idx}.png"
+            seg_extracted = _extract_frame(seg, segment_durations[idx] / 2.0, seg_frame)
+            if seg_extracted:
+                try:
+                    source_descs.append(frame_descriptor(str(seg_extracted)))
+                except Exception:
+                    pass
+        if not source_descs:
+            source_descs.extend(_source_descriptors(clip, tmpdir, source_cache))
+        verdict = real67_slot_verdict(frame_desc, source_descs)
         records.append({
             "slot_index": clip.get("slot_index"),
             "segment": clip.get("segment"),
@@ -185,6 +252,8 @@ def verify_video_slots(mp4, plan):
             "scene_id": clip.get("scene_id"),
             "source": Path(clip.get("source")).name if clip.get("source") else None,
             "sample_time": round(t, 3),
+            "window_start": start,
+            "window_end": end,
             **verdict,
         })
     return summarize_slot_records(records)

@@ -118,21 +118,49 @@ def scene_windows(duration, *, max_scenes=3, clip_len=3.5, head_frac=0.12,
 
 
 def renderable_windows(source, duration, frame_probe, *, max_scenes=3, clip_len=3.5,
-                       black_stdev=BLACK_STDEV, density=3):
-    """Like ``scene_windows`` but each window's mid frame is probed via
+                       black_stdev=BLACK_STDEV, density=3, temporal_corr=0.08):
+    """Like ``scene_windows`` but each window is probed via
     ``frame_probe(source, t) -> stdev`` and only non-black/non-transition windows are
-    kept. If a base window is black, a denser pool of alternative windows is tried
-    before that slot is dropped. ``frame_probe`` returning ``None`` (unreadable) is
-    treated as not renderable. Pure given an injected ``frame_probe``."""
+    kept. We check head/mid/tail, not only the midpoint, because SRP/beat planning
+    may shorten a selected 3.5s scene to its first ~1.5s. If a base window is black,
+    a denser pool of alternative windows is tried before that slot is dropped.
+    ``frame_probe`` returning ``None`` (unreadable) is treated as not renderable.
+    If the probe returns full frame descriptors with ``gray`` vectors, adjacent
+    samples must also be structurally related; this avoids cut/fast-motion windows
+    that are bright but later fail the source-correlation render gate. Pure given an
+    injected ``frame_probe``."""
     target = _scene_count(duration, max_scenes)
     base = _even_windows(duration, target, clip_len=clip_len)
     alts = _even_windows(duration, max(target * int(density), target + 3),
                          clip_len=clip_len)
 
     def _ok(win):
-        mid = round((win[0] + win[1]) / 2.0, 3)
-        stdev = frame_probe(source, mid)
-        return stdev is not None and stdev >= black_stdev
+        s, e = win
+        dur = max(0.0, e - s)
+        edge = min(0.35, dur / 4.0)
+        sample_times = (
+            round(s + edge, 3),
+            round((s + e) / 2.0, 3),
+            round(e - edge, 3),
+        )
+        descriptors = []
+        for t in sample_times:
+            probed = frame_probe(source, t)
+            if isinstance(probed, dict):
+                stdev = probed.get("stdev")
+                descriptors.append(probed)
+            else:
+                stdev = probed
+            if stdev is None or stdev < black_stdev:
+                return False
+        if descriptors and len(descriptors) == len(sample_times):
+            for prev, cur in zip(descriptors, descriptors[1:]):
+                a, b = prev.get("gray"), cur.get("gray")
+                if a is None or b is None:
+                    continue
+                if SANITY.pearson(a, b) < temporal_corr:
+                    return False
+        return True
 
     used, out = set(), []
     for win in base:
@@ -503,8 +531,9 @@ def scan_footage(footage_root):
 
 
 def _make_frame_probe():
-    """A cached ``(source, t) -> mid-frame stdev`` probe (None if unreadable), used
-    to skip near-black / transition windows when building the material map."""
+    """A cached ``(source, t) -> frame descriptor`` probe (None if unreadable), used
+    to skip near-black / transition / unstable windows when building the material
+    map."""
     import tempfile  # noqa: PLC0415
     cache = {}
 
@@ -517,7 +546,7 @@ def _make_frame_probe():
         value = None
         if extracted:
             try:
-                value = SANITY.frame_descriptor(str(extracted)).get("stdev")
+                value = SANITY.frame_descriptor(str(extracted))
             except Exception:
                 value = None
             try:

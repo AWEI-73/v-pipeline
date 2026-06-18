@@ -114,6 +114,20 @@ class Real67SanityPureTest(unittest.TestCase):
         verdict = R.real67_slot_verdict(frame, source)
         self.assertFalse(verdict["ok"])
 
+    def test_actual_slot_windows_use_rendered_segment_durations(self):
+        plan = [_slot(1, "a", dur=1.0, slot_index=0),
+                _slot(2, "b", dur=1.0, slot_index=1)]
+        windows = R.actual_slot_windows(plan, {0: 1.25, 1: 1.75})
+        self.assertEqual(windows[0][1:], (0.0, 1.25, 0.625))
+        self.assertEqual(windows[1][1:], (1.25, 3.0, 2.125))
+
+    def test_verdict_uses_best_source_candidate(self):
+        frame = {"stdev": 40.0, "gray": [1, 2, 3, 4]}
+        sources = [{"gray": [4, 3, 2, 1]}, {"gray": [1, 2, 3, 4]}]
+        verdict = R.real67_slot_verdict(frame, sources)
+        self.assertTrue(verdict["ok"])
+        self.assertAlmostEqual(verdict["best_correlation"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

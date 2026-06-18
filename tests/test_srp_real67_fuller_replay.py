@@ -223,6 +223,37 @@ class TestRenderableWindows(unittest.TestCase):
             mid = (s + e) / 2.0
             self.assertFalse(40.0 <= mid < 60.0, f"chose a black window at {mid}")
 
+    def test_rejects_window_when_head_sample_is_black(self):
+        # BUILD may later shorten a selected 3.5s scene to ~1.5s, so checking only
+        # the scene midpoint can still leave a black/transition frame at render
+        # time. A window whose head is black must be rejected even when its mid is
+        # bright.
+        def probe(_source, t):
+            return 2.0 if 23.8 <= t <= 24.1 else 30.0
+        wins = F.renderable_windows("C:\\v.mp4", 100.0, probe, max_scenes=3)
+        self.assertTrue(wins)
+        for s, _e in wins:
+            head_sample = round(s + 0.35, 3)
+            self.assertFalse(23.8 <= head_sample <= 24.1,
+                             f"chose a window with black head sample at {head_sample}")
+
+    def test_rejects_temporally_unstable_window(self):
+        # A high-stdev window can still straddle a cut/violent motion. If head/mid
+        # source frames are structurally unrelated, small seek/render differences
+        # can make the final slot fail source-correlation. Treat that as an
+        # unstable window and pick an alternative.
+        def probe(_source, t):
+            if 23.8 <= t <= 25.7:
+                gray = [1, 2, 3, 4] if t < 25.0 else [4, 3, 2, 1]
+            else:
+                gray = [1, 2, 3, 4]
+            return {"stdev": 30.0, "gray": gray}
+        wins = F.renderable_windows("C:\\v.mp4", 100.0, probe, max_scenes=3)
+        self.assertTrue(wins)
+        for s, e in wins:
+            self.assertFalse(s <= 24.0 and e >= 25.0,
+                             f"chose temporally unstable window {(s, e)}")
+
     def test_all_black_drops_to_empty(self):
         wins = F.renderable_windows("C:\\v.mp4", 100.0, lambda *_: 1.0, max_scenes=3)
         self.assertEqual(wins, [])
