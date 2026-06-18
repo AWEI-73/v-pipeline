@@ -120,6 +120,44 @@ Implementation direction:
 - The layer must compile toward existing canonical artifacts rather than create
   a second BUILD schema.
 
+### SSB1 Story Soul Blueprint Skill
+
+Status: implemented / acceptance review.
+
+Canonical files:
+
+- Skill: `skills/story-soul-blueprint.md`
+- Tool: `video_tools.py story-soul-blueprint`
+- Module: `video_pipeline_core/story_soul_blueprint.py`
+- Tests: `tests/test_story_soul_blueprint.py`
+
+Flow:
+
+```text
+project_brief.json
+  -> story_world.json
+  -> creative_concept.json
+  -> screenplay_beats.json
+  -> director_shot_plan.json
+  -> material_needs.json
+  -> generation_manifest.json
+  -> review_checklist.md
+```
+
+Current acceptance:
+
+- Training/graduation brief produces a report-writing memory frame and `0.66%`
+  metaphor instead of a course list.
+- Generated comic brief produces enough panel estimates for a one-minute story
+  and all shot-plan items prefer generated images.
+- Generic brief without a story subject fails closed.
+
+Boundary:
+
+- SSB1 is deterministic baseline scaffolding. It gives agents a stronger
+  artifact shape and minimum story logic; it is not a substitute for a human or
+  high-end writer model improving the prose.
+
 ### MGF1 Material Generation Fallback Skill
 
 Status: in implementation / review.

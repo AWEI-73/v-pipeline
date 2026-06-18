@@ -15,6 +15,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/story-soul-blueprint-skills.md` — planned upstream creative skill layer:
   story world, narrative device, screenplay beats, director shot/material prompt
   compiler. This is the next consolidation target before more runtime features.
+- Skill: `skills/story-soul-blueprint.md` — SSB1 executable baseline that
+  compiles project briefs into story_world, creative_concept, screenplay_beats,
+  director_shot_plan, material_needs, generation_manifest, and review checklist.
 - Skill: `skills/material-generation-fallback.md` — MGF1 rescue layer that turns
   fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
   generated assets return through material-map review as candidates.
@@ -64,6 +67,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-18-generated-material-producer.md` -- GMP1
   generated-job execution into files, manifests, candidate maps, provider-output
   intake, style/character lock, and review.
+- `docs/decisions/2026-06-19-story-soul-blueprint.md` -- SSB1 upstream
+  creative scaffold: story world, concept, beats, shot plan, material needs, and
+  review checklist.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -87,6 +93,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-19-story-soul-blueprint.md`,
 `2026-06-18-generated-material-producer.md`,
 `2026-06-18-material-generation-fallback.md`,
 `2026-06-17-tool-surface-and-run-layout-consolidation.md`,

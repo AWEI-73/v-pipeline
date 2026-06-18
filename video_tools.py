@@ -260,7 +260,7 @@ def cmd_light_effects_plan(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 def _load_json(path):
-    with Path(path).open(encoding="utf-8") as f:
+    with Path(path).open(encoding="utf-8-sig") as f:
         return json.load(f)
 
 
@@ -501,6 +501,22 @@ def cmd_generated_material_review(args):
     out_path.write_text(json.dumps(result["project_material_map"],
                                    ensure_ascii=False, indent=2),
                         encoding="utf-8")
+
+
+def cmd_story_soul_blueprint(args):
+    """SSB1: compile a high-level brief into story-world, concept, beats,
+    director shot plan, material needs, generation manifest, and checklist."""
+    from video_pipeline_core import story_soul_blueprint
+    result = story_soul_blueprint.write_story_soul_blueprint(
+        _load_json(args.brief),
+        args.out_dir,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "refs": result.get("refs", {})},
+                     ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("story soul blueprint failed: "
+                        + "; ".join(result.get("errors") or []))
 
 
 def cmd_material_map_lifecycle(args):
@@ -1723,6 +1739,7 @@ def _build_video_tools_dispatch():
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "generated-material-review": cmd_generated_material_review,
+        "story-soul-blueprint": cmd_story_soul_blueprint,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
@@ -2137,6 +2154,11 @@ def main():
     p_gmr.add_argument("--needs", required=True, help="material_needs.json")
     p_gmr.add_argument("--verdict", required=True, help="generated_material_review.json")
     p_gmr.add_argument("--out", required=True, help="reviewed project_material_map.json")
+
+    p_ssb = sub.add_parser("story-soul-blueprint")
+    p_ssb.add_argument("brief", help="project brief JSON")
+    p_ssb.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for SSB artifacts")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

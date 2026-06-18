@@ -74,6 +74,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "blueprint-compile": "contract",
     "blueprint-to-contract": "contract",
     "creator-profile": "contract",
+    "story-soul-blueprint": "contract",
 
     # Material-map lifecycle and material selection.
     "ingest-meta": "material",
