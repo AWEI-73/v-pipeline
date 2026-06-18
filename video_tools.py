@@ -1558,6 +1558,8 @@ def cmd_operator_flow_acceptance(args):
         rerender_out=getattr(args, "rerender_out", "operator_flow_rerender.mp4"),
         rerender_report_out=getattr(args, "rerender_report_out", "operator_flow_rerender_report.json"),
         render_effects=bool(getattr(args, "effects", False)),
+        init_demo_package=bool(getattr(args, "init_demo_package", False)),
+        require_build_ready=bool(getattr(args, "require_build_ready", False)),
         **extra,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -1942,6 +1944,10 @@ def main():
                        help="non-canonical rerender report")
     p_ofa.add_argument("--effects", action="store_true",
                        help="apply supported Workbench effect_patch overlays during draft rerender")
+    p_ofa.add_argument("--init-demo-package", action="store_true",
+                       help="initialize a deterministic complete demo package under artifact_root before validating")
+    p_ofa.add_argument("--require-build-ready", action="store_true",
+                       help="fail unless material-map lifecycle reaches build_ready")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

@@ -63,6 +63,11 @@ class FakeEffectRenderer:
         return {"applied_count": 1, "skipped_count": 0, "out": output_path}
 
 
+class MissingOutputRenderer:
+    def __call__(self, plan, music_path, out_path, mat_dir=None):
+        return out_path
+
+
 class WorkbenchExportTest(unittest.TestCase):
     def test_prepare_plan_applies_patch_and_aligns(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -104,6 +109,13 @@ class WorkbenchExportTest(unittest.TestCase):
             _write(root, "timeline.json", {"plan": [{"slot_index": 0, "source": None, "slot_dur": 1.0}]})
             with self.assertRaises(ValueError):
                 export(str(root), out=DEFAULT_OUT, renderer=FakeRenderer())
+
+    def test_export_fails_if_renderer_reports_success_without_output_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            with self.assertRaises(RuntimeError):
+                export(str(root), out=DEFAULT_OUT, renderer=MissingOutputRenderer())
+            self.assertFalse((root / DEFAULT_OUT).exists())
 
     def test_resolve_renderable_effects_filters_supported_presets(self):
         with tempfile.TemporaryDirectory() as tmp:

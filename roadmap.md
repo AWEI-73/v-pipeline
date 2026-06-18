@@ -3350,3 +3350,28 @@ recommended `tools/workbench_server.py` command and default
 `http://localhost:8770/workbench` URL. `dashboard_v1.html/js` adds a Workbench
 button that opens that external write-limited workbench. The Review Dashboard
 remains read-only; Workbench retains its own write-limited patch/export server.
+
+### 2026-06-18 OPF1 Operator Flow Acceptance Package — COMPLETE
+
+`operator-flow-acceptance` now supports a deterministic complete demo package
+for backend Node0→13 smoke acceptance:
+
+```powershell
+python video_tools.py operator-flow-acceptance .tmp/operator_flow_full_acceptance `
+  --init-demo-package `
+  --require-build-ready `
+  --out .tmp/operator_flow_full_acceptance/operator_flow_acceptance.json `
+  --rerender-out operator_flow_rerender.mp4 `
+  --rerender-report-out operator_flow_rerender_report.json
+```
+
+The generated package includes a Node0 brief, `material_needs.json`,
+per-asset material map, `materials_db.json`, `project_material_map.json`,
+`segment_contract.json`, `music.wav`, Workbench timeline/draft artifacts, and
+handoff. Acceptance requires `material_lifecycle.stage == build_ready`, validates
+the Workbench handoff, and renders a non-canonical ffmpeg draft candidate. It
+never writes canonical `final.mp4`.
+
+Verified result: `stage=passed`, `can_build=true`, handoff `ok=true`,
+non-canonical rerender `ok=true`, rendered clips `2`, ffprobe output
+`2.0s` H.264 video + AAC audio, and canonical `final.mp4` absent.

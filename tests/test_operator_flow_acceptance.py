@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -7,7 +8,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import video_tools
-from tools.operator_flow_acceptance import run_operator_flow_acceptance
+from tools.operator_flow_acceptance import (
+    initialize_demo_package,
+    run_operator_flow_acceptance,
+    _write_demo_video,
+)
 from tools.workbench_handoff import build_handoff
 
 
@@ -98,6 +103,24 @@ class FakeRenderer:
 
 
 class OperatorFlowAcceptanceTest(unittest.TestCase):
+    def test_demo_video_generation_failure_cleans_partial_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "operator_demo_clip.mp4"
+            partial = out.with_name(out.stem + ".tmp" + out.suffix)
+            partial.write_bytes(b"bad")
+
+            class TimeoutRun:
+                returncode = 1
+                stderr = "timeout"
+
+            with patch("tools.operator_flow_acceptance.subprocess.run", return_value=TimeoutRun()):
+                with self.assertRaises(RuntimeError):
+                    _write_demo_video(out)
+
+            self.assertFalse(partial.exists())
+            self.assertFalse(out.exists())
+
     def test_incomplete_replay_package_fails_before_rerender_when_satisfies_has_no_needs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -152,6 +175,33 @@ class OperatorFlowAcceptanceTest(unittest.TestCase):
             self.assertTrue((root / "operator_flow_rerender_report.json").is_file())
             self.assertTrue((root / "operator_flow_acceptance.json").is_file())
 
+    def test_initialized_demo_package_requires_build_ready_and_rerenders(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            renderer = FakeRenderer()
+
+            report = run_operator_flow_acceptance(
+                str(root),
+                renderer=renderer,
+                init_demo_package=True,
+                require_build_ready=True,
+            )
+
+            self.assertTrue(report["ok"], report.get("errors"))
+            self.assertTrue(report["demo_package_initialized"])
+            self.assertEqual(report["material_lifecycle"]["stage"], "build_ready")
+            self.assertTrue(report["material_lifecycle"]["can_build"])
+            self.assertTrue(report["workbench_handoff_validation"]["ok"])
+            self.assertTrue(report["workbench_rerender"]["ok"])
+            self.assertTrue((root / "material_needs.json").is_file())
+            self.assertTrue((root / "materials_db.json").is_file())
+            self.assertTrue((root / "segment_contract.json").is_file())
+            self.assertTrue((root / "patched_draft_timeline.json").is_file())
+            patched = json.loads((root / "patched_draft_timeline.json").read_text(encoding="utf-8"))
+            self.assertTrue(all(str(c["source"]).endswith(".mp4") for c in patched["plan"]))
+            self.assertTrue(all("is_photo" not in c and "kenburns" not in c for c in patched["plan"]))
+            self.assertEqual(len(renderer.calls), 1)
+
     def test_video_tools_operator_flow_acceptance_cli_writes_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -177,6 +227,31 @@ class OperatorFlowAcceptanceTest(unittest.TestCase):
             payload = json.loads((root / "operator_report.json").read_text(encoding="utf-8"))
             self.assertTrue(payload["ok"])
             self.assertEqual(len(renderer.calls), 1)
+
+    def test_video_tools_operator_flow_acceptance_can_initialize_demo_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            renderer = FakeRenderer()
+
+            with redirect_stdout(StringIO()):
+                video_tools.cmd_operator_flow_acceptance(
+                    SimpleNamespace(
+                        artifact_root=str(root),
+                        out=str(root / "operator_report.json"),
+                        rerender_out="operator.mp4",
+                        rerender_report_out="operator_rerender_report.json",
+                        effects=False,
+                        renderer=renderer,
+                        init_demo_package=True,
+                        require_build_ready=True,
+                    )
+                )
+
+            payload = json.loads((root / "operator_report.json").read_text(encoding="utf-8"))
+            self.assertTrue(payload["ok"], payload.get("errors"))
+            self.assertTrue(payload["demo_package_initialized"])
+            self.assertEqual(payload["material_lifecycle"]["stage"], "build_ready")
+            self.assertTrue((root / "operator.mp4").is_file())
 
 
 if __name__ == "__main__":

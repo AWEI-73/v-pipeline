@@ -207,9 +207,37 @@ code=missing_material_needs
 
 This turns the previous operator ambiguity into a direct package-shape error.
 
-Remaining future work: create a richer fixture generator if we want this command
-to construct a complete run package from scratch instead of validating an
-existing one. The stage boundaries remain:
+Completed follow-up: the command can now initialize a deterministic complete
+demo package and require the material lifecycle to reach `build_ready`:
+
+```powershell
+python video_tools.py operator-flow-acceptance .tmp/operator_flow_full_acceptance `
+  --init-demo-package `
+  --require-build-ready `
+  --out .tmp/operator_flow_full_acceptance/operator_flow_acceptance.json `
+  --rerender-out operator_flow_rerender.mp4 `
+  --rerender-report-out operator_flow_rerender_report.json
+```
+
+Observed result on 2026-06-18:
+
+- `stage=passed`
+- `material_lifecycle.stage=build_ready`
+- `material_lifecycle.can_build=true`
+- Workbench handoff validation `ok=true`
+- non-canonical ffmpeg rerender `ok=true`
+- rendered clips: `2`
+- output: `.tmp/operator_flow_full_acceptance/operator_flow_rerender.mp4`
+- output probe: 2.0s H.264 video, AAC audio, 804894 bytes
+- canonical `final.mp4` is not produced or overwritten
+
+The generated package includes `node0_brief.json`, `material_needs.json`, a
+per-asset map, `materials_db.json`, `project_material_map.json`,
+`segment_contract.json`, `music.wav`, `timeline.json`,
+`patched_draft_timeline.json`, `workbench_review_report.json`, and
+`workbench_handoff.json`.
+
+The stage boundaries remain:
 
 1. material-map generic lifecycle
 2. canonical build when complete contract/needs/maps exist

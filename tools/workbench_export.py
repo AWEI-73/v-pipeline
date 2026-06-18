@@ -258,9 +258,12 @@ def export(
     os.makedirs(mat_dir, exist_ok=True)
 
     rendered = renderer(plan, music_path, str(out_path), mat_dir)
+    rendered_path = Path(rendered or out_path)
+    if not rendered_path.is_file() or rendered_path.stat().st_size <= 0:
+        raise RuntimeError(f"renderer reported success but did not create a non-empty output: {rendered_path}")
     result = {
         "ok": True,
-        "out": str(rendered or out_path),
+        "out": str(rendered_path),
         "rendered_clips": len(plan),
         "source": prepared["source"],
         "music": music_path,
@@ -270,10 +273,10 @@ def export(
     if render_effects:
         if effect_patch is not None:
             effect_result = effect_renderer(
-                artifact_root, str(rendered or out_path), str(out_path),
+                artifact_root, str(rendered_path), str(out_path),
                 effect_patch=effect_patch)
         else:
-            effect_result = effect_renderer(artifact_root, str(rendered or out_path), str(out_path))
+            effect_result = effect_renderer(artifact_root, str(rendered_path), str(out_path))
         result["out"] = effect_result.get("out", str(out_path))
         result["effect_render"] = effect_result
     return result
