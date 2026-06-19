@@ -19,9 +19,11 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "FX1 Effect Asset Spec",
             "FX2 Effect Build Wiring",
             "FX3 Brownfield Edit / Node14 Revision Orchestration",
-            "FX4 Remotion/Preview Boundary",
-            "canonical delivery remains ffmpeg / `contract-run`",
-            "Remotion is installed and may be used as a reference or optional preview",
+            "FX4 Remotion Prompt-Driven Adapter Boundary",
+            "delivery stays ffmpeg / `contract-run`",
+            "Remotion is installed and now has a bounded Brownfield/Node14 adapter",
+            "remotion_prompt_pack.json",
+            "remotion_worker_outputs.json",
             "Brownfield Edit is described as revision/effects orchestration",
         ]:
             self.assertIn(expected, text)
@@ -45,7 +47,9 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Effect assets are not real-event evidence",
             "Brownfield Edit is the local revision/effects orchestration route",
             "Node14 remains a legacy implementation node inside Brownfield Edit",
-            "Remotion may help preview or author effects",
+            "Remotion may author prompt-driven effects inside Brownfield Edit",
+            "remotion-prompt-pack",
+            "remotion-worker-outputs",
         ]:
             self.assertIn(expected, decision)
         self.assertIn("2026-06-19-effects-node14-roadmap-alignment.md", index)
@@ -57,6 +61,8 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Brownfield Edit Route",
             "do not rewrite the blueprint",
             "effect asset / sfx / overlay",
+            "remotion-prompt-pack",
+            "remotion-worker-outputs",
             "story evidence material",
             "reviewed artifact",
             "second contract-run",
@@ -69,7 +75,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "2026-06-19 Effects / Node14 Boundary",
             "canonical final render",
             "Workbench 只做 draft preview",
-            "Remotion 可作參考",
+            "Remotion 是 Brownfield/Node14 的 prompt-driven effect backend",
             "effect assets 不等於事件素材",
             "effect_asset_spec.json",
             "effect_patch.json",

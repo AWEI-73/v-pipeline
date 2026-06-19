@@ -84,11 +84,11 @@ One page that says what is current and what is historical, so old/new no longer 
   and Workbench drafts are not material truth.
 - `docs/decisions/2026-06-19-effects-node14-roadmap-alignment.md` -- next
   effects direction: effect asset spec, ffmpeg-backed effect build, Brownfield
-  Edit / Node14 revision orchestration, and Remotion as optional
-  preview/reference only.
+  Edit / Node14 revision orchestration, and optional Remotion prompt-driven
+  effect adapter artifacts.
 - Skill: `skills/brownfield-edit.md` -- fast local patch route after review or
   verify gaps; Node14 remains a compatibility implementation node inside this
-  route.
+  route, including Remotion prompt packs for adapter-route effect gaps.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.

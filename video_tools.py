@@ -688,6 +688,50 @@ def cmd_material_revision(args):
                      ensure_ascii=False, indent=2))
 
 
+def cmd_remotion_prompt_pack(args):
+    """FX4a: convert Brownfield adapter-route effect gaps into Remotion worker
+    prompt jobs. This writes an artifact only; it does not run Remotion."""
+    from video_pipeline_core import remotion_effects
+    try:
+        pack = remotion_effects.write_remotion_prompt_pack(
+            args.request,
+            args.effect_intent_plan,
+            args.out,
+            timeline_path=args.timeline,
+            output_dir=args.output_dir,
+        )
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"remotion prompt pack failed: {exc}")
+    print(json.dumps({
+        "ok": True,
+        "status": pack["status"],
+        "summary": pack["summary"],
+        "remotion_prompt_pack": str(args.out),
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_remotion_worker_outputs(args):
+    """FX4b: validate Remotion worker output files against a prompt pack and
+    write a Workbench-review artifact only when the outputs are valid."""
+    from video_pipeline_core import remotion_effects
+    try:
+        result = remotion_effects.write_remotion_worker_review(
+            args.prompt_pack,
+            args.worker_outputs,
+            args.out_review,
+        )
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"remotion worker output validation failed: {exc}")
+    print(json.dumps({
+        "ok": result["ok"],
+        "errors": result.get("errors", []),
+        "summary": result.get("summary", {}),
+        "remotion_effect_review": str(args.out_review) if result["ok"] else None,
+    }, ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("remotion worker outputs invalid: " + "; ".join(result.get("errors") or []))
+
+
 def cmd_visual_diversity_coverage(args):
     """VD1: report real project-map VD0 label coverage; never rank material."""
     from video_pipeline_core import visual_diversity_coverage
@@ -1861,6 +1905,8 @@ def _build_video_tools_dispatch():
         "effect-revision-request": cmd_effect_revision_request,
         "effect-revision-draft": cmd_effect_revision_draft,
         "effect-revision-apply": cmd_effect_revision_apply,
+        "remotion-prompt-pack": cmd_remotion_prompt_pack,
+        "remotion-worker-outputs": cmd_remotion_worker_outputs,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
@@ -2337,6 +2383,23 @@ def main():
     p_era.add_argument("--reason", required=True, help="review reason for applying this draft")
     p_era.add_argument("--accept", action="store_true",
                        help="required explicit acceptance flag; without it the command fails closed")
+
+    p_rpp = sub.add_parser("remotion-prompt-pack")
+    p_rpp.add_argument("--request", required=True, help="effect_revision_request.json")
+    p_rpp.add_argument("--effect-intent-plan", required=True, dest="effect_intent_plan",
+                       help="effect_intent_plan.json source for neutral effect intent")
+    p_rpp.add_argument("--timeline", default=None, help="optional timeline_build.json for exact timing")
+    p_rpp.add_argument("--out", required=True, help="remotion_prompt_pack.json output")
+    p_rpp.add_argument("--output-dir", default="remotion_effects", dest="output_dir",
+                       help="target directory hint for Remotion worker outputs")
+
+    p_rwo = sub.add_parser("remotion-worker-outputs")
+    p_rwo.add_argument("--prompt-pack", required=True, dest="prompt_pack",
+                       help="remotion_prompt_pack.json")
+    p_rwo.add_argument("--worker-outputs", required=True, dest="worker_outputs",
+                       help="remotion_worker_outputs.json produced by a Remotion-capable worker")
+    p_rwo.add_argument("--out-review", required=True, dest="out_review",
+                       help="remotion_effect_review.json output for Workbench/Brownfield review")
 
     # --- P1 verification tool pack ---
     p_ta = sub.add_parser("timeline-audit")

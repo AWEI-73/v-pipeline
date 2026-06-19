@@ -13,8 +13,8 @@ stay clear:
 
 - ffmpeg / `contract-run` remains the canonical final renderer.
 - Workbench is a draft preview and intent-editing surface.
-- Remotion may help preview or author effects, but it is not a required normal
-  BUILD dependency.
+- Remotion may author prompt-driven effects inside Brownfield Edit / Node14, but
+  it is not a required normal BUILD dependency.
 - Brownfield Edit is the local revision/effects orchestration route, not a
   mandatory stage for every no-effects render.
 - Node14 remains a legacy implementation node inside Brownfield Edit.
@@ -169,6 +169,31 @@ Boundary: FX3c proves a reviewed plan can be consumed by canonical BUILD. It
 does not implement the Remotion/Node14 adapter itself, and it does not silently
 close adapter gaps. Any remaining external-effect gap stays visible until a
 renderer/adapter increment handles it.
+
+## FX4a/FX4b Remotion Prompt Adapter Foundation
+
+Implemented as a bounded Brownfield/Node14 adapter contract, not a main BUILD
+renderer.
+
+- New CLI: `python video_tools.py remotion-prompt-pack --request effect_revision_request.json --effect-intent-plan effect_intent_plan.json --timeline timeline_build.json --out remotion_prompt_pack.json`
+- New CLI: `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
+- New module: `video_pipeline_core/remotion_effects.py`.
+- `remotion_prompt_pack.json` only converts
+  `route_to_node14_or_remotion_adapter` requests into worker jobs. Ordinary
+  ffmpeg recipe gaps remain FX3 recipe work.
+- Each job carries prompt payload, source effect id, target timing, component
+  family, output target hints, and acceptance criteria. Prompt is payload, not
+  pipeline logic.
+- `remotion_worker_outputs.json` is validated fail-closed: unknown job ids,
+  missing preview/rendered files, duplicate jobs, malformed statuses, and bad
+  durations are rejected.
+- Valid outputs produce `remotion_effect_review.json` for Workbench/Brownfield
+  review. They are not accepted into canonical delivery by validation alone.
+
+Boundary: FX4a/FX4b does not run Remotion, does not install npm packages, does
+not composite Remotion output into `final.mp4`, and does not make Remotion a
+normal BUILD dependency. A later reviewed-asset/apply step must explicitly
+promote accepted Remotion output before a second `contract-run` can consume it.
 
 ## Brownfield Edit Route Naming
 

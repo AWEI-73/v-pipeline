@@ -1,0 +1,362 @@
+"""Prompt-driven Remotion effect adapter artifacts for Brownfield Edit.
+
+This module does not import or run Remotion. It translates reviewed effect gaps
+into a stable prompt pack for an image/video-capable worker, then validates the
+worker's output before Workbench/Brownfield review can accept it.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+from typing import Any, Mapping
+
+from .effect_contract import validate_effect_intent_plan
+from .effect_revision import ADAPTER_ROUTE
+
+
+DEFAULT_DURATION_SEC = 3.0
+
+ROLE_COMPONENT_FAMILY = {
+    "chapter_transition": "page_turn_transition",
+    "transition_plate": "page_turn_transition",
+    "title_card": "title_reveal",
+    "lower_third": "lower_third_motion",
+    "overlay": "overlay_motion",
+    "particle": "particle_overlay",
+    "light_leak": "light_leak_overlay",
+    "motion_background": "motion_background",
+    "panel_frame": "panel_frame_motion",
+    "speed_line": "speed_line_overlay",
+}
+
+
+def _non_empty_str(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def _optional_str(value: Any, field: str, default: str = "") -> str:
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string when present")
+    return value.strip()
+
+
+def _finite_positive(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a positive finite number")
+    value = float(value)
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{field} must be a positive finite number")
+    return value
+
+
+def _safe_id(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_.-")
+    return slug or "effect"
+
+
+def _load_json(path: str | Path) -> Any:
+    with Path(path).open(encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def _write_json(path: str | Path, payload: Mapping[str, Any]) -> str:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(path)
+
+
+def _validate_revision_request(request: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    if not isinstance(request, dict):
+        raise ValueError("effect_revision_request must be object")
+    if request.get("artifact_role") != "effect_revision_request":
+        raise ValueError("artifact_role must be effect_revision_request")
+    if request.get("version") != 1:
+        raise ValueError("effect_revision_request version must be 1")
+    requests = request.get("requests")
+    if not isinstance(requests, list):
+        raise ValueError("effect_revision_request.requests must be list")
+    for idx, item in enumerate(requests):
+        if not isinstance(item, dict):
+            raise ValueError(f"effect_revision_request.requests[{idx}] must be object")
+        _non_empty_str(item.get("request_id"), f"requests[{idx}].request_id")
+        _non_empty_str(item.get("effect_id"), f"requests[{idx}].effect_id")
+        route = item.get("route")
+        if not isinstance(route, str) or not route.strip():
+            raise ValueError(f"requests[{idx}].route must be non-empty string")
+    return requests
+
+
+def _effects_by_id(effect_intent_plan: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    validate_effect_intent_plan(effect_intent_plan)
+    return {
+        effect["effect_id"]: effect
+        for effect in effect_intent_plan.get("effects") or []
+    }
+
+
+def _segment_key(value: Any) -> Any:
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return value
+
+
+def _timeline_span(timeline: Mapping[str, Any] | None, segment: Any) -> tuple[dict[str, float], list[str]]:
+    diagnostics: list[str] = []
+    if not timeline:
+        diagnostics.append("timeline_missing: using default timing")
+        return {"start_sec": 0.0, "duration_sec": DEFAULT_DURATION_SEC}, diagnostics
+    clips = [
+        clip for clip in (timeline or {}).get("clips", [])
+        if _segment_key(clip.get("segment")) == _segment_key(segment)
+    ]
+    starts = []
+    ends = []
+    for clip in clips:
+        try:
+            start = float(clip.get("timeline_in_sec"))
+            end = float(clip.get("timeline_out_sec"))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(start) and math.isfinite(end) and end > start:
+            starts.append(start)
+            ends.append(end)
+    if not starts:
+        diagnostics.append(f"timeline_segment_missing:{segment}; using default timing")
+        return {"start_sec": 0.0, "duration_sec": DEFAULT_DURATION_SEC}, diagnostics
+    start = min(starts)
+    end = max(ends)
+    return {"start_sec": round(start, 3), "duration_sec": round(end - start, 3)}, diagnostics
+
+
+def _component_family(effect: Mapping[str, Any]) -> str:
+    return ROLE_COMPONENT_FAMILY.get(str(effect.get("role") or ""), "custom_motion_effect")
+
+
+def _prompt_text(effect: Mapping[str, Any], request: Mapping[str, Any],
+                 timing: Mapping[str, Any], component_family: str) -> str:
+    visual = effect.get("visual_language") or []
+    visual_text = ", ".join(visual) if visual else "clean motion graphic"
+    return (
+        f"Create a {component_family} Remotion effect for the Hermes video pipeline. "
+        f"Intent: {effect.get('intent')}. Visual language: {visual_text}. "
+        f"Intensity: {effect.get('intensity')}. Segment: {request.get('segment')}. "
+        f"Duration: {timing['duration_sec']} seconds. "
+        "Render as a reviewable overlay/fullscreen asset with deterministic timing. "
+        "Do not use story-evidence footage to satisfy material coverage."
+    )
+
+
+def build_remotion_prompt_pack(effect_revision_request: Mapping[str, Any],
+                               effect_intent_plan: Mapping[str, Any], *,
+                               timeline: Mapping[str, Any] | None = None,
+                               output_dir: str | Path = "remotion_effects") -> dict[str, Any]:
+    """Build prompt jobs for adapter-route effect gaps.
+
+    Only `route_to_node14_or_remotion_adapter` requests become jobs. Regular
+    ffmpeg recipe gaps remain in FX3 and are not sent to Remotion.
+    """
+
+    requests = _validate_revision_request(effect_revision_request)
+    effects = _effects_by_id(effect_intent_plan)
+    jobs = []
+    output_dir = str(output_dir).replace("\\", "/").rstrip("/")
+    for request in requests:
+        if request.get("route") != ADAPTER_ROUTE:
+            continue
+        source_effect_id = _non_empty_str(
+            request.get("source_effect_id"),
+            f"{request.get('request_id')}.source_effect_id",
+        )
+        effect = effects.get(source_effect_id)
+        if effect is None:
+            raise ValueError(f"source_effect_id not found in effect_intent_plan: {source_effect_id}")
+        timing, diagnostics = _timeline_span(timeline, request.get("segment"))
+        family = _component_family(effect)
+        job_id = f"rm_{_safe_id(source_effect_id)}"
+        target_file = f"{output_dir}/{job_id}.mov"
+        preview_file = f"{output_dir}/{job_id}.preview.mp4"
+        jobs.append({
+            "job_id": job_id,
+            "request_id": request.get("request_id"),
+            "source_effect_id": source_effect_id,
+            "effect_id": request.get("effect_id"),
+            "route": request.get("route"),
+            "role": effect.get("role"),
+            "component_family": family,
+            "prompt": _prompt_text(effect, request, timing, family),
+            "props": {
+                "intent": effect.get("intent"),
+                "visual_language": list(effect.get("visual_language") or []),
+                "intensity": effect.get("intensity"),
+                "segment": request.get("segment"),
+                "duration_sec": timing["duration_sec"],
+            },
+            "timing": timing,
+            "output": {
+                "type": "overlay_video",
+                "alpha": True,
+                "target_file": target_file,
+                "preview_file": preview_file,
+            },
+            "acceptance": {
+                "must_exist": ["preview_file", "target_file"],
+                "must_match_duration_sec": timing["duration_sec"],
+                "requires_workbench_review": True,
+            },
+            "diagnostics": diagnostics,
+        })
+    return {
+        "artifact_role": "remotion_prompt_pack",
+        "version": 1,
+        "status": "pending" if jobs else "empty",
+        "source": {
+            "effect_revision_request_role": effect_revision_request.get("artifact_role"),
+            "effect_intent_plan_role": effect_intent_plan.get("artifact_role"),
+        },
+        "summary": {
+            "request_count": len(requests),
+            "job_count": len(jobs),
+            "skipped_non_adapter_count": len(requests) - len(jobs),
+        },
+        "jobs": jobs,
+        "next_action": "run_remotion_worker_and_review" if jobs else None,
+    }
+
+
+def _validate_prompt_pack(pack: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(pack, dict):
+        raise ValueError("remotion_prompt_pack must be object")
+    if pack.get("artifact_role") != "remotion_prompt_pack":
+        raise ValueError("artifact_role must be remotion_prompt_pack")
+    if pack.get("version") != 1:
+        raise ValueError("remotion_prompt_pack version must be 1")
+    jobs = pack.get("jobs")
+    if not isinstance(jobs, list):
+        raise ValueError("remotion_prompt_pack.jobs must be list")
+    by_id = {}
+    for idx, job in enumerate(jobs):
+        if not isinstance(job, dict):
+            raise ValueError(f"remotion_prompt_pack.jobs[{idx}] must be object")
+        job_id = _non_empty_str(job.get("job_id"), f"jobs[{idx}].job_id")
+        if job_id in by_id:
+            raise ValueError(f"duplicate remotion job_id: {job_id}")
+        by_id[job_id] = job
+    return by_id
+
+
+def _path_exists(path: Any, field: str) -> str:
+    value = _non_empty_str(path, field)
+    if not Path(value).exists() or Path(value).is_dir():
+        raise ValueError(f"{field} must point to an existing file: {value}")
+    return value
+
+
+def validate_remotion_worker_outputs(worker_outputs: Mapping[str, Any],
+                                     remotion_prompt_pack: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate worker outputs and return a Workbench-review artifact.
+
+    This does not accept outputs into BUILD. It only proves the worker produced
+    files that correspond to prompt-pack jobs and can be surfaced for review.
+    """
+
+    errors: list[str] = []
+    prompt_jobs = _validate_prompt_pack(remotion_prompt_pack)
+    if not isinstance(worker_outputs, dict):
+        raise ValueError("remotion_worker_outputs must be object")
+    if worker_outputs.get("artifact_role") != "remotion_worker_outputs":
+        raise ValueError("artifact_role must be remotion_worker_outputs")
+    if worker_outputs.get("version") != 1:
+        raise ValueError("remotion_worker_outputs version must be 1")
+    jobs = worker_outputs.get("jobs")
+    if not isinstance(jobs, list):
+        raise ValueError("remotion_worker_outputs.jobs must be list")
+    review_items = []
+    seen = set()
+    for idx, output in enumerate(jobs):
+        if not isinstance(output, dict):
+            errors.append(f"jobs[{idx}] must be object")
+            continue
+        try:
+            job_id = _non_empty_str(output.get("job_id"), f"jobs[{idx}].job_id")
+            if job_id in seen:
+                raise ValueError(f"duplicate job_id: {job_id}")
+            seen.add(job_id)
+            prompt_job = prompt_jobs.get(job_id)
+            if prompt_job is None:
+                raise ValueError(f"unknown job_id: {job_id}")
+            status = _non_empty_str(output.get("status"), f"jobs[{idx}].status")
+            if status != "rendered":
+                raise ValueError(f"jobs[{idx}].status must be rendered")
+            preview = _path_exists(output.get("preview_file"), f"jobs[{idx}].preview_file")
+            rendered = _path_exists(output.get("rendered_asset"), f"jobs[{idx}].rendered_asset")
+            duration_sec = _finite_positive(output.get("duration_sec"), f"jobs[{idx}].duration_sec")
+            review_items.append({
+                "job_id": job_id,
+                "source_effect_id": prompt_job.get("source_effect_id"),
+                "effect_id": prompt_job.get("effect_id"),
+                "role": prompt_job.get("role"),
+                "component_family": prompt_job.get("component_family"),
+                "prompt": prompt_job.get("prompt"),
+                "preview_file": preview,
+                "rendered_asset": rendered,
+                "duration_sec": duration_sec,
+                "timing": prompt_job.get("timing"),
+                "status": "pending_review",
+                "next_action": "workbench_review_remotion_effect",
+            })
+        except ValueError as exc:
+            errors.append(str(exc))
+    rendered_count = len(review_items)
+    review = {
+        "artifact_role": "remotion_effect_review",
+        "version": 1,
+        "status": "pending_review" if rendered_count else "blocked",
+        "summary": {
+            "job_count": len(prompt_jobs),
+            "rendered_count": rendered_count,
+            "error_count": len(errors),
+        },
+        "items": review_items,
+        "errors": errors,
+        "next_action": "review_remotion_effect_outputs" if rendered_count else "fix_remotion_worker_outputs",
+    }
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "summary": review["summary"],
+        "review_artifact": review,
+    }
+
+
+def write_remotion_prompt_pack(request_path: str | Path, effect_intent_plan_path: str | Path,
+                               out_path: str | Path, *, timeline_path: str | Path | None = None,
+                               output_dir: str | Path = "remotion_effects") -> dict[str, Any]:
+    request = _load_json(request_path)
+    effect_intent_plan = _load_json(effect_intent_plan_path)
+    timeline = _load_json(timeline_path) if timeline_path else None
+    pack = build_remotion_prompt_pack(
+        request,
+        effect_intent_plan,
+        timeline=timeline,
+        output_dir=output_dir,
+    )
+    _write_json(out_path, pack)
+    return pack
+
+
+def write_remotion_worker_review(prompt_pack_path: str | Path, worker_outputs_path: str | Path,
+                                 out_review_path: str | Path) -> dict[str, Any]:
+    pack = _load_json(prompt_pack_path)
+    outputs = _load_json(worker_outputs_path)
+    result = validate_remotion_worker_outputs(outputs, pack)
+    if result["ok"]:
+        _write_json(out_review_path, result["review_artifact"])
+    return result

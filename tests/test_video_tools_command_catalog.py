@@ -90,8 +90,18 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             "workbench-draft-rerender",
             "effect-revision-request",
             "effect-revision-draft",
+            "remotion-prompt-pack",
+            "remotion-worker-outputs",
             "effect-revision-apply",
         ])
+        self.assertEqual(
+            steps[4]["requires"],
+            ["effect-revision-request:adapter_route"],
+        )
+        self.assertEqual(
+            steps[5]["requires"],
+            ["remotion-prompt-pack:ok"],
+        )
         self.assertIn("second contract-run", steps[-1]["purpose"])
         self.assertIn("story evidence material", workflow["description"])
 

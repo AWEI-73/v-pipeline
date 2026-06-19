@@ -24,6 +24,7 @@ Typical outputs:
 - draft patch artifact
 - reviewed artifact
 - second `contract-run` handoff
+- Remotion prompt pack / worker-output review artifact for prompt-driven effects
 
 ## Hard Boundaries
 
@@ -82,7 +83,32 @@ skips review.
 - Effect gap request: `effect-revision-request`
 - Effect draft patch: `effect-revision-draft`
 - Reviewed apply: `effect-revision-apply`
+- Remotion prompt jobs for adapter-route effect gaps: `remotion-prompt-pack`
+- Remotion worker-output validation for Workbench review:
+  `remotion-worker-outputs`
 
 Node14 remains a legacy implementation node inside Brownfield Edit. Treat
 `effect_revision_request.json` and `effect_recipe_patch.json` as compatible
 Brownfield artifacts, not as a separate main pipeline.
+
+## Remotion Prompt-Driven Effects
+
+Use Remotion inside Brownfield only after an effect gap exists or a user asks
+for a finishing effect that the ffmpeg-safe route cannot express.
+
+```text
+effect_revision_request.json
+-> remotion_prompt_pack.json
+-> Remotion-capable worker writes remotion_worker_outputs.json + media files
+-> remotion_effect_review.json
+-> Workbench / human review
+-> reviewed artifact
+-> second contract-run / ffmpeg composite
+```
+
+Rules:
+
+- Prompt is payload, not pipeline logic.
+- Do not run Remotion during normal BUILD.
+- Do not accept Remotion output into canonical delivery without review.
+- Do not use Remotion output as story material evidence.

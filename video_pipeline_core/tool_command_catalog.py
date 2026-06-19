@@ -76,6 +76,8 @@ COMMAND_GROUPS: Dict[str, str] = {
     "effect-revision-request": "contract",
     "effect-revision-draft": "contract",
     "effect-revision-apply": "contract",
+    "remotion-prompt-pack": "contract",
+    "remotion-worker-outputs": "contract",
     "blueprint-coverage": "contract",
     "blueprint-compile": "contract",
     "blueprint-to-contract": "contract",
@@ -258,10 +260,44 @@ WORKFLOWS = {
                 "requires": ["effect-revision-request:ok"],
             },
             {
+                "id": "remotion_prompt_pack",
+                "command": "remotion-prompt-pack",
+                "purpose": "prepare prompt-driven Remotion jobs for adapter-route effect gaps",
+                "requires": ["effect-revision-request:adapter_route"],
+            },
+            {
+                "id": "remotion_worker_outputs",
+                "command": "remotion-worker-outputs",
+                "purpose": "validate Remotion worker outputs before Workbench/Brownfield review",
+                "requires": ["remotion-prompt-pack:ok"],
+            },
+            {
                 "id": "effect_revision_apply",
                 "command": "effect-revision-apply",
                 "purpose": "explicitly review/apply a draft into a separate reviewed artifact for a second contract-run",
                 "requires": ["effect-revision-draft:reviewed"],
+            },
+        ],
+    },
+    "remotion_effect_adapter": {
+        "description": "Prompt-driven Remotion effect backend inside Brownfield Edit; produces reviewable assets, not canonical final renders.",
+        "steps": [
+            {
+                "id": "effect_revision_request",
+                "command": "effect-revision-request",
+                "purpose": "identify adapter-route effect gaps from the light-effects baseline review",
+            },
+            {
+                "id": "remotion_prompt_pack",
+                "command": "remotion-prompt-pack",
+                "purpose": "convert adapter-route gaps plus neutral effect intent into Remotion worker prompt jobs",
+                "requires": ["effect-revision-request:adapter_route"],
+            },
+            {
+                "id": "remotion_worker_outputs",
+                "command": "remotion-worker-outputs",
+                "purpose": "validate worker-produced preview/rendered files and create remotion_effect_review.json",
+                "requires": ["remotion-prompt-pack:ok"],
             },
         ],
     },

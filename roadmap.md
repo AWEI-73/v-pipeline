@@ -510,8 +510,10 @@ Current proven foundation:
 - Dashboard Brownfield/Node14 can surface effects artifacts and gaps.
 - Workbench can show draft effect intent markers, but it is not the official
   final renderer.
-- Remotion is installed and may be used as a reference or optional preview
-  runtime, but canonical delivery remains ffmpeg / `contract-run`.
+- Remotion is installed and now has a bounded Brownfield/Node14 adapter
+  foundation for prompt-driven effect authoring. It remains optional: canonical
+  delivery stays ffmpeg / `contract-run`, and Remotion outputs must become
+  reviewed artifacts before they can be composited.
 
 Planned increments:
 
@@ -679,22 +681,50 @@ Still deferred:
   original canonical input.
 - Actual Remotion/Node14 adapter execution.
 
-### FX4 Remotion/Preview Boundary
+### FX4 Remotion Prompt-Driven Adapter Boundary
 
-Goal: evaluate Remotion only where it helps preview or effect authoring.
+Goal: use Remotion where it is strongest: prompt-driven opening/title/transition
+and overlay authoring inside Brownfield Edit, without making it a required main
+BUILD dependency.
 
 Rules:
 
 - Do not make Remotion a required dependency for normal BUILD.
 - Do not claim browser preview equals final ffmpeg output unless a specific
   effect has a parity test.
-- If a Remotion component is useful, export its intent/spec back to pipeline
-  artifacts before final render.
+- Prompt is payload, not pipeline logic. The stable handoff is:
+  `effect_revision_request.json` -> `remotion_prompt_pack.json` ->
+  `remotion_worker_outputs.json` -> `remotion_effect_review.json`.
+- Worker outputs are review candidates only. Unreviewed Remotion files must not
+  enter canonical delivery.
+- If a Remotion component/output is useful, export it as a reviewed effect asset
+  or reviewed effect plan before final ffmpeg composite.
+
+Status: **FX4a/FX4b COMPLETE (2026-06-20)** for adapter artifact contracts.
+
+Implemented:
+
+- `video_pipeline_core/remotion_effects.py`
+- `python video_tools.py remotion-prompt-pack --request effect_revision_request.json --effect-intent-plan effect_intent_plan.json [--timeline timeline_build.json] --out remotion_prompt_pack.json`
+- `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
+
+Artifact semantics:
+
+- `remotion_prompt_pack.json` converts only
+  `route_to_node14_or_remotion_adapter` gaps into prompt jobs. ffmpeg recipe
+  gaps stay in FX3.
+- Jobs include source effect id, role, component family, prompt, timing, output
+  target hints, and acceptance criteria.
+- `remotion_worker_outputs.json` is produced by an external Remotion-capable
+  worker/agent. Validation fails closed on unknown job ids, missing files, bad
+  durations, duplicate jobs, or malformed status.
+- `remotion_effect_review.json` is the Workbench/Brownfield review artifact.
+  It does not accept the output into BUILD by itself.
 
 Deferred inside effects:
 
 - full Remotion-like final renderer;
-- arbitrary free-form VFX;
+- arbitrary free-form VFX without a prompt-pack/review contract;
 - paid/closed CapCut effect packs as required dependencies;
 - full Audio Graph V2.
 
