@@ -361,14 +361,14 @@ NODE_REGISTRY = {
     },
     "14": {
         "node": "14",
-        "label": "Revision",
-        "skill": ["route", "editor", "verify", "dashboard"],
+        "label": "Brownfield Edit",
+        "skill": ["brownfield-edit", "route", "editor", "verify", "dashboard"],
         "runner": "route",
         "inputs": ["verify_result.json"],
         "outputs": ["revision_plan.json", "motion_graphics_render_plan.json", "motion_graphics_manifest.json",
                     "light_effects_baseline_review.json", "effect_revision_request.json",
                     "effect_recipe_patch.json"],
         "verify_fn": verify_revision,
-        "description": "Revision plan"
+        "description": "Brownfield local patch / reviewed revision route"
     }
 }

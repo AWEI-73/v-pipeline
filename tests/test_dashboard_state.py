@@ -178,7 +178,7 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertIn("Editor Review", node_labels)
             self.assertIn("Verify", node_labels)
             self.assertIn("Render Candidate", node_labels)
-            self.assertIn("Revision", node_labels)
+            self.assertIn("Brownfield Edit", node_labels)
 
             # Assert states are done/optional/etc.
             nodes_by_label = {n["label"]: n for n in state["nodes"]}
@@ -188,7 +188,7 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(nodes_by_label["Contract Facets"]["status"], "done")
             self.assertEqual(nodes_by_label["Audio"]["status"], "done")
             self.assertEqual(nodes_by_label["Fallback/Profile"]["status"], "done")
-            self.assertEqual(nodes_by_label["Revision"]["status"], "optional")
+            self.assertEqual(nodes_by_label["Brownfield Edit"]["status"], "optional")
 
     def test_missing_optional_effects_does_not_fail_when_effects_disabled(self):
         """2. Missing optional effects artifact does not fail when effects_enabled=false."""
@@ -203,7 +203,7 @@ class DashboardStateSpecTest(unittest.TestCase):
 
             state = load_dashboard_state(str(workdir))
             nodes_by_label = {n["label"]: n for n in state["nodes"]}
-            self.assertEqual(nodes_by_label["Revision"]["status"], "optional")
+            self.assertEqual(nodes_by_label["Brownfield Edit"]["status"], "optional")
 
     def test_generated_requests_without_manifest_produces_warn_status(self):
         """3. Generated requests without generated manifest produce warn status on Fallback/Profile node."""

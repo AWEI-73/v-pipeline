@@ -79,6 +79,22 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         ])
         self.assertEqual(wb_steps[1]["requires"], ["workbench-handoff-validate:ok"])
 
+    def test_brownfield_edit_route_is_explicit_workflow(self):
+        manifest = video_tools.build_video_tools_workflow_manifest()
+        workflow = manifest["workflows"].get("brownfield_edit_route")
+        self.assertIsNotNone(workflow)
+        self.assertIn("local patch", workflow["description"])
+        steps = workflow["steps"]
+        self.assertEqual([s["command"] for s in steps], [
+            "workbench-handoff-validate",
+            "workbench-draft-rerender",
+            "effect-revision-request",
+            "effect-revision-draft",
+            "effect-revision-apply",
+        ])
+        self.assertIn("second contract-run", steps[-1]["purpose"])
+        self.assertIn("story evidence material", workflow["description"])
+
     def test_workflow_manifest_cli_prints_or_writes_json(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "workflows.json"

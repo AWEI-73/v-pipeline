@@ -13,15 +13,16 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
     def test_roadmap_promotes_effects_to_active_next_phase(self):
         text = read("roadmap.md")
         for expected in [
-            "Next Phase — Effects / Node14",
+            "Next Phase — Effects / Brownfield Edit / Node14",
             "Status: active next development direction.",
             "FX0 Effects Status Cleanup",
             "FX1 Effect Asset Spec",
             "FX2 Effect Build Wiring",
-            "FX3 Node14 Revision Orchestration",
+            "FX3 Brownfield Edit / Node14 Revision Orchestration",
             "FX4 Remotion/Preview Boundary",
             "canonical delivery remains ffmpeg / `contract-run`",
             "Remotion is installed and may be used as a reference or optional preview",
+            "Brownfield Edit is described as revision/effects orchestration",
         ]:
             self.assertIn(expected, text)
         self.assertNotIn("- Node 14 advanced effects / Remotion-like final renderer.", text)
@@ -42,11 +43,25 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         index = read("docs/INDEX.md")
         for expected in [
             "Effect assets are not real-event evidence",
-            "Node14 is the local revision/effects orchestration node",
+            "Brownfield Edit is the local revision/effects orchestration route",
+            "Node14 remains a legacy implementation node inside Brownfield Edit",
             "Remotion may help preview or author effects",
         ]:
             self.assertIn(expected, decision)
         self.assertIn("2026-06-19-effects-node14-roadmap-alignment.md", index)
+        self.assertIn("brownfield-edit.md", index)
+
+    def test_brownfield_edit_skill_defines_fast_route_boundaries(self):
+        text = read("skills/brownfield-edit.md")
+        for expected in [
+            "Brownfield Edit Route",
+            "do not rewrite the blueprint",
+            "effect asset / sfx / overlay",
+            "story evidence material",
+            "reviewed artifact",
+            "second contract-run",
+        ]:
+            self.assertIn(expected, text)
 
     def test_effects_director_declares_node14_and_asset_boundaries(self):
         text = read("skills/effects-director.md")

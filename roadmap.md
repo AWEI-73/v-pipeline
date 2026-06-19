@@ -485,7 +485,7 @@ Acceptance harness update:
 - Post-generation delta: `thin=2`.
 - Post-review delta: `covered=2`, `thin=0`.
 
-## Next Phase — Effects / Node14
+## Next Phase — Effects / Brownfield Edit / Node14
 
 Status: active next development direction.
 
@@ -507,7 +507,7 @@ Current proven foundation:
   `light_effects_manifest.json`, `light_effects_baseline_review.json`,
   `motion_graphics_contract.json`, `motion_graphics_render_plan.json`, and
   `motion_graphics_manifest.json` when enabled.
-- Dashboard Node14 can surface effects artifacts and gaps.
+- Dashboard Brownfield/Node14 can surface effects artifacts and gaps.
 - Workbench can show draft effect intent markers, but it is not the official
   final renderer.
 - Remotion is installed and may be used as a reference or optional preview
@@ -523,7 +523,8 @@ new capabilities.
 Acceptance:
 
 - roadmap, effects-director, dashboard docs, and build-profile boundaries agree.
-- Node14 is described as revision/effects orchestration, not a mandatory render
+- Brownfield Edit is described as revision/effects orchestration, with Node14
+  kept as the compatibility implementation node. It is not a mandatory render
   stage for every film.
 - Remotion is explicitly optional / preview / reference only.
 
@@ -578,8 +579,8 @@ Implemented:
   malformed, or invalid plans stop before render with
   `stage=effect_intent_plan` and `next_action=revise:effects(effect_intent_plan)`.
 - Effects that do not allow `ffmpeg_light_effects` are preserved as
-  `external_effect` / `pending_backend`, making the Node14 or Remotion adapter
-  gap visible instead of pretending it rendered.
+  `external_effect` / `pending_backend`, making the Brownfield/Node14 or
+  Remotion adapter gap visible instead of pretending it rendered.
 - `motion_graphics` can project ffmpeg-safe `title_card` / `lower_third`
   effect intents into timed ASS overlays using the actual BUILD timeline.
 - E2E regression proves `effect_intent_plan_ref -> contract-run -> final.mp4`
@@ -593,13 +594,15 @@ Acceptance:
 - effect outputs are traced back to segment/clip/effect id. **Met for
   `source_effect_id`.**
 - no duplicate text burn: canonical text ownership remains singular.
-- failed effect render produces a Node14-visible gap instead of pretending
+- failed effect render produces a Brownfield-visible gap instead of pretending
   success. **Met for `external_effect` / pending backend.**
 
-### FX3 Node14 Revision Orchestration
+### FX3 Brownfield Edit / Node14 Revision Orchestration
 
-Goal: use Node14 for local effect fixes and optional finishing adjustments
-without restarting the whole pipeline.
+Goal: use Brownfield Edit for local effect fixes, Workbench patches, optional
+finishing adjustments, and reviewed second-build handoff without restarting the
+whole pipeline. Node14 remains the compatibility implementation node for
+existing effect revision artifacts.
 
 Status: **FX3a COMPLETE (2026-06-19)** for deterministic effect gap routing.
 

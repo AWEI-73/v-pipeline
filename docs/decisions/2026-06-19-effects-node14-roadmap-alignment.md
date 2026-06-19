@@ -2,7 +2,7 @@
 
 Date: 2026-06-19
 Status: accepted
-Scope: roadmap / effects-director / Workbench / Node14 planning
+Scope: roadmap / effects-director / Workbench / Brownfield Edit / Node14 planning
 
 ## Context
 
@@ -15,8 +15,9 @@ stay clear:
 - Workbench is a draft preview and intent-editing surface.
 - Remotion may help preview or author effects, but it is not a required normal
   BUILD dependency.
-- Node14 is the local revision/effects orchestration node, not a mandatory
-  stage for every no-effects render.
+- Brownfield Edit is the local revision/effects orchestration route, not a
+  mandatory stage for every no-effects render.
+- Node14 remains a legacy implementation node inside Brownfield Edit.
 
 ## Decision
 
@@ -30,9 +31,9 @@ Treat the next effects work as four bounded tracks:
 3. **FX2 Effect build wiring**: prove `light_effects` / `motion_graphics`
    produce visible ffmpeg-rendered outputs with traceable manifests and gap
    reporting.
-4. **FX3 Node14 revision orchestration**: consume effect gaps or Workbench draft
-   effect intents and write bounded revision artifacts without restarting the
-   whole pipeline.
+4. **FX3 Brownfield Edit revision orchestration**: consume effect gaps or
+   Workbench draft effect intents and write bounded revision artifacts without
+   restarting the whole pipeline.
 
 Remotion is evaluated under **FX4 Remotion/Preview Boundary** only as optional
 preview/authoring support. A Remotion component must export intent/spec back to
@@ -44,7 +45,10 @@ pipeline artifacts before it can affect canonical delivery.
   coverage.
 - Generated effect assets keep `source_type=generated`.
 - Missing optional effects warn; missing `required_for_story` effects can block
-  or route to Node14.
+  or route to Brownfield Edit.
+- Brownfield may import incremental effect asset / sfx / overlay files, but
+  story evidence material must return through material-map review before it can
+  affect coverage.
 - Text ownership must remain singular. Do not burn the same text layer in both
   base MV and motion graphics.
 - Workbench patches remain draft artifacts until backend contracts consume and
@@ -53,8 +57,8 @@ pipeline artifacts before it can affect canonical delivery.
 ## Acceptance Signals
 
 - Roadmap no longer lists Node14 effects as generically deferred.
-- The active roadmap names effect asset spec, effect build, Node14 orchestration,
-  and Remotion boundary separately.
+- The active roadmap names effect asset spec, effect build, Brownfield Edit /
+  Node14 orchestration, and Remotion boundary separately.
 - `docs/INDEX.md` points agents to this decision.
 - Tests assert the roadmap status so later agents do not regress the boundary.
 
@@ -92,7 +96,7 @@ BUILD lane:
   for relative paths, validates through `validate_effect_intent_plan`, and
   fails closed before render when broken.
 - Non-ffmpeg effects are represented as `external_effect` with
-  `status=pending_backend`, which is the intended bridge to Node14 or an
+  `status=pending_backend`, which is the intended bridge to Brownfield Edit or an
   optional Remotion adapter.
 - `motion_graphics.contract_from_effect_intent_plan` projects ffmpeg-safe
   `title_card` / `lower_third` intents into timed ASS overlays after the BUILD
@@ -103,9 +107,12 @@ BUILD lane:
 
 This is not a Remotion runtime and does not make browser preview equal final
 ffmpeg output. The remaining effects work is broader recipe coverage and FX3
-Node14 routing for unresolved gaps.
+Brownfield routing for unresolved gaps.
 
 ## FX3a Node14 Gap Routing
+
+Current naming: this is a Brownfield Edit route step. The Node14 name is kept
+for backward-compatible artifacts and dashboards.
 
 Implemented as a bounded artifact conversion, not an effect renderer.
 
@@ -126,7 +133,7 @@ remain separate increments.
 
 ## FX3b Request To Draft Patch
 
-Implemented as a second bounded Node14 step.
+Implemented as a second bounded Brownfield/Node14 step.
 
 - New CLI: `python video_tools.py effect-revision-draft --request effect_revision_request.json --out-patch effect_recipe_patch.json --effect-intent-plan effect_intent_plan.json --out-intent-draft revised_effect_intent_plan.draft.json`
 - New primary artifact: `effect_recipe_patch.json`.
@@ -162,3 +169,16 @@ Boundary: FX3c proves a reviewed plan can be consumed by canonical BUILD. It
 does not implement the Remotion/Node14 adapter itself, and it does not silently
 close adapter gaps. Any remaining external-effect gap stays visible until a
 renderer/adapter increment handles it.
+
+## Brownfield Edit Route Naming
+
+Brownfield Edit is now the preferred route name for local patch work after a
+candidate build exists. Node14 remains a legacy implementation node inside that
+route.
+
+The route accepts review gaps, Workbench patches, effect gaps, and incremental
+effect asset / sfx / overlay additions. It returns draft or reviewed artifacts
+for a second `contract-run`.
+
+It must not rewrite the blueprint, silently overwrite canonical artifacts, or
+use new story evidence material to satisfy coverage without material-map review.

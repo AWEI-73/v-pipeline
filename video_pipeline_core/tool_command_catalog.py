@@ -231,6 +231,40 @@ WORKFLOWS = {
             },
         ],
     },
+    "brownfield_edit_route": {
+        "description": "local patch / review route for existing builds: Workbench draft edits, effect gaps, effect assets, and sfx/overlay additions. story evidence material must go back through material-map review before it can affect BUILD.",
+        "steps": [
+            {
+                "id": "validate_workbench_handoff",
+                "command": "workbench-handoff-validate",
+                "purpose": "validate draft patch references and canonical write boundaries when a Workbench patch is present",
+            },
+            {
+                "id": "rerender_workbench_draft",
+                "command": "workbench-draft-rerender",
+                "purpose": "optionally render a non-canonical preview candidate from the validated draft",
+                "requires": ["workbench-handoff-validate:ok_or_absent"],
+            },
+            {
+                "id": "effect_revision_request",
+                "command": "effect-revision-request",
+                "purpose": "convert effect gaps from VERIFY/review into a Brownfield request without mutating canonical inputs",
+                "requires": ["contract-run:baseline_review"],
+            },
+            {
+                "id": "effect_revision_draft",
+                "command": "effect-revision-draft",
+                "purpose": "convert Brownfield effect requests into draft patch artifacts for review",
+                "requires": ["effect-revision-request:ok"],
+            },
+            {
+                "id": "effect_revision_apply",
+                "command": "effect-revision-apply",
+                "purpose": "explicitly review/apply a draft into a separate reviewed artifact for a second contract-run",
+                "requires": ["effect-revision-draft:reviewed"],
+            },
+        ],
+    },
     "workbench_review_rerender": {
         "description": "Consume Workbench draft edits and render a non-canonical preview candidate.",
         "steps": [

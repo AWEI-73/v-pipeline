@@ -12,6 +12,11 @@ class VisualJudgeNodeTest(unittest.TestCase):
 
 
 class RevisionNodeTest(unittest.TestCase):
+    def test_revision_node_is_labeled_as_brownfield_edit_route(self):
+        self.assertEqual(NODE_REGISTRY["14"]["label"], "Brownfield Edit")
+        self.assertIn("local patch", NODE_REGISTRY["14"]["description"])
+        self.assertIn("brownfield-edit", NODE_REGISTRY["14"]["skill"])
+
     def test_revision_node_declares_effect_revision_request_output(self):
         self.assertIn("effect_revision_request.json", NODE_REGISTRY["14"]["outputs"])
         self.assertIn("effect_recipe_patch.json", NODE_REGISTRY["14"]["outputs"])
