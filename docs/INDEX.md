@@ -73,6 +73,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-19-story-soul-blueprint.md` -- SSB1 upstream
   creative scaffold: story world, concept, beats, shot plan, material needs, and
   review checklist.
+- `docs/decisions/2026-06-19-storyboard-panel-lock.md` -- generated comic /
+  picture-book panel-lock policy: stretch panel duration or generate more panels
+  instead of auto-filling long narration with other accepted panels.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -96,6 +99,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-19-storyboard-panel-lock.md`,
 `2026-06-19-story-soul-blueprint.md`,
 `2026-06-18-generated-material-producer.md`,
 `2026-06-18-material-generation-fallback.md`,

@@ -223,3 +223,30 @@ Bad targets:
 - official certificate/logo/name badge
 - actual event timeline proof
 - anything where the audience must trust it happened
+
+## Storyboard Panel-Locked Mode
+
+Use `storyboard_panel_locked=true` when the generated material is a comic,
+picture-book, storyboard, or narrated panel sequence where each image is a
+specific story beat.
+
+In this mode:
+
+- one panel maps to one intended story beat or narration segment;
+- do not auto-fill a long narration segment with other panels from the same
+  need just because they are accepted material;
+- if narration is longer than the panel's default duration, extend the panel's
+  duration or its Ken Burns treatment;
+- if one panel cannot carry the narration, request or generate more panels
+  before BUILD;
+- subtitles, voiceover, and panel order must stay aligned.
+
+Use normal BUILD auto-fill only for MV/event recap material where multiple
+accepted shots from the same need are interchangeable enough to cover duration.
+
+Practical rule:
+
+```text
+comic/storybook/panel narration -> panel-locked, stretch panel or generate more
+event MV/recap montage           -> auto-fill accepted shots is allowed
+```

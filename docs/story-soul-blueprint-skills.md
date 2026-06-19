@@ -212,6 +212,18 @@ Material-count rule:
 - If the plan has fewer panels than the target duration needs, it must shorten,
   request/generate more assets, or declare low visual variety.
 
+Panel-lock rule:
+
+- Comic/photo story outputs should declare `storyboard_panel_locked=true`.
+- In panel-locked mode, each planned panel is a semantic beat. BUILD must not
+  use other accepted panels from the same need to fill narration time.
+- If voiceover is longer than the default image duration, stretch that panel's
+  duration/Ken Burns treatment.
+- If the panel cannot carry the narration, the fallback is "generate/request more panels"
+  or "shorten/rewrite narration", not "borrow another panel".
+- MV/event recap outputs should leave panel-lock off; there, auto-fill from
+  accepted shots is useful and expected.
+
 ## Integration With Existing Pipeline
 
 The target flow after implementation:

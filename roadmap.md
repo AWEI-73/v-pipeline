@@ -349,6 +349,36 @@ Rules:
 - `test_pil` is rejected as a final-art provider in this path;
 - the backend still does not trust model output until import + review pass.
 
+### GMP2.6 Storyboard Panel-Locked Rendering Boundary
+
+Status: documented / acceptance-proven.
+
+Purpose: preserve story semantics for generated comic/photo narratives.
+
+Evidence:
+
+- Real Codex imagegen E2E produced 21 manga-style panels for
+  `Rooftop Postcard`.
+- Normal BUILD auto-fill made a technically valid story MV, but reused panels
+  to fill long TTS narration.
+- A panel-locked render stretched each image to its TTS segment duration,
+  yielding a better comic/storybook video: one panel per narration beat,
+  21/21 panels used exactly once.
+
+Rule:
+
+```text
+storyboard_panel_locked=true
+  -> one generated panel owns one narration/story beat
+  -> stretch panel duration / Ken Burns for long voiceover
+  -> generate more panels or shorten narration if visual support is too thin
+  -> do not auto-fill with other accepted panels from the same need
+```
+
+Normal auto-fill remains correct for event MV / recap / course montage cases
+where accepted shots under the same need are interchangeable enough to cover
+duration.
+
 ### GMP3 Generated-Material Skill Acceptance Harness
 
 Status: implemented / acceptance review.
