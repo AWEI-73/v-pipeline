@@ -129,6 +129,39 @@ Story World / Creative Blueprint
   -> BUILD
 ```
 
+## ISF1 Relationship
+
+In the interactive skill flow, material-map is the material truth layer. It is
+not the story writer, not the image generator, and not the Workbench editor.
+
+```text
+story-soul-blueprint
+  -> material_needs.json
+  -> material-map lifecycle
+  -> material_delta.json
+  -> generated-material-producer when generation is allowed
+  -> generated assets return as candidate satisfies edges
+  -> material_delta fresh rerun
+  -> official BUILD handoff only after gate/revision passes
+```
+
+Relationship boundaries:
+
+- `story-soul-blueprint` owns story world, narrative device, beats, and shot
+  intent. Material-map consumes that intent as `material_needs.json`; it does
+  not invent a better story.
+- `generated-material-producer` can fill missing/thin needs, but generated
+  assets return to material-map as `candidate` evidence and require review
+  before they can satisfy delta.
+- `storyboard_panel_locked=true` is interpreted before BUILD for comic/photo/
+  storybook narration. It means one generated panel owns one story beat; extend
+  duration or generate more panels instead of auto-filling unrelated panels.
+- Workbench can preview and write draft patches. Workbench drafts are not
+  material truth and must not overwrite canonical needs, maps, delta, or the
+  official BUILD handoff.
+- The official BUILD handoff remains backend-owned and must be revalidated by
+  `contract-run` / M6 gates.
+
 ## Useful Links
 
 - Full pre-split evidence: `docs/roadmap-history/2026-06-18-roadmap-pre-split.md`
