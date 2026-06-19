@@ -170,7 +170,7 @@ does not implement the Remotion/Node14 adapter itself, and it does not silently
 close adapter gaps. Any remaining external-effect gap stays visible until a
 renderer/adapter increment handles it.
 
-## FX4a-FX4d Remotion Prompt Adapter Foundation
+## FX4a-FX4e Remotion Prompt Adapter Foundation
 
 Implemented as a bounded Brownfield/Node14 adapter contract, not a main BUILD
 renderer.
@@ -180,6 +180,8 @@ renderer.
 - New CLI: `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
 - New CLI: `python video_tools.py remotion-composite-draft --review remotion_effect_review.json --base-video workbench_export.mp4 --out remotion_composite_draft.mp4 --report-out remotion_composite_report.json`
 - New module: `video_pipeline_core/remotion_effects.py`.
+- New optional worker bridge:
+  `node tools/remotion_worker_bridge.mjs --job-json JOB.json --preview-file PREVIEW.mp4 --rendered-asset OVERLAY.mov --project-root REMOTION_PROJECT --remotion-bin REMOTION_BIN`.
 - `remotion_prompt_pack.json` only converts
   `route_to_node14_or_remotion_adapter` requests into worker jobs. Ordinary
   ffmpeg recipe gaps remain FX3 recipe work.
@@ -193,10 +195,14 @@ renderer.
   review. They are not accepted into canonical delivery by validation alone.
 - `remotion-worker-smoke` can run an explicit worker command in a Remotion-ready
   environment, while `--dry-run` exists only for deterministic contract smoke.
+- `tools/remotion_worker_bridge.mjs` is a bounded local worker command for FX4e
+  acceptance. It writes a Remotion entry inside a configured Remotion project,
+  renders a ProRes alpha overlay and h264 preview, accepts UTF-8 BOM job JSON,
+  and refuses protected canonical outputs.
 - `remotion-composite-draft` consumes only accepted review items and writes a
   non-canonical draft composite. It refuses protected canonical output names.
 
-Boundary: FX4a-FX4d does not install npm packages, does not composite Remotion
+Boundary: FX4a-FX4e does not install npm packages, does not composite Remotion
 output into `final.mp4`, and does not make Remotion a normal BUILD dependency.
 A later reviewed-asset/apply step must explicitly promote accepted Remotion
 output before a second `contract-run` can consume it.

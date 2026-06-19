@@ -700,8 +700,9 @@ Rules:
 - If a Remotion component/output is useful, export it as a reviewed effect asset
   or reviewed effect plan before final ffmpeg composite.
 
-Status: **FX4a-FX4d COMPLETE (2026-06-20)** for adapter artifact contracts,
-optional worker smoke, and non-canonical draft composite.
+Status: **FX4a-FX4e COMPLETE (2026-06-20)** for adapter artifact contracts,
+optional worker smoke, true Remotion worker bridge, and non-canonical draft
+composite.
 
 Implemented:
 
@@ -710,6 +711,7 @@ Implemented:
 - `python video_tools.py remotion-worker-smoke --prompt-pack remotion_prompt_pack.json --out-dir remotion_effects --out-worker-outputs remotion_worker_outputs.json [--command "..."]`
 - `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
 - `python video_tools.py remotion-composite-draft --review remotion_effect_review.json --base-video workbench_export.mp4 --out remotion_composite_draft.mp4 --report-out remotion_composite_report.json`
+- `node tools/remotion_worker_bridge.mjs --job-json JOB.json --preview-file PREVIEW.mp4 --rendered-asset OVERLAY.mov --project-root REMOTION_PROJECT --remotion-bin REMOTION_BIN`
 
 Artifact semantics:
 
@@ -722,6 +724,10 @@ Artifact semantics:
   worker/agent. `remotion-worker-smoke` can run an explicit worker command, or
   a dry-run for contract smoke tests. Validation fails closed on unknown job ids,
   missing files, bad durations, duplicate jobs, or malformed status.
+- `tools/remotion_worker_bridge.mjs` is the bounded optional worker command used
+  in local FX4e acceptance. It converts a prompt-pack job JSON into a Remotion
+  composition, renders a ProRes alpha overlay plus h264 preview, and refuses
+  protected canonical outputs.
 - `remotion_effect_review.json` is the Workbench/Brownfield review artifact.
   It does not accept the output into BUILD by itself.
 - `remotion-composite-draft` consumes only accepted `remotion_effect_review`

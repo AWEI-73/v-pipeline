@@ -24,6 +24,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Remotion is installed and now has a bounded Brownfield/Node14 adapter",
             "remotion_prompt_pack.json",
             "remotion_worker_outputs.json",
+            "remotion_worker_bridge.mjs",
             "remotion-composite-draft",
             "Brownfield Edit is described as revision/effects orchestration",
         ]:
@@ -50,6 +51,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Node14 remains a legacy implementation node inside Brownfield Edit",
             "Remotion may author prompt-driven effects inside Brownfield Edit",
             "remotion-prompt-pack",
+            "remotion_worker_bridge.mjs",
             "remotion-worker-outputs",
             "remotion-composite-draft",
         ]:
@@ -64,6 +66,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "do not rewrite the blueprint",
             "effect asset / sfx / overlay",
             "remotion-prompt-pack",
+            "remotion_worker_bridge.mjs",
             "remotion-worker-outputs",
             "remotion-composite-draft",
             "story evidence material",

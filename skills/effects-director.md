@@ -53,6 +53,7 @@ Adapter commands:
 ```text
 remotion-prompt-pack
 remotion-worker-smoke
+tools/remotion_worker_bridge.mjs
 remotion-worker-outputs
 remotion-composite-draft
 ```

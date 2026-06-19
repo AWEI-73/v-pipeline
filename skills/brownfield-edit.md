@@ -87,6 +87,8 @@ skips review.
 - Remotion worker-output validation for Workbench review:
   `remotion-worker-outputs`
 - Optional worker smoke for a configured Remotion command: `remotion-worker-smoke`
+- Optional local worker command for true Remotion acceptance:
+  `tools/remotion_worker_bridge.mjs`
 - Non-canonical accepted-output draft composite: `remotion-composite-draft`
 
 Node14 remains a legacy implementation node inside Brownfield Edit. Treat
@@ -102,6 +104,7 @@ for a finishing effect that the ffmpeg-safe route cannot express.
 effect_revision_request.json
 -> remotion_prompt_pack.json
 -> Remotion-capable worker writes remotion_worker_outputs.json + media files
+   (local acceptance may use tools/remotion_worker_bridge.mjs)
 -> remotion_effect_review.json
 -> Workbench / human review
 -> remotion-composite-draft (optional non-canonical preview)
