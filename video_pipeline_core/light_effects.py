@@ -6,8 +6,10 @@ explicit operations. It does not call heavy motion graphics backends.
 import json
 from pathlib import Path
 
+from .effect_contract import validate_effect_intent_plan
 
-SAFE_OPERATIONS = {"grade", "kenburns", "title_card", "lower_third", "xfade"}
+
+SAFE_OPERATIONS = {"grade", "kenburns", "title_card", "lower_third", "xfade", "external_effect"}
 
 
 def _profile_enabled(profile):
@@ -71,7 +73,79 @@ def _segment_operations(seg):
     return ops
 
 
-def build_light_effects_plan(contract, build_profile=None):
+def _segment_from_effect(effect):
+    target = effect.get("target") or {}
+    segment = target.get("segment_id") or target.get("segment") or target.get("segment_ref")
+    if isinstance(segment, str) and segment.strip().isdigit():
+        return int(segment.strip())
+    return segment
+
+
+def _effect_operation(effect):
+    role = effect.get("role")
+    intent = effect.get("intent") or role
+    visual_language = effect.get("visual_language") or []
+    base = {
+        "source_effect_id": effect.get("effect_id"),
+        "effect_role": role,
+        "required_for_story": bool(effect.get("required_for_story")),
+        "must_preserve_proof": bool(effect.get("must_preserve_proof")),
+        "visual_language": visual_language,
+        "reason": intent,
+    }
+    if "ffmpeg_light_effects" not in (effect.get("allowed_backends") or []):
+        return {
+            **base,
+            "operation": "external_effect",
+            "status": "pending_backend",
+            "next_action": "route_to_node14_or_remotion_adapter",
+        }
+    if role == "title_card":
+        return {
+            **base,
+            "operation": "title_card",
+            "text": intent,
+            "subtitle": ", ".join(visual_language) if visual_language else None,
+        }
+    if role == "lower_third":
+        return {
+            **base,
+            "operation": "lower_third",
+            "text": intent,
+        }
+    if role == "color_grade":
+        return {
+            **base,
+            "operation": "grade",
+            "preset": "warm" if effect.get("intensity") in {"medium", "high"} else "neutral",
+        }
+    if role in {"chapter_transition", "transition_plate"}:
+        return {
+            **base,
+            "operation": "xfade",
+            "transition": "xfade",
+        }
+    return {
+        **base,
+        "operation": "external_effect",
+        "status": "pending_backend",
+        "next_action": "route_to_node14_or_remotion_adapter",
+    }
+
+
+def _effect_intent_operations(effect_intent_plan):
+    if not effect_intent_plan:
+        return []
+    validate_effect_intent_plan(effect_intent_plan)
+    ops = []
+    for effect in effect_intent_plan.get("effects") or []:
+        op = _effect_operation(effect)
+        op["segment"] = _segment_from_effect(effect)
+        ops.append(op)
+    return ops
+
+
+def build_light_effects_plan(contract, build_profile=None, *, effect_intent_plan=None):
     if not _profile_enabled(build_profile):
         return {
             "artifact_role": "light_effects_plan",
@@ -96,6 +170,15 @@ def build_light_effects_plan(contract, build_profile=None):
                 "status": "planned",
             })
             items.append(op)
+    for op_idx, operation in enumerate(_effect_intent_operations(effect_intent_plan), start=1):
+        op = dict(operation)
+        if op["operation"] not in SAFE_OPERATIONS:
+            raise ValueError(f"unsafe light effect operation: {op['operation']}")
+        segment = op.get("segment") or "global"
+        op.setdefault("backend", "ffmpeg")
+        op.setdefault("status", "planned")
+        op["id"] = f"fxintent_{segment}_{op['operation']}_{op_idx}"
+        items.append(op)
     return {
         "artifact_role": "light_effects_plan",
         "light_effects_plan_version": 1,
@@ -113,9 +196,9 @@ def _write_json(path, data):
     return str(path)
 
 
-def write_light_effects_artifacts(contract, build_profile, out_dir):
+def write_light_effects_artifacts(contract, build_profile, out_dir, *, effect_intent_plan=None):
     out_dir = Path(out_dir)
-    plan = build_light_effects_plan(contract, build_profile)
+    plan = build_light_effects_plan(contract, build_profile, effect_intent_plan=effect_intent_plan)
     plan_path = _write_json(out_dir / "light_effects_plan.json", plan)
     manifest = {
         "artifact_role": "light_effects_manifest",

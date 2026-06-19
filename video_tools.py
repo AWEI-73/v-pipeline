@@ -257,8 +257,17 @@ def cmd_light_effects_plan(args):
     from video_pipeline_core import build_profile, light_effects
     with Path(args.contract).open(encoding="utf-8") as f:
         contract = json.load(f)
+    effect_intent_plan = None
+    if getattr(args, "effect_intent_plan", None):
+        with Path(args.effect_intent_plan).open(encoding="utf-8") as f:
+            effect_intent_plan = json.load(f)
     profile = build_profile.load_build_profile(args.build_profile)
-    result = light_effects.write_light_effects_artifacts(contract, profile, args.out_dir)
+    result = light_effects.write_light_effects_artifacts(
+        contract,
+        profile,
+        args.out_dir,
+        effect_intent_plan=effect_intent_plan,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -2245,6 +2254,8 @@ def main():
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")
     p_le.add_argument("--build-profile", required=True, help="build_profile.json")
+    p_le.add_argument("--effect-intent-plan", default=None, dest="effect_intent_plan",
+                      help="optional neutral effect_intent_plan.json from FX1")
     p_le.add_argument("--out-dir", required=True, help="output directory for light effects artifacts")
 
     # --- P1 verification tool pack ---

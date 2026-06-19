@@ -681,6 +681,34 @@ def _resolve_material_inputs(contract_obj, source, material_db, material_db_payl
     return needs, maps, None
 
 
+def _resolve_effect_intent_plan(contract_obj, source):
+    """Resolve optional FX1 neutral effect intent plan for effects-enabled builds.
+
+    The ref is intentionally opt-in. When declared and the caller asks for an
+    effects build, it must resolve and validate cleanly; otherwise BUILD stops
+    before render instead of silently dropping requested effects.
+    """
+    if "effect_intent_plan_ref" not in contract_obj:
+        return None, None
+    ref = contract_obj.get("effect_intent_plan_ref")
+    if not isinstance(ref, str) or not ref.strip():
+        return None, f"effect_intent_plan_ref must be a non-empty string, got {ref!r}"
+    effect_file, ref_error = _resolve_declared_ref(ref.strip(), source)
+    if ref_error:
+        return None, ref_error
+    try:
+        with effect_file.open(encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return None, f"effect_intent_plan could not be parsed ({effect_file}): {exc}"
+    try:
+        from .effect_contract import validate_effect_intent_plan  # noqa: PLC0415
+        validate_effect_intent_plan(payload)
+    except ValueError as exc:
+        return None, f"effect_intent_plan invalid ({effect_file}): {exc}"
+    return payload, None
+
+
 def _run_material_delta_gate(contract_obj, source, out_dir, material_db, material_db_payload,
                              *, waivers=None):
     """M6b pre-BUILD gate. Runs ONLY when the project explicitly declares the
@@ -925,11 +953,37 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     light_effects_paths = {}
     if (build_profile_payload.get("render_profile") == "light_effects"
             or build_profile_payload.get("effects_enabled")):
+        effect_intent_plan, effect_intent_error = _resolve_effect_intent_plan(
+            contract_obj, source)
+        if effect_intent_error:
+            stale_final_path, quarantine_error = _quarantine_stale_final(out_path)
+            canonical_final_cleared = quarantine_error is None and stale_final_path is not None
+            _write_json(out_path.parent / "state.json", {
+                "pass": False,
+                "final": None,
+                "next_action": "revise:effects(effect_intent_plan)",
+                "blocking": [effect_intent_error],
+                "effect_intent_plan_gate": effect_intent_error,
+                "stale_final_path": stale_final_path,
+                "quarantine_error": quarantine_error,
+                "canonical_final_cleared": canonical_final_cleared,
+            })
+            if verbose:
+                print(f"[effect-intent] BLOCK -- {effect_intent_error}")
+            return {"ok": False, "stage": "effect_intent_plan",
+                    "errors": [effect_intent_error],
+                    "reason": effect_intent_error,
+                    "next_action": "revise:effects(effect_intent_plan)",
+                    "stale_final_path": stale_final_path,
+                    "quarantine_error": quarantine_error,
+                    "canonical_final_cleared": canonical_final_cleared,
+                    "contract_hash": contract_hash}
         from . import light_effects  # noqa: PLC0415
         light_effects_paths = light_effects.write_light_effects_artifacts(
             contract_obj,
             build_profile_payload,
             out_path.parent,
+            effect_intent_plan=effect_intent_plan,
         )
     # Copy canonical contract to run workspace
     segment_contract_path = out_path.parent / "segment_contract.json"

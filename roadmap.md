@@ -560,8 +560,26 @@ Rules:
 
 ### FX2 Effect Build Wiring
 
+Status: partially implemented / accepted for neutral intent handoff into
+`light_effects`; real visible effect parity remains active work.
+
 Goal: make `light_effects` / `motion_graphics` build outputs visible and
 measurable in real renders.
+
+Implemented:
+
+- `light_effects` can merge a validated FX1 `effect_intent_plan.json` into
+  `light_effects_plan.json`.
+- `video_tools.py light-effects-plan --effect-intent-plan ...` exposes the same
+  path for offline planning.
+- `contract-run` can consume an explicit top-level `effect_intent_plan_ref`
+  when `render_profile=light_effects` or `effects_enabled=true`.
+- Declared `effect_intent_plan_ref` is strict and fail-closed: missing,
+  malformed, or invalid plans stop before render with
+  `stage=effect_intent_plan` and `next_action=revise:effects(effect_intent_plan)`.
+- Effects that do not allow `ffmpeg_light_effects` are preserved as
+  `external_effect` / `pending_backend`, making the Node14 or Remotion adapter
+  gap visible instead of pretending it rendered.
 
 Acceptance:
 

@@ -64,6 +64,51 @@ class LightEffectsTest(unittest.TestCase):
         self.assertEqual(plan["items"][0]["backend"], "ffmpeg")
         self.assertEqual(plan["status"], "planned")
 
+    def test_light_effects_profile_merges_neutral_effect_intent_plan(self):
+        effect_intent_plan = {
+            "artifact_role": "effect_intent_plan",
+            "version": 1,
+            "effects": [{
+                "effect_id": "fx_b01_title_card",
+                "role": "title_card",
+                "intent": "show 0.66% as memory hook",
+                "intensity": "medium",
+                "target": {"beat_id": "b01", "segment_id": "1"},
+                "visual_language": ["paper_texture"],
+                "required_for_story": True,
+                "must_preserve_proof": True,
+                "allowed_backends": ["ffmpeg_light_effects", "remotion_preview"],
+                "fallback": "simple_title_card_fade",
+            }, {
+                "effect_id": "fx_b02_page",
+                "role": "chapter_transition",
+                "intent": "report page turns into training memory",
+                "intensity": "medium",
+                "target": {"beat_id": "b02", "segment_id": "2"},
+                "visual_language": ["paper_texture"],
+                "required_for_story": False,
+                "must_preserve_proof": False,
+                "allowed_backends": ["remotion_preview"],
+                "fallback": "simple_fade",
+            }],
+        }
+
+        plan = light_effects.build_light_effects_plan(
+            self._contract(),
+            {"render_profile": "light_effects", "effects_enabled": True},
+            effect_intent_plan=effect_intent_plan,
+        )
+
+        fx_items = [item for item in plan["items"] if item.get("source_effect_id")]
+        self.assertEqual(len(fx_items), 2)
+        self.assertEqual(fx_items[0]["operation"], "title_card")
+        self.assertEqual(fx_items[0]["source_effect_id"], "fx_b01_title_card")
+        self.assertEqual(fx_items[0]["status"], "planned")
+        self.assertEqual(fx_items[0]["required_for_story"], True)
+        self.assertEqual(fx_items[1]["operation"], "external_effect")
+        self.assertEqual(fx_items[1]["status"], "pending_backend")
+        self.assertEqual(fx_items[1]["next_action"], "route_to_node14_or_remotion_adapter")
+
     def test_write_light_effects_artifacts(self):
         with tempfile.TemporaryDirectory() as d:
             result = light_effects.write_light_effects_artifacts(
@@ -238,11 +283,28 @@ class LightEffectsTest(unittest.TestCase):
             workdir = Path(d)
             contract_path = workdir / "segment_contract.json"
             profile_path = workdir / "build_profile.json"
+            effect_intent_path = workdir / "effect_intent_plan.json"
             out_dir = workdir / "build"
             contract_path.write_text(json.dumps(self._contract()), encoding="utf-8")
             profile_path.write_text(json.dumps({
                 "render_profile": "light_effects",
                 "effects_enabled": True,
+            }), encoding="utf-8")
+            effect_intent_path.write_text(json.dumps({
+                "artifact_role": "effect_intent_plan",
+                "version": 1,
+                "effects": [{
+                    "effect_id": "fx_b01_lower",
+                    "role": "lower_third",
+                    "intent": "identify chapter",
+                    "intensity": "low",
+                    "target": {"beat_id": "b01", "segment_id": "1"},
+                    "visual_language": [],
+                    "required_for_story": False,
+                    "must_preserve_proof": True,
+                    "allowed_backends": ["ffmpeg_light_effects"],
+                    "fallback": "none",
+                }],
             }), encoding="utf-8")
 
             result = subprocess.run(
@@ -253,6 +315,8 @@ class LightEffectsTest(unittest.TestCase):
                     str(contract_path),
                     "--build-profile",
                     str(profile_path),
+                    "--effect-intent-plan",
+                    str(effect_intent_path),
                     "--out-dir",
                     str(out_dir),
                 ],
@@ -265,6 +329,7 @@ class LightEffectsTest(unittest.TestCase):
             plan = json.loads((out_dir / "light_effects_plan.json").read_text(encoding="utf-8"))
             self.assertEqual(plan["artifact_role"], "light_effects_plan")
             self.assertEqual(plan["status"], "planned")
+            self.assertTrue(any(item.get("source_effect_id") == "fx_b01_lower" for item in plan["items"]))
 
 
 if __name__ == "__main__":

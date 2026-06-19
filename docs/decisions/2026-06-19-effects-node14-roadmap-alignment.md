@@ -77,3 +77,25 @@ assets with `asset_role=effect` and `must_not_satisfy_material_need=true`.
 This lets FX2/FX3 map an effect intent to ffmpeg, motion graphics, or optional
 Remotion adapters without contaminating upstream SPEC with a single renderer's
 API.
+
+## FX2 Implementation Note
+
+FX2 now has a bounded neutral-intent handoff into the existing light-effects
+BUILD lane:
+
+- `light_effects.build_light_effects_plan(..., effect_intent_plan=...)` maps
+  validated FX1 effects to safe operations where possible.
+- `video_tools.py light-effects-plan --effect-intent-plan ...` exposes the
+  offline planning path.
+- `contract-run` accepts a top-level `effect_intent_plan_ref` only for
+  effects-enabled builds. The ref resolves strictly next to the contract file
+  for relative paths, validates through `validate_effect_intent_plan`, and
+  fails closed before render when broken.
+- Non-ffmpeg effects are represented as `external_effect` with
+  `status=pending_backend`, which is the intended bridge to Node14 or an
+  optional Remotion adapter.
+
+This is not a Remotion runtime and does not make browser preview equal final
+ffmpeg output. The remaining FX2 work is to prove visible rendered effect parity
+for concrete ffmpeg-backed operations, then route unresolved effect gaps through
+FX3 Node14.

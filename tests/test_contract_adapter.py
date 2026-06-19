@@ -570,6 +570,119 @@ class ContractToMvScriptTest(unittest.TestCase):
                 item["operation"] for item in effects_manifest["render_outputs"]
             ])
 
+    def test_run_contract_wires_declared_effect_intent_plan_into_light_effects(self):
+        contract = {
+            "style": "mv",
+            "effect_intent_plan_ref": "effect_intent_plan.json",
+            "segments": [self._seg(segment=1), self._seg(segment=2)],
+        }
+        effect_plan = {
+            "artifact_role": "effect_intent_plan",
+            "version": 1,
+            "project": "fx-runtime-test",
+            "effects": [{
+                "effect_id": "fx_b01_lower",
+                "beat_id": "b01",
+                "segment_id": "1",
+                "target": {"beat_id": "b01", "segment_id": "1"},
+                "role": "lower_third",
+                "intent": "show training chapter",
+                "emotional_function": "clarify",
+                "intensity": "low",
+                "timing": "on_beat",
+                "visual_language": ["clean lower third"],
+                "allowed_backends": ["ffmpeg_light_effects"],
+                "asset_strategy": "render_in_build",
+                "requires_generated_asset": False,
+                "required_for_story": False,
+                "notes": [],
+            }],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            outdir = root / "out"
+            contract_path = root / "contract.json"
+            effect_path = root / "effect_intent_plan.json"
+            material_db = root / "material_db.json"
+            music = root / "bgm.mp3"
+            profile = root / "profile.json"
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            effect_path.write_text(json.dumps(effect_plan), encoding="utf-8")
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+            profile.write_text(json.dumps({
+                "render_profile": "light_effects",
+                "effects_enabled": True,
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
+                Path(out_path).write_bytes(b"mp4")
+                (Path(out_path).parent / "state.json").write_text(json.dumps({}), encoding="utf-8")
+                return {"final": out_path, "plan": []}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "structure": {"sections": []}}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                result = ca.run_contract(
+                    contract_path,
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    mat_dir=outdir,
+                    verbose=False,
+                    build_profile_config_path=profile,
+                )
+
+            self.assertTrue(result["render_ok"])
+            plan = json.loads((outdir / "light_effects_plan.json").read_text(encoding="utf-8"))
+            sourced = [item for item in plan["items"] if item.get("source_effect_id") == "fx_b01_lower"]
+            self.assertEqual(len(sourced), 1)
+            self.assertEqual(sourced[0]["operation"], "lower_third")
+
+    def test_run_contract_declared_effect_intent_plan_ref_fails_closed_before_render(self):
+        contract = {
+            "style": "mv",
+            "effect_intent_plan_ref": "missing_effect_intent_plan.json",
+            "segments": [self._seg(segment=1), self._seg(segment=2)],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            outdir = root / "out"
+            contract_path = root / "contract.json"
+            material_db = root / "material_db.json"
+            music = root / "bgm.mp3"
+            profile = root / "profile.json"
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+            profile.write_text(json.dumps({
+                "render_profile": "light_effects",
+                "effects_enabled": True,
+            }), encoding="utf-8")
+
+            def fail_mv_chain(*_args, **_kwargs):
+                raise AssertionError("render must not be called when effect intent ref is broken")
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fail_mv_chain):
+                result = ca.run_contract(
+                    contract_path,
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    mat_dir=outdir,
+                    verbose=False,
+                    build_profile_config_path=profile,
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["stage"], "effect_intent_plan")
+            self.assertFalse((outdir / "final.mp4").exists())
+            state = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["next_action"], "revise:effects(effect_intent_plan)")
+
     def test_run_contract_writes_motion_graphics_outputs_when_profile_enabled(self):
         contract = {
             "style": "mv",
