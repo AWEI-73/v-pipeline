@@ -646,11 +646,34 @@ Status: **FX3b COMPLETE (2026-06-19)** for request-to-draft conversion.
 - Dashboard/Node14 surfaces pending `effect_recipe_patch.json` before pending
   `effect_revision_request.json`.
 
+Status: **FX3c COMPLETE (2026-06-19)** for explicit reviewed draft application.
+
+- `revised_effect_intent_plan.draft.json` can be reviewed into a separate
+  canonical effect-intent plan by:
+
+  ```bash
+  python video_tools.py effect-revision-apply \
+    --draft revised_effect_intent_plan.draft.json \
+    --out effect_intent_plan.reviewed.json \
+    --reviewer REVIEWER \
+    --reason "accepted Node14 effect draft" \
+    --accept
+  ```
+
+- The command fails closed without `--accept`, a non-empty reviewer, and a
+  non-empty reason.
+- The original `effect_intent_plan.json` and draft wrapper are never overwritten.
+- E2E evidence: `tests/test_effects_e2e.py` runs
+  `effect_intent_plan_ref -> contract-run -> baseline gap -> revision request
+  -> revised draft -> explicit reviewed apply -> second contract-run`.
+- The second render proves the reviewed plan is consumable by canonical BUILD.
+  It does **not** claim the unresolved Remotion adapter gap is implemented.
+
 Still deferred:
 
 - Workbench draft effect-intent ingestion into Node14 request artifacts.
-- Automatic application of revised `effect_intent_plan.json` into canonical
-  BUILD.
+- Automatic overwrite/application of revised `effect_intent_plan.json` into the
+  original canonical input.
 - Actual Remotion/Node14 adapter execution.
 
 ### FX4 Remotion/Preview Boundary

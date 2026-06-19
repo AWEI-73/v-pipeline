@@ -207,6 +207,47 @@ def build_revised_effect_intent_draft(effect_revision_request, effect_intent_pla
     }
 
 
+def _non_empty_string(value, field):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def apply_revised_effect_intent_draft(revised_effect_intent_plan_draft, *,
+                                      accept=False, reviewer=None, reason=None):
+    """Return a reviewed canonical effect_intent_plan from a Node14 draft.
+
+    The caller must make the review action explicit. This function does not
+    mutate or overwrite the original effect_intent_plan; it only converts a
+    draft wrapper into a validator-clean plan object for a later contract-run.
+    """
+    if not accept:
+        raise ValueError("accept=True is required to apply revised effect intent draft")
+    reviewer = _non_empty_string(reviewer, "reviewer")
+    reason = _non_empty_string(reason, "reason")
+    draft = revised_effect_intent_plan_draft
+    if not isinstance(draft, dict):
+        raise ValueError("revised_effect_intent_plan_draft must be object")
+    if draft.get("artifact_role") != "revised_effect_intent_plan_draft":
+        raise ValueError("artifact_role must be revised_effect_intent_plan_draft")
+    if draft.get("version") != 1:
+        raise ValueError("revised_effect_intent_plan_draft version must be 1")
+    if draft.get("draft_only") is not True:
+        raise ValueError("revised_effect_intent_plan_draft must declare draft_only=true")
+    plan = copy.deepcopy(draft.get("effect_intent_plan"))
+    validate_effect_intent_plan(plan)
+    plan.pop("draft_only", None)
+    plan["node14_apply_lineage"] = {
+        "reviewer": reviewer,
+        "reason": reason,
+        "draft_artifact_role": draft.get("artifact_role"),
+        "source": copy.deepcopy(draft.get("source") or {}),
+        "applied": copy.deepcopy(draft.get("applied") or []),
+    }
+    validate_effect_intent_plan(plan)
+    return plan
+
+
 def build_effect_revision_request(baseline_review, light_effects_plan=None, *, source=None):
     """Build a Node14 revision request from light-effect render gaps."""
     gaps = _validate_baseline_review(baseline_review)
@@ -309,3 +350,23 @@ def write_effect_revision_draft(request_path, out_patch_path, *,
         "revised_effect_intent_plan_draft": str(out_intent_draft_path) if intent_draft else None,
         "intent_draft": intent_draft,
     }
+
+
+def write_revised_effect_intent_plan(draft_path, out_path, *,
+                                     accept=False, reviewer=None, reason=None):
+    draft_path = Path(draft_path)
+    out_path = Path(out_path)
+    if draft_path.resolve() == out_path.resolve():
+        raise ValueError("reviewed effect_intent_plan output must not overwrite the draft")
+    with draft_path.open(encoding="utf-8-sig") as f:
+        draft = json.load(f)
+    plan = apply_revised_effect_intent_draft(
+        draft,
+        accept=accept,
+        reviewer=reviewer,
+        reason=reason,
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(plan, f, ensure_ascii=False, indent=2)
+    return plan

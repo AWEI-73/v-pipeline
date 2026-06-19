@@ -314,6 +314,26 @@ def cmd_effect_revision_draft(args):
     }, ensure_ascii=False, indent=2))
 
 
+def cmd_effect_revision_apply(args):
+    from video_pipeline_core.effect_revision import write_revised_effect_intent_plan
+    try:
+        result = write_revised_effect_intent_plan(
+            args.draft,
+            args.out,
+            accept=args.accept,
+            reviewer=args.reviewer,
+            reason=args.reason,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect revision apply failed: {exc}") from exc
+    print(json.dumps({
+        "ok": True,
+        "effect_intent_plan": args.out,
+        "effect_count": len(result.get("effects") or []),
+        "reviewer": result.get("node14_apply_lineage", {}).get("reviewer"),
+    }, ensure_ascii=False, indent=2))
+
+
 def _load_json(path):
     with Path(path).open(encoding="utf-8-sig") as f:
         return json.load(f)
@@ -1840,6 +1860,7 @@ def _build_video_tools_dispatch():
         "light-effects-plan": cmd_light_effects_plan,
         "effect-revision-request": cmd_effect_revision_request,
         "effect-revision-draft": cmd_effect_revision_draft,
+        "effect-revision-apply": cmd_effect_revision_apply,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
@@ -2308,6 +2329,14 @@ def main():
                        help="optional canonical effect_intent_plan.json source")
     p_erd.add_argument("--out-intent-draft", default=None, dest="out_intent_draft",
                        help="optional revised_effect_intent_plan.draft.json output")
+
+    p_era = sub.add_parser("effect-revision-apply")
+    p_era.add_argument("--draft", required=True, help="revised_effect_intent_plan.draft.json")
+    p_era.add_argument("--out", required=True, help="reviewed effect_intent_plan.json output")
+    p_era.add_argument("--reviewer", required=True, help="reviewer accepting this draft")
+    p_era.add_argument("--reason", required=True, help="review reason for applying this draft")
+    p_era.add_argument("--accept", action="store_true",
+                       help="required explicit acceptance flag; without it the command fails closed")
 
     # --- P1 verification tool pack ---
     p_ta = sub.add_parser("timeline-audit")

@@ -142,3 +142,23 @@ Implemented as a second bounded Node14 step.
 Boundary: FX3b does not apply the draft to canonical input, does not call an
 adapter, and does not render. A later increment must explicitly review/apply
 the draft before any second BUILD.
+
+## FX3c Reviewed Draft Apply + Second Render
+
+Implemented as an explicit review gate after FX3b.
+
+- New CLI: `python video_tools.py effect-revision-apply --draft revised_effect_intent_plan.draft.json --out effect_intent_plan.reviewed.json --reviewer REVIEWER --reason "accepted Node14 effect draft" --accept`
+- New output shape: a validator-clean `effect_intent_plan` written to a separate
+  reviewed path. It is no longer wrapped in `draft_only`.
+- Required review fields: `--accept`, non-empty reviewer, and non-empty reason.
+  Missing any of these fails closed.
+- The original `effect_intent_plan.json` is never overwritten.
+- E2E evidence extends the real ffmpeg effect test through:
+  `effect_intent_plan_ref -> contract-run -> light_effects_baseline_review ->
+  effect_revision_request -> revised_effect_intent_plan.draft -> reviewed plan
+  -> second contract-run`.
+
+Boundary: FX3c proves a reviewed plan can be consumed by canonical BUILD. It
+does not implement the Remotion/Node14 adapter itself, and it does not silently
+close adapter gaps. Any remaining external-effect gap stays visible until a
+renderer/adapter increment handles it.

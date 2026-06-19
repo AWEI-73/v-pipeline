@@ -5,7 +5,11 @@ import unittest
 from pathlib import Path
 
 from video_pipeline_core import contract_adapter as ca
-from video_pipeline_core.effect_revision import build_effect_revision_request
+from video_pipeline_core.effect_revision import (
+    apply_revised_effect_intent_draft,
+    build_effect_revision_request,
+    build_revised_effect_intent_draft,
+)
 from video_pipeline_core.platform_tools import resolve_ffmpeg
 
 
@@ -166,6 +170,60 @@ class EffectsE2ETest(unittest.TestCase):
             self.assertEqual(
                 requests_by_source["fx_page_turn"]["route"],
                 "route_to_node14_or_remotion_adapter",
+            )
+
+            draft = build_revised_effect_intent_draft(
+                revision,
+                json.loads(effect_plan.read_text(encoding="utf-8")),
+            )
+            reviewed_plan = apply_revised_effect_intent_draft(
+                draft,
+                accept=True,
+                reviewer="codex-e2e",
+                reason="accept bounded Node14 draft for second render",
+            )
+            reviewed_path = root / "effect_intent_plan.reviewed.json"
+            reviewed_path.write_text(json.dumps(reviewed_plan), encoding="utf-8")
+
+            out_dir_2 = root / "out2"
+            out_dir_2.mkdir()
+            contract_2 = root / "contract_reviewed.json"
+            contract_2.write_text(json.dumps({
+                "style": "mv",
+                "effect_intent_plan_ref": "effect_intent_plan.reviewed.json",
+                "segments": [
+                    self._segment(1, "blue training panel"),
+                    self._segment(2, "blue training panel"),
+                ],
+            }), encoding="utf-8")
+
+            result_2 = ca.run_contract(
+                contract_2,
+                material_db=material_db,
+                out_path=out_dir_2 / "final.mp4",
+                music_path=audio,
+                mat_dir=out_dir_2,
+                verbose=False,
+                build_profile_config_path=profile,
+            )
+
+            self.assertTrue(result_2["render_ok"], result_2)
+            self.assertTrue((out_dir_2 / "final.mp4").exists())
+            self.assertGreater((out_dir_2 / "final.mp4").stat().st_size, 0)
+            second_light_plan = json.loads(
+                (out_dir_2 / "light_effects_plan.json").read_text(encoding="utf-8")
+            )
+            second_by_source = {
+                item.get("source_effect_id"): item
+                for item in second_light_plan["items"]
+            }
+            self.assertEqual(
+                second_by_source["fx_page_turn"]["operation"],
+                "external_effect",
+            )
+            self.assertIn(
+                "remotion_render",
+                reviewed_plan["effects"][1]["allowed_backends"],
             )
 
 

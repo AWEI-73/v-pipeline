@@ -121,6 +121,7 @@ class EffectContractTest(unittest.TestCase):
             "light-effects-plan",
             "effect-revision-request",
             "effect-revision-draft",
+            "effect-revision-apply",
         ]
         manifest = build_command_manifest(commands)
         workflow = build_workflow_manifest(commands)
