@@ -529,6 +529,8 @@ Acceptance:
 
 ### FX1 Effect Asset Spec
 
+Status: implemented / accepted for neutral effect contract.
+
 Goal: define effect assets as first-class, reviewable material-like inputs
 without mixing them with event evidence.
 
@@ -537,6 +539,12 @@ Expected artifacts:
 - `effect_asset_spec.json`
 - `effect_asset_manifest.json`
 - `effect_intent_plan.json`
+
+Canonical files:
+
+- Tool: `video_tools.py effect-intent-plan`
+- Module: `video_pipeline_core/effect_contract.py`
+- Tests: `tests/test_effect_contract.py`
 
 Rules:
 
@@ -547,6 +555,8 @@ Rules:
   real-event material needs.
 - missing optional effects should warn, not block, unless the contract marks
   the effect as `required_for_story`.
+- neutral SPEC forbids backend-specific fields such as Remotion component names,
+  props, fps, or `durationFrames`; those belong to FX2/FX3 adapters.
 
 ### FX2 Effect Build Wiring
 

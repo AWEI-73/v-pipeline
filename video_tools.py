@@ -69,6 +69,8 @@ Commands:
               canonical SPEC → adapter → mv_chain → manifest/state artifacts
   generated-manifest <generated_asset_requests.json> --outputs outputs.json --out generated_asset_manifest.json
               validate external generated assets and write provider-neutral manifest
+  effect-intent-plan <director_shot_plan.json> --out-plan effect_intent_plan.json --out-spec effect_asset_spec.json
+              compile upstream effect intent into neutral effects contract artifacts
   light-effects-plan <segment_contract.json> --build-profile build_profile.json --out-dir DIR
               write ffmpeg-safe light effects plan and manifest
 """
@@ -258,6 +260,17 @@ def cmd_light_effects_plan(args):
     profile = build_profile.load_build_profile(args.build_profile)
     result = light_effects.write_light_effects_artifacts(contract, profile, args.out_dir)
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_effect_intent_plan(args):
+    from video_pipeline_core.effect_contract import compile_effect_contract_file
+    result = compile_effect_contract_file(
+        args.director_shot_plan,
+        out_plan=args.out_plan,
+        out_spec=args.out_spec,
+    )
+    print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))
+
 
 def _load_json(path):
     with Path(path).open(encoding="utf-8-sig") as f:
@@ -1780,6 +1793,7 @@ def _build_video_tools_dispatch():
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "generated-material-review": cmd_generated_material_review,
+        "effect-intent-plan": cmd_effect_intent_plan,
         "story-soul-blueprint": cmd_story_soul_blueprint,
         "light-effects-plan": cmd_light_effects_plan,
         "timeline-audit": cmd_timeline_audit,
@@ -2220,6 +2234,13 @@ def main():
     p_ssb.add_argument("brief", help="project brief JSON")
     p_ssb.add_argument("--out-dir", required=True, dest="out_dir",
                        help="directory for SSB artifacts")
+
+    p_fx = sub.add_parser("effect-intent-plan")
+    p_fx.add_argument("director_shot_plan", help="director_shot_plan.json with effect_intent fields")
+    p_fx.add_argument("--out-plan", required=True, dest="out_plan",
+                      help="effect_intent_plan.json output")
+    p_fx.add_argument("--out-spec", required=True, dest="out_spec",
+                      help="effect_asset_spec.json output")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

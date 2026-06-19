@@ -82,11 +82,49 @@ Reject:
 - material needs with no count estimate
 - promised duration unsupported by material quantity
 
+## Effect Intent Hook
+
+When the project asks for strong style, opening hook, chapter transition,
+comic/storybook language, memory frame, or motion-graphic emphasis, capture the
+effect as story intent rather than renderer API.
+
+Ask only enough to decide the story function:
+
+- What should the effect communicate: hook, chapter boundary, emotional
+  emphasis, information label, memory frame, or visual rhythm?
+- How strong should it be: low / medium / high?
+- Does the effect protect or risk proof footage readability?
+- Can it be generated as a separate effect asset, or should it stay a simple
+  ffmpeg-safe treatment?
+
+Write the decision into `director_shot_plan.json` beat items:
+
+```json
+{
+  "beat_id": "b02",
+  "story_function": "report_memory_transition",
+  "effect_intent": {
+    "role": "chapter_transition",
+    "intent": "report page turns into training memory",
+    "intensity": "medium",
+    "visual_language": ["paper_texture", "timestamp_overlay"],
+    "required_for_story": true,
+    "must_preserve_proof": true,
+    "fallback": "simple_title_card_fade"
+  }
+}
+```
+
+Do not write Remotion component names, props, fps, or `durationFrames` here.
+Those belong to a later backend adapter after `effect-intent-plan` compiles
+neutral `effect_intent_plan.json` and `effect_asset_spec.json`.
+
 ## Integration
 
 ```text
 story-soul-blueprint
   -> material_needs / director_shot_plan
+  -> effect-intent-plan when effect_intent exists
   -> material-map lifecycle
   -> material-generation-fallback when missing/thin
   -> generated-material-producer/import/review if generated assets are needed

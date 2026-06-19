@@ -72,6 +72,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "generated-material-produce": "material",
     "generated-material-review": "material",
     "light-effects-plan": "contract",
+    "effect-intent-plan": "contract",
     "blueprint-coverage": "contract",
     "blueprint-compile": "contract",
     "blueprint-to-contract": "contract",
@@ -190,6 +191,22 @@ WORKFLOWS = {
                 "command": "verify",
                 "purpose": "run delivery verification on the rendered output",
                 "requires": ["contract-run:ok"],
+            },
+        ],
+    },
+    "effects_contract": {
+        "description": "Compile neutral effect intent before selecting an effects backend.",
+        "steps": [
+            {
+                "id": "compile_effect_intent",
+                "command": "effect-intent-plan",
+                "purpose": "compile director-shot-plan effect_intent into neutral effect_intent_plan/effect_asset_spec artifacts",
+            },
+            {
+                "id": "light_effects_plan",
+                "command": "light-effects-plan",
+                "purpose": "compile ffmpeg-safe light effects plan when the build profile enables effects",
+                "requires": ["effect-intent-plan:ok"],
             },
         ],
     },
