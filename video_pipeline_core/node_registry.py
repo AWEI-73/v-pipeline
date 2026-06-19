@@ -203,6 +203,7 @@ def verify_revision(workdir, artifacts, context):
     effects_render_plan = artifacts.get("motion_graphics_render_plan")
     effects_manifest = artifacts.get("motion_graphics_manifest")
     baseline_review = artifacts.get("light_effects_baseline_review")
+    effect_revision_request = artifacts.get("effect_revision_request")
     
     effects_required = False
     if profile_data:
@@ -210,7 +211,14 @@ def verify_revision(workdir, artifacts, context):
         
     status = "optional"
     reason = "No revision plan required"
-    if baseline_review and baseline_review.get("status") == "gaps_found":
+    if effect_revision_request and effect_revision_request.get("status") == "pending":
+        count = (effect_revision_request.get("summary") or {}).get("request_count", 0)
+        status = "warn"
+        reason = f"{count} effect revision request(s) pending Node14 routing"
+    elif effect_revision_request and effect_revision_request.get("status") == "empty":
+        status = "done"
+        reason = "Effect revision request found no render gaps"
+    elif baseline_review and baseline_review.get("status") == "gaps_found":
         gap_count = (baseline_review.get("metrics") or {}).get("gap_count", 0)
         status = "warn"
         reason = f"{gap_count} light-effects render gap(s) require recipes or wiring"
@@ -353,7 +361,7 @@ NODE_REGISTRY = {
         "runner": "route",
         "inputs": ["verify_result.json"],
         "outputs": ["revision_plan.json", "motion_graphics_render_plan.json", "motion_graphics_manifest.json",
-                    "light_effects_baseline_review.json"],
+                    "light_effects_baseline_review.json", "effect_revision_request.json"],
         "verify_fn": verify_revision,
         "description": "Revision plan"
     }

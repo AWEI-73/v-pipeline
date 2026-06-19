@@ -601,14 +601,35 @@ Acceptance:
 Goal: use Node14 for local effect fixes and optional finishing adjustments
 without restarting the whole pipeline.
 
+Status: **FX3a COMPLETE (2026-06-19)** for deterministic effect gap routing.
+
 Acceptance:
 
-- Node14 consumes effect gaps, Workbench draft effect intents, or user revision
-  requests.
-- Node14 writes bounded revision artifacts such as `effect_patch.json` or
-  revised `effect_intent_plan.json`.
-- canonical final render still goes through backend ffmpeg / `contract-run`.
-- Dashboard shows Node14 status and links to effect artifacts.
+- `light_effects_baseline_review.json` gaps can be converted into
+  `effect_revision_request.json` by:
+
+  ```bash
+  python video_tools.py effect-revision-request \
+    --baseline-review light_effects_baseline_review.json \
+    --light-effects-plan light_effects_plan.json \
+    --out effect_revision_request.json
+  ```
+
+- Route semantics are bounded:
+  - ffmpeg-safe missing render outputs -> `implement_or_wire_effect_recipe`;
+  - `external_effect` / pending backend outputs -> `route_to_node14_or_remotion_adapter`.
+- The artifact is a Node14 request list only. It does **not** render, mutate
+  `final.mp4`, patch canonical `effect_intent_plan.json`, or invoke Remotion.
+- Dashboard/Node14 reads `effect_revision_request.json`; pending requests take
+  precedence over the raw baseline gap warning.
+- Real E2E evidence: `tests/test_effects_e2e.py` proves a lower-third renders,
+  while the Remotion-only page-turn gap becomes a Node14 adapter request.
+
+Still deferred:
+
+- Workbench draft effect-intent ingestion into Node14 request artifacts.
+- Automatic revised `effect_intent_plan.json` authoring.
+- Actual Remotion/Node14 adapter execution.
 
 ### FX4 Remotion/Preview Boundary
 

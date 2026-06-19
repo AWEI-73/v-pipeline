@@ -128,6 +128,8 @@ def load_dashboard_state(workdir):
                     manifest["motion_graphics_manifest"] = f
                 elif f == "light_effects_baseline_review.json":
                     manifest["light_effects_baseline_review"] = f
+                elif f == "effect_revision_request.json":
+                    manifest["effect_revision_request"] = f
                 elif f == "editorial_qa.json":
                     manifest["editorial_qa"] = f
                 elif f == "presentation_feel_audit.json":
@@ -153,6 +155,10 @@ def load_dashboard_state(workdir):
     light_effects_baseline_review = (
         safe_load_json(manifest.get("light_effects_baseline_review"))
         or safe_load_json("light_effects_baseline_review.json")
+    )
+    effect_revision_request = (
+        safe_load_json(manifest.get("effect_revision_request"))
+        or safe_load_json("effect_revision_request.json")
     )
     generated_manifest = safe_load_json(manifest.get("generated_asset_manifest")) or safe_load_json("generated_asset_manifest.json")
 
@@ -292,6 +298,7 @@ def load_dashboard_state(workdir):
         "motion_graphics_render_plan": effects_render_plan,
         "motion_graphics_manifest": effects_manifest,
         "light_effects_baseline_review": light_effects_baseline_review,
+        "effect_revision_request": effect_revision_request,
     }
     
     # Determine pass status: Prioritize verify_result if present

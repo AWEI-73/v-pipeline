@@ -58,6 +58,42 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for link in revision["artifact_links"]
             ))
 
+    def test_effect_revision_request_surfaces_under_revision_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "build_profile.json").write_text(json.dumps({
+                "render_profile": "light_effects",
+                "effects_enabled": True,
+            }), encoding="utf-8")
+            (workdir / "light_effects_baseline_review.json").write_text(json.dumps({
+                "artifact_role": "light_effects_baseline_review",
+                "status": "gaps_found",
+                "metrics": {"gap_count": 1},
+                "gaps": [{"effect_id": "fxintent_2_external_effect_1"}],
+            }), encoding="utf-8")
+            (workdir / "effect_revision_request.json").write_text(json.dumps({
+                "artifact_role": "effect_revision_request",
+                "version": 1,
+                "status": "pending",
+                "summary": {"request_count": 1},
+                "requests": [{
+                    "request_id": "fxrev_fxintent_2_external_effect_1",
+                    "effect_id": "fxintent_2_external_effect_1",
+                    "route": "route_to_node14_or_remotion_adapter",
+                    "status": "pending",
+                }],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            revision = next(n for n in state["nodes"] if n["node"] == 14)
+
+            self.assertEqual(revision["status"], "warn")
+            self.assertIn("1 effect revision request", revision["reason"])
+            self.assertTrue(any(
+                link["role"] == "effect_revision_request"
+                for link in revision["artifact_links"]
+            ))
+
     def test_manifest_based_state_includes_all_nodes(self):
         """1. Manifest-based dashboard state includes required nodes."""
         with tempfile.TemporaryDirectory() as tmp:

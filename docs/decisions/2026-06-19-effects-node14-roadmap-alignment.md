@@ -104,3 +104,22 @@ BUILD lane:
 This is not a Remotion runtime and does not make browser preview equal final
 ffmpeg output. The remaining effects work is broader recipe coverage and FX3
 Node14 routing for unresolved gaps.
+
+## FX3a Node14 Gap Routing
+
+Implemented as a bounded artifact conversion, not an effect renderer.
+
+- New CLI: `python video_tools.py effect-revision-request --baseline-review light_effects_baseline_review.json --light-effects-plan light_effects_plan.json --out effect_revision_request.json`
+- New artifact: `effect_revision_request.json`.
+- Source of truth remains `light_effects_baseline_review.json` plus optional
+  `light_effects_plan.json` evidence.
+- Route mapping:
+  - regular missing ffmpeg-safe effects -> `implement_or_wire_effect_recipe`;
+  - `external_effect` or pending backend items -> `route_to_node14_or_remotion_adapter`.
+- Dashboard/Node14 surfaces pending effect revision requests before raw gap
+  warnings.
+
+Boundary: FX3a does not call Remotion, does not render, does not mutate
+`final.mp4`, and does not rewrite canonical `effect_intent_plan.json`. The
+actual adapter implementation and automatic revised effect-intent authoring
+remain separate increments.

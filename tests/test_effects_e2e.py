@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from video_pipeline_core import contract_adapter as ca
+from video_pipeline_core.effect_revision import build_effect_revision_request
 from video_pipeline_core.platform_tools import resolve_ffmpeg
 
 
@@ -155,6 +156,17 @@ class EffectsE2ETest(unittest.TestCase):
             self.assertIn("fx_page_turn", gap_sources)
             self.assertEqual(baseline["metrics"]["rendered_count"], 1)
             self.assertEqual(baseline["metrics"]["gap_count"], 1)
+
+            revision = build_effect_revision_request(baseline, light_plan)
+            requests_by_source = {
+                request.get("source_effect_id"): request
+                for request in revision["requests"]
+            }
+            self.assertNotIn("fx_lower", requests_by_source)
+            self.assertEqual(
+                requests_by_source["fx_page_turn"]["route"],
+                "route_to_node14_or_remotion_adapter",
+            )
 
 
 if __name__ == "__main__":
