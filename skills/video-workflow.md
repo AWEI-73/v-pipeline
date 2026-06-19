@@ -171,3 +171,50 @@ hybrid       :  粗概念 → material-map → 最終 SPEC
 - `/home/lio730309/vaults/hermes-vault/video-editing-workflow-brainstorming-to-material-direction.md`
 
 不要給「讓它更有感情」這種空話——一定要落到具體鏡頭、段落功能、字幕用詞、剪輯決策。
+
+---
+
+## ISF1 Interactive Brief Contract
+
+這個 skill 的交付物不是聊天紀錄，而是能推動下一個 skill 的互動式 artifact。缺資訊時要停下來問；資訊足夠時才往下交付。
+
+### 必問分支
+
+1. 這是 event/MV/訓練回顧，還是 comic/photo/storybook/panel narration？
+2. 起手是 `script_first`、`material_first`、還是 `hybrid`？
+3. 目前有素材、可補拍、可生成，還是三者混合？
+4. 缺素材時優先補拍、生成、縮短、改寫、還是人工決策？
+5. 是否需要 `storyboard_panel_locked`？
+   - 漫畫、照片故事、繪本、口白 panel 片預設 `true`。
+   - 活動 MV、課程 recap、真實素材 montage 預設 `false`。
+
+### 互動式輸出
+
+| Artifact | 內容 | 交給誰 |
+|---|---|---|
+| `project_brief.json` | video_type, audience, target_length, tone, start mode, fallback policy, must_include | `story-soul-blueprint` / `director` |
+| `story_world.json` | 人物、場域、時間、情境、限制、真實/生成邊界 | `story-soul-blueprint` |
+| `creative_concept.json` | 核心命題、敘事裝置、情緒弧線、hook | `writer` / `director` |
+| `screenplay_beats.json` | 每段故事功能、口白/字幕方向、節奏、情緒轉折 | `writer` / `director` |
+| `director_shot_plan.json` | 每 beat 需要的鏡頭語言、素材數量、媒材偏好、fallback | `material-map` |
+| `material_needs.json` | canonical needs；必須能被 M6 validate-needs 驗證 | `material-map` lifecycle |
+
+### 停止條件
+
+- 片長、受眾、用途、素材來源任一不明。
+- `storyboard_panel_locked` 是否適用不明。
+- must-have / 不能生成 / 不能替代的內容不明。
+- 使用者要求的故事張力無法從目前資訊推得具體 beat。
+
+### 下一步條件
+
+- 若重點是故事靈魂不足：交 `story-soul-blueprint`。
+- 若已有清楚故事和素材需求：交 `material-map`。
+- 若 delta 顯示缺素材且允許生成：交 `material-generation-fallback` / `generated-material-producer`。
+- 若素材與 contract 都可 build：交 `video-pipeline` / `runtime.py`。
+
+### 不要做
+
+- 不要把樣板當流程固化。樣板、故事集、多影片模式留到完整 pipeline 穩定後再做。
+- 不要用「看起來像」的素材替代 must-have need。
+- 不要把 generated asset 當真實事件證據。

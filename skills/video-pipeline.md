@@ -173,3 +173,28 @@ registry 內,`status` 看得到)。設計見
 3. artifact_manifest.json 完整(含 backend 與 final 檔名)
 4. next_action = null / complete_review_final
 ```
+
+---
+
+## ISF1 Interactive Skill Flow（流程固化，不是樣板固化）
+
+這裡固化的是 agent 操作流程，不是固定故事模板、CI/CD、或單一範例。每次影片仍由互動式 skill 取得必要參數，再交給確定性工具驗證與 BUILD。
+
+| Phase | Owner skill / tool | 必要產物 | 停止條件 | 下一步條件 |
+|---|---|---|---|---|
+| 0 Intake | `video-workflow` | `project_brief.json` 或等價 brief | 目的、受眾、片長、素材來源、fallback 還不清楚 | brief 欄位足以判斷 script-first / material-first / hybrid |
+| 1 Story soul | `story-soul-blueprint` | `story_world.json`, `creative_concept.json`, `screenplay_beats.json`, `director_shot_plan.json` | 沒有核心命題、敘事裝置、情緒弧線 | 每個 beat 有 story function、畫面需求、素材數量估計 |
+| 2 Material truth | `material-map` / M6 lifecycle | `material_needs.json`, `project_material_map.json`, `material_delta.json` | `await_material`, `await_map_review`, `revise:material(material_delta)` | delta 可解釋 covered/thin/missing 且可進 BUILD 或 revision |
+| 3 Generated fallback | `material-generation-fallback`, `generated-material-producer` | `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed generated map | `wait_for_generated_provider`, `await_material_visual_review` | provider 輸出已 import/review，fresh delta 重算 |
+| 4 Contract / BUILD | `director`, `editor`, `audio-director`, `runtime.py` | `segment_contract.json`, `timeline_build.json`, render candidate | BUILD gate / material gate fail | candidate 影片可進 verify |
+| 5 Human review / Workbench | Workbench + dashboard | `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json` | 人工 patch 還沒被 agent 判讀或同步 | patch 經 agent review 後回 contract/revision 或接受為 draft |
+| 6 Verify / delivery | `verify`, dashboard | `verify_result.json`, `artifact_manifest.json`, `state.json` | `verify_failed`, `fix_timeline_or_assembly`, `human_review` | `state.json.next_action` 為 `null` 或 `complete_review_final` |
+
+互動原則：
+
+- 模糊需求先進 `video-workflow`，不要直接塞進 runtime。
+- 有故事感需求先進 `story-soul-blueprint`，不要只列課程項目。
+- 有素材/缺素材問題交給 `material-map`，不要讓 BUILD 偷拿不符合 need 的素材。
+- 沒素材但允許生成時，走 generated provider packet；模型產物仍要回 material-map review。
+- Workbench 只產 draft patch；正式片仍由 backend ffmpeg / `contract-run` 產生。
+- 漫畫、照片故事、繪本、口白 panel 片要帶 `storyboard_panel_locked=true`；拉長 panel 或生成更多 panel，不用同 need 的其他圖自動補滿旁白。

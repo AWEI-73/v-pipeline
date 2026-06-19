@@ -59,6 +59,39 @@ Frontend references:
 
 ## Active Direction
 
+### ISF1 Interactive Skill Flow
+
+Status: implemented / acceptance review.
+
+Purpose: solidify the interactive operating flow without freezing story
+templates. Agents should acquire missing parameters through skills, emit
+canonical artifacts, and stop at explicit gates instead of guessing.
+
+Decision:
+
+- `docs/decisions/2026-06-19-interactive-skill-flow.md`
+
+Canonical entry:
+
+```text
+video-pipeline
+  -> video-workflow when the request is vague
+  -> story-soul-blueprint when story soul / narrative device is thin
+  -> material-map when material truth, coverage, delta, or handoff is needed
+  -> generated-material-producer when missing material may be generated
+  -> runtime / Workbench / verify for BUILD, draft review, and delivery
+```
+
+Rules:
+
+- This is process solidification, not template solidification.
+- `storyboard_panel_locked=true` applies to comic/photo/storybook/panel
+  narration; stretch the panel or generate more panels instead of auto-filling
+  unrelated panels.
+- Workbench remains a draft patch surface; official render remains backend
+  ffmpeg / `contract-run`.
+- Historical roadmap sections are evidence only, not active flow instruction.
+
 ### Next Strategic Work: Creative Blueprint / Story Soul Layer
 
 Current problem: the pipeline can enforce material truth, but the upstream story

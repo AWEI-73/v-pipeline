@@ -71,7 +71,9 @@ segments[]  : {segment, kind, source, layout, status(done/low/blocked/unfixable/
 blocking[]  : {segment, reason}            # 補拍指引（unfixable + material build block）
 gate_review : null | precompose gate 整片級失敗原因
 next_action : null | await_material | retry:curator(seg=[…]) | revise:director(seg=[…])
-              | needs_generated(seg=[…]) | review
+              | wait_for_generated_provider | await_visual_review
+              | await_material_visual_review | revise:material(material_delta)
+              | verify_failed | fix_timeline_or_assembly | review
 ```
 
 **`fix_class`（VERIFY/state 已發出，2026-06-02）**：每段標 `material|spec|human`，這是讓 route
@@ -91,24 +93,22 @@ next_action : null | await_material | retry:curator(seg=[…]) | revise:director
 | `next_action == null` | ✅ 完成，出片 | — 收工 |
 | `await_material` | 偵測 `--material-dir` 內 `seg{n}_user.*`：**到位**→該段 `source=local` + `--only-seg n` 重渲；**未到位**→印補拍指引、停下等素材 | 暫停 → 回 BUILD（素材換源後只重渲該段）|
 | `retry:curator(seg=[…])` | pipeline 內部重試已用盡仍未達標 → 交人工換源/補拍 | BUILD 已用盡 → 升級人工 |
-| `needs_generated(seg=[…])` | 等外部生成素材專案輸出 `materials/generated/seg{n}.*` + metadata，再以 `source=generated` 只重渲該段 | 暫停 → 回 BUILD（外部 provider 供料後）|
+| `wait_for_generated_provider` | 等外部生成素材專案輸出 provider packet / `generated_provider_outputs.json`，再 import/review 回 material-map | 暫停 → 回 material-map / BUILD（外部 provider 供料後）|
 | `review` | 交人工 | 升級人工（含潛在 SPEC 改寫，見下）|
 
 關鍵：router **在 pipeline 外**（軸 A 編排層），每輪只讀 state→決定回哪一功能層、跑哪幾段
 （full 或 `--only-seg`）；pipeline 內部的自省重試（P2-3）是 **BUILD 層的微迴圈**，route 是**跨層的巨迴圈**——兩個迴圈尺度不同、不打架。
 
-### ⚠️ 目前的缺角：route 只會回 BUILD，不會回 SPEC
+### ISF1 route boundary：回到正確 owner，但 route 不自行改寫
 
-現有 `next_action` 全是「回 BUILD（重渲/換源）」或「升級人工」。**沒有一條路徑會自動回 SPEC**
-（叫編劇/導演改寫 `script.json`）。例如 content_alignment 一直低分，根因可能是導演選錯 `media_pref`/`layout`、
-或編劇 `visual_desc` 寫歪——這類 **SPEC-level 修正目前一律落進 `review` 交人工**。
+現有 runtime 已能把狀態送回不同 owner：素材、生成 provider、視覺複核、導演/spec 修正、material_delta 修正、timeline/assembly 修正、人工 review。route 的責任是讀 `state.json.next_action` 後派工；route 自己不改 contract、不挑素材、不改 timeline。
 
-**進度（2026-06-02）**：VERIFY/`build_state` 現已**發出** `fix_class` 三分類與 `revise:director(seg=[…])`
-next_action；缺的只剩 **`route.py` 消費這條**（偵測 `revise:director`→回導演重填製作欄位→`--only-seg` 重渲）。
+**進度（ISF1 更新）**：`runtime.py` 是目前執行器；route skill 只保留派工契約。`revise:director`、
+`revise:material(material_delta)`、`wait_for_generated_provider`、visual-review 類 next_action 都要回到對應 owner，不在 route 內重寫內容。
 
-| fix 類別 | 根因在 | next_action（state 已發）| route.py 消費 |
+| fix 類別 | 根因在 | next_action | route 消費 |
 |---|---|---|---|
-| **material** | BUILD 找錯/沒素材 | `retry:curator` / `await_material` / `needs_generated` | ✅ 已有（await_material）|
+| **material** | BUILD 找錯/沒素材 | `retry:curator` / `await_material` / `wait_for_generated_provider` / `revise:material(material_delta)` | ✅ runtime route |
 | **spec** | SPEC 媒材/版面/畫面描述選錯 | `revise:director(seg=[…])` | ⬜ 待補 |
 | **human** | 都不是、需判斷 | `review` | ✅ 已有 |
 
@@ -162,18 +162,18 @@ route 再把該段視為 `source=generated`，用 `--only-seg 6` 接回主流程
 | 條件 | route 結果 |
 |---|---|
 | 期待學員/使用者素材 | `await_material` |
-| 在地專有、stock ceiling 明顯 | 先 `await_material`，若 generated provider 已配置則 `needs_generated(seg=[…])` |
+| 在地專有、stock ceiling 明顯 | 先 `await_material`，若 generated provider 已配置則 `wait_for_generated_provider` |
 | generated 素材已交付 | `source=generated` + `--only-seg n` |
 | 沒有更好來源 | `review` |
 
 ## 邊界（不做）——用分層講
 
-- **不踩 SPEC**：router 不寫/不改 `script.json`（不重寫旁白、不選 media_pref/layout、不定 style）。那是編劇/導演的事；要改 spec 目前走 `review` 交人工。
+- **不踩 SPEC**：router 不寫/不改 contract（不重寫旁白、不選 media_pref/layout、不定 style）。那是編劇/導演的事；要改 spec 走 `revise:director` 或人工 review。
 - **不踩 BUILD**：router 不挑單一素材、不調色、不混音、不渲染。它只**叫**確定性引擎跑（full 或 `--only-seg`），怎麼做是 BUILD 各 skill + pipeline 的事。
 - **不踩 VERIFY**：router 不評分、不判對題。它只**讀** VERIFY 沉澱到 `state.json` 的結論。
 - **不改 timeline**：時長/段序/style 一變就要完整 build，不是 route 的 `--only-seg` 能處理的。
 - **不碰外部 provider 本體**：不安裝/不啟動/不管理 Antigravity / assistant_imagegen / ComfyUI 等外部工具；generated 只是外部輸入源（交付 `materials/generated/segN.*`）。ComfyUI 預設 deprecated/disabled，除非使用者明確要求實驗。
-- 自動接力只處理 `await_material`；`retry:curator` 耗盡、`needs_generated` 未供料、`review` 一律停下交人工。
+- 自動接力可處理 `await_material` 與已宣告的 provider handoff；`retry:curator` 耗盡、`wait_for_generated_provider` 未供料、`review` 一律停下交人工。
 
 ## route 的姊妹：dashboard（同一條稽核軌的兩種出口）
 
