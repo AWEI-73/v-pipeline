@@ -14,6 +14,7 @@ class VisualJudgeNodeTest(unittest.TestCase):
 class RevisionNodeTest(unittest.TestCase):
     def test_revision_node_declares_effect_revision_request_output(self):
         self.assertIn("effect_revision_request.json", NODE_REGISTRY["14"]["outputs"])
+        self.assertIn("effect_recipe_patch.json", NODE_REGISTRY["14"]["outputs"])
 
     def test_revision_node_prefers_pending_effect_revision_request(self):
         status, reason = verify_revision("", {
@@ -29,6 +30,21 @@ class RevisionNodeTest(unittest.TestCase):
 
         self.assertEqual(status, "warn")
         self.assertIn("2 effect revision request", reason)
+
+    def test_revision_node_prefers_pending_effect_recipe_patch(self):
+        status, reason = verify_revision("", {
+            "effect_revision_request": {
+                "status": "pending",
+                "summary": {"request_count": 2},
+            },
+            "effect_recipe_patch": {
+                "status": "pending",
+                "summary": {"patch_count": 2},
+            },
+        }, {})
+
+        self.assertEqual(status, "warn")
+        self.assertIn("2 effect recipe patch", reason)
 
 
 if __name__ == "__main__":

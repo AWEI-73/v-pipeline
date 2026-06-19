@@ -204,6 +204,7 @@ def verify_revision(workdir, artifacts, context):
     effects_manifest = artifacts.get("motion_graphics_manifest")
     baseline_review = artifacts.get("light_effects_baseline_review")
     effect_revision_request = artifacts.get("effect_revision_request")
+    effect_recipe_patch = artifacts.get("effect_recipe_patch")
     
     effects_required = False
     if profile_data:
@@ -211,7 +212,11 @@ def verify_revision(workdir, artifacts, context):
         
     status = "optional"
     reason = "No revision plan required"
-    if effect_revision_request and effect_revision_request.get("status") == "pending":
+    if effect_recipe_patch and effect_recipe_patch.get("status") == "pending":
+        count = (effect_recipe_patch.get("summary") or {}).get("patch_count", 0)
+        status = "warn"
+        reason = f"{count} effect recipe patch draft(s) pending review"
+    elif effect_revision_request and effect_revision_request.get("status") == "pending":
         count = (effect_revision_request.get("summary") or {}).get("request_count", 0)
         status = "warn"
         reason = f"{count} effect revision request(s) pending Node14 routing"
@@ -361,7 +366,8 @@ NODE_REGISTRY = {
         "runner": "route",
         "inputs": ["verify_result.json"],
         "outputs": ["revision_plan.json", "motion_graphics_render_plan.json", "motion_graphics_manifest.json",
-                    "light_effects_baseline_review.json", "effect_revision_request.json"],
+                    "light_effects_baseline_review.json", "effect_revision_request.json",
+                    "effect_recipe_patch.json"],
         "verify_fn": verify_revision,
         "description": "Revision plan"
     }

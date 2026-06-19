@@ -625,10 +625,32 @@ Acceptance:
 - Real E2E evidence: `tests/test_effects_e2e.py` proves a lower-third renders,
   while the Remotion-only page-turn gap becomes a Node14 adapter request.
 
+Status: **FX3b COMPLETE (2026-06-19)** for request-to-draft conversion.
+
+- `effect_revision_request.json` can be converted into non-canonical draft
+  artifacts by:
+
+  ```bash
+  python video_tools.py effect-revision-draft \
+    --request effect_revision_request.json \
+    --out-patch effect_recipe_patch.json \
+    --effect-intent-plan effect_intent_plan.json \
+    --out-intent-draft revised_effect_intent_plan.draft.json
+  ```
+
+- `effect_recipe_patch.json` is a Node14 review artifact only. It proposes
+  `wire_effect_recipe` or `build_node14_adapter`, but does not render or mutate
+  canonical inputs.
+- `revised_effect_intent_plan.draft.json` is a wrapper around a validator-clean
+  inner `effect_intent_plan`; it is explicitly `draft_only`.
+- Dashboard/Node14 surfaces pending `effect_recipe_patch.json` before pending
+  `effect_revision_request.json`.
+
 Still deferred:
 
 - Workbench draft effect-intent ingestion into Node14 request artifacts.
-- Automatic revised `effect_intent_plan.json` authoring.
+- Automatic application of revised `effect_intent_plan.json` into canonical
+  BUILD.
 - Actual Remotion/Node14 adapter execution.
 
 ### FX4 Remotion/Preview Boundary

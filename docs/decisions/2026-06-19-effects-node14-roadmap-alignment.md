@@ -123,3 +123,22 @@ Boundary: FX3a does not call Remotion, does not render, does not mutate
 `final.mp4`, and does not rewrite canonical `effect_intent_plan.json`. The
 actual adapter implementation and automatic revised effect-intent authoring
 remain separate increments.
+
+## FX3b Request To Draft Patch
+
+Implemented as a second bounded Node14 step.
+
+- New CLI: `python video_tools.py effect-revision-draft --request effect_revision_request.json --out-patch effect_recipe_patch.json --effect-intent-plan effect_intent_plan.json --out-intent-draft revised_effect_intent_plan.draft.json`
+- New primary artifact: `effect_recipe_patch.json`.
+- Optional draft wrapper: `revised_effect_intent_plan.draft.json`.
+- Patch mapping:
+  - `implement_or_wire_effect_recipe` -> `wire_effect_recipe`;
+  - `route_to_node14_or_remotion_adapter` -> `build_node14_adapter`.
+- The optional draft intent plan only adds proposed backend availability and
+  lineage inside a `draft_only` wrapper. The inner plan remains validator-clean.
+- Dashboard/Node14 surfaces pending `effect_recipe_patch.json` before raw
+  revision requests.
+
+Boundary: FX3b does not apply the draft to canonical input, does not call an
+adapter, and does not render. A later increment must explicitly review/apply
+the draft before any second BUILD.

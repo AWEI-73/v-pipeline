@@ -94,6 +94,34 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for link in revision["artifact_links"]
             ))
 
+    def test_effect_recipe_patch_surfaces_under_revision_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "effect_revision_request.json").write_text(json.dumps({
+                "artifact_role": "effect_revision_request",
+                "version": 1,
+                "status": "pending",
+                "summary": {"request_count": 1},
+                "requests": [],
+            }), encoding="utf-8")
+            (workdir / "effect_recipe_patch.json").write_text(json.dumps({
+                "artifact_role": "effect_recipe_patch",
+                "version": 1,
+                "status": "pending",
+                "summary": {"patch_count": 1},
+                "patches": [],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+            revision = next(n for n in state["nodes"] if n["node"] == 14)
+
+            self.assertEqual(revision["status"], "warn")
+            self.assertIn("1 effect recipe patch", revision["reason"])
+            self.assertTrue(any(
+                link["role"] == "effect_recipe_patch"
+                for link in revision["artifact_links"]
+            ))
+
     def test_manifest_based_state_includes_all_nodes(self):
         """1. Manifest-based dashboard state includes required nodes."""
         with tempfile.TemporaryDirectory() as tmp:

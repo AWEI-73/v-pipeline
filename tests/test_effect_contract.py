@@ -116,7 +116,12 @@ class EffectContractTest(unittest.TestCase):
             self.assertEqual(json.loads(spec.read_text(encoding="utf-8"))["artifact_role"], "effect_asset_spec")
 
     def test_command_catalog_exposes_effect_workflow(self):
-        commands = ["effect-intent-plan", "light-effects-plan", "effect-revision-request"]
+        commands = [
+            "effect-intent-plan",
+            "light-effects-plan",
+            "effect-revision-request",
+            "effect-revision-draft",
+        ]
         manifest = build_command_manifest(commands)
         workflow = build_workflow_manifest(commands)
         self.assertEqual(manifest["commands"]["effect-intent-plan"]["group"], "contract")

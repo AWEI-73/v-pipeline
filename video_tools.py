@@ -295,6 +295,25 @@ def cmd_effect_revision_request(args):
                      ensure_ascii=False, indent=2))
 
 
+def cmd_effect_revision_draft(args):
+    from video_pipeline_core.effect_revision import write_effect_revision_draft
+    try:
+        result = write_effect_revision_draft(
+            args.request,
+            args.out_patch,
+            effect_intent_plan_path=args.effect_intent_plan,
+            out_intent_draft_path=args.out_intent_draft,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect revision draft failed: {exc}") from exc
+    print(json.dumps({
+        "ok": True,
+        "effect_recipe_patch": result["effect_recipe_patch"],
+        "revised_effect_intent_plan_draft": result["revised_effect_intent_plan_draft"],
+        "patch_status": result["patch"]["status"],
+    }, ensure_ascii=False, indent=2))
+
+
 def _load_json(path):
     with Path(path).open(encoding="utf-8-sig") as f:
         return json.load(f)
@@ -1820,6 +1839,7 @@ def _build_video_tools_dispatch():
         "story-soul-blueprint": cmd_story_soul_blueprint,
         "light-effects-plan": cmd_light_effects_plan,
         "effect-revision-request": cmd_effect_revision_request,
+        "effect-revision-draft": cmd_effect_revision_draft,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
@@ -2279,6 +2299,15 @@ def main():
     p_er.add_argument("--light-effects-plan", default=None, dest="light_effects_plan",
                       help="optional light_effects_plan.json for source_effect_id and backend route evidence")
     p_er.add_argument("--out", required=True, help="effect_revision_request.json output")
+
+    p_erd = sub.add_parser("effect-revision-draft")
+    p_erd.add_argument("--request", required=True, help="effect_revision_request.json")
+    p_erd.add_argument("--out-patch", required=True, dest="out_patch",
+                       help="effect_recipe_patch.json draft output")
+    p_erd.add_argument("--effect-intent-plan", default=None, dest="effect_intent_plan",
+                       help="optional canonical effect_intent_plan.json source")
+    p_erd.add_argument("--out-intent-draft", default=None, dest="out_intent_draft",
+                       help="optional revised_effect_intent_plan.draft.json output")
 
     # --- P1 verification tool pack ---
     p_ta = sub.add_parser("timeline-audit")
