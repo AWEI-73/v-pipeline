@@ -231,12 +231,20 @@ def record_motion_graphics_outputs(plan, manifest, motion_outputs):
         operation = effect_to_operation.get(output.get("effect_type"))
         if not operation or output.get("status") != "composited":
             continue
-        match = next((
-            item for item in planned
-            if item.get("segment") == output.get("segment")
-            and item.get("operation") == operation
-            and item.get("id") not in recorded_ids
-        ), None)
+        source_effect_id = output.get("source_effect_id")
+        if source_effect_id:
+            match = next((
+                item for item in planned
+                if item.get("source_effect_id") == source_effect_id
+                and item.get("id") not in recorded_ids
+            ), None)
+        else:
+            match = next((
+                item for item in planned
+                if item.get("segment") == output.get("segment")
+                and item.get("operation") == operation
+                and item.get("id") not in recorded_ids
+            ), None)
         if not match:
             continue
         recorded.append({
@@ -246,7 +254,7 @@ def record_motion_graphics_outputs(plan, manifest, motion_outputs):
             "status": "composited",
             "path": output.get("path"),
             "renderer": "motion_graphics.ffmpeg_libass",
-            "source_effect_id": output.get("effect_id"),
+            "source_effect_id": source_effect_id or output.get("effect_id"),
         })
         recorded_ids.add(match.get("id"))
     return manifest

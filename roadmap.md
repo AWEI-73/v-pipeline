@@ -560,8 +560,8 @@ Rules:
 
 ### FX2 Effect Build Wiring
 
-Status: partially implemented / accepted for neutral intent handoff into
-`light_effects`; real visible effect parity remains active work.
+Status: implemented / accepted for first ffmpeg-backed E2E path; broader effect
+recipe coverage remains active work.
 
 Goal: make `light_effects` / `motion_graphics` build outputs visible and
 measurable in real renders.
@@ -580,15 +580,21 @@ Implemented:
 - Effects that do not allow `ffmpeg_light_effects` are preserved as
   `external_effect` / `pending_backend`, making the Node14 or Remotion adapter
   gap visible instead of pretending it rendered.
+- `motion_graphics` can project ffmpeg-safe `title_card` / `lower_third`
+  effect intents into timed ASS overlays using the actual BUILD timeline.
+- E2E regression proves `effect_intent_plan_ref -> contract-run -> final.mp4`
+  with one composited lower-third and one explicit Remotion-only gap.
 
 Acceptance:
 
 - an enabled `light_effects` build writes plan, manifest, baseline review, and
-  at least one visible rendered effect in a real ffmpeg output.
-- effect outputs are traced back to segment/clip/effect id.
+  at least one visible rendered effect in a real ffmpeg output. **Met for
+  lower-third via `tests/test_effects_e2e.py`.**
+- effect outputs are traced back to segment/clip/effect id. **Met for
+  `source_effect_id`.**
 - no duplicate text burn: canonical text ownership remains singular.
 - failed effect render produces a Node14-visible gap instead of pretending
-  success.
+  success. **Met for `external_effect` / pending backend.**
 
 ### FX3 Node14 Revision Orchestration
 

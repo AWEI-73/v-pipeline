@@ -951,6 +951,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         provider_priority=build_profile_payload.get("provider_priority"),
     )
     light_effects_paths = {}
+    effect_intent_plan = None
     if (build_profile_payload.get("render_profile") == "light_effects"
             or build_profile_payload.get("effects_enabled")):
         effect_intent_plan, effect_intent_error = _resolve_effect_intent_plan(
@@ -1209,6 +1210,13 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             backend=build_profile_payload.get("motion_graphics_backend", "ffmpeg_libass"),
             contract_hash=contract_hash,
         )
+        effect_motion_contract = motion_graphics.contract_from_effect_intent_plan(
+            effect_intent_plan,
+            motion_timeline,
+            backend=build_profile_payload.get("motion_graphics_backend", "ffmpeg_libass"),
+            contract_hash=contract_hash,
+        )
+        motion_contract["items"].extend(effect_motion_contract.get("items") or [])
         if motion_contract["items"]:
             motion_graphics_paths = motion_graphics.write_motion_graphics_artifacts(
                 motion_contract,

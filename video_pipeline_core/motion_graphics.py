@@ -7,8 +7,11 @@ HTML/Playwright, Blender, or external compositors when the route allows it.
 """
 import html
 import json
+import re
 import subprocess
 from pathlib import Path
+
+from .effect_contract import validate_effect_intent_plan
 
 
 ALLOWED_BACKENDS = {
@@ -110,6 +113,85 @@ def contract_from_timeline(canonical_contract, timeline, *, backend="ffmpeg_liba
     }
 
 
+def _segment_key(value):
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return value
+
+
+def _timeline_span_for_segment(timeline, segment):
+    segment = _segment_key(segment)
+    clips = [
+        clip for clip in (timeline or {}).get("clips", [])
+        if _segment_key(clip.get("segment")) == segment
+    ]
+    if not clips:
+        return None
+    starts = [float(clip.get("timeline_in_sec") or 0) for clip in clips]
+    ends = [float(clip.get("timeline_out_sec") or 0) for clip in clips]
+    start = min(starts)
+    end = max(ends)
+    if end <= start:
+        return None
+    return {"start_sec": round(start, 3), "duration_sec": round(end - start, 3)}
+
+
+def _safe_id(value):
+    raw = str(value or "effect").strip()
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", raw).strip("_") or "effect"
+
+
+def contract_from_effect_intent_plan(effect_intent_plan, timeline, *, backend="ffmpeg_libass", contract_hash=None):
+    """Project neutral FX1 effect intents into concrete timed text overlays.
+
+    This is intentionally narrow: only ffmpeg-safe text effects become motion
+    graphics items. Unsupported or Remotion-only effects remain visible as
+    `external_effect` gaps in light_effects and are not silently rendered here.
+    """
+    if not effect_intent_plan:
+        return {"motion_graphics_version": 1, "contract_hash": contract_hash, "items": []}
+    validate_effect_intent_plan(effect_intent_plan)
+    items = []
+    for effect in effect_intent_plan.get("effects") or []:
+        allowed = set(effect.get("allowed_backends") or [])
+        if not ({"ffmpeg_light_effects", "motion_graphics"} & allowed):
+            continue
+        role = effect.get("role")
+        if role == "lower_third":
+            effect_type = "lower_third"
+        elif role == "title_card":
+            effect_type = "chapter_card"
+        else:
+            continue
+        target = effect.get("target") or {}
+        segment = _segment_key(target.get("segment_id") or target.get("segment") or target.get("segment_ref"))
+        timing = _timeline_span_for_segment(timeline, segment)
+        if not timing:
+            continue
+        recipe = TEXT_RECIPES[effect_type]
+        visual_language = effect.get("visual_language") or []
+        items.append({
+            "id": f"fxintent_{_safe_id(effect.get('effect_id'))}",
+            "source_effect_id": effect.get("effect_id"),
+            "segment": segment,
+            "effect_type": effect_type,
+            "backend": backend,
+            "template": recipe["template"],
+            "timing": timing,
+            "text": {
+                "main": effect.get("intent") or effect.get("role"),
+                "subtitle": ", ".join(visual_language) if visual_language else None,
+            },
+            "style": {"motion": recipe["motion"], "safe_area": recipe["safe_area"]},
+            "reason": effect.get("intent") or "effect intent",
+        })
+    return {
+        "motion_graphics_version": 1,
+        "contract_hash": contract_hash,
+        "items": items,
+    }
+
+
 def _finding(level, field, message):
     return {"level": level, "field": field, "message": message}
 
@@ -181,6 +263,7 @@ def build_motion_graphics_render_plan(contract, backend_policy=None):
         output_mode = item.get("output_mode") or "overlay"
         items.append({
             "id": item["id"],
+            "source_effect_id": item.get("source_effect_id"),
             "segment": item.get("segment"),
             "effect_type": item["effect_type"],
             "backend": backend,
@@ -385,6 +468,7 @@ def run_motion_graphics_render_plan(plan, out_dir):
             extra = {}
         outputs.append({
             "effect_id": item.get("id"),
+            "source_effect_id": item.get("source_effect_id"),
             "segment": item.get("segment"),
             "effect_type": item.get("effect_type"),
             "backend": backend,

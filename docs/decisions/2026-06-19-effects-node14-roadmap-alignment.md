@@ -94,8 +94,13 @@ BUILD lane:
 - Non-ffmpeg effects are represented as `external_effect` with
   `status=pending_backend`, which is the intended bridge to Node14 or an
   optional Remotion adapter.
+- `motion_graphics.contract_from_effect_intent_plan` projects ffmpeg-safe
+  `title_card` / `lower_third` intents into timed ASS overlays after the BUILD
+  timeline exists.
+- `tests/test_effects_e2e.py` proves a real `contract-run` can render a
+  lower-third from `effect_intent_plan_ref` into `final.mp4`, while a
+  Remotion-only transition remains a visible baseline gap.
 
 This is not a Remotion runtime and does not make browser preview equal final
-ffmpeg output. The remaining FX2 work is to prove visible rendered effect parity
-for concrete ffmpeg-backed operations, then route unresolved effect gaps through
-FX3 Node14.
+ffmpeg output. The remaining effects work is broader recipe coverage and FX3
+Node14 routing for unresolved gaps.

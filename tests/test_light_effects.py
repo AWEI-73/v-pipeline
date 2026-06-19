@@ -195,6 +195,49 @@ class LightEffectsTest(unittest.TestCase):
         rendered_ops = {item["operation"] for item in manifest["render_outputs"]}
         self.assertEqual(rendered_ops, {"title_card"})
 
+    def test_motion_graphics_outputs_resolve_effect_intent_by_source_effect_id(self):
+        effect_intent_plan = {
+            "artifact_role": "effect_intent_plan",
+            "version": 1,
+            "effects": [{
+                "effect_id": "fx_b01_lower",
+                "role": "lower_third",
+                "intent": "chapter label",
+                "intensity": "low",
+                "target": {"beat_id": "b01", "segment_id": "1"},
+                "visual_language": [],
+                "required_for_story": False,
+                "must_preserve_proof": True,
+                "allowed_backends": ["ffmpeg_light_effects"],
+                "fallback": "none",
+            }],
+        }
+        plan = light_effects.build_light_effects_plan(
+            self._contract(),
+            {"render_profile": "light_effects", "effects_enabled": True},
+            effect_intent_plan=effect_intent_plan,
+        )
+        manifest = {"render_outputs": []}
+        light_effects.record_motion_graphics_outputs(plan, manifest, [{
+            "effect_id": "fxintent_fx_b01_lower",
+            "source_effect_id": "fx_b01_lower",
+            "segment": 1,
+            "effect_type": "lower_third",
+            "status": "composited",
+            "path": "lower.ass",
+        }])
+
+        fx_output = next(
+            output for output in manifest["render_outputs"]
+            if output.get("source_effect_id") == "fx_b01_lower"
+        )
+        self.assertEqual(fx_output["operation"], "lower_third")
+        review = light_effects.build_light_effects_baseline_review(plan, manifest)
+        self.assertNotIn(
+            "fxintent_1_lower_third_1",
+            [gap["effect_id"] for gap in review["gaps"]],
+        )
+
     def test_plan_does_not_mislabel_hold_video_or_direct_cut_as_effects(self):
         contract = {
             "segments": [{

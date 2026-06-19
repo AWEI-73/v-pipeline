@@ -242,6 +242,55 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(item["template"], "lower_third_clean")
         self.assertEqual(item["style"]["safe_area"], "lower_third")
 
+    def test_contract_from_effect_intent_plan_creates_timed_ffmpeg_text_items(self):
+        effect_plan = {
+            "artifact_role": "effect_intent_plan",
+            "version": 1,
+            "effects": [{
+                "effect_id": "fx_b01_lower",
+                "role": "lower_third",
+                "intent": "訓練中心第一天",
+                "intensity": "low",
+                "target": {"beat_id": "b01", "segment_id": "1"},
+                "visual_language": ["clean lower third"],
+                "required_for_story": False,
+                "must_preserve_proof": True,
+                "allowed_backends": ["ffmpeg_light_effects"],
+                "fallback": "none",
+            }, {
+                "effect_id": "fx_b02_remotion",
+                "role": "chapter_transition",
+                "intent": "page turn",
+                "intensity": "medium",
+                "target": {"beat_id": "b02", "segment_id": "2"},
+                "visual_language": [],
+                "required_for_story": False,
+                "must_preserve_proof": False,
+                "allowed_backends": ["remotion_preview"],
+                "fallback": "simple fade",
+            }],
+        }
+        timeline = {"clips": [
+            {"segment": 1, "timeline_in_sec": 2.0, "timeline_out_sec": 5.5},
+            {"segment": 2, "timeline_in_sec": 6.0, "timeline_out_sec": 7.0},
+        ]}
+
+        contract = motion_graphics.contract_from_effect_intent_plan(
+            effect_plan,
+            timeline,
+            backend="ffmpeg_libass",
+            contract_hash="sha256:test",
+        )
+
+        self.assertEqual(contract["contract_hash"], "sha256:test")
+        self.assertEqual(len(contract["items"]), 1)
+        item = contract["items"][0]
+        self.assertEqual(item["id"], "fxintent_fx_b01_lower")
+        self.assertEqual(item["source_effect_id"], "fx_b01_lower")
+        self.assertEqual(item["effect_type"], "lower_third")
+        self.assertEqual(item["timing"], {"start_sec": 2.0, "duration_sec": 3.5})
+        self.assertEqual(item["text"]["main"], "訓練中心第一天")
+
     def test_ffmpeg_libass_recipes_emit_motion_tags(self):
         contract = self._contract()
         contract["items"][0]["style"]["motion"] = "slide_up"
