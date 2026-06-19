@@ -679,7 +679,7 @@ Still deferred:
 - Workbench draft effect-intent ingestion into Node14 request artifacts.
 - Automatic overwrite/application of revised `effect_intent_plan.json` into the
   original canonical input.
-- Actual Remotion/Node14 adapter execution.
+- Canonical Remotion/Node14 delivery integration.
 
 ### FX4 Remotion Prompt-Driven Adapter Boundary
 
@@ -700,13 +700,16 @@ Rules:
 - If a Remotion component/output is useful, export it as a reviewed effect asset
   or reviewed effect plan before final ffmpeg composite.
 
-Status: **FX4a/FX4b COMPLETE (2026-06-20)** for adapter artifact contracts.
+Status: **FX4a-FX4d COMPLETE (2026-06-20)** for adapter artifact contracts,
+optional worker smoke, and non-canonical draft composite.
 
 Implemented:
 
 - `video_pipeline_core/remotion_effects.py`
 - `python video_tools.py remotion-prompt-pack --request effect_revision_request.json --effect-intent-plan effect_intent_plan.json [--timeline timeline_build.json] --out remotion_prompt_pack.json`
+- `python video_tools.py remotion-worker-smoke --prompt-pack remotion_prompt_pack.json --out-dir remotion_effects --out-worker-outputs remotion_worker_outputs.json [--command "..."]`
 - `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
+- `python video_tools.py remotion-composite-draft --review remotion_effect_review.json --base-video workbench_export.mp4 --out remotion_composite_draft.mp4 --report-out remotion_composite_report.json`
 
 Artifact semantics:
 
@@ -716,16 +719,21 @@ Artifact semantics:
 - Jobs include source effect id, role, component family, prompt, timing, output
   target hints, and acceptance criteria.
 - `remotion_worker_outputs.json` is produced by an external Remotion-capable
-  worker/agent. Validation fails closed on unknown job ids, missing files, bad
-  durations, duplicate jobs, or malformed status.
+  worker/agent. `remotion-worker-smoke` can run an explicit worker command, or
+  a dry-run for contract smoke tests. Validation fails closed on unknown job ids,
+  missing files, bad durations, duplicate jobs, or malformed status.
 - `remotion_effect_review.json` is the Workbench/Brownfield review artifact.
   It does not accept the output into BUILD by itself.
+- `remotion-composite-draft` consumes only accepted `remotion_effect_review`
+  items and writes a non-canonical draft video. It refuses protected canonical
+  outputs such as `final.mp4`.
 
 Deferred inside effects:
 
 - full Remotion-like final renderer;
 - arbitrary free-form VFX without a prompt-pack/review contract;
 - paid/closed CapCut effect packs as required dependencies;
+- automatic Remotion output promotion into canonical delivery without review;
 - full Audio Graph V2.
 
 ## Stable Foundations — Do Not Reopen Without Evidence

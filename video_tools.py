@@ -732,6 +732,55 @@ def cmd_remotion_worker_outputs(args):
         raise ToolError("remotion worker outputs invalid: " + "; ".join(result.get("errors") or []))
 
 
+def cmd_remotion_worker_smoke(args):
+    """FX4c: optionally run a Remotion-capable worker command over a prompt
+    pack. --dry-run is deterministic and test-only; --command can call a real
+    Remotion wrapper in a configured environment."""
+    from video_pipeline_core import remotion_effects
+    try:
+        result = remotion_effects.write_remotion_worker_smoke(
+            args.prompt_pack,
+            args.out_worker_outputs,
+            args.out_dir,
+            dry_run=bool(args.dry_run),
+            command_template=args.renderer_command,
+        )
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"remotion worker smoke failed: {exc}")
+    print(json.dumps({
+        "ok": result.get("status") == "rendered",
+        "status": result.get("status"),
+        "summary": result.get("summary", {}),
+        "remotion_worker_outputs": str(args.out_worker_outputs),
+    }, ensure_ascii=False, indent=2))
+    if result.get("status") != "rendered":
+        raise ToolError("remotion worker smoke did not render all jobs")
+
+
+def cmd_remotion_composite_draft(args):
+    """FX4d: composite reviewed/accepted Remotion outputs into a non-canonical
+    draft video. Refuses final.mp4 and other canonical outputs."""
+    from video_pipeline_core import remotion_effects
+    try:
+        result = remotion_effects.write_remotion_composite_draft(
+            args.review,
+            args.base_video,
+            args.out,
+            args.report_out,
+            ffmpeg=args.ffmpeg,
+            dry_run=bool(args.dry_run),
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise ToolError(f"remotion composite draft failed: {exc}")
+    print(json.dumps({
+        "ok": result.get("ok"),
+        "status": result.get("status"),
+        "applied_count": result.get("applied_count"),
+        "out": result.get("out"),
+        "report": str(args.report_out) if args.report_out else None,
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_visual_diversity_coverage(args):
     """VD1: report real project-map VD0 label coverage; never rank material."""
     from video_pipeline_core import visual_diversity_coverage
@@ -1907,6 +1956,8 @@ def _build_video_tools_dispatch():
         "effect-revision-apply": cmd_effect_revision_apply,
         "remotion-prompt-pack": cmd_remotion_prompt_pack,
         "remotion-worker-outputs": cmd_remotion_worker_outputs,
+        "remotion-worker-smoke": cmd_remotion_worker_smoke,
+        "remotion-composite-draft": cmd_remotion_composite_draft,
         "timeline-audit": cmd_timeline_audit,
         "broll-audit":     cmd_broll_audit,
         "new-visual-audit": cmd_new_visual_information_audit,
@@ -2400,6 +2451,30 @@ def main():
                        help="remotion_worker_outputs.json produced by a Remotion-capable worker")
     p_rwo.add_argument("--out-review", required=True, dest="out_review",
                        help="remotion_effect_review.json output for Workbench/Brownfield review")
+
+    p_rws = sub.add_parser("remotion-worker-smoke")
+    p_rws.add_argument("--prompt-pack", required=True, dest="prompt_pack",
+                       help="remotion_prompt_pack.json")
+    p_rws.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory where worker preview/rendered files should be written")
+    p_rws.add_argument("--out-worker-outputs", required=True, dest="out_worker_outputs",
+                       help="remotion_worker_outputs.json output")
+    p_rws.add_argument("--dry-run", action="store_true",
+                       help="write deterministic placeholder files for contract smoke tests")
+    p_rws.add_argument("--command", default=None, dest="renderer_command",
+                       help=("optional real worker command template; placeholders: "
+                             "{job_json}, {job_id}, {preview_file}, {rendered_asset}, {duration_sec}"))
+
+    p_rcd = sub.add_parser("remotion-composite-draft")
+    p_rcd.add_argument("--review", required=True, help="accepted remotion_effect_review.json")
+    p_rcd.add_argument("--base-video", required=True, dest="base_video",
+                       help="base draft video to composite onto")
+    p_rcd.add_argument("--out", required=True, help="non-canonical draft video output")
+    p_rcd.add_argument("--report-out", default=None, dest="report_out",
+                       help="optional remotion_composite_draft_report.json output")
+    p_rcd.add_argument("--ffmpeg", default="ffmpeg", help="ffmpeg executable")
+    p_rcd.add_argument("--dry-run", action="store_true",
+                       help="write a deterministic draft/report without invoking ffmpeg")
 
     # --- P1 verification tool pack ---
     p_ta = sub.add_parser("timeline-audit")

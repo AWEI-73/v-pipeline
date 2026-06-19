@@ -24,6 +24,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Remotion is installed and now has a bounded Brownfield/Node14 adapter",
             "remotion_prompt_pack.json",
             "remotion_worker_outputs.json",
+            "remotion-composite-draft",
             "Brownfield Edit is described as revision/effects orchestration",
         ]:
             self.assertIn(expected, text)
@@ -50,6 +51,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "Remotion may author prompt-driven effects inside Brownfield Edit",
             "remotion-prompt-pack",
             "remotion-worker-outputs",
+            "remotion-composite-draft",
         ]:
             self.assertIn(expected, decision)
         self.assertIn("2026-06-19-effects-node14-roadmap-alignment.md", index)
@@ -63,6 +65,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "effect asset / sfx / overlay",
             "remotion-prompt-pack",
             "remotion-worker-outputs",
+            "remotion-composite-draft",
             "story evidence material",
             "reviewed artifact",
             "second contract-run",

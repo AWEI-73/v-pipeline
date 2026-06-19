@@ -86,6 +86,8 @@ skips review.
 - Remotion prompt jobs for adapter-route effect gaps: `remotion-prompt-pack`
 - Remotion worker-output validation for Workbench review:
   `remotion-worker-outputs`
+- Optional worker smoke for a configured Remotion command: `remotion-worker-smoke`
+- Non-canonical accepted-output draft composite: `remotion-composite-draft`
 
 Node14 remains a legacy implementation node inside Brownfield Edit. Treat
 `effect_revision_request.json` and `effect_recipe_patch.json` as compatible
@@ -102,6 +104,7 @@ effect_revision_request.json
 -> Remotion-capable worker writes remotion_worker_outputs.json + media files
 -> remotion_effect_review.json
 -> Workbench / human review
+-> remotion-composite-draft (optional non-canonical preview)
 -> reviewed artifact
 -> second contract-run / ffmpeg composite
 ```
@@ -112,3 +115,5 @@ Rules:
 - Do not run Remotion during normal BUILD.
 - Do not accept Remotion output into canonical delivery without review.
 - Do not use Remotion output as story material evidence.
+- Do not write Remotion composites to `final.mp4`; use draft output names until
+  a later explicit apply step promotes them.

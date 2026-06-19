@@ -170,13 +170,15 @@ does not implement the Remotion/Node14 adapter itself, and it does not silently
 close adapter gaps. Any remaining external-effect gap stays visible until a
 renderer/adapter increment handles it.
 
-## FX4a/FX4b Remotion Prompt Adapter Foundation
+## FX4a-FX4d Remotion Prompt Adapter Foundation
 
 Implemented as a bounded Brownfield/Node14 adapter contract, not a main BUILD
 renderer.
 
 - New CLI: `python video_tools.py remotion-prompt-pack --request effect_revision_request.json --effect-intent-plan effect_intent_plan.json --timeline timeline_build.json --out remotion_prompt_pack.json`
+- New CLI: `python video_tools.py remotion-worker-smoke --prompt-pack remotion_prompt_pack.json --out-dir remotion_effects --out-worker-outputs remotion_worker_outputs.json [--command "..."]`
 - New CLI: `python video_tools.py remotion-worker-outputs --prompt-pack remotion_prompt_pack.json --worker-outputs remotion_worker_outputs.json --out-review remotion_effect_review.json`
+- New CLI: `python video_tools.py remotion-composite-draft --review remotion_effect_review.json --base-video workbench_export.mp4 --out remotion_composite_draft.mp4 --report-out remotion_composite_report.json`
 - New module: `video_pipeline_core/remotion_effects.py`.
 - `remotion_prompt_pack.json` only converts
   `route_to_node14_or_remotion_adapter` requests into worker jobs. Ordinary
@@ -189,11 +191,15 @@ renderer.
   durations are rejected.
 - Valid outputs produce `remotion_effect_review.json` for Workbench/Brownfield
   review. They are not accepted into canonical delivery by validation alone.
+- `remotion-worker-smoke` can run an explicit worker command in a Remotion-ready
+  environment, while `--dry-run` exists only for deterministic contract smoke.
+- `remotion-composite-draft` consumes only accepted review items and writes a
+  non-canonical draft composite. It refuses protected canonical output names.
 
-Boundary: FX4a/FX4b does not run Remotion, does not install npm packages, does
-not composite Remotion output into `final.mp4`, and does not make Remotion a
-normal BUILD dependency. A later reviewed-asset/apply step must explicitly
-promote accepted Remotion output before a second `contract-run` can consume it.
+Boundary: FX4a-FX4d does not install npm packages, does not composite Remotion
+output into `final.mp4`, and does not make Remotion a normal BUILD dependency.
+A later reviewed-asset/apply step must explicitly promote accepted Remotion
+output before a second `contract-run` can consume it.
 
 ## Brownfield Edit Route Naming
 

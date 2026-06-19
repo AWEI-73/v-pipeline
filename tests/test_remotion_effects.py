@@ -251,6 +251,7 @@ class RemotionWorkerOutputsTest(unittest.TestCase):
             "effect-revision-draft",
             "remotion-prompt-pack",
             "remotion-worker-outputs",
+            "remotion-composite-draft",
         ]
         manifest = build_command_manifest(commands)
         workflow = build_workflow_manifest(commands)
@@ -261,6 +262,191 @@ class RemotionWorkerOutputsTest(unittest.TestCase):
             item for item in workflow["missing_commands"]
             if item["workflow"] == "remotion_effect_adapter"
         ], [])
+
+
+class RemotionWorkerSmokeTest(unittest.TestCase):
+    def test_worker_smoke_runs_injected_command_and_writes_outputs(self):
+        from video_pipeline_core.remotion_effects import (
+            build_remotion_prompt_pack,
+            run_remotion_worker_smoke,
+            validate_remotion_worker_outputs,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pack = build_remotion_prompt_pack(
+                _effect_revision_request(),
+                _effect_intent_plan(),
+                timeline=_timeline(),
+                output_dir=str(root / "renders"),
+            )
+
+            def fake_renderer(job, preview_file, rendered_asset):
+                Path(preview_file).write_bytes(b"preview")
+                Path(rendered_asset).write_bytes(b"rendered")
+                return {"ok": True, "backend": "fake-remotion", "command": ["fake"]}
+
+            outputs = run_remotion_worker_smoke(pack, root / "renders", renderer=fake_renderer)
+
+            self.assertEqual(outputs["artifact_role"], "remotion_worker_outputs")
+            self.assertEqual(outputs["summary"]["rendered_count"], 1)
+            self.assertEqual(outputs["jobs"][0]["status"], "rendered")
+            result = validate_remotion_worker_outputs(outputs, pack)
+            self.assertTrue(result["ok"], result)
+
+    def test_worker_smoke_records_failure_without_claiming_rendered(self):
+        from video_pipeline_core.remotion_effects import (
+            build_remotion_prompt_pack,
+            run_remotion_worker_smoke,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pack = build_remotion_prompt_pack(
+                _effect_revision_request(),
+                _effect_intent_plan(),
+                timeline=_timeline(),
+                output_dir=str(root / "renders"),
+            )
+
+            def failing_renderer(job, preview_file, rendered_asset):
+                return {"ok": False, "error": "remotion unavailable"}
+
+            outputs = run_remotion_worker_smoke(pack, root / "renders", renderer=failing_renderer)
+
+            self.assertEqual(outputs["jobs"][0]["status"], "failed")
+            self.assertEqual(outputs["summary"]["rendered_count"], 0)
+            self.assertIn("remotion unavailable", outputs["jobs"][0]["error"])
+
+    def test_worker_smoke_cli_writes_worker_outputs_with_dry_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            from video_pipeline_core.remotion_effects import build_remotion_prompt_pack
+            pack = build_remotion_prompt_pack(
+                _effect_revision_request(),
+                _effect_intent_plan(),
+                timeline=_timeline(),
+                output_dir=str(root / "renders"),
+            )
+            pack_path = root / "remotion_prompt_pack.json"
+            out = root / "remotion_worker_outputs.json"
+            pack_path.write_text(json.dumps(pack), encoding="utf-8")
+
+            proc = subprocess.run([
+                sys.executable,
+                "video_tools.py",
+                "remotion-worker-smoke",
+                "--prompt-pack", str(pack_path),
+                "--out-dir", str(root / "renders"),
+                "--out-worker-outputs", str(out),
+                "--dry-run",
+            ], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            written = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(written["artifact_role"], "remotion_worker_outputs")
+            self.assertEqual(written["jobs"][0]["status"], "rendered")
+
+
+class RemotionCompositeDraftTest(unittest.TestCase):
+    def _accepted_review(self, root):
+        rendered = root / "overlay.mov"
+        preview = root / "preview.mp4"
+        rendered.write_bytes(b"rendered")
+        preview.write_bytes(b"preview")
+        return {
+            "artifact_role": "remotion_effect_review",
+            "version": 1,
+            "status": "accepted",
+            "items": [{
+                "job_id": "rm_fx_page_turn",
+                "source_effect_id": "fx_page_turn",
+                "effect_id": "fxintent_2_external_effect_1",
+                "status": "accepted",
+                "review": {"decision": "accept", "reviewer": "editor", "reason": "fits hook"},
+                "preview_file": str(preview),
+                "rendered_asset": str(rendered),
+                "duration_sec": 1.0,
+                "timing": {"start_sec": 0.5, "duration_sec": 1.0},
+            }],
+        }
+
+    def test_composite_refuses_pending_review_items(self):
+        from video_pipeline_core.remotion_effects import composite_accepted_remotion_effects
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.mp4"
+            base.write_bytes(b"base")
+            review = self._accepted_review(root)
+            review["items"][0]["status"] = "pending_review"
+            with self.assertRaises(ValueError):
+                composite_accepted_remotion_effects(review, base, root / "draft.mp4")
+
+    def test_composite_refuses_protected_final_output(self):
+        from video_pipeline_core.remotion_effects import composite_accepted_remotion_effects
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.mp4"
+            base.write_bytes(b"base")
+            with self.assertRaises(ValueError):
+                composite_accepted_remotion_effects(self._accepted_review(root), base, root / "final.mp4")
+
+    def test_composite_builds_ffmpeg_overlay_command_with_accepted_items(self):
+        from video_pipeline_core.remotion_effects import composite_accepted_remotion_effects
+
+        calls = []
+
+        def fake_runner(cmd, stdout=None, stderr=None, text=None):
+            calls.append(cmd)
+            Path(cmd[-1]).write_bytes(b"draft")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.mp4"
+            base.write_bytes(b"base")
+            out = root / "remotion_composite_draft.mp4"
+            result = composite_accepted_remotion_effects(
+                self._accepted_review(root),
+                base,
+                out,
+                ffmpeg="ffmpeg",
+                runner=fake_runner,
+            )
+            self.assertTrue(out.is_file())
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["applied_count"], 1)
+        self.assertIn("overlay=", " ".join(calls[0]))
+
+    def test_composite_cli_writes_draft_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.mp4"
+            base.write_bytes(b"base")
+            review = self._accepted_review(root)
+            review_path = root / "remotion_effect_review.json"
+            out = root / "remotion_composite_draft.mp4"
+            report = root / "remotion_composite_report.json"
+            review_path.write_text(json.dumps(review), encoding="utf-8")
+
+            proc = subprocess.run([
+                sys.executable,
+                "video_tools.py",
+                "remotion-composite-draft",
+                "--review", str(review_path),
+                "--base-video", str(base),
+                "--out", str(out),
+                "--report-out", str(report),
+                "--dry-run",
+            ], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            written = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(written["artifact_role"], "remotion_composite_draft_report")
+            self.assertEqual(written["status"], "dry_run")
 
 
 if __name__ == "__main__":

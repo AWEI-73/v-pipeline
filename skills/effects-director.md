@@ -43,8 +43,18 @@ effect_revision_request.json
 -> remotion_prompt_pack.json
 -> remotion_worker_outputs.json
 -> remotion_effect_review.json
+-> remotion_composite_draft.mp4 (optional, non-canonical)
 -> reviewed artifact
 -> second contract-run
+```
+
+Adapter commands:
+
+```text
+remotion-prompt-pack
+remotion-worker-smoke
+remotion-worker-outputs
+remotion-composite-draft
 ```
 
 `remotion_prompt_pack.json` 只承載 prompt、timing、component family、輸出目標
