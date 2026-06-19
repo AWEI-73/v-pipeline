@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline — Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-18
+updated: 2026-06-19
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -61,7 +61,7 @@ Frontend references:
 
 ### ISF1 Interactive Skill Flow
 
-Status: implemented / acceptance review.
+Status: implemented / accepted as current process contract.
 
 Purpose: solidify the interactive operating flow without freezing story
 templates. Agents should acquire missing parameters through skills, emit
@@ -94,9 +94,11 @@ Rules:
 
 ### Next Strategic Work: Creative Blueprint / Story Soul Layer
 
+Status: implemented as SSB1 baseline; continue with real creative acceptance.
+
 Current problem: the pipeline can enforce material truth, but the upstream story
-blueprint is too thin. It can produce a technically valid video that still lacks
-narrative soul.
+blueprint can still be too thin if the agent treats it as a parameter sheet. It
+can produce a technically valid video that still lacks narrative soul.
 
 Next work should build a reusable upstream creative layer, not add more BUILD
 parameters:
@@ -155,7 +157,7 @@ Implementation direction:
 
 ### SSB1 Story Soul Blueprint Skill
 
-Status: implemented / acceptance review.
+Status: implemented / accepted as baseline scaffolding.
 
 Canonical files:
 
@@ -193,7 +195,7 @@ Boundary:
 
 ### SSB1→GMP End-To-End Acceptance
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for contract-chain proof.
 
 Tool:
 
@@ -227,7 +229,7 @@ through `generated-material-import` before review.
 
 ### MGF1 Material Generation Fallback Skill
 
-Status: in implementation / review.
+Status: implemented / accepted for provider-neutral generated-material fallback.
 
 Purpose: when M6 delta proves some needs are `missing` or `thin`, produce a
 provider-neutral generated-material job list without pretending generated
@@ -272,7 +274,7 @@ Practical use:
 
 ### GMP1 Generated Material Producer Skill
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for offline and provider-output material flow.
 
 Purpose: execute MGF1 jobs into generated files and write the artifacts needed
 for the material-map lifecycle to review them.
@@ -306,7 +308,7 @@ Hard boundaries:
 
 ### GMP2 Provider Output Intake + Style/Character Lock
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for provider-output import.
 
 Purpose: accept real generated files from GPT image / Gemini / Antigravity
 without letting arbitrary files bypass material-map truth boundaries.
@@ -345,7 +347,7 @@ Rules:
 
 ### GMP2.5 Real Image Provider Packet
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for real image-provider handoff.
 
 Purpose: force real generated-image work through explicit model/provider
 execution instead of relying on the offline `test_pil` renderer.
@@ -414,7 +416,7 @@ duration.
 
 ### GMP3 Generated-Material Skill Acceptance Harness
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for small generated-material flow replay.
 
 Purpose: prove the generated-material skill can be driven from the beginning of
 a small project, not just unit-tested in isolation.
@@ -447,7 +449,7 @@ because generated assets remain candidate until reviewer promotion.
 
 ### GMP4 Generated Candidate Review / Promotion
 
-Status: implemented / acceptance review.
+Status: implemented / accepted for generated candidate promotion.
 
 Purpose: safely promote generated material-map candidates after explicit review.
 
@@ -483,6 +485,116 @@ Acceptance harness update:
 - Post-generation delta: `thin=2`.
 - Post-review delta: `covered=2`, `thin=0`.
 
+## Next Phase — Effects / Node14
+
+Status: active next development direction.
+
+Purpose: add tasteful, bounded visual effects now that material truth, generated
+material fallback, Workbench draft review, and story-soul scaffolding are
+stable enough. This is not a switch to a Remotion final renderer.
+
+Canonical decision:
+
+- `docs/decisions/2026-06-19-effects-node14-roadmap-alignment.md`
+
+Current proven foundation:
+
+- `effects-director` owns visual-style intent: color grade, title card,
+  transition, and motion-graphic intent.
+- `build_profile.render_profile` already supports `no_effects`,
+  `light_effects`, and `motion_graphics`.
+- `contract-run` can write `light_effects_plan.json`,
+  `light_effects_manifest.json`, `light_effects_baseline_review.json`,
+  `motion_graphics_contract.json`, `motion_graphics_render_plan.json`, and
+  `motion_graphics_manifest.json` when enabled.
+- Dashboard Node14 can surface effects artifacts and gaps.
+- Workbench can show draft effect intent markers, but it is not the official
+  final renderer.
+- Remotion is installed and may be used as a reference or optional preview
+  runtime, but canonical delivery remains ffmpeg / `contract-run`.
+
+Planned increments:
+
+### FX0 Effects Status Cleanup
+
+Goal: normalize docs and tests around current effect ownership before adding
+new capabilities.
+
+Acceptance:
+
+- roadmap, effects-director, dashboard docs, and build-profile boundaries agree.
+- Node14 is described as revision/effects orchestration, not a mandatory render
+  stage for every film.
+- Remotion is explicitly optional / preview / reference only.
+
+### FX1 Effect Asset Spec
+
+Goal: define effect assets as first-class, reviewable material-like inputs
+without mixing them with event evidence.
+
+Expected artifacts:
+
+- `effect_asset_spec.json`
+- `effect_asset_manifest.json`
+- `effect_intent_plan.json`
+
+Rules:
+
+- effect assets may be overlays, particles, light leaks, lower thirds,
+  transition plates, title textures, or generated motion backgrounds.
+- effect assets carry `asset_role=effect`, not event material coverage.
+- generated effect assets must keep `source_type=generated` and must not satisfy
+  real-event material needs.
+- missing optional effects should warn, not block, unless the contract marks
+  the effect as `required_for_story`.
+
+### FX2 Effect Build Wiring
+
+Goal: make `light_effects` / `motion_graphics` build outputs visible and
+measurable in real renders.
+
+Acceptance:
+
+- an enabled `light_effects` build writes plan, manifest, baseline review, and
+  at least one visible rendered effect in a real ffmpeg output.
+- effect outputs are traced back to segment/clip/effect id.
+- no duplicate text burn: canonical text ownership remains singular.
+- failed effect render produces a Node14-visible gap instead of pretending
+  success.
+
+### FX3 Node14 Revision Orchestration
+
+Goal: use Node14 for local effect fixes and optional finishing adjustments
+without restarting the whole pipeline.
+
+Acceptance:
+
+- Node14 consumes effect gaps, Workbench draft effect intents, or user revision
+  requests.
+- Node14 writes bounded revision artifacts such as `effect_patch.json` or
+  revised `effect_intent_plan.json`.
+- canonical final render still goes through backend ffmpeg / `contract-run`.
+- Dashboard shows Node14 status and links to effect artifacts.
+
+### FX4 Remotion/Preview Boundary
+
+Goal: evaluate Remotion only where it helps preview or effect authoring.
+
+Rules:
+
+- Do not make Remotion a required dependency for normal BUILD.
+- Do not claim browser preview equals final ffmpeg output unless a specific
+  effect has a parity test.
+- If a Remotion component is useful, export its intent/spec back to pipeline
+  artifacts before final render.
+
+Deferred inside effects:
+
+- full Remotion-like final renderer;
+- arbitrary free-form VFX;
+- paid/closed CapCut effect packs as required dependencies;
+- full Audio Graph V2.
+
 ## Stable Foundations — Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:
@@ -495,16 +607,19 @@ These areas are considered settled unless a fresh run proves a contract bug:
 - Tool/run layout consolidation:
   `docs/repository-consolidation-map.md`,
   `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md`
+- Effects baseline and current gap reporting:
+  `docs/decisions/2026-06-11-effects-baseline-and-recipe-order.md`
 - Working loop and TDD evidence rules:
   `docs/decisions/2026-06-14-working-loop-and-tdd-evidence.md`
 
 ## Deferred / Later
 
-These remain intentionally deferred until the creative blueprint layer is useful:
+These remain intentionally deferred until a concrete run proves they are needed:
 
 - Deep semantic function vocabulary F2.
 - VD3 or advanced visual understanding.
-- Node 14 advanced effects / Remotion-like final renderer.
+- Remotion-like final renderer.
+- Arbitrary free-form advanced VFX.
 - Full Audio Graph V2.
 - Dashboard OAuth / hosted runtime control.
 - Large repo/module refactors that do not directly unblock a user-visible flow.

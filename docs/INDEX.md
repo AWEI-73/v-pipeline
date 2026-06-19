@@ -82,6 +82,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-19-material-map-relation-review.md` -- material-map
   relation review: no new runtime layer, generated assets remain candidates,
   and Workbench drafts are not material truth.
+- `docs/decisions/2026-06-19-effects-node14-roadmap-alignment.md` -- next
+  effects direction: effect asset spec, ffmpeg-backed effect build, Node14
+  revision orchestration, and Remotion as optional preview/reference only.
 - `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -105,6 +108,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-19-effects-node14-roadmap-alignment.md`,
 `2026-06-19-interactive-skill-flow.md`,
 `2026-06-19-material-map-relation-review.md`,
 `2026-06-19-storyboard-panel-lock.md`,
