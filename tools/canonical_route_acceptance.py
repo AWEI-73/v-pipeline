@@ -57,6 +57,7 @@ REQUIRED_TOOLS = [
     "effect-revision-request",
     "remotion-prompt-pack",
     "reviewer-policy",
+    "reviewer-flow-acceptance",
 ]
 
 REQUIRED_ARTIFACTS = [

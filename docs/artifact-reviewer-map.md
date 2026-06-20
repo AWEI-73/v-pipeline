@@ -13,9 +13,11 @@ Machine-readable registry:
 python video_tools.py reviewer-policy --registry --out reviewer_registry.json
 python video_tools.py reviewer-policy --level deep --out reviewer_policy_packet.json
 python video_tools.py reviewer-policy --validate-review story_director_review.json
+python video_tools.py reviewer-flow-acceptance --level deep --scenario all --artifact-dir reviewer_smoke
 ```
 
 The registry is implemented in `video_pipeline_core/reviewer_registry.py`.
+The route smoke harness is implemented in `tools/reviewer_flow_acceptance.py`.
 
 ## Principle
 
@@ -155,6 +157,21 @@ Examples:
 
 This is not an automatic score engine. It is the rubric that agents and humans
 must use when producing `artifact_review` outputs.
+
+## Reviewer Flow Acceptance
+
+Use `reviewer-flow-acceptance` when changing reviewer policy, route docs, or
+new reviewer roles:
+
+```powershell
+python video_tools.py reviewer-flow-acceptance --level normal --scenario route_smoke --out reviewer_flow_acceptance.json
+python video_tools.py reviewer-flow-acceptance --level deep --scenario upstream_story --out reviewer_flow_upstream.json
+python video_tools.py reviewer-flow-acceptance --level deep --scenario effects_brownfield --out reviewer_flow_effects.json
+```
+
+The harness writes minimal `artifact_review` samples and validates them through
+the same registry contract. It proves coverage and gate boundaries; it does not
+replace human/agent critique.
 
 ## Route Placement
 

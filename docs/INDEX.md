@@ -64,6 +64,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-20-reviewer-registry-and-eval-principles.md` --
   deterministic reviewer role registry, policy packet, and eval principle
   contract.
+- `docs/decisions/2026-06-20-reviewer-flow-acceptance.md` -- deterministic
+  reviewer policy smoke harness for normal route, upstream story, and
+  effects/brownfield reviewer coverage.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.

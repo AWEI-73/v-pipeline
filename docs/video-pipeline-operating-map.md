@@ -33,6 +33,8 @@ Use this with:
    use `light`, `normal`, or `deep` from `docs/artifact-reviewer-map.md`.
    Use `python video_tools.py reviewer-policy --level LEVEL` to materialize the
    reviewer/eval packet for a route.
+   Use `python video_tools.py reviewer-flow-acceptance --level LEVEL` after
+   changing reviewer policy or role wiring.
 7. **Verify before delivery.** A video path alone is not delivery.
 
 ## Full Route Map
@@ -75,6 +77,7 @@ Command:
 
 ```powershell
 python video_tools.py reviewer-policy --level normal --out reviewer_policy_packet.json
+python video_tools.py reviewer-flow-acceptance --level deep --scenario all --out reviewer_flow_acceptance.json
 ```
 
 ## Stage Detail
@@ -444,7 +447,7 @@ python video_tools.py operator-flow-acceptance ...
 | `verify.md` | quality and delivery checks | `verify`, `black-frame-audit`, `timeline-audit`, `verify-evidence` |
 | `dashboard.md` | dashboard/review surface | `dashboard`, `story-map`, `serve` |
 | `brownfield-edit.md` | post-review bounded edits | `timeline_patch.py`, `workbench-draft-rerender`, `effect-revision-*` |
-| `artifact-reviewer-map.md` | reviewer role/eval policy | `reviewer-policy` |
+| `artifact-reviewer-map.md` | reviewer role/eval policy | `reviewer-policy`, `reviewer-flow-acceptance` |
 
 ## Artifact Flow
 

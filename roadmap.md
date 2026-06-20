@@ -54,6 +54,15 @@ Canonical upstream story route:
 
 - `docs/upstream-story-route.md`
 
+Reviewer layer:
+
+- `reviewer-policy` materializes light/normal/deep reviewer sets and eval
+  principles.
+- `reviewer-flow-acceptance` proves normal route, upstream story, and
+  effects/brownfield reviewer coverage without calling an LLM reviewer.
+- Reviewer artifacts remain guidance/gates for their owned route; they do not
+  replace `material_delta`, `verify`, or canonical BUILD outputs.
+
 ### Frontend
 
 Dashboard and Workbench are separate surfaces:

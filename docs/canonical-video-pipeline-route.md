@@ -119,6 +119,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 - `commands-manifest`
 - `run-layout-validate`
 - `reviewer-policy`
+- `reviewer-flow-acceptance`
 
 ### Story / Blueprint
 

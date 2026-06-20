@@ -1913,6 +1913,24 @@ def cmd_reviewer_policy(args):
         raise ToolError(str(exc)) from exc
 
 
+def cmd_reviewer_flow_acceptance(args):
+    from tools.reviewer_flow_acceptance import run_acceptance
+
+    payload = run_acceptance(
+        level=args.level,
+        scenario=args.scenario,
+        artifact_dir=args.artifact_dir,
+    )
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    if not payload.get("ok"):
+        raise ToolError("reviewer flow acceptance failed")
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1965,6 +1983,7 @@ def _build_video_tools_dispatch():
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
         "operator-flow-acceptance": cmd_operator_flow_acceptance,
         "reviewer-policy": cmd_reviewer_policy,
+        "reviewer-flow-acceptance": cmd_reviewer_flow_acceptance,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -2319,6 +2338,16 @@ def main():
     p_rp.add_argument("--validate-review", default=None, dest="validate_review",
                       help="validate an artifact_review JSON file")
     p_rp.add_argument("--out", default=None, help="optional JSON output path")
+
+    p_rfa = sub.add_parser("reviewer-flow-acceptance")
+    p_rfa.add_argument("--level", default="deep", choices=["light", "normal", "deep"],
+                       help="review policy level to expand")
+    p_rfa.add_argument("--scenario", default="all",
+                       choices=["route_smoke", "upstream_story", "effects_brownfield", "all"],
+                       help="reviewer scenario to prove")
+    p_rfa.add_argument("--artifact-dir", default=None,
+                       help="optional directory for reviewer_policy_packet and artifact_review samples")
+    p_rfa.add_argument("--out", default=None, help="optional JSON report path")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

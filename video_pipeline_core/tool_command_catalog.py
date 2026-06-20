@@ -125,6 +125,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     # Replay / acceptance proof commands.
     "replay-acceptance": "acceptance",
     "operator-flow-acceptance": "acceptance",
+    "reviewer-flow-acceptance": "acceptance",
 }
 
 
