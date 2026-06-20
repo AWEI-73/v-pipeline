@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline — Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-20
+updated: 2026-06-21
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -19,12 +19,13 @@ Read order for agents:
 3. `docs/START_HERE_VIDEO_PIPELINE.md`
 4. `docs/video-pipeline-end-to-end-line.md`
 5. `docs/video-pipeline-operating-map.md`
-6. `docs/canonical-video-pipeline-route.md`
-7. `docs/upstream-story-route.md`
-8. `docs/artifact-reviewer-map.md`
-9. `RUNBOOK.md`
-10. `docs/INDEX.md`
-11. Topic-specific docs linked below
+6. `docs/route-orchestrator-harness.md`
+7. `docs/canonical-video-pipeline-route.md`
+8. `docs/upstream-story-route.md`
+9. `docs/artifact-reviewer-map.md`
+10. `RUNBOOK.md`
+11. `docs/INDEX.md`
+12. Topic-specific docs linked below
 
 ## Current Canonical State
 
@@ -36,6 +37,9 @@ The backend is stable through the material-map lifecycle and BUILD handoff:
   infrastructure.
 - `contract-run` revalidates material needs, maps, delta, revisions, and gate
   status before BUILD.
+- `route-task-next` / `route-task-accept` provide a runner-neutral multi-agent
+  task packet and fail-closed acceptance harness; it validates artifacts and
+  protected file hashes instead of trusting agent claims.
 - Map-ranked retrieval, visual diversity soft selection, photo map-ranked
   renderability, SRP1/SRP2/SRP3, opening/ending bookends, and Workbench draft
   handoff are implemented.

@@ -56,6 +56,9 @@ One page that says what is current and what is historical, so old/new no longer 
   Plan, Contract Compile, and Material-Ready Handoff.
 - `docs/video-pipeline-operating-map.md` -- full operator manual linking every
   stable stage to skills, Python/JS tools, artifacts, gates, and return routes.
+- `docs/route-orchestrator-harness.md` -- runner-neutral multi-agent task
+  packet and fail-closed acceptance harness (`route-task-next`,
+  `route-task-accept`, `route-orchestrator-report`).
 - `docs/artifact-reviewer-map.md` -- lightweight reviewer policy (`light`,
   `normal`, `deep`) that keeps creative review separate from technical verify.
 - `docs/decisions/2026-06-20-canonical-route-solidification-review.md` --

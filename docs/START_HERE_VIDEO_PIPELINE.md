@@ -40,8 +40,10 @@ videos as truth. They must re-enter the route through their owning artifacts.
    lifecycle stages, and build handoff.
 8. `docs/build-capability-alignment.md` -- which capabilities truly affect
    BUILD/render today.
-9. `RUNBOOK.md` -- local command examples and Windows execution notes.
-10. `docs/INDEX.md` -- broader documentation index and historical links.
+9. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
+   and fail-closed acceptance harness.
+10. `RUNBOOK.md` -- local command examples and Windows execution notes.
+11. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
@@ -201,6 +203,16 @@ python video_tools.py contract-run segment_contract.json `
   --music bgm.mp3 `
   --out final.mp4 `
   --mat-dir run
+```
+
+Multi-agent route packet:
+
+```powershell
+python video_tools.py route-task-next RUN_DIR --out route_subagent_task.json
+python video_tools.py route-task-accept `
+  --task route_subagent_task.json `
+  --result route_subagent_result.json `
+  --state-out route_orchestrator_state.json
 ```
 
 Material lifecycle:

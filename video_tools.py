@@ -1931,6 +1931,43 @@ def cmd_reviewer_flow_acceptance(args):
         raise ToolError("reviewer flow acceptance failed")
 
 
+def cmd_route_task_next(args):
+    from video_pipeline_core.route_orchestrator import write_next_task
+
+    try:
+        payload = write_next_task(
+            args.run_dir,
+            args.out,
+            state=getattr(args, "state", None),
+            now_epoch=getattr(args, "now_epoch", None),
+            clear_allowed_outputs=not bool(getattr(args, "keep_existing_allowed", False)),
+        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def cmd_route_task_accept(args):
+    from video_pipeline_core.route_orchestrator import accept_task_result
+
+    payload = accept_task_result(args.task, args.result, state_out=args.state_out)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if not payload.get("ok"):
+        raise ToolError(f"route task rejected: {payload.get('errors', ['unknown'])[0]}")
+
+
+def cmd_route_orchestrator_report(args):
+    from video_pipeline_core.route_orchestrator import build_orchestrator_report
+
+    payload = build_orchestrator_report(args.state)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1984,6 +2021,9 @@ def _build_video_tools_dispatch():
         "operator-flow-acceptance": cmd_operator_flow_acceptance,
         "reviewer-policy": cmd_reviewer_policy,
         "reviewer-flow-acceptance": cmd_reviewer_flow_acceptance,
+        "route-task-next": cmd_route_task_next,
+        "route-task-accept": cmd_route_task_accept,
+        "route-orchestrator-report": cmd_route_orchestrator_report,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -2348,6 +2388,24 @@ def main():
     p_rfa.add_argument("--artifact-dir", default=None,
                        help="optional directory for reviewer_policy_packet and artifact_review samples")
     p_rfa.add_argument("--out", default=None, help="optional JSON report path")
+
+    p_rtn = sub.add_parser("route-task-next")
+    p_rtn.add_argument("run_dir", help="run directory for the route task packet")
+    p_rtn.add_argument("--out", required=True, help="write route_subagent_task JSON")
+    p_rtn.add_argument("--state", default=None, help="existing route_orchestrator_state JSON")
+    p_rtn.add_argument("--now-epoch", type=float, default=None,
+                       help="deterministic issued_at_epoch for tests")
+    p_rtn.add_argument("--keep-existing-allowed", action="store_true",
+                       help="do not clear stale allowed outputs before issuing the task")
+
+    p_rta = sub.add_parser("route-task-accept")
+    p_rta.add_argument("--task", required=True, help="route_subagent_task JSON")
+    p_rta.add_argument("--result", required=True, help="route_subagent_result JSON")
+    p_rta.add_argument("--state-out", required=True, help="write updated route_orchestrator_state JSON")
+
+    p_ror = sub.add_parser("route-orchestrator-report")
+    p_ror.add_argument("--state", required=True, help="route_orchestrator_state JSON")
+    p_ror.add_argument("--out", default=None, help="optional report JSON output")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

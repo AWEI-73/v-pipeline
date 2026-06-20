@@ -126,6 +126,9 @@ COMMAND_GROUPS: Dict[str, str] = {
     "replay-acceptance": "acceptance",
     "operator-flow-acceptance": "acceptance",
     "reviewer-flow-acceptance": "acceptance",
+    "route-task-next": "acceptance",
+    "route-task-accept": "acceptance",
+    "route-orchestrator-report": "acceptance",
 }
 
 
@@ -340,6 +343,28 @@ WORKFLOWS = {
                 "id": "operator_flow_acceptance",
                 "command": "operator-flow-acceptance",
                 "purpose": "validate package completeness, material lifecycle, Workbench handoff, and non-canonical rerender",
+            },
+        ],
+    },
+    "route_orchestrator_packet": {
+        "description": "Issue and accept runner-neutral subagent task packets with fail-closed artifact boundaries.",
+        "steps": [
+            {
+                "id": "issue_task",
+                "command": "route-task-next",
+                "purpose": "write the next route_subagent_task packet and snapshot protected artifacts",
+            },
+            {
+                "id": "accept_task",
+                "command": "route-task-accept",
+                "purpose": "validate subagent outputs, freshness, and must_not_touch snapshots before advancing",
+                "requires": ["route-task-next:issued"],
+            },
+            {
+                "id": "report_state",
+                "command": "route-orchestrator-report",
+                "purpose": "inspect current route state without mutating artifacts",
+                "requires": ["route-task-accept:ok_or_blocked"],
             },
         ],
     },
