@@ -34,6 +34,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import srp_real67_review_demo as DEMO  # noqa: E402
 import srp_real67_sanity as SANITY  # noqa: E402
 from srp_real67_review_demo import Blocked, timeline_review_srt  # noqa: E402
-from video_pipeline_core.material_retrieval import plan_ranked_windows  # noqa: E402
+from video_pipeline_core.material_retrieval import plan_ranked_windows, rank_scenes  # noqa: E402
 
 OUT_ROOT = REPO / ".tmp" / "srp_real67_fuller_replay"
 DEFAULT_FOOTAGE = SANITY.DEFAULT_FOOTAGE
@@ -344,6 +345,48 @@ def attribute_capabilities(plan):
     }
 
 
+def _soul_intent_values(segment):
+    core = segment.get("core") or {}
+    material_fit = segment.get("material_fit") or {}
+    director_intent = segment.get("director_intent") or {}
+    values = [
+        core.get("emotional_movement"),
+        core.get("conflict_or_turn"),
+        core.get("intended_viewer_feeling"),
+        core.get("sensory_anchor"),
+        core.get("narrative_device"),
+    ]
+    values.extend(material_fit.get("material_prompt_requirements") or [])
+    if isinstance(director_intent, dict):
+        values.extend(director_intent.get("material_prompt_requirements") or [])
+        values.extend(
+            director_intent.get(key)
+            for key in ("composition", "camera_movement", "lighting", "emotion")
+        )
+    return [
+        str(value).strip() for value in values
+        if isinstance(value, str) and str(value).strip()
+    ]
+
+
+def _tie_group_count(ranked):
+    groups = {}
+    for item in ranked:
+        groups.setdefault(item.get("score"), 0)
+        groups[item.get("score")] += 1
+    return sum(1 for count in groups.values() if count > 1)
+
+
+def _scene_semantic_terms(ranked):
+    terms = set()
+    for item in ranked:
+        for key in ("caption", "visual_family", "angle_scale", "action_family", "subject"):
+            for token in re.findall(r"[\w\u4e00-\u9fff]+", str(item.get(key) or "").lower()):
+                if len(token) > 1:
+                    terms.add(token)
+    return terms
+
+
 def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
     """Compare canonical BUILD window selection with BSA1 soul ranking off/on.
 
@@ -357,10 +400,23 @@ def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
     segments = []
     flip_count = 0
     positive_soul_segments = 0
+    soul_intent_segments = 0
+    tie_group_count = 0
+    semantic_term_segments = 0
     compared = 0
     for segment in (script or {}).get("segments") or []:
         if not isinstance(segment, dict):
             continue
+        off_ranked = rank_scenes(segment, assets, soul_ranking=False)
+        on_ranked = rank_scenes(segment, assets, soul_ranking=True)
+        segment_ties = _tie_group_count(off_ranked)
+        tie_group_count += segment_ties
+        intent_present = bool(_soul_intent_values(segment))
+        if intent_present:
+            soul_intent_segments += 1
+        semantic_terms = _scene_semantic_terms(off_ranked)
+        if semantic_terms:
+            semantic_term_segments += 1
         off = plan_ranked_windows(
             segment, assets, limit=limit, clip_dur=clip_dur, soul_ranking=False)
         on = plan_ranked_windows(
@@ -372,13 +428,20 @@ def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
                 "segment": segment.get("segment"),
                 "status": "uncomparable",
                 "reason": "missing on/off selected window",
+                "soul_intent_present": intent_present,
+                "tie_group_count": segment_ties,
+                "scene_semantic_term_count": len(semantic_terms),
             })
             continue
         compared += 1
         off_breakdown = off_slot.get("score_breakdown") or {}
         on_breakdown = on_slot.get("score_breakdown") or {}
-        positive_soul = int(on_breakdown.get("soul") or 0) > 0
-        if positive_soul:
+        selected_positive_soul = int(on_breakdown.get("soul") or 0) > 0
+        segment_positive_soul = any(
+            int((item.get("score_breakdown") or {}).get("soul") or 0) > 0
+            for item in on_ranked
+        )
+        if segment_positive_soul:
             positive_soul_segments += 1
         flipped = off_slot.get("scene_id") != on_slot.get("scene_id")
         if flipped:
@@ -394,17 +457,33 @@ def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
             "on_score": on_slot.get("retrieval_score"),
             "off_score_breakdown": off_breakdown,
             "on_score_breakdown": on_breakdown,
-            "positive_soul": positive_soul,
+            "positive_soul": selected_positive_soul,
+            "candidate_positive_soul": segment_positive_soul,
+            "soul_intent_present": intent_present,
+            "tie_group_count": segment_ties,
+            "scene_semantic_term_count": len(semantic_terms),
         })
+    diagnosis = None
     zero_reason = None
     if compared and flip_count == 0:
-        if positive_soul_segments == 0:
+        if soul_intent_segments == 0:
+            diagnosis = "soul_intent_empty"
+            zero_reason = "empty soul intent: upstream segment carries no story-soul fields"
+        elif positive_soul_segments == 0:
+            diagnosis = "material_semantics_too_thin"
             zero_reason = (
                 "no positive soul score: material-map scenes lack differentiating "
                 "caption / visual_family / angle_scale / action_family / subject "
                 "terms for the upstream soul fields"
             )
+        elif tie_group_count == 0:
+            diagnosis = "no_tie_opportunity"
+            zero_reason = (
+                "no equal-score candidate group: base correctness order leaves no "
+                "tie opportunity for soft soul ranking"
+            )
         else:
+            diagnosis = "soul_not_decisive"
             zero_reason = (
                 "soul scored some candidates but did not outrank the current "
                 "correctness order"
@@ -413,6 +492,10 @@ def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
         "segment_count": compared,
         "flip_count": flip_count,
         "positive_soul_segments": positive_soul_segments,
+        "soul_intent_segments": soul_intent_segments,
+        "tie_group_count": tie_group_count,
+        "semantic_term_segments": semantic_term_segments,
+        "diagnosis": diagnosis,
         "segments": segments,
         "zero_flip_reason": zero_reason,
     }
@@ -557,6 +640,7 @@ def report_md(report):
         f"- **BSA1 soul selection**: flips={soul.get('flip_count', 0)}/"
         f"{soul.get('segment_count', 0)}, positive_soul_segments="
         f"{soul.get('positive_soul_segments', 0)}"
+        + (f", diagnosis={soul.get('diagnosis')}" if soul.get("diagnosis") else "")
         + (f"; reason={soul.get('zero_flip_reason')}" if soul.get("zero_flip_reason") else "")
     )
     lines += [

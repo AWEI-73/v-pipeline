@@ -158,6 +158,8 @@ class TestSoulSelectionDiff(unittest.TestCase):
         diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
 
         self.assertEqual(diff["segment_count"], 1)
+        self.assertEqual(diff["soul_intent_segments"], 1)
+        self.assertGreaterEqual(diff["tie_group_count"], 1)
         self.assertEqual(diff["flip_count"], 1)
         seg = diff["segments"][0]
         self.assertEqual(seg["off_scene_id"], "a:0")
@@ -186,8 +188,60 @@ class TestSoulSelectionDiff(unittest.TestCase):
         diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
 
         self.assertEqual(diff["flip_count"], 0)
+        self.assertEqual(diff["soul_intent_segments"], 1)
+        self.assertGreaterEqual(diff["tie_group_count"], 1)
         self.assertEqual(diff["positive_soul_segments"], 0)
         self.assertIn("no positive soul", diff["zero_flip_reason"])
+        self.assertEqual(diff["diagnosis"], "material_semantics_too_thin")
+
+    def test_zero_flip_distinguishes_empty_intent_from_material_thinness(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "folder theme",
+            "material_fit": {"visual_desc": "folder theme", "need_refs": ["N01"]},
+        }]}
+        material_map = {"assets": [
+            {"asset_id": "a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "folder theme",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+            {"asset_id": "b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "folder theme",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+        ]}
+
+        diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
+
+        self.assertEqual(diff["flip_count"], 0)
+        self.assertEqual(diff["soul_intent_segments"], 0)
+        self.assertEqual(diff["diagnosis"], "soul_intent_empty")
+        self.assertIn("empty soul intent", diff["zero_flip_reason"])
+
+    def test_zero_flip_distinguishes_no_tie_opportunity(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "training action",
+            "material_fit": {"visual_desc": "training action", "need_refs": ["N01"]},
+            "core": {"emotional_movement": "courage"},
+        }]}
+        material_map = {"assets": [
+            {"asset_id": "strong", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training action",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]}
+            ]},
+            {"asset_id": "weak", "source": "b.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training courage"}
+            ]},
+        ]}
+
+        diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
+
+        self.assertEqual(diff["flip_count"], 0)
+        self.assertEqual(diff["soul_intent_segments"], 1)
+        self.assertEqual(diff["tie_group_count"], 0)
+        self.assertEqual(diff["diagnosis"], "no_tie_opportunity")
+        self.assertIn("no equal-score candidate group", diff["zero_flip_reason"])
 
 
 class TestReportAndGate(unittest.TestCase):

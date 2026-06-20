@@ -1,7 +1,7 @@
 # Current Handoff: Hermes Video Pipeline
 
 > **2026-06-20 current baseline:** active roadmap is `roadmap.md`; full suite
-> **1654 tests OK** after BSA1 effectiveness reporting and window-fallback
+> **1656 tests OK** after BSA1 effectiveness reporting and window-fallback
 > surfacing. Older dated notes below are historical anchors.
 
 > **2026-06-11 latest state:** roadmap P1-P6 and the read-first Dashboard Build
@@ -25,7 +25,7 @@
 
 > **2026-06-11 state:** convergence COMPLETE (roadmap C0-C6 DoD met). Two real
 > E2E smokes pass: skill-smoke (MV, verify 91.5 / editorial_qa 94) and city-day
-> (narrative, 21-seg ~5min with TTS narration + BGM). Full suite **1654 tests OK**.
+> (narrative, 21-seg ~5min with TTS narration + BGM). Full suite **1656 tests OK**.
 > Next phase = expressiveness & chain merge (P1-P6) — see roadmap.md top section
 > and `docs/decisions/2026-06-11-e2e-smokes-and-next-phase.md` (includes the
 > week's fix index and the adjudication of external feedback).

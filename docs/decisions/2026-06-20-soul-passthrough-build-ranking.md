@@ -51,7 +51,9 @@ Key reverse proofs:
   required;
 - `soul_ranking=False` vs `soul_ranking=True` can select different windows, and
   the 67th fuller replay report now records `bsa1_soul_selection.flip_count`
-  plus a zero-flip reason when real material-map scene semantics are too thin;
+  plus a zero-flip diagnosis split across three causes:
+  `soul_intent_empty`, `material_semantics_too_thin`, and
+  `no_tie_opportunity`;
 - soul evidence does not admit zero-base scenes;
 - bad windows backfill to clean windows, and all-bad material returns a traced
   fallback slot instead of an empty segment;
@@ -62,11 +64,13 @@ Real 67th planning-only replay:
 
 - input: `C:\Users\user\Downloads\微電影素材\_整理後`;
 - result: 12 comparable segments, `flip_count=0`,
-  `positive_soul_segments=0`;
-- interpretation: the BUILD path is wired, but this 67th material map still
-  has no differentiating soul-readable scene labels (`caption` is effectively
-  the folder theme; `visual_family`/`action_family`/`subject` are absent), so
-  BSA1 correctly reports a zero-flip reason instead of claiming effectiveness.
+  `positive_soul_segments=0`, `soul_intent_segments=0`,
+  `tie_group_count=12`, `diagnosis=soul_intent_empty`;
+- interpretation: the BUILD path is wired, and this replay has tie
+  opportunities, but the 67th fuller harness script does not yet carry upstream
+  story-soul intent fields. A later 67th acceptance that starts from a real
+  story-soul blueprint must first make `soul_intent_segments > 0`; only then can
+  `material_semantics_too_thin` be used to evaluate scene-level ingest quality.
 
 ## Non-Goals
 
