@@ -97,7 +97,7 @@ Canonical entry:
 
 ```text
 video-pipeline
-  -> video-workflow when the request is vague
+  -> Video Intent Planner / video-workflow when the request is vague
   -> material availability split before story depth
   -> story-soul-blueprint when story soul / narrative device is thin
   -> material-map when material truth, coverage, delta, or handoff is needed

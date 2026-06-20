@@ -17,7 +17,7 @@ class CanonicalRouteDocsTest(unittest.TestCase):
     def test_route_doc_declares_stage_order_and_boundaries(self):
         text = read("docs/canonical-video-pipeline-route.md")
         expected = [
-            "Intake",
+            "Video Intent Planner",
             "Story Soul",
             "Director Shot Plan",
             "Material Truth",

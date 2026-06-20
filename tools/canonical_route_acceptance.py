@@ -17,7 +17,7 @@ ARTIFACT_ROLE = "canonical_route_acceptance"
 VERSION = 1
 
 REQUIRED_STAGES = [
-    "Intake",
+    "Video Intent Planner",
     "Story Soul",
     "Director Shot Plan",
     "Material Truth",

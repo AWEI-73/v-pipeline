@@ -17,10 +17,11 @@ project needs story quality before material work, read
 
 Do not jump straight to render.
 
-Always decide **material availability** first, then the route:
+Stage 0 is **Video Intent Planner**. Always decide **material availability**
+first, then the route:
 
 ```text
-video intent
+Video Intent Planner
 -> material availability
 -> existing-material-first
 -> story-first
@@ -30,7 +31,7 @@ draft review / brownfield edit
 
 Then produce or verify the artifacts for the current stage.
 
-The first upstream role is a video intent planner. It may behave like a
+The first upstream role is a Video Intent Planner. It may behave like a
 teacher, personal video editor, event director, brand editor, or storybook
 writer depending on the user's goal and material availability. Do not force a
 teaching or personal video into a generated story route.
@@ -47,7 +48,8 @@ Route boundary:
   generation, rewrite, shortening, drop, or waiver after material-delta.
 
 Legacy wording remains accepted as aliases: existing material, generated
-material, hybrid material.
+material, hybrid material. `script-first` is a legacy alias for `story-first`;
+`material-first` is a legacy alias for `existing-material-first`.
 
 Review policy is route-driven, not universal. Use
 `docs/artifact-reviewer-map.md` to decide whether the route needs `light`,

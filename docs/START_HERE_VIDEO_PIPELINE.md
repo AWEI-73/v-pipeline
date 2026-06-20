@@ -10,7 +10,8 @@ Read this first when you need to run, debug, or extend the video pipeline.
 Hermes is a contract-first video pipeline:
 
 ```text
-intent
+Video Intent Planner
+  -> material availability
   -> story/design contract
   -> material truth
   -> BUILD
@@ -61,11 +62,16 @@ Other skills are role-specific:
 
 ## Choose The Route
 
+Stage 0 is **Video Intent Planner**. It is the upstream role that asks what kind
+of video this is, who it is for, what material exists, and whether generation is
+allowed. It may behave like a storybook writer, teacher, event director,
+personal-memory editor, or brand editor depending on the brief.
+
 First decide **material availability** before deciding how much story invention
 is allowed. This is the top-level split:
 
 ```text
-video intent
+Video Intent Planner
   -> material availability
   -> existing-material-first | story-first | hybrid
   -> route-specific story/design/material work
@@ -100,7 +106,7 @@ Role / Literary Lens
 Use when the user already has real footage/images.
 
 ```text
-Intake
+Video Intent Planner
   -> Material Map quick inventory
   -> story/design skeleton constrained by the map
   -> Material Map review / need satisfies edges
@@ -119,7 +125,7 @@ material-delta decide which beats still need generation.
 Use for comics, picture books, synthetic story videos, or missing footage.
 
 ```text
-Intake
+Video Intent Planner
   -> Literary / Role Lens if story quality matters
   -> Story Soul Blueprint
   -> Material Needs

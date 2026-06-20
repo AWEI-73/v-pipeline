@@ -30,6 +30,22 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
             ]:
                 self.assertIn(expected, text, rel)
 
+    def test_video_intent_planner_is_canonical_stage_zero_name(self):
+        for rel in [
+            "docs/START_HERE_VIDEO_PIPELINE.md",
+            "docs/canonical-video-pipeline-route.md",
+            "docs/video-pipeline-operating-map.md",
+            "skills/video-pipeline-route.md",
+            "roadmap.md",
+        ]:
+            text = read(rel)
+            self.assertIn("Video Intent Planner", text, rel)
+
+        canonical = read("docs/canonical-video-pipeline-route.md")
+        self.assertIn("| 0 | Video Intent Planner", canonical)
+        self.assertIn("script-first` is a legacy alias for `story-first`", canonical)
+        self.assertIn("material-first` is a legacy alias for `existing-material-first`", canonical)
+
     def test_existing_material_storybook_route_requires_early_map_not_auto_generation(self):
         start = read("docs/START_HERE_VIDEO_PIPELINE.md")
         for expected in [

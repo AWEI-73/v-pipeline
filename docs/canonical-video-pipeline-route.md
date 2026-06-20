@@ -16,7 +16,7 @@ Hermes is a contract-first video pipeline, not a one-off slideshow script.
 The stable unit of work is:
 
 ```text
-video intent -> material availability
+Video Intent Planner -> material availability
   -> existing-material-first | story-first | hybrid
   -> story/design contract -> material truth -> BUILD -> verify -> draft edit -> delivery
 ```
@@ -29,7 +29,7 @@ truth.
 
 | # | Canonical stage | Purpose | Primary skill | Main tools | Main artifacts | Gate / stop condition |
 |---|---|---|---|---|---|---|
-| 0 | Intake | Capture user goal, audience, length, style, constraints, available material, material availability, and expected output; choose existing-material-first, story-first, or hybrid before story/build work. | `video-workflow.md`, `video-pipeline.md` | none, or project/run tools if needed | project brief, run folder | Stop if goal, material availability, teaching/personal video intent, or generation permission is ambiguous enough to change route. |
+| 0 | Video Intent Planner | Capture user goal, audience, length, style, constraints, available material, material availability, video type, and expected output; choose existing-material-first, story-first, or hybrid before story/build work. `Intake` remains a legacy label for this stage. | `video-workflow.md`, `video-pipeline.md` | none, or project/run tools if needed | project brief, run folder | Stop if goal, material availability, teaching/personal video intent, or generation permission is ambiguous enough to change route. |
 | 1 | Story Soul | Create story world, narrative device, emotional spine, and core idea before technical shot planning. | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-to-contract` when compiling from blueprint | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if story lacks a narrative device or character/emotional spine. |
 | 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, and material needs. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, subtitle plan | Stop if must-have needs are vague or untestable. |
 | 3 | Material Truth | Inventory real material, generate missing material if needed, and attach evidence to needs. | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `generated-material-import`, `generated-material-review` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed material map | Stop if material is missing, unreviewed, dangling, or insufficient for must-have needs. |
@@ -43,7 +43,7 @@ truth.
 
 ## Skill Design Rules
 
-### 0. Intake decides material availability before story depth
+### 0. Video Intent Planner decides material availability before story depth
 
 The first creative role is a video intent planner, not always a fiction writer.
 It can become a teacher, memory editor, event director, brand editor, or
@@ -65,6 +65,10 @@ This rule prevents a pure teaching video or personal素材剪輯 from being forc
 through a generated storybook route, and prevents a zero-material storybook from
 pretending existing footage exists.
 
+Legacy alias rule: `script-first` is a legacy alias for `story-first`, and
+`material-first` is a legacy alias for `existing-material-first`. New docs and
+operator prompts should use the canonical route names.
+
 ### 1. Skills ask for missing decisions, tools enforce facts
 
 Skills are interactive operators. They should ask or infer missing creative and
@@ -75,7 +79,7 @@ Examples:
 - `story-soul-blueprint.md` may ask for audience, lesson, narrative device, and
   emotional arc.
 - `material-map.md` may ask whether the route is existing-material-first,
-  script-first, or generated-material fallback.
+  story-first, or generated-material fallback.
 - `material-delta` decides coverage from artifacts, not from agent confidence.
 - `contract-run` reruns gates before BUILD, even if a prior report said ready.
 
@@ -244,7 +248,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 
 | Artifact | Owner stage | Canonical? | Notes |
 |---|---|---|---|
-| `project_brief.json` | Intake | yes per run | User/project intent. |
+| `project_brief.json` | Video Intent Planner | yes per run | User/project intent. |
 | `story_soul_blueprint.json` | Story Soul | yes per route | Creative source before screenplay/materials. |
 | `segment_contract.json` | Story / Director | yes | Main BUILD contract. |
 | `material_needs.json` | Director Shot Plan | yes | Stable `need_id` source. |
