@@ -1,0 +1,225 @@
+---
+name: video-pipeline-route
+description: Use when an agent must run or plan the full Hermes Video Pipeline route across story, material map, generated fallback, BUILD, verify, Workbench, Brownfield edit, and delivery
+---
+
+# Video Pipeline Route Skill
+
+This is the operator entry skill for the full Hermes Video Pipeline.
+
+Read `docs/START_HERE_VIDEO_PIPELINE.md` first. Then use
+`docs/video-pipeline-operating-map.md` as the stage/tool/artifact checklist and
+`docs/canonical-video-pipeline-route.md` as the route definition.
+
+## Core Rule
+
+Do not jump straight to render.
+
+Always decide the route first:
+
+```text
+existing material
+generated material
+hybrid material
+draft review / brownfield edit
+```
+
+Then produce or verify the artifacts for the current stage.
+
+Review policy is route-driven, not universal. Use
+`docs/artifact-reviewer-map.md` to decide whether the route needs `light`,
+`normal`, or `deep` review.
+
+## Stage Order
+
+Use this order unless the user explicitly asks for a bounded review/edit task:
+
+1. Intake
+2. Story Soul
+3. Director Shot Plan
+4. Material Truth
+5. Coverage / Decision Gate
+6. BUILD Planning
+7. Official Render
+8. Verify
+9. Workbench Draft Review
+10. Brownfield Edit / Finishing
+11. Delivery
+
+Legacy names are aliases, not the public route:
+
+- `M6` = Material Truth + Coverage / Decision Gate
+- `SRP` = BUILD planning internals
+- `FX` = Effects route internals
+- `Node14` = Brownfield Edit / Finishing route
+
+## Intake Questions
+
+Ask only what materially changes the route:
+
+- audience and purpose;
+- target length;
+- output type: story / event / training / explainer / recap;
+- material mode: existing / generated / hybrid;
+- can reshoot or generate missing material;
+- must-have beats or people;
+- subtitle / voiceover / music expectations;
+- review level: quick smoke, normal, high.
+
+If enough information already exists in artifacts, do not re-ask. Read the
+artifacts and continue.
+
+## Route Selection
+
+### Existing-material route
+
+Use when the user already has footage or images.
+
+Expected path:
+
+```text
+material-map -> material_delta -> contract-run -> verify -> Workbench/Brownfield if needed
+```
+
+### Generated-material route
+
+Use when material is missing or the requested style is synthetic/comic/storybook.
+
+Expected path:
+
+```text
+story-soul-blueprint
+-> material_needs
+-> material-generation-fallback
+-> generated-image-provider-packet
+-> generated-material-import
+-> generated-material-review
+-> material_delta
+-> contract-run
+```
+
+Generated files must be reviewed before they satisfy material needs.
+
+### Hybrid route
+
+Use when some real material exists and some needs must be generated or reshot.
+
+Expected path:
+
+```text
+project_material_map + generated candidates
+-> explicit review
+-> fresh material_delta
+-> revision or BUILD
+```
+
+### Draft / Brownfield route
+
+Use after a render or review when the user wants local changes.
+
+Expected path:
+
+```text
+Workbench draft patch
+-> workbench handoff
+-> Brownfield edit if needed
+-> rerender / verify
+```
+
+If the edit changes material truth, return to Material Truth and rerun delta.
+
+## Resume Existing Run
+
+When the user points to an existing run folder, recover state before planning
+new work:
+
+1. Locate the newest or user-specified run directory.
+2. Read available artifacts in this order:
+   `state.json`, `segment_contract.json`, `material_needs.json`,
+   `project_material_map.json`, `material_delta.json`, `timeline_build.json`,
+   `verify_result.json`, `preview_timeline.json`, `timeline_patch.json`,
+   `workbench_contract_patch.json`.
+3. If `final.mp4` exists, treat it as a delivery candidate only after checking
+   `verify_result.json` or rerunning `verify`.
+4. If draft artifacts exist, do not assume they are canonical. Route them
+   through `workbench-handoff-validate` or Brownfield Edit.
+5. If material or needs changed, rerun `material-delta` fresh before BUILD.
+
+## Tool Checklist
+
+Use deterministic tools for facts:
+
+- `validate-needs`: material need schema.
+- `project-material-map`: aggregate material maps.
+- `material-map-lifecycle`: route material stage.
+- `material-delta`: coverage decision.
+- `material-revision`: accepted revision decisions.
+- `contract-run`: official BUILD and pre-BUILD gate.
+- `verify`: delivery quality.
+- `workbench-handoff-validate`: draft handoff safety.
+- `effect-revision-*` / `remotion-*`: Brownfield effect route.
+
+## Minimal CLI Skeletons
+
+Existing material:
+
+```powershell
+python video_tools.py project-material-map --maps-dir MATERIAL_MAPS --needs material_needs.json --out project_material_map.json
+python video_tools.py material-map-lifecycle --out-dir RUN --needs material_needs.json --project-map project_material_map.json --contract segment_contract.json
+python video_tools.py contract-run segment_contract.json --material-db materials_db.json --music bgm.mp3 --out final.mp4 --mat-dir RUN
+python video_tools.py verify --script segment_contract.json --timing audio/tts_timing.json --edit-log edit_log.json --srt subtitles.srt --video final.mp4 --out verify_result.json
+```
+
+Generated material:
+
+```powershell
+python video_tools.py material-generation-fallback material_delta.json --needs material_needs.json --out material_generation_fallback.json
+python video_tools.py generated-image-provider-packet material_generation_fallback.json --out-dir provider_packet
+# image-capable agent writes each target_file from generated_provider_packet.json
+python video_tools.py generated-material-import material_generation_fallback.json --needs material_needs.json --provider-outputs provider_outputs.json --out-dir generated_material
+python video_tools.py generated-material-review generated_material/project_material_map.json --needs material_needs.json --verdict generated_material_review.json --out reviewed_project_material_map.json
+```
+
+Workbench / Brownfield:
+
+```powershell
+python tools/preview_timeline.py build --artifact-root RUN --out preview_timeline.json
+python tools/timeline_patch.py apply --artifact-root RUN --patch timeline_patch.json --out patched_draft_timeline.json
+python video_tools.py workbench-handoff-validate RUN --out workbench_handoff_report.json
+python video_tools.py effect-revision-request --baseline-review light_effects_baseline_review.json --light-effects-plan light_effects_plan.json --out effect_revision_request.json
+```
+
+## Stop Conditions
+
+Stop and report instead of guessing when:
+
+- must-have material is missing and no fallback/waiver exists;
+- generated provider outputs are missing or cannot be mapped to jobs;
+- generated material has not been explicitly reviewed;
+- material delta is broken or stale;
+- Workbench patch would overwrite canonical truth;
+- effect output changes story evidence instead of finishing;
+- verify fails on black frames, subtitle corruption, or content mismatch.
+
+## Storybook / Comic Route
+
+For picture-book, comic, fairy-tale, or children story cases:
+
+- set `storyboard_panel_locked=true`;
+- use generated material fallback if no source art exists;
+- prefer more panels over unrelated filler;
+- if holding one panel for a long time, make that intentional in pacing;
+- verify Chinese subtitles are real UTF-8 text, not `????`;
+- never map generated images by "latest N files"; use provider output mapping.
+
+## Delivery Summary
+
+A completed route report must state:
+
+- final video path;
+- duration;
+- material coverage summary;
+- generated or real material source count;
+- verify result;
+- known limitations;
+- next action, if any.

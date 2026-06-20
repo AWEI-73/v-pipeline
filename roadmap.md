@@ -16,10 +16,13 @@ Read order for agents:
 
 1. `README.md`
 2. `roadmap.md` (this file)
-3. `docs/canonical-video-pipeline-route.md`
-4. `RUNBOOK.md`
-5. `docs/INDEX.md`
-6. Topic-specific docs linked below
+3. `docs/START_HERE_VIDEO_PIPELINE.md`
+4. `docs/video-pipeline-operating-map.md`
+5. `docs/canonical-video-pipeline-route.md`
+6. `docs/artifact-reviewer-map.md`
+7. `RUNBOOK.md`
+8. `docs/INDEX.md`
+9. Topic-specific docs linked below
 
 ## Current Canonical State
 

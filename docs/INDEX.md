@@ -1,4 +1,4 @@
-# Docs Index — canonical map (2026-06-08)
+# Docs Index — canonical map (2026-06-20)
 
 One page that says what is current and what is historical, so old/new no longer mix.
 
@@ -41,6 +41,20 @@ One page that says what is current and what is historical, so old/new no longer 
 
 ## Build / runtime / infra (current)
 
+- `docs/START_HERE_VIDEO_PIPELINE.md` -- canonical operator entrypoint for
+  agents and humans: which document to read, which route to choose, and what not
+  to treat as truth.
+- `docs/canonical-video-pipeline-route.md` — canonical end-to-end route map:
+  stable stage order, skill-to-tool mapping, artifact ownership, gates, legacy
+  node aliases, and template-route plan. Read this before changing flow or node
+  names.
+- `docs/video-pipeline-operating-map.md` -- full operator manual linking every
+  stable stage to skills, Python/JS tools, artifacts, gates, and return routes.
+- `docs/artifact-reviewer-map.md` -- lightweight reviewer policy (`light`,
+  `normal`, `deep`) that keeps creative review separate from technical verify.
+- `docs/decisions/2026-06-20-canonical-route-solidification-review.md` --
+  acceptance report for the route map, operator skill, static harness, and
+  subagent cold-read review.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
@@ -76,6 +90,10 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-19-storyboard-panel-lock.md` -- generated comic /
   picture-book panel-lock policy: stretch panel duration or generate more panels
   instead of auto-filling long narration with other accepted panels.
+- `docs/decisions/2026-06-20-snow-white-generated-storybook-e2e.md` -- Snow
+  White generated storybook E2E: verifies the route from generated panels
+  through material-map review, delta coverage, BUILD, Chinese subtitles, and
+  route-template guidance.
 - `docs/decisions/2026-06-19-interactive-skill-flow.md` -- ISF1 process
   solidification: interactive brief, story soul, material map, generated
   fallback, Workbench draft, and verify/delivery handoff boundaries.
@@ -114,6 +132,8 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-20-canonical-route-solidification-review.md`,
+`2026-06-20-snow-white-generated-storybook-e2e.md`,
 `2026-06-19-effects-node14-roadmap-alignment.md`,
 `2026-06-19-interactive-skill-flow.md`,
 `2026-06-19-material-map-relation-review.md`,
