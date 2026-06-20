@@ -134,6 +134,30 @@ check("replaceClipWithAsset swaps selected clip with material asset scene", func
   assert.strictEqual(op.after.scene_index, 1);
 });
 
+check("insertClipFromAsset inserts material asset as draft clip", function () {
+  const state = { clips: Core.computeTimeline(clips) };
+  const asset = {
+    asset_id: "insert-b",
+    asset_type: "video",
+    source_path: "insert.mp4",
+    src_url: "/media?src=insert.mp4",
+    scenes: [{ scene_index: 0, start_sec: 2.0, end_sec: 6.0, caption: "inserted" }],
+  };
+  const next = Core.insertClipFromAsset(state, {
+    new_index: 1, asset: asset, scene_index: 0, duration_sec: 2.5,
+  });
+  assert.strictEqual(next.clips.length, 4);
+  assert.strictEqual(next.clips[1].scene_id, "insert-b:0");
+  assert.strictEqual(next.clips[1].duration_sec, 2.5);
+  assert.strictEqual(next.clips[1].source_start_sec, 2.0);
+  const patch = Core.buildTimelinePatch(state, next);
+  const op = patch.patches.find(function (p) { return p.op === "insert_clip"; });
+  assert.ok(op, "expected insert_clip op");
+  assert.strictEqual(op.after.asset_id, "insert-b");
+  assert.strictEqual(op.after.new_index, 1);
+  assert.strictEqual(state.clips.length, 3);
+});
+
 check("applyLocalPatch move_clip reorders", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const next = Core.applyLocalPatch(state, { op: "move_clip", slot_index: 2, after: { new_index: 0 } });

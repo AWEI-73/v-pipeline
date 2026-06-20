@@ -823,8 +823,9 @@ class SegmentPlannerTest(unittest.TestCase):
 
         self.assertNotEqual(push, pan)
         self.assertNotEqual(push, detail)
-        self.assertIn("x+3", pan)
-        self.assertIn("1.4", detail)
+        self.assertIn("on/", pan)
+        self.assertIn("0.32", detail)
+        self.assertNotIn("x+3", pan)
 
     def test_windows_from_clip_zero_clips(self):
         self.assertEqual(mv_cut._windows_from_clip("/m/x/a.mov", 0, 2.0, False), [])

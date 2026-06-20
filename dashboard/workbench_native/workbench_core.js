@@ -267,6 +267,58 @@
     return next;
   }
 
+  /** Insert a material-map asset scene as a new draft timeline clip. */
+  function insertClipFromAsset(state, edit) {
+    const next = Object.assign({}, state);
+    const clips = (state.clips || []).map(function (c) {
+      return Object.assign({}, c);
+    });
+    const asset = edit.asset || {};
+    if (!asset.asset_id || !asset.source_path) return state;
+    const sceneIndex = Number.isInteger(edit.scene_index) ? edit.scene_index : 0;
+    const scene = _assetScene(asset, sceneIndex);
+    if (!scene) return state;
+
+    const assetType = String(asset.asset_type || "").toLowerCase();
+    const isImage = assetType === "photo" || assetType === "image";
+    const start = isImage ? 0 : round6(Number(scene.start_sec) || 0);
+    const end = isImage ? null : round6(Number(scene.end_sec) || 0);
+    const requestedDur = Number(edit.duration_sec);
+    const sourceDur = isImage
+      ? round6(requestedDur > 0 ? requestedDur : 1)
+      : round6(Math.max(0.1, end - start));
+    const duration = round6(requestedDur > 0 ? Math.min(requestedDur, sourceDur) : sourceDur);
+    const maxSlot = clips.reduce(function (max, c, i) {
+      const slot = Number.isInteger(c.slot_index) ? c.slot_index : i;
+      return Math.max(max, slot);
+    }, -1);
+    const slotIndex = maxSlot + 1;
+    const clip = {
+      id: "slot-" + slotIndex,
+      slot_index: slotIndex,
+      type: isImage ? "image" : "video",
+      source_path: asset.source_path,
+      src_url: asset.src_url,
+      scene_id: asset.asset_id + ":" + sceneIndex,
+      asset_id: asset.asset_id,
+      asset_type: asset.asset_type,
+      source_start_sec: start,
+      source_duration_sec: duration,
+      source_asset_duration_sec: asset.duration_sec,
+      duration_sec: duration,
+      visual_family: scene.visual_family || asset.visual_family || null,
+      angle_scale: scene.angle_scale || asset.angle_scale || null,
+      caption: scene.caption || asset.caption || null,
+      _inserted_asset_id: asset.asset_id,
+      _inserted_scene_index: sceneIndex,
+    };
+    const dest = Math.max(0, Math.min(clips.length, Number(edit.new_index)));
+    clips.splice(dest, 0, clip);
+    next.clips = computeTimeline(clips);
+    next.duration_sec = totalDuration(next.clips);
+    return next;
+  }
+
   /**
    * Diff two preview states (same slot set) into a timeline_patch op list.
    * Order changes emit move_clip; field changes emit set_duration /
@@ -289,7 +341,22 @@
 
     afterClips.forEach(function (c, newIdx) {
       const prior = beforeById[c.slot_index];
-      if (!prior) return;
+      if (!prior) {
+        if (c._inserted_asset_id != null) {
+          patches.push({
+            op: "insert_clip",
+            slot_id: c.id,
+            after: {
+              asset_id: c._inserted_asset_id,
+              scene_index: Number.isInteger(c._inserted_scene_index) ? c._inserted_scene_index : 0,
+              new_index: newIdx,
+              duration_sec: round6(c.duration_sec),
+            },
+            reason: opts.reason || "material insertion",
+          });
+        }
+        return;
+      }
       const b = prior.clip;
 
       if (round6(b.duration_sec) !== round6(c.duration_sec)) {
@@ -611,6 +678,7 @@
     applyLocalPatch: applyLocalPatch,
     trimClipEdge: trimClipEdge,
     replaceClipWithAsset: replaceClipWithAsset,
+    insertClipFromAsset: insertClipFromAsset,
     buildTimelinePatch: buildTimelinePatch,
     validatePreviewState: validatePreviewState,
     applySubtitleLocalPatch: applySubtitleLocalPatch,

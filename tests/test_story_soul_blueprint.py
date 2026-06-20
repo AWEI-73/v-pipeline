@@ -80,6 +80,33 @@ class StorySoulBlueprintTest(unittest.TestCase):
                             for shot in shot_plan))
         self.assertTrue(all(shot["prompt"] for shot in shot_plan))
 
+    def test_screenplay_beats_have_turn_sensory_and_viewer_feeling(self):
+        result = build_story_soul_blueprint(_training_brief())
+
+        self.assertTrue(result["ok"], result.get("errors"))
+        for beat in result["screenplay_beats"]["beats"]:
+            self.assertTrue(beat.get("conflict_or_turn"), beat["beat_id"])
+            self.assertTrue(beat.get("sensory_anchor"), beat["beat_id"])
+            self.assertTrue(beat.get("intended_viewer_feeling"), beat["beat_id"])
+
+    def test_director_shot_plan_has_dense_director_intent(self):
+        result = build_story_soul_blueprint(_comic_brief())
+
+        self.assertTrue(result["ok"], result.get("errors"))
+        for shot in result["director_shot_plan"]["shots"]:
+            intent = shot.get("director_intent")
+            self.assertIsInstance(intent, dict, shot["beat_id"])
+            for key in (
+                "composition",
+                "camera_motion",
+                "edit_role",
+                "audio_subtitle_intent",
+                "material_prompt_requirements",
+            ):
+                self.assertTrue(intent.get(key), f"{shot['beat_id']} missing {key}")
+            self.assertIn("clean manga watercolor", shot["prompt"])
+            self.assertIn(shot["visual_family"], shot["prompt"])
+
     def test_generic_brief_without_story_subject_fails_closed(self):
         result = build_story_soul_blueprint({"project_type": "video"})
 

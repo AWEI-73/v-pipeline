@@ -48,10 +48,16 @@ must stop instead of writing generic content.
 1. Find a narrative device before writing beats.
 2. Every beat needs a story function and emotional movement.
 3. Every beat needs an existence test: what is lost if this beat is removed?
-4. Every beat needs a material count estimate.
-5. If material quantity is insufficient, shorten, request material, or generate
+4. Every beat needs a conflict/turn, sensory anchor, and intended viewer
+   feeling. These are not decoration; they tell the director what the shot must
+   make the viewer experience.
+5. Every shot in `director_shot_plan.json` needs `director_intent` with
+   composition, camera motion, edit role, audio/subtitle intent, and prompt
+   requirements. This is the bridge from story soul to material-map/generation.
+6. Every beat needs a material count estimate.
+7. If material quantity is insufficient, shorten, request material, or generate
    candidates instead of pretending the duration is supported.
-6. Compile toward existing canonical artifacts; do not invent a second BUILD
+8. Compile toward existing canonical artifacts; do not invent a second BUILD
    schema.
 
 ## Good Output

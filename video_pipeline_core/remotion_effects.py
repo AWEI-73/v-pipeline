@@ -633,6 +633,7 @@ def composite_accepted_remotion_effects(remotion_effect_review: Mapping[str, Any
         ],
         "command": command,
         "note": "non-canonical draft composite; final.mp4 untouched",
+        "next_action": "workbench_review_remotion_composite_draft",
     }
 
 

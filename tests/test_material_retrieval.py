@@ -148,6 +148,61 @@ class MaterialRetrievalTest(unittest.TestCase):
         self.assertEqual(slots[0]["need_id"], "N02")
         self.assertEqual(slots[0]["retrieval_score"], 4)
 
+    def test_bad_window_range_does_not_starve_valid_lower_rank(self):
+        segment = {"material_fit": {"visual_desc": "rope rescue climber"}}
+        maps = [
+            {"asset_id": "bad", "source": "bad.mp4", "asset_type": "video", "scenes": [
+                {
+                    "start": 0.0,
+                    "end": 6.0,
+                    "caption": "rope rescue climber",
+                    "avoid_ranges": [{"start": 2.0, "end": 4.0, "reason": "black_transition"}],
+                }
+            ]},
+            {"asset_id": "ok", "source": "ok.mp4", "asset_type": "video", "scenes": [
+                {"start": 0.0, "end": 6.0, "caption": "rope rescue"}
+            ]},
+        ]
+
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "ok:0")
+        self.assertEqual(slots[0]["window_quality_reason"], "ok")
+
+    def test_bad_window_range_outside_selected_window_does_not_block(self):
+        segment = {"material_fit": {"visual_desc": "rope rescue climber"}}
+        maps = [{"asset_id": "clip", "source": "clip.mp4", "asset_type": "video", "scenes": [
+            {
+                "start": 0.0,
+                "end": 10.0,
+                "caption": "rope rescue climber",
+                "avoid_ranges": [{"start": 0.0, "end": 1.0, "reason": "black_head"}],
+            }
+        ]}]
+
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "clip:0")
+        self.assertEqual(slots[0]["extract_start"], 4.0)
+
+    def test_photo_ignores_video_avoid_ranges(self):
+        segment = {"material_fit": {"visual_desc": "storybook panel"}}
+        maps = [{"asset_id": "photo", "source": "panel.png", "asset_type": "photo", "scenes": [
+            {
+                "start": 0.0,
+                "end": 0.0,
+                "caption": "storybook panel",
+                "avoid_ranges": [{"start": 0.0, "end": 10.0, "reason": "video_black"}],
+            }
+        ]}]
+
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=3.0)
+
+        self.assertEqual(len(slots), 1)
+        self.assertTrue(slots[0]["is_photo"])
+
     def test_source_speech_selects_transcribed_speech_run(self):
         segment = {"segment": 7, "audio": {"role": "source_speech"}}
         maps = [{"asset_id": "speech-a", "source": "speech.mp4", "speech": [

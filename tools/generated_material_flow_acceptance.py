@@ -96,7 +96,7 @@ def _case_specs() -> list[dict]:
                         "action_family": "protective_choice",
                         "subject": "lead apprentice kneeling with lantern beside lost child silhouette",
                         "panel_count_min": 2,
-                        "prompt": "watercolor comic, lead apprentice kneeling with amber lantern, lost child silhouette, 50mm medium shot, gentle resolve",
+                        "prompt": "watercolor comic with soft ink line, lead apprentice kneeling with amber lantern, lost child silhouette, 50mm medium shot, gentle resolve",
                     },
                 ]
             },

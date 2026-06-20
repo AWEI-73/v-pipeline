@@ -147,11 +147,15 @@ def _comic_beats() -> list[dict]:
 
 def _beat(beat_id: str, title: str, function: str, emotion: str,
           mode: str, minimum: int, ideal: int) -> dict:
+    feeling = emotion.split(" to ")[-1] if " to " in emotion else emotion
     return {
         "beat_id": beat_id,
         "title": title,
         "story_function": function,
         "emotional_movement": emotion,
+        "conflict_or_turn": f"{title} changes the viewer from {emotion}",
+        "sensory_anchor": f"let the audience feel {title.lower()} through light, texture, movement, and human reaction",
+        "intended_viewer_feeling": feeling,
         "narrative_mode": mode,
         "voiceover_intent": f"state why '{title}' matters without explaining the obvious",
         "visual_intent": function,
@@ -177,10 +181,28 @@ def _shot_for(brief: Mapping[str, Any], concept: Mapping[str, Any], beat: Mappin
     family = f"{_slug(beat['beat_id'])}_panel" if generated else f"{_slug(beat['beat_id'])}_memory"
     subject = "teen courier with postcard" if generated else "training class memory"
     need_id = _need_id(f"{project_type}|{beat['beat_id']}|{beat['story_function']}")
+    desired_style = _text(brief.get("desired_style"))
+    style_clause = f"{desired_style}; " if desired_style else ""
+    motif_clause = ", ".join([str(m) for m in concept.get("visual_motifs") or [] if str(m).strip()])
     prompt = (
-        f"{concept['core_metaphor']}; {beat['story_function']}; {subject}; "
+        f"{style_clause}{concept['core_metaphor']}; {beat['story_function']}; {subject}; "
         f"{family}; {beat['emotional_movement']}; 35mm cinematic composition"
     )
+    if motif_clause:
+        prompt += f"; visual motifs: {motif_clause}"
+    director_intent = {
+        "composition": f"{beat['title']} as {family}, composed around {subject}",
+        "camera_motion": "slow push if reflective; quicker montage cut if action-driven",
+        "edit_role": f"serve the beat turn: {beat['conflict_or_turn']}",
+        "audio_subtitle_intent": beat["voiceover_intent"],
+        "material_prompt_requirements": [
+            concept["core_metaphor"],
+            beat["story_function"],
+            family,
+            subject,
+            beat["sensory_anchor"],
+        ],
+    }
     return {
         "need_id": need_id,
         "beat_id": beat["beat_id"],
@@ -190,6 +212,7 @@ def _shot_for(brief: Mapping[str, Any], concept: Mapping[str, Any], beat: Mappin
         "angle_scale": "wide" if beat["minimum_material_count"] >= 4 else "medium",
         "action_family": _slug(beat["title"]),
         "subject": subject,
+        "director_intent": director_intent,
         "media_preference": "generated_image" if generated else "video",
         "panel_count_min": beat["minimum_material_count"],
         "panel_count_ideal": beat["ideal_material_count"],

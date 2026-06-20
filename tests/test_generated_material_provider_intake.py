@@ -137,6 +137,11 @@ class GeneratedMaterialProviderIntakeTest(unittest.TestCase):
             ]
             self.assertEqual(len(edges), 2)
             self.assertTrue(all(edge["status"] == "candidate" for edge in edges))
+            review = json.loads(
+                (d / "out" / "generated_material_quality_review.json").read_text(encoding="utf-8"))
+            first = review["items"][0]
+            self.assertTrue(first["rubric"]["style_consistency"]["pass"])
+            self.assertTrue(first["rubric"]["character_continuity"]["pass"])
 
     def test_missing_required_panel_fails_before_writing_project_map(self):
         with tempfile.TemporaryDirectory() as td:
@@ -170,6 +175,9 @@ class GeneratedMaterialProviderIntakeTest(unittest.TestCase):
 
             self.assertFalse(result["ok"])
             self.assertFalse(result["quality_gate"]["pass"])
+            review = json.loads(
+                (d / "out" / "generated_material_quality_review.json").read_text(encoding="utf-8"))
+            self.assertFalse(review["items"][1]["rubric"]["character_continuity"]["pass"])
             self.assertFalse((d / "out" / "project_material_map.json").exists())
 
     def test_cli_imports_provider_outputs(self):

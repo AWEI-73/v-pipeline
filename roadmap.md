@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline — Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-19
+updated: 2026-06-20
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -16,9 +16,10 @@ Read order for agents:
 
 1. `README.md`
 2. `roadmap.md` (this file)
-3. `RUNBOOK.md`
-4. `docs/INDEX.md`
-5. Topic-specific docs linked below
+3. `docs/canonical-video-pipeline-route.md`
+4. `RUNBOOK.md`
+5. `docs/INDEX.md`
+6. Topic-specific docs linked below
 
 ## Current Canonical State
 
@@ -40,6 +41,10 @@ The backend is stable through the material-map lifecycle and BUILD handoff:
 Canonical material-map summary:
 
 - `docs/material-map-lifecycle.md`
+
+Canonical full-route summary:
+
+- `docs/canonical-video-pipeline-route.md`
 
 ### Frontend
 
@@ -92,6 +97,42 @@ Rules:
   ffmpeg / `contract-run`.
 - Historical roadmap sections are evidence only, not active flow instruction.
 
+### Quality Stabilization Sequence
+
+Status: active queue, execute in order.
+
+Source of this queue:
+
+- human review of recent generated/storybook and 67th-material outputs;
+- renderer/code inspection;
+- frame sampling of still-photo motion showing visible Ken Burns jitter;
+- real E2E findings around black/cut windows, generated-material review depth,
+  story-blueprint thinness, Workbench edit limits, and Remotion effect adapter
+  boundaries.
+
+Each increment must follow the same closure loop:
+
+```text
+roadmap alignment
+-> TDD / focused tests
+-> implementation
+-> BUILD or render-path verification
+-> short E2E when behavior affects output
+-> review report / finding correction
+-> only then move to the next increment
+```
+
+Ordered increments:
+
+| Order | Increment | Why now | Minimum acceptance |
+|---|---|---|---|
+| 1 | KBF1 photo motion stabilization | Still-photo Ken Burns is core to generated storybook/comic videos; current zoom/pan can visibly jitter on slow pushes and off-center focus. | **Complete 2026-06-20.** `_photo_vf` now avoids truncation/fixed-pixel pan steps, keeps runtime-safe 1080p zoompan output, and has focused + short true-render probe evidence. |
+| 2 | Shot-aware window selection / black-transition avoidance | Real 67th-material tests exposed black/cut frames from naive fixed-window selection. | **Complete 2026-06-20.** `plan_ranked_windows` now consumes scene `avoid_ranges`/`bad_ranges`, backfills from lower-ranked usable windows when a selected video window overlaps a known black/blank/cut range, ignores video ranges for photos, and has a true ffmpeg map-ranked render E2E. |
+| 3 | Generated material review rubric | Generated route is functional, but review must score story fit, style consistency, character continuity, and need coverage, not just file existence. | **Complete 2026-06-20.** `generated_material_quality_review.json` now records rubric dimensions (`story_fit`, `style_consistency`, `character_continuity`, `camera_language`, `truth_boundary`, `need_coverage`) for both offline renderer and provider-import flows; style/character anchor failures fail the quality gate; generated-material E2E stays green. |
+| 4 | Story Soul / Director Shot Plan template thickness | Technically valid videos can still lack narrative soul if the blueprint behaves like a parameter sheet. | **Complete 2026-06-20.** Story Soul beats now carry `conflict_or_turn`, `sensory_anchor`, and `intended_viewer_feeling`; director shots carry dense `director_intent` (`composition`, `camera_motion`, `edit_role`, `audio_subtitle_intent`, `material_prompt_requirements`), and generated prompts include project style/motif anchors. Story-to-generated E2E remains green. |
+| 5 | Workbench replace/insert material patch | Workbench can adjust timing/windows, but practical review needs bounded material replacement/insertion without making Workbench canonical truth. | **Complete 2026-06-20.** `replace_clip` already existed; `insert_clip` is now supported in `timeline_patch` and Workbench core as draft-only material-map-resolved ops. Validation blocks bad asset/scene/position/duration, patched drafts never overwrite canonical timeline/material truth, and JS/Python focused tests are green. |
+| 6 | Remotion effect adapter E2E | Effects should support prompt-driven rich visuals, but Remotion must remain an adapter/draft route until reviewed. | **Complete 2026-06-20.** The E2E now proves effect revision request -> Remotion prompt pack -> worker smoke outputs -> pending review -> accepted review -> non-canonical composite draft, keeps `final.mp4` untouched, and surfaces `next_action: workbench_review_remotion_composite_draft`. |
+
 ### Next Strategic Work: Creative Blueprint / Story Soul Layer
 
 Status: implemented as SSB1 baseline; continue with real creative acceptance.
@@ -117,6 +158,51 @@ Target first increment:
 
 - `SSB1 Story Soul Blueprint Skill`
 - Design reference: `docs/story-soul-blueprint-skills.md`
+
+### Generated Storybook Route
+
+Status: verified as a viable route; not yet a polished production template.
+
+The Snow White generated-storybook E2E proved that the generic route is valid:
+
+```text
+story intent
+  -> story soul / screenplay beats
+  -> material_needs
+  -> generation fallback
+  -> provider packet
+  -> generated images as material assets
+  -> generated material review
+  -> fresh material_delta
+  -> contract-run BUILD
+  -> Chinese subtitles + review artifacts
+```
+
+Evidence:
+
+- `docs/decisions/2026-06-20-snow-white-generated-storybook-e2e.md`
+- `.tmp/snow_white_storybook_e2e/final_snow_white_zh.mp4` generated during
+  validation: 18 panels, 270.134s, 18/18 material coverage, verify pass.
+
+Current conclusion:
+
+- This is not the fastest way to make a one-off slideshow, but it is the right
+  shape for reusable story routes because generated assets stay traceable
+  through material-map review, delta coverage, and official BUILD.
+- Start with a universal generated-story flow, then add template routes on top:
+  fairy tale, moral lesson, comic recap, explainer, and training story.
+- The main remaining weakness is creative direction, not backend plumbing:
+  generated panels passed coverage but still need stronger camera language,
+  character consistency checks, and per-beat pacing design.
+
+Route hardening to consider before template expansion:
+
+- provider-output mapping must be explicit; never infer image order from
+  "latest N generated files";
+- Chinese subtitle artifacts must be written and verified as UTF-8 before BUILD;
+- storybook/comic routes should use `storyboard_panel_locked=true`;
+- long narration should request more panels or intentional longer panel holds,
+  not auto-fill unrelated accepted panels.
 
 Expected outputs:
 
@@ -303,8 +389,10 @@ Hard boundaries:
 - `test_pil` renderer is only an offline flow/proof renderer; final art should
   use Gemini / Antigravity / imagegen or another provider that writes the same
   output shape.
-- quality review checks story function, style anchors, camera language, and
-  truth boundary, but it is not a human aesthetic sign-off.
+- quality review records explicit rubric dimensions: `story_fit`,
+  `style_consistency`, `character_continuity`, `camera_language`,
+  `truth_boundary`, and `need_coverage`. It is still not a human aesthetic
+  sign-off.
 
 ### GMP2 Provider Output Intake + Style/Character Lock
 

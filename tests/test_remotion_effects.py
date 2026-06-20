@@ -449,5 +449,62 @@ class RemotionCompositeDraftTest(unittest.TestCase):
             self.assertEqual(written["status"], "dry_run")
 
 
+class RemotionAdapterE2ETest(unittest.TestCase):
+    def test_prompt_worker_review_acceptance_to_noncanonical_draft(self):
+        from video_pipeline_core.remotion_effects import (
+            build_remotion_prompt_pack,
+            composite_accepted_remotion_effects,
+            run_remotion_worker_smoke,
+            validate_remotion_worker_outputs,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            canonical_final = root / "final.mp4"
+            canonical_final.write_bytes(b"canonical final")
+
+            pack = build_remotion_prompt_pack(
+                _effect_revision_request(),
+                _effect_intent_plan(),
+                timeline=_timeline(),
+                output_dir=str(root / "renders"),
+            )
+            outputs = run_remotion_worker_smoke(pack, root / "worker", renderer=None)
+            review_result = validate_remotion_worker_outputs(outputs, pack)
+            self.assertTrue(review_result["ok"], review_result)
+            self.assertEqual(review_result["review_artifact"]["status"], "pending_review")
+
+            review = review_result["review_artifact"]
+            review["status"] = "accepted"
+            for item in review["items"]:
+                item["status"] = "accepted"
+                item["review"] = {
+                    "decision": "accept",
+                    "reviewer": "codex-e2e",
+                    "reason": "adapter output is ready for draft review",
+                }
+
+            draft = root / "remotion_composite_draft.mp4"
+            report = composite_accepted_remotion_effects(
+                review,
+                canonical_final,
+                draft,
+                dry_run=True,
+            )
+
+            self.assertEqual(pack["summary"]["job_count"], 1)
+            self.assertEqual(outputs["summary"]["rendered_count"], 1)
+            self.assertTrue(draft.is_file())
+            self.assertEqual(canonical_final.read_bytes(), b"canonical final")
+            self.assertEqual(report["artifact_role"], "remotion_composite_draft_report")
+            self.assertEqual(report["status"], "dry_run")
+            self.assertEqual(report["applied_count"], 1)
+            self.assertEqual(
+                report["next_action"],
+                "workbench_review_remotion_composite_draft",
+            )
+            self.assertIn("non-canonical draft", report["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

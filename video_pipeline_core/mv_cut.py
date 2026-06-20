@@ -343,23 +343,34 @@ def _is_image(path):
 
 
 def _photo_vf(dur, kenburns=True, treatment=None):
-    """靜照→影片片段的 vf。kenburns=緩慢推近(救開場/收尾照片,避免死板靜止);
-    否則純 hold(scale+pad)。輸出 1920x1080@30。純函式(回 vf 字串)。"""
+    """Return the ffmpeg video filter for a still image clip.
+
+    Ken Burns motion stays at the output resolution for runtime cost. Smoothness
+    comes from continuous time-based x/y expressions, not fixed pixel stepping
+    or truncation.
+    """
     if not kenburns:
         return _MV_VF
     frames = max(1, round((dur or 1.0) * 30))
-    # 先上採樣到 4K 再 zoompan 置中緩推,避免低解析照片放大鋸齒/抖動
+    progress = max(1, frames - 1)
+    t = f"(on/{progress})"
     mode = (treatment or {}).get("mode", "slow_push")
     motion = {
-        "pan_right": "z=1.3:x='if(eq(on,1),0,min(x+3,iw-iw/zoom))':y='ih/2-(ih/zoom/2)'",
-        "pan_left": "z=1.3:x='if(eq(on,1),iw-iw/zoom,max(x-3,0))':y='ih/2-(ih/zoom/2)'",
+        "pan_right": (
+            f"z=1.18:x='(iw-iw/zoom)*{t}':"
+            "y='ih/2-(ih/zoom/2)'"
+        ),
+        "pan_left": (
+            f"z=1.18:x='(iw-iw/zoom)*(1-{t})':"
+            "y='ih/2-(ih/zoom/2)'"
+        ),
         "detail_push": (
-            "z='min(zoom+0.0016,1.4)':x='trunc(iw/2-(iw/zoom/2))':"
-            "y='trunc(ih/2-(ih/zoom/2))'"
+            f"z='1+0.32*{t}':x='iw/2-(iw/zoom/2)':"
+            "y='ih/2-(ih/zoom/2)'"
         ),
     }.get(mode, (
-        "z='min(zoom+0.0008,1.25)':x='trunc(iw/2-(iw/zoom/2))':"
-        "y='trunc(ih/2-(ih/zoom/2))'"
+        f"z='1+0.22*{t}':x='iw/2-(iw/zoom/2)':"
+        "y='ih/2-(ih/zoom/2)'"
     ))
     return ("scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,"
             f"zoompan={motion}:d={frames}:s=1920x1080:fps=30,"

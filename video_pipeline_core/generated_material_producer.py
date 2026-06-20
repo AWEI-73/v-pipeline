@@ -11,6 +11,7 @@ can be validated without external model quota.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -133,8 +134,6 @@ def _job_quality(job: Mapping[str, Any], style: Mapping[str, Any]) -> dict:
     story = _text(job.get("story_function")).lower()
     visual_family = _text(job.get("visual_family"))
     angle = _text(job.get("angle_scale"))
-    findings = []
-    score = 100
 
     story_tokens = {
         token.strip(".,;:()[]{}").replace("-", " ")
@@ -144,38 +143,68 @@ def _job_quality(job: Mapping[str, Any], style: Mapping[str, Any]) -> dict:
     }
     story_hit = any(part and part in prompt for token in story_tokens
                     for part in token.split())
-    if story and not story_hit:
-        score -= 25
-        findings.append("story_function_missing_from_prompt")
-    if not visual_family:
-        score -= 10
-        findings.append("visual_family_missing")
-    if not angle:
-        score -= 10
-        findings.append("angle_scale_missing")
-    if not any(token in prompt for token in CAMERA_TOKENS):
-        score -= 15
-        findings.append("camera_language_weak")
-    if job.get("source_type") != "generated":
-        score -= 50
-        findings.append("source_type_not_generated")
-    if not (job.get("honesty") or {}).get("must_not_claim_real_event"):
-        score -= 30
-        findings.append("truth_boundary_missing")
-    if (job.get("material_map_return") or {}).get("initial_satisfies_status") != "candidate":
-        score -= 30
-        findings.append("candidate_return_missing")
-    if not _as_list(style.get("palette")):
-        score -= 5
-        findings.append("style_palette_missing")
 
-    return {
-        "job_id": job.get("job_id"),
-        "need_id": job.get("need_id"),
-        "score": max(0, score),
-        "pass": score >= 80,
-        "findings": findings,
+    style_anchors = _as_list(style.get("style_anchors"))
+    missing_style = [
+        str(anchor).strip().lower() for anchor in style_anchors
+        if str(anchor).strip() and not _anchor_matches(str(anchor), prompt)
+    ]
+    character_anchors = _as_list(style.get("character_anchors"))
+    character_text = " ".join([
+        prompt,
+        _text(job.get("subject")).lower(),
+    ])
+    missing_characters = [
+        str(anchor).strip().lower() for anchor in character_anchors
+        if str(anchor).strip() and not _anchor_matches(str(anchor), character_text)
+    ]
+
+    story_findings = []
+    if story and not story_hit:
+        story_findings.append("story_function_missing_from_prompt")
+    if not visual_family:
+        story_findings.append("visual_family_missing")
+    if not angle:
+        story_findings.append("angle_scale_missing")
+
+    camera_findings = []
+    if not any(token in prompt for token in CAMERA_TOKENS):
+        camera_findings.append("camera_language_weak")
+
+    truth_findings = []
+    if job.get("source_type") != "generated":
+        truth_findings.append("source_type_not_generated")
+    if not (job.get("honesty") or {}).get("must_not_claim_real_event"):
+        truth_findings.append("truth_boundary_missing")
+
+    coverage_findings = []
+    if not _text(job.get("need_id")):
+        coverage_findings.append("need_id_missing")
+    if (job.get("material_map_return") or {}).get("initial_satisfies_status") != "candidate":
+        coverage_findings.append("candidate_return_missing")
+
+    style_findings = []
+    if missing_style:
+        style_findings.append("style_anchor_missing_from_prompt:" + ",".join(missing_style))
+    if not _as_list(style.get("palette")):
+        style_findings.append("style_palette_missing")
+
+    character_findings = []
+    if missing_characters:
+        character_findings.append(
+            "character_anchor_missing_from_prompt:" + ",".join(missing_characters))
+
+    rubric = {
+        "story_fit": _dimension(100 if not story_findings else 60, story_findings),
+        "style_consistency": _dimension(100 if not style_findings else 60, style_findings),
+        "character_continuity": _dimension(
+            100 if not character_findings else 60, character_findings),
+        "camera_language": _dimension(100 if not camera_findings else 40, camera_findings),
+        "truth_boundary": _dimension(100 if not truth_findings else 40, truth_findings),
+        "need_coverage": _dimension(100 if not coverage_findings else 40, coverage_findings),
     }
+
+    return _finalize_quality(job.get("job_id"), job.get("need_id"), rubric)
 
 
 def _material_map_for(job: Mapping[str, Any], output: Mapping[str, Any],
@@ -272,30 +301,68 @@ def _lower_set(value: Any) -> set[str]:
     return {str(item).strip().lower() for item in value if str(item).strip()}
 
 
+def _anchor_matches(anchor: str, text: str) -> bool:
+    anchor = str(anchor or "").strip().lower()
+    text = str(text or "").strip().lower()
+    if not anchor:
+        return True
+    if anchor in text:
+        return True
+    terms = [
+        token for token in re.findall(r"[\w\u4e00-\u9fff]+", anchor)
+        if len(token) > 1
+    ]
+    return bool(terms) and all(term in text for term in terms)
+
+
+def _dimension(score: int, findings: list[str] | None = None) -> dict:
+    score = max(0, min(100, int(score)))
+    findings = list(findings or [])
+    return {"score": score, "pass": score >= 80, "findings": findings}
+
+
+def _finalize_quality(job_id: Any, need_id: Any, rubric: Mapping[str, Mapping[str, Any]]) -> dict:
+    findings = []
+    scores = []
+    passes = []
+    for dim in rubric.values():
+        scores.append(int(dim.get("score", 0)))
+        passes.append(bool(dim.get("pass")))
+        findings.extend(dim.get("findings") or [])
+    score = min(scores) if scores else 0
+    return {
+        "job_id": job_id,
+        "need_id": need_id,
+        "score": max(0, score),
+        "pass": all(passes) if passes else False,
+        "findings": findings,
+        "rubric": rubric,
+    }
+
+
 def _provider_quality(job: Mapping[str, Any], output_item: Mapping[str, Any],
                       style: Mapping[str, Any], segment_id: str) -> dict:
     quality = _job_quality(job, style)
-    quality["job_id"] = segment_id
     required_style = _lower_set(style.get("style_anchors"))
     required_characters = _lower_set(style.get("character_anchors"))
     actual_style = _lower_set(output_item.get("style_anchors") or output_item.get("style_tags"))
     actual_characters = _lower_set(output_item.get("character_anchors"))
-    findings = list(quality["findings"])
-    score = int(quality["score"])
 
     missing_style = sorted(required_style - actual_style)
     missing_characters = sorted(required_characters - actual_characters)
+    rubric = dict(quality["rubric"])
     if missing_style:
-        score -= 20
-        findings.append("style_anchor_mismatch:" + ",".join(missing_style))
+        rubric["style_consistency"] = _dimension(
+            60, ["style_anchor_mismatch:" + ",".join(missing_style)])
+    else:
+        rubric["style_consistency"] = _dimension(100)
     if missing_characters:
-        score -= 30
-        findings.append("character_anchor_mismatch:" + ",".join(missing_characters))
+        rubric["character_continuity"] = _dimension(
+            60, ["character_anchor_mismatch:" + ",".join(missing_characters)])
+    else:
+        rubric["character_continuity"] = _dimension(100)
 
-    quality["score"] = max(0, score)
-    quality["pass"] = quality["score"] >= 80
-    quality["findings"] = findings
-    return quality
+    return _finalize_quality(segment_id, job.get("need_id"), rubric)
 
 
 def _write_provider_error(out: Path, errors: list[str], *, quality_items: Optional[list] = None) -> dict:

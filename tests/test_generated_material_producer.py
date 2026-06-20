@@ -134,6 +134,24 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
                 self.assertEqual(item["source"], "generated")
                 self.assertTrue(item["forbidden_as_truth"])
                 self.assertGreaterEqual(item["quality_score"], 80)
+            review = json.loads(
+                (out / "generated_material_quality_review.json").read_text(encoding="utf-8")
+            )
+            first = review["items"][0]
+            self.assertIn("rubric", first)
+            self.assertEqual(
+                set(first["rubric"]),
+                {
+                    "story_fit",
+                    "style_consistency",
+                    "character_continuity",
+                    "camera_language",
+                    "truth_boundary",
+                    "need_coverage",
+                },
+            )
+            self.assertTrue(all("score" in value and "pass" in value
+                                for value in first["rubric"].values()))
 
             project_map = json.loads((out / "project_material_map.json").read_text(encoding="utf-8"))
             self.assertEqual(project_map["artifact_role"], "project_material_map")
@@ -165,7 +183,36 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
                         if item["job_id"].startswith("gen_report_01"))
             self.assertLess(weak["score"], 80)
             self.assertIn("story_function_missing_from_prompt", weak["findings"])
+            self.assertFalse(weak["rubric"]["story_fit"]["pass"])
+            self.assertFalse(weak["rubric"]["camera_language"]["pass"])
             self.assertFalse(result["quality_gate"]["pass"])
+
+    def test_quality_review_penalizes_missing_style_and_character_anchors(self):
+        artifact = _fallback_artifact()
+        artifact["generation_jobs"][0]["prompt"] = (
+            "anonymous trainee hands writing an internship report; 85mm close shot"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            result = produce_generated_materials(
+                artifact,
+                td,
+                material_needs=_needs(),
+                renderer="test_pil",
+                style_profile={
+                    "look": "documentary memory inserts",
+                    "style_anchors": ["muted amber grade"],
+                    "character_anchors": ["helmet beside notebook"],
+                    "palette": ["#1d3557", "#f1c27d", "#f7f3e3"],
+                },
+            )
+            review = json.loads(
+                (Path(td) / "generated_material_quality_review.json").read_text(encoding="utf-8")
+            )
+            weak = next(item for item in review["items"]
+                        if item["job_id"].startswith("gen_report_01"))
+            self.assertFalse(result["quality_gate"]["pass"])
+            self.assertFalse(weak["rubric"]["style_consistency"]["pass"])
+            self.assertFalse(weak["rubric"]["character_continuity"]["pass"])
 
     def test_panel_count_expands_to_multiple_candidate_assets(self):
         artifact = _fallback_artifact()

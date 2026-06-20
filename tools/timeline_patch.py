@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ARTIFACT_ROLE = "timeline_patch"
 SCHEMA_VERSION = 1
 
-VALID_OPS = {"set_duration", "set_source_window", "move_clip", "replace_clip"}
+VALID_OPS = {"set_duration", "set_source_window", "move_clip", "replace_clip", "insert_clip"}
 
 # Canonical artifacts that a patch must never overwrite.
 PROTECTED_OUTPUTS = {
@@ -188,6 +188,29 @@ def validate_patch(
         kind = op.get("op")
         if kind not in VALID_OPS:
             errors.append(f"{prefix}: unknown op '{kind}'")
+            continue
+        if kind == "insert_clip":
+            after = op.get("after") or {}
+            new_index = after.get("new_index")
+            if new_index is None or not isinstance(new_index, int):
+                errors.append(f"{prefix}: insert_clip requires integer after.new_index")
+            elif new_index < 0 or new_index > n:
+                errors.append(f"{prefix}: new_index {new_index} out of range [0,{n}]")
+            dur = _finite_number(after.get("duration_sec"))
+            if dur is None or dur <= 0:
+                errors.append(f"{prefix}: insert_clip duration_sec must be > 0")
+            asset, scene, scene_index, repl_errors = _replacement_asset_scene(
+                material_map if isinstance(material_map, dict) else None,
+                after,
+            )
+            errors.extend(f"{prefix}: {e.replace('replace_clip', 'insert_clip')}" for e in repl_errors)
+            if asset and scene is not None and scene_index is not None:
+                asset_type = str(asset.get("asset_type") or "").lower()
+                if asset_type == "video":
+                    start = _finite_number(scene.get("start"))
+                    end = _finite_number(scene.get("end"))
+                    if start is not None and end is not None and dur is not None and dur > end - start + 1e-6:
+                        errors.append(f"{prefix}: insert_clip duration_sec exceeds scene window")
             continue
         slot_index = op.get("slot_index")
         if slot_index is None or slot_index not in by_slot:
@@ -358,10 +381,47 @@ def apply_patch(artifact_root: str, patch: Dict[str, Any]) -> Dict[str, Any]:
     for op in patch.get("patches", []):
         kind = op.get("op")
         slot_index = op.get("slot_index")
+        after = op.get("after") or {}
+        if kind == "insert_clip":
+            asset, scene, scene_index, _errors = _replacement_asset_scene(
+                material_map if isinstance(material_map, dict) else None,
+                after,
+            )
+            if not asset or scene is None or scene_index is None:
+                continue
+            asset_type = str(asset.get("asset_type") or "").lower()
+            is_photo = asset_type in {"photo", "image"}
+            duration = float(after["duration_sec"])
+            new_slot = max([int(c.get("slot_index", i)) for i, c in enumerate(plan)], default=-1) + 1
+            clip = {
+                "slot_index": new_slot,
+                "source": str(asset["source"]),
+                "scene_id": f"{asset['asset_id']}:{scene_index}",
+                "slot_dur": duration,
+                "keep_audio": False,
+                "asset_id": asset["asset_id"],
+                "asset_type": asset.get("asset_type"),
+            }
+            if is_photo:
+                clip["extract_start"] = 0.0
+                clip["extract_dur"] = duration
+                clip["is_photo"] = True
+                clip["kenburns"] = True
+            else:
+                start = float(scene["start"])
+                clip["extract_start"] = start
+                clip["extract_dur"] = duration
+            for key in ("caption", "visual_family", "angle_scale", "action_family", "subject", "function"):
+                if scene.get(key) is not None:
+                    clip[key] = scene.get(key)
+            new_index = int(after["new_index"])
+            plan.insert(new_index, clip)
+            by_slot[new_slot] = clip
+            continue
+
         clip = by_slot.get(slot_index)
         if clip is None:
             continue
-        after = op.get("after") or {}
 
         if kind == "set_duration":
             clip["slot_dur"] = float(after["duration_sec"])

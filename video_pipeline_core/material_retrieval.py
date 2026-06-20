@@ -222,6 +222,48 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
     return selected
 
 
+def _range_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    import math
+    return number if math.isfinite(number) else None
+
+
+def _iter_avoid_ranges(scene):
+    for key in ("avoid_ranges", "bad_ranges"):
+        for item in scene.get(key) or []:
+            if isinstance(item, dict):
+                start = _range_number(item.get("start"))
+                end = _range_number(item.get("end"))
+                reason = str(item.get("reason") or key)
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                start = _range_number(item[0])
+                end = _range_number(item[1])
+                reason = key
+            else:
+                continue
+            if start is None or end is None or end <= start:
+                continue
+            yield start, end, reason
+
+
+def _window_quality_reason(scene, start, dur):
+    """Return a deterministic skip reason for known bad source ranges.
+
+    Material maps may annotate black frames, blank cards, or transition cuts as
+    `avoid_ranges`/`bad_ranges` in source seconds. BUILD must consume that
+    evidence when choosing the concrete extraction window, while keeping the
+    expensive detection step outside the hot render path.
+    """
+    end = start + dur
+    for bad_start, bad_end, reason in _iter_avoid_ranges(scene):
+        if start < bad_end and end > bad_start:
+            return reason or "avoid_range"
+    return "ok"
+
+
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
                         history=None, diversity=True):
     """Convert top-ranked scenes to concrete editor slots. `diversity=False`
@@ -230,11 +272,16 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
     limit = max(0, int(limit))
 
     ranked = rank_scenes(segment, material_maps, ranker=ranker)
-    selected = select_diverse_ranked_scenes(ranked, material_maps, limit,
+    # Select enough candidates for window-quality filtering to backfill from
+    # lower-ranked usable scenes instead of letting a bad top window consume the
+    # caller's limit.
+    selected = select_diverse_ranked_scenes(ranked, material_maps, len(ranked),
                                             history=history, diversity=diversity)
 
     slots = []
     for item in selected:
+        if len(slots) >= limit:
+            break
         source = item.get("source")
         is_photo = item.get("asset_type") == "photo"
         if is_photo:
@@ -254,6 +301,12 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             start = item["start"] + max(0.0, available - take) / 2
             start = min(max(start, item["start"]), item["end"] - take)
         scene = _scene_by_id(material_maps, item["scene_id"]) or {}
+        if not is_photo:
+            quality_reason = _window_quality_reason(scene, start, take)
+            if quality_reason != "ok":
+                continue
+        else:
+            quality_reason = "ok"
         function = scene.get("function") or classify_function(
             item.get("caption"),
             motion_peaks=scene.get("motion_peaks"),
@@ -273,6 +326,7 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "visual_family": item.get("visual_family"),
             "angle_scale": item.get("angle_scale"),
             "diversity_selection_reason": item.get("diversity_selection_reason", "default"),
+            "window_quality_reason": quality_reason,
         }
         if is_photo:
             slot["is_photo"] = True

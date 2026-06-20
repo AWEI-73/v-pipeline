@@ -284,6 +284,52 @@ class WindowEvidenceTest(unittest.TestCase):
 
 
 class RealMapRankedRenderTest(unittest.TestCase):
+    def test_bad_window_range_backfills_and_renders_lower_ranked_clip(self):
+        d = Path(tempfile.mkdtemp())
+        bad_src = d / "bad.mp4"
+        ok_src = d / "ok.mp4"
+        for src, color in ((bad_src, "red"), (ok_src, "blue")):
+            subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                            f"color=c={color}:size=320x240:rate=30:duration=6",
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)],
+                           capture_output=True, check=True)
+        music = d / "music.wav"
+        subprocess.run([FFMPEG, "-y", "-f", "lavfi", "-i",
+                        "aevalsrc=sin(2*PI*440*t)*lt(mod(t\\,0.5)\\,0.06):d=6:s=44100",
+                        str(music)], capture_output=True, check=True)
+        project_map = {
+            "artifact_role": "project_material_map", "version": 1,
+            "assets": [
+                {
+                    "asset_id": "bad", "source": str(bad_src), "asset_type": "video",
+                    "scenes": [{
+                        "start": 0.0, "end": 6.0,
+                        "caption": "rope rescue climber",
+                        "avoid_ranges": [{"start": 2.0, "end": 4.0, "reason": "black_transition"}],
+                    }],
+                },
+                {
+                    "asset_id": "ok", "source": str(ok_src), "asset_type": "video",
+                    "scenes": [{"start": 0.0, "end": 6.0, "caption": "rope rescue"}],
+                },
+            ],
+        }
+        script = {
+            "disable_auto_sequence": True,
+            "disable_auto_opening": True,
+            "story_arc": False,
+            "segments": [{"segment": 1, "visual_desc": "rope rescue climber", "audio_role": "music"}],
+        }
+        out = d / "final.mp4"
+
+        res = mv_cut.run_mv(script, None, str(out), music_path=str(music),
+                            material_maps=project_map, skip_render=False, verbose=False)
+
+        map_slots = [slot for slot in res["plan"] if slot.get("scene_id")]
+        self.assertTrue(out.exists() and out.stat().st_size > 0)
+        self.assertEqual([slot["scene_id"] for slot in map_slots], ["ok:0"])
+        self.assertEqual(map_slots[0]["window_quality_reason"], "ok")
+
     def test_G_map_ranked_window_renders_with_ffmpeg(self):
         """G: a map-ranked window actually renders (proves the plan change reaches
         real output, not just the plan dict). Drives run_mv with a project map and

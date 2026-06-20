@@ -136,6 +136,26 @@ class TimelinePatchValidateTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(any("scene_index" in e for e in errors))
 
+    def test_insert_clip_validates_asset_scene_and_position(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "insert_clip", "after": {
+                    "asset_id": "a0", "scene_index": 1, "new_index": 1,
+                    "duration_sec": 2.5,
+                }}))
+        self.assertTrue(ok, errors)
+
+    def test_insert_clip_bad_position_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "insert_clip", "after": {
+                    "asset_id": "a0", "scene_index": 1, "new_index": 99,
+                }}))
+        self.assertFalse(ok)
+        self.assertTrue(any("new_index" in e for e in errors))
+
 
 class TimelinePatchApplyTest(unittest.TestCase):
     def test_move_clip_is_deterministic(self):
@@ -198,6 +218,22 @@ class TimelinePatchApplyTest(unittest.TestCase):
         self.assertEqual(clip["slot_dur"], 2.0)
         self.assertEqual(clip["extract_start"], 0.0)
         self.assertEqual(clip["extract_dur"], 2.0)
+
+    def test_apply_insert_clip_uses_new_slot_identity_and_reindexes_position(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_root(tmp)
+            result = apply_patch(str(root), _patch(
+                {"op": "insert_clip", "after": {
+                    "asset_id": "a0", "scene_index": 1, "new_index": 1,
+                    "duration_sec": 2.5,
+                }}))
+        plan = result["plan"]
+        self.assertEqual([clip["slot_index"] for clip in plan], [0, 3, 1, 2])
+        inserted = plan[1]
+        self.assertEqual(inserted["scene_id"], "a0:1")
+        self.assertEqual(inserted["slot_dur"], 2.5)
+        self.assertEqual(inserted["extract_start"], 4.0)
+        self.assertEqual(inserted["extract_dur"], 2.5)
 
     def test_invalid_patch_raises_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:

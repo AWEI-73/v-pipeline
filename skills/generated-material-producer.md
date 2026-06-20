@@ -130,6 +130,22 @@ assistant_imagegen / Codex imagegen and write provider outputs like:
 The import tool copies validated files into the generated-material output
 directory and writes the standard manifest/map/review artifacts.
 
+`generated_material_quality_review.json` must be read before promoting any
+generated candidate. Each item carries a deterministic rubric:
+
+- `story_fit`: prompt supports the declared story function and required visual
+  labels.
+- `style_consistency`: project style anchors and palette are present.
+- `character_continuity`: declared character/prop anchors stay consistent.
+- `camera_language`: prompt includes shot/angle/lens/composition language.
+- `truth_boundary`: output remains clearly marked as generated, not real proof.
+- `need_coverage`: the generated candidate maps back to the intended `need_id`
+  as a candidate satisfies edge.
+
+Any failed rubric dimension keeps the quality gate false. A passing rubric still
+does not accept material; it only permits the candidate map to proceed to
+explicit review.
+
 Explicit review / promotion:
 
 ```powershell
