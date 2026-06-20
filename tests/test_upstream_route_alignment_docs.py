@@ -30,6 +30,33 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
             ]:
                 self.assertIn(expected, text, rel)
 
+    def test_existing_material_storybook_route_requires_early_map_not_auto_generation(self):
+        start = read("docs/START_HERE_VIDEO_PIPELINE.md")
+        for expected in [
+            "Material Map quick inventory",
+            "story/design skeleton constrained by the map",
+            "Do not route to generated storybook only because the style is comic",
+        ]:
+            self.assertIn(expected, start)
+
+    def test_generated_route_names_initial_map_and_delta_before_provider(self):
+        route_skill = read("skills/video-pipeline-route.md")
+        for expected in [
+            "initial project_material_map.json",
+            "initial material_delta.json",
+            "ready_for_build=false",
+            "provider output mapping is required",
+        ]:
+            self.assertIn(expected, route_skill)
+
+        producer = read("skills/generated-material-producer.md")
+        for expected in [
+            "Prefer explicit provider output mapping",
+            "newest session fallback is allowed only for local smoke",
+            "not for formal route acceptance",
+        ]:
+            self.assertIn(expected, producer)
+
     def test_material_map_and_generated_skills_define_route_boundaries(self):
         material_map = read("skills/material-map.md")
         for expected in [

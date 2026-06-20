@@ -118,6 +118,12 @@ This copies readable generated images into the packet's deterministic
 `generated-material-import`. Do not use `test_pil` for final art or quality
 review beyond flow validation.
 
+Prefer explicit provider output mapping for formal work. The newest session
+fallback is allowed only for local smoke, not for formal route acceptance or
+final generated-material evidence. If the provider output cannot be mapped by
+`job_id -> file`, stop and ask for the mapping.
+Canonical grep token: newest session fallback is allowed only for local smoke.
+
 For real images, execute the same jobs through Gemini / Antigravity /
 assistant_imagegen / Codex imagegen and write provider outputs like:
 

@@ -101,13 +101,18 @@ Use when the user already has real footage/images.
 
 ```text
 Intake
-  -> Story Soul / Director Shot Plan
-  -> Material Map
+  -> Material Map quick inventory
+  -> story/design skeleton constrained by the map
+  -> Material Map review / need satisfies edges
   -> Material Delta
   -> BUILD
   -> Verify
   -> Workbench/Brownfield if needed
 ```
+
+Do not route to generated storybook only because the style is comic, picture
+book, or illustrated. If real material exists, inspect it first and let
+material-delta decide which beats still need generation.
 
 ### Generated material
 

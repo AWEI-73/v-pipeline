@@ -147,9 +147,11 @@ Expected path:
 ```text
 story-soul-blueprint
 -> material_needs
--> initial material_delta from empty/initial material map
+-> initial project_material_map.json (empty or initial material truth)
+-> initial material_delta.json with ready_for_build=false
 -> material-generation-fallback
 -> generated-image-provider-packet
+-> provider output mapping is required
 -> generated-material-import
 -> generated-material-review
 -> material_delta
