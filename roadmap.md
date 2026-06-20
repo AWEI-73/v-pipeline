@@ -186,6 +186,108 @@ Target first increment:
 - `SSB1 Story Soul Blueprint Skill`
 - Design reference: `docs/story-soul-blueprint-skills.md`
 
+### VIP Video Intent Planner — Upstream Role Generalization
+
+Status: design accepted 2026-06-21
+(`docs/decisions/2026-06-21-video-intent-material-availability-split.md`). Stage 0
+material-availability split is solidified in commit `9fea4f3`. The per-type
+planners below are planned, not yet built.
+
+Problem: the most upstream role is still story-centric — `story-soul-blueprint`
+assumes a narrative/fiction author. Real requests are broader (teaching cuts,
+event recaps, personal memory films, brand shorts). The upstream role should be a
+**video intent planner / narrative-intent designer**, not always a fiction
+writer, and should branch to a type-appropriate planner.
+
+This generalizes — does not replace — the pipeline. Everything below the planner
+is unchanged:
+
+```text
+video-intent-planner
+  -> material availability (existing-material-first | story-first | hybrid)   [done: 9fea4f3]
+  -> video type detection
+  -> type-specific planner (story | teaching | memory | event | brand | ...)
+  -> material_needs
+  -> material_map -> material_delta -> BUILD -> VERIFY / Workbench
+```
+
+Two intake sources (both already named in the design):
+
+1. facts extracted from material — who appears, which scenes, which actions,
+   which events, what usable emotion/shots exist.
+2. interactive supplement — who these people are, what matters most, for whom,
+   intended effect (move | teach | commemorate | sell | persuade), what must
+   not be used.
+
+Video type detection (Stage 0.5, after availability):
+`storybook | teaching | personal-memory | graduation-event | brand-product |
+documentary | music-video`.
+
+Per-type planner outputs — each is a bounded skill; only the story branch exists
+today:
+
+| Type | Planner skill | Produces | Built |
+|---|---|---|---|
+| storybook / fiction | `story-soul-blueprint` (existing) | character, world, conflict, emotional arc, storyboard | yes |
+| teaching | `teaching-structure-planner` (new) | audience, learning goals, chapter order, key points, common mistakes, demo material | no |
+| personal-memory | `memory-story-planner` (new) | people & relationships, key events, timeline, memory anchors, intended feeling | no |
+| graduation / event | `event-recap-planner` (new) | training journey, shared memories, representative sessions, climax, departure/completion feel | no |
+| brand / product | `brand-short-planner` (later) | message, audience, value prop, proof points, CTA | no |
+| documentary / music-video | (later) | — | no |
+
+Bounded increments — build in route priority, not all at once:
+
+- **VIP0 Naming + entry skill.** Add `video-intent-planner` (a.k.a.
+  `video-brief-interview`) as the named upstream skill that runs availability +
+  type detection and dispatches. Keep `story-soul-blueprint` for the story
+  branch. Acceptance: route-acceptance harness asserts the planner asks purpose /
+  audience / material availability / type and dispatches to the correct branch;
+  existing story route stays green.
+- **VIP1 teaching-structure-planner.** First non-fiction planner (teaching is
+  route-2 priority, structurally stable). Acceptance: a teaching brief + screen
+  recordings produce `material_needs` with chapter order + key points, routed
+  existing-material-first, generation not defaulted; one real teaching-case E2E.
+- **VIP2 event-recap-planner.** The graduation/67th route. Acceptance: wired into
+  the 67th harness so `soul_intent_segments` goes 0 -> N — this closes the
+  `soul_intent_empty` diagnosis recorded in the Quality Stabilization row 4.
+- **VIP3 memory-story-planner.** Personal video. Deferred until teaching + event
+  prove the non-fiction planner pattern.
+
+Discipline / boundaries (from the decision doc and review session):
+
+- Skill/role discipline first. Do NOT add a runtime schema for video-type until a
+  real run proves a machine-readable field is needed beyond existing brief fields.
+- Per-type planners are bounded templates on a thin shared intake. Keep the
+  intake general; keep each planner deep + bounded. Do not let the intake layer
+  absorb type-specific logic (that is how a thin general layer bloats into a
+  framework).
+- A type is not "shipped" until its reference / skill / prompt is written to the
+  same spec quality as `story-soul-blueprint`.
+
+### Open Threads — 2026-06-20/21 Review Session
+
+Captured so they are not lost; not yet scheduled increments.
+
+- **BSA1 effectiveness on the ship route.** Run the soul on/off diff
+  (`disable_soul_ranking`) on the generated storybook route, not only the 67th
+  case, to confirm `soul` actually flips selections on the route being packaged
+  first. Acceptance: storybook diff shows `soul_intent_segments > 0` and
+  `flip_count > 0`, or a conscious decision to keep BSA1 inert-but-present.
+- **Packaging (storybook first).** Wrap engine + ffmpeg + dashboard in one
+  launch unit (Docker), host on a single shared machine, do not per-user install.
+  Workbench gets a two-mode UX: Review default (player + linear scene list +
+  replace/insert + export) and Edit advanced (current timeline behind a toggle).
+  Keep effects out of the colleague default view until preview spec-sync lands.
+- **Effect preview spec-sync.** One canonical preset -> visual-parameter table
+  consumed by both `buildEffectPreviewStyle` (JS preview) and the Remotion render
+  path, so the monitor preview matches the final render. Ref:
+  `docs/decisions/2026-06-20-effect-preview-drift-review.md`.
+- **SPEC / node convergence (evidence-led).** Before consolidating SPEC or
+  upstream nodes, identify which gates/audits have never changed an output (empty
+  `findings` across `.tmp` runs) and which upstream nodes never produce a distinct
+  result; only those are safe to merge or demote. Do not consolidate a layer that
+  is still actively changing.
+
 ### Generated Storybook Route
 
 Status: verified as a viable route; not yet a polished production template.
@@ -494,8 +596,11 @@ Rules:
 - every panel gets a deterministic `target_file` under `provider_outputs/`;
 - provider candidates can include Codex imagegen, Gemini, Antigravity, or other
   configured model tools;
-- Codex imagegen outputs can be copied from explicit image files or from the
-  newest `~/.codex/generated_images` session into `generated_provider_outputs.json`;
+- formal route acceptance requires explicit provider output mapping
+  (`job_id -> file`) before `generated_provider_outputs.json` is accepted;
+- copying from the newest `~/.codex/generated_images` session is allowed only
+  for local smoke, not for formal route acceptance or final generated-material
+  evidence;
 - `test_pil` is rejected as a final-art provider in this path;
 - the backend still does not trust model output until import + review pass.
 

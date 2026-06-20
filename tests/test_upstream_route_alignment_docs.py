@@ -57,6 +57,15 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, producer)
 
+        roadmap = read("roadmap.md")
+        for expected in [
+            "formal route acceptance requires explicit provider output mapping",
+            "newest `~/.codex/generated_images` session is allowed only",
+            "not for formal route acceptance",
+            "final generated-material",
+        ]:
+            self.assertIn(expected, roadmap)
+
     def test_material_map_and_generated_skills_define_route_boundaries(self):
         material_map = read("skills/material-map.md")
         for expected in [
