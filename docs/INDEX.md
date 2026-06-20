@@ -44,6 +44,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/START_HERE_VIDEO_PIPELINE.md` -- canonical operator entrypoint for
   agents and humans: which document to read, which route to choose, and what not
   to treat as truth.
+- `docs/video-pipeline-end-to-end-line.md` -- one-page narrative line from
+  Video Intent Planner through material truth, BUILD, verify, Workbench /
+  Brownfield return loops, and delivery.
 - `docs/canonical-video-pipeline-route.md` — canonical end-to-end route map:
   stable stage order, skill-to-tool mapping, artifact ownership, gates, legacy
   node aliases, and template-route plan. Read this before changing flow or node

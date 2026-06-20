@@ -70,6 +70,38 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         for rel in ["roadmap.md", "docs/INDEX.md"]:
             self.assertIn("docs/canonical-video-pipeline-route.md", read(rel))
 
+    def test_entry_docs_link_end_to_end_line(self):
+        for rel in ["docs/START_HERE_VIDEO_PIPELINE.md", "docs/INDEX.md", "roadmap.md"]:
+            self.assertIn("docs/video-pipeline-end-to-end-line.md", read(rel))
+
+    def test_end_to_end_line_strings_whole_pipeline(self):
+        text = read("docs/video-pipeline-end-to-end-line.md")
+        expected = [
+            "Video Intent Planner",
+            "Story / Structure Planner",
+            "Director Shot Plan",
+            "Material Truth",
+            "Coverage / Decision Gate",
+            "BUILD Planning",
+            "Official Render",
+            "Verify / Reviewer Layer",
+            "Workbench Draft Review",
+            "Brownfield Edit / Finishing",
+            "Delivery",
+        ]
+        positions = [text.index(stage) for stage in expected]
+        self.assertEqual(positions, sorted(positions))
+        for expected_term in [
+            "existing-material-first",
+            "story-first",
+            "hybrid",
+            "generated-image-provider-packet",
+            "explicit provider output mapping",
+            "Workbench is a review and draft-edit surface",
+            "Do not render from stale material_delta",
+        ]:
+            self.assertIn(expected_term, text)
+
 
 class CanonicalRouteAcceptanceHarnessTest(unittest.TestCase):
     def test_acceptance_harness_passes_repo(self):

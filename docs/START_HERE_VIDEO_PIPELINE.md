@@ -25,21 +25,23 @@ videos as truth. They must re-enter the route through their owning artifacts.
 ## Read Order
 
 1. `docs/START_HERE_VIDEO_PIPELINE.md` -- this file.
-2. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual:
+2. `docs/video-pipeline-end-to-end-line.md` -- one-page line from intent to
+   delivery, including material availability and return loops.
+3. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual:
    skills, tools, artifacts, gates, return routes.
-3. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
+4. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
    legacy alias mapping.
-4. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
+5. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
    through blueprint, Story Soul, Director Shot Plan, contract compile, and
    material-ready handoff.
-5. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
+6. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
    `light / normal / deep` and reviewer roles.
-6. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
+7. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
    lifecycle stages, and build handoff.
-7. `docs/build-capability-alignment.md` -- which capabilities truly affect
+8. `docs/build-capability-alignment.md` -- which capabilities truly affect
    BUILD/render today.
-8. `RUNBOOK.md` -- local command examples and Windows execution notes.
-9. `docs/INDEX.md` -- broader documentation index and historical links.
+9. `RUNBOOK.md` -- local command examples and Windows execution notes.
+10. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
