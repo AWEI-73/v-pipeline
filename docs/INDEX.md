@@ -61,6 +61,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-20-upstream-story-route-consolidation.md` --
   decision record for the Role/Literary Lens through Material-Ready Handoff
   upstream line and subagent cold-start validation.
+- `docs/decisions/2026-06-20-reviewer-registry-and-eval-principles.md` --
+  deterministic reviewer role registry, policy packet, and eval principle
+  contract.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.

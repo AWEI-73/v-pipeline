@@ -30,7 +30,11 @@ Then produce or verify the artifacts for the current stage.
 
 Review policy is route-driven, not universal. Use
 `docs/artifact-reviewer-map.md` to decide whether the route needs `light`,
-`normal`, or `deep` review.
+`normal`, or `deep` review. Materialize the policy when needed:
+
+```powershell
+python video_tools.py reviewer-policy --level normal --out reviewer_policy_packet.json
+```
 
 ## Stage Order
 
@@ -182,6 +186,7 @@ new work:
 
 Use deterministic tools for facts:
 
+- `reviewer-policy`: reviewer role expansion and eval principle packet.
 - `validate-needs`: material need schema.
 - `project-material-map`: aggregate material maps.
 - `material-map-lifecycle`: route material stage.

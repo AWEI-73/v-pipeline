@@ -1885,6 +1885,34 @@ def cmd_operator_flow_acceptance(args):
         raise ToolError(f"operator flow acceptance failed: {report.get('stage')}")
 
 
+def cmd_reviewer_policy(args):
+    from video_pipeline_core import reviewer_registry
+    try:
+        if getattr(args, "validate_review", None):
+            review = _load_json(args.validate_review)
+            result = reviewer_registry.validate_review_artifact(review)
+            text = json.dumps(result, ensure_ascii=False, indent=2)
+            if getattr(args, "out", None):
+                Path(args.out).write_text(text, encoding="utf-8")
+            else:
+                print(text)
+            if not result.get("ok"):
+                raise ToolError(f"review artifact validation failed: {len(result.get('errors') or [])} error(s)")
+            return
+        if getattr(args, "registry", False):
+            payload = reviewer_registry.build_reviewer_registry()
+        else:
+            payload = reviewer_registry.build_policy_packet(args.level)
+        text = json.dumps(payload, ensure_ascii=False, indent=2)
+        if getattr(args, "out", None):
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(text, encoding="utf-8")
+        else:
+            print(text)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -1936,6 +1964,7 @@ def _build_video_tools_dispatch():
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
         "operator-flow-acceptance": cmd_operator_flow_acceptance,
+        "reviewer-policy": cmd_reviewer_policy,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -2281,6 +2310,15 @@ def main():
                        help="initialize a deterministic complete demo package under artifact_root before validating")
     p_ofa.add_argument("--require-build-ready", action="store_true",
                        help="fail unless material-map lifecycle reaches build_ready")
+
+    p_rp = sub.add_parser("reviewer-policy")
+    p_rp.add_argument("--level", default="normal", choices=["light", "normal", "deep"],
+                      help="review policy level to expand into reviewer roles")
+    p_rp.add_argument("--registry", action="store_true",
+                      help="write the full reviewer registry instead of one policy packet")
+    p_rp.add_argument("--validate-review", default=None, dest="validate_review",
+                      help="validate an artifact_review JSON file")
+    p_rp.add_argument("--out", default=None, help="optional JSON output path")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")

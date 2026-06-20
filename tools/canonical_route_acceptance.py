@@ -56,6 +56,7 @@ REQUIRED_TOOLS = [
     "workbench-handoff-validate",
     "effect-revision-request",
     "remotion-prompt-pack",
+    "reviewer-policy",
 ]
 
 REQUIRED_ARTIFACTS = [
@@ -80,6 +81,7 @@ REQUIRED_ARTIFACTS = [
     "effect_intent_plan.json",
     "remotion_prompt_pack.json",
     "remotion_effect_review.json",
+    "reviewer_policy_packet.json",
 ]
 
 

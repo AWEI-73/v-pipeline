@@ -7,6 +7,16 @@ This document defines the reviewer layer for Hermes Video Pipeline. It does not
 mean every artifact must always be reviewed. Route policy chooses a light,
 normal, or deep review set based on project risk and user intent.
 
+Machine-readable registry:
+
+```powershell
+python video_tools.py reviewer-policy --registry --out reviewer_registry.json
+python video_tools.py reviewer-policy --level deep --out reviewer_policy_packet.json
+python video_tools.py reviewer-policy --validate-review story_director_review.json
+```
+
+The registry is implemented in `video_pipeline_core/reviewer_registry.py`.
+
 ## Principle
 
 `VERIFY` should not absorb every kind of judgment.
@@ -121,6 +131,31 @@ Review artifacts should share this simple shape:
 Do not make this a new canonical truth source. Reviews guide route decisions;
 the owned artifact remains the source of truth.
 
+## Eval Principles
+
+Each reviewer role must declare concrete eval principles. A principle has:
+
+- `criterion`: what the reviewer judges;
+- `evidence`: which artifact fields or media evidence support the judgment;
+- `failure_route`: where the pipeline should go if the criterion fails.
+
+Current principles are exported by:
+
+```powershell
+python video_tools.py reviewer-policy --registry --out reviewer_registry.json
+```
+
+Examples:
+
+- `literary_editor`: voice/role fit, internal logic, emotional truth.
+- `story_director`: narrative device, turn per beat, shot intent density.
+- `generated_material_art_director`: style consistency, story need fit, camera
+  language.
+- `technical_verify`: render integrity, technical defects, delivery evidence.
+
+This is not an automatic score engine. It is the rubric that agents and humans
+must use when producing `artifact_review` outputs.
+
 ## Route Placement
 
 Recommended route:
@@ -151,4 +186,3 @@ Intake
 The first implementation should only let route/template configs declare a review
 policy and let agents decide which already-existing review tools or manual
 review prompts to run.
-

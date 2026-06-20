@@ -118,6 +118,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 - `workflow-manifest`
 - `commands-manifest`
 - `run-layout-validate`
+- `reviewer-policy`
 
 ### Story / Blueprint
 
@@ -243,6 +244,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 | `remotion_prompt_pack.json` | Effects | handoff | Optional adapter jobs. |
 | `remotion_effect_review.json` | Effects | review | Accepted/rejected adapter outputs. |
 | `remotion_composite_draft_report.json` | Effects | draft report | Non-canonical unless promoted by route. |
+| `reviewer_policy_packet.json` | Reviewer Layer | route policy | Expanded reviewer roles and eval principles for a route. |
 
 ## Legacy Name Mapping
 
@@ -359,4 +361,3 @@ Do not perform broad node/file renaming yet. Instead:
 3. Build new templates against this route.
 4. Only rename internals after the frontend and backend both consume this route
    consistently.
-
