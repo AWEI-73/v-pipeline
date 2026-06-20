@@ -18,6 +18,6 @@ verify / dashboard 等角色技能。
 - `state.json` 是自動化狀態機(`dashboard_state.load_dashboard_state()` 算 next_action)。
 - 離線鏈接驗證(不 render):`python video_tools.py contract-dry-build <contract> --out-dir DIR`。
 - render backend:ffmpeg 為 canonical;CapCut 為可選收尾(GUI 匯出是人/CU 閘)。
-- 測試基準:`python -m unittest discover -s tests`(目前 516 tests OK)。
+- 測試基準:`python -m unittest discover -s tests`(目前 1654 tests OK)。
 - 執行環境:**miniconda python**(有 librosa/edge-tts);新專案第一步 `video_tools.py project-init <name>`。
 - BUILD 前 SPEC 體檢:`python video_tools.py spec-review <contract> --brief brief.json`(blocking → 回 SPEC 改合約,不要修工具)。

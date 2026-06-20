@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import srp_real67_review_demo as DEMO  # noqa: E402
 import srp_real67_sanity as SANITY  # noqa: E402
 from srp_real67_review_demo import Blocked, timeline_review_srt  # noqa: E402
+from video_pipeline_core.material_retrieval import plan_ranked_windows  # noqa: E402
 
 OUT_ROOT = REPO / ".tmp" / "srp_real67_fuller_replay"
 DEFAULT_FOOTAGE = SANITY.DEFAULT_FOOTAGE
@@ -343,9 +344,83 @@ def attribute_capabilities(plan):
     }
 
 
+def soul_selection_diff(script, material_map, *, clip_dur=3.5, limit=1):
+    """Compare canonical BUILD window selection with BSA1 soul ranking off/on.
+
+    This is an effectiveness probe, not a second selector. It calls the same
+    ``plan_ranked_windows`` path twice and reports whether story-soul fields
+    actually changed the selected scene. A zero-flip result is still useful: it
+    says the material map does not contain differentiating scene semantics, or
+    that correctness evidence dominated the soft soul score.
+    """
+    assets = material_map.get("assets") if isinstance(material_map, dict) else material_map
+    segments = []
+    flip_count = 0
+    positive_soul_segments = 0
+    compared = 0
+    for segment in (script or {}).get("segments") or []:
+        if not isinstance(segment, dict):
+            continue
+        off = plan_ranked_windows(
+            segment, assets, limit=limit, clip_dur=clip_dur, soul_ranking=False)
+        on = plan_ranked_windows(
+            segment, assets, limit=limit, clip_dur=clip_dur, soul_ranking=True)
+        off_slot = off[0] if off else None
+        on_slot = on[0] if on else None
+        if not off_slot or not on_slot:
+            segments.append({
+                "segment": segment.get("segment"),
+                "status": "uncomparable",
+                "reason": "missing on/off selected window",
+            })
+            continue
+        compared += 1
+        off_breakdown = off_slot.get("score_breakdown") or {}
+        on_breakdown = on_slot.get("score_breakdown") or {}
+        positive_soul = int(on_breakdown.get("soul") or 0) > 0
+        if positive_soul:
+            positive_soul_segments += 1
+        flipped = off_slot.get("scene_id") != on_slot.get("scene_id")
+        if flipped:
+            flip_count += 1
+        segments.append({
+            "segment": segment.get("segment"),
+            "status": "flipped" if flipped else "same",
+            "off_scene_id": off_slot.get("scene_id"),
+            "on_scene_id": on_slot.get("scene_id"),
+            "off_source": off_slot.get("source"),
+            "on_source": on_slot.get("source"),
+            "off_score": off_slot.get("retrieval_score"),
+            "on_score": on_slot.get("retrieval_score"),
+            "off_score_breakdown": off_breakdown,
+            "on_score_breakdown": on_breakdown,
+            "positive_soul": positive_soul,
+        })
+    zero_reason = None
+    if compared and flip_count == 0:
+        if positive_soul_segments == 0:
+            zero_reason = (
+                "no positive soul score: material-map scenes lack differentiating "
+                "caption / visual_family / angle_scale / action_family / subject "
+                "terms for the upstream soul fields"
+            )
+        else:
+            zero_reason = (
+                "soul scored some candidates but did not outrank the current "
+                "correctness order"
+            )
+    return {
+        "segment_count": compared,
+        "flip_count": flip_count,
+        "positive_soul_segments": positive_soul_segments,
+        "segments": segments,
+        "zero_flip_reason": zero_reason,
+    }
+
+
 def compute_fuller_report(result, material_map, script, needs_plan, gaps, *,
                           footage_root, render_sec, slot_check, music_name,
-                          capabilities, min_candidates):
+                          capabilities, min_candidates, soul_selection=None):
     plan = result.get("plan") or []
     alignment = DEMO.semantic_alignment(plan, material_map, script)
     arc = DEMO._arc_durations(plan)
@@ -416,6 +491,8 @@ def compute_fuller_report(result, material_map, script, needs_plan, gaps, *,
                                      and climax > setup),
         },
         "capabilities_that_changed_build": capabilities,
+        "bsa1_soul_selection": soul_selection or soul_selection_diff(
+            script, material_map, clip_dur=2.0),
         "slot_render_check": slot_check,
         "limitations": {
             "folder_is_need_proxy": True,
@@ -470,11 +547,18 @@ def report_md(report):
     else:
         lines.append("- none — every need met the candidate-scene floor.")
     caps = report["capabilities_that_changed_build"]
+    soul = report.get("bsa1_soul_selection") or {}
     srp1 = report["srp1_segment_sequence"]
     lines += ["", "## Capability evidence (did BUILD actually change?)"]
     for cap in ("VD2", "SRP1", "SRP2", "SRP3"):
         c = caps.get(cap, {})
         lines.append(f"- **{cap}**: active={c.get('active')} — {c.get('evidence')}")
+    lines.append(
+        f"- **BSA1 soul selection**: flips={soul.get('flip_count', 0)}/"
+        f"{soul.get('segment_count', 0)}, positive_soul_segments="
+        f"{soul.get('positive_soul_segments', 0)}"
+        + (f"; reason={soul.get('zero_flip_reason')}" if soul.get("zero_flip_reason") else "")
+    )
     lines += [
         f"- SRP1 eligible segments (>=2 slots): {srp1['eligible_count']} "
         f"{srp1['eligible_segments']}",
@@ -621,7 +705,8 @@ def run_fuller(footage_root, *, target_sec=90.0, max_needs=12, max_clips_per_seg
         result, material_map, script, needs_plan, gaps,
         footage_root=footage_root, render_sec=render_sec, slot_check=slot_check,
         music_name=Path(music_src).name, capabilities=capabilities,
-        min_candidates=min_candidates)
+        min_candidates=min_candidates,
+        soul_selection=soul_selection_diff(script, material_map, clip_dur=2.0))
 
     DEMO._write_json(out / "generated_mv_script.json", script)
     DEMO._write_json(out / "project_material_map.json", material_map)

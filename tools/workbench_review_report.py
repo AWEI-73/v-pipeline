@@ -131,6 +131,15 @@ def build_review_report(artifact_root: str) -> Dict[str, Any]:
     subtitle_ops = _patch_ops(root, "subtitle_patch.json")
     audio_ops = _patch_ops(root, "audio_cue_patch.json")
     effect_ops = _patch_ops(root, "effect_patch.json")
+    quality_fallback_slots = []
+    for clip in plan:
+        if clip.get("window_quality_fallback"):
+            quality_fallback_slots.append({
+                "slot_index": clip.get("slot_index"),
+                "segment": clip.get("segment") or clip.get("segment_id"),
+                "scene_id": clip.get("scene_id"),
+                "source": clip.get("source"),
+            })
 
     edits: List[Dict[str, Any]] = []
     edits.extend(_timeline_edit(op, base_by_slot) for op in timeline_ops)
@@ -147,6 +156,7 @@ def build_review_report(artifact_root: str) -> Dict[str, Any]:
         "subtitle_edits": len(subtitle_ops),
         "audio_cues": sum(1 for op in audio_ops if op.get("op") == "add_cue"),
         "effect_intents": sum(1 for op in effect_ops if op.get("op") == "add_effect"),
+        "quality_fallback_slots": len(quality_fallback_slots),
     }
 
     return {
@@ -157,6 +167,7 @@ def build_review_report(artifact_root: str) -> Dict[str, Any]:
         "canonical_changed": False,
         "base_timeline_ref": base_ref,
         "summary": summary,
+        "quality_fallback_slots": quality_fallback_slots,
         "edits": edits,
         "next_action": "agent_review_and_rerender_or_reject" if edits else "none",
     }
@@ -183,8 +194,17 @@ def _markdown(report: Dict[str, Any]) -> str:
         "subtitle_edits",
         "audio_cues",
         "effect_intents",
+        "quality_fallback_slots",
     ):
         lines.append(f"- {key}: {summary.get(key, 0)}")
+    fallback_slots = report.get("quality_fallback_slots") or []
+    if fallback_slots:
+        lines.extend(["", "## Quality Fallback Slots", ""])
+        for slot in fallback_slots:
+            lines.append(
+                f"- slot={slot.get('slot_index')} segment={slot.get('segment')} "
+                f"scene={slot.get('scene_id')} source={slot.get('source')}"
+            )
     lines.extend(["", "## Edits", ""])
     edits = report.get("edits") or []
     if not edits:

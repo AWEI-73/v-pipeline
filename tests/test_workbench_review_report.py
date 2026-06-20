@@ -91,6 +91,37 @@ class WorkbenchReviewReportTest(unittest.TestCase):
         self.assertEqual(edit["after"]["asset_id"], "new")
         self.assertEqual(edit["after"]["scene_index"], 2)
 
+    def test_quality_fallback_slots_are_surfaced_for_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_json(root / "timeline.json", {
+                "plan": [
+                    {"slot_index": 0, "segment": 1, "source": "ok.mov", "duration_sec": 2.0},
+                    {
+                        "slot_index": 1,
+                        "segment": 2,
+                        "source": "fallback.mov",
+                        "duration_sec": 2.0,
+                        "scene_id": "asset:3",
+                        "window_quality_fallback": True,
+                    },
+                ]
+            })
+
+            report = build_review_report(tmp)
+            write_review_report(tmp)
+
+            md = (root / "workbench_review_report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(report["summary"]["quality_fallback_slots"], 1)
+        self.assertEqual(report["quality_fallback_slots"], [{
+            "slot_index": 1,
+            "segment": 2,
+            "scene_id": "asset:3",
+            "source": "fallback.mov",
+        }])
+        self.assertIn("quality_fallback_slots: 1", md)
+
     def test_subtitle_audio_and_effect_patch_counts_are_summarized(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -322,6 +322,7 @@ def _timeline_slots_for_summary(active_root: Path):
             "start_sec": start,
             "end_sec": end,
             "duration_sec": max(0.0, duration),
+            "window_quality_fallback": bool(raw_slot.get("window_quality_fallback")),
         })
     return slots
 
@@ -370,6 +371,8 @@ def build_control_status(active_root: Path):
         "timeline": {
             "slot_count": len(slots),
             "duration_sec": duration,
+            "quality_fallback_slots": sum(
+                1 for slot in slots if slot.get("window_quality_fallback")),
         },
         "recommended_next_action": next_action,
     }

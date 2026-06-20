@@ -195,7 +195,7 @@ class DashboardServerTest(unittest.TestCase):
         (self.artifact_root / "timeline.json").write_text(
             json.dumps([
                 {"slot_index": 0, "duration_sec": 2.0},
-                {"slot_index": 1, "duration_sec": 3.5},
+                {"slot_index": 1, "duration_sec": 3.5, "window_quality_fallback": True},
             ]),
             encoding="utf-8",
         )
@@ -258,6 +258,7 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(data["timeline"], {
             "slot_count": 2,
             "duration_sec": 5.5,
+            "quality_fallback_slots": 1,
         })
         self.assertEqual(data["run_layout"], {
             "exists": False,

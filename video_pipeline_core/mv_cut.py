@@ -658,7 +658,7 @@ def _apply_anti_presentation_plan(slots, segment):
 
 
 def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=None,
-                             history=None, diversity=True):
+                             history=None, diversity=True, soul_ranking=True):
     """MR1: map-based scene/window retrieval for a local segment — the DEFAULT
     selection path whenever a valid material map exists. Returns concrete slots
     carrying their material+window evidence (source/scene_id/extract_start/
@@ -669,7 +669,7 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
     vd = s.get("visual_desc", "")
     slots = plan_ranked_windows(
         s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
-        history=history, diversity=diversity
+        history=history, diversity=diversity, soul_ranking=soul_ranking
     )
     for slot in slots:
         slot["provider"] = "local"
@@ -689,13 +689,15 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
 
 
 def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
-                          material_maps=None, ranker=None, history=None, diversity=True):
+                          material_maps=None, ranker=None, history=None, diversity=True,
+                          soul_ranking=True):
     """local 段:用 match-mv 已配好的 clip 開窗(不 live 重評)。`_winfn` 可注入測試。"""
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
     if material_maps:
         return _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps,
-                                        ranker=ranker, history=history, diversity=diversity)
+                                        ranker=ranker, history=history,
+                                        diversity=diversity, soul_ranking=soul_ranking)
     paths = (
         [s["file"]]
         if s.get("file")
@@ -733,7 +735,8 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
 
 def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
                         material_maps=None, clip_list=None, ranker=None,
-                        live_kwargs=None, history=None, diversity=True):
+                        live_kwargs=None, history=None, diversity=True,
+                        soul_ranking=True):
     """MR1 dispatcher for a local (non-stock, non-source_speech) segment.
 
     Priority: **map-ranked** retrieval whenever a valid material map exists →
@@ -745,7 +748,7 @@ def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
     if material_maps:
         slots, entry, msgs = _plan_map_ranked_segment(
             s, a, seg_text, keep_audio, material_maps, ranker=ranker,
-            history=history, diversity=diversity)
+            history=history, diversity=diversity, soul_ranking=soul_ranking)
         if slots:
             return slots, entry, msgs
     live_kwargs = live_kwargs or {}
@@ -1127,7 +1130,7 @@ def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
                          visual_verdicts, clip_list, material_root, model, mat_dir,
                          max_clips_per_seg, windows_per_clip, min_score,
                          prefilter_static, visual_judge, vp,
-                         auto_sequence=True, diversity=True):
+                         auto_sequence=True, diversity=True, soul_ranking=True):
     """Per-segment material planning → ordered render-plan slots (AR1 extraction;
     moved verbatim from run_mv, no behavior change).
 
@@ -1196,7 +1199,7 @@ def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
                     "windows_per_clip": windows_per_clip, "min_score": min_score,
                     "prefilter_static": prefilter_static,
                 },
-                history=shared_history, diversity=diversity)
+                history=shared_history, diversity=diversity, soul_ranking=soul_ranking)
         # BR2 beat-to-sequence: if a segment opts into a beat recipe, compile its
         # approved windows into a multi-shot sequence and replace the slots so the
         # timeline sequence actually changes. Runs BEFORE anti-presentation so the
@@ -1581,7 +1584,8 @@ def run_mv(script, material_root, out_path, music_path=None,
         min_score=min_score, prefilter_static=prefilter_static,
         visual_judge=visual_judge, vp=vp,
         auto_sequence=not script.get("disable_auto_sequence"),
-        diversity=not script.get("disable_visual_diversity"))
+        diversity=not script.get("disable_visual_diversity"),
+        soul_ranking=not script.get("disable_soul_ranking"))
 
     # SRP3 trace stamping (story slots + per-segment entries only; before bookends
     # so opening/ending evidence is never tagged with arc trace).

@@ -25,9 +25,9 @@ use it without parsing prose.
 `material_retrieval.rank_scenes` now computes `score_breakdown.soul`, but only
 after a candidate already has base evidence from need/text/function/pace.
 
-That means soul can change same-tier selection, but it cannot admit an
-otherwise unrelated candidate and it should not override deterministic need
-evidence.
+That means soul can change admitted-candidate selection when the base evidence
+is close enough for the soft score to matter, but it cannot admit an otherwise
+unrelated candidate and it should not override deterministic need evidence.
 
 The companion window-quality hardening keeps `avoid_ranges`/`bad_ranges`
 inside BUILD selection:
@@ -49,11 +49,24 @@ Key reverse proofs:
 
 - blueprint story-soul fields round-trip into the contract without becoming
   required;
-- `soul_ranking=False` vs `soul_ranking=True` selects different same-tier
-  windows;
+- `soul_ranking=False` vs `soul_ranking=True` can select different windows, and
+  the 67th fuller replay report now records `bsa1_soul_selection.flip_count`
+  plus a zero-flip reason when real material-map scene semantics are too thin;
 - soul evidence does not admit zero-base scenes;
 - bad windows backfill to clean windows, and all-bad material returns a traced
-  fallback slot instead of an empty segment.
+  fallback slot instead of an empty segment;
+- Workbench/dashboard review surfaces `window_quality_fallback` counts so
+  reviewers can see which slots used a least-bad window.
+
+Real 67th planning-only replay:
+
+- input: `C:\Users\user\Downloads\微電影素材\_整理後`;
+- result: 12 comparable segments, `flip_count=0`,
+  `positive_soul_segments=0`;
+- interpretation: the BUILD path is wired, but this 67th material map still
+  has no differentiating soul-readable scene labels (`caption` is effectively
+  the folder theme; `visual_family`/`action_family`/`subject` are absent), so
+  BSA1 correctly reports a zero-flip reason instead of claiming effectiveness.
 
 ## Non-Goals
 

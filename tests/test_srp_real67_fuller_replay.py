@@ -133,6 +133,63 @@ class TestCapabilityAttribution(unittest.TestCase):
         self.assertFalse(caps["SRP3"]["active"])
 
 
+class TestSoulSelectionDiff(unittest.TestCase):
+    def test_reports_real_on_off_flip_when_soul_changes_selected_window(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "training",
+            "material_fit": {"visual_desc": "training", "need_refs": ["N01"]},
+            "core": {
+                "emotional_movement": "fear to courage",
+                "intended_viewer_feeling": "brave teacher focus",
+            },
+        }]}
+        material_map = {"assets": [
+            {"asset_id": "a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training wide",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+            {"asset_id": "b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training courage teacher closeup",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+        ]}
+
+        diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
+
+        self.assertEqual(diff["segment_count"], 1)
+        self.assertEqual(diff["flip_count"], 1)
+        seg = diff["segments"][0]
+        self.assertEqual(seg["off_scene_id"], "a:0")
+        self.assertEqual(seg["on_scene_id"], "b:0")
+        self.assertGreater(seg["on_score_breakdown"]["soul"], 0)
+        self.assertEqual(diff["zero_flip_reason"], None)
+
+    def test_zero_flip_reports_missing_differentiating_soul_evidence(self):
+        script = {"segments": [{
+            "segment": 1,
+            "visual_desc": "folder theme",
+            "material_fit": {"visual_desc": "folder theme", "need_refs": ["N01"]},
+            "core": {"emotional_movement": "fear to courage"},
+        }]}
+        material_map = {"assets": [
+            {"asset_id": "a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "folder theme",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+            {"asset_id": "b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "folder theme",
+                 "satisfies": [{"need_id": "N01", "status": "accepted"}]},
+            ]},
+        ]}
+
+        diff = F.soul_selection_diff(script, material_map, clip_dur=2.0)
+
+        self.assertEqual(diff["flip_count"], 0)
+        self.assertEqual(diff["positive_soul_segments"], 0)
+        self.assertIn("no positive soul", diff["zero_flip_reason"])
+
+
 class TestReportAndGate(unittest.TestCase):
     def _ctx(self):
         mp, needs, gaps = F.plan_material(_index())
@@ -172,7 +229,8 @@ class TestReportAndGate(unittest.TestCase):
         return F.compute_fuller_report(
             result, mp, script, needs, gaps, footage_root=r"C:\f",
             render_sec=render_sec, slot_check=slot_check, music_name="m.mp4",
-            capabilities={}, min_candidates=2)
+            capabilities={}, min_candidates=2,
+            soul_selection=F.soul_selection_diff(script, mp, clip_dur=2.0))
 
     _OK = {"ok": True, "checked_slots": 5, "failed_slots": []}
     _BAD = {"ok": False, "checked_slots": 5, "failed_slots": [3, 4]}
@@ -210,6 +268,7 @@ class TestReportAndGate(unittest.TestCase):
         self.assertIn("Status: PASS_WITH_FINDINGS", md)
         self.assertIn("## Findings", md)
         self.assertIn("Material gaps", md)
+        self.assertIn("BSA1 soul selection", md)
 
 
 class TestRenderableWindows(unittest.TestCase):
