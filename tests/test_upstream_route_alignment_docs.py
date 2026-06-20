@@ -1,0 +1,62 @@
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(rel: str) -> str:
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
+    def test_upstream_route_doc_declares_full_story_to_contract_line(self):
+        text = read("docs/upstream-story-route.md")
+        for expected in [
+            "Role / Literary Lens",
+            "Blueprint Interview",
+            "Story Soul Package",
+            "Director Shot Plan",
+            "Contract Compile",
+            "Material-Ready Handoff",
+            "blueprint.md",
+            "blueprint.json",
+            "story_soul_blueprint.json",
+            "director_shot_plan.json",
+            "segment_contract.json",
+            "material_needs.json",
+            "generation_manifest.json",
+            "generated material review rubric",
+            "initial missing material_delta",
+            "3-5 minute children's comic/storybook",
+        ]:
+            self.assertIn(expected, text)
+
+    def test_start_here_and_operating_map_point_to_upstream_route(self):
+        for rel in [
+            "docs/START_HERE_VIDEO_PIPELINE.md",
+            "docs/video-pipeline-operating-map.md",
+            "docs/INDEX.md",
+            "roadmap.md",
+        ]:
+            self.assertIn("docs/upstream-story-route.md", read(rel), rel)
+
+    def test_video_pipeline_route_skill_names_upstream_route(self):
+        text = read("skills/video-pipeline-route.md")
+        for expected in [
+            "docs/upstream-story-route.md",
+            "Role / Literary Lens",
+            "Blueprint Interview",
+            "Story Soul Package",
+            "Director Shot Plan",
+            "Contract Compile",
+            "Material-Ready Handoff",
+            "initial material_delta",
+            "review_policy.level=deep",
+            "Chinese subtitle requirements",
+        ]:
+            self.assertIn(expected, text)
+
+
+if __name__ == "__main__":
+    unittest.main()

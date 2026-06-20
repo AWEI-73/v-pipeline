@@ -19,10 +19,11 @@ Read order for agents:
 3. `docs/START_HERE_VIDEO_PIPELINE.md`
 4. `docs/video-pipeline-operating-map.md`
 5. `docs/canonical-video-pipeline-route.md`
-6. `docs/artifact-reviewer-map.md`
-7. `RUNBOOK.md`
-8. `docs/INDEX.md`
-9. Topic-specific docs linked below
+6. `docs/upstream-story-route.md`
+7. `docs/artifact-reviewer-map.md`
+8. `RUNBOOK.md`
+9. `docs/INDEX.md`
+10. Topic-specific docs linked below
 
 ## Current Canonical State
 
@@ -48,6 +49,10 @@ Canonical material-map summary:
 Canonical full-route summary:
 
 - `docs/canonical-video-pipeline-route.md`
+
+Canonical upstream story route:
+
+- `docs/upstream-story-route.md`
 
 ### Frontend
 

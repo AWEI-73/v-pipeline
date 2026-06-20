@@ -97,6 +97,7 @@ def run_check(root: Path) -> dict[str, Any]:
 
     route_path = root / "docs" / "canonical-video-pipeline-route.md"
     start_here_path = root / "docs" / "START_HERE_VIDEO_PIPELINE.md"
+    upstream_path = root / "docs" / "upstream-story-route.md"
     operating_map_path = root / "docs" / "video-pipeline-operating-map.md"
     reviewer_map_path = root / "docs" / "artifact-reviewer-map.md"
     skill_path = root / "skills" / "video-pipeline-route.md"
@@ -107,6 +108,7 @@ def run_check(root: Path) -> dict[str, Any]:
     for path in [
         start_here_path,
         route_path,
+        upstream_path,
         operating_map_path,
         reviewer_map_path,
         skill_path,
@@ -122,6 +124,7 @@ def run_check(root: Path) -> dict[str, Any]:
 
     route = route_path.read_text(encoding="utf-8")
     start_here = start_here_path.read_text(encoding="utf-8")
+    upstream = upstream_path.read_text(encoding="utf-8")
     operating_map = operating_map_path.read_text(encoding="utf-8")
     reviewer_map = reviewer_map_path.read_text(encoding="utf-8")
     skill = skill_path.read_text(encoding="utf-8")
@@ -161,6 +164,8 @@ def run_check(root: Path) -> dict[str, Any]:
             errors.append(f"{label} does not link canonical route doc")
         if "docs/START_HERE_VIDEO_PIPELINE.md" not in doc_text:
             errors.append(f"{label} does not link start-here doc")
+        if "docs/upstream-story-route.md" not in doc_text:
+            errors.append(f"{label} does not link upstream story route")
         if "docs/video-pipeline-operating-map.md" not in doc_text:
             errors.append(f"{label} does not link operating map")
         if "docs/artifact-reviewer-map.md" not in doc_text:
@@ -169,6 +174,7 @@ def run_check(root: Path) -> dict[str, Any]:
     for expected in [
         "docs/video-pipeline-operating-map.md",
         "docs/canonical-video-pipeline-route.md",
+        "docs/upstream-story-route.md",
         "docs/artifact-reviewer-map.md",
         "review_policy",
     ]:
@@ -176,12 +182,32 @@ def run_check(root: Path) -> dict[str, Any]:
             errors.append(f"start-here doc missing reference: {expected}")
 
     for expected in [
+        "docs/upstream-story-route.md",
         "docs/artifact-reviewer-map.md",
         "Reviewer Policy",
         "Technical `VERIFY` remains deterministic",
     ]:
         if expected not in operating_map:
             errors.append(f"operating map missing reviewer policy reference: {expected}")
+
+    for expected in [
+        "Role / Literary Lens",
+        "Blueprint Interview",
+        "Story Soul Package",
+        "Director Shot Plan",
+        "Contract Compile",
+        "Material-Ready Handoff",
+        "blueprint.md",
+        "blueprint.json",
+        "story_soul_blueprint.json",
+        "segment_contract.json",
+        "material_needs.json",
+        "generation_manifest.json",
+        "generated material review rubric",
+        "initial missing material_delta",
+    ]:
+        if expected not in upstream:
+            errors.append(f"upstream story route missing term: {expected}")
 
     for expected in [
         "light",

@@ -28,14 +28,17 @@ videos as truth. They must re-enter the route through their owning artifacts.
    skills, tools, artifacts, gates, return routes.
 3. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
    legacy alias mapping.
-4. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
+4. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
+   through blueprint, Story Soul, Director Shot Plan, contract compile, and
+   material-ready handoff.
+5. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
    `light / normal / deep` and reviewer roles.
-5. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
+6. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
    lifecycle stages, and build handoff.
-6. `docs/build-capability-alignment.md` -- which capabilities truly affect
+7. `docs/build-capability-alignment.md` -- which capabilities truly affect
    BUILD/render today.
-7. `RUNBOOK.md` -- local command examples and Windows execution notes.
-8. `docs/INDEX.md` -- broader documentation index and historical links.
+8. `RUNBOOK.md` -- local command examples and Windows execution notes.
+9. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
@@ -57,6 +60,19 @@ Other skills are role-specific:
 - review: `verify.md`, `dashboard.md`, `brownfield-edit.md`
 
 ## Choose The Route
+
+If the project starts from a story, essay, life experience, fairy tale, or
+emotion-heavy event brief, use `docs/upstream-story-route.md` before Material
+Truth. The upstream line is:
+
+```text
+Role / Literary Lens
+  -> Blueprint Interview
+  -> Story Soul Package
+  -> Director Shot Plan
+  -> Contract Compile
+  -> Material-Ready Handoff
+```
 
 ### Existing material
 
@@ -192,4 +208,3 @@ If a failure is creative, go back to Story Soul / reviewer layer.
 If a failure is material, go back to material map / delta.
 If a failure is finishing, use Workbench / Brownfield.
 If a failure is technical delivery, use Verify / render fix.
-

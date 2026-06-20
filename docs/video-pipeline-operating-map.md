@@ -10,6 +10,8 @@ and return routes.
 Use this with:
 
 - `docs/canonical-video-pipeline-route.md` for canonical stage names.
+- `docs/upstream-story-route.md` for the complete upstream line before Material
+  Truth.
 - `docs/artifact-reviewer-map.md` for lightweight route-driven review policy.
 - `docs/material-map-lifecycle.md` for material truth details.
 - `docs/build-capability-alignment.md` for which declared capabilities actually
@@ -92,6 +94,36 @@ python video_tools.py workflow-manifest
 ```
 
 Do not start BUILD here.
+
+### Upstream Line Before Material Truth
+
+Use `docs/upstream-story-route.md` when the project needs narrative quality,
+generated material, a fairy-tale/comic route, or an event film with emotional
+framing.
+
+Stable order:
+
+```text
+Role / Literary Lens
+  -> Blueprint Interview
+  -> Story Soul Package
+  -> Director Shot Plan
+  -> Contract Compile
+  -> Material-Ready Handoff
+```
+
+This line is complete only when it produces or validates:
+
+- `blueprint.md` / `blueprint.json` when prose blueprint is used;
+- `story_soul_blueprint.json` or the split story-world/concept/beat artifacts;
+- `director_shot_plan.json`;
+- `segment_contract.json`;
+- `material_needs.json`;
+- optional `effect_intent_plan.json`;
+- selected `review_policy`.
+
+After that, enter Material Truth. Do not let Story Soul skip the material-map
+stage.
 
 ### 1. Story Soul
 

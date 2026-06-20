@@ -9,7 +9,9 @@ This is the operator entry skill for the full Hermes Video Pipeline.
 
 Read `docs/START_HERE_VIDEO_PIPELINE.md` first. Then use
 `docs/video-pipeline-operating-map.md` as the stage/tool/artifact checklist and
-`docs/canonical-video-pipeline-route.md` as the route definition.
+`docs/canonical-video-pipeline-route.md` as the route definition. When the
+project needs story quality before material work, read
+`docs/upstream-story-route.md`.
 
 ## Core Rule
 
@@ -53,6 +55,34 @@ Legacy names are aliases, not the public route:
 - `FX` = Effects route internals
 - `Node14` = Brownfield Edit / Finishing route
 
+## Upstream Story Line
+
+Use this before Material Truth when the brief is story-heavy, generated,
+children-oriented, essay-like, or emotionally framed:
+
+```text
+Role / Literary Lens
+-> Blueprint Interview
+-> Story Soul Package
+-> Director Shot Plan
+-> Contract Compile
+-> Material-Ready Handoff
+```
+
+This route is documented in `docs/upstream-story-route.md`.
+
+Do not collapse these into one prompt if quality matters. The important split:
+
+- `Role / Literary Lens`: what kind of mind is writing the piece;
+- `Blueprint Interview`: prose soul in `blueprint.md` plus beat index in
+  `blueprint.json`;
+- `Story Soul Package`: executable story-world, concept, beats, shot plan,
+  material needs, and generation manifest;
+- `Director Shot Plan`: concrete visual/audio/subtitle/effect needs;
+- `Contract Compile`: validated `segment_contract.json` and traceable
+  `material_needs.json`;
+- `Material-Ready Handoff`: enter material map / delta, not BUILD directly.
+
 ## Intake Questions
 
 Ask only what materially changes the route:
@@ -90,6 +120,7 @@ Expected path:
 ```text
 story-soul-blueprint
 -> material_needs
+-> initial material_delta from empty/initial material map
 -> material-generation-fallback
 -> generated-image-provider-packet
 -> generated-material-import
@@ -99,6 +130,8 @@ story-soul-blueprint
 ```
 
 Generated files must be reviewed before they satisfy material needs.
+For zero-material projects, do not skip the initial delta: fallback should be
+driven by missing/thin evidence, not by agent confidence alone.
 
 ### Hybrid route
 
@@ -206,7 +239,12 @@ Stop and report instead of guessing when:
 For picture-book, comic, fairy-tale, or children story cases:
 
 - set `storyboard_panel_locked=true`;
+- usually use `review_policy.level=deep`;
 - use generated material fallback if no source art exists;
+- include `generation_manifest.json`, style/character consistency rules, panel
+  count, and generated material review rubric before provider handoff;
+- state Chinese subtitle requirements if the output is for Chinese-speaking
+  children;
 - prefer more panels over unrelated filler;
 - if holding one panel for a long time, make that intentional in pacing;
 - verify Chinese subtitles are real UTF-8 text, not `????`;

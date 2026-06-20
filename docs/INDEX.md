@@ -48,6 +48,9 @@ One page that says what is current and what is historical, so old/new no longer 
   stable stage order, skill-to-tool mapping, artifact ownership, gates, legacy
   node aliases, and template-route plan. Read this before changing flow or node
   names.
+- `docs/upstream-story-route.md` -- upstream creative route from Role /
+  Literary Lens through Blueprint Interview, Story Soul Package, Director Shot
+  Plan, Contract Compile, and Material-Ready Handoff.
 - `docs/video-pipeline-operating-map.md` -- full operator manual linking every
   stable stage to skills, Python/JS tools, artifacts, gates, and return routes.
 - `docs/artifact-reviewer-map.md` -- lightweight reviewer policy (`light`,
@@ -55,6 +58,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-20-canonical-route-solidification-review.md` --
   acceptance report for the route map, operator skill, static harness, and
   subagent cold-read review.
+- `docs/decisions/2026-06-20-upstream-story-route-consolidation.md` --
+  decision record for the Role/Literary Lens through Material-Ready Handoff
+  upstream line and subagent cold-start validation.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
