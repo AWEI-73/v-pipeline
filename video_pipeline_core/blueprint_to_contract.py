@@ -79,6 +79,56 @@ _EMPHASIS_REASON = {
 }
 
 
+def _nonempty_string(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _string_list(value: Any) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    out = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return out or None
+
+
+def _story_soul(blueprint: dict) -> dict[str, Any]:
+    concept = blueprint.get("creative_concept") if isinstance(blueprint.get("creative_concept"), dict) else {}
+    out: dict[str, Any] = {}
+    for key in ("narrative_device", "core_metaphor"):
+        value = _nonempty_string(concept.get(key)) or _nonempty_string(blueprint.get(key))
+        if value:
+            out[key] = value
+    arc = _string_list(concept.get("emotional_arc")) or _string_list(blueprint.get("emotional_arc"))
+    if arc:
+        out["emotional_arc"] = arc
+    return out
+
+
+def _beat_soul(beat: dict) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key in ("emotional_movement", "conflict_or_turn", "intended_viewer_feeling", "sensory_anchor"):
+        value = _nonempty_string(beat.get(key))
+        if value:
+            out[key] = value
+    return out
+
+
+def _director_intent(decision: dict) -> dict[str, Any]:
+    raw = decision.get("director_intent")
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key in ("composition", "camera_movement", "lighting", "emotion"):
+        value = _nonempty_string(raw.get(key))
+        if value:
+            out[key] = value
+    reqs = _string_list(raw.get("material_prompt_requirements"))
+    if reqs:
+        out["material_prompt_requirements"] = reqs
+    return out
+
+
 def _section_role(beat_role: str, idx: int, n: int, content_pattern: str) -> str:
     if idx == 0:
         return "opening"
@@ -120,6 +170,7 @@ def compile_contract(
     beats = blueprint.get("beats") or []
     n = len(beats)
     segments: list[dict] = []
+    story_soul = _story_soul(blueprint)
 
     for idx, beat in enumerate(beats):
         bid = str(beat.get("id") or "").strip()
@@ -168,6 +219,9 @@ def compile_contract(
             "review_required": True,
             "timeline_source": "beat" if pace == "fast" else "fixed",
         }
+        if story_soul.get("narrative_device"):
+            core["narrative_device"] = story_soul["narrative_device"]
+        core.update(_beat_soul(beat))
 
         material_fit: dict[str, Any] = {
             "category": d.get("category") or "daily_life",
@@ -182,6 +236,10 @@ def compile_contract(
             material_fit["must_include"] = d["must_include"]
             material_fit["collection_instructions"] = (
                 d.get("collection_instructions") or f"需收集本人原素材：{d['must_include']}（不可替代）")
+
+        director_intent = _director_intent(d)
+        if director_intent.get("material_prompt_requirements"):
+            material_fit["material_prompt_requirements"] = director_intent["material_prompt_requirements"]
 
         seg: dict[str, Any] = {
             "segment": idx + 1,
@@ -223,6 +281,8 @@ def compile_contract(
             seg["effects_required"] = list(d["effects_required"])
         if cp in _HONESTY_PATTERNS:
             seg["_honesty"] = "real_material_only"  # trace; engine enforces regardless
+        if director_intent:
+            seg["director_intent"] = director_intent
 
         segments.append(seg)
 
@@ -234,4 +294,6 @@ def compile_contract(
     }
     if music:
         contract["music"] = music
+    if story_soul:
+        contract["story_soul"] = story_soul
     return contract

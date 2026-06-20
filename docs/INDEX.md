@@ -67,6 +67,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-20-reviewer-flow-acceptance.md` -- deterministic
   reviewer policy smoke harness for normal route, upstream story, and
   effects/brownfield reviewer coverage.
+- `docs/decisions/2026-06-20-soul-passthrough-build-ranking.md` -- story-soul
+  passthrough into contract, soft BUILD ranking consumption, and bad-window
+  least-bad fallback boundary.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
@@ -144,6 +147,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-20-soul-passthrough-build-ranking.md`,
 `2026-06-20-canonical-route-solidification-review.md`,
 `2026-06-20-snow-white-generated-storybook-e2e.md`,
 `2026-06-19-effects-node14-roadmap-alignment.md`,

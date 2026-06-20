@@ -17,6 +17,55 @@ def _bp():
     }
 
 
+def _soul_bp():
+    return {
+        "artifact_role": "narrative_blueprint",
+        "version": 1,
+        "thesis": "training is remembered as courage",
+        "mode_hint": "warm_documentary",
+        "creative_concept": {
+            "narrative_device": "an internship report becomes a memory frame",
+            "core_metaphor": "0.66 percent of life becomes the center",
+            "emotional_arc": ["uncertainty", "pressure", "gratitude"],
+        },
+        "beats": [
+            {
+                "id": "B1",
+                "role": "setup",
+                "summary": "quiet open",
+                "emotional_movement": "uncertainty -> focus",
+                "conflict_or_turn": "the student chooses to stay steady",
+                "intended_viewer_feeling": "focused anticipation",
+                "sensory_anchor": "cold morning air and clipped footsteps",
+            },
+            {
+                "id": "B2",
+                "role": "resolve",
+                "summary": "the speech",
+                "emotional_movement": "pressure -> gratitude",
+                "intended_viewer_feeling": "earned pride",
+            },
+        ],
+    }
+
+
+def _soul_decisions():
+    return {
+        "B1": {
+            "content_pattern": "establishing",
+            "material_hint": "open",
+            "director_intent": {
+                "composition": "low angle on boots before faces",
+                "material_prompt_requirements": ["boots", "morning air", "steady hands"],
+            },
+        },
+        "B2": {
+            "content_pattern": "testimony",
+            "must_include": "director speech",
+        },
+    }
+
+
 def _decisions():
     return {
         "B1": {"content_pattern": "establishing", "material_hint": "open"},
@@ -77,6 +126,31 @@ class TestCompileContract(unittest.TestCase):
         bp = _bp()
         with self.assertRaises(ValueError):
             b2c.compile_contract(bp, {"B1": {"content_pattern": "action"}})  # B2/B3 missing
+
+    def test_story_soul_round_trips_to_contract_without_becoming_required(self):
+        c = b2c.compile_contract(_soul_bp(), _soul_decisions())
+        self.assertEqual(
+            c["story_soul"]["narrative_device"],
+            "an internship report becomes a memory frame",
+        )
+        self.assertEqual(c["story_soul"]["core_metaphor"], "0.66 percent of life becomes the center")
+        self.assertEqual(c["story_soul"]["emotional_arc"], ["uncertainty", "pressure", "gratitude"])
+
+        first = c["segments"][0]
+        self.assertEqual(first["core"]["narrative_device"], c["story_soul"]["narrative_device"])
+        self.assertEqual(first["core"]["emotional_movement"], "uncertainty -> focus")
+        self.assertEqual(first["core"]["conflict_or_turn"], "the student chooses to stay steady")
+        self.assertEqual(first["core"]["intended_viewer_feeling"], "focused anticipation")
+        self.assertEqual(first["core"]["sensory_anchor"], "cold morning air and clipped footsteps")
+        self.assertNotEqual(first["core"]["emotional_movement"], first["core"]["intended_viewer_feeling"])
+        self.assertEqual(first["director_intent"]["composition"], "low angle on boots before faces")
+        self.assertEqual(
+            first["material_fit"]["material_prompt_requirements"],
+            ["boots", "morning air", "steady hands"],
+        )
+
+        v = spec_contract.validate_segment_contract(c)
+        self.assertTrue(v["ok"], v.get("errors"))
 
 
 if __name__ == "__main__":

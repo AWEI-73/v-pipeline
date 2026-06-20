@@ -43,6 +43,39 @@ def _pace_score(segment, scene):
     return 0
 
 
+def _soul_score(segment, scene):
+    """Soft story-intent score, only meaningful after base evidence admits a scene."""
+    core = segment.get("core") or {}
+    material_fit = segment.get("material_fit") or {}
+    director_intent = segment.get("director_intent") or {}
+    values = [
+        core.get("emotional_movement"),
+        core.get("conflict_or_turn"),
+        core.get("intended_viewer_feeling"),
+        core.get("sensory_anchor"),
+        core.get("narrative_device"),
+    ]
+    values.extend(material_fit.get("material_prompt_requirements") or [])
+    values.extend(director_intent.get("material_prompt_requirements") or [])
+    if isinstance(director_intent, dict):
+        values.extend(
+            director_intent.get(key)
+            for key in ("composition", "camera_movement", "lighting", "emotion")
+        )
+    wanted = set()
+    for value in values:
+        wanted.update(_terms(value))
+    if not wanted:
+        return 0
+    seen = set()
+    for key in ("caption", "visual_family", "angle_scale", "action_family", "subject"):
+        seen.update(_terms(scene.get(key)))
+    overlap = wanted & seen
+    if not overlap:
+        return 0
+    return min(2, len(overlap))
+
+
 def _expected_need_ids(segment):
     material_fit = segment.get("material_fit") or {}
     values = []
@@ -69,7 +102,7 @@ def _need_score(segment, material_map, scene):
     return 4 if expected and actual and str(actual) in expected else 0
 
 
-def rank_scenes(segment, material_maps, *, ranker=None):
+def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
     """Rank evidenced scenes; external rankers may rerank but not admit zero-fit scenes."""
     query = (segment.get("material_fit") or {}).get("visual_desc") or segment.get("visual_desc")
     ranked = []
@@ -83,9 +116,11 @@ def rank_scenes(segment, material_maps, *, ranker=None):
                 "function": _function_score(segment, scene),
                 "pace": _pace_score(segment, scene),
             }
-            evidence_score = sum(breakdown.values())
-            if evidence_score <= 0:
+            base_score = sum(breakdown.values())
+            if base_score <= 0:
                 continue
+            breakdown["soul"] = _soul_score(segment, scene) if soul_ranking else 0
+            evidence_score = sum(breakdown.values())
             external = float(ranker(segment, scene) or 0) if ranker else 0
             ranked.append({
                 "asset_id": material_map.get("asset_id"),
@@ -265,13 +300,13 @@ def _window_quality_reason(scene, start, dur):
 
 
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
-                        history=None, diversity=True):
+                        history=None, diversity=True, soul_ranking=True):
     """Convert top-ranked scenes to concrete editor slots. `diversity=False`
     disables the VD2 same-tier diversity reorder (correctness order only)."""
     from .action_progression import classify_function
     limit = max(0, int(limit))
 
-    ranked = rank_scenes(segment, material_maps, ranker=ranker)
+    ranked = rank_scenes(segment, material_maps, ranker=ranker, soul_ranking=soul_ranking)
     # Select enough candidates for window-quality filtering to backfill from
     # lower-ranked usable scenes instead of letting a bad top window consume the
     # caller's limit.
@@ -279,6 +314,7 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
                                             history=history, diversity=diversity)
 
     slots = []
+    fallback_slots = []
     for item in selected:
         if len(slots) >= limit:
             break
@@ -303,8 +339,6 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
         scene = _scene_by_id(material_maps, item["scene_id"]) or {}
         if not is_photo:
             quality_reason = _window_quality_reason(scene, start, take)
-            if quality_reason != "ok":
-                continue
         else:
             quality_reason = "ok"
         function = scene.get("function") or classify_function(
@@ -322,6 +356,7 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "caption": item.get("caption"),
             "function": function,
             "retrieval_score": item["score"],
+            "score_breakdown": item.get("score_breakdown"),
             "need_id": item.get("need_id"),
             "visual_family": item.get("visual_family"),
             "angle_scale": item.get("angle_scale"),
@@ -331,6 +366,14 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
         if is_photo:
             slot["is_photo"] = True
             slot["kenburns"] = True
+        if quality_reason != "ok":
+            slot["window_quality_fallback"] = True
+            fallback_slots.append(slot)
+            continue
+        slots.append(slot)
+    for slot in fallback_slots:
+        if len(slots) >= limit:
+            break
         slots.append(slot)
     return slots
 

@@ -187,6 +187,24 @@ class MaterialRetrievalTest(unittest.TestCase):
         self.assertEqual(slots[0]["scene_id"], "clip:0")
         self.assertEqual(slots[0]["extract_start"], 4.0)
 
+    def test_all_bad_windows_fall_back_to_least_bad_with_trace(self):
+        segment = {"material_fit": {"visual_desc": "rope rescue climber"}}
+        maps = [{"asset_id": "bad", "source": "bad.mp4", "asset_type": "video", "scenes": [
+            {
+                "start": 0.0,
+                "end": 6.0,
+                "caption": "rope rescue climber",
+                "avoid_ranges": [{"start": 0.0, "end": 6.0, "reason": "black_transition"}],
+            }
+        ]}]
+
+        slots = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0)
+
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["scene_id"], "bad:0")
+        self.assertEqual(slots[0]["window_quality_reason"], "black_transition")
+        self.assertTrue(slots[0]["window_quality_fallback"])
+
     def test_photo_ignores_video_avoid_ranges(self):
         segment = {"material_fit": {"visual_desc": "storybook panel"}}
         maps = [{"asset_id": "photo", "source": "panel.png", "asset_type": "photo", "scenes": [
@@ -202,6 +220,58 @@ class MaterialRetrievalTest(unittest.TestCase):
 
         self.assertEqual(len(slots), 1)
         self.assertTrue(slots[0]["is_photo"])
+
+    def test_soul_ranking_changes_same_tier_selection_when_enabled(self):
+        segment = {
+            "material_fit": {"visual_desc": "training"},
+            "core": {
+                "emotional_movement": "fear to courage",
+                "conflict_or_turn": "the student chooses courage",
+                "intended_viewer_feeling": "brave focus",
+            },
+            "director_intent": {
+                "material_prompt_requirements": ["teacher", "courage"],
+            },
+        }
+        maps = [
+            {"asset_id": "clip-a", "source": "a.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training wide shot"}
+            ]},
+            {"asset_id": "clip-b", "source": "b.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "training courage teacher closeup"}
+            ]},
+        ]
+
+        off = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0, soul_ranking=False)
+        on = plan_ranked_windows(segment, maps, limit=1, clip_dur=2.0, soul_ranking=True)
+
+        self.assertEqual(off[0]["scene_id"], "clip-a:0")
+        self.assertEqual(on[0]["scene_id"], "clip-b:0")
+        self.assertGreater(on[0]["score_breakdown"]["soul"], 0)
+
+    def test_soul_ranking_does_not_admit_zero_base_evidence_or_override_need(self):
+        soul_segment = {
+            "material_fit": {"visual_desc": "night search", "need_refs": ["N02"]},
+            "core": {"emotional_movement": "fear to courage"},
+        }
+        maps = [
+            {"asset_id": "need-fit", "source": "need.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "quiet boots",
+                 "satisfies": [{"need_id": "N02", "status": "accepted"}]}
+            ]},
+            {"asset_id": "soul-only", "source": "soul.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "courage ceremony"}
+            ]},
+            {"asset_id": "zero-base", "source": "zero.mp4", "asset_type": "video", "scenes": [
+                {"start": 0, "end": 5, "caption": "fear courage"}
+            ]},
+        ]
+
+        ranked = rank_scenes(soul_segment, maps)
+
+        self.assertEqual(ranked[0]["scene_id"], "need-fit:0")
+        self.assertEqual(ranked[0]["score_breakdown"]["need"], 4)
+        self.assertNotIn("zero-base:0", [item["scene_id"] for item in ranked])
 
     def test_source_speech_selects_transcribed_speech_run(self):
         segment = {"segment": 7, "audio": {"role": "source_speech"}}
