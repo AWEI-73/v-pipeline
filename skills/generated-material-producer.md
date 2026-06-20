@@ -14,6 +14,14 @@ It is downstream of `skills/material-generation-fallback.md`.
 
 Generated assets are never real footage.
 
+**generation is fallback** unless the route is explicitly story-first generated
+material, such as storybook, comic, picture-book, synthetic explainer art, or a
+declared generated visual style. For existing-material-first teaching,
+personal video, event recap, or brand footage routes, generation may provide
+diagrams, chapter cards, symbolic inserts, or missing non-proof bridge visuals,
+but it must not replace real proof material or satisfy identity-sensitive
+events.
+
 Every output must:
 
 - keep `source=generated`

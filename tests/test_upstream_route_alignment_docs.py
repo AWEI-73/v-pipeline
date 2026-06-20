@@ -10,6 +10,47 @@ def read(rel: str) -> str:
 
 
 class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
+    def test_canonical_intake_declares_material_availability_split(self):
+        for rel in [
+            "docs/START_HERE_VIDEO_PIPELINE.md",
+            "docs/canonical-video-pipeline-route.md",
+            "docs/video-pipeline-operating-map.md",
+            "skills/video-pipeline-route.md",
+            "skills/video-workflow.md",
+        ]:
+            text = read(rel)
+            for expected in [
+                "material availability",
+                "existing-material-first",
+                "story-first",
+                "hybrid",
+                "generation is fallback",
+                "teaching",
+                "personal video",
+            ]:
+                self.assertIn(expected, text, rel)
+
+    def test_material_map_and_generated_skills_define_route_boundaries(self):
+        material_map = read("skills/material-map.md")
+        for expected in [
+            "existing-material-first",
+            "story-first",
+            "hybrid",
+            "story source and constraint",
+            "validation and handoff layer",
+        ]:
+            self.assertIn(expected, material_map)
+
+        generated = read("skills/generated-material-producer.md")
+        for expected in [
+            "generation is fallback",
+            "existing-material-first",
+            "teaching",
+            "personal video",
+            "storybook",
+        ]:
+            self.assertIn(expected, generated)
+
     def test_upstream_route_doc_declares_full_story_to_contract_line(self):
         text = read("docs/upstream-story-route.md")
         for expected in [

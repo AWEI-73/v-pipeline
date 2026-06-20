@@ -98,6 +98,7 @@ Canonical entry:
 ```text
 video-pipeline
   -> video-workflow when the request is vague
+  -> material availability split before story depth
   -> story-soul-blueprint when story soul / narrative device is thin
   -> material-map when material truth, coverage, delta, or handoff is needed
   -> generated-material-producer when missing material may be generated
@@ -107,6 +108,15 @@ video-pipeline
 Rules:
 
 - This is process solidification, not template solidification.
+- Stage 0 now explicitly decides `material availability` before deeper story
+  work:
+  - `existing-material-first`: run material-map early; existing media is the
+    story source and constraint. For teaching and personal video routes,
+    generation is fallback only.
+  - `story-first`: no usable material exists, or the route is explicitly
+    generated/storybook; story/design intent leads before material generation.
+  - `hybrid`: some real material exists and missing beats route through
+    material-delta, generation/reshoot/rewrite/drop/waiver decisions.
 - `storyboard_panel_locked=true` applies to comic/photo/storybook/panel
   narration; stretch the panel or generate more panels instead of auto-filling
   unrelated panels.

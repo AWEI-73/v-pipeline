@@ -41,7 +41,7 @@ Use this with:
 
 | Stage | Stable name | Main decision | Skill(s) | Tool entrypoints | Main artifacts | Pass / stop rule | Return route |
 |---|---|---|---|---|---|---|---|
-| 0 | Intake | What are we making, for whom, with what constraints? | `video-workflow.md`, `video-pipeline.md`, `route.md` | `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | project brief, run folder | Stop if audience, length, style, or material route changes the plan. | Back to user / brief refinement |
+| 0 | Intake | What are we making, for whom, with what constraints, and what is the material availability? Choose existing-material-first, story-first, or hybrid before deeper story/build work. | `video-workflow.md`, `video-pipeline.md`, `route.md` | `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | project brief, run folder | Stop if audience, length, style, teaching/personal video intent, generation permission, or material route changes the plan. | Back to user / brief refinement |
 | 1 | Story Soul | What is the narrative device and emotional spine? | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if the output is just a parameter sheet with no conflict/turn/feeling. | Intake / writer refinement |
 | 2 | Director Shot Plan | What exact shots, audio, subtitles, effects, and material needs prove the story? | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `spec-contract.md` | `validate-needs`, `effect-intent-plan`, `spec-review`, `capability-manifest`, `supply-review` | `material_needs.json`, `effect_intent_plan.json`, subtitle/audio intent, `segment_contract.json` | Stop if must-have needs are vague, untestable, or unsupported. | Story Soul / Director refinement |
 | 3 | Material Truth | What real or generated assets can satisfy each need? | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `codex-imagegen-provider-fill`, `generated-material-import`, `generated-material-review`, `visual-diversity-review`, `visual-family-normalize` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, generated manifests, reviewed map | Stop if maps are dangling, unreviewed, missing must-have evidence, or generated candidates are not accepted. | Material generation / curator review |
@@ -91,9 +91,23 @@ Minimum capture:
 - target audience;
 - desired duration;
 - genre/template route;
+- material availability: `existing-material-first`, `story-first`, or `hybrid`;
 - available material path or generated-material permission;
+- whether the project is teaching, personal video, event recap, brand, or
+  storybook/comic;
 - required language/subtitles/voiceover;
 - delivery format and review expectations.
+
+Route rule:
+
+- For **existing-material-first** teaching, personal video, event recap, or
+  brand work, run material-map early. Existing media is the story source and
+  constraint; generation is fallback for diagrams, chapter cards, symbolic
+  bridges, or missing non-proof visuals.
+- For **story-first** generated storybook/comic work, Story Soul / literary
+  lens can lead, then `material_needs.json` drives generated/captured material.
+- For **hybrid**, material-map and `material_delta.json` decide which beats are
+  covered, missing, generated, reshot, rewritten, or waived.
 
 Useful commands:
 

@@ -61,6 +61,27 @@ Other skills are role-specific:
 
 ## Choose The Route
 
+First decide **material availability** before deciding how much story invention
+is allowed. This is the top-level split:
+
+```text
+video intent
+  -> material availability
+  -> existing-material-first | story-first | hybrid
+  -> route-specific story/design/material work
+```
+
+- **existing-material-first**: the user has footage/photos. Run material-map
+  early, let the available material become the story source and constraint, and
+  fill missing intent through interaction. For teaching or personal video work,
+  generation is fallback only: chapter cards, diagrams, symbolic bridges, or
+  missing non-proof visuals.
+- **story-first**: the user has no material or explicitly wants a generated /
+  storybook route. Build the literary/story/teaching intent first, then derive
+  material needs and use generated/captured material as evidence candidates.
+- **hybrid**: some material exists, but gaps may require reshoot, generation,
+  shortening, rewrite, or waiver. Material-map and material-delta decide which.
+
 If the project starts from a story, essay, life experience, fairy tale, or
 emotion-heavy event brief, use `docs/upstream-story-route.md` before Material
 Truth. The upstream line is:

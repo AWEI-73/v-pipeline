@@ -16,7 +16,9 @@ Hermes is a contract-first video pipeline, not a one-off slideshow script.
 The stable unit of work is:
 
 ```text
-intent -> story/design contract -> material truth -> BUILD -> verify -> draft edit -> delivery
+video intent -> material availability
+  -> existing-material-first | story-first | hybrid
+  -> story/design contract -> material truth -> BUILD -> verify -> draft edit -> delivery
 ```
 
 Generated material, real footage, human-picked footage, and Workbench edits all
@@ -27,7 +29,7 @@ truth.
 
 | # | Canonical stage | Purpose | Primary skill | Main tools | Main artifacts | Gate / stop condition |
 |---|---|---|---|---|---|---|
-| 0 | Intake | Capture user goal, audience, length, style, constraints, available material, and expected output. | `video-workflow.md`, `video-pipeline.md` | none, or project/run tools if needed | project brief, run folder | Stop if goal is ambiguous enough to change route. |
+| 0 | Intake | Capture user goal, audience, length, style, constraints, available material, material availability, and expected output; choose existing-material-first, story-first, or hybrid before story/build work. | `video-workflow.md`, `video-pipeline.md` | none, or project/run tools if needed | project brief, run folder | Stop if goal, material availability, teaching/personal video intent, or generation permission is ambiguous enough to change route. |
 | 1 | Story Soul | Create story world, narrative device, emotional spine, and core idea before technical shot planning. | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-to-contract` when compiling from blueprint | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if story lacks a narrative device or character/emotional spine. |
 | 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, and material needs. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, subtitle plan | Stop if must-have needs are vague or untestable. |
 | 3 | Material Truth | Inventory real material, generate missing material if needed, and attach evidence to needs. | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `generated-material-import`, `generated-material-review` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed material map | Stop if material is missing, unreviewed, dangling, or insufficient for must-have needs. |
@@ -40,6 +42,28 @@ truth.
 | 10 | Delivery | Produce final report, artifacts, and handoff. | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, and known limitations. |
 
 ## Skill Design Rules
+
+### 0. Intake decides material availability before story depth
+
+The first creative role is a video intent planner, not always a fiction writer.
+It can become a teacher, memory editor, event director, brand editor, or
+storybook writer depending on the brief.
+
+The intake must decide:
+
+- `existing-material-first`: real media exists. Run material-map early and let
+  available clips/photos shape the story, lesson, or personal video. For
+  teaching and personal video routes, generation is fallback rather than the
+  default source.
+- `story-first`: no material exists or the user explicitly wants a generated
+  route. Story Soul / teaching structure / literary lens can lead, then material
+  needs and generated/captured assets are produced.
+- `hybrid`: some real material exists, and missing beats may be generated,
+  reshot, shortened, rewritten, dropped, or waived after material-delta.
+
+This rule prevents a pure teaching video or personal素材剪輯 from being forced
+through a generated storybook route, and prevents a zero-material storybook from
+pretending existing footage exists.
 
 ### 1. Skills ask for missing decisions, tools enforce facts
 

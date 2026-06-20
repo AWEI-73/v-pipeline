@@ -85,6 +85,16 @@ REQUIRED_ARTIFACTS = [
     "reviewer_policy_packet.json",
 ]
 
+REQUIRED_INTAKE_TERMS = [
+    "material availability",
+    "existing-material-first",
+    "story-first",
+    "hybrid",
+    "generation is fallback",
+    "teaching",
+    "personal video",
+]
+
 
 def _read(root: Path, rel: str) -> str:
     return (root / rel).read_text(encoding="utf-8")
@@ -161,6 +171,16 @@ def run_check(root: Path) -> dict[str, Any]:
     for artifact in REQUIRED_ARTIFACTS:
         if artifact not in route:
             errors.append(f"route spec missing artifact: {artifact}")
+
+    for expected in REQUIRED_INTAKE_TERMS:
+        if expected not in route:
+            errors.append(f"route spec missing intake/material split term: {expected}")
+        if expected not in start_here:
+            errors.append(f"start-here doc missing intake/material split term: {expected}")
+        if expected not in operating_map:
+            errors.append(f"operating map missing intake/material split term: {expected}")
+        if expected not in skill:
+            errors.append(f"operator skill missing intake/material split term: {expected}")
 
     for doc_text, label in [(roadmap, "roadmap.md"), (index, "docs/INDEX.md")]:
         if "docs/canonical-video-pipeline-route.md" not in doc_text:

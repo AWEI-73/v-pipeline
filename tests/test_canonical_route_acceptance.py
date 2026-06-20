@@ -44,9 +44,15 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         text = read("skills/video-pipeline-route.md")
         for expected in [
             "docs/canonical-video-pipeline-route.md",
+            "material availability",
+            "existing-material-first",
+            "story-first",
             "existing material",
             "generated material",
             "hybrid material",
+            "generation is fallback",
+            "teaching",
+            "personal video",
             "draft review / brownfield edit",
             "generated-image-provider-packet",
             "generated-material-import",

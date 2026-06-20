@@ -70,6 +70,9 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/decisions/2026-06-20-soul-passthrough-build-ranking.md` -- story-soul
   passthrough into contract, soft BUILD ranking consumption, and bad-window
   least-bad fallback boundary.
+- `docs/decisions/2026-06-21-video-intent-material-availability-split.md` --
+  Stage 0 video-intent/material-availability split: existing-material-first,
+  story-first, hybrid, and generated-material fallback boundaries.
 - `docs/material-map-lifecycle.md` — canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
@@ -147,6 +150,7 @@ One page that says what is current and what is historical, so old/new no longer 
 ## Decision log (append-only history)
 
 `docs/decisions/` — one file per significant decision. Most recent:
+`2026-06-21-video-intent-material-availability-split.md`,
 `2026-06-20-soul-passthrough-build-ranking.md`,
 `2026-06-20-canonical-route-solidification-review.md`,
 `2026-06-20-snow-white-generated-storybook-e2e.md`,

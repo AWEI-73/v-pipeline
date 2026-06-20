@@ -15,11 +15,21 @@ thin material pool as a complete film.
 
 It supports three entry modes:
 
-1. Existing material first: scan/curate actual material, then discuss story.
-2. Script first: declare `material_needs`, then prove coverage or request more
-   material.
-3. Partial material: combine covered needs, missing needs, accepted waivers, and
-   revised contracts without bypassing the BUILD gate.
+1. Existing material first (`existing-material-first`): scan/curate actual
+   material, then discuss story. The material map becomes the story source and
+   constraint, especially for teaching, personal video, event recap, and brand
+   footage routes.
+2. Story first (`story-first` / script-first): declare `material_needs`, then
+   prove coverage or request more material. The material map becomes the
+   validation and handoff layer after story/design intent has produced needs.
+3. Partial material (`hybrid`): combine covered needs, missing needs, accepted
+   waivers, generated/reshoot candidates, and revised contracts without
+   bypassing the BUILD gate.
+
+In existing-material-first routes, generation is fallback: diagrams, chapter
+cards, symbolic inserts, or missing non-proof bridge visuals. In story-first
+generated routes, generated assets may be primary visual candidates, but they
+still return through material-map review before satisfying coverage.
 
 ## Canonical Artifacts
 
