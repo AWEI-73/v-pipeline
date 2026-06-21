@@ -66,6 +66,12 @@ RUN_ARTIFACT_CLASSES = {
         "workbench_review_report.md",
         "workbench_export.mp4",
     ],
+    "orchestration": [
+        "route_orchestrator_state.json",
+        "route_subagent_task.json",
+        "route_subagent_result.json",
+        "route_orchestrator_acceptance.json",
+    ],
     "derived_cache_dirs": [
         "thumbs",
         "workbench_thumbs",
@@ -194,6 +200,7 @@ def validate_run_layout(run_dir):
     present_artifacts = {
         "canonical": [],
         "workbench_draft": [],
+        "orchestration": [],
         "derived_cache_dirs": [],
     }
 
@@ -265,7 +272,7 @@ def validate_run_layout(run_dir):
         classes = {}
 
     owners = {}
-    for class_name in ("canonical", "workbench_draft", "derived_cache_dirs"):
+    for class_name in ("canonical", "workbench_draft", "orchestration", "derived_cache_dirs"):
         entries = classes.get(class_name)
         if not isinstance(entries, list):
             _layout_error(errors, "invalid_artifact_class", f"{class_name} must be a list", class_name=class_name)
@@ -368,6 +375,8 @@ def create_run_dir(project_dir, *, label=None, repo_dir=None, timestamp=None):
     for rel in RUN_LAYOUT:
         (run_dir / rel).mkdir(parents=True, exist_ok=True)
     _write_json(run_dir / "run_layout.json", build_run_layout(project_dir, run_dir))
+    from video_pipeline_core.route_orchestrator import initial_state
+    _write_json(run_dir / "route_orchestrator_state.json", initial_state())
     active = write_active_project(project_dir, repo_dir=repo_dir, active_run=run_dir)
     return {
         "status": "ok",

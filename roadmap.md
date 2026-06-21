@@ -43,6 +43,9 @@ The backend is stable through the material-map lifecycle and BUILD handoff:
 - `route-orchestrator-acceptance` proves the task packet/state machine with
   deterministic fake-worker replays for existing-material-first,
   story-first/generated, and injected bad-artifact rejection.
+- New project runs declare `orchestration` artifacts in `run_layout.json` and
+  initialize `route_orchestrator_state.json`, so a fresh session can resume the
+  packet/state loop from the run root.
 - Map-ranked retrieval, visual diversity soft selection, photo map-ranked
   renderability, SRP1/SRP2/SRP3, opening/ending bookends, and Workbench draft
   handoff are implemented.

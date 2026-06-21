@@ -74,6 +74,9 @@ The harness enforces `must_not_touch`, output freshness, allowed output
 whitelists, and explicit `blocked / needs_context / failed` transitions. It
 trusts artifacts, not agent claims.
 
+Worker-facing packet rules and a copyable prompt template live in
+`docs/route-agent-runner-protocol.md`.
+
 ## Stage Order
 
 Use this order unless the user explicitly asks for a bounded review/edit task:

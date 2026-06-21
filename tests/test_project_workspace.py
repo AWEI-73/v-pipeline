@@ -101,6 +101,16 @@ class ProjectWorkspaceTest(unittest.TestCase):
             ])
             self.assertIn("timeline_patch.json", manifest["artifact_classes"]["workbench_draft"])
             self.assertIn("workbench_proxy", manifest["artifact_classes"]["derived_cache_dirs"])
+            self.assertEqual(manifest["artifact_classes"]["orchestration"], [
+                "route_orchestrator_state.json",
+                "route_subagent_task.json",
+                "route_subagent_result.json",
+                "route_orchestrator_acceptance.json",
+            ])
+            route_state = json.loads((Path(run["run_dir"]) / "route_orchestrator_state.json").read_text(encoding="utf-8"))
+            self.assertEqual(route_state["artifact_role"], "route_orchestrator_state")
+            self.assertEqual(route_state["current_stage"], 0)
+            self.assertEqual(route_state["status"], "ready")
 
     def test_video_tools_project_commands_use_repo_active_pointer(self):
         with tempfile.TemporaryDirectory() as d:
@@ -158,6 +168,7 @@ class ProjectWorkspaceTest(unittest.TestCase):
             self.assertEqual(report["artifact_role"], "run_layout_validation")
             self.assertEqual(report["present_artifacts"]["canonical"], ["timeline.json"])
             self.assertEqual(report["present_artifacts"]["workbench_draft"], ["timeline_patch.json"])
+            self.assertEqual(report["present_artifacts"]["orchestration"], ["route_orchestrator_state.json"])
             self.assertEqual(report["folders"]["spec"]["status"], "ok")
 
     def test_validate_run_layout_fails_closed_on_missing_or_bad_layout(self):

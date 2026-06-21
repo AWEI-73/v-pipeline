@@ -59,6 +59,8 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/route-orchestrator-harness.md` -- runner-neutral multi-agent task
   packet and fail-closed acceptance harness (`route-task-next`,
   `route-task-accept`, `route-orchestrator-report`).
+- `docs/route-agent-runner-protocol.md` -- worker-facing protocol and prompt
+  template for Codex/Claude/Gemini/human agents consuming route task packets.
 - `docs/artifact-reviewer-map.md` -- lightweight reviewer policy (`light`,
   `normal`, `deep`) that keeps creative review separate from technical verify.
 - `docs/decisions/2026-06-20-canonical-route-solidification-review.md` --

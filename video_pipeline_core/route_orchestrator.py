@@ -129,6 +129,16 @@ STAGES = [
 ]
 
 
+def initial_state() -> dict[str, Any]:
+    return {
+        "artifact_role": "route_orchestrator_state",
+        "version": 1,
+        "current_stage": 0,
+        "status": "ready",
+        "history": [],
+    }
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -179,13 +189,7 @@ def _load_state(state: Path | None) -> dict[str, Any]:
         data.setdefault("history", [])
         data.setdefault("status", "ready")
         return data
-    return {
-        "artifact_role": "route_orchestrator_state",
-        "version": 1,
-        "current_stage": 0,
-        "status": "ready",
-        "history": [],
-    }
+    return initial_state()
 
 
 def write_next_task(

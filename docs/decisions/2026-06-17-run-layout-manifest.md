@@ -14,8 +14,13 @@ It records:
 - folder roles;
 - canonical artifact names;
 - Workbench draft artifact names;
+- route orchestrator artifact names;
 - derived cache directories;
 - workspace policy flags.
+
+As of 2026-06-21, new runs also create `route_orchestrator_state.json` at the
+run root. The route task packet, result packet, and route acceptance report are
+declared in the `orchestration` artifact class.
 
 ## Why
 
@@ -38,6 +43,7 @@ It does not replace:
 - `state.json`;
 - `artifact_manifest.json`;
 - delivery or verification gate artifacts.
+- route-specific skills or tool validators.
 
 Workbench remains draft-only. Official render remains backend-owned.
 

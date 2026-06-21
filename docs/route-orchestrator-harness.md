@@ -8,6 +8,8 @@ subagent task packets and deterministic acceptance checks. It does not call any
 specific model API. Codex, Claude, Gemini, or a human runner can consume the
 packet and write the declared outputs.
 
+Worker-facing instructions live in `docs/route-agent-runner-protocol.md`.
+
 ## Purpose
 
 Use this when the pipeline is run by multiple agents and the orchestrator needs

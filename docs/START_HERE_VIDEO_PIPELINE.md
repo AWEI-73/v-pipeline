@@ -42,8 +42,10 @@ videos as truth. They must re-enter the route through their owning artifacts.
    BUILD/render today.
 9. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
    and fail-closed acceptance harness.
-10. `RUNBOOK.md` -- local command examples and Windows execution notes.
-11. `docs/INDEX.md` -- broader documentation index and historical links.
+10. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
+   human worker should consume `route_subagent_task.json`.
+11. `RUNBOOK.md` -- local command examples and Windows execution notes.
+12. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
