@@ -129,6 +129,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "route-task-next": "acceptance",
     "route-task-accept": "acceptance",
     "route-orchestrator-report": "acceptance",
+    "route-orchestrator-acceptance": "acceptance",
 }
 
 
@@ -365,6 +366,12 @@ WORKFLOWS = {
                 "command": "route-orchestrator-report",
                 "purpose": "inspect current route state without mutating artifacts",
                 "requires": ["route-task-accept:ok_or_blocked"],
+            },
+            {
+                "id": "acceptance_replay",
+                "command": "route-orchestrator-acceptance",
+                "purpose": "prove the packet/state-machine route with deterministic fake-worker happy and fail-closed paths",
+                "requires": ["route-task-next:implemented", "route-task-accept:implemented"],
             },
         ],
     },

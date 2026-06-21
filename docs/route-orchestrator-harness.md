@@ -49,6 +49,15 @@ python video_tools.py route-orchestrator-report `
   --state route_orchestrator_state.json
 ```
 
+Replay a deterministic fake-worker route:
+
+```powershell
+python video_tools.py route-orchestrator-acceptance RUN_DIR `
+  --route existing-material-first `
+  --stage-count 4 `
+  --out route_orchestrator_acceptance.json
+```
+
 ## Task Packet Contract
 
 `route_subagent_task.json` contains:
@@ -101,6 +110,17 @@ explicit state transition and `next_action`.
 4. **Fail-closed smoke**: bad artifacts must be rejected before the route moves.
 5. **Runner-neutral**: the harness does not import Codex, Claude, Gemini, or any
    model SDK.
+
+## Acceptance Smoke
+
+`route-orchestrator-acceptance` proves two properties without a real LLM
+runner:
+
+- happy path: task packet -> fake worker output -> accept -> state advances;
+- fail-closed path: injected protected-file mutation is rejected before state
+  advances.
+
+Use it after changing route stages, task packet shape, or command wiring.
 
 ## Current Boundary
 

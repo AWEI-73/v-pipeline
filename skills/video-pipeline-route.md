@@ -60,6 +60,20 @@ python video_tools.py reviewer-policy --level normal --out reviewer_policy_packe
 python video_tools.py reviewer-flow-acceptance --level deep --scenario all --out reviewer_flow_acceptance.json
 ```
 
+For multi-agent execution, do not let subagents decide the whole route ad hoc.
+Issue bounded task packets and accept them with the route orchestrator harness:
+
+```powershell
+python video_tools.py route-task-next RUN_DIR --out route_subagent_task.json
+# external agent writes allowed outputs and route_subagent_result.json
+python video_tools.py route-task-accept --task route_subagent_task.json --result route_subagent_result.json --state-out route_orchestrator_state.json
+python video_tools.py route-orchestrator-acceptance RUN_DIR --route existing-material-first --stage-count 4 --out route_orchestrator_acceptance.json
+```
+
+The harness enforces `must_not_touch`, output freshness, allowed output
+whitelists, and explicit `blocked / needs_context / failed` transitions. It
+trusts artifacts, not agent claims.
+
 ## Stage Order
 
 Use this order unless the user explicitly asks for a bounded review/edit task:
@@ -225,6 +239,8 @@ Use deterministic tools for facts:
 - `verify`: delivery quality.
 - `workbench-handoff-validate`: draft handoff safety.
 - `effect-revision-*` / `remotion-*`: Brownfield effect route.
+- `route-task-next` / `route-task-accept` / `route-orchestrator-acceptance`:
+  runner-neutral multi-agent packet issuance and fail-closed acceptance.
 
 ## Minimal CLI Skeletons
 

@@ -213,6 +213,10 @@ python video_tools.py route-task-accept `
   --task route_subagent_task.json `
   --result route_subagent_result.json `
   --state-out route_orchestrator_state.json
+python video_tools.py route-orchestrator-acceptance RUN_DIR `
+  --route existing-material-first `
+  --stage-count 4 `
+  --out route_orchestrator_acceptance.json
 ```
 
 Material lifecycle:

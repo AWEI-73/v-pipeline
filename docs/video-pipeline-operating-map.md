@@ -16,6 +16,8 @@ Use this with:
 - `docs/material-map-lifecycle.md` for material truth details.
 - `docs/build-capability-alignment.md` for which declared capabilities actually
   change BUILD output.
+- `docs/route-orchestrator-harness.md` when multiple agents execute the route
+  through bounded task packets.
 
 ## Operating Rules
 
@@ -36,6 +38,9 @@ Use this with:
    Use `python video_tools.py reviewer-flow-acceptance --level LEVEL` after
    changing reviewer policy or role wiring.
 7. **Verify before delivery.** A video path alone is not delivery.
+8. **Agent packets are bounded.** For multi-agent runs, use
+   `route-task-next` / `route-task-accept`; the harness validates artifacts,
+   freshness, and `must_not_touch` hashes instead of trusting status prose.
 
 ## Full Route Map
 
@@ -116,6 +121,14 @@ python video_tools.py project-init ...
 python video_tools.py project-new-run ...
 python video_tools.py commands-manifest
 python video_tools.py workflow-manifest
+```
+
+Multi-agent packet route:
+
+```powershell
+python video_tools.py route-task-next RUN_DIR --out route_subagent_task.json
+python video_tools.py route-task-accept --task route_subagent_task.json --result route_subagent_result.json --state-out route_orchestrator_state.json
+python video_tools.py route-orchestrator-acceptance RUN_DIR --route existing-material-first --stage-count 4 --out route_orchestrator_acceptance.json
 ```
 
 Do not start BUILD here.
@@ -443,7 +456,7 @@ python video_tools.py operator-flow-acceptance ...
 |---|---|---|
 | `video-workflow.md` | route selection and operator flow | `project-init`, `project-new-run`, `workflow-manifest` |
 | `video-pipeline.md` | overall pipeline guidance | `commands-manifest`, `workflow-manifest`, `operator-flow-acceptance` |
-| `route.md` | canonical route and delivery decisions | `state`, `run-layout-validate`, `operator-flow-acceptance` |
+| `route.md` | canonical route and delivery decisions | `state`, `run-layout-validate`, `operator-flow-acceptance`, `route-task-next`, `route-task-accept`, `route-orchestrator-acceptance` |
 | `story-soul-blueprint.md` | creative soul / narrative device / shot plan | `story-soul-blueprint` |
 | `blueprint-interview.md` | interactive story intake | `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` |
 | `writer.md` | screenplay/voiceover wording | `story-soul-blueprint`, `blueprint-to-contract` |

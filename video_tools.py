@@ -1968,6 +1968,26 @@ def cmd_route_orchestrator_report(args):
         print(text)
 
 
+def cmd_route_orchestrator_acceptance(args):
+    from tools.route_orchestrator_acceptance import run_route_orchestrator_acceptance
+
+    payload = run_route_orchestrator_acceptance(
+        args.run_dir,
+        route=args.route,
+        stage_count=args.stage_count,
+        inject_bad_stage=getattr(args, "inject_bad_stage", None),
+        base_epoch=getattr(args, "base_epoch", 1000.0),
+    )
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+    if not payload.get("ok"):
+        raise ToolError(f"route orchestrator acceptance failed: {payload.get('errors', ['unknown'])[0]}")
+
+
 def _build_video_tools_dispatch():
     return {
         "search":      cmd_search,
@@ -2024,6 +2044,7 @@ def _build_video_tools_dispatch():
         "route-task-next": cmd_route_task_next,
         "route-task-accept": cmd_route_task_accept,
         "route-orchestrator-report": cmd_route_orchestrator_report,
+        "route-orchestrator-acceptance": cmd_route_orchestrator_acceptance,
         "contract-adapt": cmd_contract_adapt,
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
@@ -2406,6 +2427,19 @@ def main():
     p_ror = sub.add_parser("route-orchestrator-report")
     p_ror.add_argument("--state", required=True, help="route_orchestrator_state JSON")
     p_ror.add_argument("--out", default=None, help="optional report JSON output")
+
+    p_roa = sub.add_parser("route-orchestrator-acceptance")
+    p_roa.add_argument("run_dir", help="run directory for deterministic orchestrator replay")
+    p_roa.add_argument("--route", required=True,
+                       choices=["existing-material-first", "hybrid", "story-first"],
+                       help="material route to stamp into fake worker outputs")
+    p_roa.add_argument("--stage-count", type=int, default=4,
+                       help="number of stages to replay")
+    p_roa.add_argument("--inject-bad-stage", type=int, default=None,
+                       help="mutate a protected artifact at this stage to prove fail-closed rejection")
+    p_roa.add_argument("--base-epoch", type=float, default=1000.0,
+                       help="deterministic base issued_at_epoch for tests")
+    p_roa.add_argument("--out", default=None, help="optional JSON report path")
 
     p_ca = sub.add_parser("contract-adapt")
     p_ca.add_argument("contract", help="canonical segment_contract.json")
