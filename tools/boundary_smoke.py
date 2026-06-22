@@ -13,6 +13,7 @@ from pathlib import Path
 
 from video_pipeline_core import material_map_lifecycle
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps
+from video_pipeline_core.story_soul_blueprint import write_story_soul_blueprint
 
 
 def _load_json(path: Path):
@@ -56,14 +57,47 @@ def _expected_regressions(config: dict, lifecycle: dict) -> list[str]:
     return regressions
 
 
-def run_boundary(stage_dir):
-    stage_dir = Path(stage_dir)
-    config_path = stage_dir / "input" / "boundary_config.json"
-    config = _load_json(config_path) if config_path.exists() else {}
-    stage = config.get("stage")
-    if stage != "stage3_review_apply":
-        raise ValueError(f"unsupported boundary stage: {stage!r}")
+def _text_regressions(config: dict, payload) -> list[str]:
+    expected = config.get("expected") or {}
+    text = json.dumps(payload, ensure_ascii=False).lower()
+    regressions = []
+    for item in expected.get("must_include_text") or []:
+        if str(item).lower() not in text:
+            regressions.append(f"expected output to include {item!r}")
+    for item in expected.get("must_not_include_text") or []:
+        if str(item).lower() in text:
+            regressions.append(f"expected output not to include {item!r}")
+    if "ok" in expected and bool(payload.get("ok")) != bool(expected["ok"]):
+        regressions.append(f"expected ok={bool(expected['ok'])}, got {bool(payload.get('ok'))}")
+    return regressions
 
+
+def _run_stage1_story_blueprint(stage_dir: Path, config: dict) -> dict:
+    actual_dir = stage_dir / "actual"
+    actual_dir.mkdir(parents=True, exist_ok=True)
+    work = _copy_input(stage_dir)
+    brief_path = _ref(work, config, "brief", "project_brief.json")
+    result = write_story_soul_blueprint(_load_json(brief_path), actual_dir / "blueprint")
+    _write_json(actual_dir / "story_soul_blueprint_result.json", result)
+    regressions = _text_regressions(config, result)
+    report = {
+        "artifact_role": "boundary_report",
+        "version": 1,
+        "stage": "stage1_story_blueprint",
+        "gate_source": "story_soul_blueprint",
+        "gate_status": "done" if result.get("ok") else "invalid",
+        "pass": not regressions,
+        "regressions": regressions,
+        "refs": {
+            "work": str(work),
+            "result": str(actual_dir / "story_soul_blueprint_result.json"),
+        },
+    }
+    _write_json(actual_dir / "boundary_report.json", report)
+    return report
+
+
+def _run_stage3_review_apply(stage_dir: Path, config: dict) -> dict:
     actual_dir = stage_dir / "actual"
     actual_dir.mkdir(parents=True, exist_ok=True)
     work = _copy_input(stage_dir)
@@ -97,7 +131,7 @@ def run_boundary(stage_dir):
     report = {
         "artifact_role": "boundary_report",
         "version": 1,
-        "stage": stage,
+        "stage": "stage3_review_apply",
         "gate_source": "material_map_lifecycle",
         "gate_status": lifecycle.get("stage"),
         "pass": not regressions,
@@ -110,6 +144,18 @@ def run_boundary(stage_dir):
     }
     _write_json(actual_dir / "boundary_report.json", report)
     return report
+
+
+def run_boundary(stage_dir):
+    stage_dir = Path(stage_dir)
+    config_path = stage_dir / "input" / "boundary_config.json"
+    config = _load_json(config_path) if config_path.exists() else {}
+    stage = config.get("stage")
+    if stage == "stage1_story_blueprint":
+        return _run_stage1_story_blueprint(stage_dir, config)
+    if stage == "stage3_review_apply":
+        return _run_stage3_review_apply(stage_dir, config)
+    raise ValueError(f"unsupported boundary stage: {stage!r}")
 
 
 def main(argv=None):

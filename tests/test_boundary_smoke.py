@@ -32,6 +32,47 @@ def _segment(num, need_id):
 
 
 class BoundarySmokeTest(unittest.TestCase):
+    def test_stage1_story_blueprint_preserves_user_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp) / "stage1_story_blueprint"
+            input_dir = stage_dir / "input"
+            _write(input_dir / "boundary_config.json", {
+                "stage": "stage1_story_blueprint",
+                "expected": {
+                    "ok": True,
+                    "must_include_text": ["two lost siblings", "tiny lantern", "moon bridge"],
+                    "must_not_include_text": ["courier", "postcard"],
+                },
+            })
+            _write(input_dir / "project_brief.json", {
+                "project_type": "generated storybook fairy tale",
+                "audience": "children and parents",
+                "goal": (
+                    "Tell a warm, safe short fairy tale where a tiny lantern helps "
+                    "two lost siblings find the moon bridge home."
+                ),
+                "known_material_categories": [],
+                "desired_style": "Japanese cute picture-book illustration",
+                "seed_device": "tiny lantern and moon bridge",
+                "story_seed": {
+                    "protagonists": ["two lost siblings", "a tiny kind lantern"],
+                    "setting": "safe moonlit forest path",
+                    "moral": "small kindness can become a path",
+                },
+                "facts": {
+                    "protagonist": "two lost siblings and a tiny kind lantern",
+                    "place": "safe moonlit forest path",
+                },
+                "required_inclusions": ["tiny lantern", "two siblings", "moon bridge"],
+            })
+
+            report = run_boundary(stage_dir)
+
+            self.assertTrue(report["pass"], report)
+            self.assertEqual(report["gate_source"], "story_soul_blueprint")
+            self.assertEqual(report["gate_status"], "done")
+            self.assertTrue((stage_dir / "actual" / "blueprint" / "screenplay_beats.json").exists())
+
     def test_stage3_review_apply_uses_lifecycle_verdict_for_build_ready(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage_dir = Path(tmp) / "stage3_review_apply"
