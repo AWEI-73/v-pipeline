@@ -9,8 +9,8 @@ should hold in mind before opening the detailed stage manual.
 
 ## One Sentence
 
-Hermes turns a user intent into a verified video by first deciding material
-availability, then producing a story/design contract, proving material truth,
+Hermes turns a user intent into a verified video by first deciding input state
+and entry path, then producing a story/design contract, proving material truth,
 planning and rendering with current evidence, verifying the output, and routing
 any fixes through draft or brownfield paths without overwriting canonical truth.
 
@@ -18,7 +18,7 @@ any fixes through draft or brownfield paths without overwriting canonical truth.
 
 ```text
 0. Video Intent Planner
-   -> decide video type, audience, route, material availability
+   -> decide video type, audience, input_state, entry_path, and follow-up gaps
 
 1. Story / Structure Planner
    -> create the right upstream plan:
@@ -59,20 +59,24 @@ any fixes through draft or brownfield paths without overwriting canonical truth.
       known limitations, and artifact manifest
 ```
 
-## Stage 0 Route Split
+## Stage 0 Entry Split
 
-Always decide material availability before story depth:
+Always decide input state before story depth:
 
-| Route | Meaning | First action | Generation policy |
+| Entry path | Meaning | First action | Generation policy |
 |---|---|---|---|
-| `existing-material-first` | Real footage/photos exist. | Run Material Map quick inventory. Let existing material constrain the story/design skeleton. | Fallback only for diagrams, chapter cards, symbolic inserts, or missing non-proof visuals. |
-| `story-first` | No usable material exists, or the user explicitly wants a generated story/comic route. | Build story/design/teaching intent first, then derive material needs and generated/captured assets. | Allowed as planned candidate material, still must pass import/review/delta. |
-| `hybrid` | Some real material exists and some beats need help. | Use material-map and material-delta to decide covered/missing/thin. | Only for specific gaps after delta: generate, reshoot, shorten, rewrite, drop, or waive. |
+| `material-first` | Real or partial footage/photos/material exist. | Run Material Map quick inventory. Let existing material constrain the story/design skeleton and reveal gaps. | Fallback only for diagrams, chapter cards, symbolic inserts, or missing non-proof visuals after delta. |
+| `structure-first` | No usable material exists, but text, article, outline, script, story, or a developed idea exists. | Clarify story/design/teaching structure first, then derive material needs and generated/captured assets. | Allowed as planned candidate material, still must pass import/review/delta. |
+| `needs-context` | The request is too vague to choose a handoff. | Ask focused questions about goal, audience, inputs, length, style, and text/material availability. | Do not generate or build yet. |
 
-Legacy names:
+Legacy compatibility:
 
-- `script-first` means `story-first`.
-- `material-first` means `existing-material-first`.
+- `existing-material-first` maps to `material-first`.
+- `story-first` maps to `structure-first`.
+- hybrid is not a primary Stage 0 entry path.
+- `hybrid` is not a primary Stage 0 entry path; partial material enters
+  `material-first`, then material-delta decides generate, reshoot, shorten,
+  rewrite, drop, or waive.
 - `Intake` is the old Stage 0 label; use `Video Intent Planner` in new docs and prompts.
 
 ## Normal Route

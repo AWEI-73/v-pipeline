@@ -102,6 +102,7 @@ class ProjectWorkspaceTest(unittest.TestCase):
             self.assertIn("timeline_patch.json", manifest["artifact_classes"]["workbench_draft"])
             self.assertIn("workbench_proxy", manifest["artifact_classes"]["derived_cache_dirs"])
             self.assertEqual(manifest["artifact_classes"]["orchestration"], [
+                "video_intent.json",
                 "route_orchestrator_state.json",
                 "route_subagent_task.json",
                 "route_subagent_result.json",
@@ -161,6 +162,10 @@ class ProjectWorkspaceTest(unittest.TestCase):
                 json.dumps({"patches": []}),
                 encoding="utf-8",
             )
+            (Path(run["run_dir"]) / "video_intent.json").write_text(
+                json.dumps({"artifact_role": "video_intent"}),
+                encoding="utf-8",
+            )
 
             report = project_workspace.validate_run_layout(run["run_dir"])
 
@@ -168,7 +173,10 @@ class ProjectWorkspaceTest(unittest.TestCase):
             self.assertEqual(report["artifact_role"], "run_layout_validation")
             self.assertEqual(report["present_artifacts"]["canonical"], ["timeline.json"])
             self.assertEqual(report["present_artifacts"]["workbench_draft"], ["timeline_patch.json"])
-            self.assertEqual(report["present_artifacts"]["orchestration"], ["route_orchestrator_state.json"])
+            self.assertEqual(report["present_artifacts"]["orchestration"], [
+                "route_orchestrator_state.json",
+                "video_intent.json",
+            ])
             self.assertEqual(report["folders"]["spec"]["status"], "ok")
 
     def test_validate_run_layout_fails_closed_on_missing_or_bad_layout(self):

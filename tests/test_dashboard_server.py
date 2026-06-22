@@ -13,6 +13,7 @@ from tools.dashboard_server import (
     WORKBENCH_DRAFT_ARTIFACTS,
     DashboardHandler,
     detect_profile,
+    scan_project_runs,
 )
 from video_pipeline_core import project_workspace
 
@@ -28,12 +29,17 @@ class DashboardServerTest(unittest.TestCase):
         self.dashboard_dir = Path(self.dashboard_dir_temp)
         
         # Create dummy HTML/CSS/JS files
-        (self.dashboard_dir / "index.html").write_text("<html>Control Index</html>", encoding="utf-8")
-        (self.dashboard_dir / "index.css").write_text("/* INDEX CSS */", encoding="utf-8")
-        (self.dashboard_dir / "index.js").write_text("// INDEX JS", encoding="utf-8")
+        (self.dashboard_dir / "index.html").write_text("<html><div id=\"app\" data-app=\"hermes-spa-dashboard\"></div></html>", encoding="utf-8")
+        src_dir = self.dashboard_dir / "src"
+        src_dir.mkdir()
+        (src_dir / "main.js").write_text("// SPA MAIN", encoding="utf-8")
+        (src_dir / "base.css").write_text("/* SPA CSS */", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.html").write_text("<html>Dashboard HTML</html>", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.css").write_text("/* CSS */", encoding="utf-8")
         (self.dashboard_dir / "dashboard_v1.js").write_text("// JS", encoding="utf-8")
+        (self.dashboard_dir / "material_map_review.html").write_text("<html><div id=\"material-map-root\"></div></html>", encoding="utf-8")
+        (self.dashboard_dir / "material_map_review.css").write_text("/* MM CSS */", encoding="utf-8")
+        (self.dashboard_dir / "material_map_review.js").write_text("// MM JS", encoding="utf-8")
 
         # Set up handler with dynamic class mapping
         class TestBoundDashboardHandler(DashboardHandler):
@@ -89,44 +95,208 @@ class DashboardServerTest(unittest.TestCase):
         (self.artifact_root / "delivery_gate.json").write_text("{}", encoding="utf-8")
         self.assertEqual(detect_profile(self.artifact_root), "verify_bundle")
 
+    def test_project_scan_prioritizes_current_route_run_folders(self):
+        stale = self.artifact_root / "old_placeholder"
+        stale.mkdir()
+
+        partial = self.artifact_root / "partial_material_map"
+        partial.mkdir()
+        (partial / "project_material_map.json").write_text("{}", encoding="utf-8")
+
+        story = self.artifact_root / "story_real_run"
+        story.mkdir()
+        (story / "video_intent.json").write_text("{}", encoding="utf-8")
+        (story / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+        (story / "fresh_material_delta.json").write_text("{}", encoding="utf-8")
+        (story / "timeline.json").write_text("{}", encoding="utf-8")
+
+        legacy_finished = self.artifact_root / "legacy_finished_run"
+        legacy_finished.mkdir()
+        (legacy_finished / "timeline_build.json").write_text("{}", encoding="utf-8")
+        (legacy_finished / "final.mp4").write_bytes(b"fake mp4")
+
+        projects = scan_project_runs([self.artifact_root])
+        names = [project["name"] for project in projects]
+
+        self.assertIn("story_real_run", names)
+        self.assertNotIn("old_placeholder", names)
+        self.assertNotIn("partial_material_map", names)
+        self.assertNotIn("legacy_finished_run", names)
+        self.assertTrue(all(project["usable"] for project in projects))
+        self.assertIn("material_map_reviewed", projects[0]["signals"])
+
+    def test_project_scan_can_limit_to_top_level_run_folders(self):
+        top_level = self.artifact_root / "top_level_story_run"
+        top_level.mkdir()
+        (top_level / "video_intent.json").write_text("{}", encoding="utf-8")
+        (top_level / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+
+        nested = self.artifact_root / "probe_wrapper" / "nested_output"
+        nested.mkdir(parents=True)
+        (nested / "video_intent.json").write_text("{}", encoding="utf-8")
+        (nested / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+
+        projects = scan_project_runs([self.artifact_root], max_depth=1)
+        names = [project["name"] for project in projects]
+
+        self.assertIn("top_level_story_run", names)
+        self.assertNotIn("nested_output", names)
+
     def test_dashboard_html_has_workbench_entrypoint(self):
         html = (Path(__file__).resolve().parent.parent / "dashboard" /
                 "dashboard_v1.html").read_text(encoding="utf-8")
         self.assertIn('id="btn-open-workbench"', html)
         self.assertIn("Workbench", html)
 
-    def test_control_index_declares_dashboard_and_workbench_surfaces(self):
+    def test_spa_dashboard_declares_new_shell_and_real_api_modules(self):
         root = Path(__file__).resolve().parent.parent / "dashboard"
         html = (root / "index.html").read_text(encoding="utf-8")
-        js = (root / "index.js").read_text(encoding="utf-8")
+        main_js = (root / "src" / "main.js").read_text(encoding="utf-8")
+        workbench_view = (root / "src" / "views" / "WorkbenchView.js").read_text(encoding="utf-8")
+        app_header = (root / "src" / "components" / "AppHeader.js").read_text(encoding="utf-8")
+        route_rail = (root / "src" / "components" / "VerticalRouteTimeline.js").read_text(encoding="utf-8")
+        route_view = (root / "src" / "views" / "RouteOverviewView.js").read_text(encoding="utf-8")
+        material_map_view = (root / "src" / "views" / "MaterialMapView.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="surface-dashboard"', html)
-        self.assertIn('id="surface-workbench"', html)
-        self.assertIn('id="btn-open-dashboard"', html)
-        self.assertIn('id="btn-open-workbench"', html)
-        self.assertIn('id="workbench-health"', html)
-        self.assertIn('data-field="run-layout"', html)
-        self.assertIn("/api/control/status", js)
-        self.assertIn("/api/control/workbench-health", js)
-        self.assertIn("data.run_layout", js)
-        self.assertIn("workbench.draft_summary.agent_ready", js)
+        self.assertIn('id="app"', html)
+        self.assertIn('data-app="hermes-spa-dashboard"', html)
+        self.assertIn('type="module"', html)
+        self.assertIn("/src/main.js", html)
+        self.assertNotIn("Control Index", html)
+        self.assertNotIn("MODE_MOCKS", html)
+        self.assertIn("RouteOverviewView", main_js)
+        self.assertIn("MaterialMapView", main_js)
+        self.assertIn("WorkbenchView", main_js)
+        self.assertIn("/api/workbench/health", workbench_view)
+        self.assertIn('id="spa-project-select"', app_header)
+        self.assertIn("fetchProjects", main_js)
+        self.assertIn("data-stage", route_rail)
+        self.assertIn("stage-detail-panel", route_view)
+        self.assertIn("activeStage", main_js)
+        self.assertIn("stage-file-list", route_view)
+        self.assertIn("stageFileManifest", route_view)
+        self.assertIn("stage-file-status", route_view)
+        self.assertIn("evidence-drawer", material_map_view)
+        self.assertIn("decision-panel", material_map_view)
+        self.assertIn("decision-packet-preview", material_map_view)
+        self.assertIn("data-asset-id", material_map_view)
+        self.assertIn("data-need-id", material_map_view)
+        self.assertIn("selectedEvidence", main_js)
+        self.assertIn("keydown", main_js)
+        self.assertIn("Enter", main_js)
+        self.assertIn("event.key === \" \"", main_js)
+        self.assertIn("選擇 Run", app_header)
+        self.assertIn("data-root", app_header)
+
+    def test_workbench_migration_spec_declares_boundaries_and_phases(self):
+        spec = (Path(__file__).resolve().parent.parent / "docs" /
+                "construction-guides" / "dashboard" /
+                "dashboard-spa-workbench-migration-spec.md").read_text(encoding="utf-8")
+
+        self.assertIn("Workbench Migration Boundaries", spec)
+        self.assertIn("Phase 0: iframe containment", spec)
+        self.assertIn("Phase 1: shell-native status panels", spec)
+        self.assertIn("Phase 2: extract Workbench modules", spec)
+        self.assertIn("Phase 3: replace iframe with SPA-native composition", spec)
+        self.assertIn("Draft Artifact Contract", spec)
+        self.assertIn("timeline_patch.json", spec)
+        self.assertIn("patched_draft_timeline.json", spec)
+        self.assertIn("workbench_handoff.json", spec)
+        self.assertIn("Do not migrate by copying mock behavior from material_map_canvas.html", spec)
+
+    def test_formal_frontend_static_text_is_traditional_chinese(self):
+        root = Path(__file__).resolve().parent.parent / "dashboard"
+        app_header = (root / "src" / "components" / "AppHeader.js").read_text(encoding="utf-8")
+        top_nav = (root / "src" / "components" / "TopNav.js").read_text(encoding="utf-8")
+        workbench_view = (root / "src" / "views" / "WorkbenchView.js").read_text(encoding="utf-8")
+        material_view = (root / "src" / "views" / "MaterialMapView.js").read_text(encoding="utf-8")
+        native_html = (root / "workbench_native" / "index.html").read_text(encoding="utf-8")
+
+        for text in (
+            "影片管線儀表板",
+            "儀表板",
+            "素材地圖",
+            "剪輯工作區",
+            "審核暫停",
+            "選擇 Run",
+        ):
+            self.assertIn(text, app_header + top_nav + material_view)
+
+        for text in (
+            "互動草稿工作區",
+            "草稿包",
+            "草稿檔",
+            "只寫入草稿",
+        ):
+            self.assertIn(text, workbench_view)
+
+        for text in (
+            "Hermes 原生剪輯工作區",
+            "素材",
+            "字幕",
+            "音訊",
+            "檢視器",
+            "套用",
+            "儲存全部並建立交接包",
+        ):
+            self.assertIn(text, native_html)
 
     def test_static_routes_and_security(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        # Try fetching control shell and dashboard pages
+        # Try fetching SPA shell and legacy dashboard pages
         html_resp = urllib.request.urlopen(f"{base_url}/").read()
-        self.assertEqual(html_resp, b"<html>Control Index</html>")
+        self.assertIn(b"hermes-spa-dashboard", html_resp)
 
         dash_resp = urllib.request.urlopen(f"{base_url}/dashboard").read()
+        self.assertIn(b"hermes-spa-dashboard", dash_resp)
+
+        material_resp = urllib.request.urlopen(f"{base_url}/material-map").read()
+        self.assertIn(b"hermes-spa-dashboard", material_resp)
+
+        workbench_resp = urllib.request.urlopen(f"{base_url}/workbench").read()
+        self.assertIn(b"hermes-spa-dashboard", workbench_resp)
+
+        legacy_resp = urllib.request.urlopen(f"{base_url}/dashboard/legacy").read()
+        self.assertEqual(legacy_resp, b"<html>Dashboard HTML</html>")
+
+        main_resp = urllib.request.urlopen(f"{base_url}/src/main.js").read()
+        self.assertEqual(main_resp, b"// SPA MAIN")
+
+        css_resp = urllib.request.urlopen(f"{base_url}/src/base.css").read()
+        self.assertEqual(css_resp, b"/* SPA CSS */")
+
+        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.html").read()
+        # Existing compatibility route may still serve the old file while callers migrate.
+        self.assertEqual(old_dash_resp, b"<html>Dashboard HTML</html>")
+
+        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.css").read()
+        self.assertEqual(old_dash_resp, b"/* CSS */")
+
+        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.js").read()
+        self.assertEqual(old_dash_resp, b"// JS")
+
+        # /dashboard is no longer the legacy page.
+        self.assertNotEqual(dash_resp, b"<html>Dashboard HTML</html>")
+
+    def test_formal_routes_do_not_serve_mock_prototype(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        for route in ("/", "/dashboard", "/material-map", "/workbench"):
+            with self.subTest(route=route):
+                html = urllib.request.urlopen(f"{base_url}{route}").read().decode("utf-8")
+                self.assertIn("hermes-spa-dashboard", html)
+                self.assertNotIn("MODE_MOCKS", html)
+                self.assertNotIn("material_map_canvas", html)
+
+    def test_legacy_dashboard_compatibility_routes(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        dash_resp = urllib.request.urlopen(f"{base_url}/dashboard/legacy").read()
         self.assertEqual(dash_resp, b"<html>Dashboard HTML</html>")
-
-        index_css_resp = urllib.request.urlopen(f"{base_url}/index.css").read()
-        self.assertEqual(index_css_resp, b"/* INDEX CSS */")
-
-        index_js_resp = urllib.request.urlopen(f"{base_url}/index.js").read()
-        self.assertEqual(index_js_resp, b"// INDEX JS")
 
         css_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.css").read()
         self.assertEqual(css_resp, b"/* CSS */")
@@ -167,8 +337,8 @@ class DashboardServerTest(unittest.TestCase):
         self.assertEqual(data["profile"], "unknown")
         self.assertIsNone(data["timeline"])
         self.assertIsNone(data["review_report"])
-        self.assertEqual(data["workbench"]["mode"], "external_server")
-        self.assertIn("tools/workbench_server.py", data["workbench"]["command"])
+        self.assertEqual(data["workbench"]["mode"], "merged_dashboard_server")
+        self.assertIn("tools/dashboard_server.py", data["workbench"]["command"])
         self.assertIn(str(self.artifact_root), data["workbench"]["command"])
         self.assertEqual(data["workbench"]["draft_summary"]["present_count"], 0)
         self.assertFalse(data["workbench"]["draft_artifacts"]["timeline_patch"]["exists"])
@@ -244,10 +414,10 @@ class DashboardServerTest(unittest.TestCase):
             "draft_artifacts",
             "draft_summary",
         })
-        self.assertEqual(data["workbench"]["url"], "http://localhost:8770/workbench")
-        self.assertEqual(data["workbench"]["health_url"], "http://localhost:8770/api/workbench/health")
+        self.assertEqual(data["workbench"]["url"], "/workbench")
+        self.assertEqual(data["workbench"]["health_url"], "/api/workbench/health")
         self.assertEqual(data["workbench"]["mode"], "write_limited_draft_editor")
-        self.assertIn("tools/workbench_server.py", data["workbench"]["command"])
+        self.assertIn("tools/dashboard_server.py", data["workbench"]["command"])
         self.assertEqual(set(data["workbench"]["draft_artifacts"]),
                          set(WORKBENCH_DRAFT_ARTIFACTS))
         self.assertTrue(data["workbench"]["draft_summary"]["agent_ready"])
@@ -335,18 +505,18 @@ class DashboardServerTest(unittest.TestCase):
         data = json.loads(api_resp.decode("utf-8"))
         self.assertEqual(data["recommended_next_action"], "review_workbench_drafts")
 
-    def test_control_workbench_health_proxy_is_structured_when_unreachable(self):
+    def test_control_workbench_health_reports_merged_runtime(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
         api_resp = urllib.request.urlopen(f"{base_url}/api/control/workbench-health").read()
         data = json.loads(api_resp.decode("utf-8"))
 
-        self.assertEqual(data["url"], "http://localhost:8770/api/workbench/health")
+        self.assertEqual(data["url"], "/api/workbench/health")
         self.assertIn("ok", data)
         self.assertIn("status", data)
-        if not data["ok"]:
-            self.assertIn(data["status"], ["unreachable", "invalid_response"])
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["status"], "ok")
 
     def test_workbench_draft_artifact_status_is_read_only_and_hashes_present_files(self):
         self.start_test_server()
@@ -636,6 +806,174 @@ Second subtitle
         self.assertEqual(json.loads(contract_path.read_text(encoding="utf-8")), contract_data)
         self.assertFalse((self.artifact_root / "review_settings.json").exists())
         self.assertFalse((self.artifact_root / "bgm.mp3").exists())
+
+    def test_merged_workbench_patch_writes_only_draft_artifacts(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        media = self.artifact_root / "clip.mp4"
+        media.write_bytes(b"0123456789" * 100)
+        (self.artifact_root / "timeline.json").write_text(json.dumps({
+            "plan": [
+                {
+                    "slot_index": 0,
+                    "segment": 1,
+                    "source": str(media),
+                    "slot_dur": 2.0,
+                    "extract_start": 0.0,
+                    "extract_dur": 2.0,
+                }
+            ]
+        }), encoding="utf-8")
+        (self.artifact_root / "project_material_map.json").write_text(json.dumps({
+            "artifact_role": "project_material_map",
+            "assets": [
+                {
+                    "asset_id": "a0",
+                    "asset_type": "video",
+                    "source": str(media),
+                    "duration_sec": 10.0,
+                    "scenes": [{"start": 0.0, "end": 2.0, "caption": "original"}],
+                }
+            ],
+        }), encoding="utf-8")
+        before_timeline = (self.artifact_root / "timeline.json").read_text(encoding="utf-8")
+        before_map = (self.artifact_root / "project_material_map.json").read_text(encoding="utf-8")
+
+        patch = {
+            "artifact_role": "timeline_patch",
+            "version": 1,
+            "base_timeline_ref": "timeline.json",
+            "patches": [
+                {
+                    "op": "set_duration",
+                    "slot_index": 0,
+                    "after": {"duration_sec": 3.0},
+                }
+            ],
+            "diagnostics": [],
+        }
+        req = urllib.request.Request(
+            f"{base_url}/api/workbench/patch",
+            data=json.dumps(patch).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        payload = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(set(payload["written"]), {
+            "timeline_patch.json",
+            "patched_draft_timeline.json",
+            "preview_timeline.json",
+        })
+        self.assertEqual((self.artifact_root / "timeline.json").read_text(encoding="utf-8"), before_timeline)
+        self.assertEqual((self.artifact_root / "project_material_map.json").read_text(encoding="utf-8"), before_map)
+
+    def test_dashboard_server_hosts_merged_workbench_runtime(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        (self.artifact_root / "timeline.json").write_text(json.dumps({"plan": []}), encoding="utf-8")
+
+        health = json.loads(urllib.request.urlopen(
+            f"{base_url}/api/workbench/health"
+        ).read().decode("utf-8"))
+        self.assertEqual(health["artifact_role"], "workbench_health")
+        self.assertEqual(health["status"], "ok")
+        self.assertTrue(health["write_limited"])
+
+        preview = json.loads(urllib.request.urlopen(
+            f"{base_url}/api/workbench/preview-timeline"
+        ).read().decode("utf-8"))
+        self.assertEqual(preview["artifact_role"], "preview_timeline")
+
+    def test_material_map_review_route_uses_clean_non_mock_page(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        html = urllib.request.urlopen(f"{base_url}/material-map").read().decode("utf-8")
+
+        self.assertIn("hermes-spa-dashboard", html)
+        self.assertNotIn("MODE_MOCKS", html)
+
+    def test_material_map_view_api_normalizes_real_artifacts(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        (self.artifact_root / "video_intent.json").write_text(json.dumps({
+            "artifact_role": "video_intent",
+            "entry_path": "material-first",
+            "route": "material_map_lifecycle",
+            "video_type": "graduation_recap",
+            "audience": "students and families",
+            "goal": "make a recap",
+        }), encoding="utf-8")
+        (self.artifact_root / "reviewed_project_material_map.json").write_text(json.dumps({
+            "artifact_role": "project_material_map",
+            "assets": [
+                {
+                    "asset_id": "asset_real_1",
+                    "asset_type": "video",
+                    "source": "materials/ceremony.mp4",
+                    "duration_sec": 8,
+                    "scenes": [
+                        {
+                            "caption": "award ceremony",
+                            "visual_family": "ceremony",
+                            "angle_scale": "wide",
+                            "action_family": "award",
+                            "subject": "students",
+                            "satisfies": [{"need_id": "nd_ceremony", "status": "accepted"}],
+                        }
+                    ],
+                }
+            ],
+            "needs": [
+                {
+                    "need_id": "nd_ceremony",
+                    "purpose": "show ceremony milestone",
+                    "count": 1,
+                    "must_have": True,
+                    "fallback_options": ["replace_clip"],
+                }
+            ],
+        }), encoding="utf-8")
+        (self.artifact_root / "fresh_material_delta.json").write_text(json.dumps({
+            "artifact_role": "material_delta",
+            "ready_for_build": True,
+            "deltas": [
+                {
+                    "need_id": "nd_ceremony",
+                    "outcome": "covered",
+                    "route": "none",
+                    "reason": "1 accepted meet required 1",
+                    "evidence": {"accepted": 1, "candidate": 0, "rejected": 0},
+                }
+            ],
+            "summary": {"covered": 1, "thin": 0, "missing": 0, "excess": 0},
+        }), encoding="utf-8")
+
+        payload = json.loads(urllib.request.urlopen(
+            f"{base_url}/api/material-map-view?root={urllib.parse.quote(str(self.artifact_root))}"
+        ).read().decode("utf-8"))
+
+        self.assertEqual(payload["artifact_role"], "material_map_dashboard_view")
+        self.assertEqual(payload["entry_path"], "material-first")
+        self.assertEqual(payload["route"], "material_map_lifecycle")
+        self.assertEqual(payload["intent"]["video_type"], "graduation_recap")
+        self.assertEqual(payload["intent"]["goal"], "make a recap")
+        self.assertEqual(payload["intent"]["expected_outputs"], [])
+        self.assertTrue(payload["ready_for_build"])
+        self.assertEqual(payload["stats"]["assets"], 1)
+        self.assertEqual(payload["stats"]["accepted_edges"], 1)
+        self.assertEqual(payload["assets"][0]["asset_id"], "asset_real_1")
+        self.assertEqual(payload["assets"][0]["scenes"][0]["need_ids"], ["nd_ceremony"])
+        self.assertEqual(payload["needs"][0]["outcome"], "covered")
+        stages_by_label = {stage["label"]: stage for stage in payload["stages"]}
+        self.assertEqual(stages_by_label["Material Ingest"]["status"], "missing")
+        self.assertEqual(stages_by_label["Material Map"]["artifact"], "reviewed_project_material_map.json")
+        self.assertEqual(stages_by_label["Coverage Delta"]["artifact"], "fresh_material_delta.json")
+        self.assertEqual(stages_by_label["Coverage Delta"]["status"], "present")
 
 
 if __name__ == "__main__":

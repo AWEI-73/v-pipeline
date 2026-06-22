@@ -57,6 +57,48 @@ class ReviewerRegistryTest(unittest.TestCase):
         result = reviewer_registry.validate_review_artifact(review)
         self.assertTrue(result["ok"], result)
 
+    def test_review_artifact_validator_accepts_guided_revision_schema(self):
+        review = {
+            "artifact_role": "artifact_review",
+            "version": 1,
+            "reviewer_role": "story_director",
+            "review_type": "creative_review",
+            "status": "revise",
+            "decision": "revise",
+            "blocking_level": "soft_block",
+            "gate_strength": "revise",
+            "findings": [{"severity": "major", "message": "The middle has no visual turn"}],
+            "required_revisions": ["Add one visual turn before the resolution"],
+            "recommended_actions": ["Revise director_shot_plan.json"],
+            "handoff_to": "director_shot_plan",
+            "can_continue_to_delivery": False,
+        }
+
+        result = reviewer_registry.validate_review_artifact(review)
+
+        self.assertTrue(result["ok"], result)
+
+    def test_review_artifact_validator_rejects_delivery_continue_with_soft_block(self):
+        review = {
+            "artifact_role": "artifact_review",
+            "version": 1,
+            "reviewer_role": "story_director",
+            "status": "revise",
+            "decision": "revise",
+            "blocking_level": "soft_block",
+            "gate_strength": "revise",
+            "findings": [{"severity": "major", "message": "Pacing needs revision"}],
+            "required_revisions": ["Shorten long holds"],
+            "recommended_actions": ["Open workbench draft review"],
+            "handoff_to": "workbench_edit",
+            "can_continue_to_delivery": True,
+        }
+
+        result = reviewer_registry.validate_review_artifact(review)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("can_continue_to_delivery must be false", "\n".join(result["errors"]))
+
     def test_review_artifact_validator_rejects_unknown_role_or_gate(self):
         bad_role = {
             "artifact_role": "artifact_review",

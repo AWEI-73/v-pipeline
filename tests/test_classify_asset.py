@@ -155,6 +155,27 @@ class MatchScriptToMaterialTest(unittest.TestCase):
         self.assertEqual(result["assignments"][0]["picks"], [])
         self.assertTrue(result["assignments"][0]["gap"])
 
+    def test_stock_first_segment_binds_to_downloaded_seg_file_without_caption(self):
+        segments = [{
+            "segment": 3,
+            "source": "stock",
+            "visual_desc": "sunlight through forest canopy",
+            "search_query": "sunlight forest trees green canopy light rays",
+        }]
+        files = [{
+            "path": "/run/materials/seg3_stock.mp4",
+            "type": "video",
+            "vlm_caption": None,
+            "classify": {"usable": True},
+        }]
+
+        result = vt.match_script_to_material(segments, files)
+
+        pick = result["assignments"][0]["picks"][0]
+        self.assertFalse(result["assignments"][0]["gap"])
+        self.assertEqual(pick["path"], "/run/materials/seg3_stock.mp4")
+        self.assertEqual(pick["match_reason"], "stock_first_segment_file")
+
     def _db(self):
         return [
             {"path": "/m/拖拉電纜/a.mov", "vlm_caption": "工人在戶外拖拉電纜施工",

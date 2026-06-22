@@ -9,13 +9,15 @@ from video_pipeline_core import model_routing
 class ModelRoutingTest(unittest.TestCase):
     def test_defaults_cover_verify_content_qa_and_asr(self):
         routes = model_routing.default_model_routes()
+        for role in ("video_understanding", "verify_vlm", "content_qa"):
+            self.assertEqual(routes["routes"][role]["provider"], "agent")
         self.assertEqual(
             model_routing.resolve_model(routes, "verify_vlm"),
-            "qwen3-vl:4b-instruct",
+            "codex_or_hermes",
         )
         self.assertEqual(
             model_routing.resolve_model(routes, "content_qa"),
-            "qwen3-vl:4b-instruct",
+            "codex_or_hermes",
         )
         self.assertEqual(model_routing.resolve_model(routes, "asr"), "small")
 
@@ -33,7 +35,7 @@ class ModelRoutingTest(unittest.TestCase):
             }), encoding="utf-8")
             routes = model_routing.load_model_routes(p)
         self.assertEqual(model_routing.resolve_model(routes, "verify_vlm"), "gpt-5.4-mini")
-        self.assertEqual(model_routing.resolve_model(routes, "content_qa"), "qwen3-vl:4b-instruct")
+        self.assertEqual(model_routing.resolve_model(routes, "content_qa"), "codex_or_hermes")
 
     def test_invalid_route_requires_model(self):
         with tempfile.TemporaryDirectory() as d:

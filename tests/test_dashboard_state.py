@@ -5,6 +5,64 @@ from pathlib import Path
 from video_pipeline_core.dashboard_state import load_dashboard_state
 
 class DashboardStateSpecTest(unittest.TestCase):
+    def test_stale_spec_review_state_does_not_override_current_passing_spec_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "brief.json").write_text(json.dumps({"title": "T"}), encoding="utf-8")
+            (workdir / "segment_contract.json").write_text(
+                json.dumps({"segments": [{"segment": 1, "source": "local"}]}),
+                encoding="utf-8",
+            )
+            (workdir / "spec_review.json").write_text(json.dumps({
+                "artifact_role": "spec_review",
+                "ready_for_build": True,
+                "blocking": [],
+                "next_action": None,
+            }), encoding="utf-8")
+            (workdir / "state.json").write_text(json.dumps({
+                "pass": False,
+                "next_action": "revise:director(spec_review)",
+                "blocking": [{
+                    "rule": "script_overreach",
+                    "segment": 1,
+                    "reason": "stale",
+                }],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertNotEqual(state["run"]["next_action"], "revise:director(spec_review)")
+            self.assertFalse(any(
+                "script_overreach" in (finding.get("message") or "")
+                for finding in state["findings"]
+            ))
+
+    def test_invalid_timeline_build_json_blocks_route(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "brief.json").write_text(json.dumps({"title": "T"}), encoding="utf-8")
+            (workdir / "segment_contract.json").write_text(
+                json.dumps({"segments": [{"segment": 1, "source": "local"}]}),
+                encoding="utf-8",
+            )
+            (workdir / "timeline_build.json").write_text(
+                '{"clips":[{"segment":1,"source_path":"C:\\bad\\_clip.mp4"}]}',
+                encoding="utf-8",
+            )
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8"
+            )
+            (workdir / "final.mp4").write_bytes(b"placeholder")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["run"]["next_action"], "fix_timeline_or_assembly")
+            self.assertTrue(any(
+                finding.get("artifact") == "timeline_build"
+                and finding.get("type") == "error"
+                for finding in state["findings"]
+            ))
+
     def test_control_surface_is_artifact_first_and_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -442,6 +500,75 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(len(state["segments"]), 1)
             self.assertEqual(state["segments"][0]["segment"], 1)
             self.assertEqual(state["segments"][0]["verify"]["status"], "blocked")
+
+    def test_ready_material_delta_suppresses_stale_coverage_gap_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "material_coverage_map.json").write_text(json.dumps({
+                "artifact_role": "material_coverage_map",
+                "gaps": [{"segment": 1, "reason": "legacy gap"}],
+            }), encoding="utf-8")
+            (workdir / "material_delta.json").write_text(json.dumps({
+                "artifact_role": "material_delta",
+                "ok": True,
+                "ready_for_build": True,
+                "summary": {"covered": 1, "thin": 0, "missing": 0, "excess": 0},
+            }), encoding="utf-8")
+            (workdir / "material_map_lifecycle.json").write_text(json.dumps({
+                "artifact_role": "material_map_lifecycle",
+                "can_build": True,
+                "next_action": "build",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertFalse(any(
+                f.get("artifact") == "material_coverage" and f.get("type") == "error"
+                for f in state["findings"]
+            ))
+
+    def test_verified_final_with_ready_delta_overrides_stale_await_material_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final.mp4").write_bytes(b"video")
+            (workdir / "verify_result.json").write_text(json.dumps({
+                "pass": True,
+                "score": 92,
+            }), encoding="utf-8")
+            (workdir / "state.json").write_text(json.dumps({
+                "pass": False,
+                "next_action": "await_material",
+            }), encoding="utf-8")
+            (workdir / "material_coverage_map.json").write_text(json.dumps({
+                "artifact_role": "material_coverage_map",
+                "gaps": [{"segment": 1, "reason": "legacy gap"}],
+            }), encoding="utf-8")
+            (workdir / "material_delta.json").write_text(json.dumps({
+                "artifact_role": "material_delta",
+                "ok": True,
+                "ready_for_build": True,
+                "blocks_ready_for_build": False,
+                "summary": {"covered": 0, "thin": 0, "missing": 0, "excess": 1},
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertTrue(state["run"]["pass"])
+            self.assertEqual(state["run"]["next_action"], "complete_review_final")
+
+    def test_verified_legacy_render_can_complete_without_canonical_build_chain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final.mp4").write_bytes(b"video")
+            (workdir / "verify_result.json").write_text(json.dumps({
+                "pass": True,
+                "score": 100,
+                "issues": [],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "complete_review_final")
 
     def test_audit_artifacts_surface_under_node_11_and_12(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -7,6 +7,7 @@ import sys
 import json
 import shutil
 import subprocess
+import hashlib
 from pathlib import Path
 
 # Add the repo root to sys.path
@@ -23,6 +24,8 @@ from video_pipeline_core.platform_tools import resolve_python
 from video_pipeline_core import blueprint as blueprint_gate
 from video_pipeline_core.node_registry import NODE_REGISTRY, NODE_ORDER
 NODE_ARTIFACTS = {node_id: node_def["outputs"] for node_id, node_def in NODE_REGISTRY.items()}
+RERUN_GUARD_PATH = ".rerun_guard.json"
+RERUN_BLOCKING_SUMMARY_PATH = "rerun_blocking_summary.json"
 
 
 _AUDIT_NODE = {
@@ -30,6 +33,73 @@ _AUDIT_NODE = {
     "keyframe_grid": "12", "visual_audit": "12", "treatment_audit": "11",
     "visual_fatigue_audit": "11", "presentation_feel_audit": "12", "editorial_qa": "12",
 }
+
+
+def format_heartbeat(node, message, *, segment=None, total=None):
+    line = f"[runtime] [heartbeat][{node}]"
+    if segment is not None and total is not None:
+        line += f"[seg {segment}/{total}]"
+    return f"{line} {message}"
+
+
+def emit_heartbeat(node, message, *, segment=None, total=None):
+    print(format_heartbeat(node, message, segment=segment, total=total))
+
+
+def _first_existing(run_dir, names):
+    for name in names:
+        path = run_dir / name
+        if path.exists():
+            return path
+    return None
+
+
+def _build_verify_command(python_exe, run_dir):
+    run_dir = Path(run_dir).resolve()
+    script = (
+        run_dir / "generated_mv_script.json"
+        if (run_dir / "generated_mv_script.json").exists()
+        else run_dir / "segment_contract.json"
+    )
+    timing = (
+        run_dir / "music_structure.json"
+        if (run_dir / "music_structure.json").exists()
+        else run_dir / "audio" / "tts_timing.json"
+    )
+    edit_log = (
+        run_dir / "timeline_build.json"
+        if (run_dir / "timeline_build.json").exists()
+        else run_dir / "edit_log.json"
+    )
+    srt_path = run_dir / "subtitles.srt"
+    if not srt_path.exists():
+        with srt_path.open("w", encoding="utf-8") as f:
+            f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
+
+    cmd = [
+        python_exe, str(REPO_ROOT / "video_tools.py"), "verify",
+        "--script", str(script),
+        "--timing", str(timing),
+        "--edit-log", str(edit_log),
+        "--srt", str(srt_path),
+        "--video", str(run_dir / "final.mp4"),
+        "--out", str(run_dir / "verify_result.json"),
+    ]
+
+    brief_path = _first_existing(run_dir, ("brief.json", "project_brief.json", "video_intent.json"))
+    if brief_path:
+        cmd += ["--brief", str(brief_path)]
+
+    alignment_path = _first_existing(run_dir, (
+        "content_alignment.json",
+        "content_qa.json",
+        "material_coverage_map.json",
+        "material_delta.json",
+    ))
+    if alignment_path:
+        cmd += ["--content-alignment", str(alignment_path)]
+
+    return cmd
 
 
 def resolve_audit_route(dash_state):
@@ -106,6 +176,109 @@ def _get_project_and_run(project_name=None):
         sys.exit(1)
 
     return project_dir, run_dir
+
+
+def _hash_file(path):
+    try:
+        p = Path(path)
+        if not p.exists() or not p.is_file():
+            return None
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _rerun_state_payload(node_label, run_dir, dash_state):
+    run = dash_state.get("run") if isinstance(dash_state.get("run"), dict) else {}
+    next_action = run.get("next_action") or dash_state.get("next_action")
+    blocking = dash_state.get("blocking") or []
+    findings = dash_state.get("findings") or []
+    relevant_findings = []
+    for item in findings:
+        if item.get("type") not in ("error", "blocking"):
+            continue
+        relevant_findings.append({
+            "node": item.get("node"),
+            "artifact": item.get("artifact"),
+            "message": item.get("message"),
+        })
+    artifact_hashes = {}
+    for artifact in NODE_ARTIFACTS.get(node_label, []):
+        h = _hash_file(Path(run_dir) / artifact)
+        if h:
+            artifact_hashes[artifact] = h
+    if not next_action and not blocking and not relevant_findings:
+        return None
+    return {
+        "node": node_label,
+        "next_action": next_action,
+        "blocking": blocking,
+        "findings": relevant_findings,
+        "artifact_hashes": artifact_hashes,
+    }
+
+
+def _rerun_digest(payload):
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _check_rerun_repeat_guard(run_dir, node_label, dash_state, *, max_same_state_runs=1):
+    payload = _rerun_state_payload(node_label, run_dir, dash_state)
+    if not payload:
+        return False
+    digest = _rerun_digest(payload)
+    guard_path = Path(run_dir) / RERUN_GUARD_PATH
+    guard = {}
+    if guard_path.exists():
+        try:
+            with guard_path.open(encoding="utf-8") as f:
+                guard = json.load(f)
+        except Exception:
+            guard = {}
+    if guard.get("digest") == digest:
+        count = int(guard.get("count") or 0) + 1
+    else:
+        count = 1
+    guard = {
+        "artifact_role": "rerun_guard",
+        "version": 1,
+        "node": node_label,
+        "digest": digest,
+        "count": count,
+        "payload": payload,
+    }
+    with guard_path.open("w", encoding="utf-8") as f:
+        json.dump(guard, f, ensure_ascii=False, indent=2)
+    if count <= max_same_state_runs:
+        return False
+    summary = {
+        "artifact_role": "rerun_blocking_summary",
+        "version": 1,
+        "node": node_label,
+        "next_action": payload.get("next_action"),
+        "repeat_count": count,
+        "digest": digest,
+        "blocking": payload.get("blocking") or [],
+        "findings": payload.get("findings") or [],
+        "recommended_action": (
+            "stop_rerun_and_resolve_state: regenerate/revise/waive/manual_review "
+            "based on the blocking artifact"
+        ),
+    }
+    with (Path(run_dir) / RERUN_BLOCKING_SUMMARY_PATH).open("w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+    print(
+        f"[runtime] [RERUN-GUARD] Node {node_label} reached the same state "
+        f"{count} times; wrote {RERUN_BLOCKING_SUMMARY_PATH} and stopped."
+    )
+    return True
+
+
 def check_ready_for_build_gate(run_dir):
     """Validate editorial design against allowed strategies (ready_for_build gate)."""
     run_dir = Path(run_dir)
@@ -499,8 +672,9 @@ def run_orchestrator(project_name=None, args=None):
         # 1. Load current dashboard state
         dash_state = load_dashboard_state(str(run_dir))
         next_action = dash_state.get("run", {}).get("next_action") or dash_state.get("next_action")
-
+        
         print(f"[runtime] Current Action resolved: {next_action}")
+        emit_heartbeat("orchestrator", f"next_action={next_action or 'none'}")
 
         # WHY layer: narrative blueprint gate. Inert when no blueprint.json exists.
         # A dropped/invalid beat is a SPEC-level problem -> route to director, never
@@ -641,25 +815,8 @@ def run_orchestrator(project_name=None, args=None):
                 if not final_mp4.exists():
                     print("[runtime] Warning: final.mp4 not found for verification. Building first...")
                 else:
-                    # Run verify directly!
-                    script = str(run_dir / "generated_mv_script.json") if (run_dir / "generated_mv_script.json").exists() else str(run_dir / "segment_contract.json")
-                    timing = str(run_dir / "music_structure.json") if (run_dir / "music_structure.json").exists() else str(run_dir / "audio" / "tts_timing.json")
-                    edit_log = str(run_dir / "timeline_build.json") if (run_dir / "timeline_build.json").exists() else str(run_dir / "edit_log.json")
-                    srt_path = run_dir / "subtitles.srt"
-                    if not srt_path.exists():
-                        with srt_path.open("w", encoding="utf-8") as f:
-                            f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
-                    out_report = str(run_dir / "verify_result.json")
-
-                    verify_cmd = [
-                        python_exe, str(REPO_ROOT / "video_tools.py"), "verify",
-                        "--script", script,
-                        "--timing", timing,
-                        "--edit-log", edit_log,
-                        "--srt", str(srt_path),
-                        "--video", str(final_mp4),
-                        "--out", out_report
-                    ]
+                    verify_cmd = _build_verify_command(python_exe, run_dir)
+                    emit_heartbeat("verify", "running final QA")
                     print(f"[runtime] Running: {' '.join(verify_cmd)}")
                     res = subprocess.run(verify_cmd)
                     ret = res.returncode
@@ -883,6 +1040,8 @@ def run_orchestrator(project_name=None, args=None):
                         break
 
                 print(f"[runtime] Launching contract-run compile for MV style...")
+                total_segments = len(contract.get("segments") or [])
+                emit_heartbeat("render", "starting contract-run compile", segment=0, total=total_segments)
                 cmd = [
                     python_exe, str(REPO_ROOT / "video_tools.py"), "contract-run",
                     str(contract_path),
@@ -902,6 +1061,7 @@ def run_orchestrator(project_name=None, args=None):
                 if res.returncode != 0:
                     print("[runtime] Error: compilation failed.", file=sys.stderr)
                     sys.exit(res.returncode)
+                emit_heartbeat("render", "contract-run compile finished", segment=total_segments, total=total_segments)
             else:
                 # Narrative mode
                 from video_pipeline_core.contract_adapter import adapt_narrative_contract_file
@@ -915,6 +1075,8 @@ def run_orchestrator(project_name=None, args=None):
                     )
                     sys.exit(1)
                 print(f"[runtime] Launching run_with_ollama.py compile for Narrative style...")
+                total_segments = len(adapted.get("payload", {}).get("segments") or contract.get("segments") or [])
+                emit_heartbeat("render", "starting narrative compile", segment=0, total=total_segments)
                 cmd = [
                     python_exe, str(REPO_ROOT / "run_with_ollama.py"),
                     str(narrative_payload),
@@ -925,6 +1087,7 @@ def run_orchestrator(project_name=None, args=None):
                 if res.returncode != 0:
                     print("[runtime] Error: narrative compilation failed.", file=sys.stderr)
                     sys.exit(res.returncode)
+                emit_heartbeat("render", "narrative compile finished", segment=total_segments, total=total_segments)
 
         elif next_action == "await_visual_review":
             request_path = run_dir / "visual_review_request.json"
@@ -1180,6 +1343,10 @@ def rerun_node(node_label, project_name=None, args=None):
         print(f"[runtime] Error: Invalid Node label '{node_label}'. Valid nodes: {NODE_ORDER}", file=sys.stderr)
         sys.exit(1)
 
+    pre_rerun_state = load_dashboard_state(str(run_dir))
+    if _check_rerun_repeat_guard(run_dir, node_label, pre_rerun_state):
+        sys.exit(0)
+
     idx = NODE_ORDER.index(node_label)
     cleared_files = []
 
@@ -1225,27 +1392,8 @@ def rerun_node(node_label, project_name=None, args=None):
     if node_label == "12" and (run_dir / "final.mp4").exists():
         print("[runtime] Re-running verification directly...")
         python_exe = resolve_python()
-
-        # Determine script and timing paths
-        script = str(run_dir / "generated_mv_script.json") if (run_dir / "generated_mv_script.json").exists() else str(run_dir / "segment_contract.json")
-        timing = str(run_dir / "music_structure.json") if (run_dir / "music_structure.json").exists() else str(run_dir / "audio" / "tts_timing.json")
-        edit_log = str(run_dir / "timeline_build.json") if (run_dir / "timeline_build.json").exists() else str(run_dir / "edit_log.json")
-        srt_path = run_dir / "subtitles.srt"
-        if not srt_path.exists():
-            with srt_path.open("w", encoding="utf-8") as f:
-                f.write("1\n00:00:00,000 --> 00:00:01,000\n[Music]\n")
-        video = str(run_dir / "final.mp4")
-        out_report = str(run_dir / "verify_result.json")
-
-        verify_cmd = [
-            python_exe, str(REPO_ROOT / "video_tools.py"), "verify",
-            "--script", script,
-            "--timing", timing,
-            "--edit-log", edit_log,
-            "--srt", str(srt_path),
-            "--video", video,
-            "--out", out_report
-        ]
+        verify_cmd = _build_verify_command(python_exe, run_dir)
+        emit_heartbeat("verify", "rerunning final QA")
         print(f"[runtime] Running: {' '.join(verify_cmd)}")
         res = subprocess.run(verify_cmd)
         ret = res.returncode

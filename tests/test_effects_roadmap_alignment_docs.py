@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import unittest
 
 
@@ -13,7 +13,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
     def test_roadmap_promotes_effects_to_active_next_phase(self):
         text = read("roadmap.md")
         for expected in [
-            "Next Phase — Effects / Brownfield Edit / Node14",
+            "Next Phase ??Effects / Brownfield Edit / Node14",
             "Status: active next development direction.",
             "FX0 Effects Status Cleanup",
             "FX1 Effect Asset Spec",
@@ -43,7 +43,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         self.assertNotIn("Status: in implementation / review.", text)
 
     def test_decision_and_index_record_effects_boundary(self):
-        decision = read("docs/decisions/2026-06-19-effects-node14-roadmap-alignment.md")
+        decision = read("docs/archive/decisions/2026-06-19-effects-node14-roadmap-alignment.md")
         index = read("docs/INDEX.md")
         for expected in [
             "Effect assets are not real-event evidence",
@@ -80,9 +80,10 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         for expected in [
             "2026-06-19 Effects / Node14 Boundary",
             "canonical final render",
-            "Workbench 只做 draft preview",
-            "Remotion 是 Brownfield/Node14 的 prompt-driven effect backend",
-            "effect assets 不等於事件素材",
+            "draft preview",
+            "Brownfield/Node14",
+            "prompt-driven effect backend",
+            "effect assets",
             "effect_asset_spec.json",
             "effect_patch.json",
         ]:

@@ -583,6 +583,43 @@ class RunMvArtifactTest(unittest.TestCase):
         self.assertTrue(result["awaiting_visual_review"])
         render.assert_not_called()
 
+    def test_run_mv_defaults_to_agent_visual_review_and_skips_render(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            def fake_stock(s, a, seg_text, mat_dir, **kwargs):
+                self.assertEqual(kwargs.get("visual_judge"), "agent")
+                return [], {
+                    "segment": s["segment"],
+                    "visual_desc": s["visual_desc"],
+                    "source": "stock",
+                    "candidate": f"stock-{s['segment']}.mp4",
+                    "montage": f"visual_review/seg{s['segment']}.jpg",
+                    "pending_visual_review": True,
+                    "picked_scores": ["PENDING_VISUAL_REVIEW"],
+                }, []
+
+            with patch("video_pipeline_core.mv_cut.detect_beats", return_value=(120.0, [0.0, 2.0])), \
+                 patch("video_pipeline_core.mv_cut._plan_stock_segment", side_effect=fake_stock), \
+                 patch("video_pipeline_core.mv_cut.render_mv_audio") as render, \
+                 patch("video_pipeline_core.mv_cut.build_mv_state"):
+                result = mv_cut.run_mv(
+                    {"segments": [{"segment": 1, "source": "stock", "visual_desc": "one"}]},
+                    None,
+                    str(Path(tmp) / "final.mp4"),
+                    music_path="music.mp3",
+                    mat_dir=tmp,
+                    verbose=False,
+                )
+
+            request = json.loads((Path(tmp) / "visual_review_request.json").read_text(encoding="utf-8"))
+
+        self.assertEqual([clip["segment"] for clip in request["clips"]], [1])
+        self.assertTrue(result["awaiting_visual_review"])
+        render.assert_not_called()
+
     def test_run_mv_agent_mode_loads_verdict_by_segment(self):
         import json
         import tempfile
@@ -765,10 +802,10 @@ class MusicMixTest(unittest.TestCase):
         self.assertIn("volume=0.6", fc)
         self.assertEqual(amap, "[a]")
 
-    def test_pure_montage_maps_music_direct(self):
+    def test_pure_montage_normalizes_music(self):
         fc, amap = mv_cut._mv_music_mix(False)
-        self.assertIsNone(fc)
-        self.assertEqual(amap, "1:a:0")
+        self.assertIn("loudnorm=I=-18", fc)
+        self.assertEqual(amap, "[a]")
 
 
 class SrtTsTest(unittest.TestCase):
@@ -981,10 +1018,14 @@ class SegmentPlannerTest(unittest.TestCase):
     def test_plan_stock_success_and_gap(self):
         a = {"n_clips": 1, "clip_dur": 3.0, "budget": 4.0}
         s = {"segment": 2, "visual_desc": "空拍", "search_query": "aerial"}
-        ok, e_ok, _ = mv_cut._plan_stock_segment(s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: o)
+        ok, e_ok, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: o,
+            visual_judge="ollama")
         self.assertEqual(len(ok), 1)
         self.assertEqual(e_ok["picked_scores"], ["stock"])
-        gap, e_gap, _ = mv_cut._plan_stock_segment(s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: None)
+        gap, e_gap, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: None,
+            visual_judge="ollama")
         self.assertEqual(gap, [])
         self.assertEqual(e_gap["picked_scores"], ["GAP"])
 
@@ -993,7 +1034,8 @@ class SegmentPlannerTest(unittest.TestCase):
         def boom(q, o, min_dur=0):
             raise RuntimeError("network down")
         slots, entry, msgs = mv_cut._plan_stock_segment({"segment": 2, "visual_desc": "x"},
-                                                        a, {}, "/tmp", _fetch=boom)
+                                                        a, {}, "/tmp", _fetch=boom,
+                                                        visual_judge="ollama")
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
         self.assertTrue(any("fetch 失敗" in m for m in msgs))
@@ -1014,7 +1056,8 @@ class SegmentPlannerTest(unittest.TestCase):
         slots, entry, _ = mv_cut._plan_stock_segment(
             s, a, {}, "/tmp",
             _fetch=lambda q, o, min_dur=0: o,
-            _winfn=lambda *args, **kw: [dict(w) for w in fake_wins])
+            _winfn=lambda *args, **kw: [dict(w) for w in fake_wins],
+            visual_judge="ollama")
         self.assertEqual(len(slots), 3)
         starts = [sl["extract_start"] for sl in slots]
         self.assertEqual(starts, [2.0, 20.0, 40.0])
@@ -1131,7 +1174,8 @@ class SegmentPlannerTest(unittest.TestCase):
         slots, entry, _ = mv_cut._plan_stock_segment(
             s, a, {}, "/tmp",
             _fetch=lambda q, o, min_dur=0: o,
-            _winfn=lambda *args, **kw: [dict(w) for w in two])
+            _winfn=lambda *args, **kw: [dict(w) for w in two],
+            visual_judge="ollama")
         self.assertEqual(len(slots), 4)
         self.assertEqual([sl["extract_start"] for sl in slots], [0.0, 6.0, 0.0, 6.0])
 
@@ -1157,7 +1201,8 @@ class SegmentPlannerTest(unittest.TestCase):
             slots, entry, msgs = mv_cut._plan_stock_segment(
                 s, a, {}, "/tmp",
                 _fetch=lambda q, o, min_dur=0: o,
-                model="qwen3-vl:4b-instruct", min_score=60)
+                model="qwen3-vl:4b-instruct", min_score=60,
+                visual_judge="ollama")
         self.assertEqual(len(slots), 2)
         self.assertEqual([sl["extract_start"] for sl in slots], [10.0, 30.0])
         self.assertEqual(entry["picked_scores"], [90, 85])
@@ -1177,7 +1222,8 @@ class SegmentPlannerTest(unittest.TestCase):
             slots, entry, msgs = mv_cut._plan_stock_segment(
                 s, a, {}, "/tmp",
                 _fetch=lambda q, o, min_dur=0: o,
-                model="qwen3-vl:4b-instruct", min_score=60)
+                model="qwen3-vl:4b-instruct", min_score=60,
+                visual_judge="ollama")
         self.assertEqual(slots, [])
         self.assertEqual(entry["picked_scores"], ["GAP"])
         self.assertTrue(entry.get("vlm_rejected"))
@@ -1199,7 +1245,8 @@ class SegmentPlannerTest(unittest.TestCase):
             slots, entry, msgs = mv_cut._plan_stock_segment(
                 s, a, {}, "/tmp",
                 _fetch=lambda q, o, min_dur=0: o,
-                model="qwen3-vl:4b-instruct", min_score=60)
+                model="qwen3-vl:4b-instruct", min_score=60,
+                visual_judge="ollama")
         self.assertEqual(len(slots), 2)
         self.assertFalse(entry.get("vlm_rejected"))
         self.assertEqual(entry["picked_scores"], [40, 40])
@@ -1221,7 +1268,8 @@ class SegmentPlannerTest(unittest.TestCase):
                 s, a, {}, "/tmp",
                 _fetch=lambda q, o, min_dur=0: o,
                 _winfn=lambda *args, **kw: [dict(w) for w in two],
-                model="qwen3-vl:4b-instruct", min_score=60)
+                model="qwen3-vl:4b-instruct", min_score=60,
+                visual_judge="ollama")
         self.assertEqual(len(slots), 2)
         self.assertEqual(entry["picked_scores"], ["stock", "stock"])
         self.assertTrue(any("退回機械開窗" in m for m in msgs))
@@ -1262,7 +1310,8 @@ class SegmentPlannerTest(unittest.TestCase):
              patch("video_pipeline_core.mv_cut.score_windows", side_effect=fake_score_windows):
             slots, entry, msgs = mv_cut._plan_stock_segment(
                 s, a, {}, "/tmp", _fetch=fetch,
-                model="qwen3-vl:4b-instruct", min_score=60)
+                model="qwen3-vl:4b-instruct", min_score=60,
+                visual_judge="ollama")
         self.assertEqual(fetch_calls, [0, 1])          # tried candidate #2
         self.assertEqual(len(slots), 2)                # accepted from candidate #2
         self.assertFalse(entry.get("vlm_rejected"))
@@ -1274,7 +1323,8 @@ class SegmentPlannerTest(unittest.TestCase):
         slots, entry, _ = mv_cut._plan_stock_segment(
             s, a, {}, "/tmp",
             _fetch=lambda q, o, min_dur=0: o,
-            _winfn=lambda *args, **kw: [])
+            _winfn=lambda *args, **kw: [],
+            visual_judge="ollama")
         self.assertEqual(len(slots), 1)
         self.assertEqual(slots[0]["extract_start"], 0.0)
         self.assertEqual(slots[0]["extract_dur"], 18.0)
@@ -1589,3 +1639,17 @@ class ShotMidpointsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AudioMixNormalizationTest(unittest.TestCase):
+    def test_music_only_mix_normalizes_loudness(self):
+        fc, amap = mv_cut._mv_music_mix(False)
+        self.assertEqual(amap, "[a]")
+        self.assertIn("loudnorm=I=-18", fc)
+        self.assertIn("[1:a]", fc)
+
+    def test_keep_audio_mix_normalizes_after_ducking(self):
+        fc, amap = mv_cut._mv_music_mix(True)
+        self.assertEqual(amap, "[a]")
+        self.assertIn("sidechaincompress", fc)
+        self.assertIn("loudnorm=I=-18", fc)

@@ -298,7 +298,10 @@ class ContractToMvScriptTest(unittest.TestCase):
                 "editing_defaults": {"broll_ratio_target": 0.4, "max_source_repeats": 2},
             }), encoding="utf-8")
 
+            captured = {}
+
             def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
+                captured.update(kwargs)
                 Path(out_path).write_bytes(b"mp4")
                 state = Path(out_path).parent / "state.json"
                 state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
@@ -327,6 +330,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             bp = json.loads((outdir / "build_profile.json").read_text(encoding="utf-8"))
             self.assertEqual(bp["broll_policy"]["target_ratio"], 0.4)
             self.assertEqual(bp["broll_policy"]["max_source_repeats"], 2)
+            self.assertEqual(captured["max_source_repeats"], 2)
             # lineage recorded + indexed in manifest
             applied = json.loads((outdir / "creator_profile_applied.json").read_text(encoding="utf-8"))
             self.assertIn("broll_ratio_target", applied["applied"])
@@ -1131,6 +1135,32 @@ class RunContractSupplyGateTest(unittest.TestCase):
                 result["verify_evidence_bundle"],
                 str(outdir / "verify_evidence" / "verify_evidence_bundle.json"),
             )
+
+    def test_final_state_prefers_actual_out_path_and_verify_pass_over_dashboard_guess(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            final = root / "custom_final.mp4"
+            verify = root / "verify_result.json"
+            final.write_bytes(b"video")
+            verify.write_text(json.dumps({"pass": True, "score": 95.7}), encoding="utf-8")
+            state = {
+                "final": str(final),
+                "pass": False,
+                "next_action": "revise_material_selection_or_review",
+            }
+            dash_state = {
+                "run": {
+                    "pass": False,
+                    "next_action": "revise_material_selection_or_review",
+                }
+            }
+
+            merged = ca._final_state_payload(state, dash_state, final, verify)
+
+            self.assertTrue(merged["pass"])
+            self.assertEqual(merged["next_action"], "complete_review_final")
+            self.assertEqual(merged["final"], str(final))
+            self.assertEqual(merged["qa"]["score"], 95.7)
 
 
 if __name__ == "__main__":

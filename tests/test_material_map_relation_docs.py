@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import unittest
 
 
@@ -38,7 +38,7 @@ class MaterialMapRelationDocsTest(unittest.TestCase):
             self.assertIn(expected, text)
 
     def test_decision_log_records_material_map_relation_review(self):
-        text = read("docs/decisions/2026-06-19-material-map-relation-review.md")
+        text = read("docs/archive/decisions/2026-06-19-material-map-relation-review.md")
         for expected in [
             "Material-map relation review",
             "No new runtime layer",

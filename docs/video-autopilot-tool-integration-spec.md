@@ -1,4 +1,4 @@
-# Video Autopilot Tool Integration Spec
+﻿# Video Autopilot Tool Integration Spec
 
 Updated: 2026-06-07
 Status: approved for implementation
@@ -408,7 +408,7 @@ HANDOFF_CURRENT.md
 ROADMAP.md
 docs/build-tool-runner-spec.md
 docs/video-autopilot-tool-integration-spec.md
-docs/superpowers/plans/2026-06-07-video-autopilot-tool-integration.md
+docs/construction-guides/superpowers/plans/2026-06-07-video-autopilot-tool-integration.md
 graphify-out/GRAPH_REPORT.md
 video_pipeline_core/node_registry.py
 video_pipeline_core/runtime_orchestrator.py

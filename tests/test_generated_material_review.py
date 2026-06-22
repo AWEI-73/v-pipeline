@@ -163,6 +163,57 @@ class GeneratedMaterialReviewTest(unittest.TestCase):
         verdict["decisions"][0]["status"] = "candidate"
         self.assertFalse(apply_generated_material_review(_project_map(), verdict, _needs())["ok"])
 
+    def test_accepting_failed_quality_generated_asset_fails_without_waiver(self):
+        quality_review = {
+            "artifact_role": "generated_material_quality_review",
+            "version": 1,
+            "pass": False,
+            "items": [
+                {"job_id": "gen_panel", "pass": False, "score": 40,
+                 "findings": ["visual_family_missing"]},
+            ],
+        }
+
+        result = apply_generated_material_review(
+            _project_map(),
+            _accept_verdict(),
+            _needs(),
+            quality_review=quality_review,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("quality review failed", "; ".join(result["errors"]))
+
+    def test_quality_waiver_allows_accepting_failed_quality_with_lineage(self):
+        quality_review = {
+            "artifact_role": "generated_material_quality_review",
+            "version": 1,
+            "pass": False,
+            "items": [
+                {"job_id": "gen_panel", "pass": False, "score": 40,
+                 "findings": ["visual_family_missing"]},
+            ],
+        }
+        verdict = _accept_verdict()
+        for decision in verdict["decisions"]:
+            decision["quality_waiver"] = {
+                "reviewer": "director-agent",
+                "reason": "temporary storyboard placeholder accepted for rough cut",
+                "at": "2026-06-22T00:00:00+08:00",
+            }
+
+        result = apply_generated_material_review(
+            _project_map(),
+            verdict,
+            _needs(),
+            quality_review=quality_review,
+        )
+
+        self.assertTrue(result["ok"], result.get("errors"))
+        edge = result["project_material_map"]["assets"][0]["scenes"][0]["satisfies"][0]
+        self.assertEqual(edge["lineage"]["quality_review"]["score"], 40)
+        self.assertTrue(edge["lineage"]["quality_waiver"]["reason"])
+
     def test_cli_writes_reviewed_project_map(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as td:

@@ -1,4 +1,4 @@
-# Current Handoff: Hermes Video Pipeline
+﻿# Current Handoff: Hermes Video Pipeline
 
 > **2026-06-20 current baseline:** active roadmap is `roadmap.md`; full suite
 > **1656 tests OK** after BSA1 effectiveness reporting and window-fallback
@@ -26,8 +26,8 @@
 > **2026-06-11 state:** convergence COMPLETE (roadmap C0-C6 DoD met). Two real
 > E2E smokes pass: skill-smoke (MV, verify 91.5 / editorial_qa 94) and city-day
 > (narrative, 21-seg ~5min with TTS narration + BGM). Full suite **1656 tests OK**.
-> Next phase = expressiveness & chain merge (P1-P6) — see roadmap.md top section
-> and `docs/decisions/2026-06-11-e2e-smokes-and-next-phase.md` (includes the
+> Next phase = expressiveness & chain merge (P1-P6) ??see roadmap.md top section
+> and `docs/archive/decisions/2026-06-11-e2e-smokes-and-next-phase.md` (includes the
 > week's fix index and the adjudication of external feedback).
 > Env note: run with **miniconda python** (librosa/edge-tts); new projects start
 > with `video_tools.py project-init <name>`.
@@ -73,7 +73,9 @@ Do not develop both copies independently.
 - Error routing truth: `video_pipeline.py` aliases `video_pipeline_core.vt_core.FIX_TARGET`.
 - Project outputs: external project/run folders; repo-local `.project/active.json` is only a relative pointer.
 - Material folders: `materials/raw`, `materials/selected`, `materials/generated`, `materials/stock`.
-- VLM policy: `qwen3-vl:4b-instruct` only for gate, content QA, and retry.
+- Visual judgment policy: agent/cloud review is the default for material understanding,
+  content QA, and VERIFY VLM roles. Local Ollama/qwen routes are legacy opt-in only
+  (for explicit experiments such as `caption-meta --local-vlm`), not the default gate.
 - Generated provider policy: Antigravity / assistant_imagegen / codex_imagegen preferred; ComfyUI is deprecated/disabled unless explicitly isolated.
 - BUILD runner policy: tool choices live in `build_profile.json`; runner work must write explicit artifacts and manifest entries. See `docs/build-tool-runner-spec.md`.
 - Editing/VERIFY tool integration: verification pack, creator profile, optional CapCut backend, editable CapCut text/audio tracks, photo multi-shot expansion, and the Node 14 `ffmpeg_libass` motion-graphics runner are implemented. ffmpeg stays canonical; CapCut GUI export remains an explicit human/Computer-Use gate.
@@ -100,33 +102,33 @@ video_tools.py --help: pass
 Full test suite: 541 tests pass (100% success)
 ```
 
-## COMPLETED — E2E Verify: ffmpeg + CapCut (2026-06-08)
+## COMPLETED ??E2E Verify: ffmpeg + CapCut (2026-06-08)
 
 Both render paths verified end-to-end on the `coffee` baseline run.
 
 ```text
 ffmpeg path (canonical, default):
-  final.mp4 → verify score 92.5 PASS
+  final.mp4 ??verify score 92.5 PASS
   P1 audit pack (5/5 PASS):
-    timeline_invariants.json  — clip trace, duration, overlap, target match
-    keyframe_grid.jpg         — 12 samples, 中文字幕無亂碼
-    caption_audit.json        — 0 gap / 0 overlap / 0 too-fast
-    broll_audit.json          — broll_ratio=0, unique_source=1.0
-    visual_audit.json         — 0 mechanical findings
-  Known: audio_levels 50 (max 0.0dB 偏大聲) — tunable via --bgm-vol
+    timeline_invariants.json  ??clip trace, duration, overlap, target match
+    keyframe_grid.jpg         ??12 samples, 銝剜?摮??∩?蝣?
+    caption_audit.json        ??0 gap / 0 overlap / 0 too-fast
+    broll_audit.json          ??broll_ratio=0, unique_source=1.0
+    visual_audit.json         ??0 mechanical findings
+  Known: audio_levels 50 (max 0.0dB ?之?? ??tunable via --bgm-vol
 
 CapCut path (optional, render_backend=capcut_draft):
-  hermes_p3_demo draft loaded in CapCut ✓
-  User exported capcut_exported.mp4 from CapCut GUI ✓
-  capcut-finalize (BGM 20% + outro card) → final_capcut.mp4 ✓
-  visual_audit PASS, keyframe_grid generated ✓
+  hermes_p3_demo draft loaded in CapCut ??
+  User exported capcut_exported.mp4 from CapCut GUI ??
+  capcut-finalize (BGM 20% + outro card) ??final_capcut.mp4 ??
+  visual_audit PASS, keyframe_grid generated ??
   CapCut export is always a human/CU gate (no CLI export).
 
 CLI commands verified:
   video_tools.py capcut-finalize --video X --out Y --bgm Z --outro-title --outro-address
   video_tools.py verify / timeline-audit / keyframe-grid / caption-audit / broll-audit / visual-audit
 
-Decision log: docs/decisions/2026-06-08-e2e-verify-capcut-finalize.md
+Decision log: docs/archive/decisions/2026-06-08-e2e-verify-capcut-finalize.md
 Commit: 4d0c96c
 ```
 
@@ -139,18 +141,18 @@ caption_audit.py       / caption-audit   -> caption_audit.json        (Node 11/1
 keyframe_grid.py       / keyframe-grid   -> keyframe_grid.jpg         (Node 12)  done (ffmpeg; fails loudly if no frames)
 visual_audit.py        / visual-audit    -> visual_audit.json         (Node 12)  done (mechanical; optional VLM)
 manifest/dashboard/registry/runtime integration: done (audits inert when absent)
-P3 capcut (optional): build_profile.render_backend (default ffmpeg) + capcut_backend.py — provider-neutral
+P3 capcut (optional): build_profile.render_backend (default ffmpeg) + capcut_backend.py ??provider-neutral
   capcut_draft_manifest + export-as-render-candidate (accepted=False, Node 12 verify required, human/CU gate).
   Real .draft serialization WORKS: build_capcut_draft skeleton-clone (templates/0608 full CapCut project,
   rebuilds the video track per clip, ID remap + meta sync); E2E-verified in CapCut GUI 2026-06-08.
   ffmpeg stays canonical. capcut-draft CLI; contract-run emits draft only when render_backend=capcut_draft.
   Gap: text/audio tracks inside the draft (BGM/outro currently post-export via capcut-finalize).
-  See docs/decisions/2026-06-08-p3-capcut-optional-backend.md
+  See docs/archive/decisions/2026-06-08-p3-capcut-optional-backend.md
 P2 creator_profile: creator_profile.py + creator-profile CLI; brief overrides creator defaults;
   contract-run --creator-profile fills build_profile broll_policy + writes creator_profile_applied.json (manifest-indexed)
 P1.5 auto-wire: contract-run auto-produces enabled audits via build_profile.verification_tools (default OFF)
 One-click smoke (all tools on, real video): 5/5 artifacts written in one pass; broll fail->curator; keyframe_grid ~80 KB
-Graphify: REBUILT 2026-06-08 (source-only) after P1/P1.5 — see graphify-out/
+Graphify: REBUILT 2026-06-08 (source-only) after P1/P1.5 ??see graphify-out/
 ```
 
 ## Latest Graphify (2026-06-11, post P1-P6)
@@ -160,14 +162,14 @@ repositories, run outputs, generated media, and local exploration caches:
 
 ```text
 104 code files
-1734 nodes · 2575 edges
+1734 nodes 繚 2575 edges
 attention_budget.py, subtitle_presentation.py, motion_graphics.py, mv_cut.py,
 and dashboard_state.py captured
 retired route.py source nodes: 0
 reference repo source nodes: 0
 ```
 
-### Codex review (2026-06-07) — findings addressed in P1.5
+### Codex review (2026-06-07) ??findings addressed in P1.5
 
 ```text
 [P1] contract-run did not auto-produce audits  -> FIXED (build_profile.verification_tools, default OFF)
@@ -181,7 +183,7 @@ reference repo source nodes: 0
 Source-only graphify skill run, excluding output/media/archive folders:
 
 ```text
-120 files · ~82,119 words
+120 files 繚 ~82,119 words
 1188 nodes
 1561 edges
 122 communities

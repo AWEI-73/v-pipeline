@@ -71,6 +71,68 @@ def _seg_id(seg, idx):
     return seg.get("segment", idx + 1)
 
 
+def _text_value(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        parts = []
+        for key in ("narrative", "text", "subtitle", "voiceover", "caption"):
+            v = value.get(key)
+            if isinstance(v, str) and v not in ("auto", "none"):
+                parts.append(v)
+        return " ".join(parts)
+    return ""
+
+
+def _visible_text_items(value, prefix=""):
+    fields = ("narrative", "text", "subtitle", "voiceover", "caption", "label", "name_super")
+    if isinstance(value, str):
+        yield prefix or "text", value
+    elif isinstance(value, dict):
+        for key in fields:
+            item = value.get(key)
+            if isinstance(item, str):
+                yield f"{prefix}.{key}" if prefix else key, item
+
+
+def _has_mojibake_text(text):
+    value = str(text or "")
+    return "\ufffd" in value or "???" in value
+
+
+def _estimate_text_duration_sec(text):
+    text = str(text or "").strip()
+    if not text:
+        return 0.0
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    if cjk >= max(4, len(text) * 0.35):
+        return cjk / 4.0
+    words = [w for w in text.replace("\n", " ").split(" ") if w.strip()]
+    return len(words) / 2.6
+
+
+def _estimate_contract_duration_sec(segs):
+    explicit = []
+    text_estimates = []
+    for seg in segs:
+        dur = seg.get("requested_duration_sec") or seg.get("duration_sec")
+        try:
+            dur = float(dur)
+        except (TypeError, ValueError):
+            dur = 0.0
+        if dur > 0:
+            explicit.append(dur)
+            continue
+        text_est = _estimate_text_duration_sec(_text_value(seg.get("text_layer")))
+        if text_est > 0:
+            text_estimates.append(text_est)
+    if explicit:
+        return round(sum(explicit), 3), "declared_segment_duration"
+    if text_estimates:
+        return round(sum(text_estimates), 3), "estimated_narration"
+    return None, None
+
+
 def review_spec(contract, brief=None, *, has_editorial_design=False, supply_review=None):
     """Cross-check the whole project SPEC for executability. Returns the
     spec_review payload (see module docstring)."""
@@ -137,6 +199,23 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
             "fix": "set brief.target_length (e.g. '45 seconds')",
         })
 
+    else:
+        estimated_sec, estimate_source = _estimate_contract_duration_sec(segs)
+        if estimated_sec and estimated_sec > 0:
+            ratio = estimated_sec / float(target_sec)
+            if ratio < 0.7 or ratio > 1.45:
+                warnings.append({
+                    "rule": "target_length_mismatch",
+                    "target_duration_sec": round(float(target_sec), 3),
+                    "estimated_duration_sec": round(float(estimated_sec), 3),
+                    "duration_ratio": round(ratio, 3),
+                    "estimate_source": estimate_source,
+                    "message": f"contract estimated duration is {estimated_sec:g}s but "
+                               f"brief.target_length is {float(target_sec):g}s "
+                               f"(ratio {ratio:.2f})",
+                    "fix": "revise segment count/narration/durations or add an explicit waiver",
+                })
+
     # --- W3: implicit mode trap ----------------------------------------------
     vt = str(brief.get("video_type") or "").lower()
     if brief and not brief.get("mode") and "mv" in vt:
@@ -178,6 +257,21 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
         aud = seg.get("audio") or {}
         txt = seg.get("text_layer")
         src = seg.get("source")
+
+        for field in ("text_layer", "subtitle", "label", "name_super", "narrative"):
+            for path, text in _visible_text_items(seg.get(field), field):
+                if text in ("auto", "none"):
+                    continue
+                if _has_mojibake_text(text):
+                    blocking.append({
+                        "rule": "text_mojibake",
+                        "tier": 1,
+                        "segment": sid,
+                        "field": path,
+                        "message": f"seg{sid}: visible text appears mojibaked ({path})",
+                        "fix": "restore UTF-8/source text before BUILD; do not render question-mark overlays",
+                    })
+                    break
 
         # --- B1: pacing conflict (only computable when target known) ---------
         if target_sec and (seg.get("editing_intent") or seg.get("material_treatment")):
@@ -338,6 +432,7 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
         "pacing_conflict": 2,
         "perfunctory_spec": 2,
         "missing_target_length": 3,
+        "target_length_mismatch": 2,
     }
     for finding in blocking + warnings:
         finding.setdefault("tier", tier_by_rule.get(finding.get("rule"), 2))

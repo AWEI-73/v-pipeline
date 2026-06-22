@@ -597,6 +597,7 @@ def build_timeline_build(render_plan, *, contract_hash=None, fps=30, resolution=
             "effect_overlays": item.get("effect_overlays"),
             "photo_variant": item.get("photo_variant"),
             "still_treatment": item.get("still_treatment"),
+            "source_repeat_count": item.get("source_repeat_count"),
             "trace": {
                 "segment_contract_segment": segment,
                 "assembly_plan_segment": segment,

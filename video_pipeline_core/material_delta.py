@@ -75,8 +75,22 @@ def _validate_asset_ids(material_maps):
     return errors
 
 
+def _generated_fingerprint(material_map, scene):
+    source_type = scene.get("source_type") or material_map.get("source_type")
+    if source_type != "generated":
+        return None
+    for key in ("content_hash", "file_hash", "sha256", "perceptual_hash"):
+        value = scene.get(key) or material_map.get(key)
+        if isinstance(value, str) and value.strip():
+            return f"{key}:{value.strip()}"
+    source = material_map.get("source")
+    if isinstance(source, str) and source.strip():
+        return f"source:{source.strip()}"
+    return None
+
+
 def _scene_lookup(material_maps):
-    """{(asset_id, scene_index): (source, scene)} from the per-asset maps."""
+    """{(asset_id, scene_index): (source, scene, generated_fingerprint)}."""
     lookup = {}
     for material_map in material_maps or []:
         if not isinstance(material_map, dict):
@@ -84,7 +98,12 @@ def _scene_lookup(material_maps):
         asset_id = material_map.get("asset_id")
         source = material_map.get("source")
         for index, scene in enumerate(material_map.get("scenes") or []):
-            lookup[(asset_id, index)] = (source, scene if isinstance(scene, dict) else {})
+            scene_obj = scene if isinstance(scene, dict) else {}
+            lookup[(asset_id, index)] = (
+                source,
+                scene_obj,
+                _generated_fingerprint(material_map, scene_obj),
+            )
     return lookup
 
 
@@ -116,15 +135,21 @@ def _usable_counts(satisfied_by, lookup):
     usable = {"accepted": 0, "candidate": 0, "rejected": 0}
     usable_scenes = {"accepted": [], "candidate": [], "rejected": []}
     dropped = []
+    seen_generated_fingerprints = set()
     for key in sorted(best, key=lambda k: (str(k[0]), k[1] if isinstance(k[1], int) else -1)):
         status = best[key]
         ref = {"asset_id": key[0], "scene_index": key[1]}
         if key not in lookup:
             dropped.append({**ref, "status": status, "reason": "scene_not_found"})
             continue
-        source, scene = lookup[key]
+        source, scene, fingerprint = lookup[key]
         ok_render, reason = _renderable(source, scene)
         if ok_render:
+            if fingerprint and fingerprint in seen_generated_fingerprints:
+                dropped.append({**ref, "status": status, "reason": "duplicate_generated_asset"})
+                continue
+            if fingerprint:
+                seen_generated_fingerprints.add(fingerprint)
             usable[status] += 1
             usable_scenes[status].append(ref)
         else:

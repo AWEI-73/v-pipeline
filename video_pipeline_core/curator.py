@@ -317,6 +317,21 @@ def _caption_match_score(desc, caption):
     return round(len(a & b) / len(a), 3) if a else 0.0
 
 
+def _stock_direct_match(segment, file_entry):
+    if segment.get("source") != "stock":
+        return False
+    sid = segment.get("segment")
+    if sid is None:
+        return False
+    path = str(file_entry.get("path") or "").replace("\\", "/").lower()
+    if f"seg{sid}_stock" in path:
+        return True
+    for key in ("segment", "segment_id", "stock_segment", "stock_first_segment"):
+        if str(file_entry.get(key) or "") == str(sid):
+            return True
+    return False
+
+
 def match_script_to_material(segments, files, restrict_to_hint=True, montage_picks=5):
     """純函式:需求(段 visual_desc/material_hint/must_include) × 供給(material_db files:
     vlm_caption/classify/path) → 每段配 clip + 缺口。**用既有 caption 文字比對,不跑 VLM**。
@@ -331,6 +346,11 @@ def match_script_to_material(segments, files, restrict_to_hint=True, montage_pic
         scored = []
         for f in usable:
             path = f.get("path", "")
+            if _stock_direct_match(s, f):
+                scored.append({"path": path, "score": 1.0,
+                               "caption": f.get("vlm_caption"), "hint_hit": False,
+                               "match_reason": "stock_first_segment_file"})
+                continue
             hint_hit = bool(hint) and hint in path
             if hint and restrict_to_hint and not hint_hit:
                 continue
@@ -402,6 +422,8 @@ def cmd_caption_meta(args):
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
     review_dir = getattr(args, "visual_review_dir", None)
+    if not review_dir and not getattr(args, "local_vlm", False):
+        review_dir = os.path.join(os.path.dirname(os.path.abspath(args.db)), "material_visual_review")
     if review_dir:
         pending = [entry for entry in db.get("files", []) if not entry.get("vlm_caption")]
         if not pending:
@@ -528,15 +550,31 @@ def cmd_material_map(args):
         db = json.load(f)
     if getattr(args, "maps_dir", None):
         from .material_map import write_material_maps
-        maps = write_material_maps(db, args.maps_dir)
+        maps = write_material_maps(
+            db,
+            args.maps_dir,
+            limit=getattr(args, "limit", None),
+            selected_only=getattr(args, "selected_only", False),
+            asset_timeout_sec=getattr(args, "asset_timeout_sec", None),
+            update_db_path=getattr(args, "update_db", None),
+            fast=getattr(args, "fast", False),
+        )
         update_db = getattr(args, "update_db", None)
         if update_db:
             with open(update_db, "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
+        skipped = [
+            entry.get("id") or entry.get("asset_id") or entry.get("path")
+            for entry in db.get("files", [])
+            if entry.get("material_map_status") == "skipped"
+        ]
         print(json.dumps({
             "ok": True,
             "maps_dir": args.maps_dir,
             "maps": len(maps),
+            "mode": "fast" if getattr(args, "fast", False) else "full",
+            "skipped": len(skipped),
+            "skipped_assets": skipped,
             "materials_db": update_db,
         }, ensure_ascii=False, indent=2))
         return

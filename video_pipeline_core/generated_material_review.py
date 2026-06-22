@@ -14,6 +14,7 @@ from .project_material_map import build_project_material_map
 
 
 REVIEW_STATUSES = ("accepted", "rejected")
+CANONICAL_WAIVER_FIELDS = ("reviewer", "reason", "at")
 
 
 def _text(value: Any) -> str:
@@ -29,6 +30,39 @@ def _error(errors: list[str]) -> dict:
         "project_material_map": None,
         "summary": {"accepted": 0, "rejected": 0},
     }
+
+
+def _canonical_quality_waiver(value: Any) -> dict | None:
+    if not isinstance(value, Mapping):
+        return None
+    if not all(_text(value.get(key)) for key in CANONICAL_WAIVER_FIELDS):
+        return None
+    return {key: _text(value.get(key)) for key in CANONICAL_WAIVER_FIELDS}
+
+
+def _quality_index(quality_review: Mapping[str, Any] | None) -> dict[str, dict]:
+    if not isinstance(quality_review, Mapping):
+        return {}
+    index = {}
+    for item in quality_review.get("items") or []:
+        if not isinstance(item, Mapping):
+            continue
+        for key in ("job_id", "asset_id", "segment"):
+            value = _text(item.get(key))
+            if value and value not in index:
+                index[value] = dict(item)
+    return index
+
+
+def _quality_item_for(edge: Mapping[str, Any], asset_id: str, index: Mapping[str, dict]) -> dict | None:
+    lineage = edge.get("lineage") if isinstance(edge.get("lineage"), Mapping) else {}
+    for key in ("generated_job_id", "job_id", "generated_asset_id"):
+        value = _text(lineage.get(key))
+        if value and value in index:
+            return index[value]
+    if asset_id in index:
+        return index[asset_id]
+    return None
 
 
 def _validate_inputs(project_map: Mapping[str, Any], verdict: Mapping[str, Any],
@@ -84,6 +118,8 @@ def apply_generated_material_review(
     project_map: Mapping[str, Any],
     verdict: Mapping[str, Any],
     material_needs: Mapping[str, Any],
+    *,
+    quality_review: Mapping[str, Any] | None = None,
 ) -> dict:
     errors, _known = _validate_inputs(project_map, verdict, material_needs)
     if errors:
@@ -99,6 +135,7 @@ def apply_generated_material_review(
     counts = {"accepted": 0, "rejected": 0}
     reviewer = _text(verdict.get("reviewer"))
     at = _text(verdict.get("at"))
+    quality_by_id = _quality_index(quality_review)
 
     for decision in verdict.get("decisions") or []:
         asset_id = _text(decision.get("asset_id"))
@@ -135,6 +172,16 @@ def apply_generated_material_review(
         if status not in VALID_STATUSES:
             errors.append(f"invalid status {status!r}")
             continue
+        quality_item = _quality_item_for(edge, asset_id, quality_by_id)
+        quality_failed = bool(quality_item and quality_item.get("pass") is False)
+        quality_waiver = _canonical_quality_waiver(decision.get("quality_waiver"))
+        if status == "accepted" and quality_failed and not quality_waiver:
+            score = quality_item.get("score")
+            errors.append(
+                f"quality review failed for asset_id={asset_id!r} need_id={need_id!r}"
+                + (f" score={score!r}" if score is not None else "")
+            )
+            continue
         edge["status"] = status
         edge["lineage"] = dict(lineage)
         edge["lineage"].update({
@@ -142,6 +189,14 @@ def apply_generated_material_review(
             "reason": reason,
             "previous_status": "candidate",
         })
+        if quality_item:
+            edge["lineage"]["quality_review"] = {
+                "pass": quality_item.get("pass"),
+                "score": quality_item.get("score"),
+                "findings": list(quality_item.get("findings") or []),
+            }
+        if quality_waiver:
+            edge["lineage"]["quality_waiver"] = quality_waiver
         if at:
             edge["lineage"]["at"] = at
         counts[status] += 1

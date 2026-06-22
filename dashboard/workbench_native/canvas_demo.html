@@ -1,0 +1,2030 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clipchamp Style Whiteboard Canvas Demo</title>
+  <style>
+    :root {
+      /* Light theme (Clipchamp Style) */
+      --bg: #f3f5f8;
+      --panel: #ffffff;
+      --panel-secondary: #f8f9fa;
+      --border: #e2e8f0;
+      --text: #1a202c;
+      --text-muted: #718096;
+      --accent: #6c5ce7;
+      --accent-hover: #5b4bc4;
+      --accent-light: #ece9fc;
+      --canvas-bg: #000000;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+      --input-bg: #ffffff;
+      --timeline-track: #edf2f7;
+    }
+
+    [data-theme="dark"] {
+      /* Dark theme */
+      --bg: #0f0f12;
+      --panel: #16161c;
+      --panel-secondary: #1d1d24;
+      --border: #2d2d3a;
+      --text: #f7fafc;
+      --text-muted: #a0aec0;
+      --accent: #8270f5;
+      --accent-hover: #6c5ce7;
+      --accent-light: #2b2640;
+      --canvas-bg: #050508;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --input-bg: #1d1d24;
+      --timeline-track: #1d1d24;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* --- HEADER --- */
+    header.app-header {
+      height: 56px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      z-index: 10;
+      box-shadow: var(--shadow);
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .undo-redo {
+      display: flex;
+      gap: 4px;
+    }
+    .btn-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-icon:hover {
+      background: var(--panel-secondary);
+      border-color: var(--border);
+    }
+    .header-mid {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .btn-secondary {
+      background: var(--panel-secondary);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: var(--panel);
+      border-color: var(--accent);
+    }
+
+    /* --- WORKBENCH CONTAINER --- */
+    .workbench-layout {
+      flex: 1;
+      display: flex;
+      height: calc(100vh - 56px);
+      position: relative;
+    }
+
+    /* --- FAR LEFT TAB BAR --- */
+    .tab-bar {
+      width: 64px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 0;
+      gap: 16px;
+      z-index: 5;
+    }
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 10px;
+      width: 100%;
+      padding: 8px 0;
+      transition: all 0.2s;
+    }
+    .tab-item:hover, .tab-item.active {
+      color: var(--accent);
+    }
+    .tab-item.active {
+      border-left: 3px solid var(--accent);
+      background: var(--accent-light);
+    }
+    .tab-item svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    /* --- LEFT SIDEBAR (DRAWER) --- */
+    .library-drawer {
+      width: 300px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: width 0.3s;
+      z-index: 4;
+    }
+    .drawer-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .drawer-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .search-box {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .search-box input {
+      width: 100%;
+      background: var(--panel-secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px 8px 32px;
+      border-radius: 6px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-box input:focus {
+      border-color: var(--accent);
+      background: var(--panel);
+    }
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      fill: var(--text-muted);
+    }
+    .filter-tags {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .tag {
+      padding: 4px 10px;
+      background: var(--panel-secondary);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tag:hover, .tag.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .tag.active {
+      background: var(--accent-light);
+      font-weight: 600;
+    }
+    .assets-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .asset-card {
+      background: var(--panel-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      gap: 12px;
+      cursor: grab;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .asset-card:hover {
+      border-color: var(--accent);
+      box-shadow: var(--shadow);
+    }
+    .asset-card:active {
+      cursor: grabbing;
+    }
+    .asset-thumb {
+      width: 80px;
+      height: 50px;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      background: #000;
+    }
+    .asset-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .asset-duration {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .asset-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+    .asset-title {
+      font-weight: 600;
+      font-size: 12px;
+      margin: 0 0 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .asset-type {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* --- CENTER PANEL --- */
+    .center-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* --- EDITOR AREA --- */
+    .stage-canvas-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .monitor-viewport {
+      width: 640px;
+      height: 360px;
+      background: var(--canvas-bg);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      border: 1px solid var(--border);
+    }
+
+    /* The interactive workspace canvas elements */
+    .canvas-element {
+      position: absolute;
+      transform-origin: center center;
+      cursor: move;
+      box-sizing: border-box;
+      touch-action: none;
+    }
+    .canvas-element img, .canvas-element video {
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      display: block;
+      pointer-events: none;
+    }
+
+    /* Bounding Box / Transformer Overlay */
+    .transformer-box {
+      position: absolute;
+      border: 2px solid var(--accent);
+      pointer-events: none;
+      box-sizing: border-box;
+      display: none;
+      z-index: 100;
+    }
+    
+    /* Transformer Handles */
+    .tf-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #ffffff;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      pointer-events: auto;
+      z-index: 101;
+      transform: translate(-50%, -50%);
+    }
+    
+    /* Corner handles (circular) */
+    .tf-handle-tl { top: 0; left: 0; cursor: nwse-resize; }
+    .tf-handle-tr { top: 0; left: 100%; cursor: nesw-resize; }
+    .tf-handle-bl { top: 100%; left: 0; cursor: nesw-resize; }
+    .tf-handle-br { top: 100%; left: 100%; cursor: nwse-resize; }
+    
+    /* Edge handles (rectangles) */
+    .tf-handle-tm { top: 0; left: 50%; width: 14px; height: 6px; border-radius: 3px; cursor: ns-resize; }
+    .tf-handle-bm { top: 100%; left: 50%; width: 14px; height: 6px; border-radius: 3px; cursor: ns-resize; }
+    .tf-handle-ml { top: 50%; left: 0; width: 6px; height: 14px; border-radius: 3px; cursor: ew-resize; }
+    .tf-handle-mr { top: 50%; left: 100%; width: 6px; height: 14px; border-radius: 3px; cursor: ew-resize; }
+
+    /* Rotation Handle */
+    .tf-handle-rot-line {
+      position: absolute;
+      width: 2px;
+      height: 24px;
+      background: var(--accent);
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+    }
+    .tf-handle-rot {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      top: calc(100% + 24px);
+      left: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 101;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    .tf-handle-rot:active {
+      cursor: grabbing;
+    }
+    .tf-handle-rot svg {
+      width: 12px;
+      height: 12px;
+      fill: var(--accent);
+    }
+
+    /* Drop-zone highlight */
+    .monitor-viewport.drag-over::after {
+      content: "拖曳置放素材到畫板";
+      position: absolute;
+      inset: 0;
+      background: rgba(108, 92, 231, 0.15);
+      border: 3px dashed var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 16px;
+      font-weight: 700;
+      z-index: 200;
+      pointer-events: none;
+    }
+
+    /* --- TIMELINE AREA --- */
+    .timeline-container {
+      height: 240px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 3;
+    }
+    .timeline-toolbar {
+      height: 48px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+    .timeline-tools-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .timeline-tools-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .zoom-slider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+    }
+    .zoom-slider input {
+      width: 80px;
+      accent-color: var(--accent);
+    }
+    
+    .timeline-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+    }
+    
+    .timeline-tracks {
+      padding: 16px 0;
+      position: relative;
+      min-height: 100%;
+    }
+    
+    .timeline-track-row {
+      display: flex;
+      align-items: center;
+      height: 44px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    
+    .track-meta {
+      width: 80px;
+      padding-left: 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    
+    .track-content {
+      flex: 1;
+      height: 40px;
+      background: var(--timeline-track);
+      border-radius: 6px;
+      margin-right: 16px;
+      position: relative;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    
+    .timeline-clip {
+      position: absolute;
+      height: 34px;
+      top: 2px;
+      background: var(--accent-light);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      transition: outline 0.1s;
+    }
+    .timeline-clip.active {
+      outline: 2px solid var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .playhead-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 180px; /* Mock left offset */
+      width: 2px;
+      background: var(--accent);
+      z-index: 10;
+      pointer-events: none;
+    }
+    .playhead-handle {
+      position: absolute;
+      top: 0;
+      left: 180px;
+      transform: translate(-50%, -100%);
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 50% 50% 50% 0;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      z-index: 11;
+      cursor: ew-resize;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+
+    /* --- RIGHT INSPECTOR PANEL --- */
+    .inspector-panel {
+      width: 280px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 4;
+      box-shadow: var(--shadow);
+    }
+    .inspector-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .inspector-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .control-group label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .control-row {
+      display: flex;
+      gap: 8px;
+    }
+    .control-row input {
+      flex: 1;
+    }
+    .control-group input[type="text"], 
+    .control-group input[type="number"] {
+      background: var(--panel-secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px;
+      border-radius: 6px;
+      outline: none;
+      width: 100%;
+    }
+    .control-group input:focus {
+      border-color: var(--accent);
+    }
+    .control-group input[type="range"] {
+      accent-color: var(--accent);
+    }
+    .control-val {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .empty-inspector {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px 16px;
+      font-style: italic;
+    }
+
+    /* --- UTILS --- */
+    .flex-spacer {
+      flex: 1;
+    }
+    .theme-toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-weight: 600;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="btn-icon" title="Menu">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor"/></svg>
+      </div>
+      <span style="font-weight: 700; font-size: 15px; letter-spacing: 0.5px;">Clipchamp Demo Canvas</span>
+      <div class="undo-redo">
+        <button class="btn-icon" id="btn-undo" title="復原">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" fill="currentColor"/></svg>
+        </button>
+        <button class="btn-icon" id="btn-redo" title="重做">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="header-mid">
+      <button class="btn-icon" title="裁切">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M17 15h2V7c0-1.1-.9-2-2-2H9v2h8v8zM7 17V1H5v4H1v2h4v10c0 1.1.9 2 2 2h10v4h2v-4h4v-2H7z" fill="currentColor"/></svg>
+      </button>
+      <button class="btn-icon" title="填滿畫面">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 4h6v2H6v4H4V4zm14 0h-6v2h4v4h2V4zM4 18h6v-2H6v-4H4v6zm14 0h-6v-2h4v-4h2v6z" fill="currentColor"/></svg>
+      </button>
+      <div style="height: 16px; width: 1px; background: var(--border);"></div>
+      <select id="aspect-ratio" class="btn-secondary" style="padding: 4px 8px; font-size: 11px;">
+        <option value="16:9">16:9 寬螢幕</option>
+        <option value="9:16">9:16 直向</option>
+        <option value="1:1">1:1 正方形</option>
+      </select>
+    </div>
+
+    <div class="header-right">
+      <button class="btn-secondary" id="btn-theme-toggle">切換深色模式</button>
+      <button class="btn-secondary">
+        <svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z" fill="currentColor"/></svg>
+        共用
+      </button>
+      <button class="btn-primary" id="btn-export-show">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" fill="currentColor"/></svg>
+        匯出
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKBENCH LAYOUT -->
+  <div class="workbench-layout">
+
+    <!-- VERTICAL TAB BAR -->
+    <div class="tab-bar">
+      <div class="tab-item active" data-drawer="drawer-media">
+        <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" /></svg>
+        內容庫
+      </div>
+      <div class="tab-item" data-drawer="drawer-templates">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H5v-5h5v5zm0-7H5V5h5v5zm9 7h-7v-5h7v5zm0-7h-7V5h7v5z" /></svg>
+        範本
+      </div>
+      <div class="tab-item" data-drawer="drawer-text">
+        <svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4H5z" /></svg>
+        文字
+      </div>
+      <div class="tab-item" data-drawer="drawer-audio">
+        <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" /></svg>
+        音訊
+      </div>
+      <div class="tab-item" data-drawer="drawer-effects">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.53c-.26-.81-1-1.4-1.9-1.4h-1v-3c0-.55-.45-1-1-1h-6v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        特效
+      </div>
+    </div>
+
+    <!-- EXPANDED DRAWER PANEL: MEDIA -->
+    <div class="library-drawer" id="drawer-media">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <span>我的媒體庫</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">4 個項目</span>
+        </div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+          <input type="text" placeholder="搜尋素材 / 標籤..." />
+        </div>
+        <div class="filter-tags">
+          <div class="tag active">全部</div>
+          <div class="tag">影像</div>
+          <div class="tag">風景</div>
+        </div>
+      </div>
+      
+      <!-- DRAGGABLE ASSET CARDS -->
+      <div class="assets-list">
+        <div class="asset-card" draggable="true" data-id="violet-flower" data-type="image" data-title="Violet Flowers" data-src="https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600&auto=format&fit=crop&q=60">
+          <div class="asset-thumb">
+            <img src="https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=200&auto=format&fit=crop&q=60" alt="" />
+            <span class="asset-duration">00:16</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Violet Flowers</h4>
+            <span class="asset-type">Image (Unsplash)</span>
+          </div>
+        </div>
+
+        <div class="asset-card" draggable="true" data-id="waterfall" data-type="image" data-title="Nature Waterfall" data-src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&auto=format&fit=crop&q=60">
+          <div class="asset-thumb">
+            <img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=200&auto=format&fit=crop&q=60" alt="" />
+            <span class="asset-duration">00:11</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Waterfall</h4>
+            <span class="asset-type">Image (Unsplash)</span>
+          </div>
+        </div>
+
+        <div class="asset-card" draggable="true" data-id="spring-forest" data-type="image" data-title="Spring Forest" data-src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&auto=format&fit=crop&q=60">
+          <div class="asset-thumb">
+            <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=200&auto=format&fit=crop&q=60" alt="" />
+            <span class="asset-duration">00:12</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Spring Forest</h4>
+            <span class="asset-type">Image (Unsplash)</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="theme-toggle-container">
+        <span style="font-size:11px; color:var(--text-muted);">Clipchamp Workspace</span>
+      </div>
+    </div>
+
+    <!-- EXPANDED DRAWER PANEL: TEMPLATES -->
+    <div class="library-drawer" id="drawer-templates" style="display: none;">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <span>範本庫</span>
+        </div>
+      </div>
+      <div class="assets-list">
+        <div class="asset-card" draggable="true" data-id="tpl-intro" data-type="image" data-title="16:9 簡約開場" data-src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e1b4b; color:#818cf8; font-weight:bold;">TPL</div>
+            <span class="asset-duration">00:05</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">16:9 簡約開場</h4>
+            <span class="asset-type">Video Template</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="tpl-outro" data-type="image" data-title="1:1 社群片尾" data-src="https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#311042; color:#d946ef; font-weight:bold;">OUT</div>
+            <span class="asset-duration">00:08</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">1:1 社群片尾</h4>
+            <span class="asset-type">Video Template</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPANDED DRAWER PANEL: TEXT -->
+    <div class="library-drawer" id="drawer-text" style="display: none;">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <span>文字預設庫</span>
+        </div>
+      </div>
+      <div class="assets-list">
+        <div class="asset-card" draggable="true" data-id="text-title" data-type="subtitle" data-title="標題文字" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#0f172a; color:#f8fafc; font-size: 20px; font-weight: bold;">T</div>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Title Reveal</h4>
+            <span class="asset-type">Text style</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="text-caption" data-type="subtitle" data-title="Emphasis Caption" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#0f172a; color:#f8fafc; font-size: 14px;">Sub</div>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Emphasis Caption</h4>
+            <span class="asset-type">Text style</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPANDED DRAWER PANEL: AUDIO -->
+    <div class="library-drawer" id="drawer-audio" style="display: none;">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <span>音訊庫</span>
+        </div>
+      </div>
+      <div class="assets-list">
+        <div class="asset-card" draggable="true" data-id="bgm-lofi" data-type="audio" data-title="Lofi Chill Beat" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#4a4a5a; color:#a0aec0;"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>
+            <span class="asset-duration">03:20</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Lofi Chill Beat</h4>
+            <span class="asset-type">Audio (MP3)</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="sfx-hit" data-type="audio" data-title="Hit Effect" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#38bdf8; font-weight:bold;">HIT</div>
+            <span class="asset-duration">00:02</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Hit Effect</h4>
+            <span class="asset-type">SFX (WAV)</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="sfx-whoosh" data-type="audio" data-title="Transition Whoosh" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1e293b; color:#38bdf8; font-weight:bold;">WHOOSH</div>
+            <span class="asset-duration">00:03</span>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">Transition Whoosh</h4>
+            <span class="asset-type">SFX (WAV)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPANDED DRAWER PANEL: EFFECTS -->
+    <div class="library-drawer" id="drawer-effects" style="display: none;">
+      <div class="drawer-header">
+        <div class="drawer-title">
+          <span>特效預設庫</span>
+        </div>
+      </div>
+      <div class="assets-list">
+        <div class="asset-card" draggable="true" data-id="fx-zoom" data-type="effect" data-title="zoom_punch" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1c1917; color:#f59e0b; font-size:24px;">🔍</div>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">zoom_punch</h4>
+            <span class="asset-type">Effect Intent</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="fx-flash" data-type="effect" data-title="flash" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1c1917; color:#f59e0b; font-size:24px;">⚡</div>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">flash</h4>
+            <span class="asset-type">Effect Intent</span>
+          </div>
+        </div>
+        <div class="asset-card" draggable="true" data-id="fx-shake" data-type="effect" data-title="shake_light" data-src="">
+          <div class="asset-thumb">
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1c1917; color:#f59e0b; font-size:24px;">🫨</div>
+          </div>
+          <div class="asset-info">
+            <h4 class="asset-title">shake_light</h4>
+            <span class="asset-type">Effect Intent</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER CANVAS / STAGE -->
+    <div class="center-stage">
+      <div class="stage-canvas-area">
+        
+        <!-- MONITOR VIEWPORT (16:9) -->
+        <div class="monitor-viewport" id="monitor-viewport">
+          
+          <!-- Element Layers inside Canvas -->
+          <div class="canvas-element" id="el-violet" style="left: 60px; top: 30px; width: 520px; height: 300px; z-index: 10;">
+            <img src="https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600&auto=format&fit=crop&q=60" alt="" />
+          </div>
+
+        </div>
+
+        <!-- Bounding Box / Transformer Control Bounding Overlay -->
+        <div class="transformer-box" id="transformer-box">
+          <!-- Bounding Border lines are implied by transformer-box borders -->
+          <!-- Corner handles -->
+          <div class="tf-handle tf-handle-tl" data-handle="tl"></div>
+          <div class="tf-handle tf-handle-tr" data-handle="tr"></div>
+          <div class="tf-handle tf-handle-bl" data-handle="bl"></div>
+          <div class="tf-handle tf-handle-br" data-handle="br"></div>
+          
+          <!-- Edge handles -->
+          <div class="tf-handle tf-handle-tm" data-handle="tm"></div>
+          <div class="tf-handle tf-handle-bm" data-handle="bm"></div>
+          <div class="tf-handle tf-handle-ml" data-handle="ml"></div>
+          <div class="tf-handle tf-handle-mr" data-handle="mr"></div>
+
+          <!-- Rotation Stem & Handle -->
+          <div class="tf-handle-rot-line"></div>
+          <div class="tf-handle-rot" data-handle="rot" title="旋轉">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-6h2v6zm0-8h-2V7h2v4z" /></svg>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TIMELINE -->
+      <div class="timeline-container">
+        <div class="timeline-toolbar">
+          <div class="timeline-tools-left">
+            <button class="btn-icon" title="分割" id="btn-split">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm10-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zm6-6.5h-3l-5 5 2.36 2.36L22 6V5z" fill="currentColor"/></svg>
+            </button>
+            <button class="btn-icon" title="刪除" id="btn-delete">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
+            </button>
+          </div>
+          
+          <div class="timeline-tools-right">
+            <span style="font-variant-numeric: tabular-nums; font-weight: 600;" id="timeline-timecode">0:00.00 / 0:16.76</span>
+            <div class="zoom-slider">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <input type="range" min="1" max="100" value="50" />
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-body">
+          <div class="timeline-tracks" id="timeline-tracks-area">
+            
+            <!-- VIDEO TRACK -->
+            <div class="timeline-track-row">
+              <div class="track-meta">影片 (Video)</div>
+              <div class="track-content" id="track-video" data-type="video">
+                <div class="timeline-clip active" id="clip-violet" data-id="violet-flower" style="left: 40px; width: 320px;" title="Violet Flowers">
+                  Violet Flowers
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBTITLE TRACK -->
+            <div class="timeline-track-row">
+              <div class="track-meta">字幕 (Subtitle)</div>
+              <div class="track-content" id="track-subtitle" data-type="subtitle">
+                <div class="timeline-clip" id="clip-sub1" style="left: 40px; width: 140px; background: #fee2e2; border-color: #fca5a5; color: #b91c1c;" title="Rotated flowers.">
+                  Rotated flowers.
+                </div>
+                <div class="timeline-clip" id="clip-sub2" style="left: 200px; width: 160px; background: #fee2e2; border-color: #fca5a5; color: #b91c1c;" title="Beautiful violet color.">
+                  Beautiful violet color.
+                </div>
+              </div>
+            </div>
+
+            <!-- AUDIO TRACK -->
+            <div class="timeline-track-row">
+              <div class="track-meta">音訊 (Audio)</div>
+              <div class="track-content" id="track-audio" data-type="audio">
+                <div class="timeline-clip" id="clip-audio1" style="left: 20px; width: 340px; background: #e9d5ff; border-color: #a855f7; color: #7e22ce;" title="Lofi Chill Beat">
+                  Lofi Chill Beat
+                </div>
+              </div>
+            </div>
+
+            <!-- EFFECT TRACK -->
+            <div class="timeline-track-row">
+              <div class="track-meta">特效 (Effect)</div>
+              <div class="track-content" id="track-effect" data-type="effect">
+                <div class="timeline-clip" id="clip-effect1" style="left: 100px; width: 120px; background: #fef08a; border-color: #facc15; color: #a16207;" title="zoom_punch">
+                  zoom_punch
+                </div>
+              </div>
+            </div>
+            
+            <!-- Playhead lines -->
+            <div class="playhead-line" id="playhead-line"></div>
+            <div class="playhead-handle" id="playhead-handle"></div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT INSPECTOR PANEL -->
+    <div class="inspector-panel">
+      <div class="inspector-header">屬性面板</div>
+      
+      <div class="inspector-content" id="inspector-properties">
+        <div id="inspector-empty-state" class="empty-inspector" style="display: none;">
+          請選擇畫板上的素材或時間軸的剪輯片段以進行調整
+        </div>
+        
+        <div id="inspector-active-state" class="control-group">
+          
+          <div class="control-group">
+            <label>素材名稱</label>
+            <input type="text" id="prop-name" value="Violet Flowers" />
+          </div>
+
+          <div class="control-group">
+            <label>橫向位置 (X)</label>
+            <div class="control-row">
+              <input type="range" id="prop-x" min="-200" max="640" value="60" />
+              <span class="control-val" id="val-x">60 px</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label>縱向位置 (Y)</label>
+            <div class="control-row">
+              <input type="range" id="prop-y" min="-200" max="360" value="30" />
+              <span class="control-val" id="val-y">30 px</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label>寬度 (Width)</label>
+            <div class="control-row">
+              <input type="range" id="prop-width" min="50" max="1000" value="520" />
+              <span class="control-val" id="val-width">520 px</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label>高度 (Height)</label>
+            <div class="control-row">
+              <input type="range" id="prop-height" min="50" max="600" value="300" />
+              <span class="control-val" id="val-height">300 px</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label>旋轉角度 (Rotation)</label>
+            <div class="control-row">
+              <input type="range" id="prop-rotation" min="-180" max="180" value="0" />
+              <span class="control-val" id="val-rotation">0 °</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label>透明度 (Opacity)</label>
+            <div class="control-row">
+              <input type="range" id="prop-opacity" min="0" max="100" value="100" />
+              <span class="control-val" id="val-opacity">100 %</span>
+            </div>
+          </div>
+
+          <div style="height: 12px;"></div>
+          <button class="btn-secondary" id="btn-reset-transform" style="width: 100%;">重設變形</button>
+          <button class="btn-secondary" id="btn-delete-element" style="width: 100%; border-color: #f56565; color: #f56565; margin-top: 8px;">刪除此素材</button>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toast-notif">專案已成功儲存！</div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // --- STYLING & THEME TOGGLE ---
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    btnThemeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      btnThemeToggle.textContent = nextTheme === 'dark' ? '切換淺色模式' : '切換深色模式';
+    });
+
+    // --- VERTICAL TAB SWITCHING ---
+    document.querySelectorAll('.tab-item').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        const drawerId = tab.getAttribute('data-drawer');
+        document.querySelectorAll('.library-drawer').forEach(d => d.style.display = 'none');
+        const activeDrawer = document.getElementById(drawerId);
+        if (activeDrawer) {
+          activeDrawer.style.display = 'flex';
+        }
+      });
+    });
+
+    // --- MOCK DATABASE ---
+    const MOCK_ASSETS = {
+      'violet-flower': {
+        title: 'Violet Flowers',
+        src: 'https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600&auto=format&fit=crop&q=60',
+        type: 'image'
+      },
+      'waterfall': {
+        title: 'Waterfall',
+        src: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600&auto=format&fit=crop&q=60',
+        type: 'image'
+      },
+      'spring-forest': {
+        title: 'Spring Forest',
+        src: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&auto=format&fit=crop&q=60',
+        type: 'image'
+      },
+      'bgm-lofi': {
+        title: 'Lofi Chill Beat',
+        src: '',
+        type: 'audio'
+      },
+      'sfx-hit': {
+        title: 'Hit Effect',
+        src: '',
+        type: 'audio'
+      },
+      'sfx-whoosh': {
+        title: 'Transition Whoosh',
+        src: '',
+        type: 'audio'
+      },
+      'text-title': {
+        title: '標題文字',
+        src: '',
+        type: 'subtitle'
+      },
+      'text-caption': {
+        title: 'Emphasis Caption',
+        src: '',
+        type: 'subtitle'
+      },
+      'fx-zoom': {
+        title: 'zoom_punch',
+        src: '',
+        type: 'effect'
+      },
+      'fx-flash': {
+        title: 'flash',
+        src: '',
+        type: 'effect'
+      },
+      'fx-shake': {
+        title: 'shake_light',
+        src: '',
+        type: 'effect'
+      },
+      'tpl-intro': {
+        title: '16:9 簡約開場',
+        src: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=600',
+        type: 'image'
+      },
+      'tpl-outro': {
+        title: '1:1 社群片尾',
+        src: 'https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600',
+        type: 'image'
+      }
+    };
+
+    // --- STATE MANAGER ---
+    let state = {
+      elements: [
+        {
+          id: 'el-violet',
+          assetId: 'violet-flower',
+          name: 'Violet Flowers',
+          x: 60,
+          y: 30,
+          width: 520,
+          height: 300,
+          rotation: 0,
+          opacity: 100,
+          type: 'image',
+          src: 'https://images.unsplash.com/photo-1596701062351-8c2c14d1fdd0?w=600&auto=format&fit=crop&q=60'
+        }
+      ],
+      selectedElementId: 'el-violet',
+      history: [],
+      historyIndex: -1
+    };
+
+    function saveHistory() {
+      // Crop future history if we did undoes
+      if (state.historyIndex < state.history.length - 1) {
+        state.history = state.history.slice(0, state.historyIndex + 1);
+      }
+      state.history.push(JSON.stringify(state.elements));
+      state.historyIndex = state.history.length - 1;
+      updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+      document.getElementById('btn-undo').disabled = state.historyIndex <= 0;
+      document.getElementById('btn-redo').disabled = state.historyIndex >= state.history.length - 1;
+    }
+
+    // --- SELECT ELEMENT ---
+    function selectElement(id) {
+      state.selectedElementId = id;
+      
+      const elData = state.elements.find(e => e.id === id);
+      const activeState = document.getElementById('inspector-active-state');
+      const emptyState = document.getElementById('inspector-empty-state');
+      
+      if (!elData) {
+        activeState.style.display = 'none';
+        emptyState.style.display = 'block';
+        updateTransformer();
+        // Remove selection classes on DOM
+        document.querySelectorAll('.canvas-element').forEach(el => el.style.border = 'none');
+        document.querySelectorAll('.timeline-clip').forEach(cl => cl.classList.remove('active'));
+        return;
+      }
+      
+      activeState.style.display = 'flex';
+      emptyState.style.display = 'none';
+      
+      // Update form values
+      document.getElementById('prop-name').value = elData.name;
+      document.getElementById('prop-x').value = Math.round(elData.x);
+      document.getElementById('prop-y').value = Math.round(elData.y);
+      document.getElementById('prop-width').value = Math.round(elData.width);
+      document.getElementById('prop-height').value = Math.round(elData.height);
+      document.getElementById('prop-rotation').value = Math.round(elData.rotation);
+      document.getElementById('prop-opacity').value = Math.round(elData.opacity);
+      
+      // Update labels
+      document.getElementById('val-x').textContent = Math.round(elData.x) + ' px';
+      document.getElementById('val-y').textContent = Math.round(elData.y) + ' px';
+      document.getElementById('val-width').textContent = Math.round(elData.width) + ' px';
+      document.getElementById('val-height').textContent = Math.round(elData.height) + ' px';
+      document.getElementById('val-rotation').textContent = Math.round(elData.rotation) + ' °';
+      document.getElementById('val-opacity').textContent = Math.round(elData.opacity) + ' %';
+      
+      // Update timeline highlighting
+      document.querySelectorAll('.timeline-clip').forEach(cl => {
+        if (cl.id === 'clip-' + id.split('-')[1]) {
+          cl.classList.add('active');
+        } else {
+          cl.classList.remove('active');
+        }
+      });
+      
+      updateTransformer();
+    }
+
+    // --- TRANSFORMER BINDING BOX CONTROLLER ---
+    const tfBox = document.getElementById('transformer-box');
+    const viewport = document.getElementById('monitor-viewport');
+
+    function updateTransformer() {
+      if (!state.selectedElementId) {
+        tfBox.style.display = 'none';
+        return;
+      }
+      
+      const elData = state.elements.find(e => e.id === state.selectedElementId);
+      const domEl = document.getElementById(state.selectedElementId);
+      
+      if (!elData || !domEl) {
+        tfBox.style.display = 'none';
+        return;
+      }
+      
+      // Update actual element CSS styles
+      domEl.style.left = elData.x + 'px';
+      domEl.style.top = elData.y + 'px';
+      domEl.style.width = elData.width + 'px';
+      domEl.style.height = elData.height + 'px';
+      domEl.style.transform = `rotate(${elData.rotation}deg)`;
+      domEl.style.opacity = elData.opacity / 100;
+      
+      // Place the transformer directly over the element, matching size and rotation
+      tfBox.style.display = 'block';
+      tfBox.style.left = elData.x + 'px';
+      tfBox.style.top = elData.y + 'px';
+      tfBox.style.width = elData.width + 'px';
+      tfBox.style.height = elData.height + 'px';
+      tfBox.style.transform = `rotate(${elData.rotation}deg)`;
+    }
+
+    // --- POINTER / MOUSE DRAG & RESIZE ENGINE ---
+    let dragType = null; // 'move', 'tl', 'br', 'rot', etc.
+    let startX = 0, startY = 0;
+    let startEl = {};
+    
+    // Add event listeners on transformer box for handles, and canvas elements for translation
+    viewport.addEventListener('pointerdown', function(e) {
+      // Check if clicking inside a canvas element
+      const target = e.target.closest('.canvas-element');
+      if (target) {
+        e.preventDefault();
+        selectElement(target.id);
+        initDrag(e, 'move');
+        viewport.setPointerCapture(e.pointerId);
+      }
+    });
+
+    // Transformer box handle clicks
+    tfBox.addEventListener('pointerdown', function(e) {
+      const handle = e.target.closest('[data-handle]');
+      if (handle) {
+        e.preventDefault();
+        e.stopPropagation();
+        const type = handle.getAttribute('data-handle');
+        initDrag(e, type);
+        tfBox.setPointerCapture(e.pointerId);
+      }
+    });
+
+    function initDrag(e, type) {
+      dragType = type;
+      startX = e.clientX;
+      startY = e.clientY;
+      
+      const elData = state.elements.find(e => e.id === state.selectedElementId);
+      if (elData) {
+        startEl = { ...elData };
+      }
+      
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
+    }
+
+    function handlePointerMove(e) {
+      if (!dragType || !state.selectedElementId) return;
+      
+      const elData = state.elements.find(e => e.id === state.selectedElementId);
+      if (!elData) return;
+      
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      const rad = startEl.rotation * Math.PI / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+
+      if (dragType === 'move') {
+        // Simple translation
+        elData.x = startEl.x + dx;
+        elData.y = startEl.y + dy;
+      } 
+      else if (dragType === 'rot') {
+        // Calculate rotation relative to the center of the element
+        const viewportRect = viewport.getBoundingClientRect();
+        
+        // Element center in screen coordinates
+        const elCenterX = viewportRect.left + startEl.x + startEl.width / 2;
+        const elCenterY = viewportRect.top + startEl.y + startEl.height / 2;
+        
+        const currentAngleRad = Math.atan2(e.clientY - elCenterY, e.clientX - elCenterX);
+        // Default rotation handle is pointing down (90 degrees, or Math.PI / 2)
+        let angleDeg = (currentAngleRad * 180 / Math.PI) - 90;
+        
+        // Snap to 45 degree increments if shift key is held
+        if (e.shiftKey) {
+          angleDeg = Math.round(angleDeg / 45) * 45;
+        }
+        
+        elData.rotation = angleDeg;
+      }
+      else {
+        // Resizing. Convert screen delta to local coordinate space of the element
+        const localDx = dx * cos + dy * sin;
+        const localDy = -dx * sin + dy * cos;
+
+        // Proportional scale factor
+        const aspect = startEl.width / startEl.height;
+
+        // Opposite anchors are fixed standard. Let's calculate new width/height and offsets.
+        let newWidth = startEl.width;
+        let newHeight = startEl.height;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        switch (dragType) {
+          case 'br': // Bottom Right
+            newWidth = Math.max(20, startEl.width + localDx);
+            newHeight = Math.max(20, startEl.height + localDy);
+            if (e.shiftKey || true) { // Proportional by default for corners in Clipchamp
+              const scale = Math.max(newWidth / startEl.width, newHeight / startEl.height);
+              newWidth = startEl.width * scale;
+              newHeight = startEl.height * scale;
+            }
+            break;
+            
+          case 'bl': // Bottom Left
+            newWidth = Math.max(20, startEl.width - localDx);
+            newHeight = Math.max(20, startEl.height + localDy);
+            if (e.shiftKey || true) {
+              const scale = Math.max(newWidth / startEl.width, newHeight / startEl.height);
+              newWidth = startEl.width * scale;
+              newHeight = startEl.height * scale;
+            }
+            offsetX = startEl.width - newWidth;
+            break;
+            
+          case 'tr': // Top Right
+            newWidth = Math.max(20, startEl.width + localDx);
+            newHeight = Math.max(20, startEl.height - localDy);
+            if (e.shiftKey || true) {
+              const scale = Math.max(newWidth / startEl.width, newHeight / startEl.height);
+              newWidth = startEl.width * scale;
+              newHeight = startEl.height * scale;
+            }
+            offsetY = startEl.height - newHeight;
+            break;
+            
+          case 'tl': // Top Left
+            newWidth = Math.max(20, startEl.width - localDx);
+            newHeight = Math.max(20, startEl.height - localDy);
+            if (e.shiftKey || true) {
+              const scale = Math.max(newWidth / startEl.width, newHeight / startEl.height);
+              newWidth = startEl.width * scale;
+              newHeight = startEl.height * scale;
+            }
+            offsetX = startEl.width - newWidth;
+            offsetY = startEl.height - newHeight;
+            break;
+
+          // Non-proportional edge scales
+          case 'mr': // Middle Right
+            newWidth = Math.max(20, startEl.width + localDx);
+            break;
+          case 'ml': // Middle Left
+            newWidth = Math.max(20, startEl.width - localDx);
+            offsetX = startEl.width - newWidth;
+            break;
+          case 'bm': // Bottom Middle
+            newHeight = Math.max(20, startEl.height + localDy);
+            break;
+          case 'tm': // Top Middle
+            newHeight = Math.max(20, startEl.height - localDy);
+            offsetY = startEl.height - newHeight;
+            break;
+        }
+
+        // Apply offsets in the rotated system to keep opposite edge anchored
+        elData.width = newWidth;
+        elData.height = newHeight;
+        elData.x = startEl.x + offsetX * cos - offsetY * sin;
+        elData.y = startEl.y + offsetX * sin + offsetY * cos;
+      }
+      
+      // Update forms and redraw
+      selectElement(state.selectedElementId);
+    }
+
+    function handlePointerUp(e) {
+      if (dragType) {
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
+        
+        // Release pointer capture
+        try {
+          viewport.releasePointerCapture(e.pointerId);
+          tfBox.releasePointerCapture(e.pointerId);
+        } catch(err) {}
+        
+        dragType = null;
+        saveHistory();
+      }
+    }
+
+    // --- FORM VALUE SYNCS ---
+    function registerFormSync(inputId, propKey, labelSuffix = ' px') {
+      const input = document.getElementById(inputId);
+      const valLabel = document.getElementById('val-' + inputId.split('-')[1]);
+      
+      input.addEventListener('input', function() {
+        if (!state.selectedElementId) return;
+        const elData = state.elements.find(e => e.id === state.selectedElementId);
+        if (!elData) return;
+        
+        const val = parseFloat(input.value);
+        elData[propKey] = val;
+        valLabel.textContent = val + labelSuffix;
+        updateTransformer();
+      });
+      
+      input.addEventListener('change', function() {
+        saveHistory();
+      });
+    }
+
+    registerFormSync('prop-x', 'x', ' px');
+    registerFormSync('prop-y', 'y', ' px');
+    registerFormSync('prop-width', 'width', ' px');
+    registerFormSync('prop-height', 'height', ' px');
+    registerFormSync('prop-rotation', 'rotation', ' °');
+    registerFormSync('prop-opacity', 'opacity', ' %');
+
+    document.getElementById('prop-name').addEventListener('input', function(e) {
+      if (!state.selectedElementId) return;
+      const elData = state.elements.find(e => e.id === state.selectedElementId);
+      if (!elData) return;
+      elData.name = e.target.value;
+      
+      // Also update timeline label
+      const clipDom = document.getElementById('clip-' + state.selectedElementId.split('-')[1]);
+      if (clipDom) {
+        clipDom.textContent = e.target.value;
+        clipDom.title = e.target.value;
+      }
+    });
+    document.getElementById('prop-name').addEventListener('change', () => saveHistory());
+
+    // Reset transform button
+    document.getElementById('btn-reset-transform').addEventListener('click', () => {
+      if (!state.selectedElementId) return;
+      const elData = state.elements.find(e => e.id === state.selectedElementId);
+      if (!elData) return;
+      elData.x = 60;
+      elData.y = 30;
+      elData.width = 520;
+      elData.height = 300;
+      elData.rotation = 0;
+      elData.opacity = 100;
+      selectElement(state.selectedElementId);
+      saveHistory();
+    });
+
+    // Delete element
+    document.getElementById('btn-delete-element').addEventListener('click', deleteSelectedElement);
+    document.getElementById('btn-delete').addEventListener('click', deleteSelectedElement);
+
+    function deleteSelectedElement() {
+      if (!state.selectedElementId) return;
+      
+      // Remove DOM
+      const domEl = document.getElementById(state.selectedElementId);
+      if (domEl) domEl.remove();
+      
+      const suffix = state.selectedElementId.split('-')[1];
+      const clipDom = document.getElementById('clip-' + suffix);
+      if (clipDom) clipDom.remove();
+      
+      // Remove from state
+      state.elements = state.elements.filter(e => e.id !== state.selectedElementId);
+      selectElement(null);
+      saveHistory();
+    }
+
+    // --- DRAG & DROP FROM SIDEBAR INTO CANVAS/TIMELINE ---
+    const assetCards = document.querySelectorAll('.asset-card');
+    
+    assetCards.forEach(card => {
+      card.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('text/plain', card.getAttribute('data-id'));
+        card.style.opacity = '0.5';
+      });
+      
+      card.addEventListener('dragend', function() {
+        card.style.opacity = '1';
+      });
+    });
+
+    viewport.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      viewport.classList.add('drag-over');
+    });
+
+    viewport.addEventListener('dragleave', function() {
+      viewport.classList.remove('drag-over');
+    });
+
+    viewport.addEventListener('drop', function(e) {
+      e.preventDefault();
+      viewport.classList.remove('drag-over');
+      
+      const assetId = e.dataTransfer.getData('text/plain');
+      const asset = MOCK_ASSETS[assetId];
+      if (!asset) return;
+      
+      if (asset.type === 'subtitle') {
+        addSubtitleClip(assetId, asset);
+        return;
+      }
+      if (asset.type === 'audio') {
+        addAudioClip(assetId, asset);
+        return;
+      }
+      if (asset.type === 'effect') {
+        addEffectClip(assetId, asset);
+        return;
+      }
+
+      // Add visual element to canvas
+      const uniqueId = 'el-' + Date.now();
+      const name = asset.title;
+      
+      const newEl = {
+        id: uniqueId,
+        assetId: assetId,
+        name: name,
+        x: 100,
+        y: 60,
+        width: 440,
+        height: 240,
+        rotation: 0,
+        opacity: 100,
+        type: asset.type,
+        src: asset.src
+      };
+      
+      state.elements.push(newEl);
+      
+      // Create DOM element
+      const div = document.createElement('div');
+      div.className = 'canvas-element';
+      div.id = uniqueId;
+      
+      const img = document.createElement('img');
+      img.src = asset.src;
+      img.alt = '';
+      div.appendChild(img);
+      
+      viewport.appendChild(div);
+      
+      // Add timeline block
+      const track = document.getElementById('track-video');
+      const clipDiv = document.createElement('div');
+      clipDiv.className = 'timeline-clip';
+      clipDiv.id = 'clip-' + uniqueId.split('-')[1];
+      clipDiv.setAttribute('data-id', assetId);
+      clipDiv.textContent = name;
+      clipDiv.title = name;
+      
+      // Calculate a mock position
+      const leftOffset = 40 + (state.elements.length - 1) * 160;
+      clipDiv.style.left = leftOffset + 'px';
+      clipDiv.style.width = '150px';
+      
+      clipDiv.addEventListener('click', function() {
+        selectElement(uniqueId);
+      });
+      
+      track.appendChild(divForDraggableClip(clipDiv, 'video', uniqueId));
+      
+      selectElement(uniqueId);
+      saveHistory();
+    });
+
+    // Setup tracks for timeline dropping
+    const tracks = document.querySelectorAll('.track-content');
+    tracks.forEach(tr => {
+      tr.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        tr.style.background = 'var(--accent-light)';
+      });
+      
+      tr.addEventListener('dragleave', function() {
+        tr.style.background = '';
+      });
+      
+      tr.addEventListener('drop', function(e) {
+        e.preventDefault();
+        tr.style.background = '';
+        
+        const assetId = e.dataTransfer.getData('text/plain');
+        const asset = MOCK_ASSETS[assetId];
+        if (!asset) return;
+        
+        const trType = tr.getAttribute('data-type');
+        const leftVal = e.clientX - tr.getBoundingClientRect().left;
+        
+        if (trType === 'video' && asset.type === 'image') {
+          // Drop to video track
+          const uniqueId = 'el-' + Date.now();
+          const newEl = {
+            id: uniqueId,
+            assetId: assetId,
+            name: asset.title,
+            x: 80,
+            y: 40,
+            width: 480,
+            height: 270,
+            rotation: 0,
+            opacity: 100,
+            type: asset.type,
+            src: asset.src
+          };
+          state.elements.push(newEl);
+          
+          const div = document.createElement('div');
+          div.className = 'canvas-element';
+          div.id = uniqueId;
+          const img = document.createElement('img');
+          img.src = asset.src;
+          div.appendChild(img);
+          viewport.appendChild(div);
+          
+          const clipDiv = document.createElement('div');
+          clipDiv.className = 'timeline-clip';
+          clipDiv.id = 'clip-' + uniqueId.split('-')[1];
+          clipDiv.textContent = asset.title;
+          clipDiv.style.left = Math.max(0, leftVal - 50) + 'px';
+          clipDiv.style.width = '140px';
+          clipDiv.addEventListener('click', () => selectElement(uniqueId));
+          tr.appendChild(divForDraggableClip(clipDiv, 'video', uniqueId));
+          
+          selectElement(uniqueId);
+          saveHistory();
+        } else if (trType === 'subtitle' && asset.type === 'subtitle') {
+          addSubtitleClip(assetId, asset, leftVal);
+        } else if (trType === 'audio' && asset.type === 'audio') {
+          addAudioClip(assetId, asset, leftVal);
+        } else if (trType === 'effect' && asset.type === 'effect') {
+          addEffectClip(assetId, asset, leftVal);
+        }
+      });
+    });
+
+    function addSubtitleClip(assetId, asset, leftVal = 80) {
+      const track = document.getElementById('track-subtitle');
+      const clipDiv = document.createElement('div');
+      clipDiv.className = 'timeline-clip';
+      clipDiv.textContent = asset.title;
+      clipDiv.style.background = '#fee2e2';
+      clipDiv.style.borderColor = '#fca5a5';
+      clipDiv.style.color = '#b91c1c';
+      clipDiv.style.left = Math.max(0, leftVal - 50) + 'px';
+      clipDiv.style.width = '140px';
+      
+      track.appendChild(divForDraggableClip(clipDiv, 'subtitle'));
+      saveHistory();
+    }
+
+    function addAudioClip(assetId, asset, leftVal = 80) {
+      const track = document.getElementById('track-audio');
+      const clipDiv = document.createElement('div');
+      clipDiv.className = 'timeline-clip';
+      clipDiv.textContent = asset.title;
+      clipDiv.style.background = '#e9d5ff';
+      clipDiv.style.borderColor = '#a855f7';
+      clipDiv.style.color = '#7e22ce';
+      clipDiv.style.left = Math.max(0, leftVal - 50) + 'px';
+      clipDiv.style.width = '200px';
+      
+      track.appendChild(divForDraggableClip(clipDiv, 'audio'));
+      saveHistory();
+    }
+
+    function addEffectClip(assetId, asset, leftVal = 80) {
+      const track = document.getElementById('track-effect');
+      const clipDiv = document.createElement('div');
+      clipDiv.className = 'timeline-clip';
+      clipDiv.textContent = asset.title;
+      clipDiv.style.background = '#fef08a';
+      clipDiv.style.borderColor = '#facc15';
+      clipDiv.style.color = '#a16207';
+      clipDiv.style.left = Math.max(0, leftVal - 50) + 'px';
+      clipDiv.style.width = '120px';
+      
+      track.appendChild(divForDraggableClip(clipDiv, 'effect'));
+      saveHistory();
+    }
+
+    // --- TIMELINE CLIPS DRAGGING (REORDER/MOVE SMOOTHLY) ---
+    function divForDraggableClip(clipEl, type, canvasElId = null) {
+      let isDraggingClip = false;
+      let clipStartX = 0;
+      let clipStartLeft = 0;
+
+      clipEl.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (canvasElId) selectElement(canvasElId);
+        
+        isDraggingClip = true;
+        clipStartX = e.clientX;
+        clipStartLeft = parseInt(clipEl.style.left || 0);
+        
+        clipEl.setPointerCapture(e.pointerId);
+        clipEl.style.cursor = 'grabbing';
+      });
+
+      clipEl.addEventListener('pointermove', function(e) {
+        if (!isDraggingClip) return;
+        const dx = e.clientX - clipStartX;
+        let nextLeft = clipStartLeft + dx;
+        
+        // Snapping helper to 0 or other clips
+        if (Math.abs(nextLeft) < 10) nextLeft = 0;
+        
+        clipEl.style.left = nextLeft + 'px';
+      });
+
+      clipEl.addEventListener('pointerup', function(e) {
+        if (isDraggingClip) {
+          isDraggingClip = false;
+          clipEl.style.cursor = 'pointer';
+          try {
+            clipEl.releasePointerCapture(e.pointerId);
+          } catch(err) {}
+          saveHistory();
+        }
+      });
+
+      return clipEl;
+    }
+
+    // Wrap initial clips
+    const initialClip = document.getElementById('clip-violet');
+    if (initialClip) {
+      divForDraggableClip(initialClip, 'video', 'el-violet');
+      initialClip.addEventListener('click', () => selectElement('el-violet'));
+    }
+
+    const initialSub1 = document.getElementById('clip-sub1');
+    if (initialSub1) divForDraggableClip(initialSub1, 'subtitle');
+    const initialSub2 = document.getElementById('clip-sub2');
+    if (initialSub2) divForDraggableClip(initialSub2, 'subtitle');
+
+    const initialAudio1 = document.getElementById('clip-audio1');
+    if (initialAudio1) divForDraggableClip(initialAudio1, 'audio');
+
+    const initialEffect1 = document.getElementById('clip-effect1');
+    if (initialEffect1) divForDraggableClip(initialEffect1, 'effect');
+
+    // --- PLAYHEAD DRAGGING ---
+    const playheadHandle = document.getElementById('playhead-handle');
+    const playheadLine = document.getElementById('playhead-line');
+    const tracksArea = document.getElementById('timeline-tracks-area');
+    let isDraggingPlayhead = false;
+    let playheadStartX = 0;
+
+    playheadHandle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingPlayhead = true;
+      playheadHandle.setPointerCapture(e.pointerId);
+    });
+
+    document.addEventListener('pointermove', function(e) {
+      if (!isDraggingPlayhead) return;
+      const rect = tracksArea.getBoundingClientRect();
+      const trackLeft = rect.left + 80; // offset track-meta
+      const trackWidth = rect.width - 96;
+      let x = e.clientX - trackLeft;
+      x = Math.max(0, Math.min(trackWidth, x));
+      
+      const leftVal = 80 + x;
+      playheadHandle.style.left = leftVal + 'px';
+      playheadLine.style.left = leftVal + 'px';
+      
+      // Update timecode mock
+      const ratio = x / trackWidth;
+      const currentTime = ratio * 16.76;
+      document.getElementById('timeline-timecode').textContent = 
+        `0:${currentTime.toFixed(2).padStart(5, '0')} / 0:16.76`;
+    });
+
+    document.addEventListener('pointerup', function(e) {
+      if (isDraggingPlayhead) {
+        isDraggingPlayhead = false;
+        try { playheadHandle.releasePointerCapture(e.pointerId); } catch(err) {}
+      }
+    });
+
+    // --- UNDO / REDO CONTROLLER ---
+    document.getElementById('btn-undo').addEventListener('click', () => {
+      if (state.historyIndex > 0) {
+        state.historyIndex--;
+        state.elements = JSON.parse(state.history[state.historyIndex]);
+        syncDOMFromState();
+        updateUndoRedoButtons();
+      }
+    });
+
+    document.getElementById('btn-redo').addEventListener('click', () => {
+      if (state.historyIndex < state.history.length - 1) {
+        state.historyIndex++;
+        state.elements = JSON.parse(state.history[state.historyIndex]);
+        syncDOMFromState();
+        updateUndoRedoButtons();
+      }
+    });
+
+    function syncDOMFromState() {
+      // Clear current canvas elements except the structure
+      const canvasElements = viewport.querySelectorAll('.canvas-element');
+      canvasElements.forEach(el => el.remove());
+      
+      // Clear track elements
+      const videoTrack = document.getElementById('track-video');
+      videoTrack.innerHTML = '';
+      
+      // Re-create elements
+      state.elements.forEach(elData => {
+        const div = document.createElement('div');
+        div.className = 'canvas-element';
+        div.id = elData.id;
+        
+        const img = document.createElement('img');
+        img.src = elData.src;
+        div.appendChild(img);
+        viewport.appendChild(div);
+        
+        const clipDiv = document.createElement('div');
+        clipDiv.className = 'timeline-clip';
+        clipDiv.id = 'clip-' + elData.id.split('-')[1];
+        clipDiv.textContent = elData.name;
+        clipDiv.title = elData.name;
+        clipDiv.style.left = '40px';
+        clipDiv.style.width = '320px';
+        clipDiv.addEventListener('click', () => selectElement(elData.id));
+        videoTrack.appendChild(divForDraggableClip(clipDiv, 'video', elData.id));
+      });
+      
+      if (state.selectedElementId && !state.elements.some(e => e.id === state.selectedElementId)) {
+        state.selectedElementId = state.elements[0] ? state.elements[0].id : null;
+      }
+      
+      selectElement(state.selectedElementId);
+    }
+
+    // --- INITIALIZE ---
+    selectElement('el-violet');
+    saveHistory(); // First save
+
+    // Show toast for Export/Save Actions
+    const toast = document.getElementById('toast-notif');
+    document.getElementById('btn-export-show').addEventListener('click', () => {
+      toast.textContent = "正在將畫板素材匯出成影片影片...";
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    });
+  </script>
+</body>
+</html>

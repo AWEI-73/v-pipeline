@@ -25,6 +25,27 @@ route state
 
 The harness trusts artifacts, not agent claims.
 
+## Execution Model
+
+The orchestrator is the parent. External agents are bounded workers.
+
+The parent owns:
+
+- route state;
+- task issue/acceptance;
+- parent-owned long execution for render/build/download/VLM jobs;
+- resume monitoring across turns.
+
+Workers own:
+
+- one node, phase, or artifact handoff from `route_subagent_task.json`;
+- only the files in `allowed_outputs`;
+- a short `route_subagent_result.json` report.
+
+state.json and artifacts are the handoff between workers. A worker should not
+depend on conversation memory from a previous worker, and the parent should not
+ask one worker to run the whole route end to end.
+
 ## Commands
 
 Issue the next task:
@@ -112,6 +133,8 @@ explicit state transition and `next_action`.
 4. **Fail-closed smoke**: bad artifacts must be rejected before the route moves.
 5. **Runner-neutral**: the harness does not import Codex, Claude, Gemini, or any
    model SDK.
+6. **Parent-owned long execution**: long-running render/build jobs must remain
+   observable and resumable after any individual worker exits.
 
 ## Acceptance Smoke
 

@@ -45,8 +45,40 @@ def _has_subject(brief: Mapping[str, Any]) -> bool:
     )
 
 
+def _story_seed(brief: Mapping[str, Any]) -> Mapping[str, Any]:
+    return brief.get("story_seed") if isinstance(brief.get("story_seed"), Mapping) else {}
+
+
+def _protagonist_text(brief: Mapping[str, Any], default: str = "the protagonist") -> str:
+    facts = brief.get("facts") if isinstance(brief.get("facts"), Mapping) else {}
+    seed = _story_seed(brief)
+    protagonists = _as_list(seed.get("protagonists"))
+    return (
+        _text(facts.get("protagonist"))
+        or " and ".join(str(item) for item in protagonists if str(item).strip())
+        or default
+    )
+
+
+def _setting_text(brief: Mapping[str, Any], default: str = "project-defined setting") -> str:
+    facts = brief.get("facts") if isinstance(brief.get("facts"), Mapping) else {}
+    seed = _story_seed(brief)
+    return _text(facts.get("place")) or _text(seed.get("setting")) or default
+
+
+def _story_motifs(brief: Mapping[str, Any]) -> list[str]:
+    seed = _text(brief.get("seed_device"))
+    values = []
+    for value in [seed, *_as_list(brief.get("required_inclusions")), _setting_text(brief, "")]:
+        value = str(value).strip()
+        if value and value not in values:
+            values.append(value)
+    return values
+
+
 def _story_world(brief: Mapping[str, Any]) -> dict:
     facts = brief.get("facts") if isinstance(brief.get("facts"), Mapping) else {}
+    story_seed = _story_seed(brief)
     return {
         "artifact_role": "story_world",
         "version": 1,
@@ -69,17 +101,15 @@ def _story_world(brief: Mapping[str, Any]) -> dict:
             "time spent together changes how departure feels",
             "training is meaningful because people endure it together",
         ] if "training" in _text(brief.get("project_type")) else [
-            "a small delivery can carry emotional weight",
-            "movement through space mirrors inner courage",
+            _text(story_seed.get("moral"), "a small kindness can become a path"),
+            "the way home becomes visible through care, courage, and wonder",
         ],
         "known_symbols": [
             _text(brief.get("seed_device")),
             "notebook",
             "uniform",
         ] if "training" in _text(brief.get("project_type")) else [
-            _text(brief.get("seed_device")),
-            "postcard",
-            "sunset",
+            value for value in _story_motifs(brief)
         ],
     }
 
@@ -103,7 +133,26 @@ def _creative_concept(brief: Mapping[str, Any], world: Mapping[str, Any]) -> dic
             "closing_answer": "Enough to become a place people carry after leaving.",
             "why_this_is_not_a_course_list": "Courses appear as memories inside one report-writing frame, so each item must advance endurance, gratitude, or departure.",
         }
-    metaphor = seed or "one message crossing the city sky"
+    subject = _protagonist_text(brief, "the story protagonist")
+    place = _setting_text(brief)
+    motifs = _story_motifs(brief) or [seed or subject]
+    goal = _text(brief.get("goal"))
+    if seed or _story_seed(brief) or _as_list(brief.get("required_inclusions")):
+        return {
+            "artifact_role": "creative_concept",
+            "version": 1,
+            "core_metaphor": seed or motifs[0],
+            "logline": goal or f"{subject} move through {place} toward a warm resolution.",
+            "narrative_device": f"{seed or motifs[0]} guides the story from being lost to finding the way",
+            "memory_frame": f"each panel follows {subject} through {place}",
+            "emotional_arc": ["lost", "noticed", "helped", "choice", "home"],
+            "visual_motifs": motifs,
+            "human_anchors": world.get("people") or [subject],
+            "opening_question": f"Can {subject} find the way home?",
+            "closing_answer": "Yes, because small kindness becomes a path.",
+            "why_this_is_not_a_course_list": "The film follows the user's story seed and emotional turn instead of substituting a generic adventure template.",
+        }
+    metaphor = "one message crossing the city sky"
     return {
         "artifact_role": "creative_concept",
         "version": 1,
@@ -145,6 +194,25 @@ def _comic_beats() -> list[dict]:
     return [_beat(*row) for row in rows]
 
 
+def _seeded_story_beats(brief: Mapping[str, Any]) -> list[dict]:
+    seed = _text(brief.get("seed_device"), "story seed")
+    subject = _protagonist_text(brief)
+    place = _setting_text(brief)
+    rows = [
+        ("setup", "Lost on the moonlit path",
+         f"introduce {subject} in {place}", "comfort to concern", "title_card", 3, 5),
+        ("guide", "The tiny lantern appears",
+         f"show how {seed} offers gentle help", "concern to trust", "mv", 4, 6),
+        ("journey", "Following the soft light",
+         f"make the journey through {place} feel safe and magical", "trust to wonder", "mv", 4, 6),
+        ("choice", "Sharing the lantern's kindness",
+         "show that kindness grows when it is shared", "wonder to choice", "voiceover", 3, 5),
+        ("home", "The moon bridge home",
+         f"release the story with {seed} and a warm safe ending", "choice to home", "mv", 4, 6),
+    ]
+    return [_beat(*row) for row in rows]
+
+
 def _beat(beat_id: str, title: str, function: str, emotion: str,
           mode: str, minimum: int, ideal: int) -> dict:
     feeling = emotion.split(" to ")[-1] if " to " in emotion else emotion
@@ -171,7 +239,13 @@ def _beat(beat_id: str, title: str, function: str, emotion: str,
 
 
 def _screenplay_beats(brief: Mapping[str, Any]) -> dict:
-    beats = _training_beats() if "training" in _text(brief.get("project_type")) else _comic_beats()
+    project_type = _text(brief.get("project_type"))
+    if "training" in project_type:
+        beats = _training_beats()
+    elif _story_seed(brief) or _as_list(brief.get("required_inclusions")):
+        beats = _seeded_story_beats(brief)
+    else:
+        beats = _comic_beats()
     return {"artifact_role": "screenplay_beats", "version": 1, "beats": beats}
 
 
@@ -179,7 +253,7 @@ def _shot_for(brief: Mapping[str, Any], concept: Mapping[str, Any], beat: Mappin
     project_type = _text(brief.get("project_type"))
     generated = "generated" in project_type or not _as_list(brief.get("known_material_categories"))
     family = f"{_slug(beat['beat_id'])}_panel" if generated else f"{_slug(beat['beat_id'])}_memory"
-    subject = "teen courier with postcard" if generated else "training class memory"
+    subject = _protagonist_text(brief) if generated else "training class memory"
     need_id = _need_id(f"{project_type}|{beat['beat_id']}|{beat['story_function']}")
     desired_style = _text(brief.get("desired_style"))
     style_clause = f"{desired_style}; " if desired_style else ""

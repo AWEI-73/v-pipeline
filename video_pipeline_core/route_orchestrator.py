@@ -15,8 +15,8 @@ STAGES = [
     {
         "stage": "Video Intent Planner",
         "role": "intent_planner",
-        "objective": "Clarify user intent, route, material availability, and initial constraints.",
-        "allowed_outputs": ["project_brief.json", "route_decision.json"],
+        "objective": "Clarify user intent, input state, entry path, material/text availability, and initial constraints.",
+        "allowed_outputs": ["video_intent.json", "project_brief.json", "route_decision.json"],
         "must_not_touch": [
             "final.mp4",
             "timeline_build.json",
@@ -24,7 +24,9 @@ STAGES = [
             "material_delta.json",
         ],
         "success_criteria": [
-            "Output must state existing-material-first, story-first, or hybrid route.",
+            "Output video_intent.json must use artifact_role=video_intent when produced.",
+            "Output must state input_state and entry_path: material-first, structure-first, or needs-context.",
+            "Legacy route aliases may be included only for compatibility.",
             "Output must not claim BUILD readiness.",
         ],
     },

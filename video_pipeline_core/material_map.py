@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import re
 import subprocess
+import traceback
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 
 _SILENCE_START = re.compile(r"silence_start:\s*([0-9.]+)")
@@ -123,6 +126,43 @@ def build_asset_map(entry, *, shot_detector=None, motion_detector=None, speech_d
     }
 
 
+def build_fast_asset_map(entry):
+    """Build a coarse per-asset map without expensive video detectors."""
+    asset_id = entry.get("id") or entry.get("asset_id") or os.path.basename(str(entry.get("path") or ""))
+    source = entry.get("path") or entry.get("source") or entry.get("display_path")
+    kind = _asset_type(entry)
+    duration = _duration(entry)
+    if kind == "photo":
+        scenes = [{
+            "start": 0.0,
+            "end": 0.0,
+            "midpoint": 0.0,
+            "kind": "still",
+            "motion_peaks": [],
+            "map_mode": "fast",
+        }]
+    else:
+        scenes = [{
+            "start": 0.0,
+            "end": round(duration, 3),
+            "midpoint": round(duration / 2.0, 3),
+            "kind": "video",
+            "motion_peaks": [],
+            "map_mode": "fast",
+        }]
+    return {
+        "artifact_role": "material_map",
+        "version": 1,
+        "asset_id": asset_id,
+        "asset_type": kind,
+        "source": source,
+        "duration_sec": duration,
+        "map_mode": "fast",
+        "scenes": scenes,
+        "speech": [],
+    }
+
+
 def apply_scene_review_verdict(material_map, verdict):
     """Apply agent/VLM scene captions without requiring a model dependency."""
     scenes = material_map.get("scenes") or []
@@ -143,15 +183,105 @@ def apply_scene_review_verdict(material_map, verdict):
     return material_map
 
 
-def write_material_maps(materials_db, maps_dir):
+def _build_asset_map_process(queue, entry):
+    try:
+        queue.put({"ok": True, "value": build_asset_map(entry)})
+    except BaseException as exc:  # pragma: no cover - defensive child process path.
+        queue.put({
+            "ok": False,
+            "error": str(exc),
+            "traceback": traceback.format_exc(),
+        })
+
+
+def _build_with_thread_timeout(entry, map_builder, timeout_sec):
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(map_builder, entry)
+    try:
+        return future.result(timeout=float(timeout_sec))
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise TimeoutError(f"material map timed out after {timeout_sec}s") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _build_with_process_timeout(entry, timeout_sec):
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=_build_asset_map_process, args=(queue, entry))
+    process.start()
+    process.join(float(timeout_sec))
+    if process.is_alive():
+        process.terminate()
+        process.join(5)
+        raise TimeoutError(f"material map timed out after {timeout_sec}s")
+    if queue.empty():
+        raise RuntimeError("material map worker exited without a result")
+    payload = queue.get()
+    if payload.get("ok"):
+        return payload["value"]
+    raise RuntimeError(payload.get("error") or "material map worker failed")
+
+
+def _build_asset_map_guarded(entry, *, asset_timeout_sec=None, map_builder=None, fast=False):
+    builder = map_builder or (build_fast_asset_map if fast else build_asset_map)
+    if asset_timeout_sec is None or float(asset_timeout_sec) <= 0:
+        return builder(entry)
+    if builder is build_asset_map:
+        return _build_with_process_timeout(entry, asset_timeout_sec)
+    return _build_with_thread_timeout(entry, builder, asset_timeout_sec)
+
+
+def _write_update_db(path, materials_db):
+    if not path:
+        return
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(materials_db, handle, ensure_ascii=False, indent=2)
+
+
+def _mark_material_map_error(entry, reason, message):
+    entry.pop("material_map", None)
+    entry["material_map_status"] = "skipped"
+    entry["material_map_error"] = {
+        "reason": reason,
+        "message": str(message),
+    }
+
+
+def write_material_maps(materials_db, maps_dir, *, limit=None, selected_only=False,
+                        asset_timeout_sec=None, update_db_path=None, map_builder=None,
+                        fast=False):
     """Write maps and record their paths on materials_db entries."""
+    maps_dir = os.path.abspath(os.fspath(maps_dir))
     os.makedirs(maps_dir, exist_ok=True)
     maps = []
-    for entry in materials_db.get("files") or []:
-        material_map = build_asset_map(entry)
+    entries = list(materials_db.get("files") or [])
+    if selected_only:
+        entries = [entry for entry in entries if entry.get("selected_for_material_map") is True]
+    if limit is not None:
+        entries = entries[:max(0, int(limit))]
+    for entry in entries:
+        try:
+            material_map = _build_asset_map_guarded(
+                entry,
+                asset_timeout_sec=asset_timeout_sec,
+                map_builder=map_builder,
+                fast=fast,
+            )
+        except TimeoutError as exc:
+            _mark_material_map_error(entry, "timeout", exc)
+            _write_update_db(update_db_path, materials_db)
+            continue
+        except Exception as exc:  # Keep bounded operator passes moving.
+            _mark_material_map_error(entry, "error", exc)
+            _write_update_db(update_db_path, materials_db)
+            continue
         path = os.path.join(maps_dir, f"{material_map['asset_id']}.map.json")
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(material_map, handle, ensure_ascii=False, indent=2)
         entry["material_map"] = path
+        entry["material_map_status"] = "mapped"
+        entry.pop("material_map_error", None)
         maps.append(material_map)
+        _write_update_db(update_db_path, materials_db)
     return maps

@@ -1,0 +1,3854 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Hermes 影片管線 - 整合式路線審查控制台。提供視覺化素材地圖畫布、全管線節點審核、多角色意見與決策核心。">
+    <title>Hermes · 路線審查控制台 (混合畫布版)</title>
+    <!-- 載入 Google Fonts: Inter, Outfit, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 載入 Tabler Icons Webfont -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.17.0/dist/tabler-icons.min.css">
+    
+    <style>
+        :root {
+            /* 預設白底 (Light Theme) 主視覺 */
+            --bg-app: #f6f8fb;
+            --bg-surface: #ffffff;
+            --bg-surface-glass: rgba(255, 255, 255, 0.85);
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --border-color: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --text-title: #0f172a;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            
+            --theme-icon: "🌙";
+            --theme-name: "Dark Mode";
+            
+            /* 功能色系 */
+            --primary: #4f46e5;
+            --primary-soft: #f5f3ff;
+            --primary-glow: rgba(79, 70, 229, 0.08);
+            
+            --success: #16a34a;
+            --success-soft: #f0fdf4;
+            --success-glow: rgba(22, 163, 74, 0.08);
+            
+            --warning: #ea580c;
+            --warning-soft: #fff7ed;
+            --warning-glow: rgba(234, 88, 12, 0.08);
+            
+            --danger: #dc2626;
+            --danger-soft: #fef2f2;
+            --danger-glow: rgba(220, 38, 38, 0.08);
+            
+            --info: #2563eb;
+            --info-soft: #eff6ff;
+            --info-glow: rgba(37, 99, 235, 0.08);
+            
+            --font-sans: 'Outfit', 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            /* 陰影與圓角 */
+            --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
+            --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+            --shadow-lg: 0 12px 24px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+            --shadow-xl: 0 20px 40px -10px rgba(15, 23, 42, 0.15);
+            
+            --r-lg: 14px;
+            --r-md: 10px;
+            --r-sm: 6px;
+            
+            --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .dark-theme {
+            /* 深色主題變數 */
+            --bg-app: #090c15;
+            --bg-surface: #101524;
+            --bg-surface-glass: rgba(16, 21, 36, 0.8);
+            --bg-card: #161e31;
+            --bg-card-hover: #1c273e;
+            --border-color: #222f46;
+            --border-hover: #314463;
+            --text-title: #f8fafc;
+            --text-body: #94a3b8;
+            --text-muted: #64748b;
+            
+            --theme-icon: "☀️";
+            --theme-name: "Light Mode";
+            
+            --primary: #6366f1;
+            --primary-soft: rgba(99, 102, 241, 0.12);
+            --primary-glow: rgba(99, 102, 241, 0.08);
+            
+            --success: #10b981;
+            --success-soft: rgba(16, 185, 129, 0.12);
+            --success-glow: rgba(16, 185, 129, 0.08);
+            
+            --warning: #f59e0b;
+            --warning-soft: rgba(245, 158, 11, 0.12);
+            --warning-glow: rgba(245, 158, 11, 0.08);
+            
+            --danger: #ef4444;
+            --danger-soft: rgba(239, 68, 68, 0.12);
+            --danger-glow: rgba(239, 68, 68, 0.08);
+            
+            --info: #0ea5e9;
+            --info-soft: rgba(14, 165, 233, 0.12);
+            --info-glow: rgba(14, 165, 233, 0.08);
+            
+            --shadow-sm: 0 2px 8px -1px rgba(0, 0, 0, 0.2);
+            --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 20px 40px -12px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-body);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+        }
+
+        /* 標頭導覽列 */
+        header.top-nav {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 28px;
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--primary);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            box-shadow: 0 3px 8px rgba(79, 70, 229, 0.2);
+        }
+
+        .brand-text h1 {
+            font-size: 15.5px;
+            font-weight: 800;
+            color: var(--text-title);
+            letter-spacing: -0.3px;
+        }
+
+        .brand-text p {
+            font-size: 10.5px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .nav-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .meta-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-lbl {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .meta-pill-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            font-weight: 700;
+            border: 1px solid var(--border-color);
+            background: var(--bg-app);
+            color: var(--text-body);
+        }
+
+        .meta-pill-badge.active-mode {
+            background: var(--primary-soft);
+            color: var(--primary);
+            border-color: rgba(79, 70, 229, 0.2);
+        }
+
+        .meta-pill-badge.status-pause {
+            background: var(--warning-soft);
+            color: var(--warning);
+            border-color: rgba(234, 88, 12, 0.2);
+        }
+
+        /* 警報/暫停橫幅 */
+        .pause-banner {
+            margin: 20px 28px 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--warning);
+            border-radius: var(--r-lg);
+            padding: 16px 20px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .banner-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .banner-icon-bg {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--warning-soft);
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .banner-desc-text h3 {
+            font-size: 14.5px;
+            font-weight: 800;
+            color: var(--text-title);
+            margin-bottom: 2px;
+        }
+
+        .banner-desc-text p {
+            font-size: 12.5px;
+            color: var(--text-body);
+        }
+
+        .banner-desc-text b {
+            color: var(--text-title);
+            font-weight: 700;
+        }
+
+        .banner-btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-family: var(--font-sans);
+            font-size: 12.5px;
+            font-weight: 700;
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-surface);
+            color: var(--text-body);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-card-hover);
+        }
+
+        .btn.pri {
+            background: var(--success);
+            border-color: var(--success);
+            color: #ffffff;
+        }
+
+        .btn.pri:hover {
+            filter: brightness(1.08);
+            box-shadow: 0 3px 8px rgba(22, 163, 74, 0.2);
+        }
+
+        .btn.accent {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #ffffff;
+        }
+
+        .btn.accent:hover {
+            filter: brightness(1.08);
+            box-shadow: 0 3px 8px rgba(79, 70, 229, 0.2);
+        }
+
+        /* 主要雙欄版型 */
+        .main-container {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 20px;
+            padding: 20px 28px 32px;
+            max-width: 1650px;
+            width: 100%;
+            margin: 0 auto;
+            flex: 1;
+        }
+
+        @media (max-width: 980px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 左側導航軌 Rail */
+        nav.rail-navigation {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 16px 12px;
+            align-self: start;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+        }
+
+        nav.rail-navigation::before {
+            content: '';
+            position: absolute;
+            left: 27px;
+            top: 36px;
+            bottom: 36px;
+            width: 1.5px;
+            background: var(--border-color);
+        }
+
+        .rail-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 2;
+            cursor: pointer;
+            padding: 9px 8px;
+            border-radius: var(--r-md);
+            transition: var(--transition-smooth);
+            margin-bottom: 2px;
+        }
+
+        .rail-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .rail-item.active {
+            background: var(--primary-soft);
+        }
+
+        .rail-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--bg-surface);
+            border: 2px solid var(--border-hover);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: transparent;
+            transition: var(--transition-smooth);
+        }
+
+        .rail-item.s-done .rail-dot {
+            background: var(--success);
+            border-color: var(--success);
+            color: #ffffff;
+        }
+
+        .rail-item.s-warn .rail-dot {
+            background: var(--warning);
+            border-color: var(--warning);
+            color: #ffffff;
+        }
+
+        .rail-item.active .rail-dot {
+            box-shadow: 0 0 0 3.5px var(--primary-soft);
+            border-color: var(--primary);
+        }
+
+        .rail-label-box {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .rail-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text-title);
+        }
+
+        .rail-item.s-none .rail-title {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .rail-summary {
+            font-size: 10.5px;
+            color: var(--warning);
+            font-weight: 700;
+            margin-top: 1px;
+        }
+
+        /* 右側各面板 Panel */
+        .content-panel {
+            min-width: 0;
+        }
+
+        .stage-view {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .stage-view.active {
+            display: flex;
+            animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 視圖標頭板 */
+        .stage-hdr {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 16px 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stage-hdr-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stage-title {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-title);
+        }
+
+        .stage-file {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            margin-top: 3px;
+        }
+
+        .stage-stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .stat-badge {
+            font-size: 11.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-app);
+            color: var(--text-body);
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-badge i {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .stat-badge.n i { background: var(--primary); }
+        .stat-badge.g i { background: var(--success); }
+        .stat-badge.a i { background: var(--warning); }
+        .stat-badge.r i { background: var(--danger); }
+
+        /* 卡片包裝樣式 */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 18px 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card-lbl {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 12px;
+        }
+
+        /* 企劃核心資訊 */
+        .kv-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .kv-card {
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            padding: 10px 12px;
+        }
+
+        .kv-key {
+            font-size: 9.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .kv-val {
+            font-size: 13.5px;
+            font-weight: 700;
+            margin-top: 3px;
+            color: var(--text-title);
+        }
+
+        .kv-val.mono {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--primary);
+        }
+
+        /* 門禁狀態標籤 */
+        .gate-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-radius: var(--r-lg);
+            padding: 14px 16px;
+            border: 1px solid;
+            margin-bottom: 16px;
+        }
+
+        .gate-card.blocked {
+            background: var(--danger-soft);
+            border-color: rgba(220, 38, 38, 0.2);
+            color: var(--danger);
+        }
+
+        .gate-card.ok {
+            background: var(--success-soft);
+            border-color: rgba(22, 163, 74, 0.2);
+            color: var(--success);
+        }
+
+        .gate-icon {
+            font-size: 24px;
+        }
+
+        .gate-title {
+            font-size: 14.5px;
+            font-weight: 800;
+        }
+
+        .gate-desc {
+            font-size: 12px;
+            color: var(--text-body);
+            margin-top: 1px;
+        }
+
+        /* 時間軸帶圖 */
+        .timeline-strip {
+            display: flex;
+            gap: 5px;
+            margin: 14px 0;
+        }
+
+        .timeline-blk {
+            flex: 1;
+            height: 48px;
+            border-radius: var(--r-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #ffffff;
+            background: var(--primary);
+        }
+
+        .timeline-blk small {
+            font-size: 9px;
+            opacity: 0.85;
+            font-weight: 500;
+            font-family: var(--font-mono);
+        }
+
+        /* 網格清單 */
+        .row-list .row-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .row-list .row-item:last-child {
+            border: none;
+        }
+
+        .row-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-title);
+        }
+
+        .row-sub {
+            font-size: 10.5px;
+            color: var(--text-muted);
+            margin-top: 1px;
+            font-family: var(--font-mono);
+        }
+
+        .pill-status {
+            font-size: 10px;
+            font-weight: 800;
+            border-radius: 5px;
+            padding: 2.5px 7px;
+        }
+
+        .pill-status.g { background: var(--success-soft); color: var(--success); }
+        .pill-status.a { background: var(--warning-soft); color: var(--warning); }
+        .pill-status.r { background: var(--danger-soft); color: var(--danger); }
+
+        /* 匯入素材卡網格 */
+        .clip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .clip-item-card {
+            position: relative;
+            height: 60px;
+            border-radius: var(--r-md);
+            background: var(--bg-app);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .clip-item-card span {
+            position: absolute;
+            left: 6px;
+            bottom: 4px;
+            font-size: 9px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        /* 結構與情緒 Beats */
+        .beat-item {
+            display: flex;
+            gap: 16px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .beat-item:last-child {
+            border: none;
+        }
+
+        .beat-num {
+            flex-shrink: 0;
+            width: 42px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--primary);
+            font-family: var(--font-mono);
+            background: var(--primary-soft);
+            padding: 2px 6px;
+            border-radius: 4px;
+            height: 18px;
+            text-align: center;
+        }
+
+        .beat-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        .beat-desc {
+            font-size: 12px;
+            color: var(--text-body);
+            margin-top: 3px;
+        }
+
+        .beat-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .beat-tags span {
+            font-size: 10px;
+            font-weight: 700;
+            background: var(--primary-soft);
+            color: var(--primary);
+            padding: 2px 7px;
+            border-radius: 4px;
+        }
+
+        /* 合約對照表 */
+        .contract-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .contract-table th {
+            text-align: left;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            font-weight: 700;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .contract-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .contract-table tr:last-child td {
+            border: none;
+        }
+
+        .contract-table .seg-mono {
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* 關卡清單 */
+        .gate-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .gate-row:last-child {
+            border: none;
+        }
+
+        .gate-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        /* 輸出驗證 */
+        .video-placeholder {
+            aspect-ratio: 16/9;
+            border-radius: var(--r-md);
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-size: 40px;
+            position: relative;
+            border: 1px solid #1e293b;
+        }
+
+        .video-placeholder .play-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 20px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .video-placeholder .play-circle:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .qa-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .qa-score-card {
+            background: var(--bg-app);
+            border-radius: var(--r-md);
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .qa-score-num {
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .qa-score-card.g .qa-score-num { color: var(--success); }
+        .qa-score-card.a .qa-score-num { color: var(--warning); }
+
+        .qa-score-lbl {
+            font-size: 9.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        /* 素材地圖 - 混合畫布 Layout (重頭戲) */
+        .map-canvas-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 16px;
+            height: calc(100vh - 250px);
+            min-height: 480px;
+        }
+
+        @media (max-width: 1200px) {
+            .map-canvas-layout {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        .map-left-pool {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 12px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+        }
+
+        .pool-scroll {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* 素材池卡片 */
+        .pool-asset-card {
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            padding: 10px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            position: relative;
+        }
+
+        .pool-asset-card:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-surface);
+        }
+
+        .pool-asset-card.active {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+            box-shadow: 0 0 0 1.5px var(--primary);
+        }
+
+        .pool-asset-card.highlight-link {
+            border-color: var(--info);
+            background: var(--info-soft);
+            box-shadow: 0 0 8px rgba(37, 99, 235, 0.15);
+        }
+
+        .pool-asset-hdr {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pool-asset-name {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-title);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+        }
+
+        .pool-asset-badge {
+            font-size: 8px;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .pool-asset-badge.video { background: var(--info-soft); color: var(--info); }
+        .pool-asset-badge.image { background: var(--primary-soft); color: var(--primary); }
+
+        .pool-asset-details {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 畫布板結構 */
+        .map-center-canvas {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .canvas-grid-board {
+            flex: 1;
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 16px;
+            background-size: 20px 20px;
+            background-image: 
+                linear-gradient(to right, rgba(15,23,42,0.015) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(15,23,42,0.015) 1px, transparent 1px);
+            align-items: flex-start;
+        }
+
+        .dark-theme .canvas-grid-board {
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.015) 1px, transparent 1px);
+        }
+
+        /* 畫布需求欄 */
+        .canvas-need-col {
+            width: 210px;
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+            flex-shrink: 0;
+            transition: var(--transition-smooth);
+        }
+
+        .canvas-need-col:hover {
+            border-color: var(--border-hover);
+        }
+
+        .need-col-hdr {
+            padding: 10px 12px;
+            border-bottom: 1px dashed var(--border-color);
+            position: relative;
+        }
+
+        .need-col-hdr::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -1px;
+            width: 100%;
+            height: 2px;
+        }
+
+        .need-col-hdr.c-covered::after { background: var(--success); }
+        .need-col-hdr.c-thin::after { background: var(--warning); }
+        .need-col-hdr.c-missing::after { background: var(--danger); }
+
+        .need-col-id {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .need-col-title {
+            font-size: 12.5px;
+            font-weight: 800;
+            color: var(--text-title);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1px;
+        }
+
+        .need-col-badge {
+            font-size: 8.5px;
+            font-weight: 800;
+            padding: 1.5px 5.5px;
+            border-radius: 4px;
+        }
+
+        .need-col-badge.covered { background: var(--success-soft); color: var(--success); }
+        .need-col-badge.thin { background: var(--warning-soft); color: var(--warning); }
+        .need-col-badge.missing { background: var(--danger-soft); color: var(--danger); }
+
+        .need-col-cards {
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            min-height: 80px;
+        }
+
+        /* 畫布場景證據卡 */
+        .canvas-scene-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            overflow: hidden;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            position: relative;
+        }
+
+        .canvas-scene-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-1.5px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .canvas-scene-card.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1.5px var(--primary), var(--shadow-md);
+        }
+
+        .canvas-scene-card.highlight-link {
+            border-color: var(--info);
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .scene-svg-thumb {
+            height: 76px;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .scene-svg-thumb svg {
+            width: 100%;
+            height: 100%;
+            opacity: 0.85;
+            transition: var(--transition-smooth);
+        }
+
+        .canvas-scene-card:hover .scene-svg-thumb svg {
+            transform: scale(1.04);
+            opacity: 1;
+        }
+
+        .scene-card-badge {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-size: 8px;
+            font-weight: 800;
+            padding: 1.5px 4.5px;
+            border-radius: 3px;
+        }
+
+        .scene-card-badge.accepted { background: #dcfce7; color: #15803d; }
+        .scene-card-badge.candidate { background: #fef3c7; color: #b45309; }
+
+        .scene-card-time {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffffff;
+            font-family: var(--font-mono);
+            font-size: 8.5px;
+            font-weight: 700;
+            padding: 1px 4.5px;
+            border-radius: 3px;
+        }
+
+        .scene-card-body {
+            padding: 8px;
+        }
+
+        .scene-card-caption {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-title);
+            line-height: 1.35;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .scene-card-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 9px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 5px;
+            margin-top: 4px;
+        }
+
+        .scene-card-meta span.vec {
+            font-family: var(--font-mono);
+            color: var(--info);
+            font-weight: 700;
+        }
+
+        .empty-need-col-placeholder {
+            border: 1.5px dashed var(--border-color);
+            border-radius: var(--r-md);
+            padding: 14px 10px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 10.5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            margin: 6px;
+        }
+
+        .empty-need-col-placeholder button {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-title);
+            padding: 3px 8px;
+            font-size: 9.5px;
+            font-weight: 700;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .empty-need-col-placeholder button:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* 遮罩 Overlay */
+        .ui-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.3);
+            backdrop-filter: blur(1.5px);
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition-smooth);
+            z-index: 150;
+        }
+
+        .ui-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* 滑出抽屜 Drawer */
+        aside.drawer-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 380px;
+            max-width: 90vw;
+            background: var(--bg-surface);
+            border-left: 1px solid var(--border-color);
+            box-shadow: -8px 0 24px rgba(15, 23, 42, 0.08);
+            transform: translateX(100%);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        aside.drawer-panel.open {
+            transform: translateX(0);
+        }
+
+        .dw-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-app);
+        }
+
+        .dw-header-title {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        .dw-close-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .dw-close-btn:hover {
+            border-color: var(--border-hover);
+            color: var(--text-title);
+            background: var(--bg-card-hover);
+        }
+
+        .dw-scroll-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .dw-thumb-ph {
+            height: 160px;
+            background: #0f172a;
+            border-radius: var(--r-md);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .dw-thumb-ph svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .dw-meta-pills {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            font-size: 9.5px;
+            font-family: var(--font-mono);
+            background: rgba(255,255,255,0.9);
+            border-radius: 4px;
+            padding: 2px 6px;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .dw-time-pills {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            font-size: 9.5px;
+            font-family: var(--font-mono);
+            background: rgba(15,23,42,0.75);
+            color: #ffffff;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-weight: 700;
+        }
+
+        .dw-scene-caption {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text-title);
+            line-height: 1.4;
+        }
+
+        .dw-section-lbl {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .dw-quote {
+            background: var(--bg-app);
+            border-radius: var(--r-sm);
+            padding: 10px 12px;
+            font-size: 12.5px;
+            color: var(--text-body);
+            line-height: 1.5;
+            border-left: 3px solid var(--primary);
+        }
+
+        .dw-tags-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .dw-tag-chip {
+            font-size: 10px;
+            font-weight: 700;
+            background: var(--bg-app);
+            color: var(--text-body);
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+        }
+
+        .dw-reviewer-notes {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dw-note-item {
+            font-size: 11.5px;
+            line-height: 1.45;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+        }
+
+        .dw-note-item b.role {
+            color: var(--primary);
+            font-weight: 700;
+            margin-right: 4px;
+        }
+
+        .dw-satisfies-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            padding: 10px;
+            background: var(--bg-app);
+        }
+
+        .dw-satisfies-hdr {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dw-satisfies-need {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        .dw-satisfies-status {
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .dw-satisfies-status.g { background: var(--success-soft); color: var(--success); }
+        .dw-satisfies-status.a { background: var(--warning-soft); color: var(--warning); }
+
+        .dw-satisfies-desc {
+            font-size: 11px;
+            color: var(--text-body);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        /* 決策編輯表單 */
+        .dw-decision-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: var(--bg-app);
+            padding: 12px;
+            border-radius: var(--r-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .dw-select {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-title);
+            padding: 7px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: var(--font-sans);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .dw-textarea {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-title);
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: var(--font-sans);
+            min-height: 60px;
+            resize: vertical;
+            outline: none;
+        }
+
+        .dw-textarea:focus, .dw-select:focus {
+            border-color: var(--primary);
+        }
+
+        /* 模態視窗 Modal */
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition-smooth);
+        }
+
+        .modal-mask.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-box {
+            width: min(100%, 520px);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.96);
+            transition: var(--transition-smooth);
+        }
+
+        .modal-mask.open .modal-box {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-headline {
+            font-size: 14.5px;
+            font-weight: 800;
+            color: var(--text-title);
+        }
+
+        .modal-close-icon {
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            background: var(--bg-app);
+        }
+
+        .json-viewer-box {
+            background: #090c15;
+            color: #a5b4fc;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 12px;
+            border-radius: var(--r-md);
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            white-space: pre-wrap;
+            max-height: 220px;
+        }
+
+        /* 提示 Toast */
+        .toast-msg {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--success);
+            color: #ffffff;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            z-index: 1100;
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast-msg.open {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* 頁尾 */
+        .app-footer {
+            padding: 10px 28px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-surface);
+            flex-shrink: 0;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 12px;
+            font-weight: 600;
+        }
+
+        /* 畫布連線與互動設計擴充 */
+        .map-canvas-layout {
+            position: relative;
+        }
+
+        .canvas-grid-board {
+            /* 讓格線板的背景格子更明顯且優雅 */
+            background-image: 
+                radial-gradient(var(--border-hover) 1px, transparent 0);
+            background-size: 24px 24px;
+        }
+
+        /* SVG 連線層 */
+        .connections-svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .connection-line {
+            fill: none;
+            stroke-linecap: round;
+            transition: stroke 0.25s, stroke-width 0.25s, opacity 0.25s;
+        }
+
+        /* 流動動畫 */
+        @keyframes connection-flow {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+
+        .connection-line.flow-active {
+            stroke-dasharray: 6, 4;
+            animation: connection-flow 0.8s linear infinite;
+        }
+
+        /* 卡片拖拽狀態 */
+        .pool-asset-card.dragging, .canvas-scene-card.dragging {
+            opacity: 0.4;
+            transform: scale(0.98);
+            border-style: dashed;
+        }
+
+        /* 需求直欄的拖入狀態 */
+        .canvas-need-col.drag-over {
+            border-color: var(--primary) !important;
+            background: var(--primary-glow) !important;
+            box-shadow: 0 0 12px var(--primary-soft);
+            transform: translateY(-2px);
+        }
+
+        /* 垃圾箱放置區 */
+        .canvas-trash-zone {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            background: rgba(254, 242, 242, 0.95);
+            border: 2px dashed #ef4444;
+            border-radius: var(--r-lg);
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ef4444;
+            font-weight: 700;
+            font-size: 13px;
+            box-shadow: var(--shadow-lg);
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: var(--transition-smooth);
+        }
+
+        .canvas-trash-zone.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .canvas-trash-zone.drag-over {
+            background: #fee2e2;
+            border-color: #dc2626;
+            color: #dc2626;
+            transform: translateX(-50%) translateY(-2px) scale(1.05);
+            box-shadow: 0 12px 24px rgba(220, 38, 38, 0.2);
+        }
+
+        /* 卡片上刪除按鈕 */
+        .canvas-scene-card {
+            position: relative;
+        }
+
+        .scene-card-delete-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.6);
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            opacity: 0;
+            transition: var(--transition-smooth);
+            z-index: 10;
+        }
+
+        .canvas-scene-card:hover .scene-card-delete-btn {
+            opacity: 1;
+        }
+
+        .scene-card-delete-btn:hover {
+            background: rgba(220, 38, 38, 0.9);
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部導航列 -->
+    <header class="top-nav">
+        <div class="brand-section">
+            <div class="logo-box"><i class="ti ti-route"></i></div>
+            <div class="brand-text">
+                <h1>Hermes</h1>
+                <p>影片管線 · 路線審查控制台</p>
+            </div>
+        </div>
+
+        <!-- 頂部切換 Tabs (SPA) -->
+        <div class="view-mode-switcher" style="display: flex; background: var(--bg-app); padding: 4px; border: 1px solid var(--border-color); border-radius: var(--r-md); gap: 4px; align-items: center;">
+            <button class="mode-tab-btn active" data-view="dashboard" style="background: var(--primary); color: white; border: none; padding: 6px 16px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                <i class="ti ti-map-2"></i> 流程審查畫布 (Dashboard)
+            </button>
+            <button class="mode-tab-btn" data-view="workbench" style="background: transparent; color: var(--text-muted); border: none; padding: 6px 16px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                <i class="ti ti-tool"></i> 互動剪輯 (Workbench)
+            </button>
+        </div>
+        
+        <div class="nav-meta">
+            <!-- 專案篩選器 -->
+            <div class="meta-group">
+                <span class="meta-lbl">切換專案案例</span>
+                <div class="meta-pill-badge" style="padding: 0 8px; display: flex; align-items: center; height: 28px;">
+                    <i class="ti ti-folder-open" style="margin-right: 4px; color: var(--primary); font-size: 13px;"></i>
+                    <select id="spa-project-select" style="background: transparent; border: none; font-size: 12px; font-weight: 700; color: var(--text-body); cursor: pointer; outline: none; padding: 4px 0; max-width: 180px; font-family: var(--font-sans);">
+                        <option value="" disabled selected>Loading...</option>
+                    </select>
+                </div>
+            </div>
+            <!-- 執行模式 -->
+            <div class="meta-group">
+                <span class="meta-lbl">管線執行模式</span>
+                <span class="meta-pill-badge active-mode" id="badge-run-mode"><i class="ti ti-movie"></i> 實地 (Brownfield)</span>
+            </div>
+
+            <!-- 門禁狀態 -->
+            <div class="meta-group">
+                <span class="meta-lbl">門禁控制狀態</span>
+                <span class="meta-pill-badge status-pause" id="badge-gate-status"><i class="ti ti-player-pause"></i> 等待審查</span>
+            </div>
+
+            <!-- 主題切換 -->
+            <button class="theme-switch" id="theme-toggler" title="切換深色/淺色主題">🌙</button>
+        </div>
+    </header>
+
+    <!-- 暫停審查橫幅 -->
+    <section class="pause-banner" id="review-banner">
+        <div class="banner-info">
+            <div class="banner-icon-bg"><i class="ti ti-alert-triangle"></i></div>
+            <div class="banner-desc-text">
+                <h3>影片管線運作已暫停，等待您的審查決策</h3>
+                <p id="banner-desc">階段: <b>素材地圖 (Material Map)</b> · 原因: <b>4 個需求的素材偏薄，1 個畫面待你決定，1 個需求沒有素材。</b></p>
+            </div>
+        </div>
+        <div class="banner-btn-group">
+            <button class="btn pri" id="btn-banner-accept"><i class="ti ti-check"></i> 接受並繼續</button>
+            <button class="btn" id="btn-banner-revision"><i class="ti ti-rotate"></i> 要求修改</button>
+        </div>
+    </section>
+
+    <!-- 主要版型佈局 -->
+    <main class="main-container" id="dashboard-view-root">
+        
+        <!-- 左側導航軌 Rail -->
+        <nav class="rail-navigation" aria-label="影片路線節點">
+            <div class="rail-item s-done" data-stage="intent">
+                <div class="rail-dot"><i class="ti ti-check"></i></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">影片企劃</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-done" data-stage="ingest">
+                <div class="rail-dot"><i class="ti ti-check"></i></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">素材匯入</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-warn active" data-stage="map">
+                <div class="rail-dot"><i class="ti ti-dots"></i></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">素材地圖</div>
+                    <div class="rail-summary" id="rail-map-summary">8 覆蓋 · 4 偏薄 · 1 缺</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="delta">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">缺口盤點</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="structure">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">結構規劃</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="contract">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">合約分段</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="timeline">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">組裝時間軸</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="gates">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">審查關卡</div>
+                </div>
+            </div>
+            
+            <div class="rail-item s-none" data-stage="verify">
+                <div class="rail-dot"></div>
+                <div class="rail-label-box">
+                    <div class="rail-title">輸出驗證</div>
+                </div>
+            </div>
+            
+        </nav>
+
+        <!-- 右側各面板 Panel -->
+        <section class="content-panel">
+            
+            <!-- PANEL 1: 影片企劃 -->
+            <div class="stage-view" data-panel="intent">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-compass" style="color:var(--primary)"></i> 影片企劃 (Video Intent)</div>
+                            <div class="stage-file">video_intent.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 已完成</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">企劃規格明細</div>
+                    <div class="kv-grid">
+                        <div class="kv-card"><div class="kv-key">路線模式</div><div class="kv-val mono" id="intent-val-route">existing-material-first</div></div>
+                        <div class="kv-card"><div class="kv-key">影片類型</div><div class="kv-val">結訓成果回顧</div></div>
+                        <div class="kv-card"><div class="kv-key">目標受眾</div><div class="kv-val">內部受訓學員與長官</div></div>
+                        <div class="kv-card"><div class="kv-key">素材狀態</div><div class="kv-val">部分實拍 (hybrid)</div></div>
+                        <div class="kv-card"><div class="kv-key">核心情感主軸</div><div class="kv-val">紀念 · 汗水 · 感謝</div></div>
+                        <div class="kv-card"><div class="kv-key">交棒階段</div><div class="kv-val mono">material_map</div></div>
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn" id="btn-intent-edit"><i class="ti ti-edit"></i> 修改企劃屬性</button>
+                    <button class="btn" onclick="showRawJson('video_intent.json')"><i class="ti ti-eye"></i> 查看原始 JSON</button>
+                </div>
+            </div>
+
+            <!-- PANEL 2: 素材匯入 -->
+            <div class="stage-view" data-panel="ingest">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-folder" style="color:var(--primary)"></i> 素材匯入 (Material Ingest)</div>
+                            <div class="stage-file">materials_db.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 已完成</span>
+                    </div>
+                    <div class="stage-stats">
+                        <span class="stat-badge n"><i></i> 實拍影片 12 段</span>
+                        <span class="stat-badge n"><i></i> 背景音樂 1 首</span>
+                        <span class="stat-badge n"><i></i> 總時長 14分20秒</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">已匯入的素材清單</div>
+                    <div class="clip-grid" id="ingest-clip-grid">
+                        <!-- 由 JS 動態繪製 -->
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn"><i class="ti ti-plus"></i> 新增素材檔案</button>
+                    <button class="btn"><i class="ti ti-refresh"></i> 重新掃描目錄</button>
+                </div>
+            </div>
+
+            <!-- PANEL 3: 素材地圖 (三欄整合畫布) -->
+            <div class="stage-view active" data-panel="map">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-map-2" style="color:var(--warning)"></i> 素材地圖 (Material Map Canvas)</div>
+                            <div class="stage-file">project_material_map.json</div>
+                        </div>
+                        <span class="stat-badge a"><i></i> 待審查</span>
+                    </div>
+                    <div class="stage-stats">
+                        <span class="stat-badge n" id="map-stat-needs"><i></i> 需求 5</span>
+                        <span class="stat-badge g" id="map-stat-covered"><i></i> 覆蓋 2</span>
+                        <span class="stat-badge a" id="map-stat-thin"><i></i> 偏薄 2</span>
+                        <span class="stat-badge r" id="map-stat-missing"><i></i> 缺 1</span>
+                    </div>
+                </div>
+
+                <!-- 畫布混合雙欄區域 -->
+                <div class="map-canvas-layout">
+                    <!-- SVG 連線層 -->
+                    <svg id="canvas-connections-svg" class="connections-svg-overlay">
+                        <defs>
+                            <linearGradient id="conn-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.25" />
+                                <stop offset="100%" stop-color="var(--info)" stop-opacity="0.25" />
+                            </linearGradient>
+                            <linearGradient id="conn-gradient-highlight" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.95" />
+                                <stop offset="50%" stop-color="#3b82f6" stop-opacity="0.95" />
+                                <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.95" />
+                            </linearGradient>
+                        </defs>
+                        <g id="connections-group"></g>
+                    </svg>
+
+                    <!-- 垃圾箱放置區 -->
+                    <div id="canvas-trash-zone" class="canvas-trash-zone">
+                        <i class="ti ti-trash"></i>
+                        <span>拖曳至此處刪除 / 移除</span>
+                    </div>
+
+                    <!-- 1. 左側素材庫 -->
+                    <div class="map-left-pool">
+                        <div class="card-lbl" style="margin-bottom:6px; display:flex; justify-content:space-between;">
+                            <span>素材庫資源池</span>
+                            <span class="mono" id="pool-count-text">7 段</span>
+                        </div>
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" class="search-input" id="pool-search-input" placeholder="搜尋素材、標籤...">
+                        </div>
+                        <div class="filter-tags" id="pool-filter-tags">
+                            <span class="filter-chip active" data-type="all">全部</span>
+                            <span class="filter-chip" data-type="video">影片</span>
+                            <span class="filter-chip" data-type="image">圖片</span>
+                        </div>
+                        <div class="pool-scroll" id="pool-assets-container">
+                            <!-- 由 JS 動態渲染 -->
+                        </div>
+                    </div>
+
+                    <!-- 2. 右側畫布看板 -->
+                    <div class="map-center-canvas">
+                        <div class="panel-hdr" style="padding:10px 16px; display:flex; justify-content:space-between; align-items:center;">
+                            <div class="panel-title"><i class="ti ti-layout-board"></i> 故事段落需求與卡片證據板</div>
+                            <div style="display:flex; align-items:center;">
+                                <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; gap:6px;">
+                                    <input type="checkbox" id="toggle-connections-checkbox" checked style="cursor:pointer;">
+                                    <span>顯示關係對線</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="canvas-grid-board" id="canvas-columns-container">
+                            <!-- 由 JS 動態繪製直欄 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 4: 缺口盤點 -->
+            <div class="stage-view" data-panel="delta">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-chart-arrows" style="color:var(--primary)"></i> 缺口盤點 (Material Gap / Delta)</div>
+                            <div class="stage-file">material_delta.json</div>
+                        </div>
+                        <span class="stat-badge r" id="delta-badge-status"><i></i> 尚未通過</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="gate-card blocked" id="delta-gate-card">
+                        <span class="gate-icon"><i class="ti ti-lock"></i></span>
+                        <div>
+                            <div class="gate-title">禁止進入時間軸組裝 (BUILD BLOCKED)</div>
+                            <div class="gate-desc" id="delta-gate-reason">ready_for_build = false · 原因: 1 個必要需求缺乏素材(離別情緒畫面)。</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-lbl">素材覆蓋率比例</div>
+                    <div class="covbar" style="height:12px; border-radius:6px; background:#e2e8f0; overflow:hidden; display:flex; margin-bottom:12px;">
+                        <i style="width:40%; background:var(--success); height:100%;"></i>
+                        <i style="width:40%; background:var(--warning); height:100%;"></i>
+                        <i style="width:20%; background:var(--danger); height:100%;"></i>
+                    </div>
+                    <div class="stage-stats" style="margin-top:0;">
+                        <span class="stat-badge g"><i></i> 覆蓋 2</span>
+                        <span class="stat-badge a"><i></i> 偏薄 2</span>
+                        <span class="stat-badge r"><i></i> 缺乏 1</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-lbl">各需求素材對位覆蓋明細</div>
+                    <div class="row-list" id="delta-needs-list">
+                        <!-- 由 JS 動態渲染 -->
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn" id="btn-delta-fallback"><i class="ti ti-sparkles"></i> 允許生成 fallback 圖片</button>
+                    <button class="btn pri" id="btn-delta-override"><i class="ti ti-check"></i> 標記為可接受並強制解鎖</button>
+                </div>
+            </div>
+
+            <!-- PANEL 5: 結構規劃 -->
+            <div class="stage-view" data-panel="structure">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-book" style="color:var(--primary)"></i> 結構規劃 (Story / Structure Planning)</div>
+                            <div class="stage-file">story_structure.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 已完成</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">情緒主軸規劃: 從汗水到依依不捨</div>
+                    <div id="structure-beats-list">
+                        <!-- 由 JS 動態繪製 -->
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn"><i class="ti ti-edit"></i> 調整段落情緒結構</button>
+                </div>
+            </div>
+
+            <!-- PANEL 6: 合約分段 -->
+            <div class="stage-view" data-panel="contract">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-file-text" style="color:var(--primary)"></i> 合約分段 (Contract / Segment Plan)</div>
+                            <div class="stage-file">segment_contract.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 已完成</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">影片段落規格合約 (Canonical Spec)</div>
+                    <table class="contract-table">
+                        <thead>
+                            <tr>
+                                <th>段落識別</th>
+                                <th>段落角色</th>
+                                <th>長度配速</th>
+                                <th>綁定需求</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contract-table-body">
+                            <!-- 由 JS 動態繪製 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn" onclick="showRawJson('segment_contract.json')"><i class="ti ti-eye"></i> 查看原始合約</button>
+                    <button class="btn"><i class="ti ti-history"></i> 查看合約版本差異</button>
+                </div>
+            </div>
+
+            <!-- PANEL 7: 組裝時間軸 -->
+            <div class="stage-view" data-panel="timeline">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-timeline" style="color:var(--primary)"></i> 組裝時間軸 (Build / Timeline)</div>
+                            <div class="stage-file">timeline_build.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 已完成</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">時間軸組裝結果概覽 (唯讀)</div>
+                    <div class="timeline-strip" id="timeline-strip-container">
+                        <!-- 由 JS 動態繪製 -->
+                    </div>
+                    <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; margin-top:12px;">
+                        <i class="ti ti-info-circle" style="color:var(--primary); font-size:14px;"></i>
+                        <span>注意：路線審查控制台 (Dashboard) 僅提供唯讀檢驗。如需對片子進行微調、切邊或置換，請點選下方按鈕前往寫入工作區。</span>
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn accent" style="padding:10px 18px;" id="btn-timeline-workbench">
+                        <i class="ti ti-tool"></i> 切換至互動工作台 (Workbench) 進行編輯
+                    </button>
+                </div>
+            </div>
+
+            <!-- PANEL 8: 審查關卡 -->
+            <div class="stage-view" data-panel="gates">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-shield-check" style="color:var(--primary)"></i> 審查關卡 (Reviewer Gates)</div>
+                            <div class="stage-file">reviewer_aggregation.json</div>
+                        </div>
+                        <span class="stat-badge r" id="gates-badge-status"><i></i> 待修正</span>
+                    </div>
+                    <div class="stage-stats">
+                        <span class="stat-badge a"><i></i> 整體：待修正</span>
+                        <span class="stat-badge r"><i></i> 阻擋：剪輯師</span>
+                        <span class="stat-badge n"><i></i> 稽核回饋 3 處</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">管線角色審查報告明細</div>
+                    <div class="row-list" id="gates-roles-list">
+                        <!-- 由 JS 動態繪製 -->
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn"><i class="ti ti-arrow-back-up"></i> 退回至剪輯層重新調整</button>
+                    <button class="btn pri" id="btn-gates-override"><i class="ti ti-check"></i> 管理員強制覆寫通過</button>
+                </div>
+            </div>
+
+            <!-- PANEL 9: 輸出驗證 -->
+            <div class="stage-view" data-panel="verify">
+                <div class="stage-hdr">
+                    <div class="stage-hdr-top">
+                        <div>
+                            <div class="stage-title"><i class="ti ti-circle-check" style="color:var(--success)"></i> 輸出驗證 (Render / Verify)</div>
+                            <div class="stage-file">qa_report.json</div>
+                        </div>
+                        <span class="stat-badge g"><i></i> 通過</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">最終成片實體預覽 (final.mp4)</div>
+                    <div class="video-placeholder">
+                        <div class="play-circle"><i class="ti ti-player-play"></i></div>
+                        <span class="dw-time-pills" style="right:12px; bottom:12px;">01:00s · 1080p · 60fps</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-lbl">QA 指標客觀計分</div>
+                    <div class="qa-grid" id="verify-qa-grid">
+                        <!-- 由 JS 動態繪製 -->
+                    </div>
+                </div>
+                
+                <div class="banner-btn-group">
+                    <button class="btn pri"><i class="ti ti-download"></i> 下載成品影片 (final.mp4)</button>
+                    <button class="btn"><i class="ti ti-refresh"></i> 重新跑一輪 QA 驗證</button>
+                </div>
+            </div>
+
+
+
+        </section>
+
+    </main>
+
+    <!-- 互動剪輯 (Workbench View) -->
+    <div class="workbench-view-root" id="workbench-view-root" style="display: none; flex: 1; padding: 20px 28px 32px; max-width: 1650px; width: 100%; margin: 0 auto; height: calc(100vh - 120px);">
+        <iframe id="workbench-iframe" src="" style="width: 100%; height: 100%; border: none; border-radius: var(--r-lg); background: var(--bg-surface); box-shadow: var(--shadow-sm);"></iframe>
+    </div>
+
+    <!-- 頁尾 -->
+    <footer class="app-footer">
+        <p>Hermes Pipeline Dashboard • 混合畫布控制台 V2.5 (白底美學版)</p>
+        <div class="footer-links">
+            <a href="/">← 控制台首頁</a>
+            <a href="/dashboard">切換至多軌時間軸主畫面</a>
+            <a href="#" id="footer-workbench-link">開啟 Workbench 🛠</a>
+        </div>
+    </footer>
+
+    <!-- 右側滑出 Drawer -->
+    <div class="ui-overlay" id="drawer-overlay"></div>
+    <aside class="drawer-panel" id="scene-drawer" aria-label="場景證據細節">
+        <div class="dw-header">
+            <span class="dw-header-title">場景證據細節檢視</span>
+            <button class="dw-close-btn" id="btn-drawer-close">&times;</button>
+        </div>
+        <div class="dw-scroll-body">
+            <!-- 縮圖與基礎時值 -->
+            <div class="dw-thumb-ph">
+                <div id="dw-svg-container" style="width:100%; height:100%;"></div>
+                <span class="dw-meta-pills" id="dw-val-id">asset_04 · s0</span>
+                <span class="dw-time-pills" id="dw-val-time">00:12.0 – 00:18.5</span>
+            </div>
+
+            <!-- 字幕旁白 -->
+            <div class="dw-scene-caption" id="dw-val-caption">學員上台領證,台下同學起立鼓掌</div>
+
+            <!-- 同期聲內容 -->
+            <div>
+                <span class="dw-section-lbl">現場同期聲 / 語音旁白</span>
+                <p class="dw-quote" id="dw-val-tr">「感謝老師這 5.5 個月的傾囊相授，讓我們能獨當一面。」</p>
+            </div>
+
+            <!-- 標籤 -->
+            <div>
+                <span class="dw-section-lbl">場景分析標籤</span>
+                <div class="dw-tags-row" id="dw-val-tags">
+                    <span class="dw-tag-chip">典禮</span>
+                    <span class="dw-tag-chip">領獎</span>
+                </div>
+            </div>
+
+            <!-- 對應需求 -->
+            <div>
+                <span class="dw-section-lbl">對應的故事合約需求</span>
+                <div class="dw-satisfies-card" id="dw-need-card">
+                    <div class="dw-satisfies-hdr">
+                        <span class="dw-satisfies-need" id="dw-val-need-title">結訓高潮畫面</span>
+                        <span class="dw-satisfies-status a" id="dw-val-need-status">偏薄</span>
+                    </div>
+                    <p class="dw-satisfies-desc" id="dw-val-need-desc">畫面較暗且為側拍，講師表情被遮擋，屬於品質偏薄的備用素材。</p>
+                </div>
+            </div>
+
+            <!-- 專家審查意見 -->
+            <div>
+                <span class="dw-section-lbl">管線專家審查註記</span>
+                <div class="dw-reviewer-notes" id="dw-val-reviewer-notes">
+                    <!-- 動態填入 -->
+                </div>
+            </div>
+
+            <!-- 審查決策編輯 -->
+            <div>
+                <span class="dw-section-lbl">填寫您的審查決策 (User Decision)</span>
+                <div class="dw-decision-form">
+                    <label style="font-size:10.5px; font-weight:700; color:var(--text-title);">決定操作</label>
+                    <select class="dw-select" id="dw-user-select-op">
+                        <option value="accepted">✓ 採用此素材對位 (accept)</option>
+                        <option value="request_revision">↻ 退回要求重找 (request_revision)</option>
+                        <option value="provide_more_material">📁 標記偏薄，提供新檔案</option>
+                    </select>
+                    
+                    <label style="font-size:10.5px; font-weight:700; color:var(--text-title); margin-top:4px;">審查備註說明</label>
+                    <textarea class="dw-textarea" id="dw-user-notes" placeholder="輸入退回原因或對位備註..."></textarea>
+                    
+                    <button class="btn accent" style="justify-content: center; padding: 9px; margin-top:4px;" id="btn-drawer-submit">
+                        💾 保存決策並導出 JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 彈出式決策 JSON 預覽 Modal -->
+    <div class="modal-mask" id="decision-json-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-headline">💾 導出審查決策契約 (JSON)</span>
+                <button class="modal-close-icon" id="btn-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>決策文件已成功建立。依管線架構安全守則，審查決定不會直接更改已鎖定的歷史 canonical 檔案，而是存入獨立的 <code style="padding:1.5px 5px; background:var(--bg-app); border-radius:4px; font-size:11px;">dashboard_review_decision.json</code> 決策包中，作為 Agent 啟動下一階段 Timeline 組裝的稽核依據。</p>
+                <div class="dw-section-lbl" style="margin-top:10px;">決策 JSON 內容:</div>
+                <div class="json-viewer-box" id="json-preview-area"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="btn-modal-download"><i class="ti ti-download"></i> 下載 JSON 檔</button>
+                <button class="btn pri" id="btn-modal-confirm">寫入管線並發送訊號</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈出式 Raw JSON 檢視器 -->
+    <div class="modal-mask" id="raw-json-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-headline" id="raw-json-title">檢視原始 JSON 檔案</span>
+                <button class="modal-close-icon" id="btn-raw-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="json-viewer-box" id="raw-json-area" style="max-height:350px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="btn-raw-close-bottom">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訊息提示 Toast -->
+    <div class="toast-msg" id="toast-el">
+        <span>✓</span> <span id="toast-text">決策保存成功！</span>
+    </div>
+
+
+    <!-- 互動資料與腳本 -->
+    <script>
+        // ==========================================
+        // 1. 綠野 vs 實地雙模式 Mock 資料集
+        // ==========================================
+        const MODE_MOCKS = {
+            brownfield: {
+                run_id: "srp_real67_fuller_replay",
+                mode_name: "BROWNFIELD (實拍素材導向)",
+                mode_route: "existing-material-first",
+                banner_desc: "階段: <b>素材地圖 (Material Map)</b> · 原因: <b>4 個需求的素材對應偏薄，1 個畫面待你決定，1 個需求沒有素材。</b>",
+                rail_map_summary: "8 覆蓋 · 4 偏薄 · 1 缺",
+                stats: { needs: 5, covered: 2, thin: 2, missing: 1 },
+                assets: [
+                    { id: "clip_05.mp4", type: "video", size: "24.5 MB", duration: "18.5s", tags: ["宣導", "室內", "講師"], scenesCount: 2 },
+                    { id: "clip_07.mp4", type: "video", size: "64.1 MB", duration: "45.0s", tags: ["實作", "戶外", "操作"], scenesCount: 3 },
+                    { id: "clip_09.mp4", type: "video", size: "128.2 MB", duration: "62.2s", tags: ["VR", "直幅", "體驗"], scenesCount: 1 },
+                    { id: "clip_04.mp4", type: "video", size: "15.0 MB", duration: "18.5s", tags: ["典禮", "領獎", "大景"], scenesCount: 1 },
+                    { id: "clip_01.mp4", type: "video", size: "10.0 MB", duration: "15.0s", tags: ["隊形", "廣角", "人像"], scenesCount: 1 },
+                    { id: "clip_11.mp4", type: "video", size: "48.2 MB", duration: "25.0s", tags: ["空景", "戶外", "電桿"], scenesCount: 1 },
+                    { id: "clip_02.mp4", type: "video", size: "11.2 MB", duration: "20.0s", tags: ["典禮", "合照", "開訓"], scenesCount: 1 }
+                ],
+                needs: [
+                    { 
+                        id: "nd_opening", 
+                        title: "開場工安旁白", 
+                        desc: "教室內講師講課畫面，配合影片工安警示主題。", 
+                        status: "covered",
+                        scenes: [
+                            {
+                                id: "sc_01", name: "教室工安宣導", asset: "clip_05.mp4", range: "00:03.0 - 00:09.2", status: "accepted",
+                                caption: "今天我們要講的，是高壓作業最基本、也最重要的安全規範。",
+                                tags: ["宣導", "室內", "中景"], vector: "0.92", thumbnail: "lightning",
+                                satisfies_reason: "畫面聲音非常清晰，講師眼神對齊鏡頭，極度適合當作開場旁白主鏡。",
+                                comments: [
+                                    { role: "story_director", name: "故事導演", decision: "ok", txt: "開場講話張力足夠，與旁白字對齊合適。" },
+                                    { role: "editor", name: "剪輯師", decision: "ok", txt: "聲音清晰，音頻波形良好，無高頻雜音。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_practical", 
+                        title: "實作技能示範", 
+                        desc: "高壓線路剝皮對接特寫，操作流程演示。", 
+                        status: "covered",
+                        scenes: [
+                            {
+                                id: "sc_02", name: "高壓線芯對接", asset: "clip_07.mp4", range: "00:21.4 - 00:27.0", status: "accepted",
+                                caption: "剝除長度需精準控制在 15 毫米，避免線芯受損。",
+                                tags: ["實作", "戶外", "動作"], vector: "0.96", thumbnail: "tools",
+                                satisfies_reason: "精確的雙手操作特寫，剝線動作流暢，符合教學 spec 要件。",
+                                comments: [
+                                    { role: "story_director", name: "故事導演", decision: "ok", txt: "動作重點處有慢動作強調，教學效果良好。" },
+                                    { role: "curator", name: "素材館長", decision: "ok", txt: "操作步驟符合工安規章，畫面證據度極高。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_experience", 
+                        title: "沉浸 VR 體驗", 
+                        desc: "學員穿戴 VR 設備體驗模擬高空墜落工安的動作。", 
+                        status: "thin",
+                        scenes: [
+                            {
+                                id: "sc_03", name: "學員高空模擬", asset: "clip_09.mp4", range: "00:11.0 - 00:16.5", status: "candidate",
+                                caption: "(體驗中) 哇！這個摔下來的感覺好真實…",
+                                tags: ["VR", "直幅", "體驗"], vector: "0.68", thumbnail: "projector",
+                                satisfies_reason: "素材為直幅錄影，匯入 16:9 管線需要手動裁切，造成左右黑邊風險，故列為偏薄。",
+                                comments: [
+                                    { role: "editor", name: "剪輯師", decision: "warn", txt: "直幅素材在寬螢幕播放效果打折，需要背景模糊或裁切遮罩。" },
+                                    { role: "curator", name: "素材館長", decision: "warn", txt: "體驗者的誇張反應雖然很好，但畫質略低。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_ceremony", 
+                        title: "結訓典禮高潮", 
+                        desc: "大合照與學員代表上台接受證書畫面。", 
+                        status: "thin",
+                        scenes: [
+                            {
+                                id: "sc_04", name: "頒發學員證書", asset: "clip_04.mp4", range: "00:12.0 - 00:18.5", status: "candidate",
+                                caption: "感謝老師這 5.5 個月的傾囊相授，讓我們能獨當一面。",
+                                tags: ["典禮", "領獎", "大景"], vector: "0.74", thumbnail: "award",
+                                satisfies_reason: "台上動作略顯生硬，且因為廣角拍攝，人物臉部細節不夠凸顯。",
+                                comments: [
+                                    { role: "story_director", name: "故事導演", decision: "warn", txt: "缺少主體特寫，做為收尾高潮情感鋪陳有些薄弱。" },
+                                    { role: "curator", name: "素材館長", decision: "bad", txt: "此片段發現有輕微手震晃動，建議到 Workbench 置換。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_emotion", 
+                        title: "結訓離別依依", 
+                        desc: "學員告別、擁抱、互道再見的情感畫面。", 
+                        status: "missing",
+                        scenes: []
+                    }
+                ],
+                // 各階段 Widget 內容
+                delta_needs: [
+                    { id: "nd_opening", name: "開場旁白畫面", sub: "段1 · nd_opening", status: "g", label: "已覆蓋" },
+                    { id: "nd_practical", name: "實作技能畫面", sub: "段2 · nd_practical", status: "g", label: "已覆蓋" },
+                    { id: "nd_experience", name: "沉浸體驗畫面", sub: "段2 · nd_experience", status: "a", label: "偏薄" },
+                    { id: "nd_ceremony", name: "結訓高潮畫面", sub: "段3 · nd_ceremony", status: "a", label: "偏薄" },
+                    { id: "nd_emotion", name: "離別情緒畫面", sub: "段3 · nd_emotion", status: "r", label: "缺乏" }
+                ],
+                beats: [
+                    { id: "段1", title: "開場 · 回顧", desc: "以開訓簡報當作背景鋪陳，勾起第一天的青澀回憶。", tags: ["情緒:懷念", "旁白口吻:溫馨"] },
+                    { id: "段2", title: "歷程特訓", desc: "實作高壓電、VR模擬安全演習，堆疊出汗水與同儕的羈絆。", tags: ["情緒:拼搏 → 協作", "節奏:快"] },
+                    { id: "段3", title: "結訓與承諾", desc: "領證致謝，學員代表分享感想，並以離別合照收束。", tags: ["情緒:感恩 → 不捨", "收尾配速:慢"] }
+                ],
+                contract: [
+                    { seg: "seg_01", role: "establish (建立背景)", pace: "慢 · 4–8s", need: "nd_opening" },
+                    { seg: "seg_02", role: "detail (歷程展示)", pace: "快 · 2–4s", need: "nd_practical · nd_experience" },
+                    { seg: "seg_03", role: "payoff (高潮收尾)", pace: "慢 · 6–10s", need: "nd_ceremony · nd_emotion" }
+                ],
+                timeline: [
+                    { name: "回顧開場", time: "0:00 – 0:09", color: "#4f46e5", flex: 1.2 },
+                    { name: "訓練歷程", time: "0:09 – 0:42", color: "#6366f1", flex: 2.2 },
+                    { name: "結訓離別", time: "0:42 – 1:00", color: "#818cf8", flex: 1.4 }
+                ],
+                gates: [
+                    { role: "story_director", name: "故事導演", status: "g", txt: "情緒主軸完全吻合劇本設定，准予通過。" },
+                    { role: "curator", name: "素材策展館長", status: "g", txt: "實拍素材清晰對齊合約，唯獨 VR 偏薄。" },
+                    { role: "editor", name: "專業剪輯師", status: "r", txt: "段3 出現與 asset_01 同期重複片段，且 nd_emotion 缺素材，阻擋執行。" },
+                    { role: "spec_contract", name: "SPEC 合約檢驗", status: "g", txt: "各分段規格變數載入齊全。" }
+                ],
+                verify_qa: [
+                    { score: "0.86", label: "內容對齊", status: "g" },
+                    { score: "0.81", label: "剪輯節奏", status: "g" },
+                    { score: "0.90", label: "音頻抖動", status: "g" },
+                    { score: "0.74", label: "視覺多樣度", status: "a" },
+                    { score: "PASS", label: "黑格/接縫檢驗", status: "g" }
+                ]
+            },
+            greenfield: {
+                run_id: "story_generative_flux_imagegen",
+                mode_name: "GREENFIELD (故事企劃導向 · AI 繪圖生成)",
+                mode_route: "story-generative-flux",
+                banner_desc: "階段: <b>素材地圖 (Material Map)</b> · 原因: <b>2 個 AI 生成圖片候選需要您進行採納審查，才可繼續 timeline 裝配。</b>",
+                rail_map_summary: "2 覆蓋 · 1 偏薄 · 0 缺",
+                stats: { needs: 3, covered: 2, thin: 1, missing: 0 },
+                assets: [
+                    { id: "gen_future_class.png", type: "image", size: "3.2 MB", duration: "5.0s", tags: ["AI生成", "未來教室", "科幻"], scenesCount: 1 },
+                    { id: "gen_student_focus.png", type: "image", size: "2.8 MB", duration: "5.0s", tags: ["AI生成", "人物特寫", "專注"], scenesCount: 1 },
+                    { id: "ref_style_guide.png", type: "image", size: "1.2 MB", duration: "靜態", tags: ["風格參考", "色板"], scenesCount: 0 }
+                ],
+                needs: [
+                    { 
+                        id: "nd_future_class", 
+                        title: "2030未來教室", 
+                        desc: "呈現全息投影與智慧面板環繞的科幻感智慧型教室。", 
+                        status: "covered",
+                        scenes: [
+                            {
+                                id: "sc_gen_01", name: "智慧全息教室", asset: "gen_future_class.png", range: "00:00.0 - 00:05.0", status: "candidate",
+                                caption: "歡迎來到 2030 年，一個由全息 AI 驅動的全新協作課堂。",
+                                tags: ["科幻", "概念", "遠景"], vector: "0.89", thumbnail: "projector",
+                                satisfies_reason: "AI 繪圖生成的教室空間感佳，與 prompt 智慧教室高度對應。",
+                                comments: [
+                                    { role: "story_director", name: "故事導演", decision: "ok", txt: "視覺效果極佳，配色非常有未來教育感！" },
+                                    { role: "curator", name: "素材館長", decision: "warn", txt: "細節面板上的文字有些 AI 亂碼幻覺，但無傷大雅。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_student_close", 
+                        title: "學員專注表情", 
+                        desc: "特寫一名學員正專注看著程式碼、雙手編寫的細節。", 
+                        status: "covered",
+                        scenes: [
+                            {
+                                id: "sc_gen_02", name: "專注程式碼編寫", asset: "gen_student_focus.png", range: "00:05.0 - 00:10.0", status: "accepted",
+                                caption: "實作是深化理解的唯一途徑，每行程式碼都在構建未來。",
+                                tags: ["人物", "特寫", "程式"], vector: "0.94", thumbnail: "portrait",
+                                satisfies_reason: "人物眼神非常專注，螢幕反光投射在臉部，合成極其自然逼真。",
+                                comments: [
+                                    { role: "story_director", name: "故事導演", decision: "ok", txt: "人物寫實度高，避開了 AI 橡膠假臉的通病。" },
+                                    { role: "editor", name: "剪輯師", decision: "ok", txt: "完美做為第二段 B-roll 特寫轉場使用。" }
+                                ]
+                            }
+                        ]
+                    },
+                    { 
+                        id: "nd_architect_map", 
+                        title: "注意力神經網路圖", 
+                        desc: "展示 Transformer 中多頭注意力機制的架構概念圖。", 
+                        status: "thin",
+                        scenes: [
+                            {
+                                id: "sc_gen_03", name: "Transformer 神經網路", asset: "ref_style_guide.png", range: "00:10.0 - 00:15.0", status: "candidate",
+                                caption: "背後的秘密，是 Transformer 中自我注意力機制的權重分配。",
+                                tags: ["架構", "靜態", "插圖"], vector: "0.62", thumbnail: "tools",
+                                satisfies_reason: "素材為風格調色板參考圖，非正式網路架構圖，因此相似度偏低。",
+                                comments: [
+                                    { role: "curator", name: "素材館長", decision: "bad", txt: "這只是一張風格配色圖，並非架構圖，不建議直接使用。" }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                delta_needs: [
+                    { id: "nd_future_class", name: "未來教室概念", sub: "段1 · nd_future_class", status: "g", label: "已覆蓋" },
+                    { id: "nd_student_close", name: "學員專注畫面", sub: "段2 · nd_student_close", status: "g", label: "已覆蓋" },
+                    { id: "nd_architect_map", name: "神經網路架構", sub: "段3 · nd_architect_map", status: "a", label: "偏薄" }
+                ],
+                beats: [
+                    { id: "段1", title: "未來概念開場", desc: "引導觀眾進入 2030 智慧全息投影教室，建立世界觀。", tags: ["科幻", "旁白導言"] },
+                    { id: "段2", title: "專注編程", desc: "展示個體在智慧環境下的高強度程式實作流程。", tags: ["專注特寫", "配速中"] },
+                    { id: "段3", title: "核心技術揭秘", desc: "科普多頭注意力機制，用架構概念圖支撐學術感。", tags: ["科普圖解", "收尾"] }
+                ],
+                contract: [
+                    { seg: "seg_01", role: "future_intro (科幻開場)", pace: "慢 · 5s", need: "nd_future_class" },
+                    { seg: "seg_02", role: "student_focus (主體操作)", pace: "中 · 5s", need: "nd_student_close" },
+                    { seg: "seg_03", role: "tech_explain (合約解說)", pace: "慢 · 5s", need: "nd_architect_map" }
+                ],
+                timeline: [
+                    { name: "未來開場", time: "0:00 – 0:05", color: "#10b981", flex: 1.0 },
+                    { name: "程式特寫", time: "0:05 – 0:10", color: "#34d399", flex: 1.0 },
+                    { name: "技術圖解", time: "0:10 – 0:15", color: "#6ee7b7", flex: 1.0 }
+                ],
+                gates: [
+                    { role: "story_director", name: "故事導演", status: "g", txt: "AI 畫面感很精緻，故事線完整通過。" },
+                    { role: "editor", name: "專業剪輯師", status: "g", txt: "5s 分割一致，無長度失衡阻擋。" },
+                    { role: "curator", name: "素材館長", status: "a", txt: "神經網路架構圖對位有落差，可能需要重新生成。" }
+                ],
+                verify_qa: [
+                    { score: "0.91", label: "內容對焦", status: "g" },
+                    { score: "0.85", label: "美學評分", status: "g" },
+                    { score: "0.78", label: "視覺融洽度", status: "g" },
+                    { score: "PASS", label: "偽影檢測", status: "g" }
+                ]
+            }
+        };
+
+        // ==========================================
+        // 2. 全域狀態變數
+        // ==========================================
+        let currentMode = "brownfield";
+        let activeStage = "map";
+        let activeAssetId = null;
+        let activeSceneId = null;
+        let poolSearchText = "";
+        let poolFilterType = "all";
+        let darkTheme = false;
+
+        // ==========================================
+        // 3. UI 初始化與節點綁定
+        // ==========================================
+        const themeToggler = document.getElementById("theme-toggler");
+        const modeToggler = document.querySelectorAll("#run-mode-toggle button");
+        const badgeRunMode = document.getElementById("badge-run-mode");
+        const badgeGateStatus = document.getElementById("badge-gate-status");
+        const reviewBanner = document.getElementById("review-banner");
+        const bannerDesc = document.getElementById("banner-desc");
+        
+        // 導航 rail
+        const railItems = document.querySelectorAll(".rail-item");
+        const panels = document.querySelectorAll(".stage-view");
+        
+        // 素材地圖互動元件
+        const poolSearchInput = document.getElementById("pool-search-input");
+        const poolFilterChips = document.querySelectorAll("#pool-filter-tags .filter-chip");
+        const poolAssetsContainer = document.getElementById("pool-assets-container");
+        const canvasColumnsContainer = document.getElementById("canvas-columns-container");
+        
+        // 抽屜 (Drawer) 元件
+        const sceneDrawer = document.getElementById("scene-drawer");
+        const drawerOverlay = document.getElementById("drawer-overlay");
+        const btnDrawerClose = document.getElementById("btn-drawer-close");
+        const dwSvgContainer = document.getElementById("dw-svg-container");
+        const dwValId = document.getElementById("dw-val-id");
+        const dwValTime = document.getElementById("dw-val-time");
+        const dwValCaption = document.getElementById("dw-val-caption");
+        const dwValTr = document.getElementById("dw-val-tr");
+        const dwValTags = document.getElementById("dw-val-tags");
+        const dwValNeedTitle = document.getElementById("dw-val-need-title");
+        const dwValNeedStatus = document.getElementById("dw-val-need-status");
+        const dwValNeedDesc = document.getElementById("dw-val-need-desc");
+        const dwValReviewerNotes = document.getElementById("dw-val-reviewer-notes");
+        const dwUserSelectOp = document.getElementById("dw-user-select-op");
+        const dwUserNotes = document.getElementById("dw-user-notes");
+        const btnDrawerSubmit = document.getElementById("btn-drawer-submit");
+
+        // 決策預覽 Modal 元件
+        const decisionJsonModal = document.getElementById("decision-json-modal");
+        const btnModalClose = document.getElementById("btn-modal-close");
+        const jsonPreviewArea = document.getElementById("json-preview-area");
+        const btnModalDownload = document.getElementById("btn-modal-download");
+        const btnModalConfirm = document.getElementById("btn-modal-confirm");
+        
+        // Raw JSON Modal 元件
+        const rawJsonModal = document.getElementById("raw-json-modal");
+        const rawJsonTitle = document.getElementById("raw-json-title");
+        const rawJsonArea = document.getElementById("raw-json-area");
+        const btnRawClose = document.getElementById("btn-raw-close");
+        const btnRawCloseBottom = document.getElementById("btn-raw-close-bottom");
+
+        // Toast 訊息
+        const toastEl = document.getElementById("toast-el");
+        const toastText = document.getElementById("toast-text");
+
+        // Banner 動作
+        document.getElementById("btn-banner-accept").addEventListener("click", () => {
+            openReviewDraftModal("accepted", "同意接受此階段的所有素材，畫面符合審查水準。");
+        });
+        document.getElementById("btn-banner-revision").addEventListener("click", () => {
+            openReviewDraftModal("request_revision", "部分需求對應素材偏薄，且缺乏特寫鏡頭，請求 AI Agent 重新拉取或生成素材。");
+        });
+
+        // ==========================================
+        // 4. 深淺色主題切換
+        // ==========================================
+        themeToggler.addEventListener("click", () => {
+            darkTheme = !darkTheme;
+            document.body.classList.toggle("dark-theme", darkTheme);
+            themeToggler.textContent = darkTheme ? "☀️" : "🌙";
+            themeToggler.title = darkTheme ? "切換至淺色主題" : "切換至深色主題";
+            showToast(darkTheme ? "🌙 已切換至深色暗黑主題" : "☀️ 已切換至白底極簡主題", "info");
+        });
+
+        // ==========================================
+        // 5. 雙路由模式切換 (Brownfield vs Greenfield)
+        // ==========================================
+        modeToggler.forEach(btn => {
+            btn.addEventListener("click", () => {
+                modeToggler.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                currentMode = btn.getAttribute("data-mode");
+                
+                // 重設狀態
+                activeAssetId = null;
+                activeSceneId = null;
+                closeDrawer();
+                
+                renderStageUI();
+                showToast(`已切換至 ${currentMode === 'brownfield' ? '實地實拍' : '綠野 AI 生成'} 模擬數據集！`, "info");
+            });
+        });
+
+        // ==========================================
+        // 6. 導航軌 Rail 切換邏輯
+        // ==========================================
+        railItems.forEach(item => {
+            item.addEventListener("click", () => {
+                railItems.forEach(r => r.classList.remove("active"));
+                item.classList.add("active");
+                
+                activeStage = item.getAttribute("data-stage");
+                
+                // 切換面板顯示
+                panels.forEach(p => {
+                    if (p.getAttribute("data-panel") === activeStage) {
+                        p.classList.add("active");
+                    } else {
+                        p.classList.remove("active");
+                    }
+                });
+
+                // 更新暫停橫幅的可見性 (只有素材地圖與審查關卡需要審核)
+                if (activeStage === "map" || activeStage === "gates") {
+                    reviewBanner.style.display = "flex";
+                } else {
+                    reviewBanner.style.display = "none";
+                }
+                
+                renderStageUI();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+        });
+
+        // ==========================================
+        // 7. 各面板資料渲染引擎
+        // ==========================================
+        function renderStageUI() {
+            const data = MODE_MOCKS[currentMode];
+            
+            // 頂部狀態列
+            badgeRunMode.innerHTML = `<i class="ti ti-${currentMode === 'brownfield' ? 'movie' : 'sparkles'}"></i> ${data.mode_name}`;
+            badgeGateStatus.innerHTML = `<i class="ti ti-${data.stats.missing > 0 || data.run_id.includes('replay') ? 'player-pause' : 'circle-check'}"></i> ${data.stats.missing > 0 ? '等待審查' : '通過'}`;
+            bannerDesc.innerHTML = data.banner_desc;
+            
+            // 左側 rail 的統計摘要
+            document.getElementById("rail-map-summary").textContent = data.rail_map_summary;
+
+            // 依據啟動的面板渲染對應元件
+            switch (activeStage) {
+                case "intent":
+                    document.getElementById("intent-val-route").textContent = data.mode_route;
+                    break;
+                case "ingest":
+                    renderIngestClips();
+                    break;
+                case "map":
+                    renderAssetPool();
+                    renderCanvasBoard();
+                    break;
+                case "delta":
+                    renderDeltaPane();
+                    break;
+                case "structure":
+                    renderStructureBeats();
+                    break;
+                case "contract":
+                    renderContractTable();
+                    break;
+                case "timeline":
+                    renderTimelineStrip();
+                    break;
+                case "workbench":
+                    const iframe = document.getElementById("workbench-iframe");
+                    if (iframe) {
+                        const currentRoot = new URLSearchParams(window.location.search).get("root") || "";
+                        const targetSrc = `/workbench?root=${encodeURIComponent(currentRoot)}`;
+                        if (iframe.getAttribute("src") !== targetSrc) {
+                            iframe.setAttribute("src", targetSrc);
+                        }
+                    }
+                    break;
+                case "gates":
+                    renderGatesList();
+                    break;
+                case "verify":
+                    renderVerifyQA();
+                    break;
+            }
+        }
+
+        // 7.1 PANEL: 素材匯入 (Ingest)
+        function renderIngestClips() {
+            const data = MODE_MOCKS[currentMode];
+            const container = document.getElementById("ingest-clip-grid");
+            container.innerHTML = "";
+            
+            data.assets.forEach(asset => {
+                const item = document.createElement("div");
+                item.className = "clip-item-card";
+                const icon = asset.type === 'video' ? 'ti-video' : 'ti-photo';
+                item.innerHTML = `<i class="ti ${icon}"></i><span>${asset.id.split('.')[0]}</span>`;
+                container.appendChild(item);
+            });
+        }
+
+        // 7.2 PANEL: 素材地圖 (Map Canvas) - 左素材池
+        poolSearchInput.addEventListener("input", (e) => {
+            poolSearchText = e.target.value.toLowerCase();
+            filterAndRenderPool();
+        });
+
+        poolFilterChips.forEach(chip => {
+            chip.addEventListener("click", () => {
+                poolFilterChips.forEach(c => c.classList.remove("active"));
+                chip.classList.add("active");
+                poolFilterType = chip.getAttribute("data-type");
+                filterAndRenderPool();
+            });
+        });
+
+        function filterAndRenderPool() {
+            const data = MODE_MOCKS[currentMode];
+            const filtered = data.assets.filter(a => {
+                const matchesSearch = a.id.toLowerCase().includes(poolSearchText) || a.tags.some(t => t.toLowerCase().includes(poolSearchText));
+                const matchesType = poolFilterType === "all" || a.type === poolFilterType;
+                return matchesSearch && matchesType;
+            });
+            renderPoolList(filtered);
+        }
+
+        function renderAssetPool() {
+            filterAndRenderPool();
+        }
+
+        function renderPoolList(assets) {
+            document.getElementById("pool-count-text").textContent = `${assets.length} 段`;
+            poolAssetsContainer.innerHTML = "";
+
+            if (assets.length === 0) {
+                poolAssetsContainer.innerHTML = '<p style="text-align:center; font-size:11.5px; color:var(--text-muted); padding:20px;">無匹配素材</p>';
+                return;
+            }
+
+            assets.forEach(asset => {
+                const card = document.createElement("div");
+                card.className = `pool-asset-card ${activeAssetId === asset.id ? 'active' : ''}`;
+                card.setAttribute("id", `pool-asset-node-${asset.id.replace(/\./g, '_')}`);
+                card.innerHTML = `
+                    <div class="pool-asset-hdr">
+                        <span class="pool-asset-name" title="${asset.id}">${asset.id}</span>
+                        <span class="pool-asset-badge ${asset.type}">${asset.type === 'video' ? '影片' : '圖片'}</span>
+                    </div>
+                    <div class="pool-asset-details">
+                        <span>時長: ${asset.duration}</span>
+                        <span>大小: ${asset.size}</span>
+                    </div>
+                `;
+                
+                // Draggable raw asset
+                card.setAttribute("draggable", "true");
+                card.addEventListener("dragstart", (e) => {
+                    e.dataTransfer.setData("text/plain", JSON.stringify({ source: "pool", assetId: asset.id }));
+                    card.classList.add("dragging");
+                    showTrashZone(true);
+                });
+                card.addEventListener("dragend", () => {
+                    card.classList.remove("dragging");
+                    showTrashZone(false);
+                });
+
+                card.addEventListener("click", () => {
+                    if (activeAssetId === asset.id) {
+                        activeAssetId = null;
+                        document.querySelectorAll('.pool-asset-card').forEach(c => c.classList.remove('active'));
+                        document.querySelectorAll('.canvas-scene-card').forEach(c => c.classList.remove('highlight-link'));
+                    } else {
+                        activeAssetId = asset.id;
+                        document.querySelectorAll('.pool-asset-card').forEach(c => c.classList.remove('active'));
+                        card.classList.add('active');
+                        // 雙向對位連動高亮
+                        highlightLinkedCanvasScenes(asset.id);
+                    }
+                    setTimeout(drawConnections, 10);
+                });
+
+                poolAssetsContainer.appendChild(card);
+            });
+        }
+
+        function highlightLinkedCanvasScenes(assetId) {
+            document.querySelectorAll('.canvas-scene-card').forEach(card => {
+                const cardAsset = card.getAttribute("data-asset");
+                if (cardAsset === assetId) {
+                    card.classList.add('highlight-link');
+                } else {
+                    card.classList.remove('highlight-link');
+                }
+            });
+        }
+
+        // 7.3 PANEL: 素材地圖 (Map Canvas) - 看板畫布
+        function renderCanvasBoard() {
+            const data = MODE_MOCKS[currentMode];
+            canvasColumnsContainer.innerHTML = "";
+
+            // 更新計分看板
+            document.getElementById("map-stat-needs").innerHTML = `<i></i> 需求 ${data.stats.needs}`;
+            document.getElementById("map-stat-covered").innerHTML = `<i></i> 覆蓋 ${data.stats.covered}`;
+            document.getElementById("map-stat-thin").innerHTML = `<i></i> 偏薄 ${data.stats.thin}`;
+            document.getElementById("map-stat-missing").innerHTML = `<i></i> 缺 ${data.stats.missing}`;
+
+            data.needs.forEach(need => {
+                const col = document.createElement("div");
+                col.className = "canvas-column canvas-need-col";
+                col.innerHTML = `
+                    <div class="need-col-hdr c-${need.status}">
+                        <span class="need-col-id">${need.id}</span>
+                        <div class="need-col-title">
+                            <span>${need.title}</span>
+                            <span class="need-col-badge ${need.status}">
+                                ${need.status === 'covered' ? '覆蓋' : need.status === 'thin' ? '偏薄' : '缺'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="need-col-cards" id="col-cards-box-${need.id}"></div>
+                `;
+
+                // Setup Drag Over and Drop Zones for columns
+                col.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    col.classList.add("drag-over");
+                });
+                col.addEventListener("dragleave", () => {
+                    col.classList.remove("drag-over");
+                });
+                col.addEventListener("drop", (e) => {
+                    e.preventDefault();
+                    col.classList.remove("drag-over");
+                    try {
+                        const dragData = JSON.parse(e.dataTransfer.getData("text/plain"));
+                        handleCardDrop(dragData, need.id);
+                    } catch(err) {
+                        console.error("Drop parsing error:", err);
+                    }
+                });
+
+                const cardsBox = col.querySelector(`#col-cards-box-${need.id}`);
+
+                if (need.scenes.length === 0) {
+                    cardsBox.innerHTML = `
+                        <div class="empty-need-col-placeholder">
+                            <span style="font-size: 16px;">🕳️</span>
+                            <span>無可用對位證據</span>
+                            <button onclick="handleFallbackGenerate('${need.id}')">🤖 允許 AI 生成</button>
+                        </div>
+                    `;
+                } else {
+                    need.scenes.forEach(scene => {
+                        const sceneCard = document.createElement("div");
+                        sceneCard.className = `canvas-scene-card ${activeSceneId === scene.id ? 'active' : ''}`;
+                        sceneCard.setAttribute("data-asset", scene.asset);
+                        sceneCard.setAttribute("data-scene-id", scene.id);
+                        
+                        sceneCard.innerHTML = `
+                            <button class="scene-card-delete-btn" title="移除此關聯素材" onclick="event.stopPropagation(); handleDeleteCard('${scene.id}', '${need.id}')">
+                                <i class="ti ti-x"></i>
+                            </button>
+                            <div class="scene-svg-thumb">
+                                ${getSVGThumbnailMarkup(scene.thumbnail)}
+                                <span class="scene-card-badge ${scene.status}">
+                                    ${scene.status === 'accepted' ? '已採用' : '候選'}
+                                </span>
+                                <span class="scene-card-time">${scene.range.split(' ')[0]}</span>
+                            </div>
+                            <div class="scene-card-body">
+                                <div class="scene-card-caption" title="${scene.caption}">${scene.caption}</div>
+                                <div class="scene-card-meta">
+                                    <span>🎥 ${scene.asset}</span>
+                                    <span class="vec">Vec: ${scene.vector}</span>
+                                </div>
+                            </div>
+                        `;
+
+                        // Draggable scene card
+                        sceneCard.setAttribute("draggable", "true");
+                        sceneCard.addEventListener("dragstart", (e) => {
+                            e.stopPropagation();
+                            e.dataTransfer.setData("text/plain", JSON.stringify({ source: "board", sceneId: scene.id, fromNeedId: need.id }));
+                            sceneCard.classList.add("dragging");
+                            showTrashZone(true);
+                        });
+                        sceneCard.addEventListener("dragend", () => {
+                            sceneCard.classList.remove("dragging");
+                            showTrashZone(false);
+                        });
+
+                        // 連動素材池高亮
+                        sceneCard.addEventListener("mouseenter", () => {
+                            highlightSourceAssetNode(scene.asset, true);
+                            // Highlight the connection path!
+                            const oldActiveSceneId = activeSceneId;
+                            activeSceneId = scene.id;
+                            drawConnections();
+                            activeSceneId = oldActiveSceneId; // restore
+                        });
+                        sceneCard.addEventListener("mouseleave", () => {
+                            highlightSourceAssetNode(scene.asset, false);
+                            drawConnections();
+                        });
+
+                        // 點選打開右側滑出抽屜 (Drawer)
+                        sceneCard.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            document.querySelectorAll('.canvas-scene-card').forEach(c => c.classList.remove('active'));
+                            sceneCard.classList.add('active');
+                            activeSceneId = scene.id;
+                            openSceneDrawer(scene);
+                            setTimeout(drawConnections, 10);
+                        });
+
+                        cardsBox.appendChild(sceneCard);
+                    });
+                }
+
+                canvasColumnsContainer.appendChild(col);
+            });
+
+            // Draw connection lines after rendering columns
+            setTimeout(drawConnections, 60);
+        }
+
+        function highlightSourceAssetNode(assetId, highlight) {
+            const safeId = assetId.replace(/\./g, '_');
+            const node = document.getElementById(`pool-asset-node-${safeId}`);
+            if (node) {
+                if (highlight) {
+                    node.classList.add("highlight-link");
+                } else {
+                    node.classList.remove("highlight-link");
+                }
+            }
+        }
+
+        // 垃圾筒顯示/隱藏
+        function showTrashZone(visible) {
+            const trashZone = document.getElementById("canvas-trash-zone");
+            if (trashZone) {
+                if (visible) {
+                    trashZone.classList.add("visible");
+                } else {
+                    trashZone.classList.remove("visible");
+                    trashZone.classList.remove("drag-over");
+                }
+            }
+        }
+
+        // 處理手動拖放映射
+        function handleCardDrop(dragData, targetNeedId) {
+            const data = MODE_MOCKS[currentMode];
+            const targetNeed = data.needs.find(n => n.id === targetNeedId);
+            if (!targetNeed) return;
+
+            if (dragData.source === "pool") {
+                const asset = data.assets.find(a => a.id === dragData.assetId);
+                if (!asset) return;
+
+                // 檢查是否已關聯
+                const alreadyExists = targetNeed.scenes.some(s => s.asset === asset.id);
+                if (alreadyExists) {
+                    showToast(`素材 ${asset.id} 已關聯至此需求！`, "warning");
+                    return;
+                }
+
+                // 建立新的場景對位卡片
+                const newScene = {
+                    id: "sc_drag_" + Date.now(),
+                    name: "置換/關聯 " + asset.id,
+                    asset: asset.id,
+                    range: "00:00.0 - 00:05.0",
+                    status: "accepted",
+                    caption: "手動關聯素材: " + asset.id,
+                    tags: asset.tags,
+                    vector: (0.8 + Math.random() * 0.15).toFixed(2),
+                    thumbnail: asset.type === "video" ? "film" : "photo",
+                    satisfies_reason: "手動關聯的素材證據。",
+                    comments: [
+                        { role: "story_director", name: "故事導演", decision: "ok", txt: "使用者手動拖曳關聯，已標記採用。" }
+                    ]
+                };
+
+                targetNeed.scenes.push(newScene);
+                showToast(`已成功將素材 ${asset.id} 關聯至「${targetNeed.title}」！`, "success");
+
+            } else if (dragData.source === "board") {
+                // 從原需求移動至新需求
+                if (dragData.fromNeedId === targetNeedId) return; // 原地放下
+
+                const fromNeed = data.needs.find(n => n.id === dragData.fromNeedId);
+                if (!fromNeed) return;
+
+                const sceneIndex = fromNeed.scenes.findIndex(s => s.id === dragData.sceneId);
+                if (sceneIndex === -1) return;
+
+                const [movedScene] = fromNeed.scenes.splice(sceneIndex, 1);
+                targetNeed.scenes.push(movedScene);
+                showToast(`已將場景移動至「${targetNeed.title}」！`, "success");
+            }
+
+            // 更新全域狀態與重新渲染
+            updateGlobalStats();
+            syncDeltaNeeds();
+            renderCanvasBoard();
+            if (activeStage === "delta") renderDeltaPane();
+            setTimeout(drawConnections, 50);
+        }
+
+        // 移除/刪除卡片關聯
+        function handleDeleteCard(sceneId, fromNeedId) {
+            const data = MODE_MOCKS[currentMode];
+            const need = data.needs.find(n => n.id === fromNeedId);
+            if (need) {
+                const index = need.scenes.findIndex(s => s.id === sceneId);
+                if (index > -1) {
+                    const deletedScene = need.scenes[index];
+                    need.scenes.splice(index, 1);
+                    showToast(`已移除素材關聯: ${deletedScene.asset}`, "info");
+                    
+                    if (activeSceneId === sceneId) {
+                        activeSceneId = null;
+                        closeDrawer();
+                    }
+                    
+                    updateGlobalStats();
+                    syncDeltaNeeds();
+                    renderCanvasBoard();
+                    if (activeStage === "delta") renderDeltaPane();
+                    setTimeout(drawConnections, 50);
+                }
+            }
+        }
+
+        // 計算需求覆蓋率與全域統計
+        function updateGlobalStats() {
+            const data = MODE_MOCKS[currentMode];
+            let covered = 0;
+            let thin = 0;
+            let missing = 0;
+
+            data.needs.forEach(n => {
+                // Recalculate status of need column
+                if (!n.scenes || n.scenes.length === 0) {
+                    n.status = "missing";
+                    missing++;
+                } else {
+                    const hasAccepted = n.scenes.some(s => s.status === "accepted");
+                    if (hasAccepted) {
+                        n.status = "covered";
+                        covered++;
+                    } else {
+                        n.status = "thin";
+                        thin++;
+                    }
+                }
+            });
+
+            data.stats.covered = covered;
+            data.stats.thin = thin;
+            data.stats.missing = missing;
+            data.stats.needs = data.needs.length;
+
+            // 更新暫停橫幅文案及狀態
+            if (missing > 0) {
+                data.banner_desc = `階段: <b>素材地圖 (Material Map)</b> · 原因: <b>${missing} 個必要需求缺乏素材，等待您關聯審查。</b>`;
+                data.rail_map_summary = `${covered} 覆蓋 · ${thin} 偏薄 · ${missing} 缺`;
+            } else {
+                data.banner_desc = `階段: <b>素材地圖 (Material Map)</b> · 狀態: <b>素材對位審核完畢，全部需求已滿足。可以開始組裝 Timeline。</b>`;
+                data.rail_map_summary = `${covered} 覆蓋 · ${thin} 偏薄 · 0 缺`;
+            }
+            
+            // 同步頂部狀態列
+            badgeGateStatus.innerHTML = `<i class="ti ti-${missing > 0 ? 'player-pause' : 'circle-check'}"></i> ${missing > 0 ? '等待審查' : '通過'}`;
+            bannerDesc.innerHTML = data.banner_desc;
+            document.getElementById("rail-map-summary").textContent = data.rail_map_summary;
+        }
+
+        // 同步缺口盤點 (Delta) 清單
+        function syncDeltaNeeds() {
+            const data = MODE_MOCKS[currentMode];
+            data.delta_needs = data.needs.map(n => {
+                let statusLetter = "m";
+                let label = "缺乏";
+                if (n.status === "covered") {
+                    statusLetter = "g";
+                    label = "已覆蓋";
+                } else if (n.status === "thin") {
+                    statusLetter = "a";
+                    label = "偏薄";
+                } else if (n.status === "missing") {
+                    statusLetter = "r";
+                    label = "缺乏";
+                }
+                return {
+                    id: n.id,
+                    name: n.title,
+                    sub: `段 · ${n.id}`,
+                    status: statusLetter,
+                    label: label
+                };
+            });
+        }
+
+        // 輔助檢查元素是否在滾動容器可見區域內
+        function isElementVisibleInContainer(el, container) {
+            const elRect = el.getBoundingClientRect();
+            const conRect = container.getBoundingClientRect();
+            return (
+                elRect.bottom >= conRect.top &&
+                elRect.top <= conRect.bottom
+            );
+        }
+
+        // 畫布關係對位貝茲曲線繪製
+        function drawConnections() {
+            const svg = document.getElementById("canvas-connections-svg");
+            const group = document.getElementById("connections-group");
+            if (!svg || !group) return;
+
+            group.innerHTML = ""; // 清空舊的線
+
+            // 檢查顯示開關
+            const toggleCheckbox = document.getElementById("toggle-connections-checkbox");
+            if (toggleCheckbox && !toggleCheckbox.checked) {
+                return;
+            }
+
+            // 僅在素材地圖 panel 處於 active 時繪製
+            if (activeStage !== "map") {
+                return;
+            }
+
+            const layout = document.querySelector(".map-canvas-layout");
+            if (!layout) return;
+            const layoutRect = layout.getBoundingClientRect();
+
+            const poolScroll = document.getElementById("pool-assets-container");
+            const boardScroll = document.getElementById("canvas-columns-container");
+            if (!poolScroll || !boardScroll) return;
+
+            const data = MODE_MOCKS[currentMode];
+
+            data.needs.forEach(need => {
+                need.scenes.forEach(scene => {
+                    const assetId = scene.asset;
+                    const safeId = assetId.replace(/\./g, '_');
+                    const sourceCard = document.getElementById(`pool-asset-node-${safeId}`);
+                    const targetCard = document.querySelector(`[data-scene-id="${scene.id}"]`);
+
+                    if (sourceCard && targetCard) {
+                        const sourceVisible = isElementVisibleInContainer(sourceCard, poolScroll);
+                        const targetVisible = isElementVisibleInContainer(targetCard, boardScroll);
+
+                        // 只要任一側可見，就進行繪製
+                        if (sourceVisible || targetVisible) {
+                            const sourceRect = sourceCard.getBoundingClientRect();
+                            const targetRect = targetCard.getBoundingClientRect();
+
+                            // 相對 layout 的座標
+                            const sx = sourceRect.right - layoutRect.left;
+                            const sy = sourceRect.top + (sourceRect.height / 2) - layoutRect.top;
+
+                            const tx = targetRect.left - layoutRect.left;
+                            const ty = targetRect.top + (targetRect.height / 2) - layoutRect.top;
+
+                            // 繪製貝茲曲線 (S-Curve)
+                            const dx = Math.abs(tx - sx) * 0.45;
+                            const cp1x = sx + dx;
+                            const cp1y = sy;
+                            const cp2x = tx - dx;
+                            const cp2y = ty;
+
+                            const pathData = `M ${sx} ${sy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tx} ${ty}`;
+
+                            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                            path.setAttribute("d", pathData);
+
+                            const isHighlighted = (activeAssetId === assetId || activeSceneId === scene.id);
+
+                            path.setAttribute("class", `connection-line ${isHighlighted ? 'highlight-link flow-active' : ''}`);
+                            path.setAttribute("stroke", isHighlighted ? "url(#conn-gradient-highlight)" : "url(#conn-gradient)");
+                            path.setAttribute("stroke-width", isHighlighted ? "3" : "1.5");
+                            path.setAttribute("fill", "none");
+
+                            // 懸停動態效果
+                            path.addEventListener("mouseenter", () => {
+                                path.setAttribute("stroke-width", "3");
+                                path.setAttribute("stroke", "url(#conn-gradient-highlight)");
+                                path.classList.add("highlight-link", "flow-active");
+                                sourceCard.classList.add("highlight-link");
+                                targetCard.classList.add("highlight-link");
+                            });
+
+                            path.addEventListener("mouseleave", () => {
+                                if (activeAssetId !== assetId && activeSceneId !== scene.id) {
+                                    path.setAttribute("stroke-width", "1.5");
+                                    path.setAttribute("stroke", "url(#conn-gradient)");
+                                    path.classList.remove("highlight-link", "flow-active");
+                                    sourceCard.classList.remove("highlight-link");
+                                    targetCard.classList.remove("highlight-link");
+                                }
+                            });
+
+                            group.appendChild(path);
+                        }
+                    }
+                });
+            });
+        }
+
+        // 7.4 PANEL: 缺口盤點 (Delta)
+        function renderDeltaPane() {
+            const data = MODE_MOCKS[currentMode];
+            const badgeStatus = document.getElementById("delta-badge-status");
+            const gateCard = document.getElementById("delta-gate-card");
+            const gateReason = document.getElementById("delta-gate-reason");
+            const needsList = document.getElementById("delta-needs-list");
+
+            if (data.stats.missing > 0) {
+                badgeStatus.className = "stat-badge r";
+                badgeStatus.innerHTML = "<i></i> 尚未通過";
+                gateCard.className = "gate-card blocked";
+                gateCard.querySelector(".gate-icon").innerHTML = '<i class="ti ti-lock"></i>';
+                gateReason.innerHTML = `ready_for_build = false · 原因: ${data.stats.missing} 個必要需求缺乏素材。`;
+            } else {
+                badgeStatus.className = "stat-badge g";
+                badgeStatus.innerHTML = "<i></i> 通過";
+                gateCard.className = "gate-card ok";
+                gateCard.querySelector(".gate-icon").innerHTML = '<i class="ti ti-lock-open"></i>';
+                gateReason.innerHTML = "ready_for_build = true · 素材已齊全，可隨時進入 Timeline 組裝。";
+            }
+
+            needsList.innerHTML = "";
+            data.delta_needs.forEach(item => {
+                const el = document.createElement("div");
+                el.className = "row-item";
+                el.innerHTML = `
+                    <div>
+                        <div class="row-name">${item.name}</div>
+                        <div class="row-sub">${item.sub}</div>
+                    </div>
+                    <span class="pill-status ${item.status}">${item.label}</span>
+                `;
+                needsList.appendChild(el);
+            });
+        }
+
+        // 7.5 PANEL: 結構規劃 (Structure)
+        function renderStructureBeats() {
+            const data = MODE_MOCKS[currentMode];
+            const container = document.getElementById("structure-beats-list");
+            container.innerHTML = "";
+
+            data.beats.forEach(beat => {
+                const el = document.createElement("div");
+                el.className = "beat-item";
+                el.innerHTML = `
+                    <div class="beat-num">${beat.id}</div>
+                    <div>
+                        <div class="beat-title">${beat.title}</div>
+                        <div class="beat-desc">${beat.desc}</div>
+                        <div class="beat-tags">
+                            ${beat.tags.map(t => `<span>${t}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        // 7.6 PANEL: 合約分段 (Contract)
+        function renderContractTable() {
+            const data = MODE_MOCKS[currentMode];
+            const tbody = document.getElementById("contract-table-body");
+            tbody.innerHTML = "";
+
+            data.contract.forEach(row => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="seg-mono">${row.seg}</td>
+                    <td>${row.role}</td>
+                    <td><span class="stat-badge" style="font-size:10.5px; padding:2px 6px;">${row.pace}</span></td>
+                    <td style="font-family:var(--font-mono); font-size:11.5px; color:var(--text-muted);">${row.need}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 7.7 PANEL: 組裝時間軸 (Timeline)
+        function renderTimelineStrip() {
+            const data = MODE_MOCKS[currentMode];
+            const strip = document.getElementById("timeline-strip-container");
+            strip.innerHTML = "";
+
+            data.timeline.forEach(blk => {
+                const el = document.createElement("div");
+                el.className = "timeline-blk";
+                el.style.flex = blk.flex;
+                el.style.backgroundColor = blk.color;
+                el.innerHTML = `${blk.name}<small>${blk.time}</small>`;
+                strip.appendChild(el);
+            });
+        }
+
+        // 7.8 PANEL: 審查關卡 (Gates)
+        function renderGatesList() {
+            const data = MODE_MOCKS[currentMode];
+            const badgeStatus = document.getElementById("gates-badge-status");
+            const container = document.getElementById("gates-roles-list");
+            container.innerHTML = "";
+
+            let hasBlocker = data.gates.some(g => g.status === 'r');
+            badgeStatus.className = hasBlocker ? "stat-badge r" : "stat-badge g";
+            badgeStatus.innerHTML = `<i></i> ${hasBlocker ? '待修正' : '已通過'}`;
+
+            data.gates.forEach(g => {
+                const el = document.createElement("div");
+                el.className = "gate-row";
+                const icon = g.role === 'editor' ? 'ti-scissors' : g.role === 'story_director' ? 'ti-movie' : g.role === 'curator' ? 'ti-photo' : 'ti-file-check';
+                el.innerHTML = `
+                    <div class="gate-avatar"><i class="ti ${icon}"></i></div>
+                    <div style="flex:1;">
+                        <div class="row-name">${g.name}</div>
+                        <div class="row-sub" style="font-family:var(--font-sans); color:var(--text-body); font-size:11.5px; margin-top:2px;">${g.txt}</div>
+                    </div>
+                    <span class="pill-status ${g.status}">${g.status === 'g' ? '通過' : g.status === 'a' ? '偏薄' : '阻擋'}</span>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        // 7.9 PANEL: 輸出驗證 (Verify)
+        function renderVerifyQA() {
+            const data = MODE_MOCKS[currentMode];
+            const container = document.getElementById("verify-qa-grid");
+            container.innerHTML = "";
+
+            data.verify_qa.forEach(qa => {
+                const el = document.createElement("div");
+                el.className = `qa-score-card ${qa.status}`;
+                el.innerHTML = `
+                    <div class="qa-score-num">${qa.score}</div>
+                    <div class="qa-score-lbl">${qa.label}</div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        // ==========================================
+        // 8. 滑出抽屜 (Drawer) 開啟與關閉互動
+        // ==========================================
+        function openSceneDrawer(scene) {
+            // 帶入基礎值
+            dwValId.textContent = scene.asset + ' · ' + scene.id;
+            dwValTime.textContent = scene.range;
+            dwValCaption.textContent = scene.caption;
+            dwValTr.textContent = `「${scene.caption}」`;
+            
+            // 渲染 SVG 縮圖
+            dwSvgContainer.innerHTML = getSVGThumbnailMarkup(scene.thumbnail);
+            
+            // 標籤
+            dwValTags.innerHTML = scene.tags.map(t => `<span class="dw-tag-chip">${t}</span>`).join('');
+            
+            // 對應需求
+            dwValNeedTitle.textContent = scene.name;
+            const statusLabel = scene.status === 'accepted' ? '已採用' : '候選';
+            dwValNeedStatus.className = `dw-satisfies-status ${scene.status === 'accepted' ? 'g' : 'a'}`;
+            dwValNeedStatus.textContent = statusLabel;
+            dwValNeedDesc.textContent = scene.satisfies_reason;
+
+            // 專家意見
+            dwValReviewerNotes.innerHTML = "";
+            scene.comments.forEach(c => {
+                const el = document.createElement("div");
+                el.className = "dw-note-item";
+                el.innerHTML = `<b class="role">[${c.name}]</b> <span>${c.txt}</span>`;
+                dwValReviewerNotes.appendChild(el);
+            });
+
+            // 自訂決策編輯預填
+            dwUserSelectOp.value = scene.status === 'accepted' ? 'accepted' : 'request_revision';
+            dwUserNotes.value = `針對 [${scene.name}] 片段：同意採用此證據。`;
+
+            // 滑出抽屜與遮罩
+            sceneDrawer.classList.add("open");
+            drawerOverlay.classList.add("open");
+        }
+
+        function closeDrawer() {
+            sceneDrawer.classList.remove("open");
+            drawerOverlay.classList.remove("open");
+            document.querySelectorAll('.canvas-scene-card').forEach(c => c.classList.remove('active'));
+        }
+
+        btnDrawerClose.addEventListener("click", closeDrawer);
+        drawerOverlay.addEventListener("click", closeDrawer);
+
+        // 抽屜內提交決策
+        btnDrawerSubmit.addEventListener("click", () => {
+            const op = dwUserSelectOp.value;
+            const note = dwUserNotes.value;
+            closeDrawer();
+            openReviewDraftModal(op, note);
+        });
+
+        // ==========================================
+        // 9. 決策 JSON 下載與發送
+        // ==========================================
+        function openReviewDraftModal(decision, notes) {
+            const decisionJSON = {
+                "artifact_role": "dashboard_review_decision",
+                "version": 1,
+                "stage_id": activeStage,
+                "run_id": MODE_MOCKS[currentMode].run_id,
+                "reviewer": "user",
+                "decision": decision,
+                "notes": notes || "無提供額外說明。",
+                "accepted_artifacts": [
+                    "project_material_map.json"
+                ],
+                "next_action": decision === "accepted" ? "continue_pipeline" : "request_revision",
+                "created_at": new Date().toISOString()
+            };
+
+            jsonPreviewArea.textContent = JSON.stringify(decisionJSON, null, 2);
+            decisionJsonModal.classList.add("open");
+        }
+
+        btnModalClose.addEventListener("click", () => {
+            decisionJsonModal.classList.remove("open");
+        });
+
+        decisionJsonModal.addEventListener("click", (e) => {
+            if (e.target === decisionJsonModal) {
+                decisionJsonModal.classList.remove("open");
+            }
+        });
+
+        // 下載 JSON
+        btnModalDownload.addEventListener("click", () => {
+            const jsonText = jsonPreviewArea.textContent;
+            const blob = new Blob([jsonText], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "dashboard_review_decision.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("📥 決策檔案已開始下載！");
+        });
+
+        // 確認寫入管線
+        btnModalConfirm.addEventListener("click", () => {
+            decisionJsonModal.classList.remove("open");
+            showToast("✓ 模擬寫入決策檔案 dashboard_review_decision.json 成功！");
+        });
+
+        // ==========================================
+        // 10. Raw JSON Modal 檢視器
+        // ==========================================
+        function showRawJson(filename) {
+            const data = MODE_MOCKS[currentMode];
+            rawJsonTitle.textContent = `檢視原始檔案: ${filename}`;
+            
+            let jsonPayload = {};
+            if (filename === 'video_intent.json') {
+                jsonPayload = {
+                    "artifact_role": "video_intent",
+                    "version": 1,
+                    "mode": currentMode,
+                    "route": data.mode_route,
+                    "target_duration_sec": currentMode === 'brownfield' ? 60 : 15
+                };
+            } else {
+                jsonPayload = {
+                    "artifact_role": "segment_contract",
+                    "version": 1,
+                    "segments": data.contract
+                };
+            }
+            
+            rawJsonArea.textContent = JSON.stringify(jsonPayload, null, 2);
+            rawJsonModal.classList.add("open");
+        }
+
+        btnRawClose.addEventListener("click", () => rawJsonModal.classList.remove("open"));
+        btnRawCloseBottom.addEventListener("click", () => rawJsonModal.classList.remove("open"));
+        rawJsonModal.addEventListener("click", (e) => {
+            if (e.target === rawJsonModal) {
+                rawJsonModal.classList.remove("open");
+            }
+        });
+
+        // ==========================================
+        // 11. 輔助工具 (SVG 看板縮圖、Toast)
+        // ==========================================
+        function getSVGThumbnailMarkup(type) {
+            const colors = {
+                lightning: ["#312e81", "#818cf8"],
+                tools: ["#064e3b", "#34d399"],
+                award: ["#78350f", "#fbbf24"],
+                projector: ["#0c4a6e", "#38bdf8"],
+                portrait: ["#581c87", "#c084fc"]
+            };
+            const [bg, fill] = colors[type] || ["#1e293b", "#94a3b8"];
+            
+            return `
+                <svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="g-${type}" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:${bg};stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:${fill};stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#g-${type})" />
+                    <circle cx="80" cy="45" r="14" fill="rgba(255,255,255,0.15)" />
+                    ${getSVGIconOverlay(type)}
+                </svg>
+            `;
+        }
+
+        function getSVGIconOverlay(type) {
+            switch(type) {
+                case "lightning":
+                    return `<path d="M78 28 L64 50 H76 L72 68 L92 42 H80 L84 28 Z" fill="#ffffff" />`;
+                case "tools":
+                    return `<path d="M70 32 L62 40 L74 52 L86 40 L78 32 Z M80 50 L90 60 L86 64 L76 54 Z" fill="#ffffff" />`;
+                case "award":
+                    return `<circle cx="80" cy="40" r="7" fill="#ffffff" /><path d="M74 48 H86 L83 62 L80 58 L77 62 Z" fill="#ffffff" />`;
+                case "projector":
+                    return `<rect x="68" y="38" width="24" height="14" rx="2" fill="#ffffff" /><circle cx="88" cy="45" r="3" fill="#0c4a6e" /><polygon points="64,40 68,43 68,47 64,50" fill="#ffffff" />`;
+                case "portrait":
+                    return `<circle cx="80" cy="38" r="6" fill="#ffffff" /><path d="M68 54 C68 47, 72 46, 80 46 C88 46, 92 47, 92 54 Z" fill="#ffffff" />`;
+                default:
+                    return `<circle cx="80" cy="45" r="4" fill="#ffffff" />`;
+            }
+        }
+
+        function handleFallbackGenerate(needId) {
+            showToast(`🤖 已為 ${needId} 發送 AI 概念圖生成要求！`);
+        }
+
+        function showToast(msg, type = "success") {
+            toastText.textContent = msg;
+            toastEl.className = `toast-msg open`;
+            if (type === "info") {
+                toastEl.style.background = "var(--primary)";
+            } else if (type === "warning") {
+                toastEl.style.background = "var(--warning)";
+            } else {
+                toastEl.style.background = "var(--success)";
+            }
+            
+            setTimeout(() => {
+                toastEl.classList.remove("open");
+            }, 3000);
+        }
+
+        // ==========================================
+        // 12. 初始啟動與事件綁定
+        // ==========================================
+        // 綁定滾動重繪連線
+        const poolScrollContainer = document.getElementById("pool-assets-container");
+        const boardScrollContainer = document.getElementById("canvas-columns-container");
+        if (poolScrollContainer) {
+            poolScrollContainer.addEventListener("scroll", drawConnections);
+        }
+        if (boardScrollContainer) {
+            boardScrollContainer.addEventListener("scroll", drawConnections);
+        }
+        window.addEventListener("resize", drawConnections);
+
+        // 綁定連線開關
+        const toggleCheckbox = document.getElementById("toggle-connections-checkbox");
+        if (toggleCheckbox) {
+            toggleCheckbox.addEventListener("change", () => {
+                drawConnections();
+                showToast(toggleCheckbox.checked ? "已顯示關係對線" : "已隱藏關係對線", "info");
+            });
+        }
+
+        // 綁定垃圾桶放開事件
+        const trashEl = document.getElementById("canvas-trash-zone");
+        if (trashEl) {
+            trashEl.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                trashEl.classList.add("drag-over");
+            });
+            trashEl.addEventListener("dragleave", () => {
+                trashEl.classList.remove("drag-over");
+            });
+            trashEl.addEventListener("drop", (e) => {
+                e.preventDefault();
+                trashEl.classList.remove("drag-over");
+                try {
+                    const dragData = JSON.parse(e.dataTransfer.getData("text/plain"));
+                    if (dragData.source === "board") {
+                        handleDeleteCard(dragData.sceneId, dragData.fromNeedId);
+                    }
+                } catch(err) {
+                    console.error("Trash drop parsing error:", err);
+                }
+            });
+        }
+
+        // SPA View Mode Switcher
+        const modeTabBtns = document.querySelectorAll(".mode-tab-btn");
+        const dashboardRoot = document.getElementById("dashboard-view-root");
+        const workbenchRoot = document.getElementById("workbench-view-root");
+        const wbIframe = document.getElementById("workbench-iframe");
+
+        function switchViewMode(targetMode) {
+            modeTabBtns.forEach(btn => {
+                if (btn.getAttribute("data-view") === targetMode) {
+                    btn.classList.add("active");
+                    btn.style.background = "var(--primary)";
+                    btn.style.color = "white";
+                } else {
+                    btn.classList.remove("active");
+                    btn.style.background = "transparent";
+                    btn.style.color = "var(--text-muted)";
+                }
+            });
+
+            if (targetMode === "workbench") {
+                dashboardRoot.style.display = "none";
+                workbenchRoot.style.display = "flex";
+                
+                // Lazy-load iframe source
+                if (!wbIframe.src) {
+                    const currentRoot = new URLSearchParams(window.location.search).get("root") || "";
+                    wbIframe.src = `/workbench?root=${encodeURIComponent(currentRoot)}`;
+                }
+            } else {
+                workbenchRoot.style.display = "none";
+                dashboardRoot.style.display = "grid";
+                // Redraw connections because layout may have changed
+                setTimeout(drawConnections, 100);
+            }
+        }
+
+        modeTabBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const targetView = btn.getAttribute("data-view");
+                switchViewMode(targetView);
+            });
+        });
+
+        // 互動工作台切換捷徑 (Timeline & Footer)
+        const btnTimelineWorkbench = document.getElementById("btn-timeline-workbench");
+        if (btnTimelineWorkbench) {
+            btnTimelineWorkbench.addEventListener("click", (e) => {
+                e.preventDefault();
+                switchViewMode("workbench");
+            });
+        }
+
+        const footerWbLink = document.getElementById("footer-workbench-link");
+        if (footerWbLink) {
+            footerWbLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                switchViewMode("workbench");
+            });
+        }
+
+        // Project Dropdown Selector Integration
+        const projectSelect = document.getElementById("spa-project-select");
+        if (projectSelect) {
+            // Fetch available projects
+            fetch("/api/projects")
+                .then(res => res.json())
+                .then(projects => {
+                    projectSelect.innerHTML = "";
+                    const activePath = new URLSearchParams(window.location.search).get("root") || "";
+                    
+                    if (projects.length === 0) {
+                        const opt = document.createElement("option");
+                        opt.value = "";
+                        opt.textContent = "No projects found";
+                        opt.disabled = true;
+                        projectSelect.appendChild(opt);
+                        return;
+                    }
+                    
+                    projects.forEach(p => {
+                        const opt = document.createElement("option");
+                        opt.value = p.path;
+                        opt.textContent = p.name;
+                        if (activePath && p.path.toLowerCase() === activePath.toLowerCase()) {
+                            opt.selected = true;
+                        }
+                        projectSelect.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error("Error loading projects:", err));
+
+            // Sync query param and reload on change
+            projectSelect.addEventListener("change", (e) => {
+                const newPath = e.target.value;
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.set("root", newPath);
+                window.location.href = newUrl.toString(); // Reload to refresh both dashboard mock data and workbench iframe
+            });
+        }
+
+        // 首次初始化
+        renderStageUI();
+        setTimeout(drawConnections, 100);
+    </script>
+</body>
+</html>

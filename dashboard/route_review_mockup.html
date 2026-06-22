@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes · 路線審查</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.17.0/dist/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#f5f7fa;--card:#fff;--bd:#e7ecf2;--bd-2:#dde4ec;--hover:#f3f6f9;
+  --tp:#111826;--ts:#5a6573;--tm:#98a2b0;
+  --indigo:#5b5ef0;--indigo-soft:#eef0fe;--indigo-bd:#dcdffb;
+  --done:#16a34a;--done-soft:#f1faf4;--done-bd:#cdeed8;--done-tx:#15803d;
+  --warn:#e08a1e;--warn-soft:#fdf6ec;--warn-bd:#f6e2bf;--warn-tx:#b4690e;
+  --blk:#e0524d;--blk-soft:#fdf2f1;--blk-bd:#f6d3d1;--blk-tx:#c0322c;
+  --sh:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.05);
+  --r:12px;--r2:9px;--r3:7px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--tp);font-family:'Inter',-apple-system,"Microsoft JhengHei","PingFang TC",sans-serif;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+.ti{line-height:1;vertical-align:-.12em}.mono{font-family:'JetBrains Mono',monospace}
+.lbl{font-size:10.5px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.6px}
+.hdr{background:var(--card);border-bottom:1px solid var(--bd);padding:0 28px;height:60px;display:flex;justify-content:space-between;align-items:center;gap:16px;position:sticky;top:0;z-index:50}
+.brand{display:flex;align-items:center;gap:11px}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--indigo);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px}
+.brand h1{font-size:16px;font-weight:700;letter-spacing:-.01em}.brand p{font-size:11px;color:var(--tm);font-weight:500}
+.facts{display:flex;gap:26px;align-items:center}.fact{display:flex;flex-direction:column;gap:3px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--bd-2);background:var(--card);color:var(--ts)}
+.pill.indigo{background:var(--indigo-soft);color:var(--indigo);border-color:var(--indigo-bd)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-tx);border-color:var(--warn-bd)}
+.pill.done{background:var(--done-soft);color:var(--done-tx);border-color:var(--done-bd)}
+.pill.muted{background:var(--hover);color:var(--tm)}
+.ban{margin:20px 28px 0;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.ban::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--warn)}
+.ban-t{font-size:15px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}.ban-t .ti{color:var(--warn);font-size:18px}
+.ban-r{font-size:13.5px;color:var(--ts);margin-bottom:15px;line-height:1.55}.ban-r b{color:var(--tp);font-weight:600}
+.acts{display:flex;gap:9px;flex-wrap:wrap}
+.btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--bd-2);background:var(--card);color:var(--ts);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.12s}
+.btn .ti{font-size:16px}.btn:hover{background:var(--hover);border-color:#cdd6e0;color:var(--tp)}
+.btn.pri{background:var(--done);border-color:var(--done);color:#fff}.btn.pri:hover{background:#15913f;color:#fff}
+.btn.big{padding:11px 18px;font-size:13.5px}
+.main{display:grid;grid-template-columns:240px 1fr;gap:20px;padding:20px 28px 32px;max-width:1500px;margin:0 auto}
+.rail{position:relative;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px 14px;align-self:start;box-shadow:var(--sh)}
+.rail::before{content:'';position:absolute;left:29px;top:38px;bottom:38px;width:1.5px;background:var(--bd-2)}
+.ri{display:flex;align-items:center;gap:13px;position:relative;z-index:2;cursor:pointer;padding:9px 8px;border-radius:9px;transition:background .12s}
+.ri:hover{background:var(--hover)}.ri.active{background:var(--indigo-soft)}
+.dot{width:18px;height:18px;border-radius:50%;background:var(--card);border:2px solid var(--bd-2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;transition:.18s}
+.ri.s-done .dot{background:var(--done);border-color:var(--done);color:#fff}
+.ri.s-warn .dot{background:var(--warn);border-color:var(--warn);color:#fff}
+.ri.active .dot{box-shadow:0 0 0 3px var(--indigo-soft)}
+.ri-t{font-size:13.5px;font-weight:600;color:var(--tp)}.ri.s-none .ri-t{color:var(--tm);font-weight:500}
+.ri-s{font-size:11px;color:var(--warn-tx);font-weight:600;margin-top:2px}
+/* panels */
+.detail{min-width:0}
+.panel{display:none;flex-direction:column;gap:16px}.panel.show{display:flex}
+.dh{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh)}
+.dh-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dh-t{font-size:18px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+.dh-file{font-size:11px;color:var(--tm);font-family:'JetBrains Mono',monospace;margin-top:4px}
+.dh-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card2{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.c-h{font-size:11px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.cov{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.cc{font-size:11.5px;font-weight:600;border-radius:7px;padding:5px 11px;display:inline-flex;align-items:center;gap:6px;background:var(--hover);color:var(--ts);border:1px solid var(--bd)}
+.cc i{width:7px;height:7px;border-radius:50%}
+.cc.g i{background:var(--done)}.cc.a i{background:var(--warn)}.cc.r i{background:var(--blk)}.cc.n i{background:var(--indigo)}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-top:14px}
+.kv .k{font-size:10px;color:var(--tm);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.kv .v{font-size:13.5px;font-weight:600;margin-top:3px}.kv .v.mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+.bigrow{display:flex;align-items:center;gap:12px}
+.bigval{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.clipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:9px;margin-top:6px}
+.clipt{position:relative;height:54px;border-radius:7px;background:#eef2f7;display:flex;align-items:center;justify-content:center;color:#aeb8c6;font-size:18px;border:1px solid var(--bd)}
+.clipt span{position:absolute;left:5px;bottom:4px;font-size:8.5px;color:#8e99a8;font-family:'JetBrains Mono',monospace}
+.gate{display:flex;align-items:center;gap:13px;border-radius:var(--r2);padding:14px 16px;border:1px solid}
+.gate.blocked{background:var(--blk-soft);border-color:var(--blk-bd)}.gate.ok{background:var(--done-soft);border-color:var(--done-bd)}
+.gate .gi{font-size:24px}.gate.blocked .gi{color:var(--blk-tx)}.gate.ok .gi{color:var(--done-tx)}
+.gate .gt{font-size:14.5px;font-weight:700}.gate.blocked .gt{color:var(--blk-tx)}.gate.ok .gt{color:var(--done-tx)}
+.gate .gs{font-size:11.5px;color:var(--ts);margin-top:1px}
+.covbar{height:11px;border-radius:6px;overflow:hidden;display:flex;margin:14px 0 4px;border:1px solid var(--bd)}.covbar i{height:100%}
+.rowlist .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.rowlist .row:last-child{border:none}
+.rname{font-size:13px;font-weight:600}.rsub{font-size:10.5px;color:var(--tm);margin-top:1px;font-family:'JetBrains Mono',monospace}
+.st{font-size:9.5px;font-weight:700;border-radius:5px;padding:3px 8px}
+.st.g{background:var(--done-soft);color:var(--done-tx)}.st.a{background:var(--warn-soft);color:var(--warn-tx)}.st.r{background:var(--blk-soft);color:var(--blk-tx)}.st.m{background:var(--hover);color:var(--tm)}
+.beat{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--bd)}.beat:last-child{border:none}
+.beat .bn{flex-shrink:0;width:46px}
+.beat .bno{font-size:10px;font-weight:600;color:var(--indigo);font-family:'JetBrains Mono',monospace}
+.beat .bt{font-size:13.5px;font-weight:600}.beat .bd2{font-size:11.5px;color:var(--ts);margin-top:3px;line-height:1.5}
+.emo{display:inline-flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.emo span{font-size:10px;font-weight:600;background:var(--indigo-soft);color:var(--indigo);border-radius:5px;padding:2px 7px}
+.segtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.segtbl th{text-align:left;font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.4px;font-weight:600;padding:8px;border-bottom:1px solid var(--bd)}
+.segtbl td{padding:10px 8px;border-bottom:1px solid var(--bd)}.segtbl tr:last-child td{border:none}
+.segtbl .sg{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--indigo)}
+.chipx{font-size:10px;font-weight:600;background:var(--hover);border-radius:5px;padding:2px 7px;color:var(--ts)}
+.tlstrip{display:flex;gap:5px;margin-top:6px}
+.tlblk{flex:1;height:50px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:var(--indigo)}
+.tlblk small{font-size:9px;opacity:.85;font-weight:500}
+.wbnote{font-size:11.5px;color:var(--tm);margin-top:12px;display:flex;align-items:center;gap:6px}
+.revrow{display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:1px solid var(--bd)}.revrow:last-child{border:none}
+.ravi{width:30px;height:30px;border-radius:8px;background:var(--indigo-soft);color:var(--indigo);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.video-ph{aspect-ratio:16/9;border-radius:var(--r2);background:#0e1218;display:flex;align-items:center;justify-content:center;color:#5b6573;font-size:42px;position:relative;border:1px solid #1c222c}
+.video-ph .pl{width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px}
+.qa{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:6px}
+.qac{background:var(--hover);border-radius:var(--r3);padding:11px 13px}
+.qac .qn{font-size:22px;font-weight:700;line-height:1.1}.qac.hi .qn{color:var(--done)}.qac.mid .qn{color:var(--warn)}
+.qac .ql{font-size:10px;color:var(--tm);font-weight:600;margin-top:2px}
+.adjust{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+/* material map (map panel) */
+.mapgrid{display:grid;grid-template-columns:230px 1fr;gap:18px}
+.col-h{font-size:11px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center}.col-h .cnt{font-weight:500;color:#b3bcc8}
+.lib{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:8px;box-shadow:var(--sh)}
+.asset{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:var(--r2);cursor:pointer;transition:background .12s}.asset:hover{background:var(--hover)}
+.thumb{height:76px;border-radius:8px;background:#eef2f7;display:flex;align-items:center;justify-content:center;font-size:23px;color:#aeb8c6;position:relative}
+.thumb .fam{position:absolute;left:7px;bottom:6px;font-size:9.5px;font-weight:600;color:#8e99a8;background:rgba(255,255,255,.78);border-radius:4px;padding:1px 6px}
+.use{position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;border-radius:5px;padding:2px 7px}
+.use.g{background:var(--done);color:#fff}.use.a{background:var(--warn);color:#fff}.use.m{background:#fff;color:var(--tm);border:1px solid var(--bd-2)}
+.aname{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 2px}.aname b{font-size:12px;font-weight:600}.aid{font-size:10px;color:#aeb8c6;font-family:'JetBrains Mono',monospace}
+.board{display:flex;flex-direction:column;gap:12px}
+.lane{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)}
+.lane-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.seg-no{font-size:10px;font-weight:600;color:var(--indigo);background:var(--indigo-soft);border-radius:5px;padding:2px 8px;font-family:'JetBrains Mono',monospace}
+.seg-name{font-size:14px;font-weight:700}.mini{display:flex;gap:4px;margin-left:auto}
+.mb{width:22px;height:5px;border-radius:3px;background:var(--bd-2)}.mb.g{background:var(--done)}.mb.a{background:var(--warn)}.mb.r{background:var(--blk)}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:10px}
+.slot{border:1px solid var(--bd);border-radius:var(--r2);padding:11px 12px;background:var(--card);cursor:pointer;transition:.12s;position:relative;overflow:hidden}
+.slot::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bd-2)}
+.slot:hover{border-color:#cdd6e0;box-shadow:var(--sh)}.slot.g::before{background:var(--done)}.slot.a::before{background:var(--warn)}.slot.r::before{background:var(--blk)}.slot.r{border-style:dashed;cursor:default}
+.slot-h{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:9px}.need{font-size:12.5px;font-weight:600}
+.fill{display:flex;align-items:center;gap:9px}.ft{width:42px;height:30px;border-radius:6px;background:#eef2f7;display:flex;align-items:center;justify-content:center;font-size:16px;color:#aeb8c6;flex-shrink:0}
+.fname{font-size:11px;font-weight:600}.fsub{font-size:9.5px;color:var(--tm);margin-top:1px}
+.empty{display:flex;align-items:center;justify-content:space-between;gap:8px}.empty-t{font-size:11px;color:var(--blk-tx);font-weight:600}
+.gen{font-size:10px;font-weight:600;color:var(--blk-tx);background:var(--blk-soft);border:1px solid var(--blk-bd);border-radius:6px;padding:5px 9px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+/* drawer */
+.overlay{position:fixed;inset:0;background:rgba(17,24,38,.28);opacity:0;visibility:hidden;transition:.2s;z-index:150;backdrop-filter:blur(1.5px)}.overlay.open{opacity:1;visibility:visible}
+.drawer{position:fixed;top:0;right:0;height:100%;width:392px;max-width:92vw;background:#fff;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:200;overflow-y:auto;box-shadow:-16px 0 40px rgba(17,24,38,.12)}.drawer.open{transform:translateX(0)}
+.dw-top{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:#fff;z-index:2}.dw-tt{font-size:13.5px;font-weight:700}
+.dw-x{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--tm);cursor:pointer}.dw-x:hover{background:var(--hover);color:var(--tp)}
+.dw-th{height:184px;background:#eef2f7;display:flex;align-items:center;justify-content:center;font-size:46px;color:#aeb8c6;position:relative}
+.dw-id{position:absolute;left:11px;bottom:11px;font-size:10.5px;font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,.9);border-radius:5px;padding:3px 8px;color:var(--ts)}
+.dw-time{position:absolute;right:11px;bottom:11px;font-size:10.5px;font-family:'JetBrains Mono',monospace;background:rgba(17,24,38,.74);color:#fff;border-radius:5px;padding:3px 8px}
+.dw-b{padding:18px;display:flex;flex-direction:column;gap:16px}
+.dw-cap{font-size:15.5px;font-weight:700;line-height:1.4}
+.fld>.lbl{margin-bottom:7px;display:block}
+.quote{background:var(--hover);border-radius:var(--r3);padding:11px 13px 11px 16px;font-size:13px;color:#3f4856;line-height:1.55;position:relative}.quote::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--indigo)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}.tg{font-size:10.5px;font-weight:600;background:var(--hover);color:var(--ts);border-radius:6px;padding:3px 9px}
+.need-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:var(--r3);padding:11px 13px;border:1px solid}.need-row.a{background:var(--warn-soft);border-color:var(--warn-bd)}.need-row.g{background:var(--done-soft);border-color:var(--done-bd)}
+.need-row .nm{font-size:12.5px;font-weight:600}.need-row .seg{font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:1px}
+.need-row.a .nm{color:var(--warn-tx)}.need-row.a .seg{color:var(--warn)}.need-row.g .nm{color:var(--done-tx)}.need-row.g .seg{color:var(--done)}
+.notes{display:flex;flex-direction:column;gap:8px}.note{font-size:12px;color:var(--ts);line-height:1.5;display:flex;gap:7px}.note .who{font-weight:600;color:var(--indigo);flex-shrink:0}
+.dw-acts{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--bd);padding-top:16px}
+.dw-acts .btn.ok{background:var(--done);border-color:var(--done);color:#fff}.dw-acts .btn.wb{background:var(--indigo-soft);border-color:var(--indigo-bd);color:var(--indigo)}.dw-acts .btn.back{color:var(--blk-tx);border-color:var(--blk-bd)}
+@media(max-width:980px){.main{grid-template-columns:1fr}.mapgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <div class="brand"><div class="logo"><i class="ti ti-route"></i></div><div><h1>Hermes</h1><p>路線審查</p></div></div>
+    <div class="facts">
+      <div class="fact"><span class="lbl">模式</span><span class="pill indigo"><i class="ti ti-movie"></i> 實拍素材</span></div>
+      <div class="fact"><span class="lbl">狀態</span><span class="pill warn"><i class="ti ti-player-pause"></i> 等待審查</span></div>
+    </div>
+  </div>
+
+  <div class="ban">
+    <div class="ban-t"><i class="ti ti-alert-triangle"></i> 已暫停,等你審查</div>
+    <div class="ban-r">階段:<b>素材地圖</b> · 原因:<b>4 個需求的素材偏薄,1 個畫面待你決定,1 個需求沒有素材。</b></div>
+    <div class="acts">
+      <button class="btn pri"><i class="ti ti-check"></i> 接受並繼續</button>
+      <button class="btn"><i class="ti ti-rotate"></i> 要求修改</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <nav class="rail" aria-label="影片路線">
+      <div class="ri s-done" data-stage="intent"><div class="dot"><i class="ti ti-check"></i></div><div class="ri-t">影片企劃</div></div>
+      <div class="ri s-done" data-stage="ingest"><div class="dot"><i class="ti ti-check"></i></div><div class="ri-t">素材匯入</div></div>
+      <div class="ri s-warn active" data-stage="map"><div class="dot"><i class="ti ti-dots"></i></div><div><div class="ri-t">素材地圖</div><div class="ri-s">8 覆蓋 · 4 偏薄 · 1 缺</div></div></div>
+      <div class="ri s-none" data-stage="delta"><div class="dot"></div><div class="ri-t">缺口盤點</div></div>
+      <div class="ri s-none" data-stage="structure"><div class="dot"></div><div class="ri-t">結構規劃</div></div>
+      <div class="ri s-none" data-stage="contract"><div class="dot"></div><div class="ri-t">合約分段</div></div>
+      <div class="ri s-none" data-stage="timeline"><div class="dot"></div><div class="ri-t">組裝時間軸</div></div>
+      <div class="ri s-none" data-stage="gates"><div class="dot"></div><div class="ri-t">審查關卡</div></div>
+      <div class="ri s-none" data-stage="verify"><div class="dot"></div><div class="ri-t">輸出驗證</div></div>
+    </nav>
+
+    <div class="detail">
+
+      <div class="panel" data-panel="intent">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-compass" style="color:var(--indigo)"></i> 影片企劃</div><div class="dh-file">video_intent.json</div></div><span class="pill done"><i class="ti ti-check"></i> 已完成</span></div>
+          <div class="bigrow" style="margin-top:14px"><i class="ti ti-movie" style="font-size:26px;color:var(--indigo)"></i><div class="bigval">實拍素材 · Brownfield</div></div>
+          <div class="kv">
+            <div><div class="k">路線</div><div class="v mono">existing-material-first</div></div>
+            <div><div class="k">影片類型</div><div class="v">結訓回顧</div></div>
+            <div><div class="k">受眾</div><div class="v">內部同仁</div></div>
+            <div><div class="k">素材狀態</div><div class="v">部分(hybrid)</div></div>
+            <div><div class="k">想傳達</div><div class="v">紀念 · 感謝</div></div>
+            <div><div class="k">交棒給</div><div class="v mono">material_map</div></div>
+          </div>
+        </div>
+        <div class="adjust"><button class="btn"><i class="ti ti-edit"></i> 改路線 / 類型</button><button class="btn"><i class="ti ti-eye"></i> 看完整 JSON</button></div>
+      </div>
+
+      <div class="panel" data-panel="ingest">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-folder" style="color:var(--indigo)"></i> 素材匯入</div><div class="dh-file">materials_db.json</div></div><span class="pill done"><i class="ti ti-check"></i> 已完成</span></div>
+          <div class="cov"><span class="cc n"><i></i>影片 12</span><span class="cc n"><i></i>音樂 1</span><span class="cc n"><i></i>總長 14:20</span></div></div>
+        <div class="card2"><div class="c-h">已匯入素材</div>
+          <div class="clipgrid">
+            <div class="clipt"><i class="ti ti-presentation"></i><span>a05</span></div><div class="clipt"><i class="ti ti-bolt"></i><span>a07</span></div><div class="clipt"><i class="ti ti-eyeglass-2"></i><span>a09</span></div><div class="clipt"><i class="ti ti-award"></i><span>a04</span></div><div class="clipt"><i class="ti ti-users"></i><span>a01</span></div><div class="clipt"><i class="ti ti-tree"></i><span>a11</span></div><div class="clipt"><i class="ti ti-confetti"></i><span>a02</span></div><div class="clipt"><i class="ti ti-music"></i><span>bgm</span></div>
+          </div>
+          <div class="adjust" style="margin-top:14px"><button class="btn"><i class="ti ti-plus"></i> 加素材</button><button class="btn"><i class="ti ti-refresh"></i> 重新掃描</button></div>
+        </div>
+      </div>
+
+      <div class="panel show" data-panel="map">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-map-2" style="color:var(--warn)"></i> 素材地圖</div><div class="dh-file">project_material_map.json</div></div><span class="pill warn"><i class="ti ti-alert-triangle"></i> 待審查</span></div>
+          <div class="cov"><span class="cc n"><i></i>需求 5</span><span class="cc g"><i></i>覆蓋 2</span><span class="cc a"><i></i>偏薄 2</span><span class="cc r"><i></i>缺 1</span></div></div>
+        <div class="mapgrid">
+          <div><div class="col-h">素材庫 <span class="cnt">7 段</span></div>
+            <div class="lib">
+              <div class="asset" data-icon="ti-presentation" data-id="asset_05 · s0" data-time="00:03.0 – 00:09.2" data-cap="教室內工安宣導,講師授課" data-tr="今天我們要講的,是高壓作業最基本、也最重要的安全規範。" data-tags="宣導,室內,中景" data-need="開場旁白畫面" data-seg="段1 · nd_opening" data-status="已採用" data-sc="g" data-notes="剪輯|聲音清楚,適合當開場旁白底"><div class="thumb"><i class="ti ti-presentation"></i><span class="fam">宣導</span><span class="use g">已用</span></div><div class="aname"><b>教室宣導</b><span class="aid">a05</span></div></div>
+              <div class="asset" data-icon="ti-bolt" data-id="asset_07 · s2" data-time="00:21.4 – 00:27.0" data-cap="戶外高壓活線作業實作" data-tr="(現場操作同期聲)" data-tags="實作,戶外,動作" data-need="實作技能畫面" data-seg="段2 · nd_practical" data-status="已採用" data-sc="g" data-notes="導演|動作高點,可當歷程主鏡"><div class="thumb"><i class="ti ti-bolt"></i><span class="fam">實作</span><span class="use g">已用</span></div><div class="aname"><b>高壓活線作業</b><span class="aid">a07</span></div></div>
+              <div class="asset" data-icon="ti-eyeglass-2" data-id="asset_09 · s1" data-time="00:11.0 – 00:16.5" data-cap="學員戴 VR 頭盔體驗工安情境" data-tr="(體驗中)哇,這個摔下來的感覺好真實…" data-tags="VR,直幅,體驗" data-need="沉浸體驗畫面" data-seg="段2 · nd_experience" data-status="候選" data-sc="a" data-notes="剪輯|直幅素材,進 16:9 要裁切避免黑邊"><div class="thumb"><i class="ti ti-eyeglass-2"></i><span class="fam">體驗</span><span class="use a">候選</span></div><div class="aname"><b>VR 工安體驗</b><span class="aid">a09</span></div></div>
+              <div class="asset" data-icon="ti-award" data-id="asset_04 · s0" data-time="00:12.0 – 00:18.5" data-cap="學員上台領證,台下同學起立鼓掌" data-tr="感謝老師這 5.5 個月的傾囊相授,讓我們能獨當一面。" data-tags="典禮,中景,領獎" data-need="結訓高潮畫面" data-seg="段3 · nd_ceremony" data-status="候選" data-sc="a" data-notes="導演|情緒鋪陳好,但太靜,當高潮略弱|剪輯|同期聲很適合收尾旁白"><div class="thumb"><i class="ti ti-award"></i><span class="fam">典禮</span><span class="use a">候選</span></div><div class="aname"><b>上台領證</b><span class="aid">a04</span></div></div>
+              <div class="asset" data-icon="ti-users" data-id="asset_01 · s0" data-time="00:00.0 – 00:05.0" data-cap="全體學員列隊" data-tr="(口令聲)" data-tags="隊形,廣角" data-need="結訓高潮畫面" data-seg="段3 · nd_ceremony" data-status="重複" data-sc="a" data-notes="剪輯|與 s1/s2 近乎重複,擇一即可"><div class="thumb"><i class="ti ti-users"></i><span class="fam">隊形</span><span class="use m">重複</span></div><div class="aname"><b>全體列隊</b><span class="aid">a01</span></div></div>
+              <div class="asset" data-icon="ti-tree" data-id="asset_11 · s0" data-time="00:00.0 – 00:08.0" data-cap="戶外電桿維修空景" data-tr="(環境音)" data-tags="空景,戶外" data-need="(未對應)" data-seg="—" data-status="未用" data-sc="a" data-notes="curator|可當轉場空鏡,目前無對應需求"><div class="thumb"><i class="ti ti-tree"></i><span class="fam">空景</span><span class="use m">未用</span></div><div class="aname"><b>戶外電桿</b><span class="aid">a11</span></div></div>
+              <div class="asset" data-icon="ti-confetti" data-id="asset_02 · s0" data-time="00:00.0 – 00:06.0" data-cap="開訓典禮大合照" data-tr="(掌聲)" data-tags="典禮,合照" data-need="(未對應)" data-seg="—" data-status="未用" data-sc="a" data-notes="curator|開訓素材,結訓片可能用不到"><div class="thumb"><i class="ti ti-confetti"></i><span class="fam">典禮</span><span class="use m">未用</span></div><div class="aname"><b>開訓典禮</b><span class="aid">a02</span></div></div>
+            </div>
+          </div>
+          <div><div class="col-h">覆蓋總覽 <span class="cnt">5 需求 · 依段落</span></div>
+            <div class="board">
+              <div class="lane"><div class="lane-h"><span class="seg-no">段1</span><span class="seg-name">開場 · 回顧</span><span class="mini"><i class="mb g"></i></span></div>
+                <div class="slots"><div class="slot g" data-icon="ti-presentation" data-id="asset_05 · s0" data-time="00:03.0 – 00:09.2" data-cap="教室內工安宣導,講師授課" data-tr="今天我們要講的,是高壓作業最基本、也最重要的安全規範。" data-tags="宣導,室內,中景" data-need="開場旁白畫面" data-seg="段1 · nd_opening" data-status="已採用" data-sc="g" data-notes="剪輯|聲音清楚,適合當開場旁白底"><div class="slot-h"><span class="need">開場旁白畫面</span><span class="st g">已採用</span></div><div class="fill"><div class="ft"><i class="ti ti-presentation"></i></div><div><div class="fname">教室宣導</div><div class="fsub">a05</div></div></div></div></div>
+              </div>
+              <div class="lane"><div class="lane-h"><span class="seg-no">段2</span><span class="seg-name">訓練歷程</span><span class="mini"><i class="mb g"></i><i class="mb a"></i></span></div>
+                <div class="slots">
+                  <div class="slot g" data-icon="ti-bolt" data-id="asset_07 · s2" data-time="00:21.4 – 00:27.0" data-cap="戶外高壓活線作業實作" data-tr="(現場操作同期聲)" data-tags="實作,戶外,動作" data-need="實作技能畫面" data-seg="段2 · nd_practical" data-status="已採用" data-sc="g" data-notes="導演|動作高點,可當歷程主鏡"><div class="slot-h"><span class="need">實作技能畫面</span><span class="st g">已採用</span></div><div class="fill"><div class="ft"><i class="ti ti-bolt"></i></div><div><div class="fname">高壓活線作業</div><div class="fsub">a07</div></div></div></div>
+                  <div class="slot a" data-icon="ti-eyeglass-2" data-id="asset_09 · s1" data-time="00:11.0 – 00:16.5" data-cap="學員戴 VR 頭盔體驗工安情境" data-tr="(體驗中)哇,這個摔下來的感覺好真實…" data-tags="VR,直幅,體驗" data-need="沉浸體驗畫面" data-seg="段2 · nd_experience" data-status="候選" data-sc="a" data-notes="剪輯|直幅素材,進 16:9 要裁切避免黑邊"><div class="slot-h"><span class="need">沉浸體驗畫面</span><span class="st a">偏薄</span></div><div class="fill"><div class="ft"><i class="ti ti-eyeglass-2"></i></div><div><div class="fname">VR 工安體驗</div><div class="fsub">候選 · 直幅待裁</div></div></div></div>
+                </div>
+              </div>
+              <div class="lane"><div class="lane-h"><span class="seg-no">段3</span><span class="seg-name">結訓 · 高潮</span><span class="mini"><i class="mb a"></i><i class="mb r"></i></span></div>
+                <div class="slots">
+                  <div class="slot a" data-icon="ti-award" data-id="asset_04 · s0" data-time="00:12.0 – 00:18.5" data-cap="學員上台領證,台下同學起立鼓掌" data-tr="感謝老師這 5.5 個月的傾囊相授,讓我們能獨當一面。" data-tags="典禮,中景,領獎" data-need="結訓高潮畫面" data-seg="段3 · nd_ceremony" data-status="候選" data-sc="a" data-notes="導演|情緒鋪陳好,但太靜,當高潮略弱|剪輯|同期聲很適合收尾旁白"><div class="slot-h"><span class="need">結訓高潮畫面</span><span class="st a">偏薄</span></div><div class="fill"><div class="ft"><i class="ti ti-award"></i></div><div><div class="fname">上台領證 ×2</div><div class="fsub">候選 · 含重複</div></div></div></div>
+                  <div class="slot r"><div class="slot-h"><span class="need">離別情緒畫面</span><span class="st r">缺</span></div><div class="empty"><span class="empty-t">沒有可用素材</span><button class="gen"><i class="ti ti-plus"></i> 生成</button></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" data-panel="delta">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-chart-arrows" style="color:var(--indigo)"></i> 缺口盤點</div><div class="dh-file">material_delta.json</div></div><span class="pill muted">尚未執行 · 版型預覽</span></div></div>
+        <div class="card2"><div class="gate blocked"><i class="ti ti-lock gi"></i><div><div class="gt">尚未可進 BUILD</div><div class="gs">ready_for_build = false · 因 1 個必要需求沒有素材(離別情緒畫面)</div></div></div>
+          <div class="covbar"><i style="width:40%;background:var(--done)"></i><i style="width:40%;background:var(--warn)"></i><i style="width:20%;background:var(--blk)"></i></div>
+          <div class="cov"><span class="cc g"><i></i>覆蓋 2</span><span class="cc a"><i></i>偏薄 2</span><span class="cc r"><i></i>缺 1</span></div></div>
+        <div class="card2"><div class="c-h">逐需求狀態</div><div class="rowlist">
+          <div class="row"><div><div class="rname">開場旁白畫面</div><div class="rsub">段1 · nd_opening</div></div><span class="st g">覆蓋</span></div>
+          <div class="row"><div><div class="rname">實作技能畫面</div><div class="rsub">段2 · nd_practical</div></div><span class="st g">覆蓋</span></div>
+          <div class="row"><div><div class="rname">沉浸體驗畫面</div><div class="rsub">段2 · nd_experience</div></div><span class="st a">偏薄</span></div>
+          <div class="row"><div><div class="rname">結訓高潮畫面</div><div class="rsub">段3 · nd_ceremony</div></div><span class="st a">偏薄</span></div>
+          <div class="row"><div><div class="rname">離別情緒畫面</div><div class="rsub">段3 · nd_emotion</div></div><span class="st r">缺</span></div>
+        </div>
+        <div class="adjust" style="margin-top:14px"><button class="btn"><i class="ti ti-sparkles"></i> 允許生成 fallback</button><button class="btn"><i class="ti ti-check"></i> 標記可接受</button></div></div>
+      </div>
+
+      <div class="panel" data-panel="structure">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-book" style="color:var(--indigo)"></i> 結構規劃</div><div class="dh-file">story_structure.json · 情緒主軸:從汗水到不捨</div></div><span class="pill muted">尚未執行 · 版型預覽</span></div></div>
+        <div class="card2"><div class="c-h">段落 · 情緒弧</div>
+          <div class="beat"><div class="bn"><div class="bno">段1</div></div><div><div class="bt">開場 · 回顧</div><div class="bd2">以結訓報告當回憶框架,帶觀眾回到第一天。</div><div class="emo"><span>情緒:回顧</span><span>功能:framing</span><span>旁白:不解釋,只勾起</span></div></div></div>
+          <div class="beat"><div class="bn"><div class="bno">段2</div></div><div><div class="bt">訓練歷程</div><div class="bd2">實作、體驗、彼此扶持,堆疊「我們一起變強」的重量。</div><div class="emo"><span>情緒:努力→夥伴</span><span>功能:build-up</span></div></div></div>
+          <div class="beat"><div class="bn"><div class="bno">段3</div></div><div><div class="bt">結訓 · 高潮</div><div class="bd2">領證、致謝、離別,把情緒釋放出來。</div><div class="emo"><span>情緒:感恩→不捨</span><span>功能:payoff</span><span>裝置:報告收束</span></div></div></div>
+        </div>
+        <div class="adjust"><button class="btn"><i class="ti ti-edit"></i> 編輯段落 / 情緒</button></div>
+      </div>
+
+      <div class="panel" data-panel="contract">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-file-text" style="color:var(--indigo)"></i> 合約分段</div><div class="dh-file">segment_contract.json · canonical SPEC</div></div><span class="pill muted">尚未執行 · 版型預覽</span></div></div>
+        <div class="card2"><table class="segtbl"><thead><tr><th>段</th><th>section_role</th><th>配速</th><th>需求</th></tr></thead><tbody>
+          <tr><td class="sg">seg_01</td><td>establish</td><td><span class="chipx">慢 · 3–6s</span></td><td>nd_opening</td></tr>
+          <tr><td class="sg">seg_02</td><td>detail</td><td><span class="chipx">中 · 2–4s</span></td><td>nd_practical · nd_experience</td></tr>
+          <tr><td class="sg">seg_03</td><td>reaction</td><td><span class="chipx">收束 · 4–6s</span></td><td>nd_ceremony · nd_emotion</td></tr>
+        </tbody></table>
+        <div class="adjust" style="margin-top:14px"><button class="btn"><i class="ti ti-eye"></i> 看完整合約</button><button class="btn"><i class="ti ti-history"></i> 版本差異</button></div></div>
+      </div>
+
+      <div class="panel" data-panel="timeline">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-timeline" style="color:var(--indigo)"></i> 組裝時間軸</div><div class="dh-file">assembly_plan.json · timeline_build.json</div></div><span class="pill muted">尚未執行 · 版型預覽</span></div></div>
+        <div class="card2"><div class="c-h">時間軸概覽(唯讀)</div>
+          <div class="tlstrip"><div class="tlblk" style="flex:1.2">開場<small>0:00–0:09</small></div><div class="tlblk" style="flex:2;background:#7c7fef">歷程<small>0:09–0:42</small></div><div class="tlblk" style="flex:1.4;background:#9698f3">結訓<small>0:42–1:00</small></div></div>
+          <div class="wbnote"><i class="ti ti-info-circle"></i> 儀表板不做時間軸編輯。要調秒數、換片、trim,請到 Workbench。</div>
+          <div class="adjust" style="margin-top:14px"><button class="btn big" style="background:var(--indigo-soft);border-color:var(--indigo-bd);color:var(--indigo)"><i class="ti ti-external-link"></i> 在 Workbench 開啟調整</button></div></div>
+      </div>
+
+      <div class="panel" data-panel="gates">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-shield-check" style="color:var(--indigo)"></i> 審查關卡</div><div class="dh-file">reviewer_aggregation.json</div></div><span class="pill warn">待修正</span></div>
+          <div class="cov"><span class="cc a"><i></i>整體:待修正</span><span class="cc r"><i></i>阻擋:剪輯</span><span class="cc n"><i></i>findings 3</span></div></div>
+        <div class="card2"><div class="c-h">各角色審查</div><div class="rowlist">
+          <div class="revrow"><div class="ravi"><i class="ti ti-movie"></i></div><div style="flex:1"><div class="rname">導演</div><div class="rsub">情緒弧通過,高潮可再強</div></div><span class="st g">通過</span></div>
+          <div class="revrow"><div class="ravi"><i class="ti ti-photo"></i></div><div style="flex:1"><div class="rname">素材策展</div><div class="rsub">覆蓋足夠,1 段偏薄</div></div><span class="st g">通過</span></div>
+          <div class="revrow"><div class="ravi"><i class="ti ti-scissors"></i></div><div style="flex:1"><div class="rname">剪輯</div><div class="rsub">段3 有近重複窗,需替換 · 2 findings</div></div><span class="st r">阻擋</span></div>
+          <div class="revrow"><div class="ravi"><i class="ti ti-file-check"></i></div><div style="flex:1"><div class="rname">SPEC 合約</div><div class="rsub">契約欄位齊全</div></div><span class="st g">通過</span></div>
+          <div class="revrow"><div class="ravi"><i class="ti ti-truck"></i></div><div style="flex:1"><div class="rname">供給</div><div class="rsub">provider 無阻擋</div></div><span class="st g">通過</span></div>
+        </div>
+        <div class="adjust" style="margin-top:14px"><button class="btn"><i class="ti ti-arrow-back-up"></i> 回剪輯修正</button><button class="btn"><i class="ti ti-player-skip-forward"></i> 覆寫通過</button></div></div>
+      </div>
+
+      <div class="panel" data-panel="verify">
+        <div class="dh"><div class="dh-top"><div><div class="dh-t"><i class="ti ti-circle-check" style="color:var(--done)"></i> 輸出驗證</div><div class="dh-file">qa_report.json · final.mp4</div></div><span class="pill done"><i class="ti ti-check"></i> 通過</span></div></div>
+        <div class="card2"><div class="video-ph"><div class="pl"><i class="ti ti-player-play"></i></div><span class="dw-time" style="position:absolute;right:10px;bottom:10px">03:00 · 1080p</span></div>
+          <div class="c-h" style="margin-top:14px">QA 維度</div>
+          <div class="qa"><div class="qac hi"><div class="qn">0.86</div><div class="ql">內容對齊</div></div><div class="qac hi"><div class="qn">0.81</div><div class="ql">節奏</div></div><div class="qac hi"><div class="qn">0.90</div><div class="ql">音訊</div></div><div class="qac mid"><div class="qn">0.74</div><div class="ql">視覺多樣</div></div><div class="qac hi"><div class="qn">PASS</div><div class="ql">黑幀/接縫</div></div></div>
+          <div class="adjust" style="margin-top:14px"><button class="btn pri"><i class="ti ti-download"></i> 下載成片</button><button class="btn"><i class="ti ti-refresh"></i> 重新驗證</button></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="overlay" id="ov"></div>
+  <aside class="drawer" id="dw" aria-label="場景檢視">
+    <div class="dw-top"><span class="dw-tt">場景檢視</span><span class="dw-x" id="dwx"><i class="ti ti-x"></i></span></div>
+    <div class="dw-th"><i class="ti ti-award" id="dwEmo"></i><span class="dw-id" id="dwId">asset_04 · s0</span><span class="dw-time" id="dwTime">00:12.0 – 00:18.5</span></div>
+    <div class="dw-b">
+      <div class="dw-cap" id="dwCap">學員上台領證,台下同學起立鼓掌</div>
+      <div class="fld"><span class="lbl">同期聲 / 旁白</span><div class="quote" id="dwTr">…</div></div>
+      <div class="fld"><span class="lbl">場景標籤</span><div class="tags" id="dwTags"></div></div>
+      <div class="fld"><span class="lbl">對應需求</span><div class="need-row a" id="dwNeedRow"><div><div class="nm" id="dwNeed">結訓高潮畫面</div><div class="seg" id="dwSeg">段3 · nd_ceremony</div></div><span class="st a" id="dwStatus">候選</span></div></div>
+      <div class="fld"><span class="lbl">審查註記</span><div class="notes" id="dwNotes"></div></div>
+      <div class="dw-acts">
+        <button class="btn ok"><i class="ti ti-check"></i> 採用</button>
+        <button class="btn"><i class="ti ti-bookmark"></i> 設候選</button>
+        <button class="btn"><i class="ti ti-x"></i> 捨棄</button>
+        <button class="btn wb"><i class="ti ti-arrow-right"></i> 送 Workbench</button>
+        <button class="btn back"><i class="ti ti-arrow-back-up"></i> 退回素材地圖</button>
+      </div>
+    </div>
+  </aside>
+
+<script>
+var rails=document.querySelectorAll('.ri'),panels=document.querySelectorAll('.panel');
+rails.forEach(function(r){r.addEventListener('click',function(){
+  rails.forEach(function(x){x.classList.remove('active')});r.classList.add('active');
+  var k=r.dataset.stage;panels.forEach(function(p){p.classList.toggle('show',p.dataset.panel===k);});
+  window.scrollTo({top:0,behavior:'smooth'});
+});});
+var ov=document.getElementById('ov'),dw=document.getElementById('dw');
+function openScene(el){var d=el.dataset;
+  document.getElementById('dwEmo').className='ti '+(d.icon||'ti-photo');
+  document.getElementById('dwId').textContent=d.id;document.getElementById('dwTime').textContent=d.time;
+  document.getElementById('dwCap').textContent=d.cap;document.getElementById('dwTr').textContent='「'+d.tr+'」';
+  var tags=document.getElementById('dwTags');tags.innerHTML='';d.tags.split(',').forEach(function(t){var s=document.createElement('span');s.className='tg';s.textContent=t;tags.appendChild(s);});
+  document.getElementById('dwNeed').textContent=d.need;document.getElementById('dwSeg').textContent=d.seg;
+  var sc=d.sc||'a';document.getElementById('dwNeedRow').className='need-row '+sc;
+  var stt=document.getElementById('dwStatus');stt.className='st '+sc;stt.textContent=d.status;
+  var notes=document.getElementById('dwNotes');notes.innerHTML='';var parts=d.notes.split('|');
+  for(var i=0;i+1<parts.length;i+=2){var p=document.createElement('div');p.className='note';p.innerHTML='<span class="who">'+parts[i]+'</span><span>'+parts[i+1]+'</span>';notes.appendChild(p);}
+  ov.classList.add('open');dw.classList.add('open');}
+function closeScene(){ov.classList.remove('open');dw.classList.remove('open');}
+document.addEventListener('click',function(e){var el=e.target.closest('.asset,.slot[data-id]');if(el)openScene(el);});
+document.getElementById('dwx').addEventListener('click',closeScene);ov.addEventListener('click',closeScene);
+</script>
+</body>
+</html>

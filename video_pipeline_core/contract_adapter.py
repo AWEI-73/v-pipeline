@@ -328,6 +328,32 @@ def adapt_narrative_contract_file(contract_path, *, out_path=None, categories_pa
     return result
 
 
+def _verify_payload(path):
+    if not path or not Path(path).exists():
+        return None
+    try:
+        with open(path, encoding="utf-8-sig") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
+
+def _final_state_payload(state_json_data, dash_state, out_path, verify_report_path):
+    payload = dict(state_json_data or {})
+    run_state = (dash_state or {}).get("run") or {}
+    payload["pass"] = bool(run_state.get("pass"))
+    payload["next_action"] = run_state.get("next_action")
+    verify = _verify_payload(verify_report_path)
+    if Path(out_path).exists() and verify and verify.get("pass") is True:
+        payload["pass"] = True
+        payload["final"] = str(out_path)
+        payload["next_action"] = "complete_review_final"
+        qa = payload.get("qa") if isinstance(payload.get("qa"), dict) else {}
+        qa["score"] = verify.get("score")
+        payload["qa"] = qa
+    return payload
+
+
 def _manifest(*, canonical_contract, contract_hash, generated_payload, material_db,
               music, music_structure, model_routes, build_profile,
               stock_first_route, generated_asset_requests,
@@ -1164,10 +1190,15 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         editing_policy=(build_profile_payload or {}).get("editing_policy"),
     )
     _write_json(generated_payload_path, payload)
+    broll_policy = build_profile_payload.get("broll_policy") or {}
+    max_source_repeats = broll_policy.get("max_source_repeats")
+    if max_source_repeats is None:
+        max_source_repeats = 1
     res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
                           mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render,
                           target_sec=target_sec, burn_text=burn_base_text,
-                          visual_judge=build_profile_payload.get("visual_judge", "agent"))
+                          visual_judge=build_profile_payload.get("visual_judge", "agent"),
+                          max_source_repeats=max_source_repeats)
     if (build_profile_payload.get("render_profile") == "light_effects"
             and light_effects_paths.get("plan")
             and light_effects_paths.get("manifest")):
@@ -1419,8 +1450,12 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             if prov:
                 seg_data["provider"] = prov
 
-    state_json_data["pass"] = dash_state["run"]["pass"]
-    state_json_data["next_action"] = dash_state["run"]["next_action"]
+    state_json_data = _final_state_payload(
+        state_json_data,
+        dash_state,
+        out_path,
+        verify_report_path,
+    )
     _write_json(state_path, state_json_data)
 
     manifest = _manifest(canonical_contract=source, contract_hash=contract_hash,

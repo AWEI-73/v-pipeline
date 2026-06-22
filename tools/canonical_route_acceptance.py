@@ -86,10 +86,12 @@ REQUIRED_ARTIFACTS = [
 ]
 
 REQUIRED_INTAKE_TERMS = [
-    "material availability",
-    "existing-material-first",
-    "story-first",
-    "hybrid",
+    "input state",
+    "entry_path",
+    "material-first",
+    "structure-first",
+    "needs-context",
+    "hybrid is not a primary Stage 0 entry path",
     "generation is fallback",
     "teaching",
     "personal video",

@@ -67,6 +67,7 @@ RUN_ARTIFACT_CLASSES = {
         "workbench_export.mp4",
     ],
     "orchestration": [
+        "video_intent.json",
         "route_orchestrator_state.json",
         "route_subagent_task.json",
         "route_subagent_result.json",

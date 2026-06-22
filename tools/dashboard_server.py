@@ -13,6 +13,12 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
+
+try:
+    from tools.workbench_server import WorkbenchHandler, WORKBENCH_DIR
+except ImportError:  # pragma: no cover - direct-script fallback
+    from workbench_server import WorkbenchHandler, WORKBENCH_DIR
 
 # Files for Profile A (review_demo)
 PROFILE_A_FILES = {
@@ -64,6 +70,153 @@ def detect_profile(root_dir: Path) -> str:
         return "verify_bundle"
     else:
         return "unknown"
+
+
+PROJECT_RUN_SIGNAL_FILES = {
+    "final_video": ("final.mp4",),
+    "workbench_handoff": ("workbench_handoff.json",),
+    "workbench_review": ("workbench_review_report.json",),
+    "timeline": ("timeline.json", "timeline_build.json", "draft_timeline.json", "timeline.plan"),
+    "video_intent": ("video_intent.json",),
+    "material_map_reviewed": ("reviewed_project_material_map.json",),
+    "material_delta": ("fresh_material_delta.json", "material_delta.json"),
+    "material_map_raw": ("project_material_map.json",),
+    "verify_bundle": ("verify_evidence_bundle.json", "delivery_gate.json"),
+    "run_layout": ("run_layout.json",),
+}
+
+PROJECT_RUN_SIGNAL_SCORES = {
+    "final_video": 500,
+    "workbench_handoff": 120,
+    "workbench_review": 80,
+    "timeline": 70,
+    "material_map_reviewed": 60,
+    "material_delta": 45,
+    "video_intent": 40,
+    "verify_bundle": 35,
+    "run_layout": 25,
+    "material_map_raw": 10,
+}
+
+CURRENT_ROUTE_SIGNALS = {
+    "workbench_handoff",
+    "workbench_review",
+    "video_intent",
+    "material_map_reviewed",
+    "material_delta",
+    "run_layout",
+}
+
+
+def _run_has_file(run_path: Path, filenames: tuple[str, ...]) -> bool:
+    for filename in filenames:
+        if (run_path / filename).is_file():
+            return True
+        for subdir in ("verify", "m5_verify_evidence", "verify_evidence", "review", "artifacts"):
+            if (run_path / subdir / filename).is_file():
+                return True
+    return False
+
+
+def classify_project_run(run_path: Path) -> dict[str, Any]:
+    """Return dashboard metadata for a run folder candidate."""
+    resolved = run_path.resolve()
+    signals = [
+        signal
+        for signal, filenames in PROJECT_RUN_SIGNAL_FILES.items()
+        if _run_has_file(resolved, filenames)
+    ]
+    signal_set = set(signals)
+    score = sum(PROJECT_RUN_SIGNAL_SCORES[signal] for signal in signals)
+
+    has_material_map = bool(signal_set & {"material_map_reviewed", "material_delta", "material_map_raw"})
+    usable = (
+        "final_video" in signal_set
+        or "workbench_handoff" in signal_set
+        or "verify_bundle" in signal_set
+        or ("timeline" in signal_set and has_material_map)
+        or bool(signal_set & {"material_map_reviewed"}) and "material_delta" in signal_set
+        or ("video_intent" in signal_set and bool(signal_set & {"material_map_reviewed", "material_delta"}))
+    )
+
+    if "final_video" in signal_set:
+        reason = "已有成片，可檢視交付結果"
+    elif "workbench_handoff" in signal_set:
+        reason = "已有剪輯工作台交接檔，可繼續剪輯"
+    elif "timeline" in signal_set and has_material_map:
+        reason = "已有素材地圖與時間線，可接續審查或剪輯"
+    elif "material_map_reviewed" in signal_set and "material_delta" in signal_set:
+        reason = "已有素材地圖審查與缺口清單，可接續補強"
+    elif "video_intent" in signal_set and bool(signal_set & {"material_map_reviewed", "material_delta"}):
+        reason = "已有意圖與素材判讀，可接續路線"
+    elif "verify_bundle" in signal_set:
+        reason = "已有驗收證據，可檢視結果"
+    else:
+        reason = "產物不足，暫不列入主要案例"
+
+    try:
+        last_modified = max(
+            [resolved.stat().st_mtime]
+            + [path.stat().st_mtime for path in resolved.rglob("*") if path.is_file()]
+        )
+    except OSError:
+        last_modified = 0.0
+
+    return {
+        "name": resolved.name,
+        "path": str(resolved),
+        "profile": detect_profile(resolved),
+        "usable": usable,
+        "score": score,
+        "signals": signals,
+        "reason": reason,
+        "last_modified": last_modified,
+    }
+
+
+def scan_project_runs(candidate_roots: list[Path], max_depth: int = 4, limit: int = 80) -> list[dict[str, Any]]:
+    """Scan candidate roots and return usable pipeline run folders first."""
+    projects_by_path: dict[str, dict[str, Any]] = {}
+
+    source_priorities = {Path(root).resolve(): len(candidate_roots) - index for index, root in enumerate(candidate_roots)}
+
+    for candidate_root in candidate_roots:
+        root = Path(candidate_root)
+        if not root.is_dir():
+            continue
+        root_resolved = root.resolve()
+
+        roots_to_check = [root]
+        for current_root, dirs, _files in os.walk(root):
+            current = Path(current_root)
+            try:
+                depth = len(current.relative_to(root).parts)
+            except ValueError:
+                depth = 0
+            if depth >= max_depth:
+                dirs.clear()
+            if depth > 0:
+                roots_to_check.append(current)
+
+        for run_path in roots_to_check:
+            project = classify_project_run(run_path)
+            if not project["usable"]:
+                continue
+            if not (set(project["signals"]) & CURRENT_ROUTE_SIGNALS):
+                continue
+            project["source_priority"] = source_priorities.get(root_resolved, 0)
+            projects_by_path[project["path"]] = project
+
+    projects = list(projects_by_path.values())
+    projects.sort(
+        key=lambda project: (
+            project.get("source_priority", 0),
+            project["last_modified"],
+            project["score"],
+        ),
+        reverse=True,
+    )
+    return projects[:limit]
 
 
 def load_json_file(file_path: Path):
@@ -249,6 +402,13 @@ def scan_available_projects():
     return projects
 
 
+def scan_available_projects():
+    """Scan known workspace roots and list usable pipeline run folders."""
+    return scan_project_runs([
+        Path(".tmp"),
+    ], max_depth=1)
+
+
 def parse_srt(srt_content: str):
     import re
     cues = []
@@ -328,7 +488,7 @@ def _timeline_slots_for_summary(active_root: Path):
 
 
 def build_control_status(active_root: Path):
-    """Small frontend manifest shared by the Control Index and future dashboard shell."""
+    """Small frontend manifest shared by the SPA dashboard shell."""
     slots = _timeline_slots_for_summary(active_root)
     duration = max([s["end_sec"] for s in slots], default=0.0)
     final_path = resolve_artifact_path(active_root, "final.mp4")
@@ -353,12 +513,12 @@ def build_control_status(active_root: Path):
             "mode": "read_only_review",
         },
         "workbench": {
-            "url": "http://localhost:8770/workbench",
-            "health_url": "http://localhost:8770/api/workbench/health",
+            "url": "/workbench",
+            "health_url": "/api/workbench/health",
             "mode": "write_limited_draft_editor",
             "command": (
-                f"python tools/workbench_server.py --artifact-root "
-                f"\"{active_root.resolve()}\" --port 8770"
+                f"python tools/dashboard_server.py --artifact-root "
+                f"\"{active_root.resolve()}\" --port 8765"
             ),
             "draft_artifacts": drafts,
             "draft_summary": summary,
@@ -378,34 +538,232 @@ def build_control_status(active_root: Path):
     }
 
 
-def probe_workbench_health():
-    """Probe the external Workbench server without exposing cross-origin browser calls."""
-    url = "http://localhost:8770/api/workbench/health"
-    try:
-        with urllib.request.urlopen(url, timeout=0.35) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-        ok = resp.status == 200 and isinstance(payload, dict) and payload.get("status") == "ok"
-        return {
-            "ok": bool(ok),
-            "status": "ok" if ok else "invalid_response",
-            "url": url,
-            "payload": payload if isinstance(payload, dict) else None,
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "status": "unreachable",
-            "url": url,
-            "error": str(exc),
-        }
+def _first_existing_artifact(root_dir: Path, names):
+    for name in names:
+        path = resolve_artifact_path(root_dir, name)
+        if path.exists():
+            return name, path, load_json_file(path)
+    return names[0], resolve_artifact_path(root_dir, names[0]), None
 
 
-class DashboardHandler(BaseHTTPRequestHandler):
+def _safe_list(value):
+    return value if isinstance(value, list) else []
+
+
+def _count_satisfaction_edges(assets, status):
+    count = 0
+    for asset in assets:
+        for scene in _safe_list(asset.get("scenes")):
+            for item in _safe_list(scene.get("satisfies")):
+                if item.get("status") == status:
+                    count += 1
+    return count
+
+
+def build_material_map_view(active_root: Path):
+    intent = load_json_file(resolve_artifact_path(active_root, "video_intent.json"))
+    if not isinstance(intent, dict):
+        intent = {}
+
+    map_name, map_path, material_map = _first_existing_artifact(active_root, [
+        "project_material_map.json",
+        "reviewed_project_material_map.json",
+    ])
+    if not isinstance(material_map, dict):
+        material_map = {}
+
+    delta_name, delta_path, material_delta = _first_existing_artifact(active_root, [
+        "material_delta.json",
+        "fresh_material_delta.json",
+    ])
+    if not isinstance(material_delta, dict):
+        material_delta = {}
+
+    delta_by_need = {
+        item.get("need_id"): item
+        for item in _safe_list(material_delta.get("deltas"))
+        if isinstance(item, dict) and item.get("need_id")
+    }
+
+    assets = []
+    scene_count = 0
+    for asset in _safe_list(material_map.get("assets")):
+        if not isinstance(asset, dict):
+            continue
+        scenes = []
+        for index, scene in enumerate(_safe_list(asset.get("scenes"))):
+            if not isinstance(scene, dict):
+                continue
+            satisfies = [
+                item for item in _safe_list(scene.get("satisfies"))
+                if isinstance(item, dict)
+            ]
+            need_ids = [
+                item.get("need_id") for item in satisfies
+                if item.get("need_id")
+            ]
+            statuses = [
+                item.get("status") for item in satisfies
+                if item.get("status")
+            ]
+            scenes.append({
+                "scene_index": index,
+                "caption": scene.get("caption") or "",
+                "start": scene.get("start"),
+                "end": scene.get("end"),
+                "visual_family": scene.get("visual_family"),
+                "angle_scale": scene.get("angle_scale"),
+                "action_family": scene.get("action_family"),
+                "subject": scene.get("subject"),
+                "quality_score": scene.get("quality_score"),
+                "source_type": scene.get("source_type"),
+                "need_ids": need_ids,
+                "statuses": statuses,
+            })
+            scene_count += 1
+        assets.append({
+            "asset_id": asset.get("asset_id") or Path(str(asset.get("source") or "")).stem or "unnamed_asset",
+            "asset_type": asset.get("asset_type") or "unknown",
+            "source": asset.get("source"),
+            "duration_sec": asset.get("duration_sec"),
+            "scene_count": len(scenes),
+            "scenes": scenes,
+        })
+
+    needs = []
+    for need in _safe_list(material_map.get("needs")):
+        if not isinstance(need, dict):
+            continue
+        delta = delta_by_need.get(need.get("need_id"), {})
+        evidence = delta.get("evidence") if isinstance(delta.get("evidence"), dict) else {}
+        needs.append({
+            "need_id": need.get("need_id"),
+            "purpose": need.get("purpose") or need.get("category") or "",
+            "count": need.get("count"),
+            "must_have": bool(need.get("must_have")),
+            "fallback_options": _safe_list(need.get("fallback_options")),
+            "outcome": delta.get("outcome") or "unknown",
+            "route": delta.get("route"),
+            "reason": delta.get("reason"),
+            "accepted": evidence.get("accepted", 0),
+            "candidate": evidence.get("candidate", 0),
+            "rejected": evidence.get("rejected", 0),
+        })
+
+    def first_present(names):
+        for name in names:
+            path = active_root / name
+            if path.exists():
+                return name, path
+            resolved = resolve_artifact_path(active_root, name)
+            if resolved.exists():
+                return name, resolved
+        return names[0], active_root / names[0]
+
+    def stage(label, names, *, ready=False):
+        artifact, path = first_present(names)
+        if ready:
+            status = "ready"
+        elif path.exists():
+            status = "present"
+        else:
+            status = "missing"
+        return {
+            "label": label,
+            "artifact": artifact,
+            "status": status,
+        }
+
+    stages = [
+        stage("Intent", ["video_intent.json", "project_brief.json"]),
+        stage("Material Ingest", [
+            "media",
+            "materials",
+            "materials/raw",
+            "generated_real_imagegen",
+            "generated_materials",
+            "real_provider_packet",
+        ]),
+        stage("Material Map", [map_name, "reviewed_project_material_map.json", "project_material_map.json"]),
+        stage("Coverage Delta", [delta_name, "material_delta.json", "fresh_material_delta.json"]),
+        stage("Structure", [
+            "story_blueprint",
+            "story_blueprint/screenplay_beats.json",
+            "material_needs.json",
+            "assembly_plan.json",
+            "project_brief.json",
+        ]),
+        stage("Contract", ["segment_contract.json", "revised_segment_contract.json"]),
+        stage("Timeline", ["timeline.json", "timeline_build.json", "preview_timeline.json"]),
+        stage("Review Gates", [
+            "reviewer_aggregation.json",
+            "review_report.json",
+            "workbench_review_report.json",
+            "editor_review.json",
+            "spec_review.json",
+            "supply_review.json",
+        ]),
+        stage("Verify", [
+            "verify_evidence_bundle.json",
+            "delivery_gate.json",
+            "verify_result.json",
+            "contact_sheet.jpg",
+        ]),
+    ]
+
+    return {
+        "artifact_role": "material_map_dashboard_view",
+        "version": 1,
+        "artifact_root": str(active_root.resolve()),
+        "entry_path": intent.get("entry_path") or "unknown",
+        "route": intent.get("route") or "unknown",
+        "video_type": intent.get("video_type") or "unknown",
+        "audience": intent.get("audience") or "unknown",
+        "intent": {
+            "artifact_role": intent.get("artifact_role") or "video_intent",
+            "version": intent.get("version"),
+            "video_type": intent.get("video_type") or "unknown",
+            "audience": intent.get("audience") or "unknown",
+            "goal": intent.get("goal") or "",
+            "material_availability": intent.get("material_availability") or "unknown",
+            "text_availability": intent.get("text_availability") or "unknown",
+            "input_state": intent.get("input_state") or "unknown",
+            "entry_path": intent.get("entry_path") or "unknown",
+            "route": intent.get("route") or "unknown",
+            "gap_strategy": intent.get("gap_strategy") or "unknown",
+            "required_followup_questions": _safe_list(intent.get("required_followup_questions")),
+            "assumptions": _safe_list(intent.get("assumptions")),
+            "handoff_to": intent.get("handoff_to") or "unknown",
+            "expected_outputs": _safe_list(intent.get("expected_outputs")),
+        },
+        "ready_for_build": bool(material_delta.get("ready_for_build")),
+        "stats": {
+            "assets": len(assets),
+            "scenes": scene_count,
+            "needs": len(needs),
+            "accepted_edges": _count_satisfaction_edges(_safe_list(material_map.get("assets")), "accepted"),
+            "candidate_edges": _count_satisfaction_edges(_safe_list(material_map.get("assets")), "candidate"),
+            "rejected_edges": _count_satisfaction_edges(_safe_list(material_map.get("assets")), "rejected"),
+        },
+        "delta_summary": material_delta.get("summary") if isinstance(material_delta.get("summary"), dict) else {},
+        "stages": stages,
+        "assets": assets,
+        "needs": needs,
+    }
+
+
+class DashboardHandler(WorkbenchHandler):
     artifact_root: Path = Path(".")
     dashboard_dir: Path = Path(".")
 
     def log_message(self, format, *args):
         pass
+
+    def sync_workbench_context(self, active_root: Path):
+        self.artifact_root = active_root
+        host = self.headers.get("Host")
+        if host:
+            self.base_url = f"http://{host}"
 
     def send_error_response(self, status_code, message):
         self.send_response(status_code)
@@ -413,9 +771,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(message.encode("utf-8"))
 
+
+
+
+
+
+
+
+
+
     def get_validated_root(self, query_params) -> Path:
-        """Extract and validate the root path from query parameters, fallback to default."""
+        """Extract and validate the root path from query parameters, fallback to Referer, and then default."""
         root_val = query_params.get("root", [None])[0]
+        if not root_val:
+            # Fallback to Referer header
+            referer = self.headers.get("Referer")
+            if referer:
+                try:
+                    parsed_ref = urllib.parse.urlparse(referer)
+                    ref_query = urllib.parse.parse_qs(parsed_ref.query)
+                    root_val = ref_query.get("root", [None])[0]
+                except Exception:
+                    pass
+
         if not root_val:
             return self.artifact_root
 
@@ -439,6 +817,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self.artifact_root
             
         return candidate_root
+
+    def _send_json(self, code: int, payload: Any) -> None:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def serve_file(self, file_path: Path, content_type: str):
         """Helper to serve a local file, supporting range requests for video playback."""
@@ -502,20 +888,79 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path_str = parsed_url.path
         query_params = urllib.parse.parse_qs(parsed_url.query)
 
-        # Route / -> control index. Keep /dashboard for the legacy review UI.
-        if path_str == "/" or path_str == "/index.html":
+        # Formal SPA routes. The SPA router chooses the active view from path.
+        if path_str in ("/", "/index.html", "/dashboard", "/dashboard/", "/material-map", "/material-map/", "/workbench", "/workbench/"):
             html_path = self.dashboard_dir / "index.html"
             if not html_path.exists():
                 html_path = self.dashboard_dir / "dashboard_v1.html"
             self.serve_file(html_path, "text/html; charset=utf-8")
             return
+        # Serve 3D whiteboard dashboard
+        if path_str in ("/3d", "/3d/", "/dashboard3d"):
+            html_path = self.dashboard_dir / "material_map_canvas_3d.html"
+            self.serve_file(html_path, "text/html; charset=utf-8")
+            return
+        # Serve Physics whiteboard dashboard
+        if path_str in ("/physics", "/physics/", "/dashboard-physics"):
+            html_path = self.dashboard_dir / "material_map_canvas_physics.html"
+            self.serve_file(html_path, "text/html; charset=utf-8")
+            return
 
-        if path_str == "/dashboard" or path_str == "/dashboard/":
+        if path_str in ("/dashboard/legacy", "/dashboard/legacy/"):
             html_path = self.dashboard_dir / "dashboard_v1.html"
             self.serve_file(html_path, "text/html; charset=utf-8")
             return
 
-        # Serve static dashboard assets
+        if path_str.startswith("/src/"):
+            rel = path_str[len("/src/"):]
+            if not rel or "\\" in rel or rel.startswith(".") or ".." in rel.split("/"):
+                self.send_error_response(403, "Access Denied")
+                return
+            file_path = self.dashboard_dir / "src" / rel
+            suffix = file_path.suffix.lower()
+            content_type = {
+                ".js": "application/javascript; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".json": "application/json; charset=utf-8",
+            }.get(suffix, "application/octet-stream")
+            self.serve_file(file_path, content_type)
+            return
+
+        if path_str.startswith("/workbench-native/"):
+            rel = path_str[len("/workbench-native/"):]
+            if not rel or "/" in rel or "\\" in rel or rel.startswith("."):
+                self.send_error_response(403, "Access Denied")
+                return
+            suffix = Path(rel).suffix.lower()
+            content_type = {
+                ".html": "text/html; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".js": "application/javascript; charset=utf-8",
+            }.get(suffix, "application/octet-stream")
+            self.serve_file(WORKBENCH_DIR / rel, content_type)
+            return
+
+        if path_str.startswith("/workbench/"):
+            rel = path_str[len("/workbench/"):]
+            if not rel or "/" in rel or "\\" in rel or rel.startswith("."):
+                self.send_error_response(403, "Access Denied")
+                return
+            suffix = Path(rel).suffix.lower()
+            content_type = {
+                ".html": "text/html; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".js": "application/javascript; charset=utf-8",
+            }.get(suffix, "application/octet-stream")
+            self.serve_file(WORKBENCH_DIR / rel, content_type)
+            return
+
+        if path_str == "/media" or path_str.startswith("/api/workbench/"):
+            active_root = self.get_validated_root(query_params)
+            self.sync_workbench_context(active_root)
+            WorkbenchHandler.do_GET(self)
+            return
+
+        # Legacy static dashboard assets
         if path_str == "/index.css":
             css_path = self.dashboard_dir / "index.css"
             self.serve_file(css_path, "text/css; charset=utf-8")
@@ -536,6 +981,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.serve_file(js_path, "application/javascript; charset=utf-8")
             return
 
+        if path_str == "/dashboard_v1.html":
+            html_path = self.dashboard_dir / "dashboard_v1.html"
+            self.serve_file(html_path, "text/html; charset=utf-8")
+            return
+
+        if path_str == "/material_map_review.css":
+            css_path = self.dashboard_dir / "material_map_review.css"
+            self.serve_file(css_path, "text/css; charset=utf-8")
+            return
+
+        if path_str == "/material_map_review.js":
+            js_path = self.dashboard_dir / "material_map_review.js"
+            self.serve_file(js_path, "application/javascript; charset=utf-8")
+            return
+
         # Route /api/projects -> list scanned folders containing runs
         if path_str == "/api/projects":
             projects = scan_available_projects()
@@ -553,13 +1013,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
             return
-
         if path_str == "/api/control/workbench-health":
-            payload = probe_workbench_health()
+            active_root = self.get_validated_root(query_params)
+            payload = {
+                "ok": True,
+                "status": "ok",
+                "url": "/api/workbench/health",
+                "payload": {
+                    "artifact_role": "workbench_health",
+                    "version": 1,
+                    "status": "ok",
+                    "artifact_root": str(active_root.resolve()),
+                    "can_preview": any((active_root / name).is_file() for name in ("draft_timeline.json", "timeline.json", "timeline.plan")),
+                    "write_limited": True,
+                },
+            }
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        if path_str == "/api/material-map-view":
+            active_root = self.get_validated_root(query_params)
+            self._send_json(200, build_material_map_view(active_root))
             return
 
         # Route /api/artifacts -> aggregate JSON data
@@ -789,6 +1266,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             "message": f"Gap in {k}: {v}"
                         })
 
+
+
+
             # Read review markdown if available
             review_report_md = None
             review_md_path = resolve_artifact_path(active_root, "review_report.md")
@@ -806,13 +1286,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "artifact_root": str(active_root.resolve()),
                 "run_layout": run_layout,
                 "workbench": {
-                    "mode": "external_server",
-                    "url": "http://localhost:8770/workbench",
+                    "mode": "merged_dashboard_server",
+                    "url": "/workbench",
                     "command": (
-                        f"python tools/workbench_server.py --artifact-root "
-                        f"\"{active_root.resolve()}\" --port 8770"
+                        f"python tools/dashboard_server.py --artifact-root "
+                        f"\"{active_root.resolve()}\" --port 8765"
                     ),
-                    "note": "Workbench is the write-limited interactive editor; Dashboard stays read-only.",
+                    "note": "Workbench is merged into the Dashboard server under write-limited draft APIs.",
                     "draft_artifacts": workbench_draft_artifacts,
                     "draft_summary": workbench_draft_summary,
                 },
@@ -956,13 +1436,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         self.send_error_response(404, "Not Found")
-
     def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        if parsed_url.path.startswith("/api/workbench/"):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            active_root = self.get_validated_root(query_params)
+            self.sync_workbench_context(active_root)
+            WorkbenchHandler.do_POST(self)
+            return
         self.send_error_response(
             405,
             "Review Dashboard is read-only. Write-back endpoints are disabled."
         )
-
 
 def run_server(artifact_root: str, port: int):
     resolved_root = Path(artifact_root).resolve()
@@ -983,6 +1468,7 @@ def run_server(artifact_root: str, port: int):
     class BoundDashboardHandler(DashboardHandler):
         artifact_root = resolved_root
         dashboard_dir = script_dir.parent / "dashboard"
+        base_url = f"http://localhost:{port}"
 
     server = ThreadingHTTPServer(("localhost", port), BoundDashboardHandler)
     try:

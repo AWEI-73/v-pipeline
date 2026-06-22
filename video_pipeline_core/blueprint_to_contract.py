@@ -153,6 +153,7 @@ def compile_contract(
     blueprint: dict,
     decisions: dict,
     *,
+    material_needs: dict | None = None,
     music: dict | None = None,
     categories_ref: str = "material_categories.json",
     brief_ref: str = "brief.json",
@@ -168,6 +169,12 @@ def compile_contract(
     Raises ValueError if a beat has no decision or no content_pattern.
     """
     beats = blueprint.get("beats") or []
+    needs = material_needs.get("needs") if isinstance(material_needs, dict) else []
+    ordered_need_ids = [
+        item.get("need_id")
+        for item in needs
+        if isinstance(item, dict) and _nonempty_string(item.get("need_id"))
+    ]
     n = len(beats)
     segments: list[dict] = []
     story_soul = _story_soul(blueprint)
@@ -230,6 +237,14 @@ def compile_contract(
         }
         if d.get("material_hint"):
             material_fit["material_hint"] = d["material_hint"]
+        need_refs = _string_list(d.get("need_refs"))
+        need_ref = _nonempty_string(d.get("need_ref"))
+        if need_refs:
+            material_fit["need_refs"] = need_refs
+        elif need_ref:
+            material_fit["need_refs"] = [need_ref]
+        elif idx < len(ordered_need_ids):
+            material_fit["need_refs"] = [ordered_need_ids[idx]]
         if d.get("search_query"):
             material_fit["search_query"] = d["search_query"]
         if d.get("must_include"):
@@ -272,6 +287,11 @@ def compile_contract(
                 "label_per_item": bool(d.get("label_per_item", True)),
             }
         elif cp == "process" and (d.get("steps") or d.get("items")):
+            seg["material_treatment"] = {
+                "treatment": "stepped_sequence",
+                "steps": d.get("steps") or d.get("items"),
+            }
+        elif cp == "action" and (d.get("steps") or d.get("items")):
             seg["material_treatment"] = {
                 "treatment": "stepped_sequence",
                 "steps": d.get("steps") or d.get("items"),

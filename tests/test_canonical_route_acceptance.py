@@ -44,12 +44,13 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         text = read("skills/video-pipeline-route.md")
         for expected in [
             "docs/canonical-video-pipeline-route.md",
-            "material availability",
-            "existing-material-first",
-            "story-first",
+            "input state",
+            "entry_path",
+            "material-first",
+            "structure-first",
             "existing material",
             "generated material",
-            "hybrid material",
+            "hybrid is not a primary Stage 0 entry path",
             "generation is fallback",
             "teaching",
             "personal video",
@@ -74,6 +75,32 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         for rel in ["docs/START_HERE_VIDEO_PIPELINE.md", "docs/INDEX.md", "roadmap.md"]:
             self.assertIn("docs/video-pipeline-end-to-end-line.md", read(rel))
 
+    def test_stage_zero_artifact_ownership_is_explicit(self):
+        combined = "\n".join(
+            read(rel)
+            for rel in [
+                "docs/START_HERE_VIDEO_PIPELINE.md",
+                "docs/canonical-video-pipeline-route.md",
+                "docs/video-pipeline-operating-map.md",
+                "skills/video-pipeline-route.md",
+            ]
+        )
+        for expected in [
+            "project_brief.json",
+            "brief.json",
+            "video_intent.json",
+            "route_decision.json",
+            "canonical Stage 0",
+            "input_state",
+            "entry_path",
+            "material-first",
+            "structure-first",
+            "hybrid is not a primary Stage 0 entry path",
+            "legacy/compat",
+            "video-intent-acceptance",
+        ]:
+            self.assertIn(expected, combined)
+
     def test_end_to_end_line_strings_whole_pipeline(self):
         text = read("docs/video-pipeline-end-to-end-line.md")
         expected = [
@@ -92,9 +119,10 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         positions = [text.index(stage) for stage in expected]
         self.assertEqual(positions, sorted(positions))
         for expected_term in [
-            "existing-material-first",
-            "story-first",
-            "hybrid",
+            "material-first",
+            "structure-first",
+            "needs-context",
+            "hybrid is not a primary Stage 0 entry path",
             "generated-image-provider-packet",
             "explicit provider output mapping",
             "Workbench is a review and draft-edit surface",

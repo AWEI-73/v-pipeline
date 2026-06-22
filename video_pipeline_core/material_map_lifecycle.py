@@ -136,6 +136,9 @@ def _build_ready_or_error(contract, contract_ref, needs_ref, categories,
     validation = spec_contract.validate_segment_contract(contract, categories=categories)
     if not validation["ok"]:
         return "contract failed spec_contract validation: " + "; ".join(validation["errors"])
+    segments = contract.get("segments") if isinstance(contract, dict) else contract
+    if not isinstance(segments, list) or len(segments) < 2:
+        return "contract must contain at least 2 segments for BUILD (contract-run validate_mv_script requires opening + closing structure)"
     nref = contract.get("material_needs_ref")
     if not isinstance(nref, str) or not nref.strip():
         return "contract does not declare material_needs_ref (run_contract gate cannot re-verify)"

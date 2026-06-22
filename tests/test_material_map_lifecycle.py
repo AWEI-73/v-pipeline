@@ -495,6 +495,32 @@ class BuildHandoffTest(unittest.TestCase):
             self.assertNotEqual(result.get("stage"), "material_revision")
             self.assertTrue(calls["mv"])
 
+    def test_single_segment_contract_does_not_get_build_ready_handoff(self):
+        """Lifecycle must not declare build_ready for a contract that the
+        contract-run MV validator will always reject before render."""
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            needs = _needs([("one", True, None)])
+            nid = needs["needs"][0]["need_id"]
+            needs_path = _w(d, "needs.json", needs)
+            map_file = d / "clip.map.json"
+            map_file.write_text(json.dumps(_map("clip", "a.mp4", need_id=nid, status="accepted")),
+                                encoding="utf-8")
+            db_path = _w(d, "materials_db.json", {"files": [{"path": "a.mp4",
+                        "material_map": "clip.map.json"}]})
+            contract = {"style": "mv", "music": {"brief": "x"},
+                        "material_needs_ref": "needs.json",
+                        "segments": [_seg(1, [nid])]}
+            contract_path = _w(d, "contract.json", contract)
+
+            rep = mml.run_lifecycle(out_dir=d / "out", needs_ref=needs_path,
+                                    material_db_ref=db_path, contract_ref=contract_path)
+
+            self.assertEqual(rep["stage"], "invalid")
+            self.assertFalse(rep["can_build"])
+            self.assertIsNone(rep["build_handoff"])
+            self.assertIn("at least 2 segments", rep["blocking"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

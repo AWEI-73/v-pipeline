@@ -1,4 +1,4 @@
-# Video Route Skill Project Implementation Plan
+﻿# Video Route Skill Project Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -53,7 +53,7 @@
 
 **Files:**
 - Modify: `skills/route.md`
-- Modify: `docs/decisions/2026-05-31-orchestration-state-json.md`
+- Modify: `docs/archive/decisions/2026-05-31-orchestration-state-json.md`
 - Later code task: `video_pipeline.py`, `route.py`
 
 - [x] Document `needs_generated(seg=[...])` as a future route state.
@@ -92,9 +92,9 @@
 - Modify: `skills/dashboard.md`
 
 - [x] Display `next_action`. (route banner, color-coded + copy-paste command)
-- [x] Display low/unfixable segments. (segments table: status/score/fix_class→fix_target/block_reason)
+- [x] Display low/unfixable segments. (segments table: status/score/fix_class?ix_target/block_reason)
 - [x] Display source type per segment. (segments table `source` column)
-- [~] Display candidate thumbnails and route command suggestions. (route commands done; candidate thumbnails deferred — state.json doesn't carry thumb paths yet)
+- [~] Display candidate thumbnails and route command suggestions. (route commands done; candidate thumbnails deferred ??state.json doesn't carry thumb paths yet)
 
 ## Verification Matrix
 

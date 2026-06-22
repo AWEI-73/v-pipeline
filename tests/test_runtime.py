@@ -423,6 +423,11 @@ class TestRuntime(unittest.TestCase):
         # Write final.mp4 and verify artifacts
         final_mp4 = run_dir / "final.mp4"
         final_mp4.write_text("video", encoding="utf-8")
+        (run_dir / "brief.json").write_text(json.dumps({"target_length": "3 minutes"}), encoding="utf-8")
+        (run_dir / "content_qa.json").write_text(
+            json.dumps({"segments": [{"segment": 1, "score": 42}]}),
+            encoding="utf-8",
+        )
         verify_result = run_dir / "verify_result.json"
         verify_result.write_text("{}", encoding="utf-8")
         state_file = run_dir / "state.json"
@@ -445,6 +450,10 @@ class TestRuntime(unittest.TestCase):
             args_list = call[0][0]
             if "verify" in args_list:
                 verify_called = True
+                self.assertIn("--brief", args_list)
+                self.assertIn(str(run_dir / "brief.json"), args_list)
+                self.assertIn("--content-alignment", args_list)
+                self.assertIn(str(run_dir / "content_qa.json"), args_list)
             if "state" in args_list:
                 state_cmd_called = True
         self.assertTrue(verify_called)
@@ -452,6 +461,89 @@ class TestRuntime(unittest.TestCase):
         
         # 4. run_orchestrator is called to resume
         mock_orchestrate.assert_called_once()
+
+    @patch("subprocess.run")
+    def test_missing_verify_artifact_runs_verify_with_brief_and_alignment(self, mock_run):
+        project_dir = self._setup_project("verify_inputs_proj")
+        run_dir = self._setup_run(project_dir)
+        (run_dir / "final.mp4").write_text("video", encoding="utf-8")
+        (run_dir / "segment_contract.json").write_text(
+            json.dumps({"style": "mv", "segments": [{"segment": 1, "source": "stock"}]}),
+            encoding="utf-8",
+        )
+        (run_dir / "brief.json").write_text(
+            json.dumps({"target_length": "3 minutes"}),
+            encoding="utf-8",
+        )
+        (run_dir / "material_coverage_map.json").write_text(
+            json.dumps({"gaps": [{"segment": 1, "reason": "wrong visual"}]}),
+            encoding="utf-8",
+        )
+        mock_run.return_value = MagicMock(returncode=0)
+        states = [
+            {"run": {"next_action": "missing_artifact:verify_result.json"}, "nodes": [], "findings": []},
+            {"run": {"next_action": "complete_review_final", "pass": True, "final": "final.mp4"}, "nodes": [], "findings": []},
+        ]
+
+        call_count = 0
+        def load_state_side_effect(*args, **kwargs):
+            nonlocal call_count
+            if call_count == 1:
+                (run_dir / "verify_result.json").write_text('{"pass": true}', encoding="utf-8")
+            state = states[call_count]
+            call_count += 1
+            return state
+
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", side_effect=load_state_side_effect):
+            with self.assertRaises(SystemExit) as cm:
+                runtime_orchestrator.run_orchestrator(
+                    project_name="verify_inputs_proj",
+                    args=MagicMock(contract=None, brief=None, music=None, material_db=None),
+                )
+
+        self.assertEqual(cm.exception.code, 0)
+        verify_calls = [call[0][0] for call in mock_run.call_args_list if "verify" in call[0][0]]
+        self.assertEqual(len(verify_calls), 1)
+        verify_cmd = verify_calls[0]
+        self.assertIn("--brief", verify_cmd)
+        self.assertIn(str(run_dir / "brief.json"), verify_cmd)
+        self.assertIn("--content-alignment", verify_cmd)
+        self.assertIn(str(run_dir / "material_coverage_map.json"), verify_cmd)
+
+    @patch("video_pipeline_core.runtime_orchestrator.run_orchestrator")
+    def test_rerun_node_repeated_same_state_stops_with_summary(self, mock_orchestrate):
+        project_dir = self._setup_project("rerun_guard_proj")
+        run_dir = self._setup_run(project_dir)
+        final_mp4 = run_dir / "final.mp4"
+        final_mp4.write_text("video", encoding="utf-8")
+        state_data = {
+            "run": {"next_action": "await_material"},
+            "blocking": [{"segment": 2, "reason": "Awaiting seg2"}],
+            "findings": [{
+                "type": "error",
+                "node": 2,
+                "artifact": "material_coverage",
+                "message": "Awaiting seg2",
+            }],
+        }
+
+        with patch("video_pipeline_core.runtime_orchestrator.load_dashboard_state", return_value=state_data):
+            runtime_orchestrator.rerun_node("2", project_name="rerun_guard_proj", args=MagicMock())
+            self.assertFalse(final_mp4.exists())
+            mock_orchestrate.assert_called_once()
+
+            mock_orchestrate.reset_mock()
+            final_mp4.write_text("video", encoding="utf-8")
+            with self.assertRaises(SystemExit) as cm:
+                runtime_orchestrator.rerun_node("2", project_name="rerun_guard_proj", args=MagicMock())
+
+        self.assertEqual(cm.exception.code, 0)
+        self.assertTrue(final_mp4.exists())
+        mock_orchestrate.assert_not_called()
+        summary = json.loads((run_dir / "rerun_blocking_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["node"], "2")
+        self.assertEqual(summary["next_action"], "await_material")
+        self.assertEqual(summary["repeat_count"], 2)
 
     def test_custom_project_root_pointer_resolution(self):
         # Create a custom project root outside of default location

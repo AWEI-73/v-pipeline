@@ -1,4 +1,4 @@
-"""capcut_backend.py — P3 optional Node 13 render-candidate backend.
+﻿"""capcut_backend.py ??P3 optional Node 13 render-candidate backend.
 
 CapCut is an OPTIONAL finishing backend, never the canonical MVP path (ffmpeg
 remains that). This module is deliberately version-independent: it produces a
@@ -8,8 +8,8 @@ pass Node 12 verification.
 
 It does NOT write CapCut's proprietary, version-specific ``.draft`` files. That
 serialization is a separate, version-gated step (`draft_serialization.status =
-"pending"`) that requires a confirmed installed CapCut version — see
-docs/decisions for the design-review note. Building it blind would guess at a
+"pending"`) that requires a confirmed installed CapCut version ??see
+docs/archive/decisions for the design-review note. Building it blind would guess at a
 private format, which the integration spec forbids.
 
 Source: concept inspired by https://github.com/Hao0321/video-autopilot-kit
@@ -139,7 +139,7 @@ def build_capcut_draft(skeleton, timeline, *, project_name=None):
     """Build a real CapCut draft dict by cloning a skeleton draft per clip.
 
     ``skeleton`` is a real ``draft_content.json`` (one CapCut-generated project)
-    used as the structural template — this is the robust approach the reference
+    used as the structural template ??this is the robust approach the reference
     kit uses, because a from-scratch draft would have to reproduce CapCut's whole
     UUID-linked material graph. For each clip we clone the template video material
     and segment (plus the segment's ``extra_material_refs`` siblings), assign fresh
@@ -476,17 +476,17 @@ def write_export_manifest(draft_manifest, exported_video, out_path, *, export_me
     return {"ok": True, "capcut_export_manifest": str(out_path), "manifest": manifest}
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 # CapCut Paths & Configuration
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 
 CAPCUT_USER_DATA = Path.home() / "AppData" / "Local" / "CapCut" / "User Data"
 DRAFTS_ROOT = CAPCUT_USER_DATA / "Projects" / "com.lveditor.draft"
 EFFECT_CACHE = CAPCUT_USER_DATA / "Cache" / "effect"
 
-# ─────────────────────────────────────────────────────────────────────
-# 4-Level Mute Logic (M29 lesson — volume=0 alone leaks audio)
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
+# 4-Level Mute Logic (M29 lesson ??volume=0 alone leaks audio)
+# ?????????????????????????????????????????????????????????????????????
 
 def mute_all_video_segments(draft: dict) -> tuple[int, int]:
     """Apply 4-level mute to every video segment + its material.
@@ -591,12 +591,12 @@ def audit_mute_state(draft: dict) -> dict:
         "success_rate": fully_muted / max(total, 1),
     }
 
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 # CapCut Bundled Fonts & Text Styling Presets
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 
 CAPCUT_FONTS = {
-    "剪映团子": {
+    "?芣??Ｗ?": {
         "effect_id": "7598225001988246801",
         "cache_subdir": "1ecc73e2c3778fc5584e430e53a2560d",
         "font_filename": "font.ttf",
@@ -636,7 +636,7 @@ PRESET_STYLES = {
         "fill_color": [1, 1, 1],
         "stroke_color": [0, 0, 0],
         "stroke_width": 0.06,
-        "default_font": "剪映团子",
+        "default_font": "?芣??Ｗ?",
     },
     "white_plain": {
         "text_color": "#ffffff",
@@ -646,7 +646,7 @@ PRESET_STYLES = {
         "fill_color": [1, 1, 1],
         "stroke_color": None,
         "stroke_width": 0,
-        "default_font": "剪映团子",
+        "default_font": "?芣??Ｗ?",
     },
     "yellow_highlight_black": {
         "text_color": "#000000",
@@ -656,7 +656,7 @@ PRESET_STYLES = {
         "fill_color": [0, 0, 0],
         "stroke_color": None,
         "stroke_width": 0,
-        "default_font": "剪映团子",
+        "default_font": "?芣??Ｗ?",
         "background_color": [1, 0.84, 0],
     },
     "red_outline_black": {
@@ -667,7 +667,7 @@ PRESET_STYLES = {
         "fill_color": [1, 0, 0],
         "stroke_color": [0, 0, 0],
         "stroke_width": 0.06,
-        "default_font": "剪映团子",
+        "default_font": "?芣??Ｗ?",
     },
     "hao_teaching_primary": {
         "text_color": "#ffffff",
@@ -705,11 +705,11 @@ def apply_text_preset(draft: dict, segment_idx: int,
                       font_name: str = None,
                       font_size: int = 15,
                       clear_existing_effects: bool = True) -> dict:
-    """Apply CapCut 基礎 tab 預設樣式 to a text segment."""
+    """Apply CapCut ?箇? tab ?身璅?? to a text segment."""
     if preset_name not in PRESET_STYLES:
         raise KeyError(f"Unknown preset '{preset_name}'. Available: {list(PRESET_STYLES.keys())}")
     preset = PRESET_STYLES[preset_name]
-    font = font_name or preset.get("default_font", "剪映团子")
+    font = font_name or preset.get("default_font", "?芣??Ｗ?")
     font_path = get_capcut_font_path(font)
 
     # Locate text track + segment
@@ -768,7 +768,7 @@ def apply_text_preset(draft: dict, segment_idx: int,
 
     mat["content"] = json.dumps(co, ensure_ascii=False, separators=(",", ":"))
 
-    # Clear 花字 effect refs (extra_material_refs)
+    # Clear ?勗? effect refs (extra_material_refs)
     if clear_existing_effects:
         effect_ids_in_materials = {
             e["id"]: e.get("category_name", "")
@@ -786,7 +786,7 @@ def apply_text_preset(draft: dict, segment_idx: int,
 
 
 def apply_text_preset_to_all(draft: dict, preset_name: str = "white_outline_black",
-                             font_name: str = "剪映团子",
+                             font_name: str = "?芣??Ｗ?",
                              font_size: int = 15) -> int:
     """Bulk apply same preset to ALL text segments. Returns count modified."""
     text_tracks = [tr for tr in draft.get("tracks", []) if tr.get("type") == "text"]
@@ -805,11 +805,10 @@ def _is_chinese_text(text: str) -> bool:
 
 
 def apply_hao_teaching_dual_tier(draft: dict) -> dict:
-    """⭐ M68 — Hao 教學長片字幕 PERMANENT WORKFLOW
+    """潃?M68 ??Hao ?飛?瑞?摮? PERMANENT WORKFLOW
 
-    自動偵測每個 text material 語言 → apply 對應 preset：
-    - 中文 (CJK chars) → hao_teaching_primary (alpha 0.7 / radius 0.4 / height 0.28)
-    - 英文 (no CJK) → hao_teaching_secondary (alpha 1.0 / radius 0.0 / height 0.14)
+    ?芸??菜葫瘥?text material 隤? ??apply 撠? preset嚗?    - 銝剜? (CJK chars) ??hao_teaching_primary (alpha 0.7 / radius 0.4 / height 0.28)
+    - ?望? (no CJK) ??hao_teaching_secondary (alpha 1.0 / radius 0.0 / height 0.14)
     """
     primary = PRESET_STYLES["hao_teaching_primary"]
     secondary = PRESET_STYLES["hao_teaching_secondary"]
@@ -862,9 +861,9 @@ def apply_hao_teaching_dual_tier(draft: dict) -> dict:
 
     return {"zh_count": zh_count, "en_count": en_count, "total": zh_count + en_count}
 
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 # CapCut Effect Application & Swapping
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 
 def find_effect_material(draft: dict, effect_id: str) -> Optional[dict]:
     """Find a materials.effects entry by effect_id."""
@@ -998,9 +997,9 @@ def apply_effect_to_segment(draft: dict, segment_idx: int, effect_id: str,
 
     return new_eff
 
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 # Post-Export Finalization (ffmpeg logic)
-# ─────────────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????????????
 
 def escape_textfile_path(p: Path) -> str:
     """ffmpeg textfile= path must escape backslash + colon."""

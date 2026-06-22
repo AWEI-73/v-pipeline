@@ -1,56 +1,56 @@
-"""model_routing.py — model route artifact for agent-driven video workflow.
+"""Model route artifact for the agent-driven video workflow.
 
-This module makes model choices explicit without forcing every runtime caller to
-switch providers at once. The artifact is intentionally small: each role names
-the provider/model and the reason it exists in the workflow.
+Visual judgment roles default to agent/cloud review. Local VLM backends are
+allowed only when a caller explicitly opts in, because the local model is not a
+reliable final judge for material understanding or VERIFY.
 """
+from __future__ import annotations
+
 import copy
 import json
 from pathlib import Path
+from typing import Any
 
 
-DEFAULT_MODEL_ROUTES = {
+DEFAULT_MODEL_ROUTES: dict[str, dict[str, Any]] = {
     "video_understanding": {
-        "provider": "ollama",
-        "model": "qwen3-vl:4b-instruct",
-        "base_url_env": "OLLAMA_URL",
-        "reason": "素材/畫面理解與低成本視覺判讀",
+        "provider": "agent",
+        "model": "codex_or_hermes",
+        "reason": "Material visual understanding uses agent review by default; local VLM is opt-in only.",
     },
     "verify_vlm": {
-        "provider": "ollama",
-        "model": "qwen3-vl:4b-instruct",
-        "base_url_env": "OLLAMA_URL",
-        "reason": "節點 VERIFY 小模型視覺審查",
+        "provider": "agent",
+        "model": "codex_or_hermes",
+        "reason": "Render/content verification uses agent review by default, not local VLM.",
     },
     "content_qa": {
-        "provider": "ollama",
-        "model": "qwen3-vl:4b-instruct",
-        "base_url_env": "OLLAMA_URL",
-        "reason": "內容 QA 與素材適性初篩",
+        "provider": "agent",
+        "model": "codex_or_hermes",
+        "reason": "Content QA is routed to agent review by default; local VLM is only an explicit fallback.",
     },
     "asr": {
         "provider": "local",
         "model": "small",
         "env": "MV_ASR_MODEL",
-        "reason": "語音轉文字與字幕初稿",
+        "reason": "Speech recognition remains a local mechanical tool.",
     },
     "agent_planning": {
         "provider": "agent",
         "model": "codex_or_hermes",
-        "reason": "互動式 SPEC、節點決策與契約修正",
+        "reason": "SPEC and route planning need agent reasoning.",
     },
 }
 
 
-def default_model_routes():
+def default_model_routes() -> dict[str, Any]:
     return {
         "artifact_role": "model_route_contract",
-        "model_routes_version": 1,
+        "model_routes_version": 2,
         "routes": copy.deepcopy(DEFAULT_MODEL_ROUTES),
     }
 
 
-def _validate_routes(payload):
+def _validate_routes(payload: dict[str, Any]) -> dict[str, Any]:
     routes = payload.get("routes")
     if not isinstance(routes, dict):
         raise ValueError("model_routes requires object field: routes")
@@ -64,7 +64,7 @@ def _validate_routes(payload):
     return payload
 
 
-def load_model_routes(path=None, overrides=None):
+def load_model_routes(path: str | Path | None = None, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = default_model_routes()
     if path:
         with Path(path).open(encoding="utf-8") as f:
@@ -82,14 +82,14 @@ def load_model_routes(path=None, overrides=None):
     return _validate_routes(payload)
 
 
-def resolve_model(routes, role, default=None):
+def resolve_model(routes: dict[str, Any] | None, role: str, default: Any = None) -> Any:
     route = (routes or {}).get("routes", {}).get(role)
     if not route:
         return default
     return route.get("model", default)
 
 
-def write_model_routes(path, routes=None):
+def write_model_routes(path: str | Path, routes: dict[str, Any] | None = None) -> str:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = _validate_routes(routes or default_model_routes())

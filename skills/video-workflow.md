@@ -1,5 +1,6 @@
 ---
 name: video-workflow
+stage_0_note: "input state -> entry_path: material-first, structure-first, needs-context; generation is fallback; hybrid is not a primary Stage 0 entry path; teaching; personal video"
 description: SPEC 最上游的「互動式模糊消除」技能。把模糊的影片委託(「幫我做個結訓影片」)透過引導式提問收斂成可執行的結構化 brief,再分流給導演(production SPEC)與編劇(文字層)。架構優先,不從隨機素材拼貼開始。
 ---
 

@@ -3,67 +3,67 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hermes Native Preview Workbench</title>
+  <title>Hermes 原生剪輯工作區</title>
   <link rel="stylesheet" href="/workbench/workbench.css" />
 </head>
 <body>
   <header class="wb-header">
     <div class="header-left">
       <div class="wb-title">
-        <strong>Hermes Native Workbench</strong>
-        <span class="wb-sub">material preview · timeline patch · ffmpeg export</span>
+        <strong>Hermes 原生剪輯工作區</strong>
+        <span class="wb-sub">素材預覽 / 時間軸草稿 / ffmpeg 匯出</span>
       </div>
-      <div class="undo-redo" aria-label="History controls">
-        <button class="btn-icon" id="btn-undo" title="Undo" type="button" disabled>
+      <div class="undo-redo" aria-label="歷史操作">
+        <button class="btn-icon" id="btn-undo" title="復原" type="button" disabled>
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" fill="currentColor"/></svg>
         </button>
-        <button class="btn-icon" id="btn-redo" title="Redo" type="button" disabled>
+        <button class="btn-icon" id="btn-redo" title="重做" type="button" disabled>
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" fill="currentColor"/></svg>
         </button>
       </div>
     </div>
 
     <div class="header-mid">
-      <select id="aspect-ratio" class="aspect-ratio-select" title="Preview aspect ratio">
-        <option value="16:9">16:9 Widescreen</option>
-        <option value="9:16">9:16 Vertical</option>
-        <option value="1:1">1:1 Square</option>
+      <select id="aspect-ratio" class="aspect-ratio-select" title="預覽比例">
+        <option value="16:9">16:9 橫式</option>
+        <option value="9:16">9:16 直式</option>
+        <option value="1:1">1:1 方形</option>
       </select>
     </div>
 
     <div class="wb-badges">
-      <span class="badge badge-warn">interactive proposal</span>
-      <span class="badge">canonical render = ffmpeg BUILD</span>
+      <span class="badge badge-warn">互動草稿提案</span>
+      <span class="badge">正式輸出 = ffmpeg BUILD</span>
     </div>
   </header>
 
   <main class="wb-main-container">
-    <nav class="tab-bar" aria-label="Workbench panels">
+    <nav class="tab-bar" aria-label="剪輯工作區面板">
       <button class="tab-item active" type="button" data-drawer="drawer-media">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" fill="currentColor"/></svg>
-        <span>Media</span>
+        <span>素材</span>
       </button>
-      <button class="tab-item" type="button" data-drawer="drawer-media" title="Text is edited on the subtitle timeline lane for now." disabled aria-disabled="true">
+      <button class="tab-item" type="button" data-drawer="drawer-media" title="目前文字在字幕時間軸軌道編輯。" disabled aria-disabled="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 4v3h5.5v12h3V7H19V4H5z" fill="currentColor"/></svg>
-        <span>Text</span>
+        <span>字幕</span>
       </button>
-      <button class="tab-item" type="button" data-drawer="drawer-media" title="Audio is edited on the audio timeline lane for now." disabled aria-disabled="true">
+      <button class="tab-item" type="button" data-drawer="drawer-media" title="目前音訊在音訊時間軸軌道編輯。" disabled aria-disabled="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" fill="currentColor"/></svg>
-        <span>Audio</span>
+        <span>音訊</span>
       </button>
     </nav>
 
     <div class="wb-content-layout">
       <aside class="wb-materials" id="drawer-media">
         <div class="materials-head">
-          <h2>Materials</h2>
-          <span id="material-map-summary" class="muted">loading...</span>
+          <h2>素材</h2>
+          <span id="material-map-summary" class="muted">載入中...</span>
         </div>
         <div class="search-box">
-          <input id="asset-search" class="asset-search" type="search" placeholder="Search asset / family / caption" />
+          <input id="asset-search" class="asset-search" type="search" placeholder="搜尋素材 / 類型 / 說明" />
         </div>
         <select id="asset-family-filter" class="asset-family-filter">
-          <option value="">all families</option>
+          <option value="">全部類型</option>
         </select>
         <div id="material-assets-list" class="material-assets-list"></div>
       </aside>
@@ -74,7 +74,7 @@
             <img id="stage-image" alt="" hidden />
             <video id="stage-video" hidden playsinline muted></video>
             <audio id="preview-audio" preload="metadata"></audio>
-            <div id="stage-empty" class="stage-empty">No active clip</div>
+            <div id="stage-empty" class="stage-empty">目前沒有作用中的片段</div>
             <div id="effect-overlay" class="effect-overlay" hidden></div>
             <div id="effect-label" class="effect-label" hidden></div>
             <div id="subtitle-overlay" class="subtitle-overlay"></div>
@@ -83,19 +83,19 @@
         </div>
 
         <div class="wb-transport">
-          <button id="btn-play" type="button">Play</button>
-          <button id="btn-pause" type="button" hidden>Pause</button>
-          <button id="btn-rewind" type="button">Back</button>
+          <button id="btn-play" type="button">播放</button>
+          <button id="btn-pause" type="button" hidden>暫停</button>
+          <button id="btn-rewind" type="button">回到開頭</button>
           <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
           <span id="time-label" class="time-label">0.00 / 0.00s</span>
           <span id="frame-label" class="frame-label">f0</span>
-          <span id="audio-status" class="audio-status">audio: off</span>
+          <span id="audio-status" class="audio-status">音訊：關閉</span>
         </div>
       </section>
 
       <section class="wb-inspector" id="inspector">
-        <h2>Inspector</h2>
-        <div id="inspector-empty" class="muted">Select a clip on the timeline.</div>
+        <h2>檢視器</h2>
+        <div id="inspector-empty" class="muted">請在時間軸選擇一個片段。</div>
         <div id="inspector-body" hidden>
           <dl class="meta-grid" id="inspector-meta"></dl>
           <div class="field">
@@ -111,25 +111,25 @@
             <input id="in-source-duration" type="number" step="0.1" min="0.1" />
           </div>
           <div class="field-row">
-            <button id="btn-apply-clip" type="button">Apply</button>
-            <button id="btn-replace-clip" type="button" title="Replace selected clip with the selected material asset. Saves as draft timeline_patch only.">Replace with selected material</button>
-            <button id="btn-move-left" type="button">Move left</button>
-            <button id="btn-move-right" type="button">Move right</button>
+            <button id="btn-apply-clip" type="button">套用</button>
+            <button id="btn-replace-clip" type="button" title="用選取素材替換目前片段，只會儲存為 timeline_patch 草稿。">以選取素材替換</button>
+            <button id="btn-move-left" type="button">左移</button>
+            <button id="btn-move-right" type="button">右移</button>
           </div>
         </div>
 
         <div id="track-inspector" hidden>
-          <h2 id="track-insp-title">Track</h2>
+          <h2 id="track-insp-title">軌道</h2>
           <div class="field" id="tf-text"><label>text</label><input id="t-text" type="text" /></div>
           <div class="field" id="tf-preset"><label>preset</label><select id="t-preset"></select></div>
           <div class="field" id="tf-cuetype"><label>cue_type</label><select id="t-cuetype"></select></div>
           <div class="field" id="tf-start"><label>start_sec</label><input id="t-start" type="number" step="0.1" min="0" /></div>
           <div class="field" id="tf-duration"><label>duration_sec</label><input id="t-duration" type="number" step="0.1" min="0.1" /></div>
           <div class="field" id="tf-time"><label>time_sec</label><input id="t-time" type="number" step="0.1" min="0" /></div>
-          <div class="field" id="tf-strength"><label>strength 1-5</label><input id="t-strength" type="number" step="1" min="1" max="5" /></div>
+          <div class="field" id="tf-strength"><label>強度 1-5</label><input id="t-strength" type="number" step="1" min="1" max="5" /></div>
           <div class="field-row">
-            <button id="btn-apply-track" type="button">Apply</button>
-            <button id="btn-delete-track" type="button">Delete</button>
+            <button id="btn-apply-track" type="button">套用</button>
+            <button id="btn-delete-track" type="button">刪除</button>
           </div>
         </div>
       </section>
@@ -137,12 +137,12 @@
   </main>
 
   <div class="track-tools">
-    <button id="btn-add-cue" type="button" title="Add an audio cue at the playhead">+ Cue @ playhead</button>
-    <select id="effect-asset-select" title="Optional effect asset from project material map">
-      <option value="">preset only</option>
+    <button id="btn-add-cue" type="button" title="在播放頭位置新增音效提示">+ 音效提示 @ 播放頭</button>
+    <select id="effect-asset-select" title="可選擇素材地圖中的效果素材">
+      <option value="">僅使用預設</option>
     </select>
-    <button id="btn-add-fx" type="button" title="Add an effect intent marker on the selected clip">+ FX on selected clip</button>
-    <span class="track-hint">BGM previews with the playhead; audio cues/effects are intent markers; official render stays in the pipeline</span>
+    <button id="btn-add-fx" type="button" title="在選取片段上新增效果意圖標記">+ 效果到選取片段</button>
+    <span class="track-hint">BGM 會跟著播放頭預覽；音效提示與效果只是意圖標記；正式渲染仍交給管線。</span>
   </div>
 
   <section class="wb-timeline">
@@ -150,19 +150,19 @@
       <div class="timeline-canvas" id="timeline-canvas">
         <div class="timeline-ruler" id="timeline-ruler"></div>
         <div class="track">
-          <span class="track-label">video</span>
+          <span class="track-label">影片</span>
           <div class="track-lane" id="lane-video"></div>
         </div>
         <div class="track">
-          <span class="track-label">subtitle</span>
+          <span class="track-label">字幕</span>
           <div class="track-lane" id="lane-subtitle"></div>
         </div>
         <div class="track">
-          <span class="track-label">audio</span>
+          <span class="track-label">音訊</span>
           <div class="track-lane" id="lane-audio"></div>
         </div>
         <div class="track">
-          <span class="track-label">effect</span>
+          <span class="track-label">效果</span>
           <div class="track-lane" id="lane-effect"></div>
         </div>
         <div class="playhead" id="playhead"></div>
@@ -173,12 +173,12 @@
   <footer class="wb-footer">
     <div id="diagnostics" class="diagnostics"></div>
     <div class="footer-actions">
-      <span id="dirty-flag" class="muted">no local edits</span>
-      <button id="btn-download-patch" type="button">Download patch</button>
-      <button id="btn-save-patch" type="button">Save patch to server</button>
-      <button id="btn-sync-contract" type="button" title="Translate edits into a draft pipeline-contract patch (never overwrites canonical). Fail-closed on out-of-scene source windows.">Sync to contract</button>
-      <button id="btn-save-all" type="button" title="Save timeline + subtitle + audio-cue + effect-intent patches together and build a workbench_handoff.json for the Agent.">Save all + handoff</button>
-      <button id="btn-export" type="button" title="Optional: render via canonical ffmpeg (slow). Writes workbench_export.mp4, never final.mp4.">Export (ffmpeg)</button>
+      <span id="dirty-flag" class="muted">目前沒有本機修改</span>
+      <button id="btn-download-patch" type="button">下載 patch</button>
+      <button id="btn-save-patch" type="button">儲存 patch 到伺服器</button>
+      <button id="btn-sync-contract" type="button" title="把剪輯修改轉成管線契約草稿，不會覆寫正式產物；超出場景範圍會 fail-closed。">同步到契約</button>
+      <button id="btn-save-all" type="button" title="一起儲存時間軸、字幕、音訊提示、效果意圖 patch，並建立給 Agent 的 workbench_handoff.json。">儲存全部並建立交接包</button>
+      <button id="btn-export" type="button" title="選用：透過 canonical ffmpeg 渲染，速度較慢。只寫入 workbench_export.mp4，不會寫 final.mp4。">匯出 ffmpeg</button>
     </div>
   </footer>
 

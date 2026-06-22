@@ -115,6 +115,102 @@ def _verify_duration_fit(timing, edit_log, video_path=None, threshold_ms=300):
     }
 
 
+def _verify_target_duration_fit(brief, video_path=None, actual_duration_sec=None, tolerance_ratio=0.25):
+    from .editorial_qa import _parse_target_sec  # noqa: PLC0415
+    target = _parse_target_sec((brief or {}).get("target_length") if isinstance(brief, dict) else None)
+    if not target:
+        return {"score": 100, "weight": 0.10,
+                "note": "brief.target_length missing or unparsable; target duration not scored",
+                "fix_target": None}
+    actual = actual_duration_sec
+    if actual is None and video_path:
+        try:
+            actual = _audio_duration(video_path)
+        except Exception:
+            actual = None
+    if actual is None:
+        return {"score": 0, "weight": 0.10, "note": "could not determine final video duration",
+                "fix_target": "editor", "target_duration_sec": round(float(target), 3)}
+    ratio = float(actual) / float(target)
+    diff_ratio = abs(float(actual) - float(target)) / float(target)
+    score = max(0, int(100 * (1 - min(1, diff_ratio / max(tolerance_ratio, 0.01)))))
+    return {
+        "score": score,
+        "weight": 0.10,
+        "note": f"actual {float(actual):.1f}s vs target {float(target):.1f}s (ratio {ratio:.2f})",
+        "fix_target": None if score >= 80 else "director",
+        "target_duration_sec": round(float(target), 3),
+        "actual_duration_sec": round(float(actual), 3),
+        "duration_ratio": round(ratio, 3),
+    }
+
+
+def _verify_subtitle_readability(srt_path, *, max_chars_per_line=32, max_lines_per_cue=2):
+    if not os.path.exists(srt_path):
+        return {"score": 100, "weight": 0.05, "note": "srt not found; readability skipped",
+                "fix_target": None}
+    issues = []
+    cue_lines = 0
+    with open(srt_path, encoding="utf-8") as f:
+        for raw in f.read().splitlines() + [""]:
+            line = raw.strip()
+            if not line:
+                if cue_lines > max_lines_per_cue:
+                    issues.append({"reason": "too_many_lines", "lines": cue_lines})
+                cue_lines = 0
+                continue
+            if line.isdigit() or "-->" in line:
+                continue
+            cue_lines += 1
+            if len(line) > max_chars_per_line:
+                issues.append({"reason": "line_too_long", "chars": len(line),
+                               "max_chars": max_chars_per_line, "text": line[:80]})
+    score = 100 if not issues else max(0, 100 - 30 * len(issues))
+    return {
+        "score": score,
+        "weight": 0.05,
+        "note": "subtitle lines readable" if not issues else f"subtitle readability issues: {issues[:3]}",
+        "fix_target": None if score >= 80 else "subtitle",
+        "issues": issues,
+    }
+
+
+def _verify_content_alignment(content_alignment):
+    if not isinstance(content_alignment, dict):
+        return {"score": 100, "weight": 0.10, "note": "content alignment artifact not provided",
+                "fix_target": None}
+    issues = []
+    for gap in content_alignment.get("gaps") or content_alignment.get("missing") or []:
+        if not isinstance(gap, dict):
+            continue
+        seg = gap.get("segment") or gap.get("segment_id") or gap.get("id")
+        issues.append(f"seg{seg}: {gap.get('reason') or 'material/content gap'}")
+    for item in content_alignment.get("assignments") or []:
+        if not isinstance(item, dict) or not item.get("gap"):
+            continue
+        seg = item.get("segment") or item.get("segment_id") or item.get("id")
+        issues.append(f"seg{seg}: material assignment gap")
+    for item in content_alignment.get("segments") or content_alignment.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        verdict = str(item.get("vlm_verdict") or item.get("verdict") or item.get("semantic_match") or "").lower()
+        passed = item.get("pass")
+        score = item.get("score")
+        low_score = isinstance(score, (int, float)) and score < 60
+        if verdict in ("no", "false", "fail", "failed") or passed is False or low_score:
+            seg = item.get("segment") or item.get("segment_id") or item.get("id")
+            detail = item.get("reason") or item.get("message") or item.get("image_desc")
+            issues.append(f"seg{seg}: {detail or 'content mismatch'}")
+    score = 100 if not issues else max(0, 100 - 25 * len(issues))
+    return {
+        "score": score,
+        "weight": 0.10,
+        "note": "content alignment passed" if not issues else "; ".join(issues[:5]),
+        "fix_target": None if score >= 80 else "curator",
+        "issues": issues,
+    }
+
+
 def _verify_subtitle_accuracy(script, srt_path):
     """維度3: SRT 內容 vs script.subtitle 字元重疊率"""
     # 提取所有 subtitle / text (字幕) 欄位
@@ -313,9 +409,17 @@ def cmd_verify(args):
         "audio_levels":      _verify_audio_levels(args.video),
         "technical_quality": _verify_technical_quality(args.video, expected_w, expected_h, expected_fps),
     }
+    if getattr(args, "brief", None):
+        with open(args.brief, encoding="utf-8") as f:
+            dims["target_duration_fit"] = _verify_target_duration_fit(json.load(f), video_path=args.video)
+    dims["subtitle_readability"] = _verify_subtitle_readability(args.srt)
+    if getattr(args, "content_alignment", None):
+        with open(args.content_alignment, encoding="utf-8") as f:
+            dims["content_alignment"] = _verify_content_alignment(json.load(f))
 
     # 加權總分
-    total_score = sum(d['score'] * d['weight'] for d in dims.values())
+    total_weight = sum(float(d.get("weight") or 0) for d in dims.values()) or 1.0
+    total_score = sum(d['score'] * d['weight'] for d in dims.values()) / total_weight
 
     # 列出需要修正的項目
     issues = []

@@ -1,4 +1,4 @@
----
+﻿---
 title: Video Route Skill Project
 type: design
 status: active
@@ -152,9 +152,9 @@ people, local food, school/class scenes, and exact story beats.
   "file": "/tmp/run/materials/seg2_raw.mp4",
   "status": "selected",
   "score": 100.0,
-  "visual_desc": "夜晚下雨的城市街道，路面反光，車燈與霓虹在雨水中閃爍",
+  "visual_desc": "憭?銝??撣???頝舫??嚗?????券瘞港葉??",
   "metadata": {
-    "query": "雨夜 街道",
+    "query": "?典? 銵?",
     "asset_id": "pexels:12345"
   }
 }
@@ -173,7 +173,7 @@ Primary path for real project footage. Route already supports
   "file": "/home/user/student_uploads/seg6_user.mp4",
   "status": "selected",
   "score": null,
-  "visual_desc": "雨後清晨的城市街道，天空微亮，地面仍有積水反光",
+  "visual_desc": "?典?皜??撣???憭拍征敺桐漁嚗?Ｖ???瘞游???,
   "metadata": {
     "route": "await_material",
     "original_name": "seg6_user.mp4"
@@ -196,7 +196,7 @@ installation, workflow JSON, model downloads, or local GPU setup.
   "file": "/tmp/run/materials/generated/seg6.jpg",
   "status": "selected",
   "score": null,
-  "visual_desc": "雨後清晨的城市街道，天空微亮，地面仍有積水反光",
+  "visual_desc": "?典?皜??撣???憭拍征敺桐漁嚗?Ｖ???瘞游???,
   "metadata": {
     "prompt_file": "/tmp/run/materials/generated/seg6.json",
     "external_provider": true
@@ -270,7 +270,7 @@ video-route-skill/
   content_qa.py
   skills/
   design/
-  docs/decisions/
+  docs/archive/decisions/
   examples/
   tests/
 ```

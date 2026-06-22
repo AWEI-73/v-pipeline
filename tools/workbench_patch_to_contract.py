@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """Hermes-native workbench: patch -> pipeline contract *draft* sync.
 
 This is NOT an editor and NOT a canonical-contract writer. It translates a
@@ -9,7 +9,7 @@ the pipeline contract to change* -- without ever touching the canonical
 ``material_needs.json``. Official rendering still runs through the Agent / ffmpeg
 pipeline, which can consume the draft/patch and then build.
 
-Sync rules (see docs/decisions/2026-06-16-native-preview-engine.md):
+Sync rules (see docs/archive/decisions/2026-06-16-native-preview-engine.md):
   - set_duration       -> per-segment duration suggestion (draft only)
   - set_source_window  -> material window override (draft), validated to stay
                           inside the project_material_map scene bounds

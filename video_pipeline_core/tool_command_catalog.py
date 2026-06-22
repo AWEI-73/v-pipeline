@@ -44,11 +44,14 @@ COMMAND_GROUPS: Dict[str, str] = {
     # Project workspace and introspection.
     "project-init": "workspace",
     "project-new-run": "workspace",
+    "video-intent-plan": "workspace",
     "state": "workspace",
     "commands-manifest": "workspace",
     "workflow-manifest": "workspace",
     "test-tiers": "verify",
     "reviewer-policy": "verify",
+    "reviewer-role-review": "verify",
+    "reviewer-aggregate": "verify",
     "run-layout-validate": "workspace",
     "workbench-handoff-validate": "workspace",
     "workbench-draft-rerender": "render",
@@ -64,6 +67,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "spec-review": "contract",
     "capability-manifest": "contract",
     "supply-review": "contract",
+    "director-supply-revise": "contract",
     "contract-dry-build": "contract",
     "contract-run": "contract",
     "generated-manifest": "contract",
@@ -99,6 +103,10 @@ COMMAND_GROUPS: Dict[str, str] = {
     "material-generation-fallback": "material",
     "material-revision": "material",
     "material-map-lifecycle": "material",
+    "material-map-review-apply": "material",
+    "material-wall-build": "material",
+    "material-wall-review-apply": "material",
+    "material-db-slice-from-wall": "material",
     "project-material-map": "material",
     "visual-diversity-coverage": "material",
     "visual-diversity-review": "material",
@@ -125,6 +133,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     # Replay / acceptance proof commands.
     "replay-acceptance": "acceptance",
     "operator-flow-acceptance": "acceptance",
+    "video-intent-acceptance": "acceptance",
     "reviewer-flow-acceptance": "acceptance",
     "route-task-next": "acceptance",
     "route-task-accept": "acceptance",
@@ -169,6 +178,16 @@ WORKFLOWS = {
             },
         ],
     },
+    "video_intent_planner": {
+        "description": "Produce the Stage 0 video_intent.json route decision artifact before story, material, or BUILD work.",
+        "steps": [
+            {
+                "id": "video_intent_plan",
+                "command": "video-intent-plan",
+                "purpose": "classify video type, input state, entry path, follow-up questions, and next handoff",
+            },
+        ],
+    },
     "material_map_lifecycle": {
         "description": "Resolve requirements, actual material maps, delta, and build handoff.",
         "steps": [
@@ -183,6 +202,30 @@ WORKFLOWS = {
                 "purpose": "compute the material-map lifecycle stage and build handoff",
                 "requires": ["validate-needs:ok_or_absent"],
             },
+            {
+                "id": "material_wall_build",
+                "command": "material-wall-build",
+                "purpose": "build photo walls and video strip walls for coarse material screening",
+                "requires": ["ingest-meta:ok"],
+            },
+            {
+                "id": "material_db_slice_from_wall",
+                "command": "material-db-slice-from-wall",
+                "purpose": "create a bounded materials_db scoped to assets shown in a material wall request",
+                "requires": ["material-wall-build:ok"],
+            },
+            {
+                "id": "material_wall_review_apply",
+                "command": "material-wall-review-apply",
+                "purpose": "apply keep/maybe/reject/duplicate coarse wall decisions to materials_db",
+                "requires": ["material-db-slice-from-wall:ok", "material-wall-build:reviewed"],
+            },
+            {
+                "id": "material_map_review_apply",
+                "command": "material-map-review-apply",
+                "purpose": "apply bounded reviewer decisions as scene-level satisfies edges",
+                "requires": ["material-map-lifecycle:await_map_review"],
+            },
         ],
     },
     "canonical_build": {
@@ -192,6 +235,12 @@ WORKFLOWS = {
                 "id": "spec_review",
                 "command": "spec-review",
                 "purpose": "validate contract readiness before build",
+            },
+            {
+                "id": "director_supply_revise",
+                "command": "director-supply-revise",
+                "purpose": "revise overlong segment durations from objective supply_review evidence",
+                "requires": ["supply-review:script_overreach"],
             },
             {
                 "id": "contract_run",
@@ -372,6 +421,17 @@ WORKFLOWS = {
                 "command": "route-orchestrator-acceptance",
                 "purpose": "prove the packet/state-machine route with deterministic fake-worker happy and fail-closed paths",
                 "requires": ["route-task-next:implemented", "route-task-accept:implemented"],
+            },
+        ],
+    },
+    "video_intent_acceptance": {
+        "description": "Prove VIP0 route decisions and follow-up behavior for Stage 0 video_intent.json.",
+        "steps": [
+            {
+                "id": "video_intent_acceptance",
+                "command": "video-intent-acceptance",
+                "purpose": "run deterministic VIP0 route cases without starting type templates or BUILD",
+                "requires": ["video-intent-plan:implemented"],
             },
         ],
     },

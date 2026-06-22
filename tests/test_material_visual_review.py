@@ -136,6 +136,31 @@ class MaterialVisualReviewTest(unittest.TestCase):
             self.assertEqual(status["captioned"], 0)
             self.assertNotIn("next_action", status)
 
+    def test_caption_meta_defaults_to_agent_review_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            db_path = root / "materials_db.json"
+            photo = root / "photo.jpg"
+            photo.write_bytes(b"fixture")
+            db_path.write_text(json.dumps({"files": [
+                {"id": "f1", "type": "photo", "path": str(photo)},
+            ]}), encoding="utf-8")
+            args = types.SimpleNamespace(
+                db=str(db_path),
+                model=None,
+                limit=None,
+                visual_review_dir=None,
+                local_vlm=False,
+            )
+
+            output = StringIO()
+            with redirect_stdout(output):
+                curator.cmd_caption_meta(args)
+
+            status = json.loads(output.getvalue())
+            self.assertEqual(status["next_action"], "await_material_visual_review")
+            self.assertTrue((root / "material_visual_review" / "material_visual_review_request.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

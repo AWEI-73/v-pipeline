@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes 3D Material Flow Canvas</title>
+    <!-- Import Google Fonts & Tabler Icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <!-- Three.js & Controls via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <style>
+        :root {
+            --bg-app: #f8fafc;
+            --bg-surface: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(226, 232, 240, 0.8);
+            --text-title: #0f172a;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            --primary: #6366f1;
+            --primary-soft: rgba(99, 102, 241, 0.1);
+            --accent: #0ea5e9;
+            --r-lg: 16px;
+            --r-md: 10px;
+            --shadow-md: 0 12px 30px -10px rgba(0,0,0,0.08);
+            --font-sans: "Inter", "Noto Sans TC", system-ui, sans-serif;
+            --font-display: "Outfit", var(--font-sans);
+        }
+
+        body.dark-theme {
+            --bg-app: #0b0f19;
+            --bg-surface: rgba(17, 24, 39, 0.85);
+            --border-color: rgba(37, 99, 235, 0.15);
+            --text-title: #f8fafc;
+            --text-body: #cbd5e1;
+            --text-muted: #64748b;
+            --primary: #818cf8;
+            --primary-soft: rgba(129, 140, 248, 0.15);
+            --shadow-md: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-body);
+            font-family: var(--font-sans);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease;
+        }
+
+        #canvas-3d-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlays */
+        .ui-overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .ui-overlay a, 
+        .ui-overlay button, 
+        .ui-overlay select,
+        .ui-overlay input {
+            pointer-events: auto;
+        }
+
+        /* Header UI */
+        header.top-header {
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .logo-box {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: var(--r-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.25);
+        }
+
+        .brand-info h1 {
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--text-title);
+            letter-spacing: -0.01em;
+        }
+
+        .brand-info p {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-top: 1px;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .glass-btn {
+            background: var(--bg-surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-title);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s;
+        }
+
+        .glass-btn:hover {
+            transform: translateY(-1px);
+            border-color: var(--primary);
+        }
+
+        /* Left Controls Bar */
+        .sidebar-left {
+            left: 20px;
+            top: 100px;
+            bottom: 20px;
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-lg);
+            padding: 18px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-title);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: var(--r-md);
+            padding: 10px;
+            text-align: center;
+        }
+
+        body.dark-theme .stat-box {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stat-val {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .stat-lbl {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        /* Right Details Panel */
+        .sidebar-right {
+            right: 20px;
+            top: 20px;
+            bottom: 20px;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .details-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+
+        .detail-item-group {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        .detail-lbl {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .detail-val {
+            font-size: 13.5px;
+            color: var(--text-title);
+            font-weight: 500;
+        }
+
+        .pill-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 11.5px;
+            font-weight: 700;
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        /* Quick View Controls Instruction */
+        .controls-instruction {
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 18px;
+            border-radius: 99px;
+            color: white;
+            font-size: 11.5px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .controls-instruction span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.85;
+        }
+
+        .controls-instruction i {
+            font-size: 13px;
+        }
+
+        /* 3D Label CSS renderer fallback */
+        .tooltip-container {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- WebGL Canvas Container -->
+    <div id="canvas-3d-container"></div>
+
+    <!-- UI Overlay elements -->
+    
+    <!-- Header -->
+    <header class="ui-overlay top-header">
+        <div class="brand-card">
+            <div class="logo-box"><i class="ti ti-3d-rotate"></i></div>
+            <div class="brand-info">
+                <h1>Hermes 3D Material Flow</h1>
+                <p>三維素材映射分析畫布</p>
+            </div>
+        </div>
+
+        <div class="header-controls">
+            <!-- Project Selection -->
+            <div class="brand-card" style="padding: 10px 16px;">
+                <i class="ti ti-folder-open" style="color:var(--primary); font-size:18px;"></i>
+                <select id="project-3d-select" style="background: transparent; border: none; font-size: 13px; font-weight: 700; color: var(--text-title); cursor: pointer; outline: none; margin-left:6px; font-family: var(--font-sans);">
+                    <option value="srp_real67_fuller_replay">67 期成果回顧</option>
+                    <option value="cinderella_storybook_e2e">灰姑娘故事繪本</option>
+                    <option value="comic_5min_material_plan">五分鐘漫畫管線</option>
+                </select>
+            </div>
+            
+            <button class="glass-btn" id="btn-reset-camera">
+                <i class="ti ti-camera-rotate"></i>
+                <span>重設視角</span>
+            </button>
+            <button class="glass-btn" id="theme-toggler">🌙</button>
+        </div>
+    </header>
+
+    <!-- Sidebar Left: Controls and Node statistics -->
+    <div class="ui-overlay sidebar-left">
+        <!-- Stats Card -->
+        <div class="glass-card">
+            <div class="card-title"><i class="ti ti-chart-bar" style="color:var(--primary)"></i> 管線資源狀態</div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-val" id="val-raw-assets">12</div>
+                    <div class="stat-lbl">原始素材</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="val-needs">8</div>
+                    <div class="stat-lbl">影片需求</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="val-mapped" style="color:var(--success)">8</div>
+                    <div class="stat-lbl">成功覆蓋</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="val-issues" style="color:red">1</div>
+                    <div class="stat-lbl">偏薄/空缺</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Render Controls -->
+        <div class="glass-card" style="flex:1;">
+            <div class="card-title"><i class="ti ti-adjustments" style="color:var(--primary)"></i> 畫布顯示選項</div>
+            
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:6px;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;">
+                    <input type="checkbox" id="chk-show-connections" checked style="accent-color: var(--primary);">
+                    <span>顯示關係對線 (Connections)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;">
+                    <input type="checkbox" id="chk-auto-rotate" style="accent-color: var(--primary);">
+                    <span>開啟自動旋轉 (Auto Orbit)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;">
+                    <input type="checkbox" id="chk-show-grid" checked style="accent-color: var(--primary);">
+                    <span>顯示參考網格 (Floor Grid)</span>
+                </label>
+            </div>
+            
+            <div style="margin-top:auto; font-size:11px; color:var(--text-muted); line-height:1.5;">
+                <i class="ti ti-info-circle"></i> 雙擊 (Double Click) 空間中任何 3D 節點可進行相機對焦，右側資訊板將會同步該資源檔案屬性。
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Right: Detailed Node Properties Inspector -->
+    <div class="ui-overlay sidebar-right">
+        <div class="glass-card" style="flex: 1;">
+            <div class="card-title" id="inspector-title">
+                <i class="ti ti-input-search" style="color:var(--primary)"></i>
+                <span>節點檢視器 (Inspector)</span>
+            </div>
+            
+            <div class="details-body" id="inspector-details">
+                <div style="text-align:center; padding:40px 20px; color:var(--text-muted); font-size:12.5px;">
+                    <i class="ti ti-hand-click" style="font-size:24px; color:var(--primary); margin-bottom:8px; display:block;"></i>
+                    點擊任何一個 3D 節點<br>查看素材映射詳情與對齊狀態
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Instruction Bar -->
+    <div class="ui-overlay controls-instruction">
+        <span><i class="ti ti-mouse"></i> 左鍵拖曳旋轉</span>
+        <span><i class="ti ti-circle-dot"></i> 滾輪縮放</span>
+        <span><i class="ti ti-hand-grab"></i> 右鍵拖曳平移</span>
+        <span><i class="ti ti-hand-click"></i> 點擊選取節點</span>
+    </div>
+
+    <!-- Floating tooltip for mouse hover -->
+    <div class="tooltip-container" id="hover-tooltip">Tooltip</div>
+
+    <script>
+        // Mock Data for Projects
+        const PROJECT_3D_MOCKS = {
+            srp_real67_fuller_replay: {
+                stats: { raw: 12, needs: 8, mapped: 8, issues: 1 },
+                nodes: [
+                    // Assets (Group 0)
+                    { id: "asset_01", label: "實拍: 開場特寫 (01.mp4)", group: 0, x: -8, y: 3, z: 0, details: { type: "video", path: "assets/01.mp4", duration: "12s", resolution: "1080p", fps: 60 } },
+                    { id: "asset_02", label: "實拍: 課堂空鏡 (02.mp4)", group: 0, x: -8, y: 1.5, z: 1.5, details: { type: "video", path: "assets/02.mp4", duration: "8.5s", resolution: "1080p", fps: 60 } },
+                    { id: "asset_03", label: "實拍: 學員操作 (03.mp4)", group: 0, x: -8, y: 0, z: -1.5, details: { type: "video", path: "assets/03.mp4", duration: "15s", resolution: "1080p", fps: 60 } },
+                    { id: "asset_04", label: "實拍: 結訓感言 (04.mp4)", group: 0, x: -8, y: -1.5, z: 2, details: { type: "video", path: "assets/04.mp4", duration: "24s", resolution: "1080p", fps: 60 } },
+                    { id: "bgm_main", label: "音樂: 紀念汗水 (bgm.mp3)", group: 0, x: -8, y: -3, z: -2, details: { type: "audio", path: "assets/bgm.mp3", duration: "3m12s", sample_rate: "44.1kHz" } },
+                    
+                    // Needs (Group 1)
+                    { id: "need_01", label: "需求: 開場氛圍", group: 1, x: 0, y: 2.5, z: 0.5, details: { description: "建立結訓儀式感與開場暖身", status: "covered", duration: "5.0s" } },
+                    { id: "need_02", label: "需求: 培訓剪影", group: 1, x: 0, y: 1, z: -1, details: { description: "學員在課堂上專注的神情", status: "covered", duration: "10.0s" } },
+                    { id: "need_03", label: "需求: 實作演練", group: 1, x: 0, y: -0.5, z: 1.5, details: { description: "學員親自動手組裝與操作設備", status: "covered", duration: "15.0s" } },
+                    { id: "need_04", label: "需求: 講師回饋", group: 1, x: 0, y: -2, z: -2, details: { description: "講師對於結訓學員的鼓勵與點評", status: "thin", duration: "8.0s", warning: "素材偏薄，僅有一段實拍備選" } },
+                    
+                    // Storyboard (Group 2)
+                    { id: "scene_01", label: "Storyboard: Scene 1 (開場)", group: 2, x: 8, y: 2, z: 0, details: { asset: "asset_01", target: "need_01", duration: "5.0s", status: "accepted" } },
+                    { id: "scene_02", label: "Storyboard: Scene 2 (上課)", group: 2, x: 8, y: 0.5, z: 1, details: { asset: "asset_02", target: "need_02", duration: "8.5s", status: "accepted" } },
+                    { id: "scene_03", label: "Storyboard: Scene 3 (實作)", group: 2, x: 8, y: -1, z: -1, details: { asset: "asset_03", target: "need_03", duration: "15.0s", status: "accepted" } },
+                    { id: "scene_04", label: "Storyboard: Scene 4 (訪談)", group: 2, x: 8, y: -2.5, z: 0.5, details: { asset: "asset_04", target: "need_04", duration: "24.0s", status: "reviewing" } },
+                ],
+                links: [
+                    { source: "asset_01", target: "need_01" },
+                    { source: "asset_02", target: "need_02" },
+                    { source: "asset_03", target: "need_03" },
+                    { source: "asset_04", target: "need_04" },
+                    { source: "need_01", target: "scene_01" },
+                    { source: "need_02", target: "scene_02" },
+                    { source: "need_03", target: "scene_03" },
+                    { source: "need_04", target: "scene_04" },
+                ]
+            },
+            cinderella_storybook_e2e: {
+                stats: { raw: 6, needs: 5, mapped: 5, issues: 0 },
+                nodes: [
+                    { id: "c_asset_01", label: "插畫: 城堡宴會", group: 0, x: -8, y: 2, z: 0.5, details: { type: "image", path: "assets/castle.png", resolution: "2K" } },
+                    { id: "c_asset_02", label: "插畫: 仙女與南瓜車", group: 0, x: -8, y: 0, z: -1, details: { type: "image", path: "assets/fairy.png", resolution: "2K" } },
+                    { id: "c_asset_03", label: "配音: 旁白第一幕", group: 0, x: -8, y: -2, z: 1.5, details: { type: "audio", path: "assets/vo_1.mp3", duration: "45s" } },
+                    
+                    { id: "c_need_01", label: "故事需求: 變身啟程", group: 1, x: 0, y: 1.5, z: -0.5, details: { description: "南瓜車變出且出發去城堡" } },
+                    { id: "c_need_02", label: "故事需求: 宴會邂逅", group: 1, x: 0, y: -1.5, z: 0.5, details: { description: "王子與辛德瑞拉在舞廳跳舞" } },
+                    
+                    { id: "c_scene_01", label: "繪本畫面 1 (變身)", group: 2, x: 8, y: 1.5, z: -0.5, details: { asset: "c_asset_02", target: "c_need_01" } },
+                    { id: "c_scene_02", label: "繪本畫面 2 (舞會)", group: 2, x: 8, y: -1.5, z: 0.5, details: { asset: "c_asset_01", target: "c_need_02" } },
+                ],
+                links: [
+                    { source: "c_asset_02", target: "c_need_01" },
+                    { source: "c_asset_01", target: "c_need_02" },
+                    { source: "c_need_01", target: "c_scene_01" },
+                    { source: "c_need_02", target: "c_scene_02" },
+                ]
+            },
+            comic_5min_material_plan: {
+                stats: { raw: 15, needs: 12, mapped: 10, issues: 2 },
+                nodes: [
+                    { id: "m_asset_01", label: "分鏡 A1 (分格圖)", group: 0, x: -8, y: 1.5, z: 0, details: { type: "image", path: "manga_a1.png" } },
+                    { id: "m_asset_02", label: "對話框配音 B1", group: 0, x: -8, y: -1.5, z: 0, details: { type: "audio", path: "voice_b1.mp3" } },
+                    { id: "m_need_01", label: "需求: 第一格展示", group: 1, x: 0, y: 0, z: 0, details: { description: "對齊第一格的圖像與音軌" } },
+                    { id: "m_scene_01", label: "影格分鏡 1", group: 2, x: 8, y: 0, z: 0, details: { asset: "m_asset_01", target: "m_need_01" } },
+                ],
+                links: [
+                    { source: "m_asset_01", target: "m_need_01" },
+                    { source: "m_need_01", target: "m_scene_01" },
+                ]
+            }
+        };
+
+        // Three.js Scene Setup
+        let scene, camera, renderer, controls;
+        let nodeObjects = [];
+        let linkLines = [];
+        let labelSprites = [];
+        let starField;
+        let activeProject = "srp_real67_fuller_replay";
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let hoveredObject = null;
+        let selectedObject = null;
+        let isDarkTheme = false;
+
+        const container = document.getElementById("canvas-3d-container");
+        const tooltip = document.getElementById("hover-tooltip");
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            updateBackground();
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 20);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.innerHTML = "";
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.1; // Limit below floor
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 15, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Helper Grid
+            const gridHelper = new THREE.GridHelper(30, 30, 0x6366f1, 0xe2e8f0);
+            gridHelper.position.y = -4;
+            gridHelper.name = "gridHelper";
+            scene.add(gridHelper);
+
+            // Particle Starfield background
+            createStarField();
+
+            // Load Project Data
+            loadProject(activeProject);
+
+            // Event Listeners
+            window.addEventListener("resize", onWindowResize);
+            renderer.domElement.addEventListener("mousemove", onMouseMove);
+            renderer.domElement.addEventListener("click", onClick);
+            renderer.domElement.addEventListener("dblclick", onDoubleClick);
+
+            // Render loop
+            animate();
+        }
+
+        function updateBackground() {
+            if (isDarkTheme) {
+                scene.background = new THREE.Color(0x0b0f19);
+                scene.fog = new THREE.FogExp2(0x0b0f19, 0.015);
+            } else {
+                scene.background = new THREE.Color(0xf8fafc);
+                scene.fog = new THREE.FogExp2(0xf8fafc, 0.015);
+            }
+        }
+
+        function createStarField() {
+            if (starField) scene.remove(starField);
+
+            const starCount = 300;
+            const geom = new THREE.BufferGeometry();
+            const positions = new Float32Array(starCount * 3);
+
+            for (let i = 0; i < starCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 50;
+                positions[i + 1] = Math.random() * 20 - 5;
+                positions[i + 2] = (Math.random() - 0.5) * 50;
+            }
+
+            geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const mat = new THREE.PointsMaterial({
+                color: isDarkTheme ? 0x818cf8 : 0x6366f1,
+                size: 0.15,
+                transparent: true,
+                opacity: 0.6
+            });
+
+            starField = new THREE.Points(geom, mat);
+            scene.add(starField);
+        }
+
+        // Texture generator for Node Text Label Sprites
+        function createTextLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+
+            // Draw capsule background
+            ctx.fillStyle = isDarkTheme ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.roundRect(4, 4, canvas.width - 8, canvas.height - 8, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            // Text style
+            ctx.fillStyle = isDarkTheme ? '#f8fafc' : '#0f172a';
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text.length > 20 ? text.slice(0, 18) + "..." : text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(4, 1, 1);
+            return sprite;
+        }
+
+        function loadProject(projKey) {
+            // Clean up previous elements
+            nodeObjects.forEach(obj => scene.remove(obj));
+            nodeObjects = [];
+            linkLines.forEach(l => scene.remove(l));
+            linkLines = [];
+            labelSprites.forEach(s => scene.remove(s));
+            labelSprites = [];
+
+            const data = PROJECT_3D_MOCKS[projKey];
+            if (!data) return;
+
+            // Update stats panel
+            document.getElementById("val-raw-assets").textContent = data.stats.raw;
+            document.getElementById("val-needs").textContent = data.stats.needs;
+            document.getElementById("val-mapped").textContent = data.stats.mapped;
+            document.getElementById("val-issues").textContent = data.stats.issues;
+
+            // Create 3D Nodes
+            data.nodes.forEach(node => {
+                let geom;
+                // Shape differences based on Node Groups (0=Asset Cube, 1=Need Sphere, 2=Storyboard Octahedron)
+                if (node.group === 0) {
+                    geom = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                } else if (node.group === 1) {
+                    geom = new THREE.SphereGeometry(0.5, 32, 32);
+                } else {
+                    geom = new THREE.OctahedronGeometry(0.6);
+                }
+
+                // Material styling
+                const baseColor = node.group === 0 ? 0x6366f1 : node.group === 1 ? 0x0ea5e9 : 0x10b981;
+                const mat = new THREE.MeshStandardMaterial({
+                    color: baseColor,
+                    roughness: 0.2,
+                    metalness: 0.1,
+                    flatShading: true
+                });
+
+                const mesh = new THREE.Mesh(geom, mat);
+                mesh.position.set(node.x, node.y, node.z);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.userData = node;
+
+                scene.add(mesh);
+                nodeObjects.push(mesh);
+
+                // Add text label sprite slightly above the node
+                const sprite = createTextLabelSprite(node.label);
+                sprite.position.set(node.x, node.y + 0.8, node.z);
+                scene.add(sprite);
+                labelSprites.push(sprite);
+            });
+
+            // Create 3D link paths
+            if (document.getElementById("chk-show-connections").checked) {
+                data.links.forEach(lnk => {
+                    const srcNode = data.nodes.find(n => n.id === lnk.source);
+                    const tgtNode = data.nodes.find(n => n.id === lnk.target);
+                    if (srcNode && tgtNode) {
+                        // Curved path via QuadraticBezier
+                        const midPoint = new THREE.Vector3(
+                            (srcNode.x + tgtNode.x) / 2,
+                            (srcNode.y + tgtNode.y) / 2 + 1.2, // Curve upwards
+                            (srcNode.z + tgtNode.z) / 2
+                        );
+                        
+                        const curve = new THREE.QuadraticBezierCurve3(
+                            new THREE.Vector3(srcNode.x, srcNode.y, srcNode.z),
+                            midPoint,
+                            new THREE.Vector3(tgtNode.x, tgtNode.y, tgtNode.z)
+                        );
+
+                        const points = curve.getPoints(50);
+                        const geom = new THREE.BufferGeometry().setFromPoints(points);
+
+                        // Glowing Neon Line
+                        const mat = new THREE.LineBasicMaterial({
+                            color: isDarkTheme ? 0x818cf8 : 0x6366f1,
+                            linewidth: 2,
+                            transparent: true,
+                            opacity: 0.55
+                        });
+
+                        const line = new THREE.Line(geom, mat);
+                        scene.add(line);
+                        linkLines.push(line);
+                    }
+                });
+            }
+        }
+
+        // Raycasting Mouse Hover Interactions
+        function onMouseMove(event) {
+            event.preventDefault();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeObjects);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                if (hoveredObject !== object) {
+                    // Restore previous hover state
+                    if (hoveredObject) {
+                        hoveredObject.material.emissive.setHex(0x000000);
+                        hoveredObject.scale.set(1, 1, 1);
+                    }
+                    // Highlight new hovered node
+                    hoveredObject = object;
+                    hoveredObject.material.emissive.setHex(0x222222);
+                    hoveredObject.scale.set(1.15, 1.15, 1.15);
+
+                    // Show tooltip
+                    tooltip.style.display = "block";
+                    tooltip.textContent = hoveredObject.userData.label;
+                }
+                
+                // Position tooltip
+                tooltip.style.left = (event.clientX + 14) + "px";
+                tooltip.style.top = (event.clientY + 14) + "px";
+            } else {
+                if (hoveredObject) {
+                    hoveredObject.material.emissive.setHex(0x000000);
+                    hoveredObject.scale.set(1, 1, 1);
+                    hoveredObject = null;
+                }
+                tooltip.style.display = "none";
+            }
+        }
+
+        // Raycasting Select / Inspector Click
+        function onClick(event) {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeObjects);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                selectNode(object);
+            }
+        }
+
+        function selectNode(mesh) {
+            selectedObject = mesh;
+            const data = selectedObject.userData;
+
+            // Highlight node color slightly
+            nodeObjects.forEach(obj => {
+                obj.material.color.setHex(obj.userData.group === 0 ? 0x6366f1 : obj.userData.group === 1 ? 0x0ea5e9 : 0x10b981);
+            });
+            mesh.material.color.setHex(0xf59e0b); // Selection Gold
+
+            // Populate inspector details
+            const inspectorBody = document.getElementById("inspector-details");
+            let detailsHtml = `
+                <div class="detail-item-group">
+                    <div class="detail-lbl">節點識別 (ID)</div>
+                    <div class="detail-val mono" style="color:var(--primary); font-weight:700;">${data.id}</div>
+                </div>
+                <div class="detail-item-group">
+                    <div class="detail-lbl">資源名稱 / 描述</div>
+                    <div class="detail-val" style="font-weight:700; font-size:14px;">${data.label}</div>
+                </div>
+                <div class="detail-item-group">
+                    <div class="detail-lbl">分組層級 (Group)</div>
+                    <div class="detail-val">
+                        <span class="pill-badge">
+                            ${data.group === 0 ? '原始素材資源' : data.group === 1 ? '影片結構需求' : 'Storyboard 分段結果'}
+                        </span>
+                    </div>
+                </div>
+            `;
+
+            // Append dynamic attributes
+            if (data.details) {
+                Object.keys(data.details).forEach(key => {
+                    const label = {
+                        type: "媒體類型",
+                        path: "實體路徑",
+                        duration: "片段時長",
+                        resolution: "解析度",
+                        fps: "影格率",
+                        description: "企劃指示",
+                        status: "採用狀態",
+                        asset: "對應資源",
+                        target: "滿足需求",
+                        warning: "警告資訊"
+                    }[key] || key;
+
+                    detailsHtml += `
+                        <div class="detail-item-group">
+                            <div class="detail-lbl">${label}</div>
+                            <div class="detail-val ${key === 'path' || key === 'asset' || key === 'target' ? 'mono' : ''}" style="${key === 'warning' ? 'color:red; font-weight:700;' : ''}">${data.details[key]}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            inspectorBody.innerHTML = detailsHtml;
+            document.getElementById("inspector-title").querySelector("span").textContent = data.id;
+        }
+
+        // Camera focus on double click
+        function onDoubleClick() {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeObjects);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                const pos = object.position;
+                
+                // Simple linear tweening to camera position
+                let count = 0;
+                const steps = 30;
+                
+                const startCamPos = camera.position.clone();
+                const startTarget = controls.target.clone();
+                
+                const endCamPos = new THREE.Vector3(pos.x, pos.y + 2, pos.z + 6);
+                const endTarget = new THREE.Vector3(pos.x, pos.y, pos.z);
+
+                function smoothTween() {
+                    count++;
+                    const t = count / steps;
+                    
+                    camera.position.lerpVectors(startCamPos, endCamPos, t);
+                    controls.target.lerpVectors(startTarget, endTarget, t);
+                    controls.update();
+
+                    if (count < steps) {
+                        requestAnimationFrame(smoothTween);
+                    }
+                }
+                smoothTween();
+                selectNode(object);
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Orbit damping
+            controls.update();
+
+            // Auto rotation option
+            if (document.getElementById("chk-auto-rotate").checked) {
+                scene.rotation.y += 0.002;
+            } else {
+                scene.rotation.y = 0;
+            }
+
+            // Drifting particles animation
+            if (starField) {
+                starField.rotation.y += 0.0005;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Bind Setup UI event handlers
+        document.getElementById("btn-reset-camera").addEventListener("click", () => {
+            let count = 0;
+            const steps = 30;
+            const startCamPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const endCamPos = new THREE.Vector3(0, 5, 20);
+            const endTarget = new THREE.Vector3(0, 0, 0);
+
+            function smoothReset() {
+                count++;
+                const t = count / steps;
+                camera.position.lerpVectors(startCamPos, endCamPos, t);
+                controls.target.lerpVectors(startTarget, endTarget, t);
+                controls.update();
+                if (count < steps) requestAnimationFrame(smoothReset);
+            }
+            smoothReset();
+        });
+
+        // Theme toggle
+        document.getElementById("theme-toggler").addEventListener("click", () => {
+            isDarkTheme = !isDarkTheme;
+            document.body.classList.toggle("dark-theme", isDarkTheme);
+            document.getElementById("theme-toggler").textContent = isDarkTheme ? "☀️" : "🌙";
+            
+            updateBackground();
+            createStarField();
+            loadProject(activeProject); // Redraw canvas labels to match theme
+        });
+
+        // Project selector
+        document.getElementById("project-3d-select").addEventListener("change", (e) => {
+            activeProject = e.target.value;
+            loadProject(activeProject);
+        });
+
+        // Connection line toggler
+        document.getElementById("chk-show-connections").addEventListener("change", () => {
+            loadProject(activeProject);
+        });
+
+        // Grid toggler
+        document.getElementById("chk-show-grid").addEventListener("change", (e) => {
+            const grid = scene.getObjectByName("gridHelper");
+            if (grid) grid.visible = e.target.checked;
+        });
+
+        // Startup
+        init();
+    </script>
+</body>
+</html>

@@ -412,6 +412,17 @@ class EditArtifactsTest(unittest.TestCase):
         )
         self.assertEqual(anti["text_placement"], "lower_third")
 
+    def test_timeline_preserves_source_repeat_count(self):
+        timeline = ea.build_timeline_build([{
+            "segment": 1,
+            "source": "materials/reused.mp4",
+            "extract_start": 0.0,
+            "extract_dur": 2.0,
+            "source_repeat_count": 1,
+        }])
+
+        self.assertEqual(timeline["clips"][0]["source_repeat_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

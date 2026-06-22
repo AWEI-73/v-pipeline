@@ -1,15 +1,15 @@
----
-title: Hermes Video Pipeline — Canonical Roadmap
+﻿---
+title: Hermes Video Pipeline ??Canonical Roadmap
 type: project
 status: active
 updated: 2026-06-21
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
-# Hermes Video Pipeline — Canonical Roadmap
+# Hermes Video Pipeline ??Canonical Roadmap
 
 This file is now the **current-state roadmap and navigation index**. Long-form
-implementation history was moved out to `docs/roadmap-history/` so agents do not
+implementation history was moved out to `docs/archive/roadmap-history/` so agents do not
 confuse historical plans with active direction.
 
 Read order for agents:
@@ -87,7 +87,7 @@ Dashboard and Workbench are separate surfaces:
 Frontend references:
 
 - `docs/workbench-dashboard-integration.md`
-- `docs/decisions/2026-06-16-native-preview-engine.md`
+- `docs/archive/decisions/2026-06-16-native-preview-engine.md`
 - `dashboard/README.md`
 
 ## Active Direction
@@ -102,14 +102,14 @@ canonical artifacts, and stop at explicit gates instead of guessing.
 
 Decision:
 
-- `docs/decisions/2026-06-19-interactive-skill-flow.md`
+- `docs/archive/decisions/2026-06-19-interactive-skill-flow.md`
 
 Canonical entry:
 
 ```text
 video-pipeline
   -> Video Intent Planner / video-workflow when the request is vague
-  -> material availability split before story depth
+  -> input state / entry_path split before story depth
   -> story-soul-blueprint when story soul / narrative device is thin
   -> material-map when material truth, coverage, delta, or handoff is needed
   -> generated-material-producer when missing material may be generated
@@ -119,15 +119,20 @@ video-pipeline
 Rules:
 
 - This is process solidification, not template solidification.
-- Stage 0 now explicitly decides `material availability` before deeper story
-  work:
-  - `existing-material-first`: run material-map early; existing media is the
-    story source and constraint. For teaching and personal video routes,
-    generation is fallback only.
-  - `story-first`: no usable material exists, or the route is explicitly
-    generated/storybook; story/design intent leads before material generation.
-  - `hybrid`: some real material exists and missing beats route through
-    material-delta, generation/reshoot/rewrite/drop/waiver decisions.
+- Stage 0 now explicitly decides `input_state` and `entry_path` before deeper
+  story work:
+  - `material-first`: existing or partial material exists. Run material-map
+    early; existing media is the story source and constraint. For teaching and
+    personal video routes, generation is fallback only.
+  - `structure-first`: no usable material exists, but text, article, outline,
+    script, story, or a developed idea exists. Story/design intent leads before
+    material generation.
+  - `needs-context`: the brief is too vague to choose a handoff; ask focused
+    questions first.
+  - Legacy aliases remain for compatibility: `existing-material-first` maps to
+    `material-first`, `story-first` maps to `structure-first`, and hybrid is not
+    a primary Stage 0 entry path. Partial material enters `material-first`, then
+    material-delta decides generation/reshoot/rewrite/drop/waiver.
 - `storyboard_panel_locked=true` applies to comic/photo/storybook/panel
   narration; stretch the panel or generate more panels instead of auto-filling
   unrelated panels.
@@ -147,6 +152,9 @@ Source of this queue:
 - real E2E findings around black/cut windows, generated-material review depth,
   story-blueprint thinness, Workbench edit limits, and Remotion effect adapter
   boundaries.
+- integrated 2026-06-22 E2E review across generated/material-map and
+  Pexels/stock-first runs:
+  `docs/construction-guides/agent-orchestration/2026-06-22-integrated-e2e-review-action-plan.md`.
 
 Each increment must follow the same closure loop:
 
@@ -170,6 +178,31 @@ Ordered increments:
 | 4 | Story Soul / Director Shot Plan template thickness | Technically valid videos can still lack narrative soul if the blueprint behaves like a parameter sheet. | **Complete 2026-06-20; BUILD passthrough/ranking hardened 2026-06-20; effectiveness reporting hardened 2026-06-20; zero-flip diagnosis split 2026-06-21.** Story Soul beats carry `conflict_or_turn`, `sensory_anchor`, `intended_viewer_feeling`, and `emotional_movement`; `compile_contract` now preserves film-level `story_soul.narrative_device` and beat-level soul fields into `segment.core`; `director_intent.material_prompt_requirements` reaches `material_fit`. BUILD `rank_scenes` consumes these as soft `soul` evidence only after need/text/function/pace has admitted a candidate. The 67th fuller replay now reports `bsa1_soul_selection` on/off flip count and distinguishes `soul_intent_empty`, `material_semantics_too_thin`, and `no_tie_opportunity`; the current 67th planning-only replay is 12 comparable segments / 0 flips / 0 positive-soul segments / 12 tie groups with `diagnosis=soul_intent_empty`, so a real 67th soul acceptance must start from a story-soul blueprint before testing scene-ingest semantics. |
 | 5 | Workbench replace/insert material patch | Workbench can adjust timing/windows, but practical review needs bounded material replacement/insertion without making Workbench canonical truth. | **Complete 2026-06-20.** `replace_clip` already existed; `insert_clip` is now supported in `timeline_patch` and Workbench core as draft-only material-map-resolved ops. Validation blocks bad asset/scene/position/duration, patched drafts never overwrite canonical timeline/material truth, and JS/Python focused tests are green. |
 | 6 | Remotion effect adapter E2E | Effects should support prompt-driven rich visuals, but Remotion must remain an adapter/draft route until reviewed. | **Complete 2026-06-20.** The E2E now proves effect revision request -> Remotion prompt pack -> worker smoke outputs -> pending review -> accepted review -> non-canonical composite draft, keeps `final.mp4` untouched, and surfaces `next_action: workbench_review_remotion_composite_draft`. |
+
+### E2E Review Hardening Queue
+
+Status: active from 2026-06-22 integrated review.
+
+Source:
+
+- `docs/construction-guides/agent-orchestration/2026-06-22-integrated-e2e-review-action-plan.md`
+- Generated/material-map evidence:
+  `fairy-tale-short\runs\20260622-085316-baseline`
+- Pexels/stock-first evidence:
+  `city-dawn-doc\runs\20260622-094200-run-auto`
+
+Priority:
+
+| Order | Increment | Why now | Minimum acceptance |
+|---|---|---|---|
+| EH1 | Brief target-length gate | A 180s target can currently pass as a roughly 48s cut because duration checks compare relative TTS alignment, not the brief target. | Spec review warns or blocks large estimated-duration mismatch unless there is an explicit waiver. |
+| EH2 | Node/phase runner protocol + long-execution ownership | Both Gemini/Antigravity and Claude runs showed monolithic subagent fragility; long renders must not be owned by short-lived worker context. | Runner docs/task packets require parent orchestration, bounded worker scope, artifact handoff, and parent/dedicated ownership for long render jobs. |
+| EH3 | Rerun repeat-state guard | Re-running the same node/action/artifact state can burn tokens without changing pipeline truth. | Repeated `rerun --node` on the same blocking digest stops with a compact summary and explicit next action. |
+| EH4 | Generated-material quality and duplicate gate | The generated route accepted 60 low-score images with large exact duplicate groups, allowing quantity to masquerade as coverage. | Failed generated quality cannot be accepted without waiver; duplicate generated assets do not satisfy multi-panel material needs. |
+| EH5 | Material truth precedence | Generated/material-map route can produce a final while dashboard/runtime still shows `await_material` from stale coverage evidence. | Build-ready `material_delta` + lifecycle state cannot be overridden by stale legacy coverage gaps; quality failures route to material-quality/regeneration actions. |
+| EH6 | Final QA semantic/readability dimensions | Current verify can pass technical checks while subtitles are clipped or selected footage is off-topic. | Final QA/dashboard surfaces target fit, subtitle readability, and VLM/content-alignment findings. |
+| EH7 | Canonical render completion semantics | Legacy render path can produce a valid final but leave canonical Node 8-11 artifacts missing. | A successful route reaches `complete_review_final` without manual dry-build backfill, or the route explicitly declares why those artifacts are required. |
+| EH8 | Runtime progress heartbeat | Operators currently infer progress from file mtimes during long loops. | Nodes and long segment loops emit compact stdout heartbeat lines. |
 
 ### Next Strategic Work: Creative Blueprint / Story Soul Layer
 
@@ -197,25 +230,26 @@ Target first increment:
 - `SSB1 Story Soul Blueprint Skill`
 - Design reference: `docs/story-soul-blueprint-skills.md`
 
-### VIP Video Intent Planner — Upstream Role Generalization
+### VIP Video Intent Planner ??Upstream Role Generalization
 
 Status: design accepted 2026-06-21
-(`docs/decisions/2026-06-21-video-intent-material-availability-split.md`). Stage 0
-material-availability split is solidified in commit `9fea4f3`. The per-type
-planners below are planned, not yet built.
+(`docs/archive/decisions/2026-06-21-vip0-video-intent-planner-artifact.md`). Stage 0
+input-state / entry-path split is solidified in VIP0. The per-type planners
+below are planned, not yet built.
 
-Problem: the most upstream role is still story-centric — `story-soul-blueprint`
+Problem: the most upstream role is still story-centric ??`story-soul-blueprint`
 assumes a narrative/fiction author. Real requests are broader (teaching cuts,
 event recaps, personal memory films, brand shorts). The upstream role should be a
 **video intent planner / narrative-intent designer**, not always a fiction
 writer, and should branch to a type-appropriate planner.
 
-This generalizes — does not replace — the pipeline. Everything below the planner
+This generalizes ??does not replace ??the pipeline. Everything below the planner
 is unchanged:
 
 ```text
 video-intent-planner
-  -> material availability (existing-material-first | story-first | hybrid)   [done: 9fea4f3]
+  -> input_state (material_available | text_available | idea_only | unknown)
+  -> entry_path (material-first | structure-first | needs-context)
   -> video type detection
   -> type-specific planner (story | teaching | memory | event | brand | ...)
   -> material_needs
@@ -224,9 +258,9 @@ video-intent-planner
 
 Two intake sources (both already named in the design):
 
-1. facts extracted from material — who appears, which scenes, which actions,
+1. facts extracted from material ??who appears, which scenes, which actions,
    which events, what usable emotion/shots exist.
-2. interactive supplement — who these people are, what matters most, for whom,
+2. interactive supplement ??who these people are, what matters most, for whom,
    intended effect (move | teach | commemorate | sell | persuade), what must
    not be used.
 
@@ -234,7 +268,7 @@ Video type detection (Stage 0.5, after availability):
 `storybook | teaching | personal-memory | graduation-event | brand-product |
 documentary | music-video`.
 
-Per-type planner outputs — each is a bounded skill; only the story branch exists
+Per-type planner outputs ??each is a bounded skill; only the story branch exists
 today:
 
 | Type | Planner skill | Produces | Built |
@@ -244,22 +278,31 @@ today:
 | personal-memory | `memory-story-planner` (new) | people & relationships, key events, timeline, memory anchors, intended feeling | no |
 | graduation / event | `event-recap-planner` (new) | training journey, shared memories, representative sessions, climax, departure/completion feel | no |
 | brand / product | `brand-short-planner` (later) | message, audience, value prop, proof points, CTA | no |
-| documentary / music-video | (later) | — | no |
+| documentary / music-video | (later) | ??| no |
 
-Bounded increments — build in route priority, not all at once:
+Bounded increments ??build in route priority, not all at once:
 
-- **VIP0 Naming + entry skill.** Add `video-intent-planner` (a.k.a.
-  `video-brief-interview`) as the named upstream skill that runs availability +
-  type detection and dispatches. Keep `story-soul-blueprint` for the story
-  branch. Acceptance: route-acceptance harness asserts the planner asks purpose /
-  audience / material availability / type and dispatches to the correct branch;
-  existing story route stays green.
+- **VIP0 Naming + entry skill.** **Implemented 2026-06-21.** Add
+  `video-intent-planner` (a.k.a. `video-brief-interview`) as the named upstream
+  skill that runs input-state + type detection and dispatches. It writes the
+  canonical Stage 0 `video_intent.json` through
+  `python video_tools.py video-intent-plan project_brief.json --out video_intent.json`.
+  Keep `story-soul-blueprint` for the story branch. Acceptance: focused tests
+  cover material-first teaching, structure-first children story, partial-material
+  graduation/event entering material-first instead of a Stage 0 hybrid route,
+  missing-info follow-up questions, command catalog, and route task packet
+  allowed outputs. Follow-up hardening wires `video_intent.json` into run layout
+  orchestration artifacts, adds `video-intent-acceptance`, proves a real
+  route-task Stage 0 round trip, and documents `project_brief.json` / `brief.json`
+  as raw input, `video_intent.json` as canonical Stage 0 decision, and
+  `route_decision.json` as legacy/compat. This does not start VIP1/VIP2
+  templates.
 - **VIP1 teaching-structure-planner.** First non-fiction planner (teaching is
   route-2 priority, structurally stable). Acceptance: a teaching brief + screen
   recordings produce `material_needs` with chapter order + key points, routed
   existing-material-first, generation not defaulted; one real teaching-case E2E.
 - **VIP2 event-recap-planner.** The graduation/67th route. Acceptance: wired into
-  the 67th harness so `soul_intent_segments` goes 0 -> N — this closes the
+  the 67th harness so `soul_intent_segments` goes 0 -> N ??this closes the
   `soul_intent_empty` diagnosis recorded in the Quality Stabilization row 4.
 - **VIP3 memory-story-planner.** Personal video. Deferred until teaching + event
   prove the non-fiction planner pattern.
@@ -275,7 +318,7 @@ Discipline / boundaries (from the decision doc and review session):
 - A type is not "shipped" until its reference / skill / prompt is written to the
   same spec quality as `story-soul-blueprint`.
 
-### Open Threads — 2026-06-20/21 Review Session
+### Open Threads ??2026-06-20/21 Review Session
 
 Captured so they are not lost; not yet scheduled increments.
 
@@ -292,7 +335,7 @@ Captured so they are not lost; not yet scheduled increments.
 - **Effect preview spec-sync.** One canonical preset -> visual-parameter table
   consumed by both `buildEffectPreviewStyle` (JS preview) and the Remotion render
   path, so the monitor preview matches the final render. Ref:
-  `docs/decisions/2026-06-20-effect-preview-drift-review.md`.
+  `docs/archive/decisions/2026-06-20-effect-preview-drift-review.md`.
 - **SPEC / node convergence (evidence-led).** Before consolidating SPEC or
   upstream nodes, identify which gates/audits have never changed an output (empty
   `findings` across `.tmp` runs) and which upstream nodes never produce a distinct
@@ -320,7 +363,7 @@ story intent
 
 Evidence:
 
-- `docs/decisions/2026-06-20-snow-white-generated-storybook-e2e.md`
+- `docs/archive/decisions/2026-06-20-snow-white-generated-storybook-e2e.md`
 - `.tmp/snow_white_storybook_e2e/final_snow_white_zh.mp4` generated during
   validation: 18 panels, 270.134s, 18/18 material coverage, verify pass.
 
@@ -419,7 +462,7 @@ Boundary:
   artifact shape and minimum story logic; it is not a substitute for a human or
   high-end writer model improving the prose.
 
-### SSB1→GMP End-To-End Acceptance
+### SSB1?MP End-To-End Acceptance
 
 Status: implemented / accepted for contract-chain proof.
 
@@ -716,7 +759,7 @@ Acceptance harness update:
 - Post-generation delta: `thin=2`.
 - Post-review delta: `covered=2`, `thin=0`.
 
-## Next Phase — Effects / Brownfield Edit / Node14
+## Next Phase ??Effects / Brownfield Edit / Node14
 
 Status: active next development direction.
 
@@ -726,7 +769,7 @@ stable enough. This is not a switch to a Remotion final renderer.
 
 Canonical decision:
 
-- `docs/decisions/2026-06-19-effects-node14-roadmap-alignment.md`
+- `docs/archive/decisions/2026-06-19-effects-node14-roadmap-alignment.md`
 
 Current proven foundation:
 
@@ -973,22 +1016,22 @@ Deferred inside effects:
 - automatic Remotion output promotion into canonical delivery without review;
 - full Audio Graph V2.
 
-## Stable Foundations — Do Not Reopen Without Evidence
+## Stable Foundations ??Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:
 
 - M6 material-map lifecycle and gate: `docs/material-map-lifecycle.md`
 - Native preview / Workbench draft layer:
-  `docs/decisions/2026-06-16-native-preview-engine.md`
+  `docs/archive/decisions/2026-06-16-native-preview-engine.md`
 - Dashboard/Workbench integration:
   `docs/workbench-dashboard-integration.md`
 - Tool/run layout consolidation:
   `docs/repository-consolidation-map.md`,
-  `docs/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md`
+  `docs/archive/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md`
 - Effects baseline and current gap reporting:
-  `docs/decisions/2026-06-11-effects-baseline-and-recipe-order.md`
+  `docs/archive/decisions/2026-06-11-effects-baseline-and-recipe-order.md`
 - Working loop and TDD evidence rules:
-  `docs/decisions/2026-06-14-working-loop-and-tdd-evidence.md`
+  `docs/archive/decisions/2026-06-14-working-loop-and-tdd-evidence.md`
 
 ## Deferred / Later
 
@@ -1006,7 +1049,7 @@ These remain intentionally deferred until a concrete run proves they are needed:
 
 The previous long-form roadmap was archived losslessly here:
 
-- `docs/roadmap-history/2026-06-18-roadmap-pre-split.md`
+- `docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`
 
 Use it for evidence only. It contains historical sections for:
 

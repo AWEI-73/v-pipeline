@@ -52,8 +52,8 @@ class VisualAuditModelTest(unittest.TestCase):
         self.assertTrue(seen.get("called"))
         mr = result["model_review"]
         self.assertIsNotNone(mr)
-        self.assertEqual(mr["provider"], "ollama")
-        self.assertEqual(mr["model"], "qwen3-vl:4b-instruct")
+        self.assertEqual(mr["provider"], "agent")
+        self.assertEqual(mr["model"], "codex_or_hermes")
         self.assertEqual(mr["findings"], [])
         self.assertTrue(result["pass"])
 

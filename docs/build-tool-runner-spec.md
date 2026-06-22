@@ -121,8 +121,9 @@ Rules:
   provider runner is added.
 - ComfyUI remains deprecated/disabled unless explicitly requested as an isolated
   experiment.
-- `model_routes.json` keeps `qwen3-vl:4b-instruct` as the default VLM route for
-  gate, content QA, and retry.
+- `model_routes.json` keeps visual judgment roles (`video_understanding`,
+  `verify_vlm`, `content_qa`) on the agent/cloud route by default. Local
+  Ollama/qwen is legacy opt-in only and must not be the default gate.
 
 ## Implementation Priorities
 

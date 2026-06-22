@@ -87,6 +87,26 @@ def load_dashboard_state(workdir):
         except Exception:
             return None
 
+    def artifact_path(filename):
+        if not filename:
+            return None
+        p = filename if os.path.isabs(str(filename)) else os.path.join(workdir, str(filename))
+        if os.path.exists(p):
+            return p
+        p2 = os.path.join(workdir, os.path.basename(str(filename)))
+        return p2 if os.path.exists(p2) else None
+
+    def json_artifact_invalid(filename):
+        p = artifact_path(filename)
+        if not p or not os.path.exists(p):
+            return False
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                json.load(f)
+            return False
+        except Exception:
+            return True
+
     manifest = safe_load_json("artifact_manifest.json")
     
     # If manifest doesn't exist, we build a fallback manifest from folder scanning
@@ -136,11 +156,20 @@ def load_dashboard_state(workdir):
                     manifest["editorial_qa"] = f
                 elif f == "presentation_feel_audit.json":
                     manifest["presentation_feel_audit"] = f
+                elif f == "material_delta.json":
+                    manifest["material_delta"] = f
+                elif f == "material_map_lifecycle.json":
+                    manifest["material_map_lifecycle"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
     contract_data = safe_load_json(manifest.get("canonical_contract")) or safe_load_json("segment_contract.json")
     material_coverage = safe_load_json(manifest.get("material_coverage_map")) or safe_load_json("material_coverage_map.json")
+    material_delta = safe_load_json(manifest.get("material_delta")) or safe_load_json("material_delta.json")
+    material_map_lifecycle = (
+        safe_load_json(manifest.get("material_map_lifecycle"))
+        or safe_load_json("material_map_lifecycle.json")
+    )
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
     gen_requests = safe_load_json(manifest.get("generated_asset_requests")) or safe_load_json("generated_asset_requests.json")
@@ -276,6 +305,15 @@ def load_dashboard_state(workdir):
 
     findings = []
     node_list = []
+    timeline_build_ref = manifest.get("timeline_build") or "timeline_build.json"
+    timeline_build_invalid = json_artifact_invalid(timeline_build_ref)
+    if timeline_build_invalid:
+        findings.append({
+            "type": "error",
+            "node": 10,
+            "artifact": "timeline_build",
+            "message": "timeline_build.json is invalid JSON and cannot be used as a canonical BUILD artifact",
+        })
 
     # Determine effects requirements first
     effects_required = False
@@ -424,6 +462,13 @@ def load_dashboard_state(workdir):
     # SPEC contradicts itself or will silently lose content — surface them so the
     # run never quietly proceeds past a not-ready SPEC.
     spec_review_data = safe_load_json("spec_review.json")
+    state_next_action = state_data.get("next_action") if isinstance(state_data, dict) else None
+    stale_spec_review_state = (
+        state_next_action == "revise:director(spec_review)"
+        and isinstance(spec_review_data, dict)
+        and spec_review_data.get("ready_for_build", True) is True
+        and not (spec_review_data.get("blocking") or [])
+    )
     if spec_review_data and not spec_review_data.get("ready_for_build", True):
         for b in (spec_review_data.get("blocking") or [])[:6]:
             findings.append({
@@ -462,9 +507,13 @@ def load_dashboard_state(workdir):
 
     # Normalize next_action
     next_action = None
-    if verify_result and verify_result.get("pass") is False:
+    if timeline_build_invalid:
+        next_action = "fix_timeline_or_assembly"
+        is_pass = False
+    elif verify_result and verify_result.get("pass") is False:
         next_action = "verify_failed"
-    elif state_data and state_data.get("next_action"):
+    elif (state_data and state_data.get("next_action") and not stale_spec_review_state
+          and not (final_exists and verify_result and verify_result.get("pass") is True)):
         next_action = state_data.get("next_action")
     elif editor_review and editor_review.get("decision") in ("rerender", "block", "human_review"):
         dec = editor_review.get("decision")
@@ -484,17 +533,19 @@ def load_dashboard_state(workdir):
         })
     else:
         # Check required missing nodes
-        required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, "10.5", 11, 13, 12]
-        if effects_required:
-            required_nodes_keys.append(14)
-            
-        missing_node = None
-        for n in node_list:
-            if n["node"] in required_nodes_keys and n["status"] == "missing":
-                missing_node = n
-                break
-        if missing_node:
-            next_action = f"missing_artifact:{missing_node['artifact']}"
+        verified_final = bool(final_exists and verify_result and verify_result.get("pass") is True)
+        if not verified_final:
+            required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, "10.5", 11, 13, 12]
+            if effects_required:
+                required_nodes_keys.append(14)
+                
+            missing_node = None
+            for n in node_list:
+                if n["node"] in required_nodes_keys and n["status"] == "missing":
+                    missing_node = n
+                    break
+            if missing_node:
+                next_action = f"missing_artifact:{missing_node['artifact']}"
 
     if next_action == "missing_artifact:final.mp4":
         if profile_data and isinstance(profile_data, dict) and profile_data.get("render_backend") == "capcut_draft":
@@ -510,7 +561,10 @@ def load_dashboard_state(workdir):
     delivery_gate = evaluate_delivery_gate({
         **audit_data,
         "verify_result": verify_result,
+        "timeline_build": timeline_build,
         "material_coverage": material_coverage,
+        "material_delta": material_delta,
+        "material_map_lifecycle": material_map_lifecycle,
     })
     if not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
@@ -529,7 +583,7 @@ def load_dashboard_state(workdir):
             next_action = "complete_review_final"
 
     # Compile findings from verify result and state
-    if state_data and state_data.get("blocking"):
+    if state_data and state_data.get("blocking") and not stale_spec_review_state:
         for b in state_data.get("blocking", []):
             findings.append({
                 "type": "error",

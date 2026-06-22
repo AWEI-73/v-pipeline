@@ -152,8 +152,17 @@ def _scene_by_id(material_maps, scene_id):
     return None
 
 
+def _source_counts(history):
+    counts = {}
+    for prev in history or []:
+        source = prev.get("source") if isinstance(prev, dict) else None
+        if source:
+            counts[source] = counts.get(source, 0) + 1
+    return counts
+
+
 def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
-                                 diversity=True):
+                                 diversity=True, max_source_repeats=None):
     """Select scenes from ranked list with diversity preference within same score
     tiers. `diversity=False` (VD2 off / acceptance baseline) skips the same-tier
     family/scale reorder and the cross-segment history, taking the strict
@@ -196,6 +205,13 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
     selected = []
     used_families = set()
     last_scale = None
+    source_counts = _source_counts(history)
+    try:
+        source_cap = int(max_source_repeats) if max_source_repeats is not None else None
+    except (TypeError, ValueError):
+        source_cap = None
+    if source_cap is not None and source_cap <= 0:
+        source_cap = None
 
     if history:
         for prev in history:
@@ -211,7 +227,14 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             break
         while tier and len(selected) < limit:
             scored_candidates = []
+            under_source_cap = [
+                c for c in tier
+                if source_cap is None or source_counts.get(c.get("source"), 0) < source_cap
+            ]
+            tier_pool = under_source_cap or tier
             for c in tier:
+                if c not in tier_pool:
+                    continue
                 vf = c.get("visual_family")
                 if vf:
                     family_priority = 1 if vf not in used_families else -1
@@ -251,7 +274,11 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
 
             c_copy = dict(best_candidate)
             c_copy["diversity_selection_reason"] = best_reason
+            source = best_candidate.get("source")
+            c_copy["source_repeat_count"] = source_counts.get(source, 0) if source else 0
             selected.append(c_copy)
+            if source:
+                source_counts[source] = source_counts.get(source, 0) + 1
             tier.remove(best_candidate)
 
     return selected
@@ -300,7 +327,8 @@ def _window_quality_reason(scene, start, dur):
 
 
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
-                        history=None, diversity=True, soul_ranking=True):
+                        history=None, diversity=True, soul_ranking=True,
+                        max_source_repeats=None):
     """Convert top-ranked scenes to concrete editor slots. `diversity=False`
     disables the VD2 same-tier diversity reorder (correctness order only)."""
     from .action_progression import classify_function
@@ -311,7 +339,8 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
     # lower-ranked usable scenes instead of letting a bad top window consume the
     # caller's limit.
     selected = select_diverse_ranked_scenes(ranked, material_maps, len(ranked),
-                                            history=history, diversity=diversity)
+                                            history=history, diversity=diversity,
+                                            max_source_repeats=max_source_repeats)
 
     slots = []
     fallback_slots = []
@@ -361,6 +390,7 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "visual_family": item.get("visual_family"),
             "angle_scale": item.get("angle_scale"),
             "diversity_selection_reason": item.get("diversity_selection_reason", "default"),
+            "source_repeat_count": item.get("source_repeat_count", 0),
             "window_quality_reason": quality_reason,
         }
         if is_photo:

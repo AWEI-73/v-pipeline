@@ -107,6 +107,15 @@ class TestCompileContract(unittest.TestCase):
         self.assertEqual(by["B1"]["pacing"]["preferred_shot_sec"], [4, 8])
         self.assertEqual(by["B3"]["visual_style"]["pace"], "hold")
 
+    def test_action_with_items_gets_multishot_material_treatment(self):
+        decisions = _decisions()
+        decisions["B2"]["items"] = ["start", "middle", "peak"]
+        c = b2c.compile_contract(_bp(), decisions)
+        by = {s["core"]["blueprint_ref"]: s for s in c["segments"]}
+
+        self.assertEqual(by["B2"]["material_treatment"]["treatment"], "stepped_sequence")
+        self.assertEqual(by["B2"]["material_treatment"]["steps"], ["start", "middle", "peak"])
+
     def test_honesty_guard_trace(self):
         by = {s["core"]["blueprint_ref"]: s for s in self.segs}
         self.assertEqual(by["B3"]["_honesty"], "real_material_only")
@@ -151,6 +160,47 @@ class TestCompileContract(unittest.TestCase):
 
         v = spec_contract.validate_segment_contract(c)
         self.assertTrue(v["ok"], v.get("errors"))
+
+    def test_decision_need_refs_round_trip_to_material_fit(self):
+        decisions = _decisions()
+        decisions["B1"]["need_refs"] = ["nd_setup"]
+        decisions["B2"]["need_ref"] = "nd_peak"
+
+        c = b2c.compile_contract(_bp(), decisions)
+        by = {s["core"]["blueprint_ref"]: s for s in c["segments"]}
+
+        self.assertEqual(by["B1"]["material_fit"]["need_refs"], ["nd_setup"])
+        self.assertEqual(by["B2"]["material_fit"]["need_refs"], ["nd_peak"])
+
+        v = spec_contract.validate_segment_contract(c)
+        self.assertTrue(v["ok"], v.get("errors"))
+
+    def test_material_needs_map_to_segments_by_beat_order_when_decision_has_no_refs(self):
+        material_needs = {
+            "artifact_role": "material_needs",
+            "version": 1,
+            "needs": [
+                {"need_id": "nd_setup"},
+                {"need_id": "nd_peak"},
+                {"need_id": "nd_resolve"},
+            ],
+        }
+
+        c = b2c.compile_contract(_bp(), _decisions(), material_needs=material_needs)
+        refs = [s["material_fit"]["need_refs"] for s in c["segments"]]
+
+        self.assertEqual(refs, [["nd_setup"], ["nd_peak"], ["nd_resolve"]])
+
+    def test_decision_need_refs_override_material_needs_order_mapping(self):
+        material_needs = {"needs": [{"need_id": "nd_setup"}, {"need_id": "nd_peak"}, {"need_id": "nd_resolve"}]}
+        decisions = _decisions()
+        decisions["B2"]["need_refs"] = ["nd_custom"]
+
+        c = b2c.compile_contract(_bp(), decisions, material_needs=material_needs)
+        by = {s["core"]["blueprint_ref"]: s for s in c["segments"]}
+
+        self.assertEqual(by["B1"]["material_fit"]["need_refs"], ["nd_setup"])
+        self.assertEqual(by["B2"]["material_fit"]["need_refs"], ["nd_custom"])
 
 
 if __name__ == "__main__":

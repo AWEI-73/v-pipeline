@@ -10,7 +10,7 @@ def read(rel: str) -> str:
 
 
 class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
-    def test_canonical_intake_declares_material_availability_split(self):
+    def test_canonical_intake_declares_input_state_entry_paths(self):
         for rel in [
             "docs/START_HERE_VIDEO_PIPELINE.md",
             "docs/canonical-video-pipeline-route.md",
@@ -20,10 +20,11 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
         ]:
             text = read(rel)
             for expected in [
-                "material availability",
-                "existing-material-first",
-                "story-first",
-                "hybrid",
+                "input state",
+                "entry_path",
+                "material-first",
+                "structure-first",
+                "hybrid is not a primary Stage 0 entry path",
                 "generation is fallback",
                 "teaching",
                 "personal video",
@@ -43,8 +44,8 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
 
         canonical = read("docs/canonical-video-pipeline-route.md")
         self.assertIn("| 0 | Video Intent Planner", canonical)
-        self.assertIn("script-first` is a legacy alias for `story-first`", canonical)
-        self.assertIn("material-first` is a legacy alias for `existing-material-first`", canonical)
+        self.assertIn("`existing-material-first` maps to `material-first`", canonical)
+        self.assertIn("`story-first` maps to `structure-first`", canonical)
 
     def test_existing_material_storybook_route_requires_early_map_not_auto_generation(self):
         start = read("docs/START_HERE_VIDEO_PIPELINE.md")

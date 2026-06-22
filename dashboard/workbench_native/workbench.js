@@ -101,7 +101,7 @@
         loadProxies();
       })
       .catch(function (err) {
-        els.diagnostics.textContent = "Failed to load preview_timeline: " + err;
+        els.diagnostics.textContent = "載入 preview_timeline 失敗：" + err;
       });
   }
 
@@ -139,7 +139,7 @@
 
   function renderEffectAssetSelect() {
     if (!els.effect_asset_select) return;
-    els.effect_asset_select.innerHTML = '<option value="">preset only</option>';
+    els.effect_asset_select.innerHTML = '<option value="">僅使用預設</option>';
     state.effectAssets.forEach(function (asset) {
       var opt = document.createElement("option");
       opt.value = asset.asset_id;
@@ -157,7 +157,7 @@
     var families = materialFamilies();
     var current = els.asset_family_filter ? els.asset_family_filter.value : "";
     if (els.asset_family_filter) {
-      els.asset_family_filter.innerHTML = '<option value="">all families</option>';
+      els.asset_family_filter.innerHTML = '<option value="">全部類型</option>';
       families.forEach(function (fam) {
         var opt = document.createElement("option");
         opt.value = fam;
@@ -175,7 +175,7 @@
     });
 
     if (els.material_map_summary) {
-      els.material_map_summary.textContent = assets.length + "/" + state.materialAssets.length + " assets";
+      els.material_map_summary.textContent = assets.length + "/" + state.materialAssets.length + " 個素材";
     }
     els.material_assets_list.innerHTML = "";
     assets.forEach(function (a) {
@@ -189,7 +189,7 @@
         thumb.alt = "";
       } else {
         thumb = document.createElement("div");
-        thumb.textContent = preview.label || "ASSET";
+        thumb.textContent = preview.label || "素材";
       }
       thumb.className = "material-thumb material-thumb-" + preview.kind;
       var body = document.createElement("div");
@@ -199,17 +199,17 @@
       var meta = document.createElement("div");
       meta.className = "material-meta";
       meta.textContent = [
-        a.asset_type || "asset",
-        a.visual_family || "no-family",
-        a.angle_scale || "no-angle",
-        (a.scene_count || 0) + " scene(s)",
+        a.asset_type || "素材",
+        a.visual_family || "未分類",
+        a.angle_scale || "未標角度",
+        (a.scene_count || 0) + " 個場景",
       ].join(" · ");
       body.appendChild(title);
       body.appendChild(meta);
       card.appendChild(thumb);
       card.appendChild(body);
       card.draggable = true;
-      card.title = "Drag onto a timeline clip, or double-click after selecting a clip, to replace material.";
+      card.title = "拖曳到時間軸片段，或先選片段後雙擊素材，即可替換。";
       card.ondragstart = function (ev) {
         state.selectedAssetId = a.asset_id;
         ev.dataTransfer.setData("application/x-hermes-asset-id", a.asset_id);
@@ -219,13 +219,13 @@
       };
       card.onclick = function () {
         state.selectedAssetId = a.asset_id;
-        els.diagnostics.textContent = "Selected material asset " + a.asset_id + " (ready to replace selected clip)";
+        els.diagnostics.textContent = "已選擇素材 " + a.asset_id + "，可替換目前選取片段。";
         renderMaterialBrowser();
       };
       card.ondblclick = function () {
         state.selectedAssetId = a.asset_id;
         if (state.selectedSlot == null) {
-          els.diagnostics.textContent = "Select a timeline clip, then double-click material to replace";
+          els.diagnostics.textContent = "請先選擇時間軸片段，再雙擊素材替換。";
           renderMaterialBrowser();
           return;
         }
@@ -398,7 +398,7 @@
     ["left", "right"].forEach(function (edge) {
       var h = document.createElement("span");
       h.className = "trim-handle trim-" + edge;
-      h.title = edge === "left" ? "Trim clip head" : "Trim clip tail";
+      h.title = edge === "left" ? "修剪片段開頭" : "修剪片段結尾";
       h.onpointerdown = function (ev) {
         beginTrimDrag(ev, clip.slot_index, edge);
       };
@@ -442,7 +442,7 @@
     );
     state.work = next;
     if (next._trim_clamped) {
-      els.diagnostics.textContent = "Trim clamped at the approved source window; use material replacement for more footage.";
+      els.diagnostics.textContent = "修剪已限制在核准的來源範圍內；若需要更多畫面，請改用素材替換。";
     }
     renderTimelineLanes();
     renderMonitor();
@@ -487,7 +487,7 @@
         img.src = clip.src_url || "";
         img.setAttribute("data-slot", String(clip.slot_index));
       }
-      els.stage_meta.textContent = "IMG #" + clip.slot_index + " · still " + clip.duration_sec.toFixed(2) + "s";
+      els.stage_meta.textContent = "圖片 #" + clip.slot_index + " / 靜態 " + clip.duration_sec.toFixed(2) + "s";
     } else {
       img.hidden = true;
       empty.hidden = true;
@@ -576,7 +576,7 @@
     }, track || {});
     if (!track || !track.src_url) {
       aud.pause();
-      if (els.audio_status) els.audio_status.textContent = "audio: off";
+      if (els.audio_status) els.audio_status.textContent = "音訊：關閉";
       return;
     }
     if (plan.set_source) {
@@ -587,7 +587,7 @@
     var mediaTime = Core.getAudioPlaybackTime(track, state.currentTime);
     if (mediaTime == null) {
       aud.pause();
-      if (els.audio_status) els.audio_status.textContent = "audio: off";
+      if (els.audio_status) els.audio_status.textContent = "音訊：關閉";
       return;
     }
     function seek() {
@@ -597,14 +597,14 @@
       if (state.playing) {
         aud.play()
           .then(function () {
-            if (els.audio_status) els.audio_status.textContent = "audio: playing";
+            if (els.audio_status) els.audio_status.textContent = "音訊：播放中";
           })
           .catch(function () {
-            if (els.audio_status) els.audio_status.textContent = "audio: blocked";
+            if (els.audio_status) els.audio_status.textContent = "音訊：被瀏覽器阻擋";
           });
       } else {
         aud.pause();
-        if (els.audio_status) els.audio_status.textContent = "audio: ready";
+        if (els.audio_status) els.audio_status.textContent = "音訊：可播放";
       }
     }
     if (aud.readyState === 0) {
@@ -620,7 +620,7 @@
   }
 
   function updateDirty() {
-    els.dirty_flag.textContent = state.dirty ? "unsaved local edits" : "no local edits";
+    els.dirty_flag.textContent = state.dirty ? "有尚未儲存的本機修改" : "目前沒有本機修改";
     els.dirty_flag.className = state.dirty ? "dirty" : "muted";
   }
 
@@ -678,7 +678,7 @@
     state.trackSel = { type: "subtitle", id: id };
     var s = state.work.subtitles.find(function (x) { return x.id === id; });
     if (!s) return;
-    els.track_insp_title.textContent = "Subtitle " + id;
+    els.track_insp_title.textContent = "字幕 " + id;
     els.t_text.value = s.text;
     els.t_start.value = s.start_sec;
     els.t_duration.value = s.duration_sec;
@@ -692,7 +692,7 @@
     state.trackSel = { type: "cue", id: id };
     var c = state.cues.find(function (x) { return x.cue_id === id; });
     if (!c) return;
-    els.track_insp_title.textContent = "Audio cue " + id;
+    els.track_insp_title.textContent = "音效提示 " + id;
     els.t_cuetype.value = c.cue_type;
     els.t_time.value = c.time_sec;
     els.t_strength.value = c.strength;
@@ -706,7 +706,7 @@
     state.trackSel = { type: "effect", id: id };
     var e = state.effects.find(function (x) { return x.effect_id === id; });
     if (!e) return;
-    els.track_insp_title.textContent = "Effect " + id + " (intent)";
+    els.track_insp_title.textContent = "效果 " + id + "（意圖）";
     els.t_preset.value = e.preset;
     els.t_start.value = e.start_sec;
     els.t_duration.value = e.duration_sec;
@@ -730,7 +730,7 @@
 
   function addFx() {
     if (state.selectedSlot == null) {
-      els.diagnostics.textContent = "Select a clip first, then add an effect on it.";
+      els.diagnostics.textContent = "請先選擇片段，再新增效果。";
       return;
     }
     var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
@@ -788,23 +788,23 @@
       base_timeline_ref: (state.raw && state.raw.source_artifact) || "timeline.json",
     });
     if (!Object.keys(payload).length) {
-      els.diagnostics.textContent = "Nothing to save across tracks.";
+      els.diagnostics.textContent = "目前沒有跨軌修改可儲存。";
       return;
     }
-    els.diagnostics.textContent = "Saving all tracks…";
+    els.diagnostics.textContent = "正在儲存全部軌道...";
     Api.saveAll(payload)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var s = res.j.summary || {};
-          els.diagnostics.textContent = "Saved all → " + (res.j.written || []).join(", ") +
-            " [timeline " + (s.timeline_edits || 0) + ", subs " + (s.subtitle_edits || 0) +
-            ", cues " + (s.audio_cues || 0) + ", fx " + (s.effect_intents || 0) + "]";
+          els.diagnostics.textContent = "已儲存全部 -> " + (res.j.written || []).join(", ") +
+            " [時間軸 " + (s.timeline_edits || 0) + ", 字幕 " + (s.subtitle_edits || 0) +
+            ", 音效提示 " + (s.audio_cues || 0) + ", 效果 " + (s.effect_intents || 0) + "]";
           state.dirty = false; updateDirty();
         } else {
-          els.diagnostics.textContent = "Save-all refused (nothing written): " + JSON.stringify(res.j.errors || res.j);
+          els.diagnostics.textContent = "儲存全部被拒絕，未寫入任何檔案：" + JSON.stringify(res.j.errors || res.j);
         }
       })
-      .catch(function (err) { els.diagnostics.textContent = "Save-all failed: " + err; });
+      .catch(function (err) { els.diagnostics.textContent = "儲存全部失敗：" + err; });
   }
 
   // -- inspector / edits ------------------------------------------------ //
@@ -864,7 +864,7 @@
   function replaceClipWithAsset(slotIndex, assetId) {
     var asset = state.materialAssets.find(function (a) { return a.asset_id === assetId; });
     if (!asset) {
-      els.diagnostics.textContent = "Replace failed: material asset not found";
+      els.diagnostics.textContent = "替換失敗：找不到素材。";
       return;
     }
     var before = state.work;
@@ -874,14 +874,14 @@
       scene_index: 0,
     });
     if (next === before) {
-      els.diagnostics.textContent = "Replace failed: asset has no usable scene/source";
+      els.diagnostics.textContent = "替換失敗：素材沒有可用的場景或來源。";
       return;
     }
     state.work = next;
     state.selectedSlot = slotIndex;
     state.selectedAssetId = asset.asset_id;
     state.dirty = true;
-    els.diagnostics.textContent = "Replaced clip #" + slotIndex + " with material " + asset.asset_id + " (draft patch)";
+    els.diagnostics.textContent = "已用素材 " + asset.asset_id + " 替換片段 #" + slotIndex + "（草稿 patch）。";
     renderTimelineLanes();
     renderMaterialBrowser();
     renderMonitor();
@@ -892,11 +892,11 @@
 
   function replaceSelectedClip() {
     if (state.selectedSlot == null) {
-      els.diagnostics.textContent = "Select a timeline clip first";
+      els.diagnostics.textContent = "請先選擇時間軸片段。";
       return;
     }
     if (!state.selectedAssetId) {
-      els.diagnostics.textContent = "Select a material asset first";
+      els.diagnostics.textContent = "請先選擇素材。";
       return;
     }
     replaceClipWithAsset(state.selectedSlot, state.selectedAssetId);
@@ -933,34 +933,34 @@
   function savePatch() {
     var patch = buildPatch();
     if (!patch.patches.length) {
-      els.diagnostics.textContent = "No local edits to save.";
+      els.diagnostics.textContent = "沒有本機修改可儲存。";
       return;
     }
     Api.savePatch(patch)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var align = res.j.spec_alignment || {};
-          var note = "Saved: " + (res.j.written || []).join(", ");
+          var note = "已儲存：" + (res.j.written || []).join(", ");
           if (align.correction_count) {
-            note += " · spec-aligned " + align.correction_count + " field(s) (fallback clamp)";
+            note += " / 已對齊規格 " + align.correction_count + " 個欄位（fallback clamp）";
           }
           els.diagnostics.textContent = note;
           state.dirty = false;
           updateDirty();
         } else {
-          els.diagnostics.textContent = "Patch rejected: " + JSON.stringify(res.j.errors || res.j);
+          els.diagnostics.textContent = "Patch 被拒絕：" + JSON.stringify(res.j.errors || res.j);
         }
       })
-      .catch(function (err) { els.diagnostics.textContent = "Save failed: " + err; });
+      .catch(function (err) { els.diagnostics.textContent = "儲存失敗：" + err; });
   }
 
   function syncContract() {
     var patch = buildPatch();
     if (!patch.patches.length) {
-      els.diagnostics.textContent = "No local edits to sync.";
+      els.diagnostics.textContent = "沒有本機修改可同步。";
       return;
     }
-    els.diagnostics.textContent = "Syncing edits to a draft pipeline contract…";
+    els.diagnostics.textContent = "正在把修改同步成管線契約草稿...";
     Api.syncContract(patch)
       .then(function (res) {
         if (res.ok && res.j.ok) {
@@ -968,15 +968,15 @@
           (res.j.diagnostics || []).forEach(function (d) { codes[d.code] = (codes[d.code] || 0) + 1; });
           var codeStr = Object.keys(codes).map(function (k) { return k + "×" + codes[k]; }).join(", ");
           els.diagnostics.textContent =
-            "Contract sync: " + res.j.changes + " draft change(s) → " +
+            "契約同步：" + res.j.changes + " 個草稿變更 -> " +
             (res.j.written || []).join(", ") + (codeStr ? " [" + codeStr + "]" : "");
         } else {
           // fail-closed: surface the reason (e.g. source window beyond scene bounds)
           var errs = (res.j.errors || [JSON.stringify(res.j)]).join(" | ");
-          els.diagnostics.textContent = "Contract sync refused (nothing written): " + errs;
+          els.diagnostics.textContent = "契約同步被拒絕，未寫入任何檔案：" + errs;
         }
       })
-      .catch(function (err) { els.diagnostics.textContent = "Sync failed: " + err; });
+      .catch(function (err) { els.diagnostics.textContent = "同步失敗：" + err; });
   }
 
   function exportFfmpeg() {
@@ -988,7 +988,7 @@
       base_timeline_ref: (state.raw && state.raw.source_artifact) || "timeline.json",
     });
     var effectPatch = savePayload.effect_patch || null;
-    els.diagnostics.textContent = "Exporting via ffmpeg (this can take a while)…";
+    els.diagnostics.textContent = "正在透過 ffmpeg 匯出，可能需要一段時間...";
     els.btn_export.disabled = true;
     Api.exportFfmpeg({
       patch: patch.patches.length ? patch : null,
@@ -998,13 +998,13 @@
       .then(function (res) {
         if (res.ok && res.j.ok) {
           els.diagnostics.textContent =
-            "Exported " + res.j.rendered_clips + " clips → " + res.j.out +
-            " (canonical ffmpeg; final.mp4 untouched)";
+            "已匯出 " + res.j.rendered_clips + " 個片段 -> " + res.j.out +
+            "（canonical ffmpeg；final.mp4 不會被改動）";
         } else {
-          els.diagnostics.textContent = "Export failed: " + (res.j.error || JSON.stringify(res.j));
+          els.diagnostics.textContent = "匯出失敗：" + (res.j.error || JSON.stringify(res.j));
         }
       })
-      .catch(function (err) { els.diagnostics.textContent = "Export failed: " + err; })
+      .catch(function (err) { els.diagnostics.textContent = "匯出失敗：" + err; })
       .finally(function () { els.btn_export.disabled = false; });
   }
 

@@ -17,39 +17,103 @@ project needs story quality before material work, read
 
 Do not jump straight to render.
 
-Stage 0 is **Video Intent Planner**. Always decide **material availability**
-first, then the route:
+Stage 0 is **Video Intent Planner**. Always decide **input state** first, then
+the entry path:
 
 ```text
 Video Intent Planner
--> material availability
--> existing-material-first
--> story-first
--> hybrid
+-> input_state: material_available | text_available | idea_only | unknown
+-> entry_path: material-first | structure-first | needs-context
 draft review / brownfield edit
 ```
 
 Then produce or verify the artifacts for the current stage.
+
+Stage 0 owns the canonical `video_intent.json` artifact. Produce it with:
+
+```powershell
+python video_tools.py video-intent-plan project_brief.json --out video_intent.json
+```
+
+It must include `input_state`, `entry_path`, `video_type`, `audience`, `goal`,
+`material_availability`, `text_availability`, `route`,
+`required_followup_questions`, `assumptions`, and `handoff_to`.
+If route-changing information is missing, ask the follow-up questions instead
+of guessing or entering Story Soul/BUILD.
+
+Stage 0 artifact ownership:
+
+- `project_brief.json` / `brief.json` is raw input.
+- `video_intent.json` is the canonical Stage 0 route decision.
+- `route_decision.json` is legacy/compat unless a current harness explicitly
+  requires it.
+- `input_state` records `material_available`, `text_available`, `idea_only`, or
+  `unknown`.
+- `entry_path` records `material-first`, `structure-first`, or `needs-context`;
+  hybrid is not a primary Stage 0 entry path.
 
 The first upstream role is a Video Intent Planner. It may behave like a
 teacher, personal video editor, event director, brand editor, or storybook
 writer depending on the user's goal and material availability. Do not force a
 teaching or personal video into a generated story route.
 
-Route boundary:
+## Route Boundary
 
-- **existing-material-first**: run material-map early. Existing media is the
-  story source and constraint. generation is fallback only: diagrams, chapter
-  cards, symbolic inserts, or missing non-proof visuals.
-- **story-first**: no usable material exists, or the user explicitly wants a
-  generated/storybook route. Build the story/teaching/design intent first, then
-  create material needs and generated/captured assets.
-- **hybrid**: some real material exists and some needs require reshoot,
-  generation, rewrite, shortening, drop, or waiver after material-delta.
+The route owns orchestration, handoff, and stop/go decisions. It does not own
+every implementation detail.
 
-Legacy wording remains accepted as aliases: existing material, generated
-material, hybrid material. `script-first` is a legacy alias for `story-first`;
-`material-first` is a legacy alias for `existing-material-first`.
+Route owns:
+
+- Stage 0 input-state and entry-path decision.
+- Greenfield / brownfield / hybrid badge selection.
+- `next_action`, `handoff_to`, and bounded task packet shape.
+- Review stop points and whether a stage may continue.
+- Expected artifacts for each stage and freshness checks.
+- Return routes when material, generated outputs, Workbench drafts, or reviews
+  change the truth.
+
+Route does not own:
+
+- Renderer internals, ffmpeg implementation details, Remotion implementation
+  details, or provider account/auth.
+- Treating generated files as accepted material without explicit review.
+- Turning Workbench draft patches into canonical truth.
+- Manual timeline editing inside Dashboard or Material Map.
+- Final visual/story quality judgment by artifact existence alone.
+
+Route must stop instead of continuing when:
+
+- Stage 0 lacks route-changing intent or material information.
+- Material Map has candidate/thin/missing must-have needs.
+- Generated provider outputs exist but have not re-entered import + explicit
+  generated-material review.
+- `material_delta.json` blocks ready-for-build.
+- reviewer aggregation or a hard-gate reviewer blocks.
+- Workbench draft artifacts exist and need agent/backend review.
+
+Dashboard and Material Map are review surfaces. They may save review decisions
+or draft artifacts, but must not silently rewrite canonical pipeline truth.
+Workbench may draft timeline/material edits, but backend/agent review decides
+whether they become official.
+
+Compatibility keyword: generation is fallback for material-first teaching and
+personal video routes with real material.
+
+- **material-first**: real or partial media exists. Run material-map early.
+  Existing media and existing material reveal people, scenes, actions, emotions, timeline, and gaps;
+  then interaction reduces ambiguity and builds the structure. generation is
+  fallback only for missing/non-proof support.
+- **structure-first**: no usable media exists, but an article, outline, script,
+  story, or developed idea exists. Clarify the structure first, then create
+  material needs and route missing visuals through generated material fallback.
+- **needs-context**: the request is too vague to choose a handoff. Ask focused
+  questions first.
+
+Legacy wording remains accepted as compatibility language:
+`existing-material-first` maps to `material-first`; `story-first` maps to
+`structure-first`; `hybrid` is not a primary Stage 0 entry path. Partial
+material enters `material-first`, then material-delta decides generation,
+reshoot, rewrite, drop, or waiver.
 
 Review policy is route-driven, not universal. Use
 `docs/artifact-reviewer-map.md` to decide whether the route needs `light`,
@@ -216,7 +280,7 @@ new work:
 
 1. Locate the newest or user-specified run directory.
 2. Read available artifacts in this order:
-   `state.json`, `segment_contract.json`, `material_needs.json`,
+   `video_intent.json`, `state.json`, `segment_contract.json`, `material_needs.json`,
    `project_material_map.json`, `material_delta.json`, `timeline_build.json`,
    `verify_result.json`, `preview_timeline.json`, `timeline_patch.json`,
    `workbench_contract_patch.json`.
@@ -231,6 +295,8 @@ new work:
 Use deterministic tools for facts:
 
 - `reviewer-policy`: reviewer role expansion and eval principle packet.
+- `video-intent-plan`: Stage 0 `video_intent.json` route decision artifact.
+- `video-intent-acceptance`: deterministic VIP0 route/follow-up acceptance.
 - `reviewer-flow-acceptance`: reviewer policy smoke/e2e harness for route,
   upstream, and effects/brownfield reviewer sets.
 - `validate-needs`: material need schema.

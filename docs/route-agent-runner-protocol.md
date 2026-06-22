@@ -22,9 +22,39 @@ When you receive `route_subagent_task.json`:
 6. Write `route_subagent_result.json`.
 7. Stop.
 
+Workers are bounded workers. They own one node, one phase, or one explicit
+artifact handoff. They are not the lifetime owner for a full video route.
+
 The orchestrator will run `route-task-accept`. If artifacts are stale, outside
 the whitelist, or if protected files changed, the result is rejected even if the
 worker says it succeeded.
+
+## Parent-Owned Long Execution
+
+Long-running render, download, VLM selection, and full BUILD execution must be
+owned by the parent orchestrator or a dedicated runner process, not by a
+short-lived subagent context.
+
+Rules:
+
+- A worker may decide, prepare, or launch a long task only when the task writes a
+  resumable artifact or status record.
+- The parent must monitor long-running render jobs across turns.
+- state.json and artifacts are the handoff; conversation memory is not.
+- If the worker exits, the long-running job must still be observable or
+  resumable by the parent.
+
+This prevents background render work from becoming orphaned when a worker hits a
+token, context, or wall-clock budget.
+
+Recommended split:
+
+```text
+parent orchestrator
+  -> bounded worker: current node/phase decision or artifact repair
+  -> parent-owned long execution: render/build/download/VLM loop
+  -> bounded worker: review next gate
+```
 
 ## Required Result Shape
 
@@ -93,13 +123,36 @@ python video_tools.py route-orchestrator-acceptance RUN_DIR `
   --out route_orchestrator_acceptance.json
 ```
 
+## Material-Map Review Gate
+
+When the route is blocked at `material-map-lifecycle` with
+`next_action=await_map_review`, dispatch a bounded review worker instead of
+asking one worker to run the whole route. The worker writes
+`material_map_review_verdict.json`; the parent applies it:
+
+```powershell
+python video_tools.py material-map-review-apply `
+  --maps-dir maps `
+  --needs material_needs.json `
+  --verdict material_map_review_verdict.json `
+  --out project_material_map.json
+```
+
+Then the parent reruns the canonical material-map checks. The concrete packet
+and verdict contract are documented in
+`docs/construction-guides/parent-subagent-map-review-contract.md`.
+
 ## Anti-Patterns
 
 - Do not ask a worker to “run the whole video pipeline” from one packet.
+- Do not run the whole video pipeline from one worker packet.
+- Rule keyword for tests and downstream prompts: do not run the whole video pipeline.
 - Do not let a worker decide that a stale `final.mp4` is current.
 - Do not let generated images satisfy material needs without material review.
 - Do not let Workbench draft artifacts overwrite canonical outputs.
 - Do not use prose completion reports as evidence; validate files.
+- Do not background a long-running render inside a worker and then rely on that
+  worker's context lifetime to keep it alive.
 
 ## Where This Fits
 

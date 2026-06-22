@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Material Map Review</title>
+    <link rel="stylesheet" href="/material_map_review.css">
+</head>
+<body>
+    <main class="mm-shell" id="material-map-root" data-source="real-artifacts">
+        <header class="mm-header">
+            <div>
+                <p class="eyebrow">Hermes Video Pipeline</p>
+                <h1>Material Map Review</h1>
+                <p class="subtitle">Review material truth, coverage, and build readiness from the active run folder.</p>
+            </div>
+            <div class="header-actions">
+                <a class="ghost-link" href="/">Control Index</a>
+                <a class="primary-link" href="/dashboard">Dashboard</a>
+            </div>
+        </header>
+
+        <section class="summary-grid" aria-label="Material map summary">
+            <article class="summary-card">
+                <span class="label">Route</span>
+                <strong id="summary-route">Loading</strong>
+                <span id="summary-audience" class="muted">-</span>
+            </article>
+            <article class="summary-card">
+                <span class="label">Coverage</span>
+                <strong id="summary-coverage">-</strong>
+                <span class="muted">accepted / candidate / rejected edges</span>
+            </article>
+            <article class="summary-card">
+                <span class="label">Build Gate</span>
+                <strong id="summary-build">Checking</strong>
+                <span id="summary-root" class="muted mono">-</span>
+            </article>
+        </section>
+
+        <section class="review-layout">
+            <aside class="stage-panel" aria-label="Pipeline stages">
+                <div class="vertical-line" id="stage-line"></div>
+            </aside>
+
+            <section class="content-panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Important Files</p>
+                        <h2>Artifacts and Coverage</h2>
+                    </div>
+                    <span id="material-status" class="status-pill">Loading</span>
+                </div>
+
+                <div class="artifact-strip" id="artifact-strip"></div>
+
+                <div class="split-grid">
+                    <section>
+                        <h3>Material Assets</h3>
+                        <div id="asset-list" class="asset-list"></div>
+                    </section>
+                    <section>
+                        <h3>Material Needs</h3>
+                        <div id="need-list" class="need-list"></div>
+                    </section>
+                </div>
+            </section>
+        </section>
+    </main>
+    <script src="/material_map_review.js"></script>
+</body>
+</html>

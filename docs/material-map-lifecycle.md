@@ -1,11 +1,11 @@
-# Material Map Lifecycle — Canonical Summary
+﻿# Material Map Lifecycle ??Canonical Summary
 
 Status: complete as a backend lifecycle, with real-case automated acceptance.
 Last consolidated: 2026-06-18
 
 This document is the short, current reference for the material-map work that used
 to be spread through the long roadmap. The full historical evidence remains in
-`docs/roadmap-history/2026-06-18-roadmap-pre-split.md`.
+`docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`.
 
 ## Purpose
 
@@ -33,23 +33,23 @@ still return through material-map review before satisfying coverage.
 
 ## Canonical Artifacts
 
-- `material_needs.json` — required material demand, stable `need_id`, fallback
+- `material_needs.json` ??required material demand, stable `need_id`, fallback
   options, and validation.
-- Per-asset `*.map.json` — actual scenes, sources, captions, labels, and
+- Per-asset `*.map.json` ??actual scenes, sources, captions, labels, and
   `satisfies[]` edges.
-- `project_material_map.json` — deterministic project-level aggregation of
+- `project_material_map.json` ??deterministic project-level aggregation of
   per-asset maps. It is a projection, not a second canonical truth source.
-- `material_delta.json` — coverage outcomes: `covered`, `thin`, `missing`,
+- `material_delta.json` ??coverage outcomes: `covered`, `thin`, `missing`,
   `excess`, plus tier/route/evidence.
-- `revision_decisions.json` — accepted/rejected/pending human decisions for
+- `revision_decisions.json` ??accepted/rejected/pending human decisions for
   missing material.
-- `revised_segment_contract.json` — revised executable contract when decisions
+- `revised_segment_contract.json` ??revised executable contract when decisions
   change the script.
-- `material_map_lifecycle.json` — stage report and handoff status.
+- `material_map_lifecycle.json` ??stage report and handoff status.
 
 ## Implemented Lifecycle
 
-### M6a — Contract And Lineage
+### M6a ??Contract And Lineage
 
 Completed:
 
@@ -64,7 +64,7 @@ Boundary:
 - M6a validates joins and reference integrity. It does not decide covered/thin/
   missing.
 
-### M6b — Material Delta And Pre-BUILD Gate
+### M6b ??Material Delta And Pre-BUILD Gate
 
 Completed:
 
@@ -80,7 +80,7 @@ Gate rule:
 - BUILD may proceed only when `delta.ok is True` and
   `delta.ready_for_build is True`.
 
-### M6c — Delta-Driven Script Revision
+### M6c ??Delta-Driven Script Revision
 
 Completed:
 
@@ -94,7 +94,7 @@ Boundary:
 
 - M6c does not invent story content. It applies accepted decisions only.
 
-### M6d — Independent Material Map Skill
+### M6d ??Independent Material Map Skill
 
 Completed:
 
@@ -109,7 +109,7 @@ Boundary:
 - M6d orchestrates canonical tools. It does not create a second material-map
   schema and does not render.
 
-### M6e — Real-Case Automated Acceptance
+### M6e ??Real-Case Automated Acceptance
 
 Completed:
 
@@ -174,9 +174,9 @@ Relationship boundaries:
 
 ## Useful Links
 
-- Full pre-split evidence: `docs/roadmap-history/2026-06-18-roadmap-pre-split.md`
-- Real-case M6e decision: `docs/decisions/2026-06-15-m6e-real-case-acceptance.md`
-- Material-map blackbox observation: `docs/decisions/2026-06-18-node13-material-map-blackbox-observation.md`
+- Full pre-split evidence: `docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`
+- Real-case M6e decision: `docs/archive/decisions/2026-06-15-m6e-real-case-acceptance.md`
+- Material-map blackbox observation: `docs/archive/decisions/2026-06-18-node13-material-map-blackbox-observation.md`
 - Skill: `skills/material-map.md`
 - Core modules: `video_pipeline_core/material_needs.py`,
   `video_pipeline_core/project_material_map.py`,

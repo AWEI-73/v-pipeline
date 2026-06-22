@@ -46,6 +46,27 @@ def _comic_brief():
     }
 
 
+def _lantern_story_brief():
+    return {
+        "project_type": "generated storybook fairy tale",
+        "audience": "children and parents",
+        "goal": "Tell a warm, safe short fairy tale where a tiny lantern helps two lost siblings find the moon bridge home.",
+        "known_material_categories": [],
+        "desired_style": "Japanese cute picture-book illustration",
+        "seed_device": "tiny lantern and moon bridge",
+        "story_seed": {
+            "protagonists": ["two lost siblings", "a tiny kind lantern"],
+            "setting": "safe moonlit forest path",
+            "moral": "small kindness can become a path",
+        },
+        "facts": {
+            "protagonist": "two lost siblings and a tiny kind lantern",
+            "place": "safe moonlit forest path",
+        },
+        "required_inclusions": ["tiny lantern", "two siblings", "moon bridge"],
+    }
+
+
 class StorySoulBlueprintTest(unittest.TestCase):
     def test_training_blueprint_has_narrative_device_not_course_list(self):
         result = build_story_soul_blueprint(_training_brief())
@@ -79,6 +100,21 @@ class StorySoulBlueprintTest(unittest.TestCase):
         self.assertTrue(all(shot["media_preference"] == "generated_image"
                             for shot in shot_plan))
         self.assertTrue(all(shot["prompt"] for shot in shot_plan))
+
+    def test_generated_storybook_preserves_user_story_seed(self):
+        result = build_story_soul_blueprint(_lantern_story_brief())
+
+        self.assertTrue(result["ok"], result.get("errors"))
+        joined = json.dumps({
+            "concept": result["creative_concept"],
+            "beats": result["screenplay_beats"],
+            "shots": result["director_shot_plan"],
+        }, ensure_ascii=False)
+        self.assertIn("two lost siblings", joined)
+        self.assertIn("tiny lantern", joined)
+        self.assertIn("moon bridge", joined)
+        self.assertNotIn("courier", joined.lower())
+        self.assertNotIn("postcard", joined.lower())
 
     def test_screenplay_beats_have_turn_sensory_and_viewer_feeling(self):
         result = build_story_soul_blueprint(_training_brief())

@@ -35,11 +35,13 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         }
         self.assertTrue(expected_groups.issubset(set(manifest["groups"])))
         self.assertEqual(manifest["commands"]["project-init"]["group"], "workspace")
+        self.assertEqual(manifest["commands"]["video-intent-plan"]["group"], "workspace")
         self.assertEqual(manifest["commands"]["contract-run"]["group"], "contract")
         self.assertEqual(manifest["commands"]["material-map-lifecycle"]["group"], "material")
         self.assertEqual(manifest["commands"]["verify-evidence"]["group"], "verify")
         self.assertEqual(manifest["commands"]["dashboard"]["group"], "frontend")
         self.assertEqual(manifest["commands"]["replay-acceptance"]["group"], "acceptance")
+        self.assertEqual(manifest["commands"]["video-intent-acceptance"]["group"], "acceptance")
 
     def test_commands_manifest_cli_prints_or_writes_json(self):
         with tempfile.TemporaryDirectory() as d:
@@ -62,6 +64,8 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         self.assertEqual(manifest["artifact_role"], "video_tools_workflow_manifest")
         self.assertEqual(manifest["version"], 1)
         self.assertIn("canonical_build", manifest["workflows"])
+        self.assertIn("video_intent_planner", manifest["workflows"])
+        self.assertIn("video_intent_acceptance", manifest["workflows"])
         self.assertIn("workbench_review_rerender", manifest["workflows"])
 
         for workflow in manifest["workflows"].values():
@@ -78,6 +82,14 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             "workbench-draft-rerender",
         ])
         self.assertEqual(wb_steps[1]["requires"], ["workbench-handoff-validate:ok"])
+
+        vip_steps = manifest["workflows"]["video_intent_planner"]["steps"]
+        self.assertEqual([s["command"] for s in vip_steps], ["video-intent-plan"])
+        self.assertIn("video_intent.json", manifest["workflows"]["video_intent_planner"]["description"])
+
+        via_steps = manifest["workflows"]["video_intent_acceptance"]["steps"]
+        self.assertEqual([s["command"] for s in via_steps], ["video-intent-acceptance"])
+        self.assertEqual(via_steps[0]["requires"], ["video-intent-plan:implemented"])
 
     def test_brownfield_edit_route_is_explicit_workflow(self):
         manifest = video_tools.build_video_tools_workflow_manifest()

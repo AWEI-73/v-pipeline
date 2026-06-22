@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes · 風格 C · Vivid Sidebar</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.17.0/dist/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#f6f7fb;--card:#fff;--bd:#eaecf3;--hover:#f2f4f9;
+  --tp:#16181f;--ts:#5b6376;--tm:#9aa1b2;
+  --acc:#6366f1;--acc2:#8b5cf6;
+  --side:#211d54;--side2:#2c2768;--sidetx:#c5c2ee;--sidetm:#807bbd;
+  --done:#22c55e;--done-s:#e9faf0;--warn:#f59e0b;--warn-s:#fef6e7;--blk:#ef4444;--blk-s:#fdeceb;
+  --sh:0 1px 3px rgba(20,22,40,.06),0 1px 2px rgba(20,22,40,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--tp);font-family:'Inter',-apple-system,"Microsoft JhengHei","PingFang TC",sans-serif;line-height:1.5;min-height:100vh;display:flex;-webkit-font-smoothing:antialiased}
+.ti{line-height:1;vertical-align:-.12em}.mono{font-family:'JetBrains Mono',monospace}
+/* sidebar */
+.side{width:248px;flex-shrink:0;background:var(--side);min-height:100vh;padding:22px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.s-brand{display:flex;align-items:center;gap:11px;padding:0 8px 22px}
+.s-logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px}
+.s-brand h1{font-size:17px;font-weight:700;color:#fff}.s-brand p{font-size:11px;color:var(--sidetm)}
+.s-lbl{font-size:10px;font-weight:700;color:var(--sidetm);text-transform:uppercase;letter-spacing:.7px;padding:0 10px;margin-bottom:8px}
+.rail{position:relative;display:flex;flex-direction:column;gap:2px}
+.rail::before{content:'';position:absolute;left:19px;top:24px;bottom:24px;width:1.5px;background:rgba(255,255,255,.1)}
+.ri{display:flex;align-items:center;gap:13px;position:relative;z-index:2;cursor:pointer;padding:9px 10px;border-radius:10px;transition:background .12s}
+.ri:hover{background:var(--side2)}.ri.active{background:linear-gradient(135deg,#6366f1,#7c5cf0)}
+.dot{width:16px;height:16px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:transparent}
+.ri.s-done .dot{background:var(--done);border-color:var(--done);color:#063b1c}
+.ri.s-warn .dot{background:var(--warn);border-color:var(--warn);color:#4a2c00}
+.ri.active .dot{border-color:#fff}
+.ri-t{font-size:13.5px;font-weight:600;color:var(--sidetx)}
+.ri.s-done .ri-t,.ri.s-warn .ri-t{color:#fff}
+.ri.active .ri-t{color:#fff}
+.ri.s-none .ri-t{color:var(--sidetm);font-weight:500}
+.ri-s{font-size:10.5px;color:rgba(255,255,255,.85);font-weight:600;margin-top:2px}
+.s-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:var(--sidetm)}
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{height:62px;background:var(--card);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
+.top-t{font-size:17px;font-weight:700}
+.facts{display:flex;gap:10px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--bd);background:var(--card);color:var(--ts)}
+.pill.acc{background:#eef0fe;color:var(--acc);border-color:#dfe2fd}
+.pill.warn{background:var(--warn-s);color:#b4690e;border-color:#f6e2bf}
+.body{padding:24px 28px 36px;max-width:1180px}
+.ban{background:linear-gradient(120deg,#fff,#fffdf8);border:1px solid var(--bd);border-radius:14px;padding:20px 22px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.ban::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--warn)}
+.ban-t{font-size:16px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}.ban-t .ti{color:var(--warn);font-size:19px}
+.ban-r{font-size:13.5px;color:var(--ts);margin-bottom:15px}.ban-r b{color:var(--tp);font-weight:600}
+.acts{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font-size:13px;font-weight:600;padding:9px 15px;border-radius:9px;border:1px solid var(--bd);background:var(--card);color:var(--ts);cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.12s}
+.btn .ti{font-size:16px}.btn:hover{background:var(--hover);color:var(--tp)}
+.btn.pri{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:transparent;color:#fff}.btn.pri:hover{filter:brightness(1.05)}
+.dh{margin-top:22px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.dh-t{font-size:22px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.dh-t .ic{width:38px;height:38px;border-radius:10px;background:var(--warn-s);color:var(--warn);display:flex;align-items:center;justify-content:center;font-size:20px}
+.dh-f{font-size:11.5px;color:var(--tm);font-family:'JetBrains Mono',monospace;margin-top:5px}
+.cov{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 4px}
+.cc{font-size:12px;font-weight:600;border-radius:9px;padding:6px 13px;display:inline-flex;align-items:center;gap:7px;background:var(--card);color:var(--ts);border:1px solid var(--bd);box-shadow:var(--sh)}
+.cc b{font-size:14px;font-weight:800}.cc.g b{color:var(--done)}.cc.a b{color:#d97706}.cc.r b{color:var(--blk)}.cc.n b{color:var(--acc)}
+.board{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.lane{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;box-shadow:var(--sh)}
+.lane-h{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.seg-no{font-size:11px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:7px;padding:3px 9px;font-family:'JetBrains Mono',monospace}
+.seg-name{font-size:15px;font-weight:700}.mini{display:flex;gap:5px;margin-left:auto}
+.mb{width:24px;height:6px;border-radius:3px;background:var(--bd)}.mb.g{background:var(--done)}.mb.a{background:var(--warn)}.mb.r{background:var(--blk)}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:11px}
+.slot{border:1.5px solid var(--bd);border-radius:12px;padding:12px 13px;background:var(--card);cursor:pointer;transition:.12s}
+.slot:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(20,22,40,.08)}
+.slot.g{border-color:#bbedcd}.slot.a{border-color:#f6e2bf}.slot.r{border-color:#f6cdca;border-style:dashed}
+.slot-h{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px}.need{font-size:13px;font-weight:700}
+.st{font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px}
+.st.g{background:var(--done-s);color:#15803d}.st.a{background:var(--warn-s);color:#b4690e}.st.r{background:var(--blk-s);color:#c0322c}
+.fill{display:flex;align-items:center;gap:10px}.ft{width:44px;height:32px;border-radius:9px;background:linear-gradient(135deg,#eef0fe,#f3eefe);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--acc);flex-shrink:0}
+.fname{font-size:11.5px;font-weight:700}.fsub{font-size:10px;color:var(--tm);margin-top:1px}
+.empty{display:flex;align-items:center;justify-content:space-between;gap:8px}.empty-t{font-size:11.5px;color:#c0322c;font-weight:600}
+.gen{font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#f87171,#ef4444);border:none;border-radius:8px;padding:6px 11px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+@media(max-width:860px){.side{display:none}}
+</style>
+</head>
+<body>
+  <aside class="side">
+    <div class="s-brand"><div class="s-logo"><i class="ti ti-route"></i></div><div><h1>Hermes</h1><p>路線審查</p></div></div>
+    <div class="s-lbl">影片路線</div>
+    <nav class="rail">
+      <div class="ri s-done"><div class="dot"><i class="ti ti-check"></i></div><div class="ri-t">影片企劃</div></div>
+      <div class="ri s-done"><div class="dot"><i class="ti ti-check"></i></div><div class="ri-t">素材匯入</div></div>
+      <div class="ri s-warn active"><div class="dot"><i class="ti ti-dots"></i></div><div><div class="ri-t">素材地圖</div><div class="ri-s">8 覆蓋 · 4 偏薄 · 1 缺</div></div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">缺口盤點</div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">結構規劃</div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">合約分段</div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">組裝時間軸</div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">審查關卡</div></div>
+      <div class="ri s-none"><div class="dot"></div><div class="ri-t">輸出驗證</div></div>
+    </nav>
+    <div class="s-foot">67th_recap_0621 · brownfield</div>
+  </aside>
+  <div class="main">
+    <div class="top"><div class="top-t">素材地圖</div>
+      <div class="facts"><span class="pill acc"><i class="ti ti-movie"></i> 實拍素材</span><span class="pill warn"><i class="ti ti-player-pause"></i> 等待審查</span></div>
+    </div>
+    <div class="body">
+      <div class="ban">
+        <div class="ban-t"><i class="ti ti-alert-triangle"></i> 已暫停,等你審查</div>
+        <div class="ban-r">階段:<b>素材地圖</b> · 原因:<b>4 個需求的素材偏薄,1 個畫面待你決定,1 個需求沒有素材。</b></div>
+        <div class="acts"><button class="btn pri"><i class="ti ti-check"></i> 接受並繼續</button><button class="btn"><i class="ti ti-rotate"></i> 要求修改</button></div>
+      </div>
+      <div class="dh"><div><div class="dh-t"><span class="ic"><i class="ti ti-map-2"></i></span> 素材地圖</div><div class="dh-f">project_material_map.json</div></div></div>
+      <div class="cov"><span class="cc n"><b>5</b>需求</span><span class="cc g"><b>2</b>覆蓋</span><span class="cc a"><b>2</b>偏薄</span><span class="cc r"><b>1</b>缺</span></div>
+      <div class="board">
+        <div class="lane"><div class="lane-h"><span class="seg-no">段1</span><span class="seg-name">開場 · 回顧</span><span class="mini"><i class="mb g"></i></span></div>
+          <div class="slots"><div class="slot g"><div class="slot-h"><span class="need">開場旁白畫面</span><span class="st g">已採用</span></div><div class="fill"><div class="ft"><i class="ti ti-presentation"></i></div><div><div class="fname">教室宣導</div><div class="fsub">a05</div></div></div></div></div></div>
+        <div class="lane"><div class="lane-h"><span class="seg-no">段2</span><span class="seg-name">訓練歷程</span><span class="mini"><i class="mb g"></i><i class="mb a"></i></span></div>
+          <div class="slots">
+            <div class="slot g"><div class="slot-h"><span class="need">實作技能畫面</span><span class="st g">已採用</span></div><div class="fill"><div class="ft"><i class="ti ti-bolt"></i></div><div><div class="fname">高壓活線作業</div><div class="fsub">a07</div></div></div></div>
+            <div class="slot a"><div class="slot-h"><span class="need">沉浸體驗畫面</span><span class="st a">偏薄</span></div><div class="fill"><div class="ft"><i class="ti ti-eyeglass-2"></i></div><div><div class="fname">VR 工安體驗</div><div class="fsub">候選 · 直幅待裁</div></div></div></div>
+          </div></div>
+        <div class="lane"><div class="lane-h"><span class="seg-no">段3</span><span class="seg-name">結訓 · 高潮</span><span class="mini"><i class="mb a"></i><i class="mb r"></i></span></div>
+          <div class="slots">
+            <div class="slot a"><div class="slot-h"><span class="need">結訓高潮畫面</span><span class="st a">偏薄</span></div><div class="fill"><div class="ft"><i class="ti ti-award"></i></div><div><div class="fname">上台領證 ×2</div><div class="fsub">候選 · 含重複</div></div></div></div>
+            <div class="slot r"><div class="slot-h"><span class="need">離別情緒畫面</span><span class="st r">缺</span></div><div class="empty"><span class="empty-t">沒有可用素材</span><button class="gen"><i class="ti ti-plus"></i> 生成</button></div></div>
+          </div></div>
+      </div>
+    </div>
+  </div>
+<script>document.querySelectorAll('.ri').forEach(function(r){r.addEventListener('click',function(){document.querySelectorAll('.ri').forEach(function(x){x.classList.remove('active')});r.classList.add('active')})});</script>
+</body>
+</html>

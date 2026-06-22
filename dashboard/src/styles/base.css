@@ -1,0 +1,31 @@
+:root {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --soft: #eef3f8;
+  --line: #d7e0ea;
+  --text: #0f172a;
+  --muted: #667085;
+  --blue: #2563eb;
+  --green: #1f9d69;
+  --amber: #b7791f;
+  --red: #c2410c;
+  --purple: #6d5bd0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+}
+
+a { color: inherit; }
+
+.mono,
+code,
+pre {
+  font-family: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+}

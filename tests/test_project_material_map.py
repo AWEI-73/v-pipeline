@@ -138,6 +138,27 @@ class CliTest(unittest.TestCase):
         self.assertEqual(written["artifact_role"], "project_material_map")
         self.assertEqual(written["metrics"]["asset_count"], 1)
 
+    def test_cli_accepts_utf8_bom_map_and_needs_json(self):
+        d = Path(tempfile.mkdtemp())
+        maps_dir = d / "maps"
+        maps_dir.mkdir()
+        needs = {"project": "p", "needs": [
+            {"need_id": "nd_keep", "category": "c", "type": "t", "purpose": "x"}
+        ]}
+        asset = _asset_map("a", [{"start": 0, "end": 3,
+                                  "satisfies": [{"need_id": "nd_keep", "status": "accepted"}]}])
+        needs_path = d / "needs.json"
+        map_path = maps_dir / "a.map.json"
+        needs_path.write_text("\ufeff" + json.dumps(needs), encoding="utf-8")
+        map_path.write_text("\ufeff" + json.dumps(asset), encoding="utf-8")
+        out = d / "project_material_map.json"
+
+        args = types.SimpleNamespace(maps_dir=str(maps_dir), needs=str(needs_path), out=str(out))
+        cmd_project_material_map(args)
+
+        written = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(written["satisfaction_summary"]["nd_keep"]["accepted"][0]["asset_id"], "a")
+
 
 if __name__ == "__main__":
     unittest.main()

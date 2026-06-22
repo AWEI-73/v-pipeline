@@ -198,6 +198,18 @@ def cmd_supply_review(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_director_supply_revise(args):
+    from video_pipeline_core import director_supply_revision
+    result = director_supply_revision.revise_contract_file(
+        args.contract,
+        args.supply_review,
+        args.out_contract,
+        args.out_report,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return result
+
+
 def cmd_contract_dry_build(args):
     from video_pipeline_core import contract_adapter
     result = contract_adapter.dry_build(
@@ -424,6 +436,51 @@ def cmd_project_material_map(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_material_map_review_apply(args):
+    """Apply agent/director map-review decisions as scene-level satisfies edges."""
+    from video_pipeline_core import material_map_review_apply
+    result = material_map_review_apply.apply_review_to_maps(
+        args.maps_dir,
+        args.needs,
+        args.verdict,
+        args.out,
+        material_db_path=getattr(args, "material_db", None),
+        skipped_policy=getattr(args, "skipped_policy", None),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return result
+
+
+def cmd_material_wall_build(args):
+    """Build a coarse material montage wall request for bounded review."""
+    from video_pipeline_core import material_wall
+    result = material_wall.write_material_wall_request(
+        args.db,
+        args.out_dir,
+        args.out,
+        photo_batch_size=args.photo_batch_size,
+        video_batch_size=args.video_batch_size,
+        limit=getattr(args, "limit", None),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_material_wall_review_apply(args):
+    """Apply coarse material wall review decisions back to materials_db.json."""
+    from video_pipeline_core import material_wall
+    result = material_wall.apply_material_wall_review_file(
+        args.db, args.verdict, args.out)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_material_db_slice_from_wall(args):
+    """Create a bounded materials_db containing only assets shown in a wall request."""
+    from video_pipeline_core import material_wall
+    result = material_wall.slice_material_db_from_wall_request_file(
+        args.db, args.wall_request, args.out)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_lineage_link(args):
     """M6a lineage: build the shooting-brief projection and/or link the need_id
     reference chain (needs -> brief -> satisfies -> contract). Reports dangling
@@ -603,6 +660,7 @@ def cmd_generated_material_review(args):
         _load_json(args.project_map),
         _load_json(args.verdict),
         _load_json(args.needs),
+        quality_review=_load_json(args.quality_review) if args.quality_review else None,
     )
     print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
                       "summary": result.get("summary")},
@@ -631,6 +689,33 @@ def cmd_story_soul_blueprint(args):
     if not result["ok"]:
         raise ToolError("story soul blueprint failed: "
                         + "; ".join(result.get("errors") or []))
+
+
+def cmd_video_intent_plan(args):
+    """VIP0: write canonical Stage 0 video_intent.json without running later stages."""
+    from video_pipeline_core.video_intent_planner import plan_video_intent
+    payload = plan_video_intent(_load_json(args.brief))
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+
+def cmd_video_intent_acceptance(args):
+    from tools.video_intent_acceptance import run_video_intent_acceptance
+    report = run_video_intent_acceptance()
+    text = json.dumps(report, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+    if not report.get("ok"):
+        raise ToolError(f"video intent acceptance failed: {report.get('errors', ['unknown'])[0]}")
 
 
 def cmd_material_map_lifecycle(args):
@@ -1037,9 +1122,10 @@ def cmd_blueprint_to_contract(args):
     from video_pipeline_core import spec_contract, blueprint as bp_mod
     blueprint = _load_json(args.blueprint)
     decisions = _load_json(args.decisions)
+    material_needs = _load_json(args.material_needs) if getattr(args, "material_needs", None) else None
     music = _load_json(args.music) if getattr(args, "music", None) else None
     try:
-        contract = b2c.compile_contract(blueprint, decisions, music=music)
+        contract = b2c.compile_contract(blueprint, decisions, material_needs=material_needs, music=music)
     except Exception as e:
         raise ToolError(f"編譯 contract 失敗: {e}")
     v = spec_contract.validate_segment_contract(contract)
@@ -1931,6 +2017,48 @@ def cmd_reviewer_flow_acceptance(args):
         raise ToolError("reviewer flow acceptance failed")
 
 
+def cmd_reviewer_role_review(args):
+    from video_pipeline_core import reviewer_registry
+    from video_pipeline_core.reviewer_role_runner import review_artifacts
+
+    try:
+        payload = review_artifacts(
+            args.role,
+            {
+                "project_brief": getattr(args, "project_brief", None),
+                "screenplay_beats": getattr(args, "screenplay_beats", None),
+                "material_needs": getattr(args, "material_needs", None),
+                "project_material_map": getattr(args, "project_map", None),
+                "material_delta": getattr(args, "material_delta", None),
+            },
+        )
+        validation = reviewer_registry.validate_review_artifact(payload)
+        if not validation.get("ok"):
+            raise ToolError(f"review artifact validation failed: {len(validation.get('errors') or [])} error(s)")
+        text = json.dumps(payload, ensure_ascii=False, indent=2)
+        if getattr(args, "out", None):
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(text + "\n", encoding="utf-8")
+        else:
+            print(text)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+
+
+def cmd_reviewer_aggregate(args):
+    from video_pipeline_core.reviewer_aggregation import aggregate_review_files
+
+    payload = aggregate_review_files(args.review)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+    if payload.get("errors"):
+        raise ToolError(f"review aggregation failed: {payload['errors'][0]}")
+
+
 def cmd_route_task_next(args):
     from video_pipeline_core.route_orchestrator import write_next_task
 
@@ -2032,6 +2160,8 @@ def _build_video_tools_dispatch():
         "montage":       cmd_montage,
         "project-init":   cmd_project_init,
         "project-new-run": cmd_project_new_run,
+        "video-intent-plan": cmd_video_intent_plan,
+        "video-intent-acceptance": cmd_video_intent_acceptance,
         "commands-manifest": cmd_commands_manifest,
         "workflow-manifest": cmd_workflow_manifest,
         "test-tiers": cmd_test_tiers,
@@ -2041,6 +2171,8 @@ def _build_video_tools_dispatch():
         "operator-flow-acceptance": cmd_operator_flow_acceptance,
         "reviewer-policy": cmd_reviewer_policy,
         "reviewer-flow-acceptance": cmd_reviewer_flow_acceptance,
+        "reviewer-role-review": cmd_reviewer_role_review,
+        "reviewer-aggregate": cmd_reviewer_aggregate,
         "route-task-next": cmd_route_task_next,
         "route-task-accept": cmd_route_task_accept,
         "route-orchestrator-report": cmd_route_orchestrator_report,
@@ -2049,6 +2181,7 @@ def _build_video_tools_dispatch():
         "spec-review": cmd_spec_review,
         "capability-manifest": cmd_capability_manifest,
         "supply-review": cmd_supply_review,
+        "director-supply-revise": cmd_director_supply_revise,
         "contract-dry-build": cmd_contract_dry_build,
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
@@ -2077,6 +2210,10 @@ def _build_video_tools_dispatch():
         "material-generation-fallback": cmd_material_generation_fallback,
         "material-revision": cmd_material_revision,
         "material-map-lifecycle": cmd_material_map_lifecycle,
+        "material-map-review-apply": cmd_material_map_review_apply,
+        "material-wall-build": cmd_material_wall_build,
+        "material-wall-review-apply": cmd_material_wall_review_apply,
+        "material-db-slice-from-wall": cmd_material_db_slice_from_wall,
         "project-material-map": cmd_project_material_map,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "visual-diversity-review": cmd_visual_diversity_review,
@@ -2213,6 +2350,10 @@ def main():
     p_vrf.add_argument("--threshold", type=float, help="通過分數，預設 80")
     p_vrf.add_argument("--out", help="輸出 qa_report.json")
 
+    p_vrf.add_argument("--brief", default=None, help="optional brief/project_brief.json for target duration QA")
+    p_vrf.add_argument("--content-alignment", default=None, dest="content_alignment",
+                       help="optional content/VLM alignment artifact for semantic QA")
+
     p_anz = sub.add_parser("analyze")
     p_anz.add_argument("video", help="影片檔路徑")
     p_anz.add_argument("--query", required=True, help="關鍵字（英文效果較好）")
@@ -2254,8 +2395,13 @@ def main():
 
     p_cm = sub.add_parser("caption-meta")
     p_cm.add_argument("db", help="materials_db.json")
-    p_cm.add_argument("--model", help="VLM 模型（預設 qwen3-vl:4b-instruct）")
+    p_cm.add_argument("--model", help="local VLM model; only used with --local-vlm")
     p_cm.add_argument("--limit", type=int, help="最多 caption 幾個（測試用）")
+    p_cm.add_argument(
+        "--local-vlm",
+        action="store_true",
+        help="explicitly use local VLM captioning instead of agent material visual review",
+    )
 
     p_cm.add_argument(
         "--visual-review-dir",
@@ -2269,6 +2415,15 @@ def main():
     p_mm.add_argument("--update-db", dest="update_db",
                       help="write materials_db with material_map paths")
     p_mm.add_argument("--out", help="輸出地圖 .md 路徑")
+
+    p_mm.add_argument("--limit", type=int,
+                      help="only map the first N files for bounded operator passes")
+    p_mm.add_argument("--selected-only", action="store_true", dest="selected_only",
+                      help="only map files marked selected_for_material_map=true")
+    p_mm.add_argument("--asset-timeout-sec", type=float, dest="asset_timeout_sec",
+                      help="skip one asset and continue if material-map extraction exceeds this many seconds")
+    p_mm.add_argument("--fast", action="store_true",
+                      help="write coarse duration-based maps without expensive video detectors")
 
     p_mv = sub.add_parser("match-mv")
     p_mv.add_argument("script", help="MV 劇本 json")
@@ -2350,6 +2505,13 @@ def main():
     p_run.add_argument("--project", help="project 目錄；省略則讀 repo/.project/active.json")
     p_run.add_argument("--label", help="run 名稱後綴，如 first-cut / baseline")
 
+    p_vip = sub.add_parser("video-intent-plan")
+    p_vip.add_argument("brief", help="project brief JSON for Stage 0 Video Intent Planner")
+    p_vip.add_argument("--out", help="write canonical video_intent.json")
+
+    p_via = sub.add_parser("video-intent-acceptance")
+    p_via.add_argument("--out", help="write video_intent_acceptance.json")
+
     p_cmdm = sub.add_parser("commands-manifest")
     p_cmdm.add_argument("--out", help="write video_tools command manifest JSON")
 
@@ -2410,6 +2572,26 @@ def main():
                        help="optional directory for reviewer_policy_packet and artifact_review samples")
     p_rfa.add_argument("--out", default=None, help="optional JSON report path")
 
+    p_rrr = sub.add_parser("reviewer-role-review")
+    p_rrr.add_argument("--role", required=True,
+                       help="reviewer role to run, such as story_director")
+    p_rrr.add_argument("--project-brief", default=None, dest="project_brief",
+                       help="optional project_brief JSON")
+    p_rrr.add_argument("--screenplay-beats", default=None, dest="screenplay_beats",
+                       help="optional screenplay_beats JSON")
+    p_rrr.add_argument("--material-needs", default=None, dest="material_needs",
+                       help="optional material_needs JSON")
+    p_rrr.add_argument("--project-map", default=None, dest="project_map",
+                       help="optional project_material_map or reviewed_project_material_map JSON")
+    p_rrr.add_argument("--material-delta", default=None, dest="material_delta",
+                       help="optional material_delta JSON")
+    p_rrr.add_argument("--out", default=None, help="optional artifact_review JSON output path")
+
+    p_rag = sub.add_parser("reviewer-aggregate")
+    p_rag.add_argument("--review", action="append", required=True,
+                       help="artifact_review JSON path; repeat for multiple reviewers")
+    p_rag.add_argument("--out", default=None, help="optional reviewer_aggregation JSON output path")
+
     p_rtn = sub.add_parser("route-task-next")
     p_rtn.add_argument("run_dir", help="run directory for the route task packet")
     p_rtn.add_argument("--out", required=True, help="write route_subagent_task JSON")
@@ -2469,6 +2651,15 @@ def main():
                           help="material_coverage_map.json with segment assignments")
     p_supply.add_argument("--target-duration", type=float, dest="target_duration",
                           help="allocate requested segment duration by contract weight")
+
+    p_dsr = sub.add_parser("director-supply-revise")
+    p_dsr.add_argument("contract", help="segment_contract.json")
+    p_dsr.add_argument("--supply-review", required=True, dest="supply_review",
+                       help="supply_review.json with script_overreach evidence")
+    p_dsr.add_argument("--out-contract", required=True, dest="out_contract",
+                       help="revised segment_contract.json output")
+    p_dsr.add_argument("--out-report", required=True, dest="out_report",
+                       help="director_supply_revision.json output")
 
     p_cd = sub.add_parser("contract-dry-build")
     p_cd.add_argument("contract", help="canonical segment_contract.json")
@@ -2549,6 +2740,8 @@ def main():
     p_gmr.add_argument("project_map", help="project_material_map.json with generated candidate edges")
     p_gmr.add_argument("--needs", required=True, help="material_needs.json")
     p_gmr.add_argument("--verdict", required=True, help="generated_material_review.json")
+    p_gmr.add_argument("--quality-review", default=None, dest="quality_review",
+                       help="optional generated_material_quality_review.json to enforce quality gates")
     p_gmr.add_argument("--out", required=True, help="reviewed project_material_map.json")
 
     p_ssb = sub.add_parser("story-soul-blueprint")
@@ -2717,6 +2910,45 @@ def main():
     p_mml.add_argument("--decisions", default=None, help="revision_decisions.json")
     p_mml.add_argument("--categories", default=None, help="material_categories.json (optional)")
 
+    p_mmra = sub.add_parser("material-map-review-apply")
+    p_mmra.add_argument("--maps-dir", required=True, dest="maps_dir",
+                        help="directory of per-asset *.map.json files to update")
+    p_mmra.add_argument("--needs", required=True,
+                        help="canonical material_needs.json")
+    p_mmra.add_argument("--verdict", required=True,
+                        help="material_map_review_verdict.json from reviewer/subagent")
+    p_mmra.add_argument("--out", required=True,
+                        help="reviewed project_material_map.json output")
+    p_mmra.add_argument("--material-db", default=None, dest="material_db",
+                        help="mapped materials_db.json with material_map_status entries")
+    p_mmra.add_argument("--skipped-policy", default=None, dest="skipped_policy",
+                        choices=["ignore-with-report"],
+                        help="handle decisions for timeout-skipped assets without fabricating edges")
+
+    p_mwb = sub.add_parser("material-wall-build")
+    p_mwb.add_argument("--db", required=True, help="materials_db.json")
+    p_mwb.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for photo/video wall images")
+    p_mwb.add_argument("--out", required=True, help="material_wall_request.json output")
+    p_mwb.add_argument("--photo-batch-size", type=int, default=60, dest="photo_batch_size",
+                       help="max photos per wall image")
+    p_mwb.add_argument("--video-batch-size", type=int, default=10, dest="video_batch_size",
+                       help="max video strips per wall image")
+
+    p_mwb.add_argument("--limit", type=int,
+                       help="only include the first N files for bounded operator passes")
+
+    p_mwra = sub.add_parser("material-wall-review-apply")
+    p_mwra.add_argument("--db", required=True, help="materials_db.json")
+    p_mwra.add_argument("--verdict", required=True, help="material_wall_review_verdict.json")
+    p_mwra.add_argument("--out", required=True, help="reviewed materials_db.json output")
+
+    p_mdsfw = sub.add_parser("material-db-slice-from-wall")
+    p_mdsfw.add_argument("--db", required=True, help="materials_db.json")
+    p_mdsfw.add_argument("--wall-request", required=True, dest="wall_request",
+                         help="material_wall_request.json used as bounded scope")
+    p_mdsfw.add_argument("--out", required=True, help="bounded materials_db.json output")
+
     p_mr = sub.add_parser("material-revision")
     p_mr.add_argument("contract", help="segment_contract.json (not mutated)")
     p_mr.add_argument("--delta", required=True, help="material_delta.json")
@@ -2860,6 +3092,8 @@ def main():
     p_b2c = sub.add_parser("blueprint-to-contract")
     p_b2c.add_argument("blueprint", help="blueprint.json (thesis + beats[])")
     p_b2c.add_argument("decisions", help="decisions.json (per-beat editorial decisions)")
+    p_b2c.add_argument("--material-needs", default=None,
+                       help="optional material_needs.json; maps need_ids to segments by beat order when decisions omit refs")
     p_b2c.add_argument("--music", default=None, help="music dict json (optional)")
     p_b2c.add_argument("--out", default="segment_contract.json", help="輸出 segment_contract.json")
 

@@ -1,5 +1,6 @@
 import unittest
 
+from video_pipeline_core.curator import build_material_coverage
 from video_pipeline_core.supply_review import fallback_maps_from_coverage, review_supply
 
 
@@ -21,6 +22,28 @@ class SupplyReviewTest(unittest.TestCase):
         maps = fallback_maps_from_coverage(coverage)
         self.assertEqual(len(maps), 2)
         self.assertEqual({item["asset_type"] for item in maps}, {"video", "photo"})
+
+    def test_stock_first_downloaded_files_feed_supply_without_vlm_caption(self):
+        segments = [
+            {"segment": 1, "source": "stock", "requested_duration_sec": 5,
+             "target_shot_sec": 3, "visual_desc": "sunrise", "search_query": "sunrise"},
+            {"segment": 2, "source": "stock", "requested_duration_sec": 5,
+             "target_shot_sec": 3, "visual_desc": "forest", "search_query": "forest"},
+        ]
+        files = [
+            {"path": "/run/materials/seg1_stock.mp4", "type": "video",
+             "vlm_caption": None, "classify": {"usable": True}},
+            {"path": "/run/materials/seg2_stock.mp4", "type": "video",
+             "vlm_caption": None, "classify": {"usable": True}},
+        ]
+
+        coverage = build_material_coverage(segments, files)
+        maps = fallback_maps_from_coverage(coverage)
+        result = review_supply({"segments": segments}, maps, coverage_map=coverage)
+
+        self.assertEqual([len(a["picks"]) for a in coverage["assignments"]], [1, 1])
+        self.assertEqual([s["estimated_effective_shots"] for s in result["segments"]], [1, 1])
+        self.assertNotEqual([s["feasibility"] for s in result["segments"]], ["gap", "gap"])
 
     def test_coverage_map_assignments_select_sources_and_preserve_gap(self):
         contract = {"segments": [

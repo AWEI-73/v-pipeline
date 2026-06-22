@@ -17,14 +17,6 @@
         return value ? String(value).slice(0, 10) : "-";
     }
 
-    function durationFromSlots(slots) {
-        if (!Array.isArray(slots) || slots.length === 0) return 0;
-        return slots.reduce(function (max, slot) {
-            const end = Number(slot && (slot.end_sec || slot.end || 0));
-            return Number.isFinite(end) ? Math.max(max, end) : max;
-        }, 0);
-    }
-
     function runLayoutLabel(runLayout) {
         if (!runLayout || !runLayout.exists) return "missing";
         if (runLayout.error) return "error";

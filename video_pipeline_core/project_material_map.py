@@ -279,7 +279,7 @@ def load_asset_maps(maps_dir):
     """Load every `*.map.json` under a directory (deterministic by filename)."""
     maps = []
     for path in sorted(glob.glob(os.path.join(str(maps_dir), "*.map.json"))):
-        with open(path, encoding="utf-8") as handle:
+        with open(path, encoding="utf-8-sig") as handle:
             maps.append(json.load(handle))
     return maps
 
@@ -292,7 +292,7 @@ def write_project_material_map(maps_dir, out_path, *, needs_path=None):
         # would build a needs-less map and hide the mistake.
         if not os.path.exists(needs_path):
             raise ValueError(f"needs_path was provided but does not exist: {needs_path}")
-        with open(needs_path, encoding="utf-8") as handle:
+        with open(needs_path, encoding="utf-8-sig") as handle:
             needs = json.load(handle)
     project_map = build_project_material_map(material_maps, needs=needs)
     path = Path(out_path)

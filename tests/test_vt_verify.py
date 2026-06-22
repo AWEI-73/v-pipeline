@@ -91,6 +91,69 @@ class VtVerifyTest(unittest.TestCase):
         self.assertEqual(result["score"], 100)
         self.assertEqual(result["issues"], [])
 
+    def test_target_duration_fit_compares_video_to_brief_target(self):
+        with patch("video_pipeline_core.vt_verify._audio_duration", return_value=48.0):
+            result = vt_verify._verify_target_duration_fit(
+                {"target_length": "3 minutes"},
+                video_path="final.mp4",
+            )
+
+        self.assertLess(result["score"], 80)
+        self.assertEqual(result["fix_target"], "director")
+        self.assertEqual(result["target_duration_sec"], 180.0)
+        self.assertEqual(result["actual_duration_sec"], 48.0)
+
+    def test_subtitle_readability_flags_long_rendered_lines(self):
+        with tempfile.TemporaryDirectory() as d:
+            srt_path = Path(d) / "subtitles.srt"
+            srt_path.write_text(
+                "1\n00:00:00,000 --> 00:00:02,000\n"
+                "This subtitle line is intentionally far too long for a safe readable video subtitle line\n",
+                encoding="utf-8",
+            )
+
+            result = vt_verify._verify_subtitle_readability(srt_path, max_chars_per_line=24)
+
+        self.assertLess(result["score"], 80)
+        self.assertEqual(result["fix_target"], "subtitle")
+
+    def test_content_alignment_surfaces_vlm_no(self):
+        result = vt_verify._verify_content_alignment({
+            "segments": [{"segment": 9, "vlm_verdict": "no", "reason": "wrong closing shot"}]
+        })
+
+        self.assertLess(result["score"], 80)
+        self.assertEqual(result["fix_target"], "curator")
+        self.assertIn("seg9", result["note"])
+
+    def test_content_alignment_reads_content_qa_low_segments(self):
+        result = vt_verify._verify_content_alignment({
+            "segments": [{"segment": 3, "score": 42, "image_desc": "unrelated street"}]
+        })
+
+        self.assertLess(result["score"], 80)
+        self.assertEqual(result["fix_target"], "curator")
+        self.assertIn("seg3", result["note"])
+
+    def test_content_alignment_reads_material_coverage_gaps(self):
+        result = vt_verify._verify_content_alignment({
+            "artifact_role": "material_coverage_map",
+            "gaps": [{"segment": 4, "reason": "no matching ceremony footage"}],
+        })
+
+        self.assertLess(result["score"], 80)
+        self.assertEqual(result["fix_target"], "curator")
+        self.assertIn("seg4", result["note"])
+
+
+class RuntimeHeartbeatTest(unittest.TestCase):
+    def test_heartbeat_line_includes_node_and_segment_progress(self):
+        from video_pipeline_core.runtime_orchestrator import format_heartbeat
+
+        line = format_heartbeat("render", "rendered mv segment", segment=9, total=17)
+
+        self.assertEqual(line, "[runtime] [heartbeat][render][seg 9/17] rendered mv segment")
+
 
 if __name__ == "__main__":
     unittest.main()

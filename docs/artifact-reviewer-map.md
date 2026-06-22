@@ -13,10 +13,16 @@ Machine-readable registry:
 python video_tools.py reviewer-policy --registry --out reviewer_registry.json
 python video_tools.py reviewer-policy --level deep --out reviewer_policy_packet.json
 python video_tools.py reviewer-policy --validate-review story_director_review.json
+python video_tools.py reviewer-role-review --role story_director --project-brief project_brief.json --screenplay-beats screenplay_beats.json --material-needs material_needs.json --project-map reviewed_project_material_map.json --out story_director_review.json
+python video_tools.py reviewer-aggregate --review story_director_review.json --out reviewer_aggregation.json
 python video_tools.py reviewer-flow-acceptance --level deep --scenario all --artifact-dir reviewer_smoke
 ```
 
 The registry is implemented in `video_pipeline_core/reviewer_registry.py`.
+The deterministic role runner is implemented in
+`video_pipeline_core/reviewer_role_runner.py`.
+The deterministic review aggregator is implemented in
+`video_pipeline_core/reviewer_aggregation.py`.
 The route smoke harness is implemented in `tools/reviewer_flow_acceptance.py`.
 
 ## Principle
@@ -158,6 +164,58 @@ Examples:
 This is not an automatic score engine. It is the rubric that agents and humans
 must use when producing `artifact_review` outputs.
 
+## Role Review Runner
+
+`reviewer-role-review` is a small deterministic runner for reviewer roles that
+can be checked without invoking a renderer or an LLM:
+
+```powershell
+python video_tools.py reviewer-role-review --role story_director --project-brief project_brief.json --screenplay-beats screenplay_beats.json --material-needs material_needs.json --project-map reviewed_project_material_map.json --out story_director_review.json
+python video_tools.py reviewer-policy --validate-review story_director_review.json
+```
+
+The runner writes an `artifact_review` and validates it through the same
+registry contract as manual reviewer outputs. It does not mutate
+`screenplay_beats`, `material_needs`, `project_material_map`, or BUILD outputs.
+When the role returns `decision: "revise"`, the orchestrator or agent should
+route to `next_action` and let the owning stage produce corrected artifacts.
+
+`reviewer-aggregate` combines multiple `artifact_review` files into a
+`reviewer_aggregation.json` priority queue:
+
+```powershell
+python video_tools.py reviewer-aggregate --review story_director_review.json --review material_producer_review.json --out reviewer_aggregation.json
+```
+
+It ranks findings by gate strength, decision, and severity so hard material or
+delivery gates surface before creative revisions. This is route-level triage,
+not BUILD material ranking and not automatic artifact repair.
+
+Reviewer outputs should guide correction instead of emitting vague warnings.
+Use this canonical control surface:
+
+```json
+{
+  "status": "pass | revise | blocked",
+  "decision": "pass | revise | block",
+  "blocking_level": "none | soft_block | hard_block",
+  "required_revisions": [],
+  "recommended_actions": [],
+  "handoff_to": "director_shot_plan | material_truth | workbench_edit | render_fix | delivery",
+  "can_continue_to_delivery": false
+}
+```
+
+- Mechanical or factual defects use `status=blocked` and
+  `blocking_level=hard_block`.
+- Creative / prompt-style reviewer findings use `status=revise` and
+  `blocking_level=soft_block`, then provide `required_revisions`,
+  `recommended_actions`, and `handoff_to`.
+- `status=revise` is not a delivery pass. `reviewer-aggregate` turns it into a
+  `route_task_packet` so the route can return to the right node.
+- Final delivery must not contain unresolved reviewer `revise`, `soft_block`, or
+  `hard_block` states.
+
 ## Reviewer Flow Acceptance
 
 Use `reviewer-flow-acceptance` when changing reviewer policy, route docs, or
@@ -194,7 +252,7 @@ Intake
 
 ## What Stays Out Of Scope For Now
 
-- No global reviewer runtime.
+- No global automatic reviewer runtime inside `contract-run`.
 - No automatic LLM reviewer invocation in `contract-run`.
 - No new hard gate for literary or director review.
 - No delivery blocking from advisory creative scores.

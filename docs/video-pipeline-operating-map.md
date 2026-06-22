@@ -46,7 +46,7 @@ Use this with:
 
 | Stage | Stable name | Main decision | Skill(s) | Tool entrypoints | Main artifacts | Pass / stop rule | Return route |
 |---|---|---|---|---|---|---|---|
-| 0 | Video Intent Planner | What are we making, for whom, with what constraints, what type of video is it, and what is the material availability? Choose existing-material-first, story-first, or hybrid before deeper story/build work. `Intake` is the legacy label. | `video-workflow.md`, `video-pipeline.md`, `route.md` | `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | project brief, run folder | Stop if audience, length, style, teaching/personal video intent, generation permission, or material route changes the plan. | Back to user / brief refinement |
+| 0 | Video Intent Planner | What are we making, for whom, with what inputs? Decide `input_state` and choose `entry_path`: material-first, structure-first, or needs-context before deeper story/build work. `Intake` is the legacy label. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md`, `route.md` | `video-intent-plan`, `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | `video_intent.json`, project brief, run folder | Stop if audience, goal, input state, material/text availability, generation permission, or handoff changes the plan. | Back to user / brief refinement |
 | 1 | Story Soul | What is the narrative device and emotional spine? | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if the output is just a parameter sheet with no conflict/turn/feeling. | Intake / writer refinement |
 | 2 | Director Shot Plan | What exact shots, audio, subtitles, effects, and material needs prove the story? | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `spec-contract.md` | `validate-needs`, `effect-intent-plan`, `spec-review`, `capability-manifest`, `supply-review` | `material_needs.json`, `effect_intent_plan.json`, subtitle/audio intent, `segment_contract.json` | Stop if must-have needs are vague, untestable, or unsupported. | Story Soul / Director refinement |
 | 3 | Material Truth | What real or generated assets can satisfy each need? | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `codex-imagegen-provider-fill`, `generated-material-import`, `generated-material-review`, `visual-diversity-review`, `visual-family-normalize` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, generated manifests, reviewed map | Stop if maps are dangling, unreviewed, missing must-have evidence, or generated candidates are not accepted. | Material generation / curator review |
@@ -96,8 +96,11 @@ Minimum capture:
 - target audience;
 - desired duration;
 - genre/template route;
-- material availability: `existing-material-first`, `story-first`, or `hybrid`;
-- available material path or generated-material permission;
+- input state: `material_available`, `text_available`, `idea_only`, or
+  `unknown`;
+- entry_path: `material-first`, `structure-first`, or `needs-context`;
+- available material path, available text/article/outline/script/story, or
+  generated-material permission;
 - whether the project is teaching, personal video, event recap, brand, or
   storybook/comic;
 - required language/subtitles/voiceover;
@@ -105,23 +108,42 @@ Minimum capture:
 
 Route rule:
 
-- For **existing-material-first** teaching, personal video, event recap, or
-  brand work, run material-map early. Existing media is the story source and
-  constraint; generation is fallback for diagrams, chapter cards, symbolic
-  bridges, or missing non-proof visuals.
-- For **story-first** generated storybook/comic work, Story Soul / literary
-  lens can lead, then `material_needs.json` drives generated/captured material.
-- For **hybrid**, material-map and `material_delta.json` decide which beats are
-  covered, missing, generated, reshot, rewritten, or waived.
+- For **material-first** teaching, personal video, event recap, or brand work,
+  run material-map early. Existing media is the story source and constraint;
+  generation is fallback for diagrams, chapter cards, symbolic bridges, or
+  missing non-proof visuals.
+- For **structure-first** generated storybook/comic/story/teaching work, the
+  structure route can lead, then `material_needs.json` drives generated or
+  captured material.
+- For **needs-context**, ask focused questions first; do not start Story Soul,
+  Material Truth, generated fallback, or BUILD.
+- `existing-material-first` maps to `material-first`; `story-first` maps to
+  `structure-first`; hybrid is not a primary Stage 0 entry path. Partial
+  material enters `material-first`, then `material_delta.json` decides which
+  beats are covered, missing, generated, reshot, rewritten, dropped, or waived.
 
 Useful commands:
 
 ```powershell
 python video_tools.py project-init ...
 python video_tools.py project-new-run ...
+python video_tools.py video-intent-plan project_brief.json --out video_intent.json
+python video_tools.py video-intent-acceptance --out video_intent_acceptance.json
 python video_tools.py commands-manifest
 python video_tools.py workflow-manifest
 ```
+
+Stage 0 artifact ownership:
+
+- `project_brief.json` / `brief.json` is raw input.
+- `video_intent.json` is the canonical Stage 0 input-state / entry-path
+  decision.
+- `route_decision.json` is legacy/compat unless a current harness explicitly
+  requires it.
+- `input_state` records `material_available`, `text_available`, `idea_only`, or
+  `unknown`.
+- `entry_path` records `material-first`, `structure-first`, or `needs-context`;
+  hybrid is not a primary Stage 0 entry path.
 
 Multi-agent packet route:
 
@@ -307,6 +329,12 @@ Core capabilities currently active:
 - SRP3 story arc allocation hints;
 - KBF1 stable still-photo motion.
 
+KBF1 owner: BUILD renderer (`video_pipeline_core/mv_cut.py`). Still photos must
+render through a 30fps input loop and 4K dynamic scale/crop/downsample path.
+Do not reintroduce ffmpeg `zoompan` for canonical photo motion; it has known
+jitter with animated x/y. Long stills should prefer `hold` or restrained center
+push over very slow pan, because sub-pixel pan can read as stepping.
+
 Commands:
 
 ```powershell
@@ -454,6 +482,7 @@ python video_tools.py operator-flow-acceptance ...
 
 | Skill | Primary role | Main tool(s) |
 |---|---|---|
+| `video-intent-planner.md` | Stage 0 route decision and `video_intent.json` | `video-intent-plan`, `video-intent-acceptance` |
 | `video-workflow.md` | route selection and operator flow | `project-init`, `project-new-run`, `workflow-manifest` |
 | `video-pipeline.md` | overall pipeline guidance | `commands-manifest`, `workflow-manifest`, `operator-flow-acceptance` |
 | `route.md` | canonical route and delivery decisions | `state`, `run-layout-validate`, `operator-flow-acceptance`, `route-task-next`, `route-task-accept`, `route-orchestrator-acceptance` |
@@ -479,7 +508,7 @@ python video_tools.py operator-flow-acceptance ...
 ## Artifact Flow
 
 ```text
-project brief
+project brief / `video_intent.json`
   -> story_soul_blueprint.json
   -> segment_contract.json + material_needs.json + effect_intent_plan.json
   -> per-asset maps / project_material_map.json
@@ -542,7 +571,7 @@ timeline_build.json + material maps
 | SRP1 | segment sequence planner |
 | SRP2 | opening/hook planner |
 | SRP3 | story arc planner |
-| KBF1 | still-photo motion stabilization |
+| KBF1 | still-photo motion stabilization (`mv_cut`, no `zoompan`) |
 | FX / Node14 | Brownfield Edit / Effects finishing route |
 | Dashboard | read/review shell |
 | Workbench | draft edit shell |

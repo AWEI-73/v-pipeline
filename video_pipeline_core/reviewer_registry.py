@@ -16,7 +16,9 @@ ARTIFACT_ROLE = "reviewer_registry"
 POLICY_PACKET_ROLE = "reviewer_policy_packet"
 VERSION = 1
 
-VALID_DECISIONS = {"pass", "revise", "block", "advisory"}
+VALID_DECISIONS = {"pass", "revise", "block", "blocked", "advisory"}
+VALID_STATUSES = {"pass", "revise", "blocked"}
+VALID_BLOCKING_LEVELS = {"none", "soft_block", "hard_block"}
 VALID_GATE_STRENGTHS = {"advisory", "revise", "hard_gate", "delivery_gate"}
 
 POLICIES = {
@@ -210,6 +212,8 @@ def build_reviewer_registry() -> dict[str, Any]:
                 "findings",
             ],
             "valid_decisions": sorted(VALID_DECISIONS),
+            "valid_statuses": sorted(VALID_STATUSES),
+            "valid_blocking_levels": sorted(VALID_BLOCKING_LEVELS),
             "valid_gate_strengths": sorted(VALID_GATE_STRENGTHS),
         },
     }
@@ -259,6 +263,22 @@ def validate_review_artifact(review: Mapping[str, Any]) -> dict[str, Any]:
     if decision not in VALID_DECISIONS:
         errors.append(f"decision must be one of {sorted(VALID_DECISIONS)}")
 
+    status = str(review.get("status") or "").strip()
+    if status:
+        if status not in VALID_STATUSES:
+            errors.append(f"status must be one of {sorted(VALID_STATUSES)}")
+        if status == "blocked" and decision not in {"block", "blocked"}:
+            errors.append("status blocked requires decision block/blocked")
+        if status == "revise" and decision != "revise":
+            errors.append("status revise requires decision revise")
+
+    blocking_level = str(review.get("blocking_level") or "").strip()
+    if blocking_level:
+        if blocking_level not in VALID_BLOCKING_LEVELS:
+            errors.append(f"blocking_level must be one of {sorted(VALID_BLOCKING_LEVELS)}")
+        if blocking_level in {"soft_block", "hard_block"} and review.get("can_continue_to_delivery") is not False:
+            errors.append("can_continue_to_delivery must be false when blocking_level is soft_block or hard_block")
+
     gate = str(review.get("gate_strength") or "").strip()
     if gate not in VALID_GATE_STRENGTHS:
         errors.append(f"gate_strength must be one of {sorted(VALID_GATE_STRENGTHS)}")
@@ -278,4 +298,3 @@ def write_policy_packet(level: str, out: str | Path) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(packet, ensure_ascii=False, indent=2), encoding="utf-8")
     return packet
-

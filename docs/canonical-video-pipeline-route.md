@@ -1,4 +1,4 @@
-# Canonical Video Pipeline Route
+﻿# Canonical Video Pipeline Route
 
 Date: 2026-06-20
 Status: v1 accepted / keep as route map before broad node renaming
@@ -16,8 +16,8 @@ Hermes is a contract-first video pipeline, not a one-off slideshow script.
 The stable unit of work is:
 
 ```text
-Video Intent Planner -> material availability
-  -> existing-material-first | story-first | hybrid
+Video Intent Planner -> input state
+  -> material-first | structure-first | needs-context
   -> story/design contract -> material truth -> BUILD -> verify -> draft edit -> delivery
 ```
 
@@ -29,7 +29,7 @@ truth.
 
 | # | Canonical stage | Purpose | Primary skill | Main tools | Main artifacts | Gate / stop condition |
 |---|---|---|---|---|---|---|
-| 0 | Video Intent Planner | Capture user goal, audience, length, style, constraints, available material, material availability, video type, and expected output; choose existing-material-first, story-first, or hybrid before story/build work. `Intake` remains a legacy label for this stage. | `video-workflow.md`, `video-pipeline.md` | none, or project/run tools if needed | project brief, run folder | Stop if goal, material availability, teaching/personal video intent, or generation permission is ambiguous enough to change route. |
+| 0 | Video Intent Planner | Capture user goal, audience, length, style, available material, available text/article/idea, video type, and expected output; choose material-first, structure-first, or needs-context before story/build work. `Intake` remains a legacy label for this stage. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md` | `video-intent-plan`, project/run tools if needed | `video_intent.json`, project brief, run folder | Stop if input state, audience, goal, material availability, text availability, or generation permission is ambiguous enough to change handoff. |
 | 1 | Story Soul | Create story world, narrative device, emotional spine, and core idea before technical shot planning. | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-to-contract` when compiling from blueprint | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if story lacks a narrative device or character/emotional spine. |
 | 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, and material needs. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, subtitle plan | Stop if must-have needs are vague or untestable. |
 | 3 | Material Truth | Inventory real material, generate missing material if needed, and attach evidence to needs. | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `generated-material-import`, `generated-material-review` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed material map | Stop if material is missing, unreviewed, dangling, or insufficient for must-have needs. |
@@ -39,11 +39,11 @@ truth.
 | 7 | Verify | Check technical quality, content alignment, subtitles, black frames, visual fatigue, and delivery readiness. | `verify.md` | `verify`, `black-frame-audit`, `caption-audit`, `new-visual-audit`, `visual-audit`, `timeline-audit`, `verify-evidence` | `verify_result.json`, audit reports, contact sheet, review report | If failure is factual/material, return to Material Truth or Coverage Gate. If failure is finishing/editing, route to Brownfield Edit. |
 | 8 | Workbench Draft Review | Let humans/agents inspect composition, adjust draft timing/subtitles/audio/effect markers, and export preview/draft patches. | `dashboard.md`, `brownfield-edit.md` | `workbench_server.py`, `preview_timeline.py`, `timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft preview/export | Workbench must not overwrite canonical timeline, material map, or final. |
 | 9 | Brownfield Edit / Finishing | Apply bounded fixes after review: subtitle/audio/effect patch, generated effect assets, Remotion adapter route, or small material replacement. | `brownfield-edit.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `remotion-prompt-pack`, `remotion-worker-outputs`, `remotion-worker-smoke`, `remotion-composite-draft`, `light-effects-plan` | `effect_revision_request.json`, `effect_recipe_patch.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If edit changes material truth, return to Material Truth / Delta. If it only changes finishing, rerender/draft then verify. |
-| 10 | Delivery | Produce final report, artifacts, and handoff. | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, and known limitations. |
+| 10 | Delivery | Produce final report, artifacts, and handoff. | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools, `validate_pipeline_run_folder --complete-video` | `final.mp4`, `delivery_requirements.json`, `narration_manifest.json`, `music_manifest.json`, `audio_mix_report.json`, `subtitles.srt`, `frame_evidence.json`, `effect_render_verification.json`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, required media streams, usable narration audio, readable review artifacts, language match, frame-level material evidence when real material is used, rendered-effect verification when effects are planned, generated-material consistency review, delivery manifests, no unresolved reviewer revise/block states, and known limitations. Complete-video validation has no warning channel: warnings are promoted to errors. |
 
 ## Skill Design Rules
 
-### 0. Video Intent Planner decides material availability before story depth
+### 0. Video Intent Planner decides input state before story depth
 
 The first creative role is a video intent planner, not always a fiction writer.
 It can become a teacher, memory editor, event director, brand editor, or
@@ -51,23 +51,38 @@ storybook writer depending on the brief.
 
 The intake must decide:
 
-- `existing-material-first`: real media exists. Run material-map early and let
-  available clips/photos shape the story, lesson, or personal video. For
-  teaching and personal video routes, generation is fallback rather than the
-  default source.
-- `story-first`: no material exists or the user explicitly wants a generated
-  route. Story Soul / teaching structure / literary lens can lead, then material
-  needs and generated/captured assets are produced.
-- `hybrid`: some real material exists, and missing beats may be generated,
-  reshot, shortened, rewritten, dropped, or waived after material-delta.
+- `input_state`: `material_available`, `text_available`, `idea_only`, or
+  `unknown`.
+- `entry_path`: `material-first`, `structure-first`, or `needs-context`.
+- `material-first`: real or partial media exists. Run material-map early and let
+  available clips/photos reveal people, scenes, actions, emotions, timeline, and
+  gaps. Then use interaction to reduce ambiguity and build the structure.
+  generation is fallback for teaching and personal video routes with real
+  material.
+- `structure-first`: no usable media exists, but an article, outline, script,
+  story, or developed idea exists. Clarify structure first, then derive material
+  needs and route missing visuals through generated-material fallback.
+- `needs-context`: the brief is too vague to choose a handoff. Ask focused
+  questions before Story Soul, Material Truth, or BUILD.
 
-This rule prevents a pure teaching video or personal素材剪輯 from being forced
+This rule prevents a pure teaching video or personal蝝??芾摩 from being forced
 through a generated storybook route, and prevents a zero-material storybook from
 pretending existing footage exists.
 
-Legacy alias rule: `script-first` is a legacy alias for `story-first`, and
-`material-first` is a legacy alias for `existing-material-first`. New docs and
-operator prompts should use the canonical route names.
+Legacy alias rule: `existing-material-first` maps to `material-first`,
+`story-first` maps to `structure-first`, and hybrid is not a primary Stage 0
+entry path.
+Compatibility keyword: hybrid is not a primary Stage 0 entry path.
+`hybrid` is not a primary Stage 0 entry path. Partial material enters
+`material-first`; material delta later decides generation, reshoot, rewrite,
+drop, or waiver.
+
+Stage 0 artifact ownership:
+
+- `project_brief.json` / `brief.json` is raw input.
+- `video_intent.json` is the canonical Stage 0 route decision.
+- `route_decision.json` is legacy/compat unless a current harness explicitly
+  requires it.
 
 ### 1. Skills ask for missing decisions, tools enforce facts
 
@@ -143,6 +158,8 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 
 - `project-init`
 - `project-new-run`
+- `video-intent-plan`
+- `video-intent-acceptance`
 - `workflow-manifest`
 - `commands-manifest`
 - `run-layout-validate`
@@ -248,15 +265,18 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 
 | Artifact | Owner stage | Canonical? | Notes |
 |---|---|---|---|
-| `project_brief.json` | Video Intent Planner | yes per run | User/project intent. |
+| `video_intent.json` | Video Intent Planner | yes per run | Canonical Stage 0 route decision, follow-up questions, and next handoff. |
+| `project_brief.json` | Video Intent Planner | yes per run | User/project intent used as input to `video_intent.json`. |
+| `brief.json` | Video Intent Planner | yes per run | Raw project brief input used by legacy runtime paths. |
+| `route_decision.json` | Video Intent Planner | legacy/compat | Use only when a current harness requires it; prefer `video_intent.json`. |
 | `story_soul_blueprint.json` | Story Soul | yes per route | Creative source before screenplay/materials. |
 | `segment_contract.json` | Story / Director | yes | Main BUILD contract. |
 | `material_needs.json` | Director Shot Plan | yes | Stable `need_id` source. |
 | per-asset `.map.json` | Material Truth | yes | Source-level evidence. |
 | `project_material_map.json` | Material Truth | projection | Aggregates per-asset maps; not a second truth. |
-| `material_generation_fallback.json` | Material Truth | yes per run | Missing/thin material generation plan. |
-| `generated_provider_packet.json` | Material Truth | handoff | Provider jobs and target files. |
-| `generated_material_review.json` | Material Truth | yes | Promotion from candidate to accepted/rejected. |
+| `material_generation_fallback.json` | Material Truth | yes per run | Missing/thin material generation plan. Generated routes require `ok=true` and non-empty generation jobs. |
+| `generated_provider_packet.json` | Material Truth | handoff | Provider jobs and target files. Must preserve prompt lineage with non-empty jobs containing `job_id`, `need_id`, `prompt`, and `target_file`. Each job must also include minimal `truth_controls`; reference-guided or composite jobs must list `reference_controls.reference_assets`. |
+| `generated_material_review.json` | Material Truth | yes | Promotion from candidate to accepted/rejected. Generated routes must explicitly pass story, character, and segment consistency before BUILD/delivery, and every accepted asset must trace back to a provider prompt job. |
 | `material_delta.json` | Coverage Gate | yes per current inputs | Fresh calculation; stale artifact is never trusted by BUILD. |
 | `revision_decisions.json` | Coverage Gate | yes if used | Human/agent accepted decisions. |
 | `revised_segment_contract.json` | Coverage Gate | yes if produced | Must be re-gated before BUILD. |
@@ -264,6 +284,12 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 | `timeline_build.json` | Official Render | canonical for rendered output | Timeline actually rendered. |
 | `final.mp4` | Official Render | yes | Canonical delivery candidate. |
 | `subtitles.srt` | Official Render | yes | Delivery subtitle artifact. |
+| `delivery_requirements.json` | Delivery | yes per delivery | Declares whether the finished video requires audio, narration, music, and subtitles. |
+| `narration_manifest.json` | Delivery / Audio | yes if narration required | Lists narration text/audio segments used by the final delivery. Required narration must reference usable audio files unless fallback is explicitly allowed. |
+| `music_manifest.json` | Delivery / Audio | yes if music required | Lists background music tracks or cues used by the final delivery. |
+| `audio_mix_report.json` | Delivery / Audio | yes if audio required | States whether audio stream, narration, and music were mixed into `final.mp4`. |
+| `frame_evidence.json` | Material Truth / Delivery | yes for real-material montage | Records inspected frame refs, visual observations, and semantic match for selected real material. |
+| `effect_render_verification.json` | Delivery / Effects | yes if effects/transitions are planned | Proves planned effects/transitions were actually rendered. It should cite existing `keyframe_grid.jpg` / `visual_audit.json` sampled render evidence plus any build metadata, not a separate ad hoc montage tool. |
 | `verify_result.json` | Verify | yes | Delivery quality evidence. |
 | `preview_timeline.json` | Workbench | projection | Draft preview source. |
 | `timeline_patch.json` | Workbench | draft | Human/agent draft edits. |
@@ -312,7 +338,7 @@ Known gaps:
 
 Evidence:
 
-- `docs/decisions/2026-06-20-snow-white-generated-storybook-e2e.md`
+- `docs/archive/decisions/2026-06-20-snow-white-generated-storybook-e2e.md`
 - Cinderella and Snow White `.tmp` validation runs.
 
 Known gaps:

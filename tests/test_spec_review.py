@@ -124,6 +124,18 @@ class BlockingRulesTest(unittest.TestCase):
         r = review_spec(contract, BRIEF, has_editorial_design=True)
         self.assertTrue(r["ready_for_build"])
 
+    def test_mojibake_overlay_text_blocks_before_render(self):
+        contract = {"segments": [_seg(
+            segment=1,
+            text_layer={"narrative": "?????????????????", "reason": "r"},
+        )]}
+
+        r = review_spec(contract, BRIEF, has_editorial_design=True)
+
+        self.assertFalse(r["ready_for_build"])
+        finding = next(b for b in r["blocking"] if b["rule"] == "text_mojibake")
+        self.assertEqual(finding["segment"], 1)
+
 
     def test_matching_creative_exception_downgrades_block_to_acknowledged_warning(self):
         exception = {
@@ -162,6 +174,22 @@ class WarningRulesTest(unittest.TestCase):
         r = review_spec({"segments": [_seg()]}, {"video_type": "mv", "mode": "warm_documentary"},
                         has_editorial_design=True)
         self.assertIn("missing_target_length", self._rules(r))
+
+    def test_target_length_mismatch_warns_before_build(self):
+        contract = {"segments": [
+            _seg(segment=1, requested_duration_sec=16),
+            _seg(segment=2, requested_duration_sec=16),
+            _seg(segment=3, requested_duration_sec=16),
+        ]}
+        brief = {"video_type": "documentary", "target_length": "3 minutes", "mode": "warm_documentary"}
+
+        r = review_spec(contract, brief, has_editorial_design=True)
+
+        self.assertTrue(r["ready_for_build"])
+        finding = next(w for w in r["warnings"] if w["rule"] == "target_length_mismatch")
+        self.assertEqual(finding["estimated_duration_sec"], 48.0)
+        self.assertEqual(finding["target_duration_sec"], 180.0)
+        self.assertLess(finding["duration_ratio"], 0.5)
 
     def test_w3_implicit_mode_trap_warns(self):
         brief = {"video_type": "mv", "target_length": "45 seconds"}  # no explicit mode

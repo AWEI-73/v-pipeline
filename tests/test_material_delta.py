@@ -208,6 +208,29 @@ class RenderableEvidenceTest(unittest.TestCase):
         self.assertEqual(delta["evidence"]["accepted"], 1)   # not 2
         self.assertEqual(delta["outcome"], "covered")        # not excess
 
+    def test_duplicate_generated_content_hash_does_not_satisfy_multi_panel_need(self):
+        needs = _needs(("storybook beat", 2, True, ["generated_image"]))
+        nid = _first_id(needs)
+        maps = [
+            {"asset_id": "gen-a", "source": "a.png", "source_type": "generated",
+             "content_hash": "same-image", "scenes": [
+                 {"start": 0, "end": 4, "source_type": "generated",
+                  "satisfies": [{"need_id": nid, "status": "accepted"}]}]},
+            {"asset_id": "gen-b", "source": "b.png", "source_type": "generated",
+             "content_hash": "same-image", "scenes": [
+                 {"start": 0, "end": 4, "source_type": "generated",
+                  "satisfies": [{"need_id": nid, "status": "accepted"}]}]},
+        ]
+
+        result = md.compute_material_delta(needs, maps)
+
+        self.assertTrue(result["ok"], result["errors"])
+        delta = result["deltas"][0]
+        self.assertEqual(delta["outcome"], "thin")
+        self.assertEqual(delta["evidence"]["accepted"], 1)
+        self.assertEqual(delta["evidence"]["dropped_evidence"][0]["reason"],
+                         "duplicate_generated_asset")
+
 
 class FallbackValidationTest(unittest.TestCase):
     def test_empty_string_fallback_fails_and_keeps_block(self):

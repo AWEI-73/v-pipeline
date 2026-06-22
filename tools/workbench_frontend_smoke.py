@@ -183,7 +183,7 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
     before = canonical_hashes(root)
 
     html = _read_text_url(f"{base_url}/workbench")
-    required_markers = ("Hermes Native Preview Workbench", "btn-save-all", "lane-video")
+    required_markers = ("Hermes 原生剪輯工作區", "btn-save-all", "lane-video")
     missing = [m for m in required_markers if m not in html]
     if missing:
         raise SmokeError(f"workbench HTML missing markers: {missing}")
