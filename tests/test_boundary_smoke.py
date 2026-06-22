@@ -1,4 +1,5 @@
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +33,40 @@ def _segment(num, need_id):
 
 
 class BoundarySmokeTest(unittest.TestCase):
+    def test_stage4_dry_build_materializes_build_artifacts_without_render(self):
+        root = Path(__file__).resolve().parents[1]
+        fixture = root / "examples" / "genre_tests" / "stock_story_e2e"
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp) / "stage4_dry_build"
+            input_dir = stage_dir / "input"
+            input_dir.mkdir(parents=True)
+            for name in ("segment_contract.json", "brief.json", "material_categories.json"):
+                shutil.copy2(fixture / name, input_dir / name)
+            _write(input_dir / "boundary_config.json", {
+                "stage": "stage4_dry_build",
+                "contract": "segment_contract.json",
+                "categories": "material_categories.json",
+                "expected": {"ok": True, "dry_run": True},
+            })
+
+            report = run_boundary(stage_dir)
+
+            self.assertTrue(report["pass"], report)
+            self.assertEqual(report["gate_source"], "contract_adapter.dry_build")
+            self.assertEqual(report["gate_status"], "dry_build")
+            build_dir = stage_dir / "actual" / "build"
+            for name in (
+                "build_profile.json",
+                "assembly_plan.json",
+                "timeline_build.json",
+                "editor_review.json",
+                "generated_mv_script.json",
+                "dry_build.json",
+            ):
+                self.assertTrue((build_dir / name).exists(), name)
+            self.assertFalse((build_dir / "final.mp4").exists())
+            self.assertFalse((build_dir / "verify_result.json").exists())
+
     def test_stage1_story_blueprint_preserves_user_seed(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage_dir = Path(tmp) / "stage1_story_blueprint"

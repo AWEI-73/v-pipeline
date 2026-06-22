@@ -11,6 +11,7 @@ import json
 import shutil
 from pathlib import Path
 
+from video_pipeline_core import contract_adapter
 from video_pipeline_core import material_map_lifecycle
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps
 from video_pipeline_core.story_soul_blueprint import write_story_soul_blueprint
@@ -146,6 +147,51 @@ def _run_stage3_review_apply(stage_dir: Path, config: dict) -> dict:
     return report
 
 
+def _dry_build_regressions(config: dict, result: dict) -> list[str]:
+    expected = config.get("expected") or {}
+    regressions = []
+    if "ok" in expected and bool(result.get("ok")) != bool(expected["ok"]):
+        regressions.append(f"expected ok={bool(expected['ok'])}, got {bool(result.get('ok'))}")
+    if "dry_run" in expected and bool(result.get("dry_run")) != bool(expected["dry_run"]):
+        regressions.append(
+            f"expected dry_run={bool(expected['dry_run'])}, got {bool(result.get('dry_run'))}"
+        )
+    return regressions
+
+
+def _run_stage4_dry_build(stage_dir: Path, config: dict) -> dict:
+    actual_dir = stage_dir / "actual"
+    actual_dir.mkdir(parents=True, exist_ok=True)
+    work = _copy_input(stage_dir)
+    build_dir = actual_dir / "build"
+    contract_path = _ref(work, config, "contract", "segment_contract.json")
+    categories_path = _ref(work, config, "categories", "material_categories.json")
+    result = contract_adapter.dry_build(
+        contract_path,
+        out_dir=build_dir,
+        categories_path=str(categories_path) if categories_path.exists() else None,
+        verbose=False,
+    )
+    _write_json(actual_dir / "dry_build_result.json", result)
+    regressions = _dry_build_regressions(config, result)
+    report = {
+        "artifact_role": "boundary_report",
+        "version": 1,
+        "stage": "stage4_dry_build",
+        "gate_source": "contract_adapter.dry_build",
+        "gate_status": result.get("stage"),
+        "pass": not regressions,
+        "regressions": regressions,
+        "refs": {
+            "work": str(work),
+            "build": str(build_dir),
+            "result": str(actual_dir / "dry_build_result.json"),
+        },
+    }
+    _write_json(actual_dir / "boundary_report.json", report)
+    return report
+
+
 def run_boundary(stage_dir):
     stage_dir = Path(stage_dir)
     config_path = stage_dir / "input" / "boundary_config.json"
@@ -155,6 +201,8 @@ def run_boundary(stage_dir):
         return _run_stage1_story_blueprint(stage_dir, config)
     if stage == "stage3_review_apply":
         return _run_stage3_review_apply(stage_dir, config)
+    if stage == "stage4_dry_build":
+        return _run_stage4_dry_build(stage_dir, config)
     raise ValueError(f"unsupported boundary stage: {stage!r}")
 
 
