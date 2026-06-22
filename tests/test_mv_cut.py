@@ -6,6 +6,7 @@ so the cut-grid logic is fully deterministic.
 import tempfile
 import subprocess
 import unittest
+import inspect
 from pathlib import Path
 from unittest.mock import patch
 
@@ -291,9 +292,11 @@ class PhotoHandlingTest(unittest.TestCase):
     def test_photo_vf_hold_vs_kenburns(self):
         self.assertEqual(mv_cut._photo_vf(3.0, kenburns=False), mv_cut._MV_VF)
         kb = mv_cut._photo_vf(2.0, kenburns=True)
-        self.assertIn("zoompan", kb)
-        self.assertIn("d=60", kb)          # 2.0s * 30fps
-        self.assertIn("s=1920x1080", kb)
+        self.assertNotIn("zoompan", kb)
+        self.assertIn("fps=30", kb)
+        self.assertIn("eval=frame", kb)
+        self.assertIn("crop=3840:2160", kb)
+        self.assertIn("scale=1920:1080", kb)
 
     def test_find_photos_filters_by_hint_and_ext(self):
         import tempfile, os
@@ -823,9 +826,24 @@ class SegmentPlannerTest(unittest.TestCase):
 
         self.assertNotEqual(push, pan)
         self.assertNotEqual(push, detail)
-        self.assertIn("on/", pan)
+        self.assertIn("n/", pan)
         self.assertIn("0.32", detail)
         self.assertNotIn("x+3", pan)
+
+    def test_photo_vf_caps_long_still_zoom_to_avoid_overpush(self):
+        short_push = mv_cut._photo_vf(2.0, treatment={"mode": "slow_push"})
+        long_push = mv_cut._photo_vf(16.0, treatment={"mode": "slow_push"})
+        long_detail = mv_cut._photo_vf(16.0, treatment={"mode": "detail_push"})
+        long_pan = mv_cut._photo_vf(16.0, treatment={"mode": "pan_right"})
+
+        self.assertIn("0.22", short_push)
+        self.assertIn("0.05", long_push)
+        self.assertIn("0.12", long_detail)
+        self.assertIn("3840*1.08", long_pan)
+
+    def test_photo_render_uses_30fps_input_loop(self):
+        source = inspect.getsource(mv_cut.render_mv_audio)
+        self.assertIn('"-loop", "1", "-framerate", "30", "-i", p["source"]', source)
 
     def test_windows_from_clip_zero_clips(self):
         self.assertEqual(mv_cut._windows_from_clip("/m/x/a.mov", 0, 2.0, False), [])

@@ -342,39 +342,50 @@ def _is_image(path):
     return os.path.splitext(path or "")[1].lower() in _IMG_EXTS
 
 
+def _still_motion_strength(dur):
+    """Cap long still motion so extended photo holds do not overpush."""
+    seconds = float(dur or 0)
+    if seconds >= 12:
+        return {"slow": 0.05, "detail": 0.12, "pan_zoom": 1.08}
+    if seconds >= 8:
+        return {"slow": 0.08, "detail": 0.16, "pan_zoom": 1.10}
+    return {"slow": 0.22, "detail": 0.32, "pan_zoom": 1.18}
+
+
 def _photo_vf(dur, kenburns=True, treatment=None):
     """Return the ffmpeg video filter for a still image clip.
 
-    Ken Burns motion stays at the output resolution for runtime cost. Smoothness
-    comes from continuous time-based x/y expressions, not fixed pixel stepping
-    or truncation.
+    Avoid ffmpeg zoompan for motion: zoompan is prone to subtle jitter on stills
+    when x/y are animated. Use a 30fps still stream, dynamic scale, and crop.
     """
     if not kenburns:
         return _MV_VF
     frames = max(1, round((dur or 1.0) * 30))
     progress = max(1, frames - 1)
-    t = f"(on/{progress})"
+    t = f"(n/{progress})"
     mode = (treatment or {}).get("mode", "slow_push")
-    motion = {
-        "pan_right": (
-            f"z=1.18:x='(iw-iw/zoom)*{t}':"
-            "y='ih/2-(ih/zoom/2)'"
-        ),
-        "pan_left": (
-            f"z=1.18:x='(iw-iw/zoom)*(1-{t})':"
-            "y='ih/2-(ih/zoom/2)'"
-        ),
-        "detail_push": (
-            f"z='1+0.32*{t}':x='iw/2-(iw/zoom/2)':"
-            "y='ih/2-(ih/zoom/2)'"
-        ),
-    }.get(mode, (
-        f"z='1+0.22*{t}':x='iw/2-(iw/zoom/2)':"
-        "y='ih/2-(ih/zoom/2)'"
-    ))
-    return ("scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,"
-            f"zoompan={motion}:d={frames}:s=1920x1080:fps=30,"
-            "setsar=1,format=yuv420p")
+    if mode == "hold":
+        return _MV_VF
+    strength = _still_motion_strength(dur)
+    if mode in ("pan_right", "pan_left"):
+        zoom = f"{strength['pan_zoom']:.2f}"
+        x = f"(iw-ow)*{t}" if mode == "pan_right" else f"(iw-ow)*(1-{t})"
+        return (
+            "fps=30,"
+            f"scale=w='3840*{zoom}':h='2160*{zoom}':force_original_aspect_ratio=increase:eval=frame,"
+            f"crop=3840:2160:x='{x}':y='(ih-oh)/2',"
+            "scale=1920:1080,"
+            "setsar=1,format=yuv420p"
+        )
+    delta = strength["detail"] if mode == "detail_push" else strength["slow"]
+    zoom = f"(1+{delta:.2f}*{t})"
+    return (
+        "fps=30,"
+        f"scale=w='3840*{zoom}':h='2160*{zoom}':force_original_aspect_ratio=increase:eval=frame,"
+        "crop=3840:2160:x='(iw-ow)/2':y='(ih-oh)/2',"
+        "scale=1920:1080,"
+        "setsar=1,format=yuv420p"
+    )
 
 
 def _cjk_font():
@@ -1995,7 +2006,7 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
                 treatment=p.get("still_treatment"),
             ) \
                 + text_filter
-            cmd = [FFMPEG, "-y", "-loop", "1", "-i", p["source"],
+            cmd = [FFMPEG, "-y", "-loop", "1", "-framerate", "30", "-i", p["source"],
                    "-f", "lavfi", "-t", f"{p['extract_dur']:.3f}", "-i", "anullsrc=r=44100:cl=stereo",
                    "-vf", pvf, "-t", f"{p['extract_dur']:.3f}", "-r", "30",
                    "-map", "0:v:0", "-map", "1:a:0",

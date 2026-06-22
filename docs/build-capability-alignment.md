@@ -50,7 +50,7 @@ capability, and a VERIFY check creates nothing:
 | Capability | Declared source | Existing tool | BUILD consumer | Timeline evidence | Render evidence | Status |
 |---|---|---|---|---|---|---|
 | Transitions | `ALLOWED_TRANSITIONS` (video_pipeline) | `build_filter_chain` | narrative `compose_and_qa`, `mv_cut` | xfade offsets in filter chain | rendered xfades | active |
-| Still treatments (push/pan/ken-burns) | `_STILL_TREATMENT_MODES` (edit_artifacts) | `mv_cut` zoompan | `mv_cut` render (`_video_vf`/still path) | `still_treatment` on clips | rendered motion on stills | active; KBF1 smoothness hardening complete |
+| Still treatments (push/pan/ken-burns) | `_STILL_TREATMENT_MODES` (edit_artifacts) | `mv_cut` 30fps still stream + 4K dynamic scale/crop/downsample (not `zoompan`) | `mv_cut` render (`_video_vf`/still path) | `still_treatment` on clips | rendered motion on stills | active; KBF1 smoothness hardening complete |
 | Attention budget | `attention_budget` facet | `resolve_attention_budget` | `edit_artifacts` plan + `mv_cut.allocate_segments` | per-seg budget + shot count | shot durations follow budget | active |
 | SFX punctuation | `sfx.ASSET_COUNTS` + `sfx_plan` | `sfx-mix` | `video_pipeline` audio mix | `sfx_plan.json` cues | cues in final_audio | active |
 | Music structure / climax align | `music_structure` sections | `music_alignment` | `video_pipeline` bgm offset | `music_alignment_plan.json` | bgm offset in render | active |

@@ -268,7 +268,7 @@ def record_mv_render_outputs(plan, manifest, mv_plan, *, final_video=None):
     for slot in mv_plan or []:
         operations = []
         if slot.get("is_photo") and slot.get("kenburns", True):
-            operations.append(("kenburns", "mv_cut.photo_zoompan"))
+            operations.append(("kenburns", "mv_cut.still_motion_4k_crop"))
         if slot.get("transition") in {"dissolve", "crossfade", "xfade"}:
             operations.append(("xfade", "mv_cut.ffmpeg_xfade"))
         for operation, renderer in operations:

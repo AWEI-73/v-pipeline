@@ -285,7 +285,7 @@ class LightEffectsTest(unittest.TestCase):
             "operation": "kenburns",
             "status": "rendered",
             "path": "final.mp4",
-            "renderer": "mv_cut.photo_zoompan",
+            "renderer": "mv_cut.still_motion_4k_crop",
             "source_slot_index": 0,
         }])
 

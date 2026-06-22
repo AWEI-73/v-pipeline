@@ -11,13 +11,14 @@ from video_pipeline_core.platform_tools import resolve_ffmpeg
 
 
 class KenBurnsSmoothnessContractTest(unittest.TestCase):
-    def test_slow_push_keeps_zoompan_at_output_resolution_for_runtime_cost(self):
+    def test_slow_push_uses_4k_scale_crop_without_zoompan(self):
         vf = _photo_vf(2.0, kenburns=True, treatment={"mode": "slow_push"})
 
-        self.assertIn("zoompan=", vf)
-        self.assertIn("s=1920x1080", vf)
+        self.assertNotIn("zoompan", vf)
+        self.assertIn("fps=30", vf)
+        self.assertIn("crop=3840:2160", vf)
+        self.assertIn("scale=1920:1080", vf)
         self.assertNotIn("s=2560x1440", vf)
-        self.assertNotIn("s=3840x2160", vf)
 
     def test_slow_push_does_not_use_truncated_center_motion(self):
         vf = _photo_vf(2.0, kenburns=True, treatment={"mode": "slow_push"})
@@ -32,7 +33,7 @@ class KenBurnsSmoothnessContractTest(unittest.TestCase):
 
                 self.assertNotIn("x+3", vf)
                 self.assertNotIn("x-3", vf)
-                self.assertIn("on/", vf)
+                self.assertIn("n/", vf)
 
 
 class KenBurnsSmoothnessRenderTest(unittest.TestCase):
@@ -51,7 +52,7 @@ class KenBurnsSmoothnessRenderTest(unittest.TestCase):
         ], capture_output=True, check=True)
 
         subprocess.run([
-            ffmpeg, "-y", "-loop", "1", "-i", str(src),
+            ffmpeg, "-y", "-loop", "1", "-framerate", "30", "-i", str(src),
             "-vf", _photo_vf(2.0, kenburns=True, treatment={"mode": "slow_push"}),
             "-t", "2", "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(out),
         ], capture_output=True, check=True)

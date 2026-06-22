@@ -388,6 +388,16 @@ Verify:
   such as subtitle placement, BGM ducking, chapter music behavior, still-image
   treatment defaults, and transition limits.
 
+Still-photo motion policy:
+- Canonical BUILD renders still motion in `mv_cut` without ffmpeg `zoompan`.
+  Use the 30fps input-loop + 4K dynamic scale/crop/downsample path so stills do
+  not jitter when x/y changes.
+- For long stills, prefer `hold` or restrained `slow_push`. Avoid very slow
+  pan across 8-12 seconds unless the composition truly needs lateral discovery;
+  sub-pixel pan can read as stepping after integer crop quantization.
+- `detail_push` is for shorter emphasis beats. Long group photos should not be
+  pushed hard into faces unless the director explicitly asks for that crop.
+
 ### Node 9: Assembly
 
 Review:
