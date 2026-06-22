@@ -38,8 +38,23 @@ def verify_material_coverage(workdir, artifacts, context):
             reason = "Coverage has weak/missing material"
             
     if material_source_mode == "stock_first":
-        status = "done"
-        reason = "Material coverage map optional (stock_first mode)"
+        if not isinstance(material_coverage, dict):
+            status = "missing"
+            reason = "stock_first material coverage not mapped"
+        else:
+            assignments = material_coverage.get("assignments") or []
+            empty_picks = [
+                item for item in assignments
+                if item.get("gap") or not item.get("picks")
+            ]
+            weak = (
+                material_coverage.get("weak")
+                or material_coverage.get("missing")
+                or material_coverage.get("blocking")
+            )
+            if weak or empty_picks:
+                status = "warn"
+                reason = "stock_first coverage has gaps or empty picks"
         
     return status, reason
 

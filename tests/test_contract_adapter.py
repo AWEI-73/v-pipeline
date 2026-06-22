@@ -1086,9 +1086,10 @@ class DryBuildTest(unittest.TestCase):
                          categories_path=str(self.CATEGORIES), verbose=False)
             state = dashboard_state.load_dashboard_state(str(outdir))
             status = {str(n["node"]): n["status"] for n in state["nodes"]}
-            for node in ("0", "3", "2", "8", "9", "10", "11"):
+            for node in ("0", "3", "8", "9", "10", "11"):
                 self.assertEqual(status.get(node), "done",
                                  f"Node {node} not done: {status.get(node)}")
+            self.assertEqual(status.get("2"), "missing")
             # Render/verify remain unmaterialized (only a real render produces them).
             self.assertEqual(status.get("13"), "missing")
 
