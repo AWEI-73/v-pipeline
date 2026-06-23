@@ -729,6 +729,34 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_material_wall_handoff_report_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "material_wall_handoff_report.json").write_text(json.dumps({
+                "artifact_role": "material_wall_handoff_report",
+                "selected_asset_ids": ["real_0001", "real_0002"],
+                "rejected_asset_ids": ["real_0003"],
+                "duplicate_asset_ids": [],
+                "need_coverage": {
+                    "nd_opening": ["real_0001", "real_0002"],
+                    "nd_training": [],
+                    "nd_closing": [],
+                },
+                "missing_need_ids": ["nd_training", "nd_closing"],
+                "duplicate_need_ids": ["nd_opening"],
+                "ready_for_mapping": False,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            report = state["artifacts"]["material_wall_handoff_report"]
+            self.assertEqual(report["selected_asset_ids"], ["real_0001", "real_0002"])
+            self.assertTrue(any(
+                finding.get("artifact") == "material_wall_handoff_report"
+                and "missing needs" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

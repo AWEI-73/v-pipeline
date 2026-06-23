@@ -56,6 +56,45 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "stage2_material_map")
             self.assertIn("material_needs.json", summary["read"])
 
+    def test_material_wall_handoff_ready_routes_to_review_apply_with_counts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_wall_handoff_report.json", {
+                "artifact_role": "material_wall_handoff_report",
+                "ready_for_mapping": True,
+                "selected_asset_ids": ["a", "b", "c"],
+                "rejected_asset_ids": ["d"],
+                "duplicate_asset_ids": ["e"],
+                "missing_need_ids": [],
+                "duplicate_need_ids": [],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage3_review_apply")
+            self.assertIn("selected=3", summary["reason"])
+            self.assertIn("rejected=1", summary["reason"])
+            self.assertIn("material_wall_handoff_report.json", summary["read"])
+
+    def test_material_wall_handoff_missing_need_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_wall_handoff_report.json", {
+                "artifact_role": "material_wall_handoff_report",
+                "ready_for_mapping": False,
+                "selected_asset_ids": ["a", "b"],
+                "rejected_asset_ids": [],
+                "duplicate_asset_ids": [],
+                "missing_need_ids": ["nd_training"],
+                "duplicate_need_ids": ["nd_opening"],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "stage2_material_wall_review")
+            self.assertIn("missing needs: nd_training", summary["reason"])
+            self.assertIn("duplicate needs: nd_opening", summary["reason"])
+
     def test_build_ready_lifecycle_routes_to_stage4(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "material_map_lifecycle.json", {

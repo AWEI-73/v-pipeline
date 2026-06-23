@@ -199,6 +199,49 @@ def _story_summary(root: Path):
     return None
 
 
+def _material_wall_handoff_summary(root: Path):
+    report_path, report = _find_json(root, "material_wall_handoff_report.json")
+    if not report:
+        return None
+
+    selected = len(report.get("selected_asset_ids") or [])
+    rejected = len(report.get("rejected_asset_ids") or [])
+    duplicate_assets = len(report.get("duplicate_asset_ids") or [])
+    missing = [str(item) for item in report.get("missing_need_ids") or []]
+    duplicate_needs = [str(item) for item in report.get("duplicate_need_ids") or []]
+    read = [_rel(root, report_path)]
+    if missing or report.get("ready_for_mapping") is False:
+        parts = []
+        if missing:
+            parts.append("missing needs: " + ", ".join(missing))
+        if duplicate_needs:
+            parts.append("duplicate needs: " + ", ".join(duplicate_needs))
+        parts.append(
+            f"selected={selected}, rejected={rejected}, duplicate_assets={duplicate_assets}"
+        )
+        return _contract(
+            "repair",
+            "stage2_material_wall_review",
+            resume="stage3_review_apply",
+            reason="; ".join(parts),
+            read=read,
+            run_dir=root,
+            source="material_wall_handoff_report.json",
+        )
+    return _contract(
+        "run",
+        "stage3_review_apply",
+        next_action="material-map review apply / lifecycle",
+        reason=(
+            f"material wall handoff ready: selected={selected}, rejected={rejected}, "
+            f"duplicate_assets={duplicate_assets}"
+        ),
+        read=read,
+        run_dir=root,
+        source="material_wall_handoff_report.json",
+    )
+
+
 def _intent_summary(root: Path):
     intent_path, intent = _find_json(root, "video_intent.json")
     if not intent:
@@ -261,7 +304,7 @@ def summarize_run(run_dir):
         if summary:
             return summary
 
-    for summarize in (_story_summary, _intent_summary):
+    for summarize in (_material_wall_handoff_summary, _story_summary, _intent_summary):
         summary = summarize(root)
         if summary:
             return summary

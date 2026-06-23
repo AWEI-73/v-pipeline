@@ -162,6 +162,8 @@ def load_dashboard_state(workdir):
                     manifest["material_delta"] = f
                 elif f == "material_map_lifecycle.json":
                     manifest["material_map_lifecycle"] = f
+                elif f == "material_wall_handoff_report.json":
+                    manifest["material_wall_handoff_report"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
@@ -171,6 +173,10 @@ def load_dashboard_state(workdir):
     material_map_lifecycle = (
         safe_load_json(manifest.get("material_map_lifecycle"))
         or safe_load_json("material_map_lifecycle.json")
+    )
+    material_wall_handoff_report = (
+        safe_load_json(manifest.get("material_wall_handoff_report"))
+        or safe_load_json("material_wall_handoff_report.json")
     )
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
@@ -596,6 +602,21 @@ def load_dashboard_state(workdir):
                 "message": f"seg{b.get('segment')} blocked: {b.get('reason')}"
             })
 
+    if material_wall_handoff_report and material_wall_handoff_report.get("ready_for_mapping") is False:
+        missing = material_wall_handoff_report.get("missing_need_ids") or []
+        duplicates = material_wall_handoff_report.get("duplicate_need_ids") or []
+        parts = []
+        if missing:
+            parts.append("missing needs: " + ", ".join(str(item) for item in missing))
+        if duplicates:
+            parts.append("duplicate needs: " + ", ".join(str(item) for item in duplicates))
+        findings.append({
+            "type": "error",
+            "node": 2,
+            "artifact": "material_wall_handoff_report",
+            "message": "; ".join(parts) or "material wall handoff is not ready for mapping",
+        })
+
     # Populate segments timeline (three-layer)
     normalized_segs = []
     
@@ -766,6 +787,7 @@ def load_dashboard_state(workdir):
             "generated_requests": gen_requests,
             "generated_manifest": generated_manifest,
             "material_coverage": material_coverage,
+            "material_wall_handoff_report": material_wall_handoff_report,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
