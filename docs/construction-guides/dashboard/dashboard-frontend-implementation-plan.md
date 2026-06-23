@@ -115,6 +115,21 @@ Show:
 - Review report status.
 - Timeline/subtitle/audio/effect patch counts.
 
+Core editing model:
+
+- `segment_contract.json` remains the script/structure driver. The frontend should
+  present timeline clips as links between contract segments, `material_fit.need_refs`,
+  material-map `asset_id`/`scene_index`, and selected source windows.
+- Time trimming should edit a bounded source window, not the canonical video. For
+  material-first footage this should become a draft patch or review verdict carrying
+  `usable_range: {start, end}` on the material-map satisfaction edge.
+- The Workbench may preview the proposed trim and write draft artifacts, but backend
+  tools must apply/review it before official BUILD. The final cut is still produced
+  by ffmpeg / `contract-run` from artifact values such as `source_path`, `start_sec`,
+  and `duration_sec`.
+- The UI should make the linkage visible: "這段腳本 → 需要的素材 → 已選素材片段 →
+  可用時間區間 → rough/timeline clip". This is more important than exposing raw JSON.
+
 Future migration:
 
 - Keep iframe containment until native modules are stable.
@@ -251,6 +266,12 @@ Frontend implementation should wait for this pass/fail report.
 
 - Keep iframe if stable.
 - Move health/draft/handoff summary into SPA-native panels.
+- Add a read/write-draft view for source windows: show the contract segment,
+  `need_refs`, accepted material-map scene, current `usable_range`, derived
+  `start_sec`, and derived `duration_sec`.
+- Save source-window edits only as Workbench draft patches or material-map review
+  verdict patches. Do not directly rewrite `segment_contract.json`,
+  `project_material_map.json`, `timeline_build.json`, or `final.mp4`.
 - Only then consider replacing iframe composition.
 
 ### Phase 5: Edit And Save Flow
@@ -285,4 +306,3 @@ Do not do these before pipeline verification:
 - Node14/Remotion changes.
 - BUILD ranking changes.
 - Large visual redesign unrelated to route review.
-

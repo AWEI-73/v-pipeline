@@ -160,6 +160,26 @@ Allowed draft outputs:
 - `workbench_review_report.json`
 - `workbench_review_report.md`
 
+Source-window edits:
+
+- Workbench source-window trimming is represented as an artifact patch, not as
+  direct media mutation. The preferred material-first shape is a draft
+  material-map review decision that carries
+  `usable_range: {"start": number, "end": number}` for an accepted
+  `asset_id` + `scene_index` + `need_id` edge.
+- The SPA should display the full chain behind each editable clip:
+  `segment_contract.json` segment -> `material_fit.need_refs` ->
+  `project_material_map.json` accepted scene -> `usable_range` ->
+  `rough_cut_plan.json` clip -> `timeline_build.json` render slot.
+- The browser may preview `ffmpeg`-equivalent trims, but official cutting is
+  backend-owned. Backend BUILD consumes artifact values such as `source_path`,
+  `start_sec`, and `duration_sec` and then renders through ffmpeg /
+  `contract-run`.
+- If a Workbench edit changes which need a clip satisfies, route it through a
+  material-map review/apply packet. If it only changes timing inside an already
+  accepted scene, route it through a source-window patch that still preserves
+  the same `asset_id`, `scene_index`, and `need_id`.
+
 Protected canonical/delivery outputs:
 
 - `timeline.json`
@@ -187,6 +207,9 @@ Phase 1: shell-native status panels
   counts before the iframe.
 - Add direct links from Dashboard Material Map evidence to the Workbench route
   while preserving `?root=...`.
+- Surface source-window linkage beside the preview: contract segment, need refs,
+  accepted material-map scene, current usable range, and derived rough clip
+  duration.
 
 Phase 2: extract Workbench modules
 

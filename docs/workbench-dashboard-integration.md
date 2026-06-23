@@ -75,6 +75,26 @@ It can:
 
 Workbench must not overwrite canonical artifacts.
 
+Source-window trims are contract-linked edits. The UI should show and preserve
+the chain:
+
+```text
+segment_contract.json segment
+-> material_fit.need_refs
+-> project_material_map.json asset_id + scene_index
+-> accepted satisfies edge
+-> usable_range {start, end}
+-> rough_cut_plan.json start_sec + duration_sec
+-> backend ffmpeg / contract-run render
+```
+
+If the user drags an in/out handle in Workbench, the saved output should be a
+draft patch or material-map review verdict patch that updates `usable_range`.
+Workbench may preview the trim, but it must not directly rewrite
+`timeline_build.json`, `project_material_map.json`, `segment_contract.json`, or
+`final.mp4`. Backend review/apply converts the patch into official artifacts and
+drives ffmpeg with the resulting `source_path`, `start_sec`, and `duration_sec`.
+
 ## Integration Flow
 
 ```text
