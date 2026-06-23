@@ -180,6 +180,12 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             reviewed = json.loads((run_dir / "materials_db.wall_reviewed.json").read_text(encoding="utf-8"))
             selected = [item["id"] for item in reviewed["files"] if item.get("selected_for_material_map")]
             self.assertEqual(selected, ["real_0001", "real_0002", "real_0003"])
+            handoff = json.loads((run_dir / "material_wall_handoff_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["selected_asset_ids"], ["real_0001", "real_0002", "real_0003"])
+            self.assertEqual(handoff["rejected_asset_ids"], ["real_0004"])
+            self.assertEqual(handoff["duplicate_asset_ids"], [])
+            self.assertEqual(handoff["missing_need_ids"], [])
+            self.assertEqual(handoff["need_coverage"]["nd_opening"], ["real_0001"])
             project_map = json.loads((run_dir / "project_material_map.json").read_text(encoding="utf-8"))
             mapped_ids = [asset["asset_id"] for asset in project_map["assets"]]
             self.assertNotIn("real_0004", mapped_ids)
@@ -242,6 +248,58 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             self.assertEqual(by_need["nd_opening"], "real_0002")
             self.assertEqual(by_need["nd_training"], "real_0003")
             self.assertEqual(by_need["nd_closing"], "real_0001")
+
+    def test_source_folder_case_reports_missing_and_duplicate_wall_roles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "進場" / "opening_a.jpg", "red")
+            _jpg(source / "進場" / "opening_b.jpg", "orange")
+            _jpg(source / "主任勉勵" / "closing.jpg", "blue")
+            verdict_path = root / "material_wall_review_verdict.json"
+            verdict_path.write_text(json.dumps({
+                "artifact_role": "material_wall_review_verdict",
+                "version": 1,
+                "reviewer": "test:director",
+                "assets": [
+                    {
+                        "asset_id": "real_0001",
+                        "coarse_status": "keep",
+                        "visual_role": ["opening"],
+                        "quality": "good",
+                        "visual_evidence": ["opening A"],
+                    },
+                    {
+                        "asset_id": "real_0002",
+                        "coarse_status": "keep",
+                        "visual_role": ["opening"],
+                        "quality": "good",
+                        "visual_evidence": ["opening B"],
+                    },
+                    {
+                        "asset_id": "real_0003",
+                        "coarse_status": "keep",
+                        "visual_role": ["closing"],
+                        "quality": "good",
+                        "visual_evidence": ["closing"],
+                    },
+                ],
+            }), encoding="utf-8")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(
+                run_dir,
+                source_dir=source,
+                max_assets=3,
+                wall_verdict=verdict_path,
+            )
+
+            self.assertFalse(result["ok"], result)
+            handoff = json.loads((run_dir / "material_wall_handoff_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["need_coverage"]["nd_opening"], ["real_0001", "real_0002"])
+            self.assertEqual(handoff["need_coverage"]["nd_closing"], ["real_0003"])
+            self.assertEqual(handoff["missing_need_ids"], ["nd_training"])
+            self.assertEqual(handoff["duplicate_need_ids"], ["nd_opening"])
 
 
 if __name__ == "__main__":

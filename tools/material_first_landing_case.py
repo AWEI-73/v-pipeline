@@ -193,6 +193,59 @@ def _need_id_from_wall_review(entry: dict, fallback_need_id: str) -> str:
     return fallback_need_id
 
 
+def _wall_review_need_id(entry: dict) -> str | None:
+    roles = (entry.get("material_wall_review") or {}).get("visual_role") or []
+    for raw in roles:
+        role = str(raw or "").strip()
+        if role in VALID_NEED_IDS:
+            return role
+        if role in NEED_IDS_BY_ROLE:
+            return NEED_IDS_BY_ROLE[role]
+    return None
+
+
+def _build_wall_handoff_report(reviewed: dict) -> dict:
+    need_coverage = {need_id: [] for need_id, _kind, _purpose in NEEDS}
+    selected_asset_ids = []
+    rejected_asset_ids = []
+    duplicate_asset_ids = []
+    maybe_asset_ids = []
+
+    for entry in reviewed.get("files") or []:
+        asset_id = entry.get("id")
+        review = entry.get("material_wall_review") or {}
+        status = review.get("coarse_status")
+        if status in {"keep", "maybe"}:
+            selected_asset_ids.append(asset_id)
+            if status == "maybe":
+                maybe_asset_ids.append(asset_id)
+            need_id = _wall_review_need_id(entry)
+            if need_id:
+                need_coverage.setdefault(need_id, []).append(asset_id)
+        elif status == "duplicate":
+            duplicate_asset_ids.append(asset_id)
+        elif status == "reject":
+            rejected_asset_ids.append(asset_id)
+
+    missing = [need_id for need_id, _kind, _purpose in NEEDS if not need_coverage.get(need_id)]
+    duplicates = [
+        need_id for need_id, _kind, _purpose in NEEDS
+        if len(need_coverage.get(need_id) or []) > 1
+    ]
+    return {
+        "artifact_role": "material_wall_handoff_report",
+        "version": 1,
+        "selected_asset_ids": selected_asset_ids,
+        "maybe_asset_ids": maybe_asset_ids,
+        "rejected_asset_ids": rejected_asset_ids,
+        "duplicate_asset_ids": duplicate_asset_ids,
+        "need_coverage": need_coverage,
+        "missing_need_ids": missing,
+        "duplicate_need_ids": duplicates,
+        "ready_for_mapping": not missing,
+    }
+
+
 def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
     wall_dir = run_dir / "verify" / "material_wall"
@@ -206,6 +259,7 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
         write_json(run_dir / "materials_db.source_candidates.json", db)
         reviewed = apply_material_wall_review(db, load_json(wall_verdict))
         write_json(run_dir / "materials_db.wall_reviewed.json", reviewed)
+        write_json(run_dir / "material_wall_handoff_report.json", _build_wall_handoff_report(reviewed))
         db = _selected_wall_review_db(reviewed)
     if len(db["files"]) < 3:
         raise ValueError("source folder dry run requires at least 3 usable media files")
