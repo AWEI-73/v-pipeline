@@ -1,0 +1,12 @@
+{
+  "categories": [
+    {
+      "id": "class_opening",
+      "label": "Class Opening",
+      "description": "Wide or medium shot of trainees gathering or listening",
+      "typical_audio": "music",
+      "identity_sensitive": false,
+      "proof_critical": false
+    }
+  ]
+}

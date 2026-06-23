@@ -1,0 +1,9 @@
+{
+  "stage": "stage4_dry_build",
+  "contract": "segment_contract.json",
+  "categories": "material_categories.json",
+  "expected": {
+    "ok": true,
+    "dry_run": true
+  }
+}

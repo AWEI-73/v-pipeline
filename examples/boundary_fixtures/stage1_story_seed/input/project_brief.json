@@ -1,0 +1,18 @@
+{
+  "project_type": "generated storybook fairy tale",
+  "audience": "children and parents",
+  "goal": "Tell a warm, safe short fairy tale where a tiny lantern helps two lost siblings find the moon bridge home.",
+  "known_material_categories": [],
+  "desired_style": "Japanese cute picture-book illustration",
+  "seed_device": "tiny lantern and moon bridge",
+  "story_seed": {
+    "protagonists": ["two lost siblings", "a tiny kind lantern"],
+    "setting": "safe moonlit forest path",
+    "moral": "small kindness can become a path"
+  },
+  "facts": {
+    "protagonist": "two lost siblings and a tiny kind lantern",
+    "place": "safe moonlit forest path"
+  },
+  "required_inclusions": ["tiny lantern", "two siblings", "moon bridge"]
+}

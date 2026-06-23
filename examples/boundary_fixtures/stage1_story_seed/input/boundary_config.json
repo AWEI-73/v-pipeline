@@ -1,0 +1,8 @@
+{
+  "stage": "stage1_story_blueprint",
+  "expected": {
+    "ok": true,
+    "must_include_text": ["two lost siblings", "tiny lantern", "moon bridge"],
+    "must_not_include_text": ["courier", "postcard"]
+  }
+}

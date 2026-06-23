@@ -150,8 +150,8 @@ Material-first landing queue:
 
 | Order | Increment | Why now | Minimum acceptance |
 |---|---|---|---|
-| MFL1 | Pipeline home all-stage cursor | Agents need one read-only entry hub before dispatching subagents or humans. | Stage 0/1/2/3/4/5 artifacts map to a clear `mode/cursor/next/read` contract without mutating the run. |
-| MFL2 | Boundary fixture hub | Repeated full E2E runs are too noisy for every change. | Stage fixture folders can replay Stage 1, 3, 4, and 5 with production gates and expected reports. |
+| MFL1 | Pipeline home all-stage cursor | Agents need one read-only entry hub before dispatching subagents or humans. | **Complete 2026-06-23.** `tools/pipeline_home.py` maps Stage 0/1/2/3/4/5 artifacts to a clear `mode/cursor/next/read` contract without mutating the run; final verify overrides stale lifecycle state. |
+| MFL2 | Boundary fixture hub | Repeated full E2E runs are too noisy for every change. | **Complete 2026-06-23.** `tools/boundary_fixture_hub.py` discovers and runs explicit fixture roots only; `examples/boundary_fixtures` replays Stage 1, 3, 4, and 5 through production gates and writes a batch report. |
 | MFL3 | Material-map rough-cut selector | Material review should feed the first edit, not stop at coverage truth. | Reviewed scene-to-need edges plus duration budget emit an inspectable rough timeline without requiring render. |
 | MFL4 | Final review over rough timeline | Bad source repetition, off-topic footage, subtitle issues, and fatigue must surface before delivery. | Final-review boundary reports blocking/pass verdicts from caption/content/repetition/fatigue audits. |
 | MFL5 | One real existing-material boundary pass | The route must prove itself on a real run folder after smaller gates pass. | A real case reaches stable `pipeline_home` complete-or-review cursor; render is optional unless the render path changed. |

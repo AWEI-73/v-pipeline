@@ -1,0 +1,14 @@
+{
+  "artifact_role": "verify_result",
+  "pass": true,
+  "score": 96,
+  "dimensions": {
+    "script_coverage": 100,
+    "duration_fit": 100,
+    "subtitle_accuracy": 100,
+    "audio_levels": 100,
+    "technical_quality": 90,
+    "subtitle_readability": 100
+  },
+  "issue_count": 0
+}

@@ -1,0 +1,7 @@
+{
+  "stage": "stage3_review_apply",
+  "expected": {
+    "stage": "build_ready",
+    "can_build": true
+  }
+}

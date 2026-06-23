@@ -1,0 +1,51 @@
+{
+  "material_needs_ref": "material_needs.json",
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "montage",
+        "story_purpose": "show training moment 1",
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "visual_desc": "cohort opening shot",
+        "reason": "matches the requested opening need",
+        "need_refs": ["nd_opening"]
+      },
+      "audio": {
+        "role": "music",
+        "reason": "recap montage pacing"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "medium",
+        "reason": "stable recap"
+      },
+      "text_layer": "none"
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "montage",
+        "story_purpose": "show training moment 2",
+        "timeline_source": "beat"
+      },
+      "material_fit": {
+        "visual_desc": "cohort opening shot",
+        "reason": "matches the requested opening need",
+        "need_refs": ["nd_opening"]
+      },
+      "audio": {
+        "role": "music",
+        "reason": "recap montage pacing"
+      },
+      "visual_style": {
+        "layout": "montage",
+        "pace": "medium",
+        "reason": "stable recap"
+      },
+      "text_layer": "none"
+    }
+  ]
+}

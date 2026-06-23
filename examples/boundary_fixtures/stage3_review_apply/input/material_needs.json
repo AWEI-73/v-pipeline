@@ -1,0 +1,16 @@
+{
+  "artifact_role": "material_needs",
+  "version": 1,
+  "project": "boundary",
+  "needs": [
+    {
+      "need_id": "nd_opening",
+      "category": "scene",
+      "type": "opening",
+      "purpose": "establish the cohort",
+      "count": 1,
+      "fallback_tier": 1,
+      "must_have": true
+    }
+  ]
+}

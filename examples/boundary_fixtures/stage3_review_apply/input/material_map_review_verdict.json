@@ -1,0 +1,14 @@
+{
+  "artifact_role": "material_map_review_verdict",
+  "version": 1,
+  "reviewer": "agent:director",
+  "decisions": [
+    {
+      "asset_id": "clip-a",
+      "scene_index": 0,
+      "need_id": "nd_opening",
+      "status": "accepted",
+      "visual_evidence": ["visible trainees establish the cohort"]
+    }
+  ]
+}

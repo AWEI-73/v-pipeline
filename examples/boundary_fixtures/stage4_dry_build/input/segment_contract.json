@@ -1,0 +1,59 @@
+{
+  "brief_ref": "brief.json",
+  "categories_ref": "material_categories.json",
+  "style": "mv",
+  "material_source_mode": "existing_material",
+  "story_truth_level": "real_event",
+  "segments": [
+    {
+      "segment": 1,
+      "core": {
+        "section_role": "opening",
+        "story_purpose": "establish the training group",
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "class_opening",
+        "visual_desc": "trainees listening in a classroom",
+        "reason": "opening establishes the group"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "keep recap pacing stable"
+      },
+      "text_layer": "none",
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "cut",
+        "reason": "clean opening"
+      }
+    },
+    {
+      "segment": 2,
+      "core": {
+        "section_role": "closing",
+        "story_purpose": "close with a concise completion moment",
+        "timeline_source": "fixed",
+        "review_required": true
+      },
+      "material_fit": {
+        "category": "class_opening",
+        "visual_desc": "trainees finishing the session together",
+        "reason": "closing resolves the short recap"
+      },
+      "audio": {
+        "role": "music",
+        "reason": "close with the same music bed"
+      },
+      "text_layer": "none",
+      "visual_style": {
+        "layout": "single",
+        "pace": "hold",
+        "transition": "fade",
+        "reason": "clean closing"
+      }
+    }
+  ]
+}
