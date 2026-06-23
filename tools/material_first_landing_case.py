@@ -46,6 +46,8 @@ NEED_KEYWORDS = {
     ),
     "nd_closing": ("主任勉勵", "主任", "感謝導師", "結尾", "隊呼", "合照", "運動會", "慶生"),
 }
+NEED_IDS_BY_ROLE = {kind: need_id for need_id, kind, _purpose in NEEDS}
+VALID_NEED_IDS = {need_id for need_id, _kind, _purpose in NEEDS}
 
 
 def _copytree_contents(source: Path, target: Path):
@@ -180,6 +182,17 @@ def _first_usable_range(entry: dict) -> dict | None:
     return {"start": start, "end": end}
 
 
+def _need_id_from_wall_review(entry: dict, fallback_need_id: str) -> str:
+    roles = (entry.get("material_wall_review") or {}).get("visual_role") or []
+    for raw in roles:
+        role = str(raw or "").strip()
+        if role in VALID_NEED_IDS:
+            return role
+        if role in NEED_IDS_BY_ROLE:
+            return NEED_IDS_BY_ROLE[role]
+    return fallback_need_id
+
+
 def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
     wall_dir = run_dir / "verify" / "material_wall"
@@ -217,7 +230,8 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
     })
 
     decisions = []
-    for index, (entry, (need_id, _kind, _purpose)) in enumerate(zip(db["files"], NEEDS)):
+    for index, (entry, (fallback_need_id, _kind, _purpose)) in enumerate(zip(db["files"], NEEDS)):
+        need_id = _need_id_from_wall_review(entry, fallback_need_id)
         scene = {
             "start": 0.0,
             "end": 4.0 if entry["type"] == "photo" else 8.0,

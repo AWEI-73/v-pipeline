@@ -191,6 +191,58 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             self.assertEqual(rough["clips"][0]["start_sec"], 1.0)
             self.assertEqual(rough["clips"][0]["duration_sec"], 2.0)
 
+    def test_source_folder_case_uses_wall_visual_role_for_need_assignment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "進場" / "opening.jpg", "red")
+            _jpg(source / "工安體感" / "training.jpg", "green")
+            _jpg(source / "主任勉勵" / "closing.jpg", "blue")
+            verdict_path = root / "material_wall_review_verdict.json"
+            verdict_path.write_text(json.dumps({
+                "artifact_role": "material_wall_review_verdict",
+                "version": 1,
+                "reviewer": "test:director",
+                "assets": [
+                    {
+                        "asset_id": "real_0001",
+                        "coarse_status": "keep",
+                        "visual_role": ["closing"],
+                        "quality": "good",
+                        "visual_evidence": ["actually a closing shot"],
+                    },
+                    {
+                        "asset_id": "real_0002",
+                        "coarse_status": "keep",
+                        "visual_role": ["opening"],
+                        "quality": "good",
+                        "visual_evidence": ["actually an opening shot"],
+                    },
+                    {
+                        "asset_id": "real_0003",
+                        "coarse_status": "keep",
+                        "visual_role": ["training"],
+                        "quality": "good",
+                        "visual_evidence": ["actually a training shot"],
+                    },
+                ],
+            }), encoding="utf-8")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(
+                run_dir,
+                source_dir=source,
+                max_assets=3,
+                wall_verdict=verdict_path,
+            )
+
+            self.assertTrue(result["ok"], result)
+            rough = json.loads((run_dir / "rough_cut_plan.json").read_text(encoding="utf-8"))
+            by_need = {clip["need_id"]: clip["asset_id"] for clip in rough["clips"]}
+            self.assertEqual(by_need["nd_opening"], "real_0002")
+            self.assertEqual(by_need["nd_training"], "real_0003")
+            self.assertEqual(by_need["nd_closing"], "real_0001")
+
 
 if __name__ == "__main__":
     unittest.main()
