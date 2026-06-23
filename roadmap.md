@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline ??Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-21
+updated: 2026-06-23
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -91,6 +91,70 @@ Frontend references:
 - `dashboard/README.md`
 
 ## Active Direction
+
+### Current Landing Target: Material-First Rough-Cut Loop
+
+Status: active from 2026-06-23.
+
+Current thesis: stop expanding the feature surface until the existing-material
+mainline can be inspected and repaired one boundary at a time. The route we are
+landing first is:
+
+```text
+video_intent.json
+  -> material inventory / per-asset maps
+  -> map review verdict + scene-to-need satisfies edges
+  -> material_delta.json + material_map_lifecycle.json
+  -> segment_contract.json
+  -> timeline_build.json / rough-cut plan
+  -> final review boundary
+```
+
+Rendered `final.mp4` is still important for E2E proof, but it should not be the
+only way to test progress. Ordinary development should prove each handoff with
+boundary smoke tests and a readable run-folder cursor before spending time on a
+full render.
+
+Current scope:
+
+- land the existing-material route first: material truth, review apply,
+  duration fit, source repetition, rough timeline, and final review;
+- use the material map as the future edit foundation: coarse selection,
+  scene-to-need assignment, duration budget, duplicate/fatigue detection, and
+  missing-gap repair;
+- keep `tools/pipeline_home.py` as a thin read-only hub for agents. It should
+  tell the parent agent what boundary to run or repair without creating a second
+  state machine;
+- Dashboard should be a review cockpit first: current state, important
+  artifacts, material map, scene-to-need edges, rough timeline, approve/reject,
+  and revise. Do not build a full NLE before the backend handoffs are stable;
+- voice, music, and effects stay as hook points for now. `voice_plan.json`,
+  `music_plan.json`, and `effect_intent_plan.json` may be surfaced and planned,
+  but voice cloning, music sourcing, advanced effects, and hosted/OAuth runtime
+  are deferred until the rough-cut loop is reliable.
+
+Minimum landing acceptance:
+
+- one real existing-material project can produce and inspect
+  `video_intent.json`, material maps, review verdict/satisfies edges,
+  `material_delta.json`, `material_map_lifecycle.json`, `segment_contract.json`,
+  `timeline_build.json`, and a final-review boundary artifact;
+- `python tools/pipeline_home.py --run <run-directory> --json` returns a stable
+  cursor/next/read contract at each boundary;
+- ordinary changes are validated with `tools/boundary_smoke.py` and focused
+  tests before full E2E reruns;
+- full E2E is used only after the boundary verdicts are green or when a render
+  path itself is under test.
+
+Material-first landing queue:
+
+| Order | Increment | Why now | Minimum acceptance |
+|---|---|---|---|
+| MFL1 | Pipeline home all-stage cursor | Agents need one read-only entry hub before dispatching subagents or humans. | Stage 0/1/2/3/4/5 artifacts map to a clear `mode/cursor/next/read` contract without mutating the run. |
+| MFL2 | Boundary fixture hub | Repeated full E2E runs are too noisy for every change. | Stage fixture folders can replay Stage 1, 3, 4, and 5 with production gates and expected reports. |
+| MFL3 | Material-map rough-cut selector | Material review should feed the first edit, not stop at coverage truth. | Reviewed scene-to-need edges plus duration budget emit an inspectable rough timeline without requiring render. |
+| MFL4 | Final review over rough timeline | Bad source repetition, off-topic footage, subtitle issues, and fatigue must surface before delivery. | Final-review boundary reports blocking/pass verdicts from caption/content/repetition/fatigue audits. |
+| MFL5 | One real existing-material boundary pass | The route must prove itself on a real run folder after smaller gates pass. | A real case reaches stable `pipeline_home` complete-or-review cursor; render is optional unless the render path changed. |
 
 ### ISF1 Interactive Skill Flow
 

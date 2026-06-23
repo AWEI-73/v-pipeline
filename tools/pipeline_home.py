@@ -129,21 +129,7 @@ def _lifecycle_summary(root: Path, lifecycle: dict[str, Any]):
     return None
 
 
-def summarize_run(run_dir):
-    root = Path(run_dir).resolve()
-
-    _boundary_path, boundary = _find_json(root, "boundary_report.json")
-    if boundary:
-        summary = _boundary_summary(root, boundary)
-        if summary:
-            return summary
-
-    _lifecycle_path, lifecycle = _find_json(root, "material_map_lifecycle.json")
-    if lifecycle:
-        summary = _lifecycle_summary(root, lifecycle)
-        if summary:
-            return summary
-
+def _verify_summary(root: Path):
     verify_path, verify = _find_json(root, "verify_result.json")
     if verify is None:
         verify_path, verify = _find_json(root, "qa_report.json")
@@ -165,6 +151,116 @@ def summarize_run(run_dir):
             run_dir=root,
             source=_rel(root, verify_path),
         )
+    return None
+
+
+def _build_summary(root: Path):
+    timeline_path, timeline = _find_json(root, "timeline_build.json")
+    editor_path, editor = _find_json(root, "editor_review.json")
+    if timeline and editor:
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action=f"python tools/boundary_smoke.py {root}",
+            reason="timeline/editor artifacts are ready for final review",
+            read=[_rel(root, timeline_path), _rel(root, editor_path)],
+            run_dir=root,
+            source="timeline_build.json",
+        )
+
+    contract_path, contract = _find_json(root, "segment_contract.json")
+    if contract:
+        return _contract(
+            "run",
+            "stage4_dry_build",
+            next_action=f"python tools/boundary_smoke.py {root}",
+            reason="segment contract is ready for dry-build planning",
+            read=[_rel(root, contract_path)],
+            run_dir=root,
+            source="segment_contract.json",
+        )
+    return None
+
+
+def _story_summary(root: Path):
+    story_path, story = _find_json(root, "story_world.json")
+    beats_path, beats = _find_json(root, "screenplay_beats.json")
+    needs_path, needs = _find_json(root, "material_needs.json")
+    if story and beats and needs:
+        return _contract(
+            "run",
+            "stage2_material_map",
+            next_action="material-map lifecycle / material acquisition",
+            reason="story blueprint artifacts are ready for material mapping",
+            read=[_rel(root, story_path), _rel(root, beats_path), _rel(root, needs_path)],
+            run_dir=root,
+            source="material_needs.json",
+        )
+    return None
+
+
+def _intent_summary(root: Path):
+    intent_path, intent = _find_json(root, "video_intent.json")
+    if not intent:
+        return None
+
+    entry_path = str(intent.get("entry_path") or intent.get("route") or "").strip()
+    material_first = {"material-first", "existing-material-first", "hybrid"}
+    structure_first = {"structure-first", "story-first"}
+    if entry_path in material_first:
+        return _contract(
+            "run",
+            "stage2_material_map",
+            next_action="material-map lifecycle / material acquisition",
+            reason=f"video intent entry_path is {entry_path}",
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
+    if entry_path in structure_first:
+        return _contract(
+            "run",
+            "stage1_story_blueprint",
+            next_action="story-soul-blueprint / structure planner",
+            reason=f"video intent entry_path is {entry_path}",
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
+    return _contract(
+        "repair",
+        "stage0_video_intent",
+        next_action="video-intent-plan",
+        reason="video_intent.json does not declare a recognized entry_path",
+        read=[_rel(root, intent_path)],
+        run_dir=root,
+        source="video_intent.json",
+    )
+
+
+def summarize_run(run_dir):
+    root = Path(run_dir).resolve()
+
+    _boundary_path, boundary = _find_json(root, "boundary_report.json")
+    if boundary:
+        summary = _boundary_summary(root, boundary)
+        if summary:
+            return summary
+
+    summary = _verify_summary(root)
+    if summary:
+        return summary
+
+    _lifecycle_path, lifecycle = _find_json(root, "material_map_lifecycle.json")
+    if lifecycle:
+        summary = _lifecycle_summary(root, lifecycle)
+        if summary:
+            return summary
+
+    for summarize in (_build_summary, _story_summary, _intent_summary):
+        summary = summarize(root)
+        if summary:
+            return summary
 
     state_path, state = _find_json(root, "state.json")
     if state and state.get("next_action"):
