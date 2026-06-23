@@ -141,6 +141,7 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
                         "coarse_status": "keep",
                         "visual_role": ["opening"],
                         "quality": "good",
+                        "usable_ranges": [{"start": 1.0, "end": 3.0}],
                         "visual_evidence": ["clear opening still"],
                     },
                     {
@@ -182,8 +183,13 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             project_map = json.loads((run_dir / "project_material_map.json").read_text(encoding="utf-8"))
             mapped_ids = [asset["asset_id"] for asset in project_map["assets"]]
             self.assertNotIn("real_0004", mapped_ids)
+            map_verdict = json.loads((run_dir / "material_map_review_verdict.json").read_text(encoding="utf-8"))
+            first_decision = map_verdict["decisions"][0]
+            self.assertEqual(first_decision["usable_range"], {"start": 1.0, "end": 3.0})
             rough = json.loads((run_dir / "rough_cut_plan.json").read_text(encoding="utf-8"))
             self.assertNotIn("real_0004", [clip["asset_id"] for clip in rough["clips"]])
+            self.assertEqual(rough["clips"][0]["start_sec"], 1.0)
+            self.assertEqual(rough["clips"][0]["duration_sec"], 2.0)
 
 
 if __name__ == "__main__":

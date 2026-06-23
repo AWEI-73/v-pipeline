@@ -166,6 +166,20 @@ def _selected_wall_review_db(reviewed: dict) -> dict:
     return out
 
 
+def _first_usable_range(entry: dict) -> dict | None:
+    ranges = (entry.get("material_wall_review") or {}).get("usable_ranges") or []
+    if not ranges or not isinstance(ranges[0], dict):
+        return None
+    try:
+        start = float(ranges[0].get("start"))
+        end = float(ranges[0].get("end"))
+    except (TypeError, ValueError):
+        return None
+    if end <= start:
+        return None
+    return {"start": start, "end": end}
+
+
 def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
     wall_dir = run_dir / "verify" / "material_wall"
@@ -227,14 +241,18 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
         write_json(map_path, material_map)
         entry["material_map"] = str(map_path)
         entry["material_map_status"] = "mapped"
-        decisions.append({
+        decision = {
             "asset_id": entry["id"],
             "scene_index": 0,
             "need_id": need_id,
             "status": "accepted",
             "visual_evidence": [entry["vlm_caption"]],
             "reviewer": "material_first_landing_case:folder_hint",
-        })
+        }
+        usable_range = _first_usable_range(entry)
+        if usable_range:
+            decision["usable_range"] = usable_range
+        decisions.append(decision)
 
     write_json(run_dir / "materials_db.json", db)
     write_json(run_dir / "material_map_review_verdict.json", {
