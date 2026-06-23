@@ -8,6 +8,7 @@ cd C:\Users\user\Desktop\video_pipeline
 python video_tools.py project-init "My Video"
 python video_tools.py project-new-run --label baseline
 python runtime.py status
+python tools/pipeline_home.py --run <run-directory> --json
 python runtime.py resume
 
 python video_tools.py dashboard <run-directory> --out <run-directory>\dashboard_view.html
@@ -17,6 +18,18 @@ python -m unittest discover -s tests
 ```
 
 Current verified baseline: **541 tests OK**.
+
+Use `tools/pipeline_home.py` as the read-only agent-facing route summary before
+handing a run folder to another agent:
+
+```powershell
+python tools/pipeline_home.py --run C:\path\to\run --json
+```
+
+It returns `mode`, `cursor`, `next`, `resume`, `reason`, and `read`. It does not
+execute the pipeline and does not replace deterministic gates; it only summarizes
+the current run-folder artifacts for humans, dashboard shells, or bounded
+subagents.
 
 Supported build profiles include canonical ffmpeg, Node 14
 `motion_graphics` with `ffmpeg_libass`, and optional `capcut_draft`.

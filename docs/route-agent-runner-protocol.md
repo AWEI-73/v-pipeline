@@ -11,6 +11,17 @@ it only issues bounded task packets and validates artifacts.
 
 ## Worker Contract
 
+Before dispatching a worker, the parent should inspect the run folder with the
+read-only home wrapper:
+
+```powershell
+python tools/pipeline_home.py --run RUN_DIR --json
+```
+
+Treat its `mode`, `cursor`, `reason`, and `read` fields as the compact routing
+summary for agent handoff. This wrapper does not execute anything; it only
+projects existing artifacts into an agent-facing contract.
+
 When you receive `route_subagent_task.json`:
 
 1. Read the packet.
