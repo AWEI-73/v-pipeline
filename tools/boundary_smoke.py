@@ -12,6 +12,8 @@ import shutil
 from pathlib import Path
 
 from video_pipeline_core import contract_adapter
+from video_pipeline_core import dashboard_state
+from video_pipeline_core import delivery_gate
 from video_pipeline_core import material_map_lifecycle
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps
 from video_pipeline_core.story_soul_blueprint import write_story_soul_blueprint
@@ -159,6 +161,71 @@ def _dry_build_regressions(config: dict, result: dict) -> list[str]:
     return regressions
 
 
+def _final_review_regressions(config: dict, final_review: dict) -> list[str]:
+    expected = config.get("expected") or {}
+    regressions = []
+    gate = final_review.get("delivery_gate") or {}
+    if "pass" in expected and bool(gate.get("pass")) != bool(expected["pass"]):
+        regressions.append(f"expected pass={bool(expected['pass'])}, got {bool(gate.get('pass'))}")
+
+    blocking_artifacts = {
+        item.get("artifact")
+        for item in gate.get("blocking") or []
+        if isinstance(item, dict)
+    }
+    for artifact in expected.get("blocking_artifacts") or []:
+        if artifact not in blocking_artifacts:
+            regressions.append(f"expected blocking artifact {artifact!r}")
+
+    warning_artifacts = {
+        item.get("artifact")
+        for item in final_review.get("quality_warnings") or []
+        if isinstance(item, dict)
+    }
+    for artifact in expected.get("warning_artifacts") or []:
+        if artifact not in warning_artifacts:
+            regressions.append(f"expected warning artifact {artifact!r}")
+    return regressions
+
+
+def _run_stage5_final_review(stage_dir: Path, config: dict) -> dict:
+    actual_dir = stage_dir / "actual"
+    actual_dir.mkdir(parents=True, exist_ok=True)
+    work = _copy_input(stage_dir)
+    state = dashboard_state.load_dashboard_state(str(work))
+    artifacts = state.get("artifacts") or {}
+    gate = delivery_gate.evaluate_delivery_gate(artifacts)
+    quality_warnings = [
+        finding for finding in state.get("findings") or []
+        if isinstance(finding, dict) and finding.get("type") == "warning"
+    ]
+    final_review = {
+        "artifact_role": "final_review_boundary",
+        "version": 1,
+        "delivery_gate": gate,
+        "quality_warnings": quality_warnings,
+        "dashboard_next_action": state.get("next_action"),
+        "run_pass": (state.get("run") or {}).get("pass"),
+    }
+    _write_json(actual_dir / "final_review_boundary.json", final_review)
+    regressions = _final_review_regressions(config, final_review)
+    report = {
+        "artifact_role": "boundary_report",
+        "version": 1,
+        "stage": "stage5_final_review",
+        "gate_source": "delivery_gate+dashboard_state",
+        "gate_status": "passed" if gate.get("pass") else "blocked",
+        "pass": not regressions,
+        "regressions": regressions,
+        "refs": {
+            "work": str(work),
+            "final_review": str(actual_dir / "final_review_boundary.json"),
+        },
+    }
+    _write_json(actual_dir / "boundary_report.json", report)
+    return report
+
+
 def _run_stage4_dry_build(stage_dir: Path, config: dict) -> dict:
     actual_dir = stage_dir / "actual"
     actual_dir.mkdir(parents=True, exist_ok=True)
@@ -203,6 +270,8 @@ def run_boundary(stage_dir):
         return _run_stage3_review_apply(stage_dir, config)
     if stage == "stage4_dry_build":
         return _run_stage4_dry_build(stage_dir, config)
+    if stage == "stage5_final_review":
+        return _run_stage5_final_review(stage_dir, config)
     raise ValueError(f"unsupported boundary stage: {stage!r}")
 
 

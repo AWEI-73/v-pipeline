@@ -33,6 +33,57 @@ def _segment(num, need_id):
 
 
 class BoundarySmokeTest(unittest.TestCase):
+    def test_stage5_final_review_blocks_hard_audit_and_keeps_quality_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp) / "stage5_final_review"
+            input_dir = stage_dir / "input"
+            _write(input_dir / "boundary_config.json", {
+                "stage": "stage5_final_review",
+                "expected": {
+                    "pass": False,
+                    "blocking_artifacts": ["caption_audit"],
+                    "warning_artifacts": ["visual_fatigue_audit"],
+                },
+            })
+            _write(input_dir / "verify_result.json", {
+                "artifact_role": "verify_result",
+                "pass": True,
+                "score": 98,
+                "dimensions": {"subtitle_readability": 100},
+            })
+            _write(input_dir / "caption_audit.json", {
+                "artifact_role": "caption_audit",
+                "pass": False,
+                "next_action": "fix_subtitles",
+                "findings": [{"level": "fail", "check": "safe_area_overflow"}],
+            })
+            _write(input_dir / "new_visual_information_audit.json", {
+                "artifact_role": "new_visual_information_audit",
+                "pass": True,
+                "findings": [],
+            })
+            _write(input_dir / "visual_fatigue_audit.json", {
+                "artifact_role": "visual_fatigue_audit",
+                "pass": False,
+                "next_action": "review_visual_diversity",
+                "findings": [{"level": "fail", "check": "repeated_visual_pattern"}],
+            })
+
+            report = run_boundary(stage_dir)
+
+            self.assertTrue(report["pass"], report)
+            self.assertEqual(report["gate_source"], "delivery_gate+dashboard_state")
+            self.assertEqual(report["gate_status"], "blocked")
+            final_review = json.loads(
+                (stage_dir / "actual" / "final_review_boundary.json").read_text(encoding="utf-8")
+            )
+            self.assertFalse(final_review["delivery_gate"]["pass"])
+            self.assertEqual(final_review["delivery_gate"]["blocking"][0]["artifact"], "caption_audit")
+            warning_artifacts = {
+                item["artifact"] for item in final_review["quality_warnings"]
+            }
+            self.assertIn("visual_fatigue_audit", warning_artifacts)
+
     def test_stage4_dry_build_materializes_build_artifacts_without_render(self):
         root = Path(__file__).resolve().parents[1]
         fixture = root / "examples" / "genre_tests" / "stock_story_e2e"
