@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.boundary_smoke import run_boundary  # noqa: E402
 from video_pipeline_core import material_map_lifecycle  # noqa: E402
+from video_pipeline_core.material_wall import write_material_wall_request  # noqa: E402
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps  # noqa: E402
 from video_pipeline_core.material_rough_cut import build_rough_cut_plan, load_json, write_json  # noqa: E402
 
@@ -250,7 +251,8 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12) 
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)
 
-    if source_dir:
+    source_mode = bool(source_dir)
+    if source_mode:
         _write_source_case_inputs(run_dir, Path(source_dir).resolve(), max_assets=max_assets)
     else:
         repo = Path(__file__).resolve().parents[1]
@@ -263,6 +265,15 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12) 
         "video_type": "graduation-event",
         "goal": "prove existing material can move from map review to rough timeline",
     })
+
+    if source_mode:
+        wall_dir = run_dir / "verify" / "material_wall"
+        write_material_wall_request(
+            run_dir / "materials_db.json",
+            wall_dir,
+            wall_dir / "material_wall_request.json",
+            limit=max_assets,
+        )
 
     apply_review_to_maps(
         run_dir / "maps",

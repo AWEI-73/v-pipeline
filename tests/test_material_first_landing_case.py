@@ -3,8 +3,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 from tools.material_first_landing_case import run_material_first_landing_case
 from tools.pipeline_home import summarize_run
+
+
+def _jpg(path, color):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (80, 45), color=color).save(path, "JPEG")
 
 
 class MaterialFirstLandingCaseTest(unittest.TestCase):
@@ -86,6 +93,34 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             self.assertIn("進場", by_need["nd_opening"])
             self.assertIn("工安體感", by_need["nd_training"])
             self.assertIn("主任勉勵", by_need["nd_closing"])
+
+    def test_source_folder_case_writes_material_wall_request_for_coarse_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "進場" / "opening.jpg", "red")
+            _jpg(source / "工安體感" / "training.jpg", "green")
+            _jpg(source / "主任勉勵" / "closing.jpg", "blue")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(run_dir, source_dir=source, max_assets=5)
+
+            self.assertTrue(result["ok"], result)
+            request_path = run_dir / "verify" / "material_wall" / "material_wall_request.json"
+            self.assertTrue(request_path.exists())
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+            self.assertEqual(request["artifact_role"], "material_wall_request")
+            self.assertEqual(request["next_action"], "await_material_wall_review")
+            asset_ids = [
+                asset["asset_id"]
+                for batch in request["batches"]
+                for asset in batch["assets"]
+            ]
+            self.assertEqual(asset_ids, ["real_0001", "real_0002", "real_0003"])
+            self.assertEqual(
+                [item["asset_id"] for item in request["verdict_template"]["assets"]],
+                asset_ids,
+            )
 
 
 if __name__ == "__main__":
