@@ -53,6 +53,16 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
         self.assertNotIn("route 只會回 BUILD", text)
         self.assertNotIn("needs_generated(seg=", text)
 
+    def test_material_first_boundary_acceptance_cli_is_documented(self):
+        for rel in [
+            "docs/START_HERE_VIDEO_PIPELINE.md",
+            "skills/video-pipeline-route.md",
+            "docs/route-agent-runner-protocol.md",
+        ]:
+            text = read(rel)
+            self.assertIn("tools/material_first_boundary_acceptance.py", text, rel)
+            self.assertIn("material_first_boundary_acceptance_report.json", text, rel)
+
     def test_roadmap_and_index_point_to_isf1_decision(self):
         roadmap = read("roadmap.md")
         index = read("docs/INDEX.md")

@@ -310,6 +310,10 @@ Use deterministic tools for facts:
 - `effect-revision-*` / `remotion-*`: Brownfield effect route.
 - `route-task-next` / `route-task-accept` / `route-orchestrator-acceptance`:
   runner-neutral multi-agent packet issuance and fail-closed acceptance.
+- `tools/material_first_boundary_acceptance.py`: local material-first boundary
+  acceptance from Stage 2/3 through Stage 5. It writes
+  `material_first_boundary_acceptance_report.json`, which `pipeline_home.py`
+  and Dashboard state use as the compact handoff result.
 
 ## Minimal CLI Skeletons
 
@@ -318,9 +322,15 @@ Existing material:
 ```powershell
 python video_tools.py project-material-map --maps-dir MATERIAL_MAPS --needs material_needs.json --out project_material_map.json
 python video_tools.py material-map-lifecycle --out-dir RUN --needs material_needs.json --project-map project_material_map.json --contract segment_contract.json
+python tools/material_first_boundary_acceptance.py --out RUN --source-dir MATERIAL_SOURCE_DIR --wall-verdict material_wall_review_verdict.json --max-assets 12 --json
 python video_tools.py contract-run segment_contract.json --material-db materials_db.json --music bgm.mp3 --out final.mp4 --mat-dir RUN
 python video_tools.py verify --script segment_contract.json --timing audio/tts_timing.json --edit-log edit_log.json --srt subtitles.srt --video final.mp4 --out verify_result.json
 ```
+
+For material-first route testing, prefer
+`tools/material_first_boundary_acceptance.py` before render. If
+`material_first_boundary_acceptance_report.json` returns `ok=false`, stop and
+repair the reported `failed_stage`; do not continue to `contract-run`.
 
 Generated material:
 

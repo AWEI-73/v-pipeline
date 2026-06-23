@@ -327,6 +327,25 @@ python video_tools.py material-map-lifecycle --out-dir run `
   --contract segment_contract.json
 ```
 
+Material-first boundary acceptance:
+
+```powershell
+python tools/material_first_boundary_acceptance.py `
+  --out RUN_DIR `
+  --source-dir MATERIAL_SOURCE_DIR `
+  --wall-verdict material_wall_review_verdict.json `
+  --max-assets 12 `
+  --json
+```
+
+This is the current local acceptance entry for material-first runs before
+render. It runs Stage 2/3 material wall handoff, Stage 4 build smoke, and Stage
+5 final-review smoke, then writes
+`material_first_boundary_acceptance_report.json`. `pipeline_home.py` and the
+Dashboard state read this report as the compact handoff result. If it fails,
+follow its `failed_stage`, `blocking`, and `next_action` instead of continuing
+to render.
+
 Generated material handoff:
 
 ```powershell

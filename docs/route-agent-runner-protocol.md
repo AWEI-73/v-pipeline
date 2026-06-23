@@ -22,6 +22,23 @@ Treat its `mode`, `cursor`, `reason`, and `read` fields as the compact routing
 summary for agent handoff. This wrapper does not execute anything; it only
 projects existing artifacts into an agent-facing contract.
 
+For a material-first route, the parent can run the local boundary acceptance
+wrapper after material-wall review verdicts exist and before render:
+
+```powershell
+python tools/material_first_boundary_acceptance.py `
+  --out RUN_DIR `
+  --source-dir MATERIAL_SOURCE_DIR `
+  --wall-verdict material_wall_review_verdict.json `
+  --max-assets 12 `
+  --json
+```
+
+This writes `material_first_boundary_acceptance_report.json`, which is the
+compact evidence chain for Stage 2/3, Stage 4, and Stage 5. If the report has
+`ok=false`, dispatch the next bounded worker to its `failed_stage` /
+`next_action` instead of sending a worker to render.
+
 When you receive `route_subagent_task.json`:
 
 1. Read the packet.
