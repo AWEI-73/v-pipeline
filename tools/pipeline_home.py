@@ -251,13 +251,17 @@ def summarize_run(run_dir):
     if summary:
         return summary
 
+    summary = _build_summary(root)
+    if summary:
+        return summary
+
     _lifecycle_path, lifecycle = _find_json(root, "material_map_lifecycle.json")
     if lifecycle:
         summary = _lifecycle_summary(root, lifecycle)
         if summary:
             return summary
 
-    for summarize in (_build_summary, _story_summary, _intent_summary):
+    for summarize in (_story_summary, _intent_summary):
         summary = summarize(root)
         if summary:
             return summary
