@@ -1035,6 +1035,21 @@ def evaluate_delivery_gate(artifacts):
 
     blocking.extend(_source_quality_blocking((artifacts or {}).get("timeline_build")))
 
+    rough_cut_plan = (artifacts or {}).get("rough_cut_plan") or {}
+    if isinstance(rough_cut_plan, dict) and rough_cut_plan.get("ok") is False:
+        for gap in rough_cut_plan.get("gaps") or []:
+            if not isinstance(gap, dict):
+                continue
+            blocking.append({
+                "rule": "rough_cut_gap",
+                "tier": 1,
+                "artifact": "rough_cut_plan",
+                "segment": gap.get("segment"),
+                "need_id": gap.get("need_id"),
+                "message": gap.get("reason") or "rough-cut plan has unresolved material gap",
+                "next_action": "revise_material_selection_or_review",
+            })
+
     return {
         "artifact_role": "delivery_gate",
         "version": 1,

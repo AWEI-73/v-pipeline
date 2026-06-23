@@ -121,6 +121,25 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         self.assertEqual(result["blocking"][0]["rule"], "repeated_source_over_limit")
 
+    def test_rough_cut_plan_gaps_block_delivery(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "rough_cut_plan": {
+                "artifact_role": "rough_cut_plan",
+                "ok": False,
+                "gaps": [{
+                    "segment": 2,
+                    "need_id": "nd_closing",
+                    "reason": "no accepted scene satisfies the segment need",
+                }],
+            },
+        })
+
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["blocking"][0]["rule"], "rough_cut_gap")
+        self.assertEqual(result["blocking"][0]["artifact"], "rough_cut_plan")
+        self.assertEqual(result["next_action"], "revise_material_selection_or_review")
+
     def test_quality_evidence_does_not_block_delivery(self):
         quality_roles = (
             "visual_audit",

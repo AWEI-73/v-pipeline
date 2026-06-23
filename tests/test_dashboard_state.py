@@ -704,6 +704,31 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(state["next_action"], "curator")
             self.assertFalse(state["run"]["pass"])
 
+    def test_rough_cut_plan_gap_surfaces_as_final_review_blocker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8")
+            (workdir / "rough_cut_plan.json").write_text(json.dumps({
+                "artifact_role": "rough_cut_plan",
+                "ok": False,
+                "gaps": [{
+                    "segment": 2,
+                    "need_id": "nd_closing",
+                    "reason": "no accepted scene satisfies the segment need",
+                }],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "revise_material_selection_or_review")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "rough_cut_plan"
+                and finding.get("type") == "error"
+                for finding in state["findings"]
+            ))
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

@@ -130,6 +130,8 @@ def load_dashboard_state(workdir):
                     manifest["assembly_plan"] = f
                 elif f == "timeline_build.json":
                     manifest["timeline_build"] = f
+                elif f == "rough_cut_plan.json":
+                    manifest["rough_cut_plan"] = f
                 elif f == "editor_review.json":
                     manifest["editor_review"] = f
                 elif f == "visual_review_request.json":
@@ -175,6 +177,7 @@ def load_dashboard_state(workdir):
     gen_requests = safe_load_json(manifest.get("generated_asset_requests")) or safe_load_json("generated_asset_requests.json")
     assembly_plan = safe_load_json(manifest.get("assembly_plan")) or safe_load_json("assembly_plan.json")
     timeline_build = safe_load_json(manifest.get("timeline_build")) or safe_load_json("timeline_build.json")
+    rough_cut_plan = safe_load_json(manifest.get("rough_cut_plan")) or safe_load_json("rough_cut_plan.json")
     editor_review = safe_load_json(manifest.get("editor_review")) or safe_load_json("editor_review.json")
     visual_review_request = safe_load_json(manifest.get("visual_review_request")) or safe_load_json("visual_review_request.json")
     visual_review_verdict = safe_load_json(manifest.get("visual_review_verdict")) or safe_load_json("visual_review_verdict.json")
@@ -334,6 +337,7 @@ def load_dashboard_state(workdir):
         "generated_manifest": generated_manifest,
         "assembly_plan": assembly_plan,
         "timeline_build": timeline_build,
+        "rough_cut_plan": rough_cut_plan,
         "editor_review": editor_review,
         "visual_review_request": visual_review_request,
         "visual_review_verdict": visual_review_verdict,
@@ -562,6 +566,7 @@ def load_dashboard_state(workdir):
         **audit_data,
         "verify_result": verify_result,
         "timeline_build": timeline_build,
+        "rough_cut_plan": rough_cut_plan,
         "material_coverage": material_coverage,
         "material_delta": material_delta,
         "material_map_lifecycle": material_map_lifecycle,
@@ -763,6 +768,7 @@ def load_dashboard_state(workdir):
             "material_coverage": material_coverage,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
+            "rough_cut_plan": rough_cut_plan,
             "editor_review": editor_review,
             "verify_result": verify_result,
             "state": state_data,
