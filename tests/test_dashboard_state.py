@@ -757,6 +757,37 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_material_first_boundary_acceptance_report_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "material_first_boundary_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": False,
+                "next_action": "repair:stage4_build",
+                "failed_stage": "stage4_build",
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {
+                        "stage": "stage4_build",
+                        "ok": False,
+                        "blocking": [{"rule": "timeline_mismatch", "message": "timeline clip mismatch"}],
+                    },
+                ],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            report = state["artifacts"]["material_first_boundary_acceptance_report"]
+            self.assertEqual(report["failed_stage"], "stage4_build")
+            self.assertEqual(state["next_action"], "repair:stage4_build")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "material_first_boundary_acceptance_report"
+                and "timeline clip mismatch" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

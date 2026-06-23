@@ -210,6 +210,54 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("caption_audit", summary["reason"])
             self.assertIn("actual/final_review_boundary.json", summary["read"])
 
+    def test_material_first_acceptance_ready_routes_to_human_review_or_render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_first_boundary_acceptance_report.json", {
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "failed_stage": None,
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {"stage": "stage4_build", "ok": True},
+                    {"stage": "stage5_final_review", "ok": True},
+                ],
+            })
+            _write(tmp, "timeline_build.json", {"artifact_role": "timeline_build"})
+            _write(tmp, "editor_review.json", {"artifact_role": "editor_review"})
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "ready_for_render_or_human_review")
+            self.assertEqual(summary["source"], "material_first_boundary_acceptance_report.json")
+            self.assertIn("3/3 stages passed", summary["reason"])
+
+    def test_material_first_acceptance_failed_routes_to_failed_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_first_boundary_acceptance_report.json", {
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": False,
+                "next_action": "repair:stage2_3_material_wall_to_review_apply",
+                "failed_stage": "stage2_3_material_wall_to_review_apply",
+                "stages": [{
+                    "stage": "stage2_3_material_wall_to_review_apply",
+                    "ok": False,
+                    "blocking": [{"rule": "stage_exception", "message": "requires at least 3 usable media files"}],
+                }],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "stage2_3_material_wall_to_review_apply")
+            self.assertEqual(summary["next"], "repair:stage2_3_material_wall_to_review_apply")
+            self.assertIn("requires at least 3 usable media files", summary["reason"])
+            self.assertIn("material_first_boundary_acceptance_report.json", summary["read"])
+
     def test_cli_prints_json_contract(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

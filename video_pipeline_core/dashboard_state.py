@@ -164,6 +164,8 @@ def load_dashboard_state(workdir):
                     manifest["material_map_lifecycle"] = f
                 elif f == "material_wall_handoff_report.json":
                     manifest["material_wall_handoff_report"] = f
+                elif f == "material_first_boundary_acceptance_report.json":
+                    manifest["material_first_boundary_acceptance_report"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
@@ -177,6 +179,10 @@ def load_dashboard_state(workdir):
     material_wall_handoff_report = (
         safe_load_json(manifest.get("material_wall_handoff_report"))
         or safe_load_json("material_wall_handoff_report.json")
+    )
+    material_first_boundary_acceptance_report = (
+        safe_load_json(manifest.get("material_first_boundary_acceptance_report"))
+        or safe_load_json("material_first_boundary_acceptance_report.json")
     )
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
@@ -541,6 +547,12 @@ def load_dashboard_state(workdir):
             "artifact": "visual_review_request.json",
             "message": "Visual review request awaits agent verdict",
         })
+    elif (
+        material_first_boundary_acceptance_report
+        and material_first_boundary_acceptance_report.get("ok") is False
+    ):
+        next_action = material_first_boundary_acceptance_report.get("next_action") or "repair:material_first_boundary_acceptance"
+        is_pass = False
     else:
         # Check required missing nodes
         verified_final = bool(final_exists and verify_result and verify_result.get("pass") is True)
@@ -615,6 +627,28 @@ def load_dashboard_state(workdir):
             "node": 2,
             "artifact": "material_wall_handoff_report",
             "message": "; ".join(parts) or "material wall handoff is not ready for mapping",
+        })
+
+    if (
+        material_first_boundary_acceptance_report
+        and material_first_boundary_acceptance_report.get("ok") is False
+    ):
+        failed_stage = material_first_boundary_acceptance_report.get("failed_stage")
+        blocking = []
+        for stage in material_first_boundary_acceptance_report.get("stages") or []:
+            if stage.get("ok") is False:
+                blocking = stage.get("blocking") or []
+                break
+        message = "; ".join(
+            str(item.get("message") or item.get("rule") or item)
+            for item in blocking
+            if item
+        ) or f"material-first boundary acceptance failed at {failed_stage}"
+        findings.append({
+            "type": "error",
+            "node": 12,
+            "artifact": "material_first_boundary_acceptance_report",
+            "message": message,
         })
 
     # Populate segments timeline (three-layer)
@@ -788,6 +822,7 @@ def load_dashboard_state(workdir):
             "generated_manifest": generated_manifest,
             "material_coverage": material_coverage,
             "material_wall_handoff_report": material_wall_handoff_report,
+            "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,

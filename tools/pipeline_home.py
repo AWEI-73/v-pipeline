@@ -93,6 +93,48 @@ def _boundary_summary(root: Path, boundary: dict[str, Any]):
     return None
 
 
+def _acceptance_summary(root: Path):
+    report_path, report = _find_json(root, "material_first_boundary_acceptance_report.json")
+    if not report:
+        return None
+
+    stages = report.get("stages") or []
+    passed = sum(1 for stage in stages if stage.get("ok") is True)
+    total = len(stages)
+    read = [_rel(root, report_path)]
+    if report.get("ok") is False:
+        failed_stage = report.get("failed_stage") or "material-first-boundary-acceptance"
+        blocking = []
+        for stage in stages:
+            if stage.get("ok") is False:
+                blocking = stage.get("blocking") or []
+                break
+        reason = "; ".join(
+            str(item.get("message") or item.get("rule") or item)
+            for item in blocking
+            if item
+        ) or f"material-first acceptance failed at {failed_stage}"
+        return _contract(
+            "repair",
+            failed_stage,
+            next_action=report.get("next_action"),
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="material_first_boundary_acceptance_report.json",
+        )
+
+    return _contract(
+        "run",
+        "stage5_final_review",
+        next_action=report.get("next_action") or "ready_for_render_or_human_review",
+        reason=f"material-first boundary acceptance passed: {passed}/{total} stages passed",
+        read=read,
+        run_dir=root,
+        source="material_first_boundary_acceptance_report.json",
+    )
+
+
 def _lifecycle_summary(root: Path, lifecycle: dict[str, Any]):
     stage = lifecycle.get("stage")
     refs = _read_refs(root, lifecycle.get("refs") or {})
@@ -283,6 +325,10 @@ def _intent_summary(root: Path):
 
 def summarize_run(run_dir):
     root = Path(run_dir).resolve()
+
+    summary = _acceptance_summary(root)
+    if summary:
+        return summary
 
     _boundary_path, boundary = _find_json(root, "boundary_report.json")
     if boundary:
