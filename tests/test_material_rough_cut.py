@@ -100,6 +100,48 @@ class MaterialRoughCutTest(unittest.TestCase):
         self.assertEqual(plan["clips"][1]["source_repeat_count"], 2)
         self.assertEqual(plan["source_repetition"]["materials/a.mp4"], 2)
 
+    def test_cuts_requested_duration_from_reviewed_usable_range(self):
+        contract = {
+            "segments": [
+                {
+                    "segment": 1,
+                    "requested_duration_sec": 20,
+                    "material_fit": {"need_refs": ["nd_opening"]},
+                }
+            ]
+        }
+        project_map = {
+            "assets": [
+                {
+                    "asset_id": "clip-a",
+                    "asset_type": "video",
+                    "source": "materials/a.mp4",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 0.0,
+                            "end": 50.0,
+                            "caption": "full raw clip",
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                    "usable_range": {"start": 12.0, "end": 42.0},
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        plan = build_rough_cut_plan(contract, project_map)
+
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["clips"][0]["start_sec"], 12.0)
+        self.assertEqual(plan["clips"][0]["duration_sec"], 20.0)
+        self.assertEqual(plan["clips"][0]["available_range_sec"], 30.0)
+
     def test_cli_writes_rough_cut_and_timeline_build(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

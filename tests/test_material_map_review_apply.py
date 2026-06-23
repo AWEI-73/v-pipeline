@@ -230,6 +230,47 @@ class MaterialMapReviewApplyCliTest(unittest.TestCase):
                 skipped_policy=None,
             ))
 
+    def test_cli_persists_reviewed_usable_range_on_satisfaction_edge(self):
+        root = Path(tempfile.mkdtemp())
+        maps_dir = root / "maps"
+        maps_dir.mkdir()
+        (maps_dir / "clip-a.map.json").write_text(
+            json.dumps(_asset_map("clip-a", [{"start": 0, "end": 50, "caption": "practice"}])),
+            encoding="utf-8",
+        )
+        needs_path = root / "material_needs.json"
+        needs_path.write_text(json.dumps(_needs()), encoding="utf-8")
+        verdict_path = root / "material_map_review_verdict.json"
+        verdict_path.write_text(
+            json.dumps({
+                "reviewer": "agent:director",
+                "decisions": [
+                    {
+                        "asset_id": "clip-a",
+                        "scene_index": 0,
+                        "need_id": "nd_opening",
+                        "status": "accepted",
+                        "visual_evidence": ["usable action starts after the setup"],
+                        "usable_range": {"start": 12.0, "end": 42.0},
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        cmd_material_map_review_apply(types.SimpleNamespace(
+            maps_dir=str(maps_dir),
+            needs=str(needs_path),
+            verdict=str(verdict_path),
+            out=str(root / "project_material_map.json"),
+            material_db=None,
+            skipped_policy=None,
+        ))
+
+        updated_asset = json.loads((maps_dir / "clip-a.map.json").read_text(encoding="utf-8"))
+        edge = updated_asset["scenes"][0]["satisfies"][0]
+        self.assertEqual(edge["usable_range"], {"start": 12.0, "end": 42.0})
+
 
 if __name__ == "__main__":
     unittest.main()

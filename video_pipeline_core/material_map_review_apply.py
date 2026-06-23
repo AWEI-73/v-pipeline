@@ -65,6 +65,26 @@ def _skipped_assets_from_material_db(material_db):
     }
 
 
+def _validated_usable_range(decision, scene, index):
+    value = decision.get("usable_range")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"decision {index} usable_range must be an object")
+    try:
+        start = float(value.get("start"))
+        end = float(value.get("end"))
+        scene_start = float(scene.get("start") or 0.0)
+        scene_end = float(scene.get("end") or 0.0)
+    except (TypeError, ValueError):
+        raise ValueError(f"decision {index} usable_range start/end must be numbers") from None
+    if end <= start:
+        raise ValueError(f"decision {index} usable_range end must be greater than start")
+    if scene_end > scene_start and (start < scene_start or end > scene_end):
+        raise ValueError(f"decision {index} usable_range must stay inside the reviewed scene")
+    return {"start": start, "end": end}
+
+
 def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy=None):
     by_asset = {payload["asset_id"]: payload for _path, payload in asset_maps}
     grouped = {}
@@ -91,6 +111,7 @@ def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy
             raise ValueError(
                 f"decision {index} references invalid scene_index {scene_index!r} "
                 f"for asset_id {asset_id!r}")
+        scene = scenes[scene_index]
         status = decision.get("status", "candidate")
         visual_evidence = decision.get("visual_evidence")
         if status == "accepted":
@@ -104,6 +125,7 @@ def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy
             if decision.get("evidence_basis") == "source_path_only":
                 raise ValueError(
                     f"decision {index} accepted edge cannot use evidence_basis=source_path_only")
+        usable_range = _validated_usable_range(decision, scene, index)
         grouped.setdefault(asset_id, []).append({
             "scene_index": scene_index,
             "satisfies": [{
@@ -113,6 +135,7 @@ def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy
                 "reviewer": decision.get("reviewer"),
                 "at": decision.get("at"),
                 "visual_evidence": visual_evidence,
+                "usable_range": usable_range,
             }],
         })
     return grouped, ignored

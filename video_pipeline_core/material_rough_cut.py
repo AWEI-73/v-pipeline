@@ -43,6 +43,15 @@ def _accepted_need_ids(scene: dict) -> set[str]:
     return out
 
 
+def _accepted_edge(scene: dict, need_id: str) -> dict | None:
+    for edge in scene.get("satisfies") or []:
+        if not isinstance(edge, dict):
+            continue
+        if edge.get("status") == "accepted" and edge.get("need_id") == need_id:
+            return edge
+    return None
+
+
 def _scene_duration(scene: dict, fallback: float) -> float:
     try:
         start = float(scene.get("start") or 0.0)
@@ -59,6 +68,23 @@ def _scene_start(scene: dict) -> float:
         return 0.0
 
 
+def _usable_range(scene: dict, need_id: str) -> tuple[float, float] | None:
+    edge = _accepted_edge(scene, need_id)
+    if not edge:
+        return None
+    value = edge.get("usable_range")
+    if not isinstance(value, dict):
+        return None
+    try:
+        start = float(value.get("start"))
+        end = float(value.get("end"))
+    except (TypeError, ValueError):
+        return None
+    if end <= start:
+        return None
+    return start, end
+
+
 def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
     candidates = []
     for asset in project_map.get("assets") or []:
@@ -70,6 +96,13 @@ def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
             scene_index = scene.get("scene_index")
             if not isinstance(scene_index, int):
                 scene_index = index
+            usable = _usable_range(scene, need_id)
+            if usable:
+                available_start = usable[0]
+                available_duration = usable[1] - usable[0]
+            else:
+                available_start = _scene_start(scene)
+                available_duration = _scene_duration(scene, 0.0)
             candidates.append({
                 "asset_id": asset_id,
                 "asset_type": asset.get("asset_type"),
@@ -77,11 +110,13 @@ def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
                 "scene": scene,
                 "scene_index": scene_index,
                 "scene_duration_sec": _scene_duration(scene, 0.0),
+                "available_start_sec": available_start,
+                "available_range_sec": available_duration,
             })
     return sorted(
         candidates,
         key=lambda item: (
-            -float(item["scene_duration_sec"] or 0.0),
+            -float(item["available_range_sec"] or 0.0),
             str(item.get("asset_id") or ""),
             int(item.get("scene_index") or 0),
         ),
@@ -143,7 +178,11 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
 
         scene = chosen["scene"]
         source = chosen.get("source")
-        duration = min(requested, _scene_duration(scene, requested))
+        available = float(chosen.get("available_range_sec") or _scene_duration(scene, requested))
+        start = chosen.get("available_start_sec")
+        if start is None:
+            start = _scene_start(scene)
+        duration = min(requested, available)
         source_counts[source] = source_counts.get(source, 0) + 1
         clips.append({
             "segment": segment_id,
@@ -153,8 +192,9 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
             "source_path": source,
             "scene_id": f"{chosen.get('asset_id')}:{chosen.get('scene_index')}",
             "scene_index": chosen.get("scene_index"),
-            "start_sec": round(_scene_start(scene), 3),
+            "start_sec": round(float(start), 3),
             "duration_sec": round(duration, 3),
+            "available_range_sec": round(available, 3),
             "caption": scene.get("caption"),
             "source_repeat_count": source_counts[source],
             "reason": "selected first accepted material-map scene for segment need",

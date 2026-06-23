@@ -191,7 +191,7 @@ def need_ids(raw):
 # ---------------------------------------------------------------------------
 
 def make_satisfaction(need_id, status="candidate", *, reviewer=None, note=None, at=None,
-                      previous_status=None, visual_evidence=None):
+                      previous_status=None, visual_evidence=None, usable_range=None):
     """Build one scene->need satisfaction entry. Timestamps are caller-supplied
     (no hidden clock) to keep the write path deterministic and testable."""
     if status not in VALID_STATUSES:
@@ -205,7 +205,10 @@ def make_satisfaction(need_id, status="candidate", *, reviewer=None, note=None, 
             lineage[key] = value
     if visual_evidence is not None:
         lineage["visual_evidence"] = list(visual_evidence)
-    return {"need_id": str(need_id), "status": status, "lineage": lineage}
+    entry = {"need_id": str(need_id), "status": status, "lineage": lineage}
+    if usable_range is not None:
+        entry["usable_range"] = dict(usable_range)
+    return entry
 
 
 def _merge_satisfies(existing, incoming):
@@ -267,6 +270,7 @@ def apply_satisfaction_verdict(material_map, verdict, *, valid_need_ids=None):
                 note=raw.get("note"),
                 at=raw.get("at") or default_at,
                 visual_evidence=raw.get("visual_evidence"),
+                usable_range=raw.get("usable_range"),
             ))
         if incoming:
             scenes[index]["satisfies"] = _merge_satisfies(
