@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.boundary_smoke import run_boundary  # noqa: E402
 from video_pipeline_core import material_map_lifecycle  # noqa: E402
-from video_pipeline_core.material_wall import write_material_wall_request  # noqa: E402
+from video_pipeline_core.material_wall import apply_material_wall_review, write_material_wall_request  # noqa: E402
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps  # noqa: E402
 from video_pipeline_core.material_rough_cut import build_rough_cut_plan, load_json, write_json  # noqa: E402
 
@@ -155,8 +155,31 @@ def _select_source_paths(source_root: Path, candidates: list[Path], *, max_asset
     return selected[:max_assets]
 
 
-def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int):
+def _selected_wall_review_db(reviewed: dict) -> dict:
+    selected = [
+        entry for entry in reviewed.get("files") or []
+        if entry.get("selected_for_material_map") is True
+    ]
+    out = dict(reviewed)
+    out["files"] = selected
+    out["total"] = len(selected)
+    return out
+
+
+def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
+    wall_dir = run_dir / "verify" / "material_wall"
+    write_material_wall_request(
+        db,
+        wall_dir,
+        wall_dir / "material_wall_request.json",
+        limit=max_assets,
+    )
+    if wall_verdict:
+        write_json(run_dir / "materials_db.source_candidates.json", db)
+        reviewed = apply_material_wall_review(db, load_json(wall_verdict))
+        write_json(run_dir / "materials_db.wall_reviewed.json", reviewed)
+        db = _selected_wall_review_db(reviewed)
     if len(db["files"]) < 3:
         raise ValueError("source folder dry run requires at least 3 usable media files")
     maps_dir = run_dir / "maps"
@@ -245,7 +268,7 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
     })
 
 
-def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12) -> dict:
+def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12, wall_verdict=None) -> dict:
     run_dir = Path(run_dir).resolve()
     if run_dir.exists():
         shutil.rmtree(run_dir)
@@ -253,7 +276,12 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12) 
 
     source_mode = bool(source_dir)
     if source_mode:
-        _write_source_case_inputs(run_dir, Path(source_dir).resolve(), max_assets=max_assets)
+        _write_source_case_inputs(
+            run_dir,
+            Path(source_dir).resolve(),
+            max_assets=max_assets,
+            wall_verdict=wall_verdict,
+        )
     else:
         repo = Path(__file__).resolve().parents[1]
         fixture_input = repo / "examples" / "boundary_fixtures" / "stage3_review_apply" / "input"
@@ -265,15 +293,6 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12) 
         "video_type": "graduation-event",
         "goal": "prove existing material can move from map review to rough timeline",
     })
-
-    if source_mode:
-        wall_dir = run_dir / "verify" / "material_wall"
-        write_material_wall_request(
-            run_dir / "materials_db.json",
-            wall_dir,
-            wall_dir / "material_wall_request.json",
-            limit=max_assets,
-        )
 
     apply_review_to_maps(
         run_dir / "maps",
@@ -328,12 +347,14 @@ def main(argv=None):
     parser.add_argument("--out", required=True, help="run folder to create")
     parser.add_argument("--source-dir", help="real material folder for source-folder dry run")
     parser.add_argument("--max-assets", type=int, default=12)
+    parser.add_argument("--wall-verdict", help="optional material_wall_review_verdict.json to bound mapping")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     result = run_material_first_landing_case(
         args.out,
         source_dir=args.source_dir,
         max_assets=args.max_assets,
+        wall_verdict=args.wall_verdict,
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

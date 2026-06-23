@@ -122,6 +122,69 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
                 asset_ids,
             )
 
+    def test_source_folder_case_applies_material_wall_verdict_before_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "進場" / "opening.jpg", "red")
+            _jpg(source / "工安體感" / "training.jpg", "green")
+            _jpg(source / "主任勉勵" / "closing.jpg", "blue")
+            _jpg(source / "zz_unused" / "bad.jpg", "black")
+            verdict_path = root / "material_wall_review_verdict.json"
+            verdict_path.write_text(json.dumps({
+                "artifact_role": "material_wall_review_verdict",
+                "version": 1,
+                "reviewer": "test:director",
+                "assets": [
+                    {
+                        "asset_id": "real_0001",
+                        "coarse_status": "keep",
+                        "visual_role": ["opening"],
+                        "quality": "good",
+                        "visual_evidence": ["clear opening still"],
+                    },
+                    {
+                        "asset_id": "real_0002",
+                        "coarse_status": "keep",
+                        "visual_role": ["training"],
+                        "quality": "good",
+                        "visual_evidence": ["clear training still"],
+                    },
+                    {
+                        "asset_id": "real_0003",
+                        "coarse_status": "keep",
+                        "visual_role": ["closing"],
+                        "quality": "good",
+                        "visual_evidence": ["clear closing still"],
+                    },
+                    {
+                        "asset_id": "real_0004",
+                        "coarse_status": "reject",
+                        "visual_role": [],
+                        "quality": "bad",
+                        "why_not_selected": "off-topic distractor",
+                    },
+                ],
+            }), encoding="utf-8")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(
+                run_dir,
+                source_dir=source,
+                max_assets=4,
+                wall_verdict=verdict_path,
+            )
+
+            self.assertTrue(result["ok"], result)
+            reviewed = json.loads((run_dir / "materials_db.wall_reviewed.json").read_text(encoding="utf-8"))
+            selected = [item["id"] for item in reviewed["files"] if item.get("selected_for_material_map")]
+            self.assertEqual(selected, ["real_0001", "real_0002", "real_0003"])
+            project_map = json.loads((run_dir / "project_material_map.json").read_text(encoding="utf-8"))
+            mapped_ids = [asset["asset_id"] for asset in project_map["assets"]]
+            self.assertNotIn("real_0004", mapped_ids)
+            rough = json.loads((run_dir / "rough_cut_plan.json").read_text(encoding="utf-8"))
+            self.assertNotIn("real_0004", [clip["asset_id"] for clip in rough["clips"]])
+
 
 if __name__ == "__main__":
     unittest.main()
