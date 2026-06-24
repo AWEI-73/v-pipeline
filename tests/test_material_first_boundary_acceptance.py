@@ -125,6 +125,28 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             self.assertEqual(len(report["stages"]), 1)
             self.assertFalse((run_dir / "stage4_build_smoke_report.json").exists())
 
+    def test_acceptance_preserves_in_run_wall_verdict_when_out_is_recreated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = _source_folder(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            verdict = run_dir / "material_wall_review_verdict.json"
+            _write_verdict(verdict)
+
+            result = run_material_first_boundary_acceptance(
+                run_dir,
+                source_dir=source,
+                wall_verdict=verdict,
+                max_assets=5,
+            )
+
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(verdict.exists())
+            restored = json.loads(verdict.read_text(encoding="utf-8"))
+            self.assertEqual(restored["artifact_role"], "material_wall_review_verdict")
+            self.assertTrue((run_dir / "material_first_boundary_acceptance_report.json").exists())
+
     def test_cli_outputs_json_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -156,6 +178,40 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             result = json.loads(completed.stdout)
             self.assertTrue(result["ok"], result)
             self.assertEqual(result["report"]["next_action"], "ready_for_render_or_human_review")
+
+    def test_cli_accepts_wall_verdict_inside_out_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = _source_folder(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            verdict = run_dir / "material_wall_review_verdict.json"
+            _write_verdict(verdict)
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/material_first_boundary_acceptance.py",
+                    "--out",
+                    str(run_dir),
+                    "--source-dir",
+                    str(source),
+                    "--wall-verdict",
+                    str(verdict),
+                    "--max-assets",
+                    "5",
+                    "--json",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+            result = json.loads(completed.stdout)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(verdict.exists())
+            self.assertTrue((run_dir / "material_first_boundary_acceptance_report.json").exists())
 
 
 if __name__ == "__main__":

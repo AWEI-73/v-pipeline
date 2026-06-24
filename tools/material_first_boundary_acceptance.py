@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,6 +20,40 @@ STAGE_REPORT_FILES = {
     "stage4_build": "stage4_build_smoke_report.json",
     "stage5_final_review": "stage5_final_review_smoke_report.json",
 }
+
+
+def _prepare_wall_verdict(run_dir: Path, wall_verdict) -> tuple[Path, dict | None]:
+    verdict_path = Path(wall_verdict).resolve()
+    payload = json.loads(verdict_path.read_text(encoding="utf-8-sig"))
+    try:
+        verdict_path.relative_to(run_dir)
+    except ValueError:
+        return verdict_path, None
+
+    temp = tempfile.NamedTemporaryFile(
+        "w",
+        suffix=".material_wall_review_verdict.json",
+        encoding="utf-8",
+        delete=False,
+    )
+    with temp:
+        json.dump(payload, temp, ensure_ascii=False, indent=2)
+    return Path(temp.name), {"path": verdict_path, "payload": payload}
+
+
+def _restore_in_run_wall_verdict(saved: dict | None):
+    if not saved:
+        return
+    write_json(saved["path"], saved["payload"])
+
+
+def _cleanup_temp_wall_verdict(verdict_path: Path, saved: dict | None):
+    if not saved:
+        return
+    try:
+        verdict_path.unlink()
+    except OSError:
+        pass
 
 
 def _stage_entry(result: dict) -> dict:
@@ -82,15 +117,19 @@ def _build_report(run_dir: Path, stages: list[dict]) -> dict:
 def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict, max_assets=12) -> dict:
     root = Path(run_dir).resolve()
     stages: list[dict] = []
+    verdict_for_runner, saved_in_run_verdict = _prepare_wall_verdict(root, wall_verdict)
 
     try:
         stage2_3 = run_stage2_3_smoke(
             root,
             source_dir=source_dir,
-            wall_verdict=wall_verdict,
+            wall_verdict=verdict_for_runner,
             max_assets=max_assets,
         )
+        _restore_in_run_wall_verdict(saved_in_run_verdict)
     except Exception as exc:
+        _restore_in_run_wall_verdict(saved_in_run_verdict)
+        _cleanup_temp_wall_verdict(verdict_for_runner, saved_in_run_verdict)
         stages.append(_failed_stage_entry(
             "stage2_3_material_wall_to_review_apply",
             str(exc),
@@ -99,6 +138,7 @@ def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict,
         report = _build_report(root, stages)
         write_json(root / "material_first_boundary_acceptance_report.json", report)
         return {"ok": False, "run_dir": str(root), "report": report}
+    _cleanup_temp_wall_verdict(verdict_for_runner, saved_in_run_verdict)
     stages.append(_stage_entry(stage2_3))
     if not stage2_3.get("ok"):
         report = _build_report(root, stages)
