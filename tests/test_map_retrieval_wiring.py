@@ -389,8 +389,15 @@ class NoRegressionTest(unittest.TestCase):
         # a stock segment never routes through _plan_local_segment
         a = _alloc(n_clips=1, clip_dur=3.0)
         s = {"segment": 2, "visual_desc": "aerial", "search_query": "aerial", "source": "stock"}
-        ok, entry, _ = mv_cut._plan_stock_segment(
+        pending, pending_entry, _ = mv_cut._plan_stock_segment(
             s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: o)
+        self.assertEqual(pending, [])
+        self.assertTrue(pending_entry["pending_visual_review"])
+        self.assertNotIn("retrieval_path", pending_entry)
+
+        ok, entry, _ = mv_cut._plan_stock_segment(
+            s, a, {}, "/tmp", _fetch=lambda q, o, min_dur=0: o,
+            visual_verdict={"action": "accept", "picked_windows": [{"start": 0, "end": 3}]})
         self.assertEqual(len(ok), 1)
         self.assertNotIn("retrieval_path", entry)   # stock keeps its own contract
 
