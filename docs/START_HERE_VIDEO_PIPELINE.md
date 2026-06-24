@@ -347,6 +347,25 @@ follow its `failed_stage`, `blocking`, and `next_action` instead of continuing
 to render. Workers must use the operator-provided material folder exactly: do not substitute `--source-dir`; if the specified folder is missing, stop and
 report `blocked` instead of selecting a neighboring folder.
 
+Material-first Remotion MemoryPhotoWall boundary acceptance:
+
+```powershell
+python tools/remotion_material_first_memory_acceptance.py `
+  --run-dir RUN_DIR `
+  --project-map project_material_map.json `
+  --wall-verdict material_wall_review_verdict.json `
+  --wall-request verify/material_wall/material_wall_request.json `
+  --json
+```
+
+Use this only when validating the bounded Remotion effect path for reviewed
+material-first refs. Read `skills/remotion-effect-worker.md` and
+`docs/construction-guides/remotion-effect-build-api-plan.md` before changing the
+effect contract. The output
+`remotion_material_first_memory_acceptance_report.json` proves the
+MemoryPhotoWall artifact chain is reviewable, but it is **not final delivery**
+and must not be treated as `final.mp4` verification.
+
 Generated material handoff:
 
 ```powershell

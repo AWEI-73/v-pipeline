@@ -1,0 +1,30 @@
+{
+  "artifact_role": "remotion_prompt_parameter_example",
+  "version": 1,
+  "template_id": "film_strip_transition_card",
+  "role": "chapter_transition",
+  "component_family": "page_turn_transition",
+  "variant": "story_to_mv_film_transition",
+  "prompt_parameters": {
+    "effect_goal": "story_half_to_mv_half_transition",
+    "transition_strength": "impact",
+    "phase_labels": ["STORY", "MONTAGE"],
+    "cut_point": "midpoint_impact",
+    "material_strategy": {
+      "thumbnail_source": "reviewed_stills",
+      "thumbnail_density": "balanced",
+      "reject_low_information_refs": true
+    },
+    "motion_grammar": [
+      "film_rail",
+      "thumbnail_acceleration",
+      "flash_wipe",
+      "hard_cut_bars"
+    ],
+    "negative_rules": [
+      "do_not_read_as_static_chapter_card",
+      "do_not_obscure_proof_footage",
+      "avoid_random_party_flash"
+    ]
+  }
+}

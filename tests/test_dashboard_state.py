@@ -788,6 +788,56 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_remotion_material_first_memory_acceptance_report_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "remotion_material_first_memory_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "remotion_material_first_memory_acceptance_report",
+                "ok": False,
+                "failed_stage": "effect_collage_refs",
+                "next_action": "provide_material_wall_keyframes_or_reviewed_stills",
+                "errors": ["no reviewed material refs available for MemoryPhotoWall"],
+                "summary": {
+                    "build_component": "MemoryPhotoWall",
+                    "selected_ref_count": 0,
+                },
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            report = state["artifacts"]["remotion_material_first_memory_acceptance_report"]
+            self.assertEqual(report["failed_stage"], "effect_collage_refs")
+            self.assertEqual(state["next_action"], "provide_material_wall_keyframes_or_reviewed_stills")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "remotion_material_first_memory_acceptance_report"
+                and "no reviewed material refs" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
+    def test_remotion_material_first_memory_acceptance_pass_sets_dashboard_next_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "remotion_material_first_memory_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "remotion_material_first_memory_acceptance_report",
+                "ok": True,
+                "failed_stage": None,
+                "next_action": "ready_for_human_effect_review_or_pipeline_promotion",
+                "summary": {
+                    "build_component": "MemoryPhotoWall",
+                    "selected_ref_count": 3,
+                },
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "ready_for_human_effect_review_or_pipeline_promotion")
+            self.assertFalse(state["run"]["pass"])
+            self.assertEqual(
+                state["artifacts"]["remotion_material_first_memory_acceptance_report"]["summary"]["build_component"],
+                "MemoryPhotoWall",
+            )
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

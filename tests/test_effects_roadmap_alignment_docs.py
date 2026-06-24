@@ -89,6 +89,66 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
 
+    def test_remotion_worker_skill_documents_material_first_memory_boundary(self):
+        text = read("skills/remotion-effect-worker.md")
+        for expected in [
+            "MemoryPhotoWall",
+            "material_wall_request.json",
+            "--wall-request",
+            "remotion_material_first_memory_acceptance.py",
+            "remotion_material_first_memory_acceptance_report.json",
+            "effect_build_spec.material_refs",
+            "material_wall_keyframe",
+            "not final delivery",
+            "Do not add `effect_story_planner.json`",
+            "`effect_build_spec` inside existing `prompt_parameters`",
+        ]:
+            self.assertIn(expected, text)
+
+    def test_start_here_and_index_link_remotion_material_first_acceptance(self):
+        start = read("docs/START_HERE_VIDEO_PIPELINE.md")
+        index = read("docs/INDEX.md")
+        for text in (start, index):
+            for expected in [
+                "docs/construction-guides/remotion-effect-build-api-plan.md",
+                "skills/remotion-effect-worker.md",
+                "tools/remotion_material_first_memory_acceptance.py",
+                "remotion_material_first_memory_acceptance_report.json",
+                "not final delivery",
+            ]:
+                self.assertIn(expected, text)
+
+    def test_remotion_construction_plan_keeps_effect_build_spec_as_v1_surface(self):
+        text = read("docs/construction-guides/remotion-effect-build-api-plan.md")
+        for expected in [
+            "v1 control surface is `effect_build_spec` inside existing `prompt_parameters`",
+            "`effect_story_planner.json` is a future optional extraction",
+            "Do not add `effect_story_planner.json` to the current mainline artifact chain",
+            "story_function",
+            "pacing",
+            "density",
+            "reveal_mode",
+            "camera_motion",
+            "accent_light",
+        ]:
+            self.assertIn(expected, text)
+
+    def test_remotion_prompt_parameter_contract_includes_memory_wall_build_spec(self):
+        text = read("docs/remotion_prompt_parameter_contract.md")
+        for expected in [
+            "`MemoryPhotoWall`",
+            "`effect_build_spec`",
+            "`story_function`",
+            "`pacing`",
+            "`density`",
+            "`reveal_mode`",
+            "`camera_motion`",
+            "`accent_light`",
+            "material-first recap openings",
+        ]:
+            self.assertIn(expected, text)
+        self.assertNotIn("This contract currently hardens two high-value effect classes only", text)
+
 
 if __name__ == "__main__":
     unittest.main()

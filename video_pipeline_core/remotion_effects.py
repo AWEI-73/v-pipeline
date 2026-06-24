@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .effect_contract import validate_effect_intent_plan
+from .effect_build_spec import validate_effect_build_spec
 from .effect_revision import ADAPTER_ROUTE
+from .effect_template_dictionary import get_effect_template, template_defaults
 
 
 DEFAULT_DURATION_SEC = 3.0
@@ -53,6 +55,40 @@ def _optional_str(value: Any, field: str, default: str = "") -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field} must be a string when present")
     return value.strip()
+
+
+def _json_safe(value: Any, field: str) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_json_safe(item, f"{field}[]") for item in value]
+    if isinstance(value, dict):
+        safe: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"{field} keys must be strings")
+            safe[key] = _json_safe(item, f"{field}.{key}")
+        return safe
+    raise ValueError(f"{field} must contain only JSON scalar, list, or object values")
+
+
+def _prompt_parameters(effect: Mapping[str, Any]) -> dict[str, Any]:
+    value = effect.get("prompt_parameters")
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("prompt_parameters must be an object when present")
+    return _json_safe(value, "prompt_parameters")
+
+
+def _effect_build_spec_component(effect: Mapping[str, Any]) -> str | None:
+    params = effect.get("prompt_parameters")
+    if not isinstance(params, Mapping):
+        return None
+    spec = params.get("effect_build_spec")
+    if not isinstance(spec, Mapping):
+        return None
+    return validate_effect_build_spec(spec)["component"]
 
 
 def _finite_positive(value: Any, field: str) -> float:
@@ -121,6 +157,20 @@ def _timeline_span(timeline: Mapping[str, Any] | None, segment: Any) -> tuple[di
     if not timeline:
         diagnostics.append("timeline_missing: using default timing")
         return {"start_sec": 0.0, "duration_sec": DEFAULT_DURATION_SEC}, diagnostics
+    for item in (timeline or {}).get("segments", []):
+        if _segment_key(item.get("segment_id") or item.get("segment")) != _segment_key(segment):
+            continue
+        try:
+            start = float(item.get("start_sec", 0.0))
+            if item.get("duration_sec") is not None:
+                duration = float(item.get("duration_sec"))
+            else:
+                end = float(item.get("end_sec"))
+                duration = end - start
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(start) and math.isfinite(duration) and duration > 0:
+            return {"start_sec": round(start, 3), "duration_sec": round(duration, 3)}, diagnostics
     clips = [
         clip for clip in (timeline or {}).get("clips", [])
         if _segment_key(clip.get("segment")) == _segment_key(segment)
@@ -144,7 +194,96 @@ def _timeline_span(timeline: Mapping[str, Any] | None, segment: Any) -> tuple[di
     return {"start_sec": round(start, 3), "duration_sec": round(end - start, 3)}, diagnostics
 
 
+def _template_id(effect: Mapping[str, Any]) -> str | None:
+    value = effect.get("template_id") or effect.get("effect_template")
+    if value is None:
+        return None
+    return _non_empty_str(value, "template_id")
+
+
+def _keyword_text(effect: Mapping[str, Any]) -> str:
+    parts = [
+        effect.get("role"),
+        effect.get("intent"),
+        effect.get("display_text"),
+        effect.get("subtitle_text"),
+        effect.get("speaker_name"),
+    ]
+    visual = effect.get("visual_language") or []
+    if isinstance(visual, list):
+        parts.extend(visual)
+    target = effect.get("target") or {}
+    if isinstance(target, Mapping):
+        parts.extend([
+            target.get("section_role"),
+            target.get("story_function"),
+            target.get("beat_id"),
+        ])
+    return " ".join(str(part or "") for part in parts).lower()
+
+
+def _inferred_template_id(effect: Mapping[str, Any]) -> str | None:
+    """Conservative template policy for reviewed training-recap effects.
+
+    Explicit `template_id` always wins. This policy only fills the common
+    Hermes training-recap cases that already have concrete worker support.
+    """
+    explicit = _template_id(effect)
+    if explicit:
+        return explicit
+    role = str(effect.get("role") or "")
+    text = _keyword_text(effect)
+
+    if role == "panel_frame" or any(token in text for token in ("vertical", "直式", "side fill", "blurred side")):
+        return "blurred_side_fill"
+    if role == "lower_third":
+        if effect.get("speaker_name") or any(token in text for token in ("speaker", "subtitle", "remarks", "主任", "講者", "致詞")):
+            return "speaker_subtitle_yellow_bar"
+        return "module_label_white_blue"
+    if role in {"chapter_transition", "transition_plate"}:
+        if any(token in text for token in ("film", "story to mv", "montage", "mv", "故事")):
+            return "film_strip_transition_card"
+        if any(token in text for token in ("soft light", "warm light", "light sweep", "柔光", "暖光")):
+            return "soft_light_transition"
+        return None
+    if role == "light_leak":
+        return "soft_light_transition"
+    if role == "overlay":
+        if any(token in text for token in ("highlight", "key moment", "warm glow", "關鍵", "重點", "情緒")):
+            return "highlight_warm_glow"
+        return None
+    if role == "title_card":
+        if any(token in text for token in ("opening", "collage", "開場", "集合")):
+            return "training_opening_title"
+        if any(token in text for token in ("profile", "team", "memory", "group", "個人", "團隊", "組")):
+            return "profile_memory_card"
+        if any(token in text for token in ("quote", "closing", "reflection", "結語", "心得", "感謝")):
+            return "clean_white_quote_card"
+    return None
+
+
+def _effect_with_inferred_template(effect: Mapping[str, Any]) -> tuple[Mapping[str, Any], list[str]]:
+    if _template_id(effect):
+        return effect, []
+    inferred = _inferred_template_id(effect)
+    if not inferred:
+        return effect, []
+    enriched = dict(effect)
+    enriched["template_id"] = inferred
+    return enriched, [f"template_inferred:{inferred}"]
+
+
+def _template(effect: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    template_id = _template_id(effect)
+    if not template_id:
+        return None
+    return get_effect_template(template_id)
+
+
 def _component_family(effect: Mapping[str, Any]) -> str:
+    template = _template(effect)
+    if template:
+        return _non_empty_str(template.get("component_family"), "template.component_family")
     return ROLE_COMPONENT_FAMILY.get(str(effect.get("role") or ""), "custom_motion_effect")
 
 
@@ -152,20 +291,146 @@ def _prompt_text(effect: Mapping[str, Any], request: Mapping[str, Any],
                  timing: Mapping[str, Any], component_family: str) -> str:
     visual = effect.get("visual_language") or []
     visual_text = ", ".join(visual) if visual else "clean motion graphic"
+    display_text = _display_text(effect)
+    build_component = _effect_build_spec_component(effect)
+    build_text = f" Build component: {build_component}." if build_component else ""
     return (
         f"Create a {component_family} Remotion effect for the Hermes video pipeline. "
         f"Intent: {effect.get('intent')}. Visual language: {visual_text}. "
+        f"Display text: {display_text}. "
         f"Intensity: {effect.get('intensity')}. Segment: {request.get('segment')}. "
         f"Duration: {timing['duration_sec']} seconds. "
+        f"{build_text}"
         "Render as a reviewable overlay/fullscreen asset with deterministic timing. "
         "Do not use story-evidence footage to satisfy material coverage."
     )
 
 
+def _compact_text(value: Any, *, limit: int = 24) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"\s+", " ", text)
+    if not text:
+        return "重點提示"
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip(" ,，。:：") + "…"
+
+
+def _display_text(effect: Mapping[str, Any]) -> str:
+    for field in ("display_text", "label_text", "title_text", "subtitle_text"):
+        if effect.get(field):
+            return _compact_text(effect.get(field))
+    return _compact_text(effect.get("intent"))
+
+
+def _collage_media_refs(effect: Mapping[str, Any]) -> list[dict[str, str]]:
+    refs = effect.get("collage_media_refs") or effect.get("media_refs") or []
+    if not isinstance(refs, list):
+        raise ValueError("collage_media_refs must be list when present")
+    cleaned: list[dict[str, str]] = []
+    for idx, ref in enumerate(refs):
+        if not isinstance(ref, dict):
+            raise ValueError(f"collage_media_refs[{idx}] must be object")
+        path = _optional_str(ref.get("path") or ref.get("src"), f"collage_media_refs[{idx}].path")
+        if not path:
+            continue
+        item = {
+            "path": path,
+            "ref_id": _optional_str(ref.get("ref_id"), f"collage_media_refs[{idx}].ref_id", f"media_{idx + 1}"),
+            "label": _optional_str(ref.get("label"), f"collage_media_refs[{idx}].label"),
+        }
+        if "contains_title" in ref:
+            item["contains_title"] = bool(ref.get("contains_title"))
+        if "visual_role" in ref:
+            item["visual_role"] = _optional_str(ref.get("visual_role"), f"collage_media_refs[{idx}].visual_role")
+        cleaned.append(item)
+    return cleaned[:6]
+
+
+def _collage_refs_from_artifact(artifact: Mapping[str, Any] | None) -> list[dict[str, str]]:
+    if artifact is None:
+        return []
+    if not isinstance(artifact, dict):
+        raise ValueError("effect_collage_media_refs must be object")
+    if artifact.get("artifact_role") != "effect_collage_media_refs":
+        raise ValueError("collage refs artifact_role must be effect_collage_media_refs")
+    return _collage_media_refs({"collage_media_refs": artifact.get("collage_media_refs") or []})
+
+
+def _effective_collage_refs(effect: Mapping[str, Any],
+                            collage_refs_artifact: Mapping[str, Any] | None) -> list[dict[str, str]]:
+    explicit = _collage_media_refs(effect)
+    if explicit:
+        return explicit
+    if _template_id(effect) != "training_opening_title":
+        return []
+    return _collage_refs_from_artifact(collage_refs_artifact)
+
+
+def _presentation(effect: Mapping[str, Any], component_family: str) -> dict[str, Any]:
+    explicit = effect.get("presentation") if isinstance(effect.get("presentation"), dict) else {}
+    template_id = _template_id(effect)
+    template_presentation = template_defaults(template_id) if template_id else {}
+    role = str(effect.get("role") or "")
+    intensity = str(effect.get("intensity") or "medium").lower()
+    if intensity not in {"subtle", "low", "medium", "high", "emphasis"}:
+        intensity = "medium"
+    strength = {
+        "subtle": "subtle",
+        "low": "subtle",
+        "medium": "medium",
+        "high": "emphasis",
+        "emphasis": "emphasis",
+    }[intensity]
+    if component_family == "title_reveal" or role == "title_card":
+        defaults = {
+            "text_position": "bottom_left",
+            "text_scale": "large",
+            "effect_strength": strength,
+            "safe_area": "title_safe",
+        }
+    elif component_family == "lower_third_motion" or role == "lower_third":
+        defaults = {
+            "text_position": "bottom_left",
+            "text_scale": "medium",
+            "effect_strength": strength,
+            "safe_area": "lower_third",
+        }
+    else:
+        defaults = {
+            "text_position": "bottom_left",
+            "text_scale": "medium",
+            "effect_strength": strength,
+            "safe_area": "lower_third",
+        }
+    merged = {**defaults, **template_presentation, **explicit}
+    presentation = {
+        "text_position": str(merged.get("text_position") or defaults["text_position"]),
+        "text_scale": str(merged.get("text_scale") or defaults["text_scale"]),
+        "effect_strength": str(merged.get("effect_strength") or defaults["effect_strength"]),
+        "safe_area": str(merged.get("safe_area") or defaults["safe_area"]),
+        "theme": str(merged.get("theme") or "default"),
+        "accent_color": str(merged.get("accent_color") or "#ffd65a"),
+        "text_color": str(merged.get("text_color") or "#fff8dc"),
+        "background_style": str(merged.get("background_style") or "transparent"),
+    }
+    for key in (
+        "variant",
+        "motion_energy",
+        "title_hierarchy",
+        "hero_media_policy",
+        "thumbnail_density",
+    ):
+        if merged.get(key) is not None:
+            presentation[key] = str(merged.get(key))
+    return presentation
+
+
 def build_remotion_prompt_pack(effect_revision_request: Mapping[str, Any],
                                effect_intent_plan: Mapping[str, Any], *,
                                timeline: Mapping[str, Any] | None = None,
-                               output_dir: str | Path = "remotion_effects") -> dict[str, Any]:
+                               output_dir: str | Path = "remotion_effects",
+                               collage_media_refs: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Build prompt jobs for adapter-route effect gaps.
 
     Only `route_to_node14_or_remotion_adapter` requests become jobs. Regular
@@ -187,7 +452,13 @@ def build_remotion_prompt_pack(effect_revision_request: Mapping[str, Any],
         if effect is None:
             raise ValueError(f"source_effect_id not found in effect_intent_plan: {source_effect_id}")
         timing, diagnostics = _timeline_span(timeline, request.get("segment"))
+        effect, template_diagnostics = _effect_with_inferred_template(effect)
+        diagnostics.extend(template_diagnostics)
+        build_component = _effect_build_spec_component(effect)
+        if build_component:
+            diagnostics.append(f"effect_build_spec:{build_component}")
         family = _component_family(effect)
+        collage_refs = _effective_collage_refs(effect, collage_media_refs)
         job_id = f"rm_{_safe_id(source_effect_id)}"
         target_file = f"{output_dir}/{job_id}.mov"
         preview_file = f"{output_dir}/{job_id}.preview.mp4"
@@ -202,10 +473,17 @@ def build_remotion_prompt_pack(effect_revision_request: Mapping[str, Any],
             "prompt": _prompt_text(effect, request, timing, family),
             "props": {
                 "intent": effect.get("intent"),
+                "template_id": _template_id(effect),
+                "display_text": _display_text(effect),
+                "subtitle_text": _optional_str(effect.get("subtitle_text"), "subtitle_text"),
+                "speaker_name": _optional_str(effect.get("speaker_name"), "speaker_name"),
+                "collage_media_refs": collage_refs,
                 "visual_language": list(effect.get("visual_language") or []),
                 "intensity": effect.get("intensity"),
                 "segment": request.get("segment"),
                 "duration_sec": timing["duration_sec"],
+                "presentation": _presentation(effect, family),
+                "prompt_parameters": _prompt_parameters(effect),
             },
             "timing": timing,
             "output": {
@@ -221,6 +499,8 @@ def build_remotion_prompt_pack(effect_revision_request: Mapping[str, Any],
             },
             "diagnostics": diagnostics,
         })
+        if collage_refs:
+            jobs[-1]["prompt"] += f" Use collage media refs: {len(collage_refs)}."
     return {
         "artifact_role": "remotion_prompt_pack",
         "version": 1,
@@ -274,6 +554,22 @@ def _relative_or_absolute(path: Any, base: Path) -> Path:
     return base / value
 
 
+def _worker_output_path(path: Any, base: Path) -> Path:
+    """Resolve prompt-pack output paths without duplicating the worker out-dir.
+
+    Prompt packs often store paths such as ``remotion_effects/job.mov`` while
+    the worker receives ``--out-dir <run>/remotion_effects``. In that case the
+    worker should write ``<run>/remotion_effects/job.mov``, not
+    ``<run>/remotion_effects/remotion_effects/job.mov``.
+    """
+    value = Path(_non_empty_str(path, "path"))
+    if value.is_absolute():
+        return value
+    if value.parts and value.parts[0] == base.name:
+        value = Path(*value.parts[1:]) if len(value.parts) > 1 else Path(value.name)
+    return base / value
+
+
 def validate_remotion_worker_outputs(worker_outputs: Mapping[str, Any],
                                      remotion_prompt_pack: Mapping[str, Any]) -> dict[str, Any]:
     """Validate worker outputs and return a Workbench-review artifact.
@@ -313,6 +609,13 @@ def validate_remotion_worker_outputs(worker_outputs: Mapping[str, Any],
             preview = _path_exists(output.get("preview_file"), f"jobs[{idx}].preview_file")
             rendered = _path_exists(output.get("rendered_asset"), f"jobs[{idx}].rendered_asset")
             duration_sec = _finite_positive(output.get("duration_sec"), f"jobs[{idx}].duration_sec")
+            evidence_refs = []
+            for ref_idx, ref in enumerate(output.get("evidence_refs") or []):
+                evidence_refs.append(
+                    _path_exists(ref, f"jobs[{idx}].evidence_refs[{ref_idx}]")
+                )
+            if not evidence_refs:
+                raise ValueError(f"jobs[{idx}].evidence_refs must include at least one review evidence file")
             review_items.append({
                 "job_id": job_id,
                 "source_effect_id": prompt_job.get("source_effect_id"),
@@ -324,6 +627,7 @@ def validate_remotion_worker_outputs(worker_outputs: Mapping[str, Any],
                 "rendered_asset": rendered,
                 "duration_sec": duration_sec,
                 "timing": prompt_job.get("timing"),
+                "evidence_refs": evidence_refs,
                 "status": "pending_review",
                 "next_action": "workbench_review_remotion_effect",
             })
@@ -353,15 +657,18 @@ def validate_remotion_worker_outputs(worker_outputs: Mapping[str, Any],
 
 def write_remotion_prompt_pack(request_path: str | Path, effect_intent_plan_path: str | Path,
                                out_path: str | Path, *, timeline_path: str | Path | None = None,
-                               output_dir: str | Path = "remotion_effects") -> dict[str, Any]:
+                               output_dir: str | Path = "remotion_effects",
+                               collage_refs_path: str | Path | None = None) -> dict[str, Any]:
     request = _load_json(request_path)
     effect_intent_plan = _load_json(effect_intent_plan_path)
     timeline = _load_json(timeline_path) if timeline_path else None
+    collage_refs = _load_json(collage_refs_path) if collage_refs_path else None
     pack = build_remotion_prompt_pack(
         request,
         effect_intent_plan,
         timeline=timeline,
         output_dir=output_dir,
+        collage_media_refs=collage_refs,
     )
     _write_json(out_path, pack)
     return pack
@@ -389,9 +696,23 @@ def _dry_run_renderer(job: Mapping[str, Any], preview_file: str | Path,
     rendered_asset = Path(rendered_asset)
     preview_file.parent.mkdir(parents=True, exist_ok=True)
     rendered_asset.parent.mkdir(parents=True, exist_ok=True)
+    evidence_file = rendered_asset.with_name(f"{rendered_asset.stem}_contact_sheet.txt")
     preview_file.write_bytes(b"remotion preview dry-run\n")
     rendered_asset.write_bytes(b"remotion rendered dry-run\n")
-    return {"ok": True, "backend": "dry_run", "command": []}
+    evidence_file.write_text(
+        (
+            "dry-run evidence for Remotion worker contract\n"
+            f"job_id={job.get('job_id')}\n"
+            f"rendered_asset={rendered_asset}\n"
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "backend": "dry_run",
+        "command": [],
+        "evidence_refs": [str(evidence_file)],
+    }
 
 
 def _command_renderer(command_template: str):
@@ -450,11 +771,11 @@ def run_remotion_worker_smoke(remotion_prompt_pack: Mapping[str, Any],
     outputs = []
     for job in jobs_by_id.values():
         output = job.get("output") or {}
-        preview_file = _relative_or_absolute(
+        preview_file = _worker_output_path(
             output.get("preview_file") or f"{job['job_id']}.preview.mp4",
             out_dir,
         )
-        rendered_asset = _relative_or_absolute(
+        rendered_asset = _worker_output_path(
             output.get("target_file") or f"{job['job_id']}.mov",
             out_dir,
         )
@@ -477,6 +798,9 @@ def run_remotion_worker_smoke(remotion_prompt_pack: Mapping[str, Any],
             "duration_sec": (job.get("timing") or {}).get("duration_sec", DEFAULT_DURATION_SEC),
             "backend": result.get("backend") or "remotion_worker",
         }
+        evidence_refs = result.get("evidence_refs")
+        if evidence_refs:
+            item["evidence_refs"] = list(evidence_refs)
         if result.get("command"):
             item["command"] = result["command"]
         if error:

@@ -268,3 +268,15 @@ render_segment（基底）→ apply_effects（grade → title_card）→ 段檔
 - 字卡與字幕可能在開場段同時出現（字卡置中、字幕 MarginV=90 置底，不重疊）；若嫌busy，可把字卡放在旁白較空的段。
 - `fire` 調色較強，避免整片都用（會膩）；建議只在炭烤/火光段點綴。
 - 轉場 duration 沿用 pipeline 的 `--xfade`（預設 0.4s）。
+## 2026-06-24 Remotion Short-Effect Worker
+
+When a requested effect is better served by Remotion but does not require full-film rendering, route it to [remotion-effect-worker.md](remotion-effect-worker.md).
+
+Use this route only for bounded short effects:
+
+- title intro
+- chapter transition
+- lower third
+- highlight overlay
+
+The Remotion worker must not rewrite `segment_contract.json`, material-map artifacts, or `final.mp4`. In the mainline route it should start from `remotion_prompt_pack.json`, render short effect assets, write `remotion_worker_outputs.json`, and hand off to `remotion-worker-outputs` validation so Hermes can produce `remotion_effect_review.json`. Canonical final assembly remains owned by the Hermes pipeline and delivery gate.

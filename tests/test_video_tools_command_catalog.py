@@ -102,21 +102,27 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             "workbench-draft-rerender",
             "effect-revision-request",
             "effect-revision-draft",
+            "effect-collage-refs",
             "remotion-prompt-pack",
             "remotion-worker-outputs",
+            "effect-render-verification",
             "remotion-composite-draft",
             "effect-revision-apply",
         ])
         self.assertEqual(
-            steps[4]["requires"],
+            steps[5]["requires"],
             ["effect-revision-request:adapter_route"],
         )
         self.assertEqual(
-            steps[5]["requires"],
+            steps[6]["requires"],
             ["remotion-prompt-pack:ok"],
         )
         self.assertEqual(
-            steps[6]["requires"],
+            steps[7]["requires"],
+            ["remotion-worker-outputs:accepted_review"],
+        )
+        self.assertEqual(
+            steps[8]["requires"],
             ["remotion-worker-outputs:accepted_review"],
         )
         self.assertIn("second contract-run", steps[-1]["purpose"])

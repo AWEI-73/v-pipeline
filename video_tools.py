@@ -773,6 +773,48 @@ def cmd_material_revision(args):
                      ensure_ascii=False, indent=2))
 
 
+def cmd_effect_collage_refs(args):
+    """Convert reviewed material-map/Workbench still evidence into Remotion collage refs."""
+    from video_pipeline_core.effect_collage_refs import write_collage_media_refs
+    try:
+        result = write_collage_media_refs(
+            args.project_map,
+            args.out,
+            material_wall_review_verdict_path=args.wall_verdict,
+            workbench_thumbnails_path=args.workbench_thumbnails,
+            material_wall_request_path=args.wall_request,
+            max_refs=args.max_refs,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect collage refs failed: {exc}") from exc
+    print(json.dumps({
+        "ok": result.get("ok"),
+        "effect_collage_media_refs": str(args.out),
+        "selected_count": result.get("diagnostics", {}).get("selected_count", 0),
+        "next_action": result.get("next_action"),
+    }, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise ToolError("effect collage refs produced no usable reviewed media refs")
+
+
+def cmd_remotion_template_manifest(args):
+    """Write the Remotion effect template capability/support manifest."""
+    from video_pipeline_core.remotion_template_manifest import write_remotion_template_manifest
+    try:
+        manifest = write_remotion_template_manifest(
+            args.out,
+            dictionary_path=args.dictionary,
+            reference_review_path=args.reference_review,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"remotion template manifest failed: {exc}") from exc
+    print(json.dumps({
+        "ok": True,
+        "remotion_effect_capability_manifest": str(args.out),
+        "summary": manifest.get("summary", {}),
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_remotion_prompt_pack(args):
     """FX4a: convert Brownfield adapter-route effect gaps into Remotion worker
     prompt jobs. This writes an artifact only; it does not run Remotion."""
@@ -784,6 +826,7 @@ def cmd_remotion_prompt_pack(args):
             args.out,
             timeline_path=args.timeline,
             output_dir=args.output_dir,
+            collage_refs_path=args.collage_refs,
         )
     except (OSError, ValueError) as exc:
         raise ToolError(f"remotion prompt pack failed: {exc}")
@@ -815,6 +858,29 @@ def cmd_remotion_worker_outputs(args):
     }, ensure_ascii=False, indent=2))
     if not result["ok"]:
         raise ToolError("remotion worker outputs invalid: " + "; ".join(result.get("errors") or []))
+
+
+def cmd_effect_render_verification(args):
+    """FX4e: convert accepted Remotion review evidence into delivery-gate
+    effect_render_verification.json. This does not render or composite."""
+    from video_pipeline_core.effect_render_verification import write_effect_render_verification
+    try:
+        verification = write_effect_render_verification(
+            args.effect_intent_plan,
+            args.remotion_review,
+            args.out,
+            root=args.root,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect render verification failed: {exc}") from exc
+    print(json.dumps({
+        "ok": verification.get("pass"),
+        "summary": verification.get("summary", {}),
+        "effect_render_verification": str(args.out),
+        "next_action": verification.get("next_action"),
+    }, ensure_ascii=False, indent=2))
+    if verification.get("pass") is not True:
+        raise ToolError("effect render verification did not pass")
 
 
 def cmd_remotion_worker_smoke(args):
@@ -2196,8 +2262,11 @@ def _build_video_tools_dispatch():
         "effect-revision-request": cmd_effect_revision_request,
         "effect-revision-draft": cmd_effect_revision_draft,
         "effect-revision-apply": cmd_effect_revision_apply,
+        "effect-collage-refs": cmd_effect_collage_refs,
+        "remotion-template-manifest": cmd_remotion_template_manifest,
         "remotion-prompt-pack": cmd_remotion_prompt_pack,
         "remotion-worker-outputs": cmd_remotion_worker_outputs,
+        "effect-render-verification": cmd_effect_render_verification,
         "remotion-worker-smoke": cmd_remotion_worker_smoke,
         "remotion-composite-draft": cmd_remotion_composite_draft,
         "timeline-audit": cmd_timeline_audit,
@@ -2787,11 +2856,35 @@ def main():
     p_era.add_argument("--accept", action="store_true",
                        help="required explicit acceptance flag; without it the command fails closed")
 
+    p_ecr = sub.add_parser("effect-collage-refs")
+    p_ecr.add_argument("--project-map", required=True, dest="project_map",
+                       help="project_material_map.json with reviewed material assets")
+    p_ecr.add_argument("--wall-verdict", default=None, dest="wall_verdict",
+                       help="material_wall_review_verdict.json with coarse keep/reject + visual_role")
+    p_ecr.add_argument("--workbench-thumbnails", default=None, dest="workbench_thumbnails",
+                       help="optional workbench_thumbnails.json for video still refs")
+    p_ecr.add_argument("--wall-request", default=None, dest="wall_request",
+                       help="optional material_wall_request.json for video keyframe refs")
+    p_ecr.add_argument("--out", required=True,
+                       help="effect_collage_media_refs.json output")
+    p_ecr.add_argument("--max-refs", type=int, default=6, dest="max_refs",
+                       help="maximum collage refs to emit")
+
+    p_rtm = sub.add_parser("remotion-template-manifest")
+    p_rtm.add_argument("--out", required=True,
+                       help="remotion_effect_capability_manifest.json output")
+    p_rtm.add_argument("--dictionary", default=None,
+                       help="optional effect_template_dictionary.json path")
+    p_rtm.add_argument("--reference-review", default=None, dest="reference_review",
+                       help="optional effect_reference_*_review.json evidence artifact")
+
     p_rpp = sub.add_parser("remotion-prompt-pack")
     p_rpp.add_argument("--request", required=True, help="effect_revision_request.json")
     p_rpp.add_argument("--effect-intent-plan", required=True, dest="effect_intent_plan",
                        help="effect_intent_plan.json source for neutral effect intent")
     p_rpp.add_argument("--timeline", default=None, help="optional timeline_build.json for exact timing")
+    p_rpp.add_argument("--collage-refs", default=None, dest="collage_refs",
+                       help="optional effect_collage_media_refs.json to inject into training_opening_title jobs")
     p_rpp.add_argument("--out", required=True, help="remotion_prompt_pack.json output")
     p_rpp.add_argument("--output-dir", default="remotion_effects", dest="output_dir",
                        help="target directory hint for Remotion worker outputs")
@@ -2803,6 +2896,16 @@ def main():
                        help="remotion_worker_outputs.json produced by a Remotion-capable worker")
     p_rwo.add_argument("--out-review", required=True, dest="out_review",
                        help="remotion_effect_review.json output for Workbench/Brownfield review")
+
+    p_erv = sub.add_parser("effect-render-verification")
+    p_erv.add_argument("--effect-intent-plan", required=True, dest="effect_intent_plan",
+                       help="effect_intent_plan.json with planned effects")
+    p_erv.add_argument("--remotion-review", required=True, dest="remotion_review",
+                       help="accepted remotion_effect_review.json")
+    p_erv.add_argument("--out", required=True,
+                       help="effect_render_verification.json output")
+    p_erv.add_argument("--root", default=None,
+                       help="optional run root for resolving relative evidence refs")
 
     p_rws = sub.add_parser("remotion-worker-smoke")
     p_rws.add_argument("--prompt-pack", required=True, dest="prompt_pack",

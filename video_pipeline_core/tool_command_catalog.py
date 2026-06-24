@@ -81,8 +81,11 @@ COMMAND_GROUPS: Dict[str, str] = {
     "effect-revision-request": "contract",
     "effect-revision-draft": "contract",
     "effect-revision-apply": "contract",
+    "effect-collage-refs": "contract",
+    "remotion-template-manifest": "contract",
     "remotion-prompt-pack": "contract",
     "remotion-worker-outputs": "contract",
+    "effect-render-verification": "verify",
     "remotion-worker-smoke": "provider_optional",
     "remotion-composite-draft": "render",
     "blueprint-coverage": "contract",
@@ -317,6 +320,12 @@ WORKFLOWS = {
                 "requires": ["effect-revision-request:ok"],
             },
             {
+                "id": "effect_collage_refs",
+                "command": "effect-collage-refs",
+                "purpose": "convert reviewed material-map, material-wall keyframes, or Workbench still evidence into Remotion collage_media_refs",
+                "requires": ["material-map-review:reviewed_or_material_wall_or_workbench_thumbnails"],
+            },
+            {
                 "id": "remotion_prompt_pack",
                 "command": "remotion-prompt-pack",
                 "purpose": "prepare prompt-driven Remotion jobs for adapter-route effect gaps",
@@ -327,6 +336,12 @@ WORKFLOWS = {
                 "command": "remotion-worker-outputs",
                 "purpose": "validate Remotion worker outputs before Workbench/Brownfield review",
                 "requires": ["remotion-prompt-pack:ok"],
+            },
+            {
+                "id": "effect_render_verification",
+                "command": "effect-render-verification",
+                "purpose": "convert accepted Remotion review evidence into delivery-gate effect_render_verification.json",
+                "requires": ["remotion-worker-outputs:accepted_review"],
             },
             {
                 "id": "remotion_composite_draft",
@@ -351,6 +366,12 @@ WORKFLOWS = {
                 "purpose": "identify adapter-route effect gaps from the light-effects baseline review",
             },
             {
+                "id": "effect_collage_refs",
+                "command": "effect-collage-refs",
+                "purpose": "prepare reviewed collage_media_refs for Remotion templates and effect_build_spec material refs",
+                "requires": ["reviewed_material_stills_or_thumbnails"],
+            },
+            {
                 "id": "remotion_prompt_pack",
                 "command": "remotion-prompt-pack",
                 "purpose": "convert adapter-route gaps plus neutral effect intent into Remotion worker prompt jobs",
@@ -361,6 +382,12 @@ WORKFLOWS = {
                 "command": "remotion-worker-outputs",
                 "purpose": "validate worker-produced preview/rendered files and create remotion_effect_review.json",
                 "requires": ["remotion-prompt-pack:ok"],
+            },
+            {
+                "id": "effect_render_verification",
+                "command": "effect-render-verification",
+                "purpose": "write effect_render_verification.json for delivery gate after effect review is accepted",
+                "requires": ["remotion-worker-outputs:accepted_review"],
             },
             {
                 "id": "remotion_composite_draft",

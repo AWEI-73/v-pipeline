@@ -1,0 +1,30 @@
+{
+  "artifact_role": "remotion_prompt_parameter_example",
+  "version": 1,
+  "template_id": "training_opening_title",
+  "role": "title_card",
+  "component_family": "title_reveal",
+  "prompt_parameters": {
+    "effect_goal": "formal_training_opening",
+    "tone": ["formal", "warm", "memory_recap"],
+    "material_strategy": {
+      "hero_source": "reviewed_people_group",
+      "avoid_hero_roles": ["title_card"],
+      "collage_count": 5
+    },
+    "motion_grammar": [
+      "collage_depth_reveal",
+      "gold_title_sweep",
+      "title_punch"
+    ],
+    "text_hierarchy": {
+      "primary": "program_title",
+      "secondary": "subtitle"
+    },
+    "negative_rules": [
+      "do_not_cover_faces",
+      "avoid_party_style_flash",
+      "avoid_random_stock_look"
+    ]
+  }
+}

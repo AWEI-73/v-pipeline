@@ -168,6 +168,11 @@ explicitly points to that construction area.
   node/phase dispatch hardening, and integrated E2E review action plans.
 - `docs/construction-guides/superpowers/` -- work-session plans and
   implementation specs produced during Superpowers-style execution.
+- `docs/construction-guides/remotion-effect-build-api-plan.md` -- Remotion
+  effect contract hardening, including `skills/remotion-effect-worker.md`,
+  `tools/remotion_material_first_memory_acceptance.py`,
+  `remotion_material_first_memory_acceptance_report.json`, and the
+  material-first `MemoryPhotoWall` boundary. This is **not final delivery**.
 
 ## Working conventions (read before contributing)
 

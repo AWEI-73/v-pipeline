@@ -258,6 +258,47 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("requires at least 3 usable media files", summary["reason"])
             self.assertIn("material_first_boundary_acceptance_report.json", summary["read"])
 
+    def test_remotion_material_first_memory_acceptance_ready_routes_to_effect_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "remotion_material_first_memory_acceptance_report.json", {
+                "artifact_role": "remotion_material_first_memory_acceptance_report",
+                "ok": True,
+                "failed_stage": None,
+                "next_action": "ready_for_human_effect_review_or_pipeline_promotion",
+                "summary": {
+                    "selected_ref_count": 3,
+                    "evidence_kinds": ["material_wall_keyframe"],
+                    "build_component": "MemoryPhotoWall",
+                },
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "remotion_material_first_memory_acceptance")
+            self.assertEqual(summary["next"], "ready_for_human_effect_review_or_pipeline_promotion")
+            self.assertEqual(summary["source"], "remotion_material_first_memory_acceptance_report.json")
+            self.assertIn("MemoryPhotoWall", summary["reason"])
+            self.assertIn("3 refs", summary["reason"])
+
+    def test_remotion_material_first_memory_acceptance_failed_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "remotion_material_first_memory_acceptance_report.json", {
+                "artifact_role": "remotion_material_first_memory_acceptance_report",
+                "ok": False,
+                "failed_stage": "effect_collage_refs",
+                "next_action": "provide_material_wall_keyframes_or_reviewed_stills",
+                "errors": ["no reviewed material refs available for MemoryPhotoWall"],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "effect_collage_refs")
+            self.assertEqual(summary["next"], "provide_material_wall_keyframes_or_reviewed_stills")
+            self.assertIn("no reviewed material refs", summary["reason"])
+            self.assertIn("remotion_material_first_memory_acceptance_report.json", summary["read"])
+
     def test_cli_prints_json_contract(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

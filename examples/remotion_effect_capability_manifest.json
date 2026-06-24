@@ -1,0 +1,279 @@
+{
+  "artifact_role": "remotion_effect_capability_manifest",
+  "version": 1,
+  "source_dictionary": "training_recap_common_effects",
+  "template_ids": [
+    "training_opening_title",
+    "module_label_white_blue",
+    "speaker_subtitle_yellow_bar",
+    "soft_light_transition",
+    "highlight_warm_glow",
+    "blurred_side_fill",
+    "profile_memory_card",
+    "film_strip_transition_card",
+    "clean_white_quote_card",
+    "memory_photo_wall"
+  ],
+  "summary": {
+    "template_count": 10,
+    "concrete_worker_supported_count": 10,
+    "verified_count": 10
+  },
+  "reference_reviews": [
+    {
+      "artifact": "C:\\Users\\user\\Desktop\\video_pipeline\\runs\\effect_reference_review_67\\20260624-strong-montage\\effect_reference_strong_montage_review.json",
+      "artifact_role": "effect_reference_strong_montage_review",
+      "source_reference": {
+        "label": "67th training graduation recap reference",
+        "run_folder": "C:/Users/user/Desktop/video_pipeline/runs/effect_reference_review_67/20260624-strong-montage"
+      },
+      "review_verdict": {
+        "sufficient_for_basic_training_recap": true,
+        "main_gap": "black_frame_audit fails on three short black intervals; pipeline should either formalize them as transition assets or fix them.",
+        "next_action": "Use these nine templates as the initial training recap effect dictionary and verify rendered effects with contact sheets/effect_render_verification."
+      }
+    }
+  ],
+  "verify_evidence": {
+    "keyframe_grid": "keyframe_grid_48.jpg",
+    "montage_wall": "montage_wall_10s_64.jpg",
+    "visual_audit": {
+      "path": "visual_audit.json",
+      "pass": true,
+      "sample_count": 48
+    },
+    "black_frame_audit": {
+      "path": "black_frame_audit.json",
+      "pass": false,
+      "finding_count": 3,
+      "interpretation": "Possible intentional black transition plates, but should still be explained or replaced by formal transition assets in pipeline delivery.",
+      "next_action": "formalize_or_fix_black_transition_plates"
+    }
+  },
+  "templates": [
+    {
+      "template_id": "training_opening_title",
+      "label": "Training opening title",
+      "role": "title_card",
+      "component_family": "title_reveal",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "black_collage",
+        "text_position": "bottom_left",
+        "text_scale": "hero",
+        "effect_strength": "emphasis",
+        "safe_area": "title_safe",
+        "accent_color": "#ffe100",
+        "text_color": "#ffe100"
+      },
+      "notes": "Black or near-black opening plate with collage blocks, large yellow title, and optional small subtitle."
+    },
+    {
+      "template_id": "module_label_white_blue",
+      "label": "White blue module label",
+      "role": "lower_third",
+      "component_family": "lower_third_motion",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "white_blue_label",
+        "text_position": "bottom_left",
+        "text_scale": "medium",
+        "effect_strength": "subtle",
+        "safe_area": "lower_third",
+        "accent_color": "#1952b2",
+        "text_color": "#1952b2"
+      },
+      "notes": "Clean white label with blue accent bar for course or chapter names."
+    },
+    {
+      "template_id": "speaker_subtitle_yellow_bar",
+      "label": "Speaker subtitle yellow bar",
+      "role": "lower_third",
+      "component_family": "lower_third_motion",
+      "render_backend": "ffmpeg_or_remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "yellow_subtitle_bar",
+        "text_position": "bottom_center",
+        "text_scale": "medium",
+        "effect_strength": "subtle",
+        "safe_area": "subtitle_safe",
+        "accent_color": "#ffe100",
+        "text_color": "#101010"
+      },
+      "notes": "Readable speaker subtitle treatment; must not cover faces or proof action."
+    },
+    {
+      "template_id": "soft_light_transition",
+      "label": "Soft light transition",
+      "role": "chapter_transition",
+      "component_family": "light_leak_overlay",
+      "render_backend": "ffmpeg_or_remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "transparent",
+        "text_position": "bottom_left",
+        "text_scale": "small",
+        "effect_strength": "subtle",
+        "safe_area": "none",
+        "accent_color": "#ffe6a6",
+        "text_color": "#ffffff"
+      },
+      "notes": "Short warm light sweep for chapter movement."
+    },
+    {
+      "template_id": "highlight_warm_glow",
+      "label": "Warm highlight glow",
+      "role": "overlay",
+      "component_family": "overlay_motion",
+      "render_backend": "ffmpeg_or_remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "transparent",
+        "text_position": "bottom_left",
+        "text_scale": "small",
+        "effect_strength": "medium",
+        "safe_area": "none",
+        "accent_color": "#ffd36a",
+        "text_color": "#ffffff"
+      },
+      "notes": "Mood lift for key memory moments; decorative unless explicitly required by story."
+    },
+    {
+      "template_id": "blurred_side_fill",
+      "label": "Blurred side fill",
+      "role": "panel_frame",
+      "component_family": "panel_frame_motion",
+      "render_backend": "ffmpeg_light_effects",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "blurred_side_fill",
+        "text_position": "bottom_left",
+        "text_scale": "small",
+        "effect_strength": "subtle",
+        "safe_area": "none",
+        "accent_color": "#ffffff",
+        "text_color": "#ffffff"
+      },
+      "notes": "Vertical or low-resolution footage filler; should preserve the center proof image."
+    },
+    {
+      "template_id": "profile_memory_card",
+      "label": "Profile memory card",
+      "role": "title_card",
+      "component_family": "title_reveal",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "clean_profile_card",
+        "text_position": "bottom_left",
+        "text_scale": "large",
+        "effect_strength": "medium",
+        "safe_area": "title_safe",
+        "accent_color": "#ffe100",
+        "text_color": "#ffffff"
+      },
+      "notes": "Individual or team memory card; should be used sparingly."
+    },
+    {
+      "template_id": "film_strip_transition_card",
+      "label": "Film strip transition card",
+      "role": "chapter_transition",
+      "component_family": "page_turn_transition",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "film_strip",
+        "text_position": "bottom_left",
+        "text_scale": "large",
+        "effect_strength": "medium",
+        "safe_area": "title_safe",
+        "accent_color": "#ffe100",
+        "text_color": "#ffffff"
+      },
+      "notes": "Chapter transition when moving from story half to MV or montage half."
+    },
+    {
+      "template_id": "clean_white_quote_card",
+      "label": "Clean white quote card",
+      "role": "title_card",
+      "component_family": "title_reveal",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "clean_white_quote",
+        "text_position": "bottom_center",
+        "text_scale": "large",
+        "effect_strength": "subtle",
+        "safe_area": "title_safe",
+        "accent_color": "#1952b2",
+        "text_color": "#111111"
+      },
+      "notes": "Simple reflection or closing quote card; avoid overusing presentation-style slides."
+    },
+    {
+      "template_id": "memory_photo_wall",
+      "label": "Memory photo wall",
+      "role": "title_card",
+      "component_family": "title_reveal",
+      "render_backend": "remotion_worker",
+      "concrete_worker_support": true,
+      "status": "verified",
+      "required_fields": [
+        "display_text"
+      ],
+      "default_presentation": {
+        "theme": "training_recap_67",
+        "background_style": "memory_photo_wall",
+        "text_position": "bottom_left",
+        "text_scale": "large",
+        "effect_strength": "subtle",
+        "safe_area": "title_safe",
+        "accent_color": "#ffd36a",
+        "text_color": "#ffffff"
+      },
+      "notes": "Slow Brownfield memory wall for reviewed photos; intended for emotional setup or recap memory beats."
+    }
+  ]
+}

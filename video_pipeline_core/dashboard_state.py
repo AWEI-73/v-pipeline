@@ -166,6 +166,8 @@ def load_dashboard_state(workdir):
                     manifest["material_wall_handoff_report"] = f
                 elif f == "material_first_boundary_acceptance_report.json":
                     manifest["material_first_boundary_acceptance_report"] = f
+                elif f == "remotion_material_first_memory_acceptance_report.json":
+                    manifest["remotion_material_first_memory_acceptance_report"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
@@ -183,6 +185,10 @@ def load_dashboard_state(workdir):
     material_first_boundary_acceptance_report = (
         safe_load_json(manifest.get("material_first_boundary_acceptance_report"))
         or safe_load_json("material_first_boundary_acceptance_report.json")
+    )
+    remotion_material_first_memory_acceptance_report = (
+        safe_load_json(manifest.get("remotion_material_first_memory_acceptance_report"))
+        or safe_load_json("remotion_material_first_memory_acceptance_report.json")
     )
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
@@ -553,6 +559,24 @@ def load_dashboard_state(workdir):
     ):
         next_action = material_first_boundary_acceptance_report.get("next_action") or "repair:material_first_boundary_acceptance"
         is_pass = False
+    elif (
+        remotion_material_first_memory_acceptance_report
+        and remotion_material_first_memory_acceptance_report.get("ok") is False
+    ):
+        next_action = (
+            remotion_material_first_memory_acceptance_report.get("next_action")
+            or "repair:remotion_material_first_memory_acceptance"
+        )
+        is_pass = False
+    elif (
+        remotion_material_first_memory_acceptance_report
+        and remotion_material_first_memory_acceptance_report.get("ok") is True
+    ):
+        next_action = (
+            remotion_material_first_memory_acceptance_report.get("next_action")
+            or "ready_for_human_effect_review_or_pipeline_promotion"
+        )
+        is_pass = False
     else:
         # Check required missing nodes
         verified_final = bool(final_exists and verify_result and verify_result.get("pass") is True)
@@ -648,6 +672,22 @@ def load_dashboard_state(workdir):
             "type": "error",
             "node": 12,
             "artifact": "material_first_boundary_acceptance_report",
+            "message": message,
+        })
+
+    if (
+        remotion_material_first_memory_acceptance_report
+        and remotion_material_first_memory_acceptance_report.get("ok") is False
+    ):
+        failed_stage = remotion_material_first_memory_acceptance_report.get("failed_stage")
+        errors = remotion_material_first_memory_acceptance_report.get("errors") or []
+        message = "; ".join(str(item) for item in errors if item) or (
+            f"Remotion material-first memory acceptance failed at {failed_stage}"
+        )
+        findings.append({
+            "type": "error",
+            "node": 14,
+            "artifact": "remotion_material_first_memory_acceptance_report",
             "message": message,
         })
 
@@ -823,6 +863,7 @@ def load_dashboard_state(workdir):
             "material_coverage": material_coverage,
             "material_wall_handoff_report": material_wall_handoff_report,
             "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
+            "remotion_material_first_memory_acceptance_report": remotion_material_first_memory_acceptance_report,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
