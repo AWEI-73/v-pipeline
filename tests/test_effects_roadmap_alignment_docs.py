@@ -99,6 +99,8 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "remotion_material_first_memory_acceptance_report.json",
             "effect_build_spec.material_refs",
             "material_wall_keyframe",
+            "remotion_visual_probe.html",
+            "remotion_contact_sheet.svg",
             "not final delivery",
             "Do not add `effect_story_planner.json`",
             "`effect_build_spec` inside existing `prompt_parameters`",
@@ -130,6 +132,8 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "reveal_mode",
             "camera_motion",
             "accent_light",
+            "remotion_visual_probe.html",
+            "remotion_contact_sheet.svg",
         ]:
             self.assertIn(expected, text)
 

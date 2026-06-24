@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Mapping
+from html import escape
 
 from .effect_collage_refs import write_collage_media_refs
 from .effect_render_verification import write_effect_render_verification
@@ -34,6 +35,105 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
 def _load_json(path: str | Path) -> Any:
     with Path(path).open(encoding="utf-8-sig") as f:
         return json.load(f)
+
+
+def _media_href(ref: Mapping[str, Any]) -> str:
+    raw = str(ref.get("path") or ref.get("src") or "")
+    return raw
+
+
+def _write_visual_probe(run_dir: Path, refs: list[dict[str, Any]],
+                        effect: Mapping[str, Any]) -> dict[str, str]:
+    """Write review-only visual evidence for the MemoryPhotoWall contract.
+
+    This is not a Remotion render. It is a small deterministic probe that lets
+    humans verify whether the structured parameters and reviewed refs would form
+    a slow one-by-one memory wall before promoting the route to a real renderer.
+    """
+    spec = ((effect.get("prompt_parameters") or {}).get("effect_build_spec") or {})
+    duration = float(spec.get("duration_sec") or effect.get("duration_sec") or 8.0)
+    reveal_interval = float(spec.get("reveal_interval_sec") or 1.2)
+    frame_count = min(4, max(1, len(refs)))
+    frame_width = 420
+    frame_height = 236
+    gap = 22
+    sheet_width = frame_count * frame_width + (frame_count + 1) * gap
+    sheet_height = 360
+
+    def _card_svg(ref: Mapping[str, Any], x: int, y: int, w: int, h: int) -> str:
+        label = escape(str(ref.get("label") or ref.get("ref_id") or "reviewed ref"))
+        href = escape(_media_href(ref), quote=True)
+        image = (
+            f'<image href="{href}" x="{x}" y="{y}" width="{w}" height="{h}" '
+            'preserveAspectRatio="xMidYMid slice" />'
+        ) if href else ""
+        return "\n".join([
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="#20242c" stroke="#f8f2df" stroke-width="2"/>',
+            image,
+            f'<rect x="{x}" y="{y + h - 32}" width="{w}" height="32" fill="rgba(0,0,0,.56)"/>',
+            f'<text x="{x + 12}" y="{y + h - 11}" fill="#fff8dc" font-size="14" font-family="Arial">{label}</text>',
+        ])
+
+    frames = []
+    for idx in range(frame_count):
+        x0 = gap + idx * (frame_width + gap)
+        visible = refs[:idx + 1]
+        cards = []
+        for card_idx, ref in enumerate(visible[:3]):
+            cx = x0 + 18 + card_idx * 112
+            cy = 74 + (card_idx % 2) * 28
+            cards.append(_card_svg(ref, cx, cy, 138, 82))
+        frames.append("\n".join([
+            f'<g id="frame-{idx + 1}">',
+            f'<rect x="{x0}" y="44" width="{frame_width}" height="{frame_height}" rx="10" fill="#111318" stroke="#3b4252"/>',
+            f'<text x="{x0 + 18}" y="78" fill="#ffd36a" font-size="22" font-weight="700" font-family="Arial">Frame {idx + 1}</text>',
+            f'<text x="{x0 + 18}" y="104" fill="#cdd3df" font-size="14" font-family="Arial">t={round(idx * reveal_interval, 2)}s / reveal={escape(str(spec.get("reveal_mode") or "one_by_one"))}</text>',
+            *cards,
+            "</g>",
+        ]))
+
+    contact_sheet = run_dir / "remotion_contact_sheet.svg"
+    contact_sheet.write_text("\n".join([
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{sheet_width}" height="{sheet_height}" viewBox="0 0 {sheet_width} {sheet_height}">',
+        '<rect width="100%" height="100%" fill="#090b10"/>',
+        '<text x="24" y="28" fill="#ffffff" font-size="22" font-weight="800" font-family="Arial">MemoryPhotoWall contact sheet</text>',
+        f'<text x="340" y="28" fill="#9aa4b5" font-size="14" font-family="Arial">duration={duration}s pacing={escape(str(spec.get("pacing") or ""))} density={escape(str(spec.get("density") or ""))}</text>',
+        *frames,
+        '</svg>',
+    ]), encoding="utf-8")
+
+    cards_html = "\n".join([
+        f'<figure><img src="{escape(_media_href(ref), quote=True)}" alt="{escape(str(ref.get("ref_id") or ""))}"><figcaption>{escape(str(ref.get("label") or ref.get("ref_id") or ""))}</figcaption></figure>'
+        for ref in refs[:6]
+    ])
+    preview = run_dir / "remotion_visual_probe.html"
+    preview.write_text(f"""<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<title>MemoryPhotoWall visual probe</title>
+<style>
+body {{ margin: 0; background: #090b10; color: #fff; font-family: "Microsoft JhengHei", Arial, sans-serif; }}
+.stage {{ width: 1280px; height: 720px; position: relative; overflow: hidden; background: radial-gradient(circle at 32% 22%, rgba(255,211,106,.18), transparent 36%), linear-gradient(135deg,#11151d,#252a33 52%,#090b10); }}
+.title {{ position: absolute; left: 48px; bottom: 44px; color: #ffd36a; font-size: 34px; font-weight: 900; }}
+.wall {{ position: absolute; inset: 80px 80px 110px; transform: scale(1.02); }}
+figure {{ position: relative; display: inline-block; width: 310px; height: 180px; margin: 12px; border: 2px solid rgba(255,255,255,.82); box-shadow: 0 22px 52px rgba(0,0,0,.55); overflow: hidden; background: #1d222c; animation: reveal {duration / max(1, len(refs)):.2f}s ease-out both; }}
+figure:nth-child(2) {{ animation-delay: {reveal_interval:.2f}s; transform: rotate(1.5deg); }}
+figure:nth-child(3) {{ animation-delay: {reveal_interval * 2:.2f}s; transform: rotate(-1deg); }}
+figure:nth-child(4) {{ animation-delay: {reveal_interval * 3:.2f}s; }}
+img {{ width: 100%; height: 100%; object-fit: cover; filter: saturate(1.03) contrast(1.04) brightness(1.08); }}
+figcaption {{ position: absolute; left: 8px; bottom: 8px; padding: 4px 8px; background: rgba(0,0,0,.52); border-radius: 4px; font-size: 13px; }}
+@keyframes reveal {{ from {{ opacity: 0; transform: translateY(26px) scale(.94); }} to {{ opacity: 1; transform: translateY(0) scale(1); }} }}
+</style>
+<main class="stage">
+  <section class="wall">{cards_html}</section>
+  <div class="title">MemoryPhotoWall / {escape(str(spec.get("story_function") or "emotional_setup"))}</div>
+</main>
+</html>
+""", encoding="utf-8")
+    return {
+        "preview": str(preview),
+        "contact_sheet": str(contact_sheet),
+    }
 
 
 def _memory_effect(collage_refs: list[dict[str, Any]], *, duration_sec: float) -> dict[str, Any]:
@@ -121,10 +221,11 @@ def run_material_first_memory_acceptance(run_dir: str | Path, *,
             "artifacts": artifacts,
         })
 
+    memory_effect = _memory_effect(refs, duration_sec=duration_sec)
     effect_intent_plan = {
         "artifact_role": "effect_intent_plan",
         "version": 1,
-        "effects": [_memory_effect(refs, duration_sec=duration_sec)],
+        "effects": [memory_effect],
     }
     effect_revision_request = {
         "artifact_role": "effect_revision_request",
@@ -168,6 +269,13 @@ def run_material_first_memory_acceptance(run_dir: str | Path, *,
     artifacts["remotion_prompt_pack"] = str(prompt_pack_path)
 
     worker_outputs = run_remotion_worker_smoke(pack, run_dir / "remotion_effects")
+    visual_probe = _write_visual_probe(run_dir, refs, memory_effect)
+    artifacts["remotion_visual_probe"] = visual_probe["preview"]
+    artifacts["remotion_contact_sheet"] = visual_probe["contact_sheet"]
+    for job in worker_outputs.get("jobs") or []:
+        evidence_refs = list(job.get("evidence_refs") or [])
+        evidence_refs.extend([visual_probe["contact_sheet"], visual_probe["preview"]])
+        job["evidence_refs"] = evidence_refs
     worker_outputs_path = _write_json(run_dir / "remotion_worker_outputs.json", worker_outputs)
     artifacts["remotion_worker_outputs"] = str(worker_outputs_path)
 
@@ -216,6 +324,10 @@ def run_material_first_memory_acceptance(run_dir: str | Path, *,
             "rendered_count": worker_outputs.get("summary", {}).get("rendered_count", 0),
             "verification": verification.get("summary", {}),
             "canonical_final_exists": (run_dir / "final.mp4").exists(),
+            "visual_probe": {
+                "preview": Path(visual_probe["preview"]).name,
+                "contact_sheet": Path(visual_probe["contact_sheet"]).name,
+            },
         },
         "artifacts": artifacts,
         "review_notes": [

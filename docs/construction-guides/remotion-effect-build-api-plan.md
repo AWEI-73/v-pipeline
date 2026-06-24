@@ -360,6 +360,8 @@ Outputs to keep:
 - `remotion_prompt_pack.json`
 - `jobs/*.json`
 - `*.preview.mp4`
+- `remotion_visual_probe.html`
+- `remotion_contact_sheet.svg`
 - contact sheet / keyframe images
 - review report
 
@@ -402,6 +404,8 @@ Verified boundary:
 - `effect_build_spec.material_refs` preserved those refs
 - Remotion worker entry embedded three material-wall keyframes as data images
 - dry-run worker output produced review evidence
+- `remotion_visual_probe.html` and `remotion_contact_sheet.svg` showed the
+  same refs through a review-only visual probe
 - accepted review produced passing `effect_render_verification.json`
 - no `final.mp4` was written
 
@@ -428,10 +432,13 @@ writes:
 - `remotion_worker_outputs.json`
 - `remotion_effect_review.json`
 - `effect_render_verification.json`
+- `remotion_visual_probe.html`
+- `remotion_contact_sheet.svg`
 - `remotion_material_first_memory_acceptance_report.json`
 
 It must not write `final.mp4`, must not run `contract-run`, and must not
-composite a draft. It is an artifact-chain gate, not a visual-quality render.
+composite a draft. It is an artifact-chain gate plus a review-only visual probe,
+not final delivery.
 
 Latest real-run evidence:
 
@@ -440,8 +447,9 @@ runs/remotion_material_first_memory_acceptance/20260625-000000
 ```
 
 That run selected three `material_wall_keyframe` refs, produced one
-`MemoryPhotoWall` prompt-pack job, accepted the dry-run worker evidence, and
-produced passing `effect_render_verification.json`.
+`MemoryPhotoWall` prompt-pack job, accepted the dry-run worker evidence, wrote
+`remotion_visual_probe.html` / `remotion_contact_sheet.svg`, and produced
+passing `effect_render_verification.json`.
 
 State visibility:
 

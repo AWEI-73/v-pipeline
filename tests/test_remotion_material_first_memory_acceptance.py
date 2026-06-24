@@ -7,28 +7,33 @@ from pathlib import Path
 
 
 def _write_inputs(root: Path) -> tuple[Path, Path, Path]:
-    source = root / "training.mp4"
-    keyframe = root / "wall_kf_01.jpg"
-    source.write_bytes(b"video")
-    keyframe.write_bytes(b"jpg")
+    sources = []
+    keyframes = []
+    for idx in range(1, 4):
+        source = root / f"training_{idx}.mp4"
+        keyframe = root / f"wall_kf_{idx:02d}.jpg"
+        source.write_bytes(b"video")
+        keyframe.write_bytes(b"jpg")
+        sources.append(source)
+        keyframes.append(keyframe)
     project_map = {
         "artifact_role": "project_material_map",
         "version": 1,
         "assets": [{
-            "asset_id": "real_0001",
+            "asset_id": f"real_{idx:04d}",
             "asset_type": "video",
-            "source": str(source),
-            "scenes": [{"caption": "training key moment"}],
-        }],
+            "source": str(sources[idx - 1]),
+            "scenes": [{"caption": f"training key moment {idx}"}],
+        } for idx in range(1, 4)],
     }
     wall_verdict = {
         "artifact_role": "material_wall_review_verdict",
         "version": 1,
         "assets": [{
-            "asset_id": "real_0001",
+            "asset_id": f"real_{idx:04d}",
             "coarse_status": "keep",
-            "visual_role": ["opening"],
-        }],
+            "visual_role": ["opening" if idx == 1 else "training"],
+        } for idx in range(1, 4)],
     }
     wall_request = {
         "artifact_role": "material_wall_request",
@@ -37,12 +42,12 @@ def _write_inputs(root: Path) -> tuple[Path, Path, Path]:
             "batch_id": "video_wall_01",
             "type": "video_wall",
             "assets": [{
-                "asset_id": "real_0001",
+                "asset_id": f"real_{idx:04d}",
                 "frames": [{
                     "timestamp_sec": 1.0,
-                    "image_path": str(keyframe),
+                    "image_path": str(keyframes[idx - 1]),
                 }],
-            }],
+            } for idx in range(1, 4)],
         }],
     }
     project_map_path = root / "project_material_map.json"
@@ -76,7 +81,7 @@ class RemotionMaterialFirstMemoryAcceptanceTest(unittest.TestCase):
             self.assertTrue(report["ok"], report)
             self.assertEqual(report["artifact_role"], "remotion_material_first_memory_acceptance_report")
             self.assertEqual(report["failed_stage"], None)
-            self.assertEqual(report["summary"]["selected_ref_count"], 1)
+            self.assertEqual(report["summary"]["selected_ref_count"], 3)
             self.assertEqual(report["summary"]["evidence_kinds"], ["material_wall_keyframe"])
             self.assertEqual(report["summary"]["build_component"], "MemoryPhotoWall")
             self.assertFalse((run_dir / "final.mp4").exists())
@@ -89,9 +94,22 @@ class RemotionMaterialFirstMemoryAcceptanceTest(unittest.TestCase):
                 "remotion_worker_outputs.json",
                 "remotion_effect_review.json",
                 "effect_render_verification.json",
+                "remotion_visual_probe.html",
+                "remotion_contact_sheet.svg",
                 "remotion_material_first_memory_acceptance_report.json",
             ]:
                 self.assertTrue((run_dir / name).is_file(), name)
+            self.assertEqual(report["summary"]["visual_probe"]["contact_sheet"], "remotion_contact_sheet.svg")
+            self.assertEqual(report["summary"]["visual_probe"]["preview"], "remotion_visual_probe.html")
+            contact_sheet = (run_dir / "remotion_contact_sheet.svg").read_text(encoding="utf-8")
+            self.assertIn("MemoryPhotoWall", contact_sheet)
+            self.assertIn("Frame 1", contact_sheet)
+            self.assertIn("Frame 2", contact_sheet)
+            self.assertIn("Frame 3", contact_sheet)
+            worker_outputs = json.loads((run_dir / "remotion_worker_outputs.json").read_text(encoding="utf-8"))
+            evidence = worker_outputs["jobs"][0]["evidence_refs"]
+            self.assertTrue(any(str(ref).endswith("remotion_contact_sheet.svg") for ref in evidence))
+            self.assertTrue(any(str(ref).endswith("remotion_visual_probe.html") for ref in evidence))
             verification = json.loads((run_dir / "effect_render_verification.json").read_text(encoding="utf-8"))
             self.assertTrue(verification["pass"], verification)
 

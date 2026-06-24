@@ -253,10 +253,11 @@ python tools/remotion_material_first_memory_acceptance.py `
 ```
 
 This writes `remotion_material_first_memory_acceptance_report.json` plus the
-prompt-pack, worker-output, review, and `effect_render_verification.json`
-artifacts. A passed report means the material-first Remotion effect boundary is
-ready for human effect review or pipeline promotion; it is **not final delivery**
-and must not be treated as `final.mp4` verification.
+prompt-pack, worker-output, review, `remotion_visual_probe.html`,
+`remotion_contact_sheet.svg`, and `effect_render_verification.json` artifacts.
+A passed report means the material-first Remotion effect boundary is ready for
+human effect review or pipeline promotion; it is **not final delivery** and must
+not be treated as `final.mp4` verification.
 
 ## Input Priority
 
