@@ -330,7 +330,9 @@ python video_tools.py verify --script segment_contract.json --timing audio/tts_t
 For material-first route testing, prefer
 `tools/material_first_boundary_acceptance.py` before render. If
 `material_first_boundary_acceptance_report.json` returns `ok=false`, stop and
-repair the reported `failed_stage`; do not continue to `contract-run`.
+repair the reported `failed_stage`; do not continue to `contract-run`. Workers
+must use the operator-provided material folder exactly: do not substitute `--source-dir`; if the specified folder is missing, stop and report blocked
+instead of selecting a neighboring folder.
 
 Generated material:
 

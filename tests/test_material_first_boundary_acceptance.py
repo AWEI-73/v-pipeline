@@ -94,6 +94,7 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             self.assertTrue(result["ok"], result)
             report = json.loads((run_dir / "material_first_boundary_acceptance_report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["artifact_role"], "material_first_boundary_acceptance_report")
+            self.assertEqual(Path(report["source_dir"]), source.resolve())
             self.assertEqual(report["next_action"], "ready_for_render_or_human_review")
             self.assertEqual(
                 [stage["stage"] for stage in report["stages"]],
@@ -177,6 +178,7 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
 
             result = json.loads(completed.stdout)
             self.assertTrue(result["ok"], result)
+            self.assertEqual(Path(result["report"]["source_dir"]), source.resolve())
             self.assertEqual(result["report"]["next_action"], "ready_for_render_or_human_review")
 
     def test_cli_accepts_wall_verdict_inside_out_folder(self):

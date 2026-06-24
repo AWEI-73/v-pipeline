@@ -37,7 +37,9 @@ python tools/material_first_boundary_acceptance.py `
 This writes `material_first_boundary_acceptance_report.json`, which is the
 compact evidence chain for Stage 2/3, Stage 4, and Stage 5. If the report has
 `ok=false`, dispatch the next bounded worker to its `failed_stage` /
-`next_action` instead of sending a worker to render.
+`next_action` instead of sending a worker to render. Workers must use the
+operator-provided material folder exactly: do not substitute `--source-dir`; if the specified folder is missing, return `blocked` instead of choosing a
+nearby folder.
 
 When you receive `route_subagent_task.json`:
 

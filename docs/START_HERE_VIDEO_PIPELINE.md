@@ -344,7 +344,8 @@ render. It runs Stage 2/3 material wall handoff, Stage 4 build smoke, and Stage
 `material_first_boundary_acceptance_report.json`. `pipeline_home.py` and the
 Dashboard state read this report as the compact handoff result. If it fails,
 follow its `failed_stage`, `blocking`, and `next_action` instead of continuing
-to render.
+to render. Workers must use the operator-provided material folder exactly: do not substitute `--source-dir`; if the specified folder is missing, stop and
+report `blocked` instead of selecting a neighboring folder.
 
 Generated material handoff:
 

@@ -62,6 +62,7 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
             text = read(rel)
             self.assertIn("tools/material_first_boundary_acceptance.py", text, rel)
             self.assertIn("material_first_boundary_acceptance_report.json", text, rel)
+            self.assertIn("do not substitute `--source-dir`", text, rel)
 
     def test_roadmap_and_index_point_to_isf1_decision(self):
         roadmap = read("roadmap.md")
