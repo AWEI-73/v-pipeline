@@ -141,6 +141,9 @@ def _remotion_material_first_memory_summary(root: Path):
         return None
 
     read = [_rel(root, report_path)]
+    handoff_path, handoff = _find_json(root, "remotion_effect_handoff.json")
+    if handoff:
+        read.append(_rel(root, handoff_path))
     if report.get("ok") is False:
         failed_stage = report.get("failed_stage") or "remotion_material_first_memory_acceptance"
         errors = [str(item) for item in report.get("errors") or [] if item]
@@ -158,11 +161,15 @@ def _remotion_material_first_memory_summary(root: Path):
     summary = report.get("summary") or {}
     selected = summary.get("selected_ref_count", 0)
     component = summary.get("build_component") or "Remotion effect"
+    handoff_note = ""
+    if handoff:
+        count = len(handoff.get("accepted_assets") or [])
+        handoff_note = f"; handoff ready with {count} accepted asset(s)"
     return _contract(
         "run",
         "remotion_material_first_memory_acceptance",
         next_action=report.get("next_action") or "ready_for_human_effect_review_or_pipeline_promotion",
-        reason=f"{component} material-first effect acceptance passed: {selected} refs",
+        reason=f"{component} material-first effect acceptance passed: {selected} refs{handoff_note}",
         read=read,
         run_dir=root,
         source="remotion_material_first_memory_acceptance_report.json",

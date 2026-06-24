@@ -94,6 +94,7 @@ class RemotionMaterialFirstMemoryAcceptanceTest(unittest.TestCase):
                 "remotion_worker_outputs.json",
                 "remotion_effect_review.json",
                 "effect_render_verification.json",
+                "remotion_effect_handoff.json",
                 "remotion_visual_probe.html",
                 "remotion_contact_sheet.svg",
                 "remotion_material_first_memory_acceptance_report.json",
@@ -112,6 +113,16 @@ class RemotionMaterialFirstMemoryAcceptanceTest(unittest.TestCase):
             self.assertTrue(any(str(ref).endswith("remotion_visual_probe.html") for ref in evidence))
             verification = json.loads((run_dir / "effect_render_verification.json").read_text(encoding="utf-8"))
             self.assertTrue(verification["pass"], verification)
+            handoff = json.loads((run_dir / "remotion_effect_handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["artifact_role"], "remotion_effect_handoff")
+            self.assertEqual(handoff["boundary"]["role"], "bounded_finishing_asset_producer")
+            self.assertFalse(handoff["boundary"]["owns_final_delivery"])
+            self.assertEqual(handoff["status"], "ready_for_human_review")
+            self.assertEqual(len(handoff["accepted_assets"]), 1)
+            self.assertTrue(any(
+                str(ref).endswith("remotion_contact_sheet.svg")
+                for ref in handoff["accepted_assets"][0]["evidence_refs"]
+            ))
 
     def test_cli_runs_material_first_memory_acceptance(self):
         with tempfile.TemporaryDirectory() as temp:

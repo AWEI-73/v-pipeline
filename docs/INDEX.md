@@ -171,8 +171,9 @@ explicitly points to that construction area.
 - `docs/construction-guides/remotion-effect-build-api-plan.md` -- Remotion
   effect contract hardening, including `skills/remotion-effect-worker.md`,
   `tools/remotion_material_first_memory_acceptance.py`,
-  `remotion_material_first_memory_acceptance_report.json`, and the
-  material-first `MemoryPhotoWall` boundary. This is **not final delivery**.
+  `remotion_material_first_memory_acceptance_report.json`,
+  `remotion_effect_handoff.json`, and the material-first `MemoryPhotoWall`
+  boundary. This is **not final delivery**.
 
 ## Working conventions (read before contributing)
 

@@ -254,10 +254,17 @@ python tools/remotion_material_first_memory_acceptance.py `
 
 This writes `remotion_material_first_memory_acceptance_report.json` plus the
 prompt-pack, worker-output, review, `remotion_visual_probe.html`,
-`remotion_contact_sheet.svg`, and `effect_render_verification.json` artifacts.
+`remotion_contact_sheet.svg`, `effect_render_verification.json`, and
+`remotion_effect_handoff.json` artifacts.
 A passed report means the material-first Remotion effect boundary is ready for
 human effect review or pipeline promotion; it is **not final delivery** and must
 not be treated as `final.mp4` verification.
+
+`remotion_effect_handoff.json` is the promotion surface for later Workbench or
+ffmpeg adoption. It must declare that Remotion is a
+`bounded_finishing_asset_producer`, not the final renderer, and it must list the
+accepted assets plus preview/contact-sheet evidence. Do not treat this handoff
+as proof that the whole movie passed delivery verification.
 
 ## Input Priority
 
@@ -302,6 +309,30 @@ The full artifact:
 ```
 
 Then run or hand off to `remotion-worker-outputs` validation so Hermes can produce `remotion_effect_review.json`.
+
+For material-first probes that are ready for human review, also write a
+`remotion_effect_handoff.json`:
+
+```json
+{
+  "artifact_role": "remotion_effect_handoff",
+  "version": 1,
+  "status": "ready_for_human_review",
+  "boundary": {
+    "role": "bounded_finishing_asset_producer",
+    "owns_final_delivery": false,
+    "owns_material_truth": false,
+    "owns_rough_cut_selection": false,
+    "final_assembly_owner": "ffmpeg_contract_run"
+  },
+  "accepted_assets": [],
+  "visual_probe": {
+    "preview": "remotion_visual_probe.html",
+    "contact_sheet": "remotion_contact_sheet.svg"
+  },
+  "next_action": "human_review_or_promote_effect_assets_to_ffmpeg_timeline"
+}
+```
 
 ## Optional Probe Packet
 

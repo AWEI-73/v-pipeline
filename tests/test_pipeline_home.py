@@ -271,6 +271,12 @@ class PipelineHomeTest(unittest.TestCase):
                     "build_component": "MemoryPhotoWall",
                 },
             })
+            _write(tmp, "remotion_effect_handoff.json", {
+                "artifact_role": "remotion_effect_handoff",
+                "version": 1,
+                "status": "ready_for_human_review",
+                "accepted_assets": [{"job_id": "rm_fx_material_memory_wall_01"}],
+            })
 
             summary = summarize_run(tmp)
 
@@ -280,6 +286,8 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "remotion_material_first_memory_acceptance_report.json")
             self.assertIn("MemoryPhotoWall", summary["reason"])
             self.assertIn("3 refs", summary["reason"])
+            self.assertIn("remotion_effect_handoff.json", summary["read"])
+            self.assertIn("handoff ready", summary["reason"])
 
     def test_remotion_material_first_memory_acceptance_failed_routes_to_repair(self):
         with tempfile.TemporaryDirectory() as tmp:

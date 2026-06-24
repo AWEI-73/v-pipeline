@@ -97,6 +97,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "--wall-request",
             "remotion_material_first_memory_acceptance.py",
             "remotion_material_first_memory_acceptance_report.json",
+            "remotion_effect_handoff.json",
             "effect_build_spec.material_refs",
             "material_wall_keyframe",
             "remotion_visual_probe.html",
@@ -116,6 +117,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
                 "skills/remotion-effect-worker.md",
                 "tools/remotion_material_first_memory_acceptance.py",
                 "remotion_material_first_memory_acceptance_report.json",
+                "remotion_effect_handoff.json",
                 "not final delivery",
             ]:
                 self.assertIn(expected, text)
@@ -134,6 +136,8 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
             "accent_light",
             "remotion_visual_probe.html",
             "remotion_contact_sheet.svg",
+            "remotion_effect_handoff.json",
+            "bounded_finishing_asset_producer",
         ]:
             self.assertIn(expected, text)
 

@@ -363,8 +363,11 @@ material-first refs. Read `skills/remotion-effect-worker.md` and
 `docs/construction-guides/remotion-effect-build-api-plan.md` before changing the
 effect contract. The output
 `remotion_material_first_memory_acceptance_report.json` proves the
-MemoryPhotoWall artifact chain is reviewable, but it is **not final delivery**
-and must not be treated as `final.mp4` verification.
+MemoryPhotoWall artifact chain is reviewable. The promotion surface is
+`remotion_effect_handoff.json`, which lists accepted finishing assets and
+evidence for later Workbench / ffmpeg adoption. Neither artifact is **final
+delivery** and neither must be treated as `final.mp4` verification; this is
+not final delivery.
 
 Generated material handoff:
 

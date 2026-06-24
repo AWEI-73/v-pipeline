@@ -828,6 +828,12 @@ class DashboardStateSpecTest(unittest.TestCase):
                     "selected_ref_count": 3,
                 },
             }), encoding="utf-8")
+            (workdir / "remotion_effect_handoff.json").write_text(json.dumps({
+                "artifact_role": "remotion_effect_handoff",
+                "version": 1,
+                "status": "ready_for_human_review",
+                "accepted_assets": [{"job_id": "rm_fx_material_memory_wall_01"}],
+            }), encoding="utf-8")
 
             state = load_dashboard_state(str(workdir))
 
@@ -836,6 +842,10 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(
                 state["artifacts"]["remotion_material_first_memory_acceptance_report"]["summary"]["build_component"],
                 "MemoryPhotoWall",
+            )
+            self.assertEqual(
+                state["artifacts"]["remotion_effect_handoff"]["status"],
+                "ready_for_human_review",
             )
 
     def test_selected_materials_folder_is_scanned(self):

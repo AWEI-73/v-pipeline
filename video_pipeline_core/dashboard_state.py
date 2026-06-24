@@ -168,6 +168,8 @@ def load_dashboard_state(workdir):
                     manifest["material_first_boundary_acceptance_report"] = f
                 elif f == "remotion_material_first_memory_acceptance_report.json":
                     manifest["remotion_material_first_memory_acceptance_report"] = f
+                elif f == "remotion_effect_handoff.json":
+                    manifest["remotion_effect_handoff"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
@@ -189,6 +191,10 @@ def load_dashboard_state(workdir):
     remotion_material_first_memory_acceptance_report = (
         safe_load_json(manifest.get("remotion_material_first_memory_acceptance_report"))
         or safe_load_json("remotion_material_first_memory_acceptance_report.json")
+    )
+    remotion_effect_handoff = (
+        safe_load_json(manifest.get("remotion_effect_handoff"))
+        or safe_load_json("remotion_effect_handoff.json")
     )
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
@@ -864,6 +870,7 @@ def load_dashboard_state(workdir):
             "material_wall_handoff_report": material_wall_handoff_report,
             "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
             "remotion_material_first_memory_acceptance_report": remotion_material_first_memory_acceptance_report,
+            "remotion_effect_handoff": remotion_effect_handoff,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,

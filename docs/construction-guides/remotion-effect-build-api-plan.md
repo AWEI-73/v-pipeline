@@ -295,6 +295,7 @@ effect_intent_plan.json
 -> remotion_worker_outputs.json
 -> remotion_effect_review.json
 -> effect_render_verification.json
+-> remotion_effect_handoff.json
 -> optional remotion_composite_draft.mp4
 -> ffmpeg / contract-run final assembly
 ```
@@ -432,6 +433,7 @@ writes:
 - `remotion_worker_outputs.json`
 - `remotion_effect_review.json`
 - `effect_render_verification.json`
+- `remotion_effect_handoff.json`
 - `remotion_visual_probe.html`
 - `remotion_contact_sheet.svg`
 - `remotion_material_first_memory_acceptance_report.json`
@@ -439,6 +441,20 @@ writes:
 It must not write `final.mp4`, must not run `contract-run`, and must not
 composite a draft. It is an artifact-chain gate plus a review-only visual probe,
 not final delivery.
+
+`remotion_effect_handoff.json` is the promotion surface for later Workbench or
+ffmpeg adoption. It must declare:
+
+- `artifact_role=remotion_effect_handoff`;
+- `boundary.role=bounded_finishing_asset_producer`;
+- `boundary.owns_final_delivery=false`;
+- `boundary.owns_material_truth=false`;
+- accepted Remotion assets and evidence refs;
+- preview/contact-sheet evidence;
+- `next_action=human_review_or_promote_effect_assets_to_ffmpeg_timeline`.
+
+The handoff is not a delivery-pass artifact. It only says which reviewed
+finishing assets are available.
 
 Latest real-run evidence:
 
@@ -449,15 +465,17 @@ runs/remotion_material_first_memory_acceptance/20260625-000000
 That run selected three `material_wall_keyframe` refs, produced one
 `MemoryPhotoWall` prompt-pack job, accepted the dry-run worker evidence, wrote
 `remotion_visual_probe.html` / `remotion_contact_sheet.svg`, and produced
-passing `effect_render_verification.json`.
+passing `effect_render_verification.json` plus `remotion_effect_handoff.json`.
 
 State visibility:
 
 - `tools/pipeline_home.py --run <RUN_DIR> --json` must surface
-  `source=remotion_material_first_memory_acceptance_report.json`.
+  `source=remotion_material_first_memory_acceptance_report.json` and include
+  `remotion_effect_handoff.json` in `read` when it exists.
 - `video_pipeline_core.dashboard_state.load_dashboard_state(<RUN_DIR>)` must
   surface the report under
-  `artifacts.remotion_material_first_memory_acceptance_report`.
+  `artifacts.remotion_material_first_memory_acceptance_report` and the handoff
+  under `artifacts.remotion_effect_handoff`.
 - A passed report sets dashboard `next_action` to
   `ready_for_human_effect_review_or_pipeline_promotion`, but `run.pass` remains
   false because this is not final delivery.

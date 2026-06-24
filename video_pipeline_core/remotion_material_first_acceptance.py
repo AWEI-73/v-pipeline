@@ -177,6 +177,61 @@ def _write_report(run_dir: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     return report
 
 
+def _write_handoff(run_dir: Path, *,
+                   report_path: Path,
+                   worker_outputs: Mapping[str, Any],
+                   review: Mapping[str, Any],
+                   visual_probe: Mapping[str, str],
+                   verification: Mapping[str, Any]) -> dict[str, Any]:
+    accepted_ids = {
+        str(item.get("job_id"))
+        for item in review.get("items") or []
+        if item.get("status") == "accepted" and item.get("job_id")
+    }
+    accepted_assets = []
+    for job in worker_outputs.get("jobs") or []:
+        job_id = str(job.get("job_id") or "")
+        if job_id not in accepted_ids:
+            continue
+        accepted_assets.append({
+            "job_id": job_id,
+            "source_effect_id": job.get("source_effect_id"),
+            "status": job.get("status"),
+            "preview_file": job.get("preview_file"),
+            "rendered_asset": job.get("rendered_asset"),
+            "duration_sec": job.get("duration_sec"),
+            "backend": job.get("backend"),
+            "evidence_refs": list(job.get("evidence_refs") or []),
+        })
+
+    handoff = {
+        "artifact_role": "remotion_effect_handoff",
+        "version": 1,
+        "status": "ready_for_human_review" if accepted_assets else "blocked",
+        "boundary": {
+            "role": "bounded_finishing_asset_producer",
+            "owns_final_delivery": False,
+            "owns_material_truth": False,
+            "owns_rough_cut_selection": False,
+            "final_assembly_owner": "ffmpeg_contract_run",
+        },
+        "source_report": str(report_path),
+        "accepted_assets": accepted_assets,
+        "visual_probe": {
+            "preview": visual_probe.get("preview"),
+            "contact_sheet": visual_probe.get("contact_sheet"),
+        },
+        "verification_summary": verification.get("summary") or {},
+        "next_action": "human_review_or_promote_effect_assets_to_ffmpeg_timeline",
+        "notes": [
+            "This handoff contains reviewable Remotion finishing assets only.",
+            "It is not final.mp4 verification and must not bypass material or delivery gates.",
+        ],
+    }
+    _write_json(run_dir / "remotion_effect_handoff.json", handoff)
+    return handoff
+
+
 def run_material_first_memory_acceptance(run_dir: str | Path, *,
                                          project_map: str | Path,
                                          wall_verdict: str | Path,
@@ -309,6 +364,17 @@ def run_material_first_memory_acceptance(run_dir: str | Path, *,
     )
     artifacts["effect_render_verification"] = str(run_dir / "effect_render_verification.json")
 
+    report_path = run_dir / "remotion_material_first_memory_acceptance_report.json"
+    handoff = _write_handoff(
+        run_dir,
+        report_path=report_path,
+        worker_outputs=worker_outputs,
+        review=review,
+        visual_probe=visual_probe,
+        verification=verification,
+    )
+    artifacts["remotion_effect_handoff"] = str(run_dir / "remotion_effect_handoff.json")
+
     report = {
         "artifact_role": "remotion_material_first_memory_acceptance_report",
         "version": 1,
@@ -328,6 +394,8 @@ def run_material_first_memory_acceptance(run_dir: str | Path, *,
                 "preview": Path(visual_probe["preview"]).name,
                 "contact_sheet": Path(visual_probe["contact_sheet"]).name,
             },
+            "handoff_status": handoff.get("status"),
+            "accepted_effect_asset_count": len(handoff.get("accepted_assets") or []),
         },
         "artifacts": artifacts,
         "review_notes": [
