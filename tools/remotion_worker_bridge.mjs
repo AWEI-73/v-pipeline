@@ -228,6 +228,28 @@ const isHighlightWarmGlow = JOB.templateId === "highlight_warm_glow";
 const isBlurredSideFill = JOB.backgroundStyle === "blurred_side_fill" || JOB.templateId === "blurred_side_fill";
 const isCinematicOpening = isBlackCollage && JOB.variant === "cinematic_collage_reveal";
 const effectBuildSpec = JOB.promptParameters?.effect_build_spec || JOB.promptParameters?.effectBuildSpec || {};
+const visualTechnique = JOB.promptParameters?.visual_technique_plan || JOB.promptParameters?.visualTechniquePlan || {};
+const visualTechniqueControls = visualTechnique?.controls || {};
+const visualTechniqueFamily = String(visualTechnique?.style_family || visualTechnique?.styleFamily || "");
+const isJapaneseSakuraTechnique = ["japanese_sakura", "sakura_poetic"].includes(visualTechniqueFamily);
+const sakuraPetalCount = Math.min(180, Math.max(12, Number(visualTechniqueControls.petal_count || visualTechniqueControls.petalCount || 80)));
+const sakuraWindStrength = Number(visualTechniqueControls.wind_strength ?? visualTechniqueControls.windStrength ?? 0.25);
+const sakuraFallSpeed = Number(visualTechniqueControls.fall_speed ?? visualTechniqueControls.fallSpeed ?? 0.25);
+const sakuraDepthLayers = Math.max(1, Math.min(6, Number(visualTechniqueControls.depth_layers || visualTechniqueControls.depthLayers || 3)));
+const sakuraPetals = Array.from({ length: sakuraPetalCount }, (_, index) => {
+  const layer = (index % sakuraDepthLayers) + 1;
+  const seed = (index * 37) % 997;
+  return {
+    id: index,
+    x: (seed * 1.91) % 1920,
+    y: -160 - ((seed * 2.17) % 1080),
+    size: 9 + (seed % 16) + layer * 2,
+    layer,
+    delay: (seed % 80) / 80,
+    opacity: 0.26 + layer * 0.12,
+    rotate: seed % 360,
+  };
+});
 const isStoryToMvBuildSpec = String(effectBuildSpec.component || "") === "StoryToMVTransition";
 const isStoryToMvFilmTransition = (isFilmStripCard && JOB.variant === "story_to_mv_film_transition") || isStoryToMvBuildSpec;
 const isStoryToMvTransition = isStoryToMvFilmTransition;
@@ -467,6 +489,48 @@ const HermesEffectOverlay = ({ preview = false }) => {
               mixBlendMode: "screen",
             }}
           />
+        </AbsoluteFill>
+      ) : null}
+      {isJapaneseSakuraTechnique ? (
+        <AbsoluteFill className="visualTechniqueSakuraLayer" style={{ opacity: opacity * 0.92, pointerEvents: "none" }}>
+          <AbsoluteFill
+            className="sakuraSoftBloom"
+            style={{
+              background:
+                "radial-gradient(circle at 72% 24%, rgba(255,210,226,.18), rgba(255,210,226,0) 42%), radial-gradient(circle at 20% 70%, rgba(255,245,250,.12), rgba(255,245,250,0) 36%)",
+              mixBlendMode: "screen",
+            }}
+          />
+          {sakuraPetals.map((petal) => {
+            const cycleFrames = Math.max(1, JOB.durationFrames);
+            const progress = ((frame + petal.delay * cycleFrames) % cycleFrames) / cycleFrames;
+            const depth = petal.layer / sakuraDepthLayers;
+            const fallDistance = 1220 + depth * 220;
+            const drift = Math.sin(progress * Math.PI * 2 + petal.id) * 70 * sakuraWindStrength * (0.55 + depth);
+            const x = (petal.x + drift + progress * 180 * sakuraWindStrength) % 1980 - 30;
+            const y = petal.y + progress * fallDistance * (0.72 + sakuraFallSpeed + depth * 0.18);
+            const rotate = petal.rotate + progress * 360 * (0.35 + depth);
+            return (
+              <div
+                key={"sakura-petal-" + petal.id}
+                className="sakuraPetal"
+                style={{
+                  position: "absolute",
+                  left: x,
+                  top: y,
+                  width: petal.size,
+                  height: petal.size * 0.58,
+                  borderRadius: "90% 12% 90% 18%",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,194,214,.80) 54%, rgba(255,142,181,.56))",
+                  boxShadow: "0 0 " + (8 + petal.layer * 2) + "px rgba(255,190,215,.32)",
+                  opacity: Math.min(0.92, petal.opacity),
+                  transform: "rotate(" + rotate + "deg) translateZ(0)",
+                  filter: "blur(" + (sakuraDepthLayers - petal.layer) * 0.25 + "px)",
+                }}
+              />
+            );
+          })}
         </AbsoluteFill>
       ) : null}
       {isBlackCollage ? (isCinematicOpening ? commercialCollageSlots : collageSlots).map((slot, index) => {

@@ -387,6 +387,58 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             self.assertIn("ON THE LAST PAGE", text)
             self.assertIn("#ffe100", text)
 
+    def test_visual_technique_plan_drives_sakura_particle_layer(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job = _training_opening_job(str(rendered), str(preview))
+            job["props"]["prompt_parameters"] = {
+                "visual_technique_plan": {
+                    "artifact_role": "visual_technique_plan",
+                    "version": 1,
+                    "style_family": "japanese_sakura",
+                    "effect_role": "opening_title",
+                    "render_strategy": ["remotion_react_particles", "remotion_canvas_particles"],
+                    "visual_primitives": ["sakura", "petals", "soft_bloom"],
+                    "motion_primitives": ["drift", "fall", "parallax"],
+                    "controls": {
+                        "petal_count": 36,
+                        "wind_strength": 0.42,
+                        "fall_speed": 0.31,
+                        "depth_layers": 4,
+                    },
+                },
+                "motion_grammar": ["drift", "fall", "parallax"],
+            }
+            job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("visualTechnique", text)
+            self.assertIn("isJapaneseSakuraTechnique", text)
+            self.assertIn("sakuraPetals", text)
+            self.assertIn("sakuraWindStrength", text)
+            self.assertIn("sakuraFallSpeed", text)
+            self.assertIn("sakuraDepthLayers", text)
+            self.assertIn("visualTechniqueSakuraLayer", text)
+            self.assertIn("sakuraPetal", text)
+            self.assertIn("japanese_sakura", text)
+            self.assertIn("petal_count", text)
+
     def test_training_opening_template_writes_cinematic_commercial_layers(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

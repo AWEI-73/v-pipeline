@@ -4,7 +4,8 @@
 
 This guide defines the construction path for the Brownfield Remotion effects line.
 The goal is not to add more attractive one-off templates. The goal is to make
-effects controllable by story, material review, and build parameters.
+effects controllable by story, material review, visual technique parameters,
+and build parameters.
 
 Current problem:
 
@@ -18,8 +19,9 @@ thin upstream understanding
 Target shape:
 
 ```text
-material wall / montage review
--> effect_intent_plan.effects[].prompt_parameters.effect_build_spec
+semantic visual request / material wall / montage review
+-> visual_technique_plan.json
+-> effect_intent_plan.effects[].prompt_parameters
 -> Remotion component worker
 -> preview + contact sheet + review gate
 ```
@@ -27,11 +29,19 @@ material wall / montage review
 Remotion remains a bounded effect asset producer. It must not own `final.mp4`,
 material-map decisions, rough-cut selection, or segment contract rewriting.
 
-For v1, the v1 control surface is `effect_build_spec` inside existing `prompt_parameters`.
+For v1, keep the route small:
+
+- `visual_technique_plan.json` is the upstream translation artifact. It converts
+  natural-language style intent into visual primitives, motion primitives,
+  render strategy candidates, and controls.
+- Existing template dictionaries are examples / known treatments. They are not
+  the semantic source of truth.
+- The Remotion worker still receives concrete controls through existing
+  `effect_intent_plan.effects[].prompt_parameters`.
+
 Do not add `effect_story_planner.json` to the current mainline artifact chain.
-`effect_story_planner.json` is a future optional extraction if the upstream
-planning role becomes too large to keep inside the existing `effect_intent_plan`
-route.
+`effect_story_planner.json` is a future optional extraction only if the upstream
+planning role grows beyond the technique translator.
 
 ## Design Boundary
 
@@ -48,7 +58,25 @@ Upstream is allowed to be fuzzy, but it must provide enough context:
 - reviewed material refs and optional reviewer notes
 - desired viewer feeling
 
-Upstream does not decide frame-by-frame animation.
+Upstream does not decide frame-by-frame animation. It decides the technique
+language: style family, visual primitives, motion primitives, render strategy,
+and controls. The worker decides how to implement those controls frame by frame.
+
+### Existing templates are examples
+
+The existing files below are useful, but they are not the main translation
+dictionary:
+
+- `examples/training_recap_effect_dictionary.json`
+- `examples/remotion_effect_capability_manifest.json`
+- prior runs under `runs/remotion_category_boundary/`
+- prior runs under `runs/remotion_visual_quality/`
+
+Treat them as example treatments and capability evidence. A semantic request
+such as "日式櫻花飄逸" should first become a technique plan such as particles,
+drift, fall, parallax, soft palette, and canvas/Three render strategy. It should
+not be forced into a fixed training recap template unless that template is a
+natural match.
 
 ## Contract-First Flow
 
