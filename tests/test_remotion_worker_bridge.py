@@ -439,6 +439,71 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             self.assertIn("japanese_sakura", text)
             self.assertIn("petal_count", text)
 
+    def test_visual_technique_plan_drives_warm_legacy_fire_photo_closing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            sample = root / "group_photo.jpg"
+            sample.write_bytes(b"fake-jpeg-bytes")
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job = _training_opening_job(str(rendered), str(preview))
+            job["props"]["template_id"] = "training_closing_title"
+            job["props"]["display_text"] = "Next Stage"
+            job["props"]["subtitle_text"] = "Carry the spirit forward"
+            job["props"]["collage_media_refs"] = [
+                {"ref_id": "group_photo", "path": str(sample), "label": "group photo", "visual_role": "group_photo"}
+            ]
+            job["props"]["prompt_parameters"] = {
+                "visual_technique_plan": {
+                    "artifact_role": "visual_technique_plan",
+                    "version": 1,
+                    "style_family": "warm_legacy_fire",
+                    "effect_role": "closing_title",
+                    "material_use": {
+                        "background_source": "group_photo",
+                        "background_treatment": "soft_dimmed_memory_plate",
+                        "preserve_people_visibility": True,
+                    },
+                    "visual_primitives": [
+                        "soft_ember_particles",
+                        "afterglow_warm_light",
+                        "dimmed_group_photo_background",
+                    ],
+                    "motion_primitives": ["slow_rise", "gentle_drift", "long_fade_out", "very_slow_push_in"],
+                    "controls": {
+                        "ember_density": "low",
+                        "glow_strength": "soft",
+                        "photo_dim_strength": "medium",
+                        "subtitle_readability": "high",
+                    },
+                },
+                "motion_grammar": ["slow_rise", "gentle_drift", "long_fade_out"],
+            }
+            job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("isWarmLegacyFireTechnique", text)
+            self.assertIn("warmLegacyPhotoBackground", text)
+            self.assertIn("warmLegacyEmbers", text)
+            self.assertIn("warmLegacyAfterglow", text)
+            self.assertIn("photoDimStrength", text)
+            self.assertIn("subtitleReadability", text)
+            self.assertIn("data:image/jpeg;base64,", text)
+
     def test_training_opening_template_writes_cinematic_commercial_layers(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

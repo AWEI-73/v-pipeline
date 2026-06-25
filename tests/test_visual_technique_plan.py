@@ -5,11 +5,23 @@ from video_pipeline_core.remotion_effects import build_remotion_prompt_pack
 from video_pipeline_core.visual_technique_plan import plan_visual_technique, technique_to_effect
 
 
+SAKURA_OPENING = "\u65e5\u5f0f\u6afb\u82b1\u98c4\u9038\u958b\u5834"
+ENERGETIC_MV = "\u71b1\u8840 energetic MV \u958b\u5834 with big impact cuts"
+WARM_LEGACY_CLOSING = (
+    "\u7d50\u5c3e\u8981\u542b\u84c4\u611f\u4eba\uff0c"
+    "\u628a\u9019\u6bb5\u65e5\u5b50\u7684\u7cbe\u795e\u50b3\u905e\u5230"
+    "\u4e0b\u4e00\u500b\u968e\u6bb5\uff0c\u7528\u5408\u7167\u7576\u80cc\u666f"
+    "\u548c\u6eab\u6696\u706b\u5149\u9918\u6eab"
+)
+NEXT_STAGE = "\u8d70\u5411\u4e0b\u4e00\u500b\u968e\u6bb5"
+CARRY_SPIRIT = "\u628a\u9019\u6bb5\u65e5\u5b50\u7684\u7cbe\u795e\uff0c\u5e36\u5230\u66f4\u9060\u7684\u5730\u65b9"
+
+
 class VisualTechniquePlanTest(unittest.TestCase):
     def test_japanese_sakura_opening_maps_semantics_to_particle_techniques(self):
         plan = plan_visual_technique(
             {
-                "request": "日式櫻花飄逸開場",
+                "request": SAKURA_OPENING,
                 "effect_role": "opening_title",
                 "duration_sec": 6,
                 "material_state": "generated_background_ok",
@@ -36,7 +48,7 @@ class VisualTechniquePlanTest(unittest.TestCase):
     def test_energetic_mv_maps_to_kinetic_typography_not_sakura(self):
         plan = plan_visual_technique(
             {
-                "request": "熱血 energetic MV 開場 with big impact cuts",
+                "request": ENERGETIC_MV,
                 "effect_role": "opening_title",
                 "duration_sec": 4,
             }
@@ -67,10 +79,39 @@ class VisualTechniquePlanTest(unittest.TestCase):
         self.assertIn("visual style", " ".join(plan["followup_questions"]).lower())
         self.assertIn("effect role", " ".join(plan["followup_questions"]).lower())
 
+    def test_warm_legacy_fire_closing_keeps_original_contract_and_adds_worker_controls(self):
+        plan = plan_visual_technique(
+            {
+                "request": WARM_LEGACY_CLOSING,
+                "effect_role": "closing_title",
+                "duration_sec": 8,
+                "material_state": "group_photo_available",
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "warm_legacy_fire")
+        self.assertEqual(plan["story_function"], "closing_emotional_legacy")
+        self.assertEqual(plan["placement"], "ending")
+        self.assertEqual(plan["tone"], "moving_warm")
+        self.assertEqual(plan["display_text"], NEXT_STAGE)
+        self.assertEqual(plan["subtitle_text"], CARRY_SPIRIT)
+        self.assertIn("soft_ember_particles", plan["visual_primitives"])
+        self.assertIn("dimmed_group_photo_background", plan["visual_primitives"])
+        self.assertIn("very_slow_push_in", plan["motion_primitives"])
+        self.assertEqual(plan["material_use"]["background_source"], "group_photo")
+        self.assertEqual(plan["material_use"]["background_treatment"], "soft_dimmed_memory_plate")
+        self.assertTrue(plan["material_use"]["preserve_people_visibility"])
+        self.assertEqual(plan["controls"]["duration_sec"], 8.0)
+        self.assertEqual(plan["controls"]["ember_density"], "low")
+        self.assertEqual(plan["controls"]["photo_dim_strength"], "medium")
+        self.assertEqual(plan["controls"]["subtitle_readability"], "high")
+        self.assertIn("no aggressive flames", plan["negative_rules"])
+        self.assertIn("do not obscure faces in group photo", plan["negative_rules"])
+
     def test_technique_plan_converts_to_effect_intent_and_prompt_pack_controls(self):
         plan = plan_visual_technique(
             {
-                "request": "日式櫻花飄逸開場",
+                "request": SAKURA_OPENING,
                 "effect_role": "opening_title",
                 "duration_sec": 6,
             }

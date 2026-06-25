@@ -230,8 +230,10 @@ const isCinematicOpening = isBlackCollage && JOB.variant === "cinematic_collage_
 const effectBuildSpec = JOB.promptParameters?.effect_build_spec || JOB.promptParameters?.effectBuildSpec || {};
 const visualTechnique = JOB.promptParameters?.visual_technique_plan || JOB.promptParameters?.visualTechniquePlan || {};
 const visualTechniqueControls = visualTechnique?.controls || {};
+const visualTechniqueMaterialUse = visualTechnique?.material_use || visualTechnique?.materialUse || {};
 const visualTechniqueFamily = String(visualTechnique?.style_family || visualTechnique?.styleFamily || "");
 const isJapaneseSakuraTechnique = ["japanese_sakura", "sakura_poetic"].includes(visualTechniqueFamily);
+const isWarmLegacyFireTechnique = visualTechniqueFamily === "warm_legacy_fire";
 const sakuraPetalCount = Math.min(180, Math.max(12, Number(visualTechniqueControls.petal_count || visualTechniqueControls.petalCount || 80)));
 const sakuraWindStrength = Number(visualTechniqueControls.wind_strength ?? visualTechniqueControls.windStrength ?? 0.25);
 const sakuraFallSpeed = Number(visualTechniqueControls.fall_speed ?? visualTechniqueControls.fallSpeed ?? 0.25);
@@ -248,6 +250,35 @@ const sakuraPetals = Array.from({ length: sakuraPetalCount }, (_, index) => {
     delay: (seed % 80) / 80,
     opacity: 0.26 + layer * 0.12,
     rotate: seed % 360,
+  };
+});
+const warmLegacyBackgroundSource = String(visualTechniqueMaterialUse.background_source || visualTechniqueMaterialUse.backgroundSource || "group_photo");
+const warmLegacyBackground = JOB.collageMediaRefs.find((media) => {
+  const role = String(media.visualRole || "");
+  return role === warmLegacyBackgroundSource || media.refId === warmLegacyBackgroundSource || role.includes("group");
+}) || JOB.collageMediaRefs[0];
+const photoDimStrength = {
+  low: 0.22,
+  medium: 0.42,
+  high: 0.58,
+}[String(visualTechniqueControls.photo_dim_strength || visualTechniqueControls.photoDimStrength || "medium")] ?? 0.42;
+const subtitleReadability = String(visualTechniqueControls.subtitle_readability || visualTechniqueControls.subtitleReadability || "medium");
+const warmLegacyEmberCount = {
+  none: 0,
+  low: 28,
+  medium: 52,
+  high: 84,
+}[String(visualTechniqueControls.ember_density || visualTechniqueControls.emberDensity || "low")] ?? 28;
+const warmLegacyEmbers = Array.from({ length: warmLegacyEmberCount }, (_, index) => {
+  const seed = (index * 53 + 17) % 991;
+  return {
+    id: index,
+    x: (seed * 2.13) % 1920,
+    y: 1110 + ((seed * 1.37) % 160),
+    size: 3 + (seed % 8),
+    delay: (seed % 120) / 120,
+    drift: ((seed % 41) - 20) * 0.9,
+    opacity: 0.28 + (seed % 40) / 100,
   };
 });
 const isStoryToMvBuildSpec = String(effectBuildSpec.component || "") === "StoryToMVTransition";
@@ -465,6 +496,67 @@ const HermesEffectOverlay = ({ preview = false }) => {
             opacity,
           }}
         />
+      ) : null}
+      {isWarmLegacyFireTechnique ? (
+        <AbsoluteFill className="warmLegacyFireClosing" style={{ opacity, overflow: "hidden" }}>
+          {warmLegacyBackground?.src ? (
+            <img
+              className="warmLegacyPhotoBackground"
+              src={warmLegacyBackground.src}
+              style={{
+                position: "absolute",
+                inset: -28,
+                width: "calc(100% + 56px)",
+                height: "calc(100% + 56px)",
+                objectFit: "cover",
+                transform: "scale(" + (1.02 + enter * 0.025) + ")",
+                filter: "saturate(.82) contrast(.92) brightness(" + (0.78 - photoDimStrength * 0.38) + ")",
+                opacity: 0.72,
+              }}
+            />
+          ) : null}
+          <AbsoluteFill
+            className="warmLegacyPhotoDimPlate"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(0,0,0,.42), rgba(0,0,0," + (0.38 + photoDimStrength) + ") 62%, rgba(0,0,0,.86)), radial-gradient(circle at 50% 70%, rgba(255,172,62,.18), rgba(0,0,0,0) 48%)",
+            }}
+          />
+          <AbsoluteFill
+            className="warmLegacyAfterglow"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 72%, rgba(255,176,64,.26), rgba(255,176,64,.08) 26%, rgba(0,0,0,0) 58%), radial-gradient(circle at 50% 48%, rgba(255,221,148,.10), rgba(0,0,0,0) 34%)",
+              mixBlendMode: "screen",
+              opacity: 0.84,
+            }}
+          />
+          <AbsoluteFill className="warmLegacyEmbers">
+            {warmLegacyEmbers.map((ember) => {
+              const progress = ((frame + ember.delay * JOB.durationFrames) % JOB.durationFrames) / Math.max(1, JOB.durationFrames);
+              const rise = progress * 820;
+              const x = ember.x + Math.sin(progress * Math.PI * 2 + ember.id) * 28 + ember.drift * progress;
+              const y = ember.y - rise;
+              return (
+                <div
+                  key={"warm-legacy-ember-" + ember.id}
+                  className="warmLegacyEmber"
+                  style={{
+                    position: "absolute",
+                    left: x,
+                    top: y,
+                    width: ember.size,
+                    height: ember.size,
+                    borderRadius: 999,
+                    background: "rgba(255,190,72,.92)",
+                    boxShadow: "0 0 " + (8 + ember.size * 2) + "px rgba(255,154,45,.52)",
+                    opacity: Math.max(0, ember.opacity * (1 - progress * 0.82)),
+                  }}
+                />
+              );
+            })}
+          </AbsoluteFill>
+        </AbsoluteFill>
       ) : null}
       {isCinematicOpening && enableCollageDepthReveal ? (
         <AbsoluteFill className="commercialOpeningPlate" style={{ opacity }}>
