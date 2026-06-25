@@ -504,6 +504,52 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             self.assertIn("subtitleReadability", text)
             self.assertIn("data:image/jpeg;base64,", text)
 
+    def test_warm_legacy_fire_overrides_clean_quote_template_background(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            sample = root / "group_photo.jpg"
+            sample.write_bytes(b"fake-jpeg-bytes")
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job = _clean_quote_job(str(rendered), str(preview))
+            job["props"]["collage_media_refs"] = [
+                {"ref_id": "group_photo", "path": str(sample), "label": "group photo", "visual_role": "group_photo"}
+            ]
+            job["props"]["prompt_parameters"] = {
+                "visual_technique_plan": {
+                    "artifact_role": "visual_technique_plan",
+                    "version": 1,
+                    "style_family": "warm_legacy_fire",
+                    "effect_role": "closing_title",
+                    "material_use": {"background_source": "group_photo"},
+                    "controls": {
+                        "ember_density": "low",
+                        "photo_dim_strength": "medium",
+                        "subtitle_readability": "high",
+                    },
+                },
+            }
+            job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn('const isCleanWhiteQuote = !isWarmLegacyFireTechnique &&', text)
+            self.assertIn("warmLegacyPhotoBackground", text)
+            self.assertIn("clean_white_quote_card", text)
+
     def test_training_opening_template_writes_cinematic_commercial_layers(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
