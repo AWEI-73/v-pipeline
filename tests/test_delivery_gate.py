@@ -138,7 +138,104 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         self.assertEqual(result["blocking"][0]["rule"], "rough_cut_gap")
         self.assertEqual(result["blocking"][0]["artifact"], "rough_cut_plan")
+
+    def test_timeline_material_map_id_mismatch_blocks_delivery(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "segments": [{
+                    "segment": 2,
+                    "material_map_ids": ["commute_001"],
+                    "material_fit": {"need_refs": ["need_commute_motion"]},
+                }],
+            },
+            "project_material_map": {
+                "artifact_role": "project_material_map",
+                "assets": [
+                    {
+                        "asset_id": "commute_001",
+                        "source": "commute.mp4",
+                        "scenes": [{
+                            "satisfies": [{"need_id": "need_commute_motion", "status": "accepted"}],
+                        }],
+                    },
+                    {
+                        "asset_id": "city_dawn_001",
+                        "source": "city_dawn.mp4",
+                        "scenes": [{
+                            "satisfies": [{"need_id": "need_city_dawn", "status": "accepted"}],
+                        }],
+                    },
+                ],
+            },
+            "timeline_build": {"clips": [{
+                "segment": 2,
+                "scene_id": "city_dawn_001:0",
+                "source_path": "city_dawn.mp4",
+                "duration_sec": 3,
+            }]},
+        })
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("timeline_material_map_id_mismatch", rules)
+
+    def test_timeline_need_ref_mismatch_blocks_delivery(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "segments": [{
+                    "segment": 2,
+                    "material_fit": {"need_refs": ["need_commute_motion"]},
+                }],
+            },
+            "project_material_map": {
+                "artifact_role": "project_material_map",
+                "assets": [{
+                    "asset_id": "city_dawn_001",
+                    "source": "city_dawn.mp4",
+                    "scenes": [{
+                        "satisfies": [{"need_id": "need_city_dawn", "status": "accepted"}],
+                    }],
+                }],
+            },
+            "timeline_build": {"clips": [{
+                "segment": 2,
+                "scene_id": "city_dawn_001:0",
+                "source_path": "city_dawn.mp4",
+                "duration_sec": 3,
+            }]},
+        })
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("timeline_need_ref_mismatch", rules)
         self.assertEqual(result["next_action"], "revise_material_selection_or_review")
+
+    def test_timeline_direct_material_fields_block_mismatch_without_scene_id(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "segments": [{
+                    "segment": 2,
+                    "material_map_ids": ["commute_001"],
+                    "material_fit": {"need_refs": ["need_commute_motion"]},
+                }],
+            },
+            "timeline_build": {"clips": [{
+                "segment": 2,
+                "material_map_id": "city_dawn_001",
+                "asset_id": "city_dawn_001",
+                "need_id": "need_city_dawn",
+                "source_path": "city_dawn.mp4",
+                "duration_sec": 3,
+            }]},
+        })
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("timeline_material_map_id_mismatch", rules)
+        self.assertIn("timeline_need_ref_mismatch", rules)
 
     def test_quality_evidence_does_not_block_delivery(self):
         quality_roles = (
@@ -156,6 +253,115 @@ class DeliveryGateTest(unittest.TestCase):
         })
         self.assertTrue(result["pass"])
         self.assertEqual(result["blocking"], [])
+
+    def test_stage0_child_contract_media_requirements_block_without_evidence(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "stage0_child_contracts": {
+                    "soundtrack": {
+                        "artifact_role": "stage0_soundtrack_intent",
+                        "music_role": "mixed",
+                        "handoff_to": "soundtrack-arranger",
+                    },
+                    "subtitle_voiceover": {
+                        "artifact_role": "stage0_subtitle_voiceover_intent",
+                        "language": "zh-TW",
+                        "subtitle_required": True,
+                        "voiceover_required": True,
+                    },
+                    "effect": {
+                        "artifact_role": "stage0_effect_policy",
+                        "activation": "route_to_effect_factory",
+                        "required_now": True,
+                    },
+                },
+                "segments": [],
+            },
+        })
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_stage0_soundtrack_evidence", rules)
+        self.assertIn("missing_stage0_subtitle_evidence", rules)
+        self.assertIn("missing_stage0_voiceover_evidence", rules)
+        self.assertIn("missing_stage0_effect_evidence", rules)
+
+    def test_stage0_child_contract_media_requirements_pass_with_evidence(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "stage0_child_contracts": {
+                    "soundtrack": {"music_role": "bgm"},
+                    "subtitle_voiceover": {
+                        "language": "zh-TW",
+                        "subtitle_required": True,
+                        "voiceover_required": True,
+                    },
+                    "effect": {
+                        "activation": "route_to_effect_factory",
+                        "required_now": True,
+                    },
+                },
+                "segments": [],
+            },
+            "music_manifest": {"tracks": [{"id": "bgm"}]},
+            "audio_mix_report": {"audio_stream_present": True, "music_included": True, "narration_included": True},
+            "narration_manifest": {"segments": [{"audio_ref": "voice.wav"}]},
+            "subtitles": {"path": "subtitles.srt"},
+            "effect_render_verification": {"pass": True, "verified_effects": [{"rendered": True, "evidence_refs": ["keyframe_grid.jpg"]}]},
+        })
+
+        self.assertTrue(result["pass"], result)
+
+    def test_stage0_required_effect_accepts_remotion_effect_handoff_evidence(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "stage0_child_contracts": {
+                    "effect": {
+                        "artifact_role": "stage0_effect_policy",
+                        "activation": "route_to_effect_factory",
+                        "required_now": True,
+                    },
+                },
+                "segments": [],
+            },
+            "remotion_effect_handoff": {
+                "artifact_role": "remotion_effect_handoff",
+                "status": "ready_for_human_review",
+                "accepted_assets": [{
+                    "job_id": "rm_fx_material_memory_wall_01",
+                    "asset_path": "effects/memory_wall.mp4",
+                }],
+            },
+        })
+
+        self.assertTrue(result["pass"], result)
+
+    def test_stage0_subtitle_voiceover_accepts_build_handoff_evidence(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "stage0_child_contracts": {
+                    "subtitle_voiceover": {
+                        "artifact_role": "stage0_subtitle_voiceover_intent",
+                        "subtitle_required": True,
+                        "voiceover_required": True,
+                    },
+                },
+                "segments": [],
+            },
+            "subtitle_voiceover_build_handoff": {
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": True,
+                "voiceover_ready": True,
+                "subtitles": "subtitles.srt",
+                "narration_manifest": "narration_manifest.json",
+            },
+        })
+
+        self.assertTrue(result["pass"], result)
 
     def test_complete_video_gate_blocks_draft_render_without_delivery_artifacts(self):
         with TemporaryDirectory() as tmp:
@@ -234,6 +440,78 @@ class DeliveryGateTest(unittest.TestCase):
             })
 
         self.assertTrue(result["pass"])
+        self.assertEqual(result["blocking"], [])
+
+    def test_complete_video_gate_uses_subtitle_voiceover_build_handoff_refs(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "handoff").mkdir()
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                """{
+  "artifact_role": "delivery_requirements",
+  "version": 1,
+  "requires_audio": true,
+  "requires_narration": true,
+  "requires_music": true,
+  "requires_subtitles": true,
+  "language": "zh-TW"
+}""",
+                encoding="utf-8",
+            )
+            (root / "subtitle_voiceover_build_handoff.json").write_text(
+                """{
+  "artifact_role": "subtitle_voiceover_build_handoff",
+  "version": 1,
+  "subtitle_ready": true,
+  "voiceover_ready": true,
+  "subtitles": "handoff/subtitles.srt",
+  "narration_manifest": "handoff/narration_manifest.json"
+}""",
+                encoding="utf-8",
+            )
+            (root / "handoff" / "narration_manifest.json").write_text(
+                """{
+  "artifact_role": "narration_manifest",
+  "version": 1,
+  "segments": [{"id": "n1", "text": "完成交接。", "audio_ref": "handoff/narration.wav"}]
+}""",
+                encoding="utf-8",
+            )
+            self._write_silent_wav(root / "handoff" / "narration.wav")
+            (root / "music_manifest.json").write_text(
+                """{
+  "artifact_role": "music_manifest",
+  "version": 1,
+  "tracks": [{"id": "m1", "source": "licensed_bgm.wav"}]
+}""",
+                encoding="utf-8",
+            )
+            (root / "audio_mix_report.json").write_text(
+                """{
+  "artifact_role": "audio_mix_report",
+  "version": 1,
+  "audio_stream_present": true,
+  "narration_included": true,
+  "music_included": true
+}""",
+                encoding="utf-8",
+            )
+            (root / "handoff" / "subtitles.srt").write_text(
+                "1\n00:00:00,000 --> 00:00:03,000\n完成交接。\n",
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe={
+                "ok": True,
+                "streams": [
+                    {"codec_type": "video", "duration": "10.0"},
+                    {"codec_type": "audio", "duration": "10.0"},
+                ],
+                "format": {"duration": "10.0"},
+            })
+
+        self.assertTrue(result["pass"], result)
         self.assertEqual(result["blocking"], [])
 
     def test_complete_video_gate_blocks_unreadable_review_artifacts_and_language_mismatch(self):
@@ -734,6 +1012,65 @@ class DeliveryGateTest(unittest.TestCase):
             result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
 
         self.assertTrue(result["pass"])
+
+    def test_complete_video_gate_blocks_music_that_should_duck_but_did_not(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "audio_mix_report.json").write_text(
+                """{
+  "artifact_role": "audio_mix_report",
+  "version": 1,
+  "audio_stream_present": true,
+  "narration_included": true,
+  "music_included": true,
+  "placements": [
+    {
+      "section_id": "director_words",
+      "role": "music_bed",
+      "ducking_policy": "duck_under_voice",
+      "ducking_applied": false,
+      "applied_volume": 1.0
+    },
+    {
+      "section_id": "director_words",
+      "role": "voice",
+      "ducking_policy": "preserve_original_audio",
+      "ducking_applied": false,
+      "applied_volume": 1.0
+    }
+  ]
+}""",
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("required_audio_ducking_not_applied", rules)
+
+    def test_complete_video_gate_blocks_audio_mix_peak_too_hot(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "audio_mix_report.json").write_text(
+                """{
+  "artifact_role": "audio_mix_report",
+  "version": 1,
+  "audio_stream_present": true,
+  "narration_included": true,
+  "music_included": true,
+  "peak_dbfs": -0.1
+}""",
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("audio_mix_peak_too_hot", rules)
 
     def test_complete_video_gate_blocks_visual_audit_evidence_without_samples(self):
         with TemporaryDirectory() as tmp:

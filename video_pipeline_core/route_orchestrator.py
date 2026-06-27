@@ -3,12 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Iterable
 
 
 VALID_RESULT_STATUSES = {"done", "blocked", "needs_context", "failed"}
+ENTRY_PATHS = {"material-first", "structure-first", "needs-context"}
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 STAGES = [
@@ -173,6 +176,38 @@ def _snapshot_path(path: Path) -> dict[str, Any]:
     return item
 
 
+def _git_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    try:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        status = subprocess.check_output(
+            ["git", "status", "--porcelain=v1"],
+            cwd=repo_root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return {"available": True, "repo_root": str(repo_root), "head": head, "status": status}
+    except (OSError, subprocess.CalledProcessError):
+        return {"available": False, "repo_root": str(repo_root), "head": None, "status": None}
+
+
+def _compare_git_snapshot(expected: dict[str, Any]) -> str | None:
+    if not expected.get("available"):
+        return None
+    actual = _git_snapshot(Path(expected.get("repo_root") or REPO_ROOT))
+    if not actual.get("available"):
+        return "repository guard changed: git snapshot unavailable at accept time"
+    if actual.get("head") != expected.get("head"):
+        return "repository guard changed: git HEAD changed during bounded worker task"
+    if actual.get("status") != expected.get("status"):
+        return "repository guard changed: git working tree changed during bounded worker task"
+    return None
+
+
 def _resolve_many(run_dir: Path, rels: Iterable[str]) -> list[Path]:
     out = []
     for rel in rels:
@@ -231,10 +266,27 @@ def write_next_task(
         "read_only_inputs": [str(p) for p in sorted(run_dir.glob("*.json"))],
         "allowed_outputs": [str(p) for p in allowed_paths],
         "must_not_touch": [str(p) for p in protected_paths],
+        "mode": "worker",
+        "forbidden_writes": [
+            ".git",
+            "skills",
+            "docs",
+            "video_pipeline_core",
+            "tools",
+            "tests",
+            "dashboard",
+            "RUNBOOK.md",
+            "roadmap.md",
+        ],
+        "maintainer_mode_note": (
+            "If framework docs/skills/source/tests/tools must change, return blocked or "
+            "needs_context; do not edit them in worker mode."
+        ),
         "success_criteria": list(stage["success_criteria"]),
         "state_ref": str(state_path) if state_path else None,
         "snapshot": {
             "must_not_touch": {str(p): _snapshot_path(p) for p in protected_paths},
+            "repository_guard": _git_snapshot(),
         },
     }
     _write_json(out, packet)
@@ -247,6 +299,42 @@ def _compare_snapshot(path: Path, expected: dict[str, Any]) -> str | None:
         if actual.get(key) != expected.get(key):
             return f"must_not_touch changed: {path}"
     return None
+
+
+def _validate_video_intent(path: Path, *, done: bool) -> list[str]:
+    errors: list[str] = []
+    try:
+        payload = _read_json(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"video_intent.json is not readable JSON: {exc}"]
+    if payload.get("artifact_role") != "video_intent":
+        errors.append("video_intent.json artifact_role must be video_intent")
+    if payload.get("stage") != "Video Intent Planner":
+        errors.append("video_intent.json stage must be Video Intent Planner")
+    if payload.get("entry_path") not in ENTRY_PATHS:
+        errors.append("video_intent.json entry_path must be material-first, structure-first, or needs-context")
+    if payload.get("route") not in ENTRY_PATHS:
+        errors.append("video_intent.json route must be material-first, structure-first, or needs-context")
+    if not isinstance(payload.get("handoff_packet"), dict):
+        errors.append("video_intent.json handoff_packet must be present")
+    followups = payload.get("required_followup_questions") or []
+    if done and followups:
+        errors.append("video_intent.json required_followup_questions must be empty before Stage 0 status=done")
+    return errors
+
+
+def _validate_stage_zero_result(task: dict[str, Any], result: dict[str, Any], outputs: list[Any]) -> list[str]:
+    if int(task.get("stage_index", -1)) != 0:
+        return []
+    errors: list[str] = []
+    status = result.get("status")
+    output_paths = [Path(value) for value in outputs if isinstance(value, str)]
+    intent_outputs = [path for path in output_paths if path.name == "video_intent.json"]
+    if status == "done" and not intent_outputs:
+        errors.append("Stage 0 status=done requires fresh video_intent.json output")
+    for path in intent_outputs:
+        errors.extend(_validate_video_intent(path, done=status == "done"))
+    return errors
 
 
 def accept_task_result(
@@ -277,6 +365,9 @@ def accept_task_result(
         err = _compare_snapshot(Path(path_s), snap)
         if err:
             errors.append(err)
+    repo_err = _compare_git_snapshot((task.get("snapshot", {}) or {}).get("repository_guard") or {})
+    if repo_err:
+        errors.append(repo_err)
 
     allowed = {str(Path(p)) for p in task.get("allowed_outputs", [])}
     outputs = result.get("outputs", [])
@@ -294,6 +385,8 @@ def accept_task_result(
                 continue
             if p.stat().st_mtime < float(task.get("issued_at_epoch", 0)):
                 errors.append(f"stale output: {p}")
+
+    errors.extend(_validate_stage_zero_result(task, result, outputs))
 
     if errors:
         return {"ok": False, "errors": errors}

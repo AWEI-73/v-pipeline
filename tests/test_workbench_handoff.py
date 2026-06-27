@@ -52,6 +52,43 @@ class WorkbenchHandoffTest(unittest.TestCase):
             r"^[0-9a-f]{64}$",
         )
 
+    def test_handoff_routes_draft_patches_back_to_owning_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "timeline_patch.json", {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [
+                    {"op": "replace_clip", "slot_index": 0, "after": {"asset_id": "clip-b", "scene_index": 0}},
+                    {"op": "set_duration", "slot_index": 1, "after": {"duration_sec": 3.0}},
+                ],
+            })
+            _write(root / "subtitle_patch.json", {
+                "artifact_role": "subtitle_patch",
+                "version": 1,
+                "patches": [{"op": "replace_text", "cue_index": 0}],
+            })
+            _write(root / "audio_cue_patch.json", {
+                "artifact_role": "audio_cue_patch",
+                "version": 1,
+                "patches": [{"op": "add_cue", "at_sec": 10.0}],
+            })
+            _write(root / "effect_patch.json", {
+                "artifact_role": "effect_patch",
+                "version": 1,
+                "patches": [{"op": "add_effect", "segment": 2}],
+            })
+
+            handoff = build_handoff(str(root))
+
+        route_back = {item["owner"]: item for item in handoff["route_back"]}
+        self.assertEqual(route_back["material-map"]["reason"], "timeline replacement changes material truth")
+        self.assertEqual(route_back["build-planning"]["artifact"], "timeline_patch")
+        self.assertEqual(route_back["subtitle-director"]["artifact"], "subtitle_patch")
+        self.assertEqual(route_back["audio-director"]["artifact"], "audio_cue_patch")
+        self.assertEqual(route_back["effect-factory"]["artifact"], "effect_patch")
+        self.assertEqual(handoff["next_action"], "review_workbench_route_back")
+
     def test_handoff_ignores_canonical_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

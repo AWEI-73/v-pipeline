@@ -1,17 +1,188 @@
 ---
 name: video-pipeline-route
-description: Use when an agent must run or plan the full Hermes Video Pipeline route across story, material map, generated fallback, BUILD, verify, Workbench, Brownfield edit, and delivery
+description: Use when the user asks to make, edit, cut, review, plan, add effects to, or export a video in Hermes; includes fuzzy video requests, existing footage, story-only ideas, draft edits, rendering, and delivery
 ---
 
 # Video Pipeline Route Skill
 
 This is the operator entry skill for the full Hermes Video Pipeline.
 
-Read `docs/START_HERE_VIDEO_PIPELINE.md` first. Then use
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "video-pipeline-route",
+  "stage_owner": "route_stage0_orchestrator",
+  "triggers": [
+    "使用者要求剪片、製作影片、重跑 pipeline、判斷下一步",
+    "需要讀取 run folder 狀態、建立入口 brief、或分派支線"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/pipeline_home.py",
+      "when": "讀取 run folder 的目前 cursor、mode、next action，避免 agent 自己猜路線",
+      "inputs": ["run folder"],
+      "outputs": ["pipeline_home state JSON"],
+      "stop_if": ["mode=waiting", "next action asks for repair or review"]
+    },
+    {
+      "tool": "tools/video_intent_acceptance.py",
+      "when": "驗證 Stage 0 Video Intent Planner 與模糊需求分流",
+      "inputs": ["brief text or fixture"],
+      "outputs": ["video_intent_acceptance_report.json"],
+      "stop_if": ["required_followup_questions remains unresolved"]
+    },
+    {
+      "tool": "tools/operator_flow_acceptance.py",
+      "when": "驗證 bounded operator package 是否完整，不做正式 render",
+      "inputs": ["operator run folder"],
+      "outputs": ["operator_flow_acceptance_report.json"],
+      "stop_if": ["report ok=false", "protected artifacts changed unexpectedly"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/canonical_route_acceptance.py",
+      "when": "回歸 canonical route artifacts 與 route surface",
+      "inputs": ["route fixture or run folder"],
+      "outputs": ["canonical route acceptance report"],
+      "stop_if": ["route artifact is missing or stale"]
+    },
+    {
+      "tool": "tools/pipeline_map.py",
+      "when": "產生人類可讀的 pipeline/tool/artifact map",
+      "inputs": ["repo root"],
+      "outputs": ["pipeline map report"],
+      "stop_if": ["map generation fails"]
+    },
+    {
+      "tool": "tools/skill_tool_contract_audit.py",
+      "when": "檢查 skills/*.md 的 Tool Contract 與 tools/*.py 歸屬是否完整",
+      "inputs": ["skills directory", "tools directory"],
+      "outputs": ["skill_tool_contract_audit_report"],
+      "stop_if": ["unowned tool exists", "contract block is malformed"]
+    },
+    {
+      "tool": "tools/route_orchestrator_acceptance.py",
+      "when": "驗證 route task packet / runner protocol 不被 worker 越界",
+      "inputs": ["route task fixture"],
+      "outputs": ["route orchestrator acceptance report"],
+      "stop_if": ["task packet violates must_not_touch or freshness rules"]
+    },
+    {
+      "tool": "tools/srp_acceptance_replay.py",
+      "when": "重播 subagent runner protocol acceptance case",
+      "inputs": ["SRP fixture"],
+      "outputs": ["SRP replay report"],
+      "stop_if": ["replay diverges from expected route state"]
+    },
+    {
+      "tool": "tools/srp_real67_fuller_replay.py",
+      "when": "針對第67期案例重播較完整 route 行為",
+      "inputs": ["real67 fixture/run folder"],
+      "outputs": ["real67 replay report"],
+      "stop_if": ["route state blocks or fixture is stale"]
+    },
+    {
+      "tool": "tools/srp_real67_review_demo.py",
+      "when": "示範 real67 reviewer handoff，不作正式 build",
+      "inputs": ["real67 review fixture"],
+      "outputs": ["review demo report"],
+      "stop_if": ["review artifact missing"]
+    },
+    {
+      "tool": "tools/srp_real67_sanity.py",
+      "when": "快速檢查 real67 route artifacts 是否仍可讀",
+      "inputs": ["real67 run folder"],
+      "outputs": ["sanity report"],
+      "stop_if": ["required artifact missing"]
+    },
+    {
+      "tool": "tools/validate_pipeline_run_folder.py",
+      "when": "驗證 run folder 結構和必備 artifacts",
+      "inputs": ["run folder"],
+      "outputs": ["run folder validation report"],
+      "stop_if": ["layout invalid"]
+    }
+  ],
+  "forbidden_tools": [
+    "Do not call contract-run from a fuzzy request",
+    "Do not render final.mp4 before pipeline_home and gates are green",
+    "Do not use route_judgment as a replacement for video_intent.json"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
+Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
+applies to this route. Do not direct-cut from a fuzzy request.
+
+Read `RUNBOOK.md` first for the semantic operation table. Then read
+`docs/START_HERE_VIDEO_PIPELINE.md`. Use
 `docs/video-pipeline-operating-map.md` as the stage/tool/artifact checklist and
-`docs/canonical-video-pipeline-route.md` as the route definition. When the
-project needs story quality before material work, read
-`docs/upstream-story-route.md`.
+`docs/canonical-video-pipeline-route.md` as the route definition. Use
+`docs/stage-boundary-matrix.md` when dispatching workers or deciding what a
+stage may write. When the project needs story quality before material work, read
+`docs/upstream-story-route.md`. When the project needs designed effect assets,
+read `docs/effect-factory-route.md` and `skills/video-effect-factory.md`.
+
+## Semantic Trigger Router
+
+Use this table before searching for tools. If a run folder already exists, run
+`python tools/pipeline_home.py --run RUN_DIR --json` first and follow its
+cursor/next action.
+
+Precedence: resume existing runs before new intake; whole-video requests go
+through Stage 0 before side branches; side-branch words such as music,
+transition, warm, hot-blooded, subtitle, effect, or cinematic are child intents
+unless the request is clearly bounded to that branch. Bounded music/song/BGM
+intent may enter Soundtrack Arranger; volume repair belongs to Audio Director or
+Brownfield/Workbench. Whole-video subtitle intent stays a child intent after
+Stage 0; subtitle repair on an existing draft belongs to Subtitle Director or
+Brownfield/Workbench. Generated candidate fallback happens after story/needs
+and material delta, not directly from a fuzzy idea.
+
+Stage 0 package is `project_brief.json`, `interaction_log.md`, and
+`video_intent.json`. `video_intent.json` must include `target_length` when the
+user provides one; if target length or another route-changing fact is unknown,
+write it in `required_followup_questions` and stop before branch work.
+
+| User says | Entry | First safe action | Stop condition |
+|---|---|---|---|
+| "this run is stuck", "continue this run", "resume" | Resume existing run | read `pipeline_home.py --run RUN_DIR --json` | unknown run, repair cursor, unresolved gate/review |
+| "help me cut a video", "make a recap", "edit a graduation film" | Stage 0 Video Intent Planner | write/read the Stage 0 package: `project_brief.json`, `interaction_log.md`, `video_intent.json` | `required_followup_questions` is non-empty |
+| "I have footage", "use this folder", "existing materials" | Material-first | Material Map branch and material wall/review acceptance | material-first report is `repair:*` or missing needs |
+| "no footage", "I have a story/article/idea" | Structure-first | upstream story route, material needs, generated candidate fallback | generated assets are not reviewed |
+| "opening / transition / effect", "make it cinematic", "lightning/fire/hearts" | Effect Factory | `visual_technique_plan.json` and parameter review | unconfirmed candidate parameters |
+| "edit this draft", "change this rough cut", "swap a clip" | Workbench / Brownfield | validate draft patch, keep it non-canonical | patch would overwrite canonical truth |
+| "export final video", "render final.mp4" | Delivery gate | inspect `pipeline_home.py`, then only render if gates are green | any repair cursor, missing verification, or stale material |
+
+Do not turn a semantic trigger into a direct command. Translate the request into
+the entry, artifacts, allowed tools, and stop condition first. `RUNBOOK.md` is
+the operator manual, `pipeline_home.py` is the state reader, and
+`docs/stage-boundary-matrix.md` is the write-boundary table.
+
+A route note is not a route artifact. `route_judgment is not a Stage 0 artifact`;
+`route_judgment.md/json` may be useful commentary, but it does not
+advance the pipeline. For any "help me cut" or "I have footage" request, write
+or refresh the Stage 0 package: `project_brief.json`, `interaction_log.md`, and
+`video_intent.json`, or return
+`needs-context` with follow-up questions. After Stage 0, `pipeline_home.py must not remain unknown`;
+if it does, the worker has not produced a recognized
+handoff artifact yet.
+
+When the user has footage but asks for a story-shaped video, `material-first owns the route before story structure`.
+Do not switch to upstream story just because the intended edit has a story arc.
+Run material map first; `story structure must be derived from material-map facts`
+such as actual scenes, speeches, actions,
+usable ranges, repeated material, and gaps. The story skeleton may be drafted
+after those facts are visible.
+
+For material-map-only requests, `Material Delta is the next gate, not a forbidden action`.
+It is forbidden to jump to BUILD/render from material inventory, but it
+is valid to produce `material_delta.json` after material maps/review edges exist
+so the route can decide build, generated fallback, reshoot, rewrite, drop, or
+waiver.
 
 ## Core Rule
 
@@ -29,7 +200,9 @@ draft review / brownfield edit
 
 Then produce or verify the artifacts for the current stage.
 
-Stage 0 owns the canonical `video_intent.json` artifact. Produce it with:
+Stage 0 owns the canonical `video_intent.json` artifact and keeps the full
+Stage 0 package visible: `project_brief.json`, `interaction_log.md`, and
+`video_intent.json`. Produce the intent artifact with:
 
 ```powershell
 python video_tools.py video-intent-plan project_brief.json --out video_intent.json
@@ -37,6 +210,8 @@ python video_tools.py video-intent-plan project_brief.json --out video_intent.js
 
 It must include `input_state`, `entry_path`, `video_type`, `audience`, `goal`,
 `material_availability`, `text_availability`, `route`,
+`material_contract`, `soundtrack_contract`, `effect_policy`,
+`subtitle_voiceover_contract`,
 `required_followup_questions`, `assumptions`, and `handoff_to`.
 If route-changing information is missing, ask the follow-up questions instead
 of guessing or entering Story Soul/BUILD.
@@ -51,6 +226,16 @@ Stage 0 artifact ownership:
   `unknown`.
 - `entry_path` records `material-first`, `structure-first`, or `needs-context`;
   hybrid is not a primary Stage 0 entry path.
+- `material_contract` records the first material owner and gap policy.
+- `soundtrack_contract` records whether the route wants `song`, `bgm`, `mixed`,
+  `none`, or `unsure`; bounded music work may then enter Soundtrack Arranger.
+- `effect_policy` records effect intent without launching Remotion. Only a
+  bounded effect request routes directly to Effect Factory; whole-video style
+  effects wait for Brownfield/segment review.
+- `subtitle_voiceover_contract` is the reserved child contract for whole-video
+  subtitle language, narration, and voiceover intent. It usually threads into
+  Director Shot Plan, Subtitle Director, Audio Director, Verify, and Delivery
+  instead of becoming a separate first route.
 
 The first upstream role is a Video Intent Planner. It may behave like a
 teacher, personal video editor, event director, brand editor, or storybook
@@ -71,6 +256,8 @@ Route owns:
 - Expected artifacts for each stage and freshness checks.
 - Return routes when material, generated outputs, Workbench drafts, or reviews
   change the truth.
+- Calling side branches when needed: Material Map for material truth and Effect
+  Factory for designed effect assets.
 
 Route does not own:
 
@@ -80,6 +267,9 @@ Route does not own:
 - Turning Workbench draft patches into canonical truth.
 - Manual timeline editing inside Dashboard or Material Map.
 - Final visual/story quality judgment by artifact existence alone.
+- Remotion implementation details. The route may call Effect Factory, which may
+  call `remotion-effect-worker.md`, but official delivery still returns through
+  BUILD/Verify.
 
 Route must stop instead of continuing when:
 
@@ -273,6 +463,26 @@ Workbench draft patch
 
 If the edit changes material truth, return to Material Truth and rerun delta.
 
+### Effect Factory side branch
+
+Use when a segment or review needs designed effects:
+
+```text
+effect need / segment context
+-> video-effect-factory
+-> effect_design_map.json
+-> effect_contract.json
+-> backend handoff, often remotion-effect-worker
+-> effect_review.json
+-> effect_handoff.json
+-> Workbench / BUILD / Verify return point
+```
+
+Effect Factory is not the renderer and does not own `final.mp4`. It may call
+`remotion-effect-worker.md` for bounded Remotion assets, or choose a lighter
+ffmpeg effect when enough. If the effect changes story or material truth, return
+to Story/Material stages instead of treating the effect as proof.
+
 ## Resume Existing Run
 
 When the user points to an existing run folder, recover state before planning
@@ -308,6 +518,8 @@ Use deterministic tools for facts:
 - `verify`: delivery quality.
 - `workbench-handoff-validate`: draft handoff safety.
 - `effect-revision-*` / `remotion-*`: Brownfield effect route.
+- `video-effect-factory.md`: side-branch design/contract/review layer for
+  effects; calls `remotion-effect-worker.md` when Remotion is the backend.
 - `route-task-next` / `route-task-accept` / `route-orchestrator-acceptance`:
   runner-neutral multi-agent packet issuance and fail-closed acceptance.
 - `tools/material_first_boundary_acceptance.py`: local material-first boundary

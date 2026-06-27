@@ -117,6 +117,8 @@ class EffectContractTest(unittest.TestCase):
 
     def test_command_catalog_exposes_effect_workflow(self):
         commands = [
+            "visual-technique-plan",
+            "visual-technique-review-apply",
             "effect-intent-plan",
             "light-effects-plan",
             "effect-revision-request",
@@ -125,6 +127,8 @@ class EffectContractTest(unittest.TestCase):
         ]
         manifest = build_command_manifest(commands)
         workflow = build_workflow_manifest(commands)
+        self.assertEqual(manifest["commands"]["visual-technique-plan"]["group"], "contract")
+        self.assertEqual(manifest["commands"]["visual-technique-review-apply"]["group"], "contract")
         self.assertEqual(manifest["commands"]["effect-intent-plan"]["group"], "contract")
         self.assertIn("effects_contract", workflow["workflows"])
         missing_for_effects = [

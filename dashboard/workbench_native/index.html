@@ -138,11 +138,11 @@
 
   <div class="track-tools">
     <button id="btn-add-cue" type="button" title="在播放頭位置新增音效提示">+ 音效提示 @ 播放頭</button>
-    <select id="effect-asset-select" title="可選擇素材地圖中的效果素材">
+    <select id="effect-asset-select" title="可選擇素材地圖中的特效素材">
       <option value="">僅使用預設</option>
     </select>
-    <button id="btn-add-fx" type="button" title="在選取片段上新增效果意圖標記">+ 效果到選取片段</button>
-    <span class="track-hint">BGM 會跟著播放頭預覽；音效提示與效果只是意圖標記；正式渲染仍交給管線。</span>
+    <button id="btn-add-fx" type="button" title="在選取片段上新增特效意圖標記">+ 特效到選取片段</button>
+    <span class="track-hint">BGM 會跟著播放頭預覽；音效提示與特效只是意圖標記；正式渲染仍交給管線。</span>
   </div>
 
   <section class="wb-timeline">
@@ -162,7 +162,7 @@
           <div class="track-lane" id="lane-audio"></div>
         </div>
         <div class="track">
-          <span class="track-label">效果</span>
+          <span class="track-label">特效</span>
           <div class="track-lane" id="lane-effect"></div>
         </div>
         <div class="playhead" id="playhead"></div>
@@ -177,7 +177,7 @@
       <button id="btn-download-patch" type="button">下載 patch</button>
       <button id="btn-save-patch" type="button">儲存 patch 到伺服器</button>
       <button id="btn-sync-contract" type="button" title="把剪輯修改轉成管線契約草稿，不會覆寫正式產物；超出場景範圍會 fail-closed。">同步到契約</button>
-      <button id="btn-save-all" type="button" title="一起儲存時間軸、字幕、音訊提示、效果意圖 patch，並建立給 Agent 的 workbench_handoff.json。">儲存全部並建立交接包</button>
+      <button id="btn-save-all" type="button" title="一起儲存時間軸、字幕、音訊提示、特效意圖 patch，並建立給 Agent 的 workbench_handoff.json。">儲存全部並建立交接包</button>
       <button id="btn-export" type="button" title="選用：透過 canonical ffmpeg 渲染，速度較慢。只寫入 workbench_export.mp4，不會寫 final.mp4。">匯出 ffmpeg</button>
     </div>
   </footer>

@@ -19,6 +19,8 @@ any fixes through draft or brownfield paths without overwriting canonical truth.
 ```text
 0. Video Intent Planner
    -> decide video type, audience, input_state, entry_path, and follow-up gaps
+   -> write child contracts for material, soundtrack, effects, and
+      subtitle/voiceover intent
 
 1. Story / Structure Planner
    -> create the right upstream plan:
@@ -27,6 +29,7 @@ any fixes through draft or brownfield paths without overwriting canonical truth.
 2. Director Shot Plan
    -> convert intent into beats, shot purposes, subtitles, audio, effects,
       material_needs, and segment contract
+   -> expand child contracts into segment-level needs without bypassing review
 
 3. Material Truth
    -> inspect existing media OR generate/import missing candidate media
@@ -39,12 +42,14 @@ any fixes through draft or brownfield paths without overwriting canonical truth.
 5. BUILD Planning
    -> rank windows, avoid bad ranges, apply visual diversity, story arc,
       opening, sequence recipes, subtitles, audio cues, and effect intent
+   -> consume accepted material, audio, subtitle, and effect handoffs only
 
 6. Official Render
    -> render through backend ffmpeg / contract-run into canonical final.mp4
 
 7. Verify / Reviewer Layer
-   -> verify technical facts and run route-appropriate creative review
+   -> verify technical facts, material truth, subtitles, audio, effects, and
+      route-appropriate creative review
 
 8. Workbench Draft Review
    -> inspect and patch draft timeline/material/effect markers without
@@ -79,6 +84,16 @@ Legacy compatibility:
   rewrite, drop, or waive.
 - `Intake` is the old Stage 0 label; use `Video Intent Planner` in new docs and prompts.
 
+Stage 0 also writes child contracts. They keep feature requests visible without
+turning each feature into a separate main route:
+
+| Child contract | Meaning | First owning branch |
+|---|---|---|
+| `material_contract` | What material exists, what to inspect first, and how gaps may be handled. | Material Map |
+| `soundtrack_contract` | Song/BGM/mixed/none intent, vocal policy, source fallback, ducking, and speech preservation. | Soundtrack Arranger / Audio Director |
+| `effect_policy` | Whether effect intent is bounded enough for Effect Factory or should wait for segment review. | Effect Factory |
+| `subtitle_voiceover_contract` | Whole-video language, subtitle, narration, or voiceover intent. Reserved contract surface; current execution is through Subtitle Director / Audio Director / BUILD. | Subtitle / Voiceover |
+
 ## Normal Route
 
 ```text
@@ -100,6 +115,7 @@ needed.
 
 ```text
 Video Intent Planner
+  -> material_contract
   -> Material Map quick inventory
   -> story/design skeleton constrained by available media
   -> Director Shot Plan
@@ -152,6 +168,10 @@ route. Neither becomes canonical truth by itself.
 - Do not let Workbench overwrite canonical `timeline_build.json`,
   `project_material_map.json`, or `final.mp4`.
 - Do not treat Remotion preview/draft effects as delivery without review.
+- Do not treat Soundtrack Arranger output as mixed delivery audio without Audio
+  Director handoff and evidence.
+- Do not treat subtitle/voiceover intent as fulfilled without readable subtitle
+  or narration artifacts.
 - Do not claim success when promised duration or material quantity cannot be
   supported by accepted material.
 
@@ -162,4 +182,6 @@ route. Neither becomes canonical truth by itself.
 - Upstream creative/story route: `docs/upstream-story-route.md`
 - Material lifecycle: `docs/material-map-lifecycle.md`
 - Reviewer roles: `docs/artifact-reviewer-map.md`
+- Alignment construction guide:
+  `docs/construction-guides/stage0-10-route-alignment-plan.md`
 - Current roadmap: `roadmap.md`

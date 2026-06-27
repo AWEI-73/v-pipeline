@@ -1,0 +1,81 @@
+{
+  "artifact_role": "effect_capability_vocab",
+  "version": 1,
+  "note": "意圖面受控詞彙(agent 可讀)。roles = effect_contract.ALLOWED_EFFECT_ROLES 的鏡像;visual_language_tokens 是封閉詞彙。每個 token 必須在 effect_backend_conformance.json 至少有一個 backend 非 none(對稱不變式,見 W2 test_every_vocab_token_has_at_least_one_backend)。",
+  "roles": [
+    "title_card",
+    "chapter_transition",
+    "lower_third",
+    "color_grade",
+    "overlay",
+    "particle",
+    "light_leak",
+    "transition_plate",
+    "motion_background",
+    "panel_frame",
+    "speed_line"
+  ],
+  "intensities": ["none", "low", "medium", "high"],
+  "visual_language_tokens": {
+    "paper_texture": {
+      "communicates": "report / memory / documentary tactility",
+      "pairs_with_roles": ["chapter_transition", "panel_frame", "motion_background"]
+    },
+    "timestamp_overlay": {
+      "communicates": "info label / when-and-where / documentary stamp",
+      "pairs_with_roles": ["lower_third", "overlay"]
+    },
+    "light_leak": {
+      "communicates": "warmth / nostalgia / analog memory",
+      "pairs_with_roles": ["overlay", "light_leak", "transition_plate"]
+    },
+    "speed_line": {
+      "communicates": "energy / motion / momentum",
+      "pairs_with_roles": ["speed_line", "overlay"]
+    },
+    "film_grain": {
+      "communicates": "analog texture / cinematic film stock",
+      "pairs_with_roles": ["overlay", "color_grade"]
+    },
+    "bokeh": {
+      "communicates": "softness / dreamy depth / focus pull",
+      "pairs_with_roles": ["overlay", "motion_background"]
+    },
+    "glow_bloom": {
+      "communicates": "highlight emphasis / radiance",
+      "pairs_with_roles": ["overlay", "particle"]
+    },
+    "dust_particles": {
+      "communicates": "atmosphere / floating air / passage of time",
+      "pairs_with_roles": ["particle", "overlay"]
+    },
+    "ink_wash": {
+      "communicates": "editorial / oriental brush / chapter break",
+      "pairs_with_roles": ["chapter_transition", "transition_plate", "motion_background"]
+    },
+    "grid_lines": {
+      "communicates": "structure / technical / blueprint",
+      "pairs_with_roles": ["panel_frame", "overlay"]
+    },
+    "vignette": {
+      "communicates": "focus / mood darkening / intimacy",
+      "pairs_with_roles": ["color_grade", "overlay"]
+    },
+    "gradient_wipe": {
+      "communicates": "clean directional transition",
+      "pairs_with_roles": ["transition_plate", "chapter_transition"]
+    },
+    "handwritten_label": {
+      "communicates": "personal / warm / human annotation",
+      "pairs_with_roles": ["lower_third", "title_card"]
+    },
+    "spotlight": {
+      "communicates": "attention / single-subject emphasis",
+      "pairs_with_roles": ["overlay", "particle"]
+    },
+    "chromatic_aberration": {
+      "communicates": "glitch / energy / digital edge",
+      "pairs_with_roles": ["overlay", "color_grade"]
+    }
+  }
+}

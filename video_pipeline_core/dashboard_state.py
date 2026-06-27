@@ -82,7 +82,7 @@ def load_dashboard_state(workdir):
             else:
                 return None
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             return None
@@ -101,7 +101,7 @@ def load_dashboard_state(workdir):
         if not p or not os.path.exists(p):
             return False
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8-sig") as f:
                 json.load(f)
             return False
         except Exception:
@@ -116,6 +116,8 @@ def load_dashboard_state(workdir):
             for f in os.listdir(workdir):
                 if f == "brief.json":
                     manifest["brief"] = f
+                elif f == "video_intent.json":
+                    manifest["video_intent"] = f
                 elif f == "segment_contract.json":
                     manifest["canonical_contract"] = f
                 elif f == "material_coverage_map.json":
@@ -160,6 +162,8 @@ def load_dashboard_state(workdir):
                     manifest["presentation_feel_audit"] = f
                 elif f == "material_delta.json":
                     manifest["material_delta"] = f
+                elif f == "project_material_map.json":
+                    manifest["project_material_map"] = f
                 elif f == "material_map_lifecycle.json":
                     manifest["material_map_lifecycle"] = f
                 elif f == "material_wall_handoff_report.json":
@@ -170,12 +174,42 @@ def load_dashboard_state(workdir):
                     manifest["remotion_material_first_memory_acceptance_report"] = f
                 elif f == "remotion_effect_handoff.json":
                     manifest["remotion_effect_handoff"] = f
+                elif f == "soundtrack_plan.json":
+                    manifest["soundtrack_plan"] = f
+                elif f == "music_source_candidates.json":
+                    manifest["music_source_candidates"] = f
+                elif f == "sound_license_manifest.json":
+                    manifest["sound_license_manifest"] = f
+                elif f == "audio_director_handoff.json":
+                    manifest["audio_director_handoff"] = f
+                elif f == "audio_handoff_acceptance.json":
+                    manifest["audio_handoff_acceptance"] = f
+                elif f == "audio_mix_plan.json":
+                    manifest["audio_mix_plan"] = f
+                elif f == "audio_build_handoff.json":
+                    manifest["audio_build_handoff"] = f
+                elif f == "subtitle_voiceover_handoff_acceptance.json":
+                    manifest["subtitle_voiceover_handoff_acceptance"] = f
+                elif f == "subtitle_voiceover_build_handoff.json":
+                    manifest["subtitle_voiceover_build_handoff"] = f
+                elif f == "workbench_handoff.json":
+                    manifest["workbench_handoff"] = f
+                elif f == "delivery_gate.json":
+                    manifest["delivery_gate_report"] = f
 
     # Load artifacts safely
     brief_data = safe_load_json(manifest.get("brief")) or safe_load_json("brief.json")
+    video_intent = (
+        safe_load_json(manifest.get("video_intent"))
+        or safe_load_json("video_intent.json")
+    )
     contract_data = safe_load_json(manifest.get("canonical_contract")) or safe_load_json("segment_contract.json")
     material_coverage = safe_load_json(manifest.get("material_coverage_map")) or safe_load_json("material_coverage_map.json")
     material_delta = safe_load_json(manifest.get("material_delta")) or safe_load_json("material_delta.json")
+    project_material_map = (
+        safe_load_json(manifest.get("project_material_map"))
+        or safe_load_json("project_material_map.json")
+    )
     material_map_lifecycle = (
         safe_load_json(manifest.get("material_map_lifecycle"))
         or safe_load_json("material_map_lifecycle.json")
@@ -196,6 +230,56 @@ def load_dashboard_state(workdir):
         safe_load_json(manifest.get("remotion_effect_handoff"))
         or safe_load_json("remotion_effect_handoff.json")
     )
+    soundtrack_plan = (
+        safe_load_json(manifest.get("soundtrack_plan"))
+        or safe_load_json("soundtrack_plan.json")
+    )
+    music_source_candidates = (
+        safe_load_json(manifest.get("music_source_candidates"))
+        or safe_load_json("music_source_candidates.json")
+    )
+    sound_license_manifest = (
+        safe_load_json(manifest.get("sound_license_manifest"))
+        or safe_load_json("sound_license_manifest.json")
+    )
+    audio_director_handoff = (
+        safe_load_json(manifest.get("audio_director_handoff"))
+        or safe_load_json("audio_director_handoff.json")
+    )
+    audio_handoff_acceptance = (
+        safe_load_json(manifest.get("audio_handoff_acceptance"))
+        or safe_load_json("audio_handoff_acceptance.json")
+    )
+    audio_mix_plan = (
+        safe_load_json(manifest.get("audio_mix_plan"))
+        or safe_load_json("audio_mix_plan.json")
+    )
+    audio_build_handoff = (
+        safe_load_json(manifest.get("audio_build_handoff"))
+        or safe_load_json("audio_build_handoff.json")
+    )
+    subtitle_voiceover_handoff_acceptance = (
+        safe_load_json(manifest.get("subtitle_voiceover_handoff_acceptance"))
+        or safe_load_json("subtitle_voiceover_handoff_acceptance.json")
+    )
+    subtitle_voiceover_build_handoff = (
+        safe_load_json(manifest.get("subtitle_voiceover_build_handoff"))
+        or safe_load_json("subtitle_voiceover_build_handoff.json")
+    )
+    workbench_handoff = (
+        safe_load_json(manifest.get("workbench_handoff"))
+        or safe_load_json("workbench_handoff.json")
+    )
+    delivery_gate_report = (
+        safe_load_json(manifest.get("delivery_gate_report"))
+        or safe_load_json("delivery_gate.json")
+    )
+    stage0_contracts = {
+        "material": (video_intent or {}).get("material_contract") or {},
+        "soundtrack": (video_intent or {}).get("soundtrack_contract") or {},
+        "effect": (video_intent or {}).get("effect_policy") or {},
+        "subtitle_voiceover": (video_intent or {}).get("subtitle_voiceover_contract") or {},
+    }
     music_struct_data = safe_load_json(manifest.get("music_structure")) or safe_load_json("music_structure.json")
     profile_data = safe_load_json(manifest.get("build_profile")) or safe_load_json("build_profile.json")
     gen_requests = safe_load_json(manifest.get("generated_asset_requests")) or safe_load_json("generated_asset_requests.json")
@@ -541,6 +625,11 @@ def load_dashboard_state(workdir):
     elif verify_result and verify_result.get("pass") is False:
         next_action = "verify_failed"
     elif (state_data and state_data.get("next_action") and not stale_spec_review_state
+          and not (
+              state_data.get("next_action") == "mix_audio_from_audio_mix_plan"
+              and audio_build_handoff
+              and audio_build_handoff.get("audio_ready") is True
+          )
           and not (final_exists and verify_result and verify_result.get("pass") is True)):
         next_action = state_data.get("next_action")
     elif editor_review and editor_review.get("decision") in ("rerender", "block", "human_review"):
@@ -566,6 +655,31 @@ def load_dashboard_state(workdir):
         next_action = material_first_boundary_acceptance_report.get("next_action") or "repair:material_first_boundary_acceptance"
         is_pass = False
     elif (
+        material_first_boundary_acceptance_report
+        and material_first_boundary_acceptance_report.get("ok") is True
+        and not soundtrack_plan
+        and (
+            (material_first_boundary_acceptance_report.get("stage0_contracts") or {}).get("soundtrack")
+            or stage0_contracts.get("soundtrack")
+        ).get("handoff_to") == "soundtrack-arranger"
+        and str((
+            (material_first_boundary_acceptance_report.get("stage0_contracts") or {}).get("soundtrack")
+            or stage0_contracts.get("soundtrack")
+        ).get("music_role") or "").strip().lower() not in {"", "none", "unsure"}
+    ):
+        soundtrack_contract = (
+            (material_first_boundary_acceptance_report.get("stage0_contracts") or {}).get("soundtrack")
+            or stage0_contracts.get("soundtrack")
+        )
+        next_action = "soundtrack-arrange"
+        is_pass = False
+        findings.append({
+            "type": "warning",
+            "node": 5,
+            "artifact": "stage0_soundtrack_intent",
+            "message": f"Stage 0 requested soundtrack role {soundtrack_contract.get('music_role')}; run Soundtrack Arranger before delivery",
+        })
+    elif (
         remotion_material_first_memory_acceptance_report
         and remotion_material_first_memory_acceptance_report.get("ok") is False
     ):
@@ -582,6 +696,46 @@ def load_dashboard_state(workdir):
             remotion_material_first_memory_acceptance_report.get("next_action")
             or "ready_for_human_effect_review_or_pipeline_promotion"
         )
+        is_pass = False
+    elif (
+        audio_director_handoff
+        and audio_director_handoff.get("ready_for_audio_director") is False
+    ):
+        next_action = "resolve_soundtrack_license_or_reference_only"
+        is_pass = False
+    elif (
+        sound_license_manifest
+        and sound_license_manifest.get("delivery_allowed") is False
+    ):
+        next_action = "resolve_soundtrack_license_or_reference_only"
+        is_pass = False
+    elif (
+        audio_handoff_acceptance
+        and audio_handoff_acceptance.get("ok") is False
+    ):
+        next_action = audio_handoff_acceptance.get("next_action") or "repair_audio_handoff"
+        is_pass = False
+    elif (
+        audio_handoff_acceptance
+        and audio_handoff_acceptance.get("ok") is True
+        and audio_mix_plan
+        and audio_mix_plan.get("ready_for_mix") is True
+        and not (audio_build_handoff and audio_build_handoff.get("audio_ready") is True)
+    ):
+        next_action = "mix_audio_from_audio_mix_plan"
+        is_pass = False
+    elif (
+        subtitle_voiceover_handoff_acceptance
+        and subtitle_voiceover_handoff_acceptance.get("ok") is False
+    ):
+        next_action = subtitle_voiceover_handoff_acceptance.get("next_action") or "repair_subtitle_voiceover_handoff"
+        is_pass = False
+    elif (
+        workbench_handoff
+        and workbench_handoff.get("artifact_role") == "workbench_handoff"
+        and workbench_handoff.get("route_back")
+    ):
+        next_action = workbench_handoff.get("next_action") or "review_workbench_route_back"
         is_pass = False
     else:
         # Check required missing nodes
@@ -614,12 +768,14 @@ def load_dashboard_state(workdir):
         **audit_data,
         "verify_result": verify_result,
         "timeline_build": timeline_build,
+        "segment_contract": contract_data,
+        "project_material_map": project_material_map,
         "rough_cut_plan": rough_cut_plan,
         "material_coverage": material_coverage,
         "material_delta": material_delta,
         "material_map_lifecycle": material_map_lifecycle,
     })
-    if not delivery_gate["pass"]:
+    if next_action not in {"soundtrack-arrange"} and not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
         is_pass = False
         for item in delivery_gate["blocking"]:
@@ -695,6 +851,72 @@ def load_dashboard_state(workdir):
             "node": 14,
             "artifact": "remotion_material_first_memory_acceptance_report",
             "message": message,
+        })
+
+    if (
+        audio_director_handoff
+        and audio_director_handoff.get("ready_for_audio_director") is False
+    ):
+        blocks = audio_director_handoff.get("blocks") or []
+        if sound_license_manifest and sound_license_manifest.get("blocked_reasons"):
+            blocks = list(blocks) + list(sound_license_manifest.get("blocked_reasons") or [])
+        message = "soundtrack blocks: " + ", ".join(sorted(set(str(item) for item in blocks if item)))
+        findings.append({
+            "type": "error",
+            "node": 5,
+            "artifact": "audio_director_handoff",
+            "message": message,
+        })
+
+    if (
+        audio_handoff_acceptance
+        and audio_handoff_acceptance.get("ok") is False
+    ):
+        blocking = audio_handoff_acceptance.get("blocking") or []
+        message = "; ".join(
+            str(item.get("rule") or item.get("message") or item)
+            for item in blocking
+            if item
+        ) or "audio handoff acceptance failed"
+        findings.append({
+            "type": "error",
+            "node": 5,
+            "artifact": "audio_handoff_acceptance",
+            "message": message,
+        })
+
+    if (
+        subtitle_voiceover_handoff_acceptance
+        and subtitle_voiceover_handoff_acceptance.get("ok") is False
+    ):
+        blocking = subtitle_voiceover_handoff_acceptance.get("blocking") or []
+        message = "; ".join(
+            str(item.get("rule") or item.get("message") or item)
+            for item in blocking
+            if item
+        ) or "subtitle/voiceover handoff acceptance failed"
+        findings.append({
+            "type": "error",
+            "node": 5,
+            "artifact": "subtitle_voiceover_handoff_acceptance",
+            "message": message,
+        })
+
+    if (
+        workbench_handoff
+        and workbench_handoff.get("artifact_role") == "workbench_handoff"
+        and workbench_handoff.get("route_back")
+    ):
+        owners = [
+            str(item.get("owner"))
+            for item in (workbench_handoff.get("route_back") or [])
+            if isinstance(item, dict) and item.get("owner")
+        ]
+        findings.append({
+            "type": "warning",
+            "node": "brownfield",
+            "artifact": "workbench_handoff",
+            "message": "workbench draft edits require route-back review: " + ", ".join(owners),
         })
 
     # Populate segments timeline (three-layer)
@@ -847,6 +1069,7 @@ def load_dashboard_state(workdir):
             "next_action": next_action,
             "pass": is_pass,
         },
+        "stage0_contracts": stage0_contracts,
     }
     normalized_state = {
         "run": {
@@ -863,6 +1086,8 @@ def load_dashboard_state(workdir):
         "materials": scan_materials_via_regex(workdir),
         "artifacts": {
             "manifest": manifest,
+            "video_intent": video_intent,
+            "stage0_contracts": stage0_contracts,
             "build_profile": profile_data,
             "generated_requests": gen_requests,
             "generated_manifest": generated_manifest,
@@ -871,6 +1096,16 @@ def load_dashboard_state(workdir):
             "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
             "remotion_material_first_memory_acceptance_report": remotion_material_first_memory_acceptance_report,
             "remotion_effect_handoff": remotion_effect_handoff,
+            "soundtrack_plan": soundtrack_plan,
+            "music_source_candidates": music_source_candidates,
+            "sound_license_manifest": sound_license_manifest,
+            "audio_director_handoff": audio_director_handoff,
+            "audio_handoff_acceptance": audio_handoff_acceptance,
+            "audio_mix_plan": audio_mix_plan,
+            "audio_build_handoff": audio_build_handoff,
+            "subtitle_voiceover_handoff_acceptance": subtitle_voiceover_handoff_acceptance,
+            "subtitle_voiceover_build_handoff": subtitle_voiceover_build_handoff,
+            "workbench_handoff": workbench_handoff,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
@@ -887,6 +1122,7 @@ def load_dashboard_state(workdir):
             "visual_audit": visual_audit,
             "presentation_feel_audit": presentation_feel_audit,
             "editorial_qa": editorial_qa,
+            "delivery_gate_report": delivery_gate_report,
             "delivery_gate": delivery_gate,
             "keyframe_grid": keyframe_grid_rel if keyframe_grid_present else None,
         },

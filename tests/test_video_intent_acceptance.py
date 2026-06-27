@@ -14,7 +14,7 @@ class VideoIntentAcceptanceTest(unittest.TestCase):
 
         self.assertEqual(report["artifact_role"], "video_intent_acceptance")
         self.assertTrue(report["ok"], report.get("errors"))
-        self.assertEqual(report["case_count"], 4)
+        self.assertEqual(report["case_count"], 5)
         by_id = {case["id"]: case for case in report["cases"]}
         self.assertEqual(by_id["teaching_existing"]["actual"]["entry_path"], "material-first")
         self.assertEqual(by_id["teaching_existing"]["actual"]["legacy_route"], "existing-material-first")
@@ -25,6 +25,15 @@ class VideoIntentAcceptanceTest(unittest.TestCase):
         self.assertEqual(by_id["graduation_partial"]["actual"]["legacy_route"], "hybrid")
         self.assertEqual(by_id["vague_request"]["actual"]["entry_path"], "needs-context")
         self.assertGreaterEqual(len(by_id["vague_request"]["actual"]["required_followup_questions"]), 4)
+        self.assertEqual(by_id["vague_graduation_direct_cut_request"]["actual"]["video_type"], "graduation-event")
+        self.assertEqual(by_id["vague_graduation_direct_cut_request"]["actual"]["entry_path"], "needs-context")
+        self.assertEqual(by_id["vague_graduation_direct_cut_request"]["actual"]["handoff_to"], "ask_followup")
+        self.assertGreaterEqual(
+            len(by_id["vague_graduation_direct_cut_request"]["actual"]["required_followup_questions"]),
+            4,
+        )
+        self.assertIn("stage_0_entry_lock", report["boundaries"])
+        self.assertIn("no_direct_cut_from_fuzzy_request", report["boundaries"])
 
     def test_cli_writes_acceptance_report(self):
         with tempfile.TemporaryDirectory() as td:

@@ -133,6 +133,9 @@ Current state:
 - `/workbench` is a SPA Dashboard route.
 - The active editor is still loaded inside `WorkbenchView` through an iframe to
   `/workbench/index.html`.
+- `WorkbenchView` is a thin host. It may show run context, health status, and
+  draft summaries, but it must not re-layout or reimplement the native editor's
+  monitor/timeline interaction.
 - `/workbench/index.html` and related files are served from
   `dashboard/workbench_native/`.
 - `/api/workbench/*` is already hosted by the merged Dashboard server.
@@ -142,6 +145,50 @@ Current state:
 Do not migrate by copying mock behavior from material_map_canvas.html. That file
 is a visual reference only; it contains prototype routing, mock state, and
 iframe control code that must not become the formal runtime contract.
+
+### Native Editor Protected Zone
+
+Until the Workbench editor is deliberately migrated layer-by-layer with
+equivalent smoke coverage, treat these native regions as protected:
+
+- The video monitor / playback preview area.
+- The four lower timeline tracks: video, subtitle, audio, and effect.
+- Clip selection, playhead mapping, trim handles, source-window math, media
+  proxy playback, material replacement, subtitle patching, audio cue patching,
+  effect marker preview, and save/handoff payload generation.
+
+Do not change these regions as part of Dashboard shell, Material Map, route
+review, artifact review, or general UX cleanup. Only touch them when the
+contract or API shape for ffmpeg/backend editing changes, or when a dedicated
+Workbench migration step names the affected layer and carries equivalent tests.
+
+The baseline browser guard for this protected zone is:
+
+```powershell
+node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>
+```
+
+It starts a temporary Workbench server and checks the native editor directly at
+1366x900 and 1920x1080: no horizontal page overflow, a 16:9 monitor, and the
+playback controls plus four video/subtitle/audio/effect lanes still present.
+Use `--url http://localhost:8765/workbench` when the merged Dashboard server is
+already running; that route also verifies the `/workbench` SPA host still uses
+`app-workbench`, keeps the native iframe visible in the first viewport, and
+points the iframe at `/workbench/index.html` before entering the iframe for the
+native editor checks. The merged-route guard must also fail if the outer SPA
+shell contains protected editor selectors such as `monitor-box`,
+`timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or
+`lane-video`; those selectors belong to mockups or the native iframe, not to the
+SPA shell.
+
+The current `/workbench` SPA route must therefore optimize the outside shell
+instead of the native editor:
+
+- Use `app-workbench` dense/wide layout for the SPA shell.
+- Do not render the Dashboard `pause-banner` on the Workbench route.
+- Keep the iframe visible early in the first viewport.
+- Keep the iframe source as `/workbench/index.html?root=...`.
+- Do not mirror native Workbench state into duplicate Dashboard controls.
 
 ### Draft Artifact Contract
 
@@ -239,6 +286,9 @@ Phase 3: replace iframe with SPA-native composition
 - Handoff readiness is visible before an agent consumes Workbench drafts.
 - Tests prove that Workbench APIs are still served by the merged Dashboard
   server and that canonical artifacts are not mutated.
+- `node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>`
+  passes before and after any change touching the native monitor, timeline
+  lanes, or the Workbench iframe shell.
 
 ## Prototype Policy
 

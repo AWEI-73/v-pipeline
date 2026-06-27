@@ -46,6 +46,47 @@ Anything else belongs in the backend or Agent pipeline, not the browser.
 - `workbench_materials.js`: pure material-browser helpers.
 - `workbench.js`: DOM controller, browser preview, and user interaction.
 
+## Native Editor Protected Zone
+
+The native Workbench owns the editing-critical surface:
+
+- video monitor / playback preview;
+- four lower timeline lanes: video, subtitle, audio, and effect;
+- clip selection, drag/replace, trim/source-window interaction, playback
+  controls, and patch/handoff actions tied to those lanes.
+
+Dashboard/SPA migration may wrap this surface in a shell, show health and draft
+summaries around it, and pass a `root` parameter into it. It must not duplicate,
+mirror, or reimplement the native monitor or four-lane editor unless a dedicated
+Workbench migration task proves parity for playback, lane interaction, source
+window mapping, and draft artifact writes.
+
+The browser guard for this boundary is:
+
+```powershell
+node tools\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench
+```
+
+The guard verifies the SPA host still embeds `/workbench/index.html`, then
+enters the native iframe and checks the 16:9 monitor, playback controls, and
+four timeline lanes. On the SPA host side, it also fails if the outer shell
+duplicates protected editor selectors such as `monitor-box`, `timeline-wrap`,
+`clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or `lane-video`. Run it
+before and after any change touching the iframe shell, native monitor, playback
+controls, timeline lanes, or their responsive layout.
+
+The fast HTML/API guard is:
+
+```powershell
+python tools\workbench_frontend_smoke.py --artifact-root .tmp\workbench_frontend_smoke_fixture --init-fixture
+python tools\workbench_frontend_smoke.py --artifact-root .tmp\workbench_frontend_smoke_fixture --exercise-replace
+```
+
+This guard checks protected HTML markers, draft writes, canonical write
+protection, and `replace_clip`. `--init-fixture` refuses non-empty folders by
+default; use it only with disposable `.tmp` paths, or add
+`--force-init-fixture` when intentionally recreating that scratch fixture.
+
 ## Endpoints
 
 ### `GET /workbench`

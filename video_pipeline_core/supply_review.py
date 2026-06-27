@@ -66,8 +66,26 @@ def _maps_for_need_refs(segment, material_maps):
 
 
 def _useful_shots(material_map):
-    scene_count = len(material_map.get("scenes") or [])
+    scenes = material_map.get("scenes") or []
+    scene_count = len(scenes)
     if material_map.get("asset_type") == "video":
+        total_sec = 0.0
+        for scene in scenes:
+            if not isinstance(scene, dict):
+                continue
+            try:
+                start = float(scene.get("start") or 0)
+                end = float(scene.get("end") or 0)
+            except (TypeError, ValueError):
+                continue
+            total_sec += max(0.0, end - start)
+        if total_sec <= 0:
+            try:
+                total_sec = float(material_map.get("duration_sec") or 0)
+            except (TypeError, ValueError):
+                total_sec = 0.0
+        if total_sec > 0:
+            return max(1, int(total_sec / 3.0))
         return min(2, scene_count)
     return min(1, scene_count)
 

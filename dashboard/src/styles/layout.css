@@ -4,6 +4,11 @@
   padding: 18px 0 44px;
 }
 
+#app.app-workbench {
+  width: min(1880px, calc(100vw - 16px));
+  padding-top: 8px;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -93,8 +98,71 @@
   cursor: pointer;
 }
 
+.root-open-form {
+  min-width: min(360px, 32vw);
+  max-width: 480px;
+}
+
+.root-open-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.root-open-row input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.root-open-row button {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .dashboard-canvas {
   margin-top: 16px;
+}
+
+.app-workbench .top-nav {
+  margin: 6px 0;
+}
+
+.app-workbench .dashboard-canvas {
+  margin-top: 6px;
+}
+
+.app-workbench .view-main {
+  padding: 8px;
+}
+
+.app-workbench .app-header {
+  min-height: 58px;
+  padding: 8px 12px;
+}
+
+.app-workbench .brand-section p {
+  display: none;
+}
+
+.app-workbench .meta-group {
+  padding: 6px 8px;
+}
+
+.app-workbench .root-open-form {
+  min-width: min(320px, 28vw);
 }
 
 .view-grid {

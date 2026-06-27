@@ -5,19 +5,24 @@ have the same responsibility.
 
 ## Surfaces
 
-### Control Index
+### Dashboard Shell
 
-The Dashboard server root (`/`) serves a small Control Index. It links the two
-frontend surfaces together without merging their responsibilities:
+The Dashboard server root (`/`) serves the Hermes SPA. It links the read/review
+surfaces and the Workbench host without merging their responsibilities:
 
 - Dashboard for read-only run/node/status review;
+- Material Map / Timeline / Verify / Artifacts for white-box inspection;
 - Workbench for interactive draft preview and patch creation.
 
-The index also exposes the Workbench start command and draft readiness from
-`/api/control/status`. It checks the external Workbench server through
-`/api/control/workbench-health`, which proxies
-`http://localhost:8770/api/workbench/health` without making the browser perform
-cross-origin health checks.
+The shell reads run state from `/api/control/status` and Workbench health from
+the same merged server under `/api/workbench/health`.
+
+Run selection lives in the shared shell:
+
+- use `選擇 Run` to switch among detected usable run folders;
+- use `打開資料夾` to paste or type a run folder path directly;
+- both controls update the current route with `?root=...`, so Dashboard,
+  Material Map, Verify, Artifacts, and Workbench read the same artifact root.
 
 ### Dashboard
 
@@ -45,6 +50,19 @@ Workbench is for interactive draft edits:
 
 Official rendering still belongs to the backend ffmpeg pipeline.
 
+The `/workbench` SPA route is only a thin host around the native editor at
+`/workbench/index.html?root=...`. During frontend migration, keep these native
+regions protected unless a dedicated Workbench task and equivalent smoke tests
+say otherwise:
+
+- video monitor / playback preview;
+- video, subtitle, audio, and effect tracks;
+- trim handles, playhead mapping, source-window math, material replacement, and
+  save/handoff payload generation.
+
+The outer Workbench shell may show run context, health, and draft summaries. It
+should not mirror native Workbench state into duplicate Dashboard controls.
+
 ## Artifact Ownership
 
 Workbench may write draft artifacts such as:
@@ -64,46 +82,56 @@ Workbench must not overwrite canonical artifacts such as:
 
 ## Local Run Commands
 
-Start Workbench:
+Start Dashboard and Workbench together:
 
 ```powershell
-python tools\workbench_server.py --artifact-root .tmp\srp_real67_fuller_replay --port 8770
+python tools\dashboard_server.py --artifact-root .tmp\srp_real67_fuller_replay --port 8765
 ```
 
 Open:
 
 ```text
-http://localhost:8000/
+http://localhost:8765/
 ```
 
 Dashboard:
 
 ```text
-http://localhost:8000/dashboard
+http://localhost:8765/dashboard
 ```
 
 Workbench:
 
 ```text
-http://localhost:8770/workbench
+http://localhost:8765/workbench
 ```
 
 Focused checks:
 
 ```powershell
-node --check dashboard\index.js
+python tools\test_tiers.py --tier workbench
+node --check dashboard\src\main.js
 node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_materials.js
 node --check dashboard\workbench_native\workbench_core.js
+node tests\dashboard_spa_render_smoke.mjs
 node tests\workbench_api_smoke.js
 node tests\workbench_materials_smoke.js
 node tests\workbench_core_smoke.js
+node tools\workbench_browser_layout_smoke.mjs --artifact-root .tmp\srp_real67_fuller_replay
 python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay
 python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay --exercise-replace
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q
 python -m unittest tests.test_workbench_frontend_smoke -q
 ```
+
+The `workbench` tier includes the SPA shell render/i18n smoke plus the native
+Workbench API/core/material helper smokes. Use it as the default preflight
+before changing Dashboard/Workbench frontend code; use the browser layout guard
+below when a real viewport check is needed. The tier runner executes child
+processes with `TMP` / `TEMP` pointed at `.tmp/test-temp`, so Windows user-level
+temp folder issues do not masquerade as Workbench regressions.
 
 ## Frontend Module Boundary
 
@@ -127,6 +155,27 @@ should produce draft patches and handoff artifacts, not official pipeline truth.
 - Track stack remains reachable when lanes overflow vertically.
 - Play controls remain visible.
 - Text, audio, and effect lanes are visible as lanes even when empty.
+- `tools/workbench_browser_layout_smoke.mjs --artifact-root <run>` starts a
+  temporary Workbench server and checks real browser layout at 1366x900 and
+  1920x1080. In `--artifact-root` mode it checks the native editor directly for
+  no horizontal overflow, a 16:9 monitor, playback controls, and four timeline
+  lanes. Use `--url http://localhost:8765/workbench` when a merged Dashboard
+  server is already running; that route additionally verifies the SPA host keeps
+  `app-workbench`, keeps the native iframe visible in the first viewport, and
+  points that iframe at `/workbench/index.html`. The same guard fails if the
+  outer SPA shell contains protected editor selectors such as `monitor-box`,
+  `timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or
+  `lane-video`.
+- `tools/workbench_frontend_smoke.py --artifact-root <run>` is stricter: it
+  needs a Workbench-previewable run folder with a valid timeline input and at
+  least one editable clip. Use it for HTML/API/draft-write protection, not for
+  empty layout-only runs.
+  A self-contained fixture can be created with
+  `python tools/workbench_frontend_smoke.py --artifact-root .tmp/workbench_frontend_smoke_fixture --init-fixture`;
+  then run the same command with `--exercise-replace` to cover replacement.
+  `--init-fixture` refuses non-empty folders by default; use only disposable
+  `.tmp` paths, or add `--force-init-fixture` when recreating the scratch
+  fixture intentionally.
 
 ## Safety Rules
 

@@ -77,6 +77,13 @@ COMMAND_GROUPS: Dict[str, str] = {
     "generated-material-produce": "material",
     "generated-material-review": "material",
     "light-effects-plan": "contract",
+    "visual-technique-plan": "contract",
+    "visual-technique-review-apply": "contract",
+    "soundtrack-arrange": "contract",
+    "soundtrack-provider-search": "provider_optional",
+    "soundtrack-provider-download": "provider_optional",
+    "soundtrack-import-url": "provider_optional",
+    "soundtrack-audio-handoff-accept": "contract",
     "effect-intent-plan": "contract",
     "effect-revision-request": "contract",
     "effect-revision-draft": "contract",
@@ -91,6 +98,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "blueprint-coverage": "contract",
     "blueprint-compile": "contract",
     "blueprint-to-contract": "contract",
+    "story-soul-to-contract": "contract",
     "creator-profile": "contract",
     "story-soul-blueprint": "contract",
 
@@ -263,9 +271,21 @@ WORKFLOWS = {
         "description": "Compile neutral effect intent before selecting an effects backend.",
         "steps": [
             {
+                "id": "visual_technique_plan",
+                "command": "visual-technique-plan",
+                "purpose": "translate fuzzy effect language into reviewable candidate primitives, controls, and options before worker handoff",
+            },
+            {
+                "id": "visual_technique_review_apply",
+                "command": "visual-technique-review-apply",
+                "purpose": "apply user/reviewer option and control overrides to produce a confirmed visual technique plan",
+                "requires": ["visual-technique-plan:reviewed"],
+            },
+            {
                 "id": "compile_effect_intent",
                 "command": "effect-intent-plan",
                 "purpose": "compile director-shot-plan effect_intent into neutral effect_intent_plan/effect_asset_spec artifacts",
+                "requires": ["visual-technique-review-apply:confirmed_or_not_needed"],
             },
             {
                 "id": "light_effects_plan",

@@ -12,6 +12,7 @@ from pathlib import Path
 from tools.dashboard_server import (
     WORKBENCH_DRAFT_ARTIFACTS,
     DashboardHandler,
+    classify_project_run,
     detect_profile,
     scan_project_runs,
 )
@@ -142,21 +143,92 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("top_level_story_run", names)
         self.assertNotIn("nested_output", names)
 
+    def test_scan_available_projects_includes_workspace_runs_folder(self):
+        workspace_run = Path.cwd() / "runs" / "dashboard_scan_fixture"
+        workspace_run.mkdir(parents=True, exist_ok=True)
+        try:
+            (workspace_run / "video_intent.json").write_text("{}", encoding="utf-8")
+            (workspace_run / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+            (workspace_run / "fresh_material_delta.json").write_text("{}", encoding="utf-8")
+
+            from tools.dashboard_server import scan_available_projects
+            projects = scan_available_projects()
+            paths = {project["path"] for project in projects}
+
+            self.assertIn(str(workspace_run.resolve()), paths)
+        finally:
+            for child in workspace_run.glob("*"):
+                child.unlink()
+            workspace_run.rmdir()
+
+    def test_project_run_last_modified_uses_signal_files_only(self):
+        run = self.artifact_root / "run_with_media"
+        media = run / "media"
+        media.mkdir(parents=True)
+        (run / "video_intent.json").write_text("{}", encoding="utf-8")
+        (run / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+        (run / "fresh_material_delta.json").write_text("{}", encoding="utf-8")
+        (media / "large-unused.mp4").write_bytes(b"x")
+
+        project = classify_project_run(run)
+
+        self.assertTrue(project["usable"])
+        self.assertGreater(project["last_modified"], 0)
+
     def test_dashboard_html_has_workbench_entrypoint(self):
         html = (Path(__file__).resolve().parent.parent / "dashboard" /
                 "dashboard_v1.html").read_text(encoding="utf-8")
         self.assertIn('id="btn-open-workbench"', html)
         self.assertIn("Workbench", html)
 
+    def test_api_artifacts_surfaces_material_first_boundary_acceptance_report(self):
+        report = {
+            "artifact_role": "material_first_boundary_acceptance_report",
+            "version": 1,
+            "route": "material-first",
+            "ok": True,
+            "next_action": "ready_for_render_or_human_review",
+            "failed_stage": None,
+            "source_dir": "C:/fixture/materials",
+            "stages": [
+                {
+                    "stage": "stage2_3_material_wall_to_review_apply",
+                    "ok": True,
+                    "next_action": None,
+                    "blocking": [],
+                    "report": "stage2_3_smoke_report.json",
+                }
+            ],
+        }
+        (self.artifact_root / "material_first_boundary_acceptance_report.json").write_text(
+            json.dumps(report), encoding="utf-8"
+        )
+
+        self.start_test_server()
+        with urllib.request.urlopen(f"http://localhost:{self.port}/api/artifacts") as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(payload["material_first_boundary_acceptance_report"]["artifact_role"], report["artifact_role"])
+        self.assertTrue(payload["material_first_boundary_acceptance_report"]["ok"])
+
     def test_spa_dashboard_declares_new_shell_and_real_api_modules(self):
         root = Path(__file__).resolve().parent.parent / "dashboard"
         html = (root / "index.html").read_text(encoding="utf-8")
         main_js = (root / "src" / "main.js").read_text(encoding="utf-8")
+        workbench_api = (root / "src" / "api" / "workbenchApi.js").read_text(encoding="utf-8")
         workbench_view = (root / "src" / "views" / "WorkbenchView.js").read_text(encoding="utf-8")
+        workbench_contract = (root / "workbench_native" / "API_CONTRACT.md").read_text(encoding="utf-8")
+        workbench_layout_smoke = (Path(__file__).resolve().parent.parent / "tools" /
+                                  "workbench_browser_layout_smoke.mjs").read_text(encoding="utf-8")
         app_header = (root / "src" / "components" / "AppHeader.js").read_text(encoding="utf-8")
         route_rail = (root / "src" / "components" / "VerticalRouteTimeline.js").read_text(encoding="utf-8")
         route_view = (root / "src" / "views" / "RouteOverviewView.js").read_text(encoding="utf-8")
         material_map_view = (root / "src" / "views" / "MaterialMapView.js").read_text(encoding="utf-8")
+        layout_css = (root / "src" / "styles" / "layout.css").read_text(encoding="utf-8")
+        views_css = (root / "src" / "styles" / "views.css").read_text(encoding="utf-8")
+        route_review_spec = (Path(__file__).resolve().parent.parent / "docs" /
+                             "construction-guides" / "dashboard" /
+                             "dashboard-route-review-ux-spec.md").read_text(encoding="utf-8")
 
         self.assertIn('id="app"', html)
         self.assertIn('data-app="hermes-spa-dashboard"', html)
@@ -167,7 +239,8 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("RouteOverviewView", main_js)
         self.assertIn("MaterialMapView", main_js)
         self.assertIn("WorkbenchView", main_js)
-        self.assertIn("/api/workbench/health", workbench_view)
+        self.assertIn("/api/workbench/health", workbench_api)
+        self.assertIn("workbenchHealth", workbench_view)
         self.assertIn('id="spa-project-select"', app_header)
         self.assertIn("fetchProjects", main_js)
         self.assertIn("data-stage", route_rail)
@@ -176,9 +249,68 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("stage-file-list", route_view)
         self.assertIn("stageFileManifest", route_view)
         self.assertIn("stage-file-status", route_view)
-        self.assertIn("evidence-drawer", material_map_view)
-        self.assertIn("decision-panel", material_map_view)
-        self.assertIn("decision-packet-preview", material_map_view)
+        self.assertIn("renderBoundaryAcceptance", route_view)
+        self.assertIn("material_first_boundary_acceptance_report", route_view)
+        self.assertIn("邊界驗收", route_view)
+        self.assertIn("boundary-acceptance-panel", views_css)
+        self.assertIn("#app.app-workbench", layout_css)
+        self.assertIn("width: min(1880px, calc(100vw - 16px));", layout_css)
+        self.assertIn(".app-workbench .dashboard-canvas", layout_css)
+        self.assertIn(".root-open-row", layout_css)
+        self.assertIn("grid-template-columns: minmax(120px, 1fr) auto;", layout_css)
+        self.assertIn(".app-workbench .root-open-form", layout_css)
+        self.assertIn("workbench-shell", views_css)
+        self.assertIn("workbench-studio-head", views_css)
+        self.assertIn("workbench-run-strip", views_css)
+        self.assertIn("height: clamp(680px, calc(100vh - 132px), 1120px);", views_css)
+        self.assertIn("min-height: 680px;", views_css)
+        self.assertIn(".workbench-shell iframe", views_css)
+        self.assertIn("Native Editor Protected Zone", workbench_contract)
+        self.assertIn("video monitor / playback preview", workbench_contract)
+        self.assertIn("four lower timeline lanes", workbench_contract)
+        self.assertIn("playback controls", workbench_contract)
+        self.assertIn("Dashboard/SPA migration may wrap this surface in a shell", workbench_contract)
+        self.assertIn("must not duplicate", workbench_contract)
+        self.assertIn("node tools\\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench", workbench_contract)
+        self.assertIn("python tools\\workbench_frontend_smoke.py --artifact-root .tmp\\workbench_frontend_smoke_fixture --init-fixture", workbench_contract)
+        self.assertIn("--force-init-fixture", workbench_contract)
+        self.assertIn("replace_clip", workbench_contract)
+        self.assertIn("duplicates protected editor selectors", workbench_contract)
+        self.assertIn("monitor-box", workbench_contract)
+        self.assertIn("lane-video", workbench_contract)
+        self.assertIn("hostMode", workbench_layout_smoke)
+        self.assertIn("spa_shell", workbench_layout_smoke)
+        self.assertIn("native_direct", workbench_layout_smoke)
+        self.assertIn("app-workbench class", workbench_layout_smoke)
+        self.assertIn("/workbench/index.html", workbench_layout_smoke)
+        self.assertIn("forbiddenShellSelectors", workbench_layout_smoke)
+        self.assertIn("SPA shell must not duplicate native monitor/timeline selectors", workbench_layout_smoke)
+        self.assertIn(".wb-transport", workbench_layout_smoke)
+        self.assertIn("#btn-play", workbench_layout_smoke)
+        self.assertIn("#scrubber", workbench_layout_smoke)
+        self.assertIn("height: 100%;", views_css)
+        for forbidden in (
+            "monitor-box",
+            "timeline-wrap",
+            "clip-video",
+            "wb-monitor",
+            "wb-timeline",
+            "track-lane",
+            "lane-video",
+        ):
+            self.assertNotIn(forbidden, workbench_view)
+        self.assertIn("material-map-workspace", material_map_view)
+        self.assertIn("mm-contract-paper", material_map_view)
+        self.assertIn("mm-graph", material_map_view)
+        self.assertIn("素材判斷契約紙", material_map_view)
+        self.assertIn("可用區間", material_map_view)
+        self.assertIn("粗剪切點", material_map_view)
+        self.assertIn("sceneTimeRange", material_map_view)
+        self.assertIn("thumbnail_url", material_map_view)
+        self.assertIn("img.mm-thumb", views_css)
+        self.assertIn("scene.usable_range", route_review_spec)
+        self.assertIn("粗剪切點", route_review_spec)
+        self.assertIn("backend review/apply", route_review_spec)
         self.assertIn("data-asset-id", material_map_view)
         self.assertIn("data-need-id", material_map_view)
         self.assertIn("selectedEvidence", main_js)
@@ -186,14 +318,55 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("Enter", main_js)
         self.assertIn("event.key === \" \"", main_js)
         self.assertIn("選擇 Run", app_header)
+        self.assertIn("打開資料夾", app_header)
+        self.assertIn("list=\"spa-project-paths\"", app_header)
+        self.assertIn("datalist id=\"spa-project-paths\"", app_header)
         self.assertIn("data-root", app_header)
+
+    def test_workbench_mockup_keeps_native_editor_shape(self):
+        mockup = (Path(__file__).resolve().parent.parent / "dashboard" /
+                  "design_mockup.html").read_text(encoding="utf-8")
+
+        self.assertIn("--timeline-height: clamp(248px, 25vh, 300px);", mockup)
+        self.assertIn("flex: 1 1 calc(100vh - 58px - var(--timeline-height));", mockup)
+        self.assertIn("flex: 0 0 var(--timeline-height);", mockup)
+        self.assertIn("width: min(100%, 1080px, max(520px, calc((100vh - 444px) * 16 / 9)));", mockup)
+        self.assertIn(".source-list {\n      display: grid;\n      gap: 8px;\n      min-height: 0;\n      overflow: auto;", mockup)
+        self.assertIn("width: clamp(260px, 15vw, 320px);", mockup)
+        self.assertIn("width: clamp(280px, 17vw, 340px);", mockup)
+        self.assertIn(".track {\n      height: 38px;", mockup)
+        self.assertIn(".lane {\n      position: relative;\n      height: 32px;", mockup)
+        self.assertIn(".clip {\n      position: absolute;\n      top: 4px;\n      height: 24px;", mockup)
+        self.assertIn(".clip-video::before", mockup)
+        self.assertIn('<span class="track-label">影片</span>', mockup)
+        self.assertIn('<span class="track-label">字幕</span>', mockup)
+        self.assertIn('<span class="track-label">音訊</span>', mockup)
+        self.assertIn('<span class="track-label">特效</span>', mockup)
+        self.assertIn("點選不同軌道，左側會切換成該軌道可替換內容。", mockup)
+        self.assertIn("這裡是黑盒工作檯：主要用來看、換、剪，不展示工程 JSON。", mockup)
 
     def test_workbench_migration_spec_declares_boundaries_and_phases(self):
         spec = (Path(__file__).resolve().parent.parent / "docs" /
                 "construction-guides" / "dashboard" /
                 "dashboard-spa-workbench-migration-spec.md").read_text(encoding="utf-8")
+        frontend_plan = (Path(__file__).resolve().parent.parent / "docs" /
+                         "construction-guides" / "dashboard" /
+                         "dashboard-frontend-implementation-plan.md").read_text(encoding="utf-8")
+        integration = (Path(__file__).resolve().parent.parent / "docs" /
+                       "workbench-dashboard-integration.md").read_text(encoding="utf-8")
+        dashboard_readme = (Path(__file__).resolve().parent.parent / "dashboard" /
+                            "README.md").read_text(encoding="utf-8")
+        start_here = (Path(__file__).resolve().parent.parent / "docs" /
+                      "START_HERE_VIDEO_PIPELINE.md").read_text(encoding="utf-8")
+        operating_map = (Path(__file__).resolve().parent.parent / "docs" /
+                         "video-pipeline-operating-map.md").read_text(encoding="utf-8")
 
         self.assertIn("Workbench Migration Boundaries", spec)
+        self.assertIn("Native Editor Protected Zone", spec)
+        self.assertIn("video monitor / playback preview area", spec)
+        self.assertIn("four lower timeline tracks", spec)
+        self.assertIn("app-workbench", spec)
+        self.assertIn("Do not render the Dashboard `pause-banner` on the Workbench route", spec)
         self.assertIn("Phase 0: iframe containment", spec)
         self.assertIn("Phase 1: shell-native status panels", spec)
         self.assertIn("Phase 2: extract Workbench modules", spec)
@@ -203,32 +376,67 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("patched_draft_timeline.json", spec)
         self.assertIn("workbench_handoff.json", spec)
         self.assertIn("Do not migrate by copying mock behavior from material_map_canvas.html", spec)
+        self.assertIn("node tools\\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>", spec)
+        self.assertIn("shell contains protected editor selectors", spec)
+        self.assertIn("monitor-box", spec)
+        self.assertIn("lane-video", spec)
+
+        for text in (
+            "production dashboard should move slowly into the SPA shell",
+            "video monitor / playback preview area and the four lower timeline tracks must remain native",
+            "Keep iframe containment as the default implementation",
+            "video, subtitle, audio, and effect tracks",
+            "Any Workbench monitor or four-track rewrite not backed by dedicated parity tests",
+            "node tools\\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>",
+            "outer SPA shell must not contain protected editor selectors",
+        ):
+            self.assertIn(text, frontend_plan)
+
+        for doc in (integration, dashboard_readme):
+            self.assertIn("video monitor / playback preview", doc)
+            self.assertIn("video, subtitle, audio, and effect tracks", doc)
+            self.assertIn("選擇 Run", doc)
+            self.assertIn("打開資料夾", doc)
+            self.assertIn("?root=...", doc)
+            self.assertIn("tools\\dashboard_server.py", doc)
+            self.assertIn("http://localhost:8765/workbench", doc)
+            self.assertIn("node tests\\dashboard_spa_render_smoke.mjs", doc)
+            self.assertIn("node tools\\workbench_browser_layout_smoke.mjs", doc)
+            self.assertIn("Workbench-previewable run folder", doc)
+            self.assertIn("monitor-box", doc)
+            self.assertIn("lane-video", doc)
+            self.assertIn(".tmp/test-temp", doc)
+
+        for doc in (start_here, operating_map):
+            self.assertIn("python tools/test_tiers.py --tier workbench", doc)
+            self.assertIn("node tools\\workbench_browser_layout_smoke.mjs --artifact-root RUN_DIR", doc)
+            self.assertIn("python tools/workbench_frontend_smoke.py --artifact-root RUN_DIR", doc)
+            self.assertIn("playback controls", doc)
+            self.assertIn("Workbench-previewable run folder", doc)
+            self.assertIn("monitor-box", doc)
+            self.assertIn("lane-video", doc)
+            self.assertIn("Workbench", doc)
 
     def test_formal_frontend_static_text_is_traditional_chinese(self):
         root = Path(__file__).resolve().parent.parent / "dashboard"
         app_header = (root / "src" / "components" / "AppHeader.js").read_text(encoding="utf-8")
         top_nav = (root / "src" / "components" / "TopNav.js").read_text(encoding="utf-8")
         workbench_view = (root / "src" / "views" / "WorkbenchView.js").read_text(encoding="utf-8")
+        main_js = (root / "src" / "main.js").read_text(encoding="utf-8")
         material_view = (root / "src" / "views" / "MaterialMapView.js").read_text(encoding="utf-8")
         native_html = (root / "workbench_native" / "index.html").read_text(encoding="utf-8")
 
         for text in (
-            "影片管線儀表板",
-            "儀表板",
-            "素材地圖",
-            "剪輯工作區",
-            "審核暫停",
-            "選擇 Run",
-        ):
-            self.assertIn(text, app_header + top_nav + material_view)
-
-        for text in (
-            "互動草稿工作區",
-            "草稿包",
-            "草稿檔",
-            "只寫入草稿",
+            "影片剪輯工作台",
+            "保留舊版 Workbench 的互動畫面、播放控制與四條時間軸",
+            "Run folder",
+            "素材優先模式",
+            "Hermes Workbench 黑盒剪輯工作檯",
         ):
             self.assertIn(text, workbench_view)
+
+        self.assertIn("app-workbench", main_js)
+        self.assertIn('state.activeView === "workbench"', main_js)
 
         for text in (
             "Hermes 原生剪輯工作區",
@@ -919,11 +1127,27 @@ Second subtitle
                     "scenes": [
                         {
                             "caption": "award ceremony",
+                            "thumbnail_path": "thumbs/ceremony.jpg",
+                            "usable_range": {"start": 1.0, "end": 6.5},
+                            "start_sec": 1.25,
+                            "duration_sec": 4.0,
                             "visual_family": "ceremony",
                             "angle_scale": "wide",
                             "action_family": "award",
                             "subject": "students",
                             "satisfies": [{"need_id": "nd_ceremony", "status": "accepted"}],
+                        }
+                    ],
+                },
+                {
+                    "asset_id": "asset_real_2",
+                    "asset_type": "photo",
+                    "source": "materials/group.jpg",
+                    "poster": "thumbs/group.jpg",
+                    "scenes": [
+                        {
+                            "caption": "group photo fallback thumbnail",
+                            "satisfies": [{"need_id": "nd_ceremony", "status": "candidate"}],
                         }
                     ],
                 }
@@ -964,10 +1188,18 @@ Second subtitle
         self.assertEqual(payload["intent"]["goal"], "make a recap")
         self.assertEqual(payload["intent"]["expected_outputs"], [])
         self.assertTrue(payload["ready_for_build"])
-        self.assertEqual(payload["stats"]["assets"], 1)
+        self.assertEqual(payload["stats"]["assets"], 2)
         self.assertEqual(payload["stats"]["accepted_edges"], 1)
         self.assertEqual(payload["assets"][0]["asset_id"], "asset_real_1")
         self.assertEqual(payload["assets"][0]["scenes"][0]["need_ids"], ["nd_ceremony"])
+        self.assertEqual(payload["assets"][0]["scenes"][0]["satisfies"][0]["status"], "accepted")
+        self.assertEqual(payload["assets"][0]["scenes"][0]["thumbnail"], "thumbs/ceremony.jpg")
+        self.assertIn("/static/thumbs/ceremony.jpg?root=", payload["assets"][0]["scenes"][0]["thumbnail_url"])
+        self.assertEqual(payload["assets"][0]["scenes"][0]["usable_range"], {"start": 1.0, "end": 6.5})
+        self.assertEqual(payload["assets"][0]["scenes"][0]["start_sec"], 1.25)
+        self.assertEqual(payload["assets"][0]["scenes"][0]["duration_sec"], 4.0)
+        self.assertEqual(payload["assets"][1]["scenes"][0]["thumbnail"], "thumbs/group.jpg")
+        self.assertIn("/static/thumbs/group.jpg?root=", payload["assets"][1]["scenes"][0]["thumbnail_url"])
         self.assertEqual(payload["needs"][0]["outcome"], "covered")
         stages_by_label = {stage["label"]: stage for stage in payload["stages"]}
         self.assertEqual(stages_by_label["Material Ingest"]["status"], "missing")

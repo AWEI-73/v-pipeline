@@ -1,181 +1,149 @@
 ---
 name: shooting-brief
-description: 拍攝指令 Skill。讀 material_needs.json，把每個缺口翻譯成「學員看得懂、拍得到」的具體拍攝任務。輸出 shooting_brief.md，給拍攝者直接照做。
+description: Material gap brief skill. Use after material_delta.json or material_map_lifecycle.json identifies missing/thin needs and the route must produce reshoot, generated-material, stock retrieval, text bridge, rewrite, or waiver tasks before BUILD.
 ---
 
-# Shooting Brief Skill
+# Shooting Brief / Material Gap Brief Skill
 
-把素材缺口轉成**拍攝者能直接執行的任務指令**。  
-原則（vault § 6）：好指令要寫到「拍什麼、幾個人、什麼動作、什麼場景、什麼鏡位、什麼時長、補哪一段、為什麼」八件事。
+This skill converts material-map gaps into executable follow-up tasks. It is not
+a standalone route and must not bypass material-map lifecycle gates.
 
-不限結訓影片——任何「拍攝者非剪輯者」的場景都適用。
+## Route Position
 
----
-
-## 工具位置
-
-不需要新指令——agent 照 SKILL.md 寫 markdown 文件即可。
-
----
-
-## 流程位置
-
-```
-gap-analyzer       material_needs.json
-       │
-       ▼
-[shooting-brief]   shooting_brief.md    ← 本 Skill
-       │
-       ▼
-拍攝者（學員 / 通訊兵 / 任何人）按指令拍攝
-       │
-       ▼
-交回 /materials/
+```text
+material_needs.json
+  -> project_material_map.json
+  -> material_delta.json
+  -> material_gap_brief.json / shooting_brief.md
+  -> generated-material / stock retrieval / reshoot / rewrite / waiver
+  -> material-map review
+  -> fresh material_delta.json
+  -> BUILD only after gate passes
 ```
 
----
+Use this skill when:
 
-## 8 個必填欄位（vault § 6.2）
+- `material_delta.json` has `missing` or `thin` needs;
+- `material_map_lifecycle.json` is `await_material`,
+  `await_revision_decision`, or `revision_blocked`;
+- the user needs a practical list of what to collect, reshoot, generate,
+  retrieve, rewrite, or waive.
 
-每個拍攝任務必須說清楚：
+Do not use this skill to invent coverage. Every task remains a proposal until
+the resulting material returns through material-map review as evidence.
 
-| 欄位 | 範例 |
-|------|------|
-| **拍什麼** | 學員在操場跑步 |
-| **幾個人** | 3–5 位 |
-| **什麼動作** | 慢跑（不要走路、不要衝刺）|
-| **什麼場景** | 操場直線跑道 |
-| **什麼鏡位** | 中景，側面或正前方 |
-| **什麼時長** | 至少 5 秒，最好 8 秒（含起步與煞停）|
-| **補哪一段** | 用在「中段—訓練過程」（need id 2.1）|
-| **為什麼** | 表現『日復一日』的訓練感，不要拍到表情痛苦 |
+## Canonical Outputs
 
----
+Write these artifacts in the run folder:
 
-## 好指令 vs 壞指令（vault § 6.3-6.4）
+- `material_gap_brief.json`: machine-readable gap task packet.
+- `shooting_brief.md`: human-readable reshoot / collection brief.
+- `generated_material_jobs.json`: generated-material jobs, when generation is
+  allowed.
+- `stock_retrieval_jobs.json`: stock/search jobs, when stock bridge is allowed.
 
+`shooting_brief.md` may be empty or minimal when all gaps are generation,
+retrieval, rewrite, or waiver tasks. The canonical machine artifact is
+`material_gap_brief.json`.
+
+## material_gap_brief.json Schema
+
+```json
+{
+  "artifact_role": "material_gap_brief",
+  "version": 1,
+  "source_refs": {
+    "material_needs": "material_needs.json",
+    "material_delta": "material_delta.json",
+    "material_map_lifecycle": "material_map_lifecycle.json"
+  },
+  "route": "material-first | structure-first | hybrid",
+  "tasks": [
+    {
+      "task_id": "gap-task-001",
+      "need_id": "need_training_opening_wide",
+      "delta_status": "missing | thin",
+      "recommended_route": "collect_existing | reshoot | generated_material | stock_retrieval | text_bridge | script_rewrite | waiver",
+      "priority": "must_have | important | optional",
+      "segment_refs": ["seg_01"],
+      "visual_intent": "wide training opening shot with class context",
+      "acceptance_criteria": [
+        "shows the requested subject clearly",
+        "has enough usable duration for the target segment",
+        "can be mapped to this need_id with review evidence"
+      ],
+      "constraints": {
+        "proof_sensitive": true,
+        "identity_sensitive": false,
+        "generation_allowed": false
+      },
+      "notes": "Use real footage if this need is proof-sensitive."
+    }
+  ],
+  "handoff": {
+    "shooting_brief": "shooting_brief.md",
+    "generated_material_jobs": "generated_material_jobs.json",
+    "stock_retrieval_jobs": "stock_retrieval_jobs.json"
+  }
+}
 ```
-✅ 好指令：
-  拍 3–5 位學員在走廊中慢跑 1 段
-  鏡頭要有中景，至少 5 秒
-  需要看出訓練氛圍，不要像日常散步
-  用來補「課堂切換到實作」的轉場（need 2.1）
 
-❌ 壞指令：
-  拍一下跑步
-  幫我補點上課畫面
-  再拍一些有感覺的素材
-```
+## Route Policy
 
-關鍵差別：**夠具體就能拍，模糊就會白拍**。
+- `collect_existing`: ask the user to provide or point to existing files.
+- `reshoot`: produce concrete shot requests with framing, duration, subject,
+  location/context, and naming convention.
+- `generated_material`: allowed only when the need is not proof-sensitive or the
+  user explicitly accepts illustrative/generated truth.
+- `stock_retrieval`: allowed for non-identity, non-proof bridge visuals.
+- `text_bridge`: allowed for chapter cards, title cards, diagrams, and context
+  labels.
+- `script_rewrite`: use when the material gap means the segment should change
+  rather than be faked.
+- `waiver`: explicit human decision with reviewer and reason; never silent.
 
----
+## Human Shooting Brief
 
-## shooting_brief.md 範本結構
+`shooting_brief.md` should be concise and actionable:
 
 ```markdown
-# {專案名} — 拍攝任務清單
+# Shooting Brief
 
-> 此清單由 material_needs.json 自動產出
-> 共 N 項任務，其中 M 項為必須 (must-have)
-> 完成全部任務需 H 小時（粗估）
+Source: material_delta.json
 
-## 拍攝前必讀
-- 解析度：1920x1080 (Full HD)，30 fps，橫式
-- 檔案命名：`seg{段號}_{任務id}_{說明}.mp4` 或 `.jpg`
-- 同一任務多 take 在檔名後加 `_take1` `_take2`
-- 交檔位置：/materials/66th_graduation/
+## Must Have
 
----
-
-## 任務 #1 ── ID 1.1 ── 往期班級結訓合照（must-have）
-
-**素材類型**：靜態照片，共 3 張  
-**用在**：開頭 — 歷史演進型（segment 1）  
-**目的**：用歷年合照建立傳承感
-
-**拍/收集要求**：
-- 從校史室取得歷年（建議 60、63、65 期）結訓合照
-- 原始解析度越高越好（後製要做 Ken Burns 慢推）
-- 翻拍時：A4 大小以上，平拍無反光，不要傾斜
-
-**重要**：每張預計 3 秒 Ken Burns 慢推，所以照片構圖最好有「人物在中央偏左/右」可推鏡的空間
-
-**Fallback**（拍不到時）：
-- 校史室翻拍歷年照片
-- 用 1 張合照拼 3 種 Ken Burns 角度
-
-**截止**：開拍前 1 週
-
----
-
-## 任務 #2 ── ID 1.2 ── 主標題卡（must-have）
-
-...
+### need_training_opening_wide
+- Purpose: establish the class and training setting.
+- Shot: 1 wide shot, 8-12 seconds usable.
+- Framing: horizontal 16:9, stable, no fast pan.
+- Acceptance: subject is clear and can be mapped to need_id.
+- File naming: need_training_opening_wide_take1.mp4
 ```
 
----
+## Handoff Rules
 
-## 寫指令的 4 條準則
+- A task is not coverage.
+- A generated image existing on disk is not coverage.
+- A stock clip downloaded to `materials/stock/` is not coverage.
+- A reshot clip in `materials/raw/` is not coverage.
+- All follow-up material must return through `project-material-map`,
+  review/apply, and fresh `material_delta.json`.
 
-### 1. 用拍攝者的語言，不要用剪輯術語
-```
-✅ 鏡頭低一點，從學員腰部高度拍上去
-❌ low angle shot, dutch tilt
-```
+## Upstream / Downstream
 
-### 2. 「不要」也很重要
-告訴拍攝者什麼**不要做**，跟告訴他什麼**要做**一樣重要。
+Upstream:
 
-```
-✅ 拍學員專心的表情，不要拍到玩手機、笑場、跟攝影師對到眼
-```
+- `skills/material-map.md`
+- `skills/gap-analyzer.md`
+- `material_needs.json`
+- `material_delta.json`
+- `material_map_lifecycle.json`
 
-### 3. 量化能量化的東西
-```
-✅ 至少 5 秒，含起步 1 秒 + 主動作 3 秒 + 收尾 1 秒
-❌ 拍長一點
-```
+Downstream:
 
-### 4. 標清楚優先順序
-- **必拍**（must-have）：沒這個影片做不出來
-- **加分**（nice-to-have）：有更好沒有也行
-
----
-
-## 學員自我檢查清單
-
-每完成一個任務交檔前，自查：
-- [ ] 解析度對嗎（1920x1080 30fps 橫式）？
-- [ ] 時長夠嗎（看 brief 上的時長要求）？
-- [ ] 構圖對嗎（人物完整、不要拍到攝影師、不要切到頭）？
-- [ ] 沒拍到敏感物嗎（其他班級、私人物品、機敏設施）？
-- [ ] 檔名命名對嗎（`seg{段號}_{任務id}_{說明}`）？
-
----
-
-## 與其他 Skill 的銜接
-
-### 上游
-- **gap-analyzer**：material_needs.json
-
-### 下游
-- 拍攝者（學員）：人類執行
-- **curator (ingest)**：學員交回後掃描 /materials/，照 material_needs id 對應
-
----
-
-## Reviewer 通過標準
-
-對著 shooting_brief.md 問：
-1. 每個任務看完是否能立刻去拍？還是要回頭問？
-2. 必拍 / 加分是否明顯區分？
-3. fallback 是否寫清楚（拍不到時學員知道怎辦）？
-4. 整份份量學員 1 週能完成嗎？
-
----
-
-## 對應的 vault 文件
-- `video-editing-workflow-brainstorming-to-material-direction.md` § 6（拍攝指令格式）
-- `video-editing-workflow-architecture-first-fallback.md` § 6（段落功能）
-- `projects/video-agent-pipeline/roadmap.md` Phase 8b
+- `skills/material-generation-fallback.md`
+- `skills/generated-material-producer.md`
+- `skills/material-map.md`
+- `revision_decisions.json`
+- `revised_segment_contract.json`

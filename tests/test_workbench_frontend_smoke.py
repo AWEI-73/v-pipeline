@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.workbench_frontend_smoke import (
     SmokeError,
@@ -10,6 +11,7 @@ from tools.workbench_frontend_smoke import (
     canonical_hashes,
     run_smoke,
     start_threaded_server,
+    write_smoke_fixture,
 )
 
 
@@ -97,6 +99,38 @@ class WorkbenchFrontendSmokeTest(unittest.TestCase):
         self.assertTrue((self.root / "workbench_review_report.json").is_file())
         self.assertTrue((self.root / "workbench_review_report.md").is_file())
 
+    def test_write_smoke_fixture_creates_previewable_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_smoke_fixture(root)
+            server, thread, base_url = start_threaded_server(root)
+            try:
+                result = run_smoke(root, base_url)
+                replace = run_smoke(root, base_url, exercise_replace=True)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["exercised"], "set_duration")
+            self.assertTrue(replace["ok"])
+            self.assertEqual(replace["exercised"], "replace_clip")
+            self.assertTrue((root / "timeline.json").is_file())
+            self.assertTrue((root / "project_material_map.json").is_file())
+
+    def test_write_smoke_fixture_refuses_non_empty_folder_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "existing.txt").write_text("do not overwrite", encoding="utf-8")
+
+            with self.assertRaises(SmokeError) as cm:
+                write_smoke_fixture(root)
+            self.assertIn("non-empty folder", str(cm.exception))
+
+            write_smoke_fixture(root, force=True)
+            self.assertTrue((root / "timeline.json").is_file())
+
     def test_run_smoke_can_exercise_replace_clip_flow(self):
         before = canonical_hashes(self.root)
         result = run_smoke(self.root, self.base_url, exercise_replace=True)
@@ -119,6 +153,38 @@ class WorkbenchFrontendSmokeTest(unittest.TestCase):
         with self.assertRaises(SmokeError) as cm:
             run_smoke(self.root, self.base_url)
         self.assertIn("editable clip", str(cm.exception))
+
+    def test_run_smoke_fails_when_native_monitor_or_tracks_are_missing(self):
+        from tools import workbench_frontend_smoke as smoke
+
+        original_read_text = smoke._read_text_url
+
+        def fake_read_text(url: str) -> str:
+            html = original_read_text(url)
+            if url.endswith("/workbench"):
+                return html.replace('id="lane-effect"', 'id="lane-missing"')
+            return html
+
+        with mock.patch.object(smoke, "_read_text_url", side_effect=fake_read_text):
+            with self.assertRaises(SmokeError) as cm:
+                run_smoke(self.root, self.base_url)
+        self.assertIn("lane-effect", str(cm.exception))
+
+    def test_run_smoke_fails_when_transport_controls_are_missing(self):
+        from tools import workbench_frontend_smoke as smoke
+
+        original_read_text = smoke._read_text_url
+
+        def fake_read_text(url: str) -> str:
+            html = original_read_text(url)
+            if url.endswith("/workbench"):
+                return html.replace('id="scrubber"', 'id="scrubber-missing"')
+            return html
+
+        with mock.patch.object(smoke, "_read_text_url", side_effect=fake_read_text):
+            with self.assertRaises(SmokeError) as cm:
+                run_smoke(self.root, self.base_url)
+        self.assertIn("scrubber", str(cm.exception))
 
 
 if __name__ == "__main__":

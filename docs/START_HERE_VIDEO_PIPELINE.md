@@ -1,6 +1,6 @@
 # Start Here: Hermes Video Pipeline
 
-Date: 2026-06-20
+Date: 2026-06-25
 Status: canonical entrypoint for agents and operators
 
 Read this first when you need to run, debug, or extend the video pipeline.
@@ -13,14 +13,39 @@ Hermes is a contract-first video pipeline:
 Video Intent Planner
   -> input state / entry_path
   -> story/design contract
-  -> material truth
+  -> material truth, via Material Map branch when needed
+  -> designed effects, via Effect Factory branch when needed
+  -> soundtrack plan, via Soundtrack Arranger branch when needed
   -> BUILD
   -> verify/review
   -> draft edit or delivery
 ```
 
+There is one main route with Stage 0 child contracts, and three active major
+side branches:
+
+```text
+Main route: Video Pipeline Route
+  -> Stage 0 child contracts: material_contract, soundtrack_contract,
+     effect_policy, subtitle_voiceover_contract
+  -> Material Map branch: material truth, coverage, generated candidates
+  -> Effect Factory branch: designed effect assets, worker build, effect review
+  -> Soundtrack Arranger branch: music/song/voice intent, source candidates,
+     license manifest, audio-director handoff
+```
+
 Do not treat generated files, Workbench patches, stale reports, or old final
 videos as truth. They must re-enter the route through their owning artifacts.
+
+Shared skill boundary:
+
+- Every pipeline skill must obey `skills/pipeline-boundary.md`.
+- Stage 0 entry lock applies before story, material-map, generated fallback,
+  Workbench, Brownfield, effects, Remotion, `contract-run`, or render.
+- Do not direct-cut from a fuzzy request. A request like "help me cut a
+  graduation ceremony video" must first produce or refresh `video_intent.json`.
+- If `video_intent.json.required_followup_questions` is non-empty, stop and ask
+  before entering the next branch.
 
 ## Route Boundary
 
@@ -71,14 +96,24 @@ official pipeline changes.
    `light / normal / deep` and reviewer roles.
 7. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
    lifecycle stages, and build handoff.
-8. `docs/build-capability-alignment.md` -- which capabilities truly affect
+8. `docs/effect-factory-route.md` -- designed-effects side branch: design map,
+   contract, worker handoff, review, and bounded effect asset handoff.
+9. `docs/soundtrack-arranger-route.md` -- music/song/BGM/voice intent branch:
+   `soundtrack_plan.json`, `music_source_candidates.json`,
+   `sound_license_manifest.json`, and `audio_director_handoff.json`.
+10. `docs/stage-boundary-matrix.md` -- worker/maintainer boundary matrix for
+   Main Pipeline, Material Map branch, Effect Factory branch, Soundtrack /
+   Audio branch, and Subtitle / Voiceover branch.
+11. `docs/construction-guides/stage0-10-route-alignment-plan.md` -- current
+   construction guide for keeping Stage 0-10 and child contracts aligned.
+12. `docs/build-capability-alignment.md` -- which capabilities truly affect
    BUILD/render today.
-9. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
+13. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
    and fail-closed acceptance harness.
-10. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
+14. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
    human worker should consume `route_subagent_task.json`.
-11. `RUNBOOK.md` -- local command examples and Windows execution notes.
-12. `docs/INDEX.md` -- broader documentation index and historical links.
+15. `RUNBOOK.md` -- current local command examples and Windows execution notes.
+16. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
@@ -115,9 +150,17 @@ Other skills are role-specific:
 - story: `story-soul-blueprint.md`, `writer.md`, `director.md`
 - material: `material-map.md`, `curator.md`, `material-generation-fallback.md`,
   `generated-material-producer.md`
-- build: `editor.md`, `audio-director.md`, `subtitle-director.md`,
-  `effects-director.md`
+- build: `editor.md`, `audio-director.md`, `subtitle-director.md`
+- effects: `effects-director.md`, `video-effect-factory.md`,
+  `remotion-effect-worker.md`
+- soundtrack: `soundtrack-arranger.md` owns `soundtrack_plan.json` and
+  `sound_license_manifest.json`; `audio-director.md` executes TTS/mix/ducking.
 - review: `verify.md`, `dashboard.md`, `brownfield-edit.md`
+
+`video-effect-factory.md` is the upper effect route. It does not replace
+`remotion-effect-worker.md`; it decides/records the effect contract, calls the
+worker when Remotion is appropriate, reviews the result, and hands off bounded
+effect assets.
 
 ## Choose The Route
 
@@ -381,8 +424,43 @@ python video_tools.py generated-material-review ...
 Workbench:
 
 ```powershell
+python tools/test_tiers.py --tier workbench
 python tools/workbench_server.py --artifact-root RUN_DIR --port 8770
+python tools/workbench_frontend_smoke.py --artifact-root RUN_DIR
+node tools\workbench_browser_layout_smoke.mjs --artifact-root RUN_DIR
 ```
+
+Use the `workbench` tier as the default preflight before Dashboard/Workbench
+frontend migration. It runs the SPA shell render/i18n guard plus the native
+Workbench server/API/core/material smoke tests, and it executes child processes
+with `TMP` / `TEMP` pointed at `.tmp/test-temp` so Windows user-temp corruption
+does not look like a Workbench regression.
+
+`workbench_frontend_smoke.py` needs a Workbench-previewable run folder: one
+with `timeline.json`, `draft_timeline.json`, or `timeline.plan`, plus enough
+material data for at least one editable clip. If the run is layout-only or has
+no preview timeline yet, run the browser layout smoke first or build
+`preview_timeline.json` from a valid timeline before using the frontend smoke.
+For a self-contained local check, create a tiny previewable fixture and run both
+draft paths:
+
+```powershell
+python tools/workbench_frontend_smoke.py --artifact-root .tmp/workbench_frontend_smoke_fixture --init-fixture
+python tools/workbench_frontend_smoke.py --artifact-root .tmp/workbench_frontend_smoke_fixture --exercise-replace
+```
+
+`--init-fixture` refuses non-empty folders by default. Use it only with
+disposable `.tmp` paths, or add `--force-init-fixture` when intentionally
+recreating that scratch fixture.
+
+Run the fast frontend smoke plus browser layout smoke before and after any
+frontend change touching the Workbench iframe shell, native video monitor,
+playback controls, or four timeline lanes. These are guards for the protected
+editing surface, not canonical render validators. Against the merged
+`/workbench` route, the browser layout smoke also rejects protected editor
+selectors in the outer SPA shell (`monitor-box`, `timeline-wrap`, `clip-video`,
+`wb-monitor`, `wb-timeline`, `track-lane`, `lane-video`) so the shell cannot
+quietly grow a duplicate monitor or four-track editor.
 
 ## Before You Claim Success
 

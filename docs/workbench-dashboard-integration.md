@@ -6,42 +6,38 @@ where a change belongs before editing code.
 
 ## Surfaces
 
-### Control Index
+### Dashboard Shell
 
-The Control Index is the top-level entry page served by `tools/dashboard_server.py`
-at `/`.
+`tools/dashboard_server.py` now serves the main SPA shell at `/`, `/dashboard`,
+`/material-map`, `/timeline`, `/verify`, `/artifacts`, and `/workbench`.
 
-It should show:
+The shell is read/review oriented outside the Workbench iframe. It should show:
 
-- the active artifact root and final-video presence;
-- the Dashboard entrypoint for read-oriented review;
-- the Workbench entrypoint and start command;
-- Workbench draft artifact readiness, including
+- the active artifact root and route status;
+- Dashboard views for read-oriented review;
+- Material Map and verification evidence;
+- Workbench draft readiness, including
   `workbench.draft_summary.agent_ready`.
 
-The Control Index is read-only. It must not duplicate Dashboard review panels or
-Workbench editing behavior.
+The Dashboard shell is read-only. It must not duplicate native Workbench editing
+behavior or silently mutate canonical artifacts.
 
-Control Index reads the compact frontend manifest from:
+The shell reads the compact frontend manifest from:
 
 ```text
 GET /api/control/status
 ```
 
-It checks whether the external Workbench server is reachable through the
-same-origin proxy:
+It reads Workbench health from the merged server:
 
 ```text
-GET /api/control/workbench-health
+GET /api/workbench/health
 ```
 
-The browser should not call `localhost:8770` directly for health checks because
-that creates avoidable cross-origin behavior. The direct Workbench health
-endpoint is still available for tools and diagnostics:
-
-```text
-GET http://localhost:8770/api/workbench/health
-```
+The selected run folder is shared by all shell views through `?root=...`.
+Users can switch by selecting a detected run in `選擇 Run`, or by pasting a
+folder path into `打開資料夾`. The Dashboard shell passes the same root to
+Dashboard, Material Map, Verify, Artifacts, and the Workbench iframe.
 
 ### Dashboard
 
@@ -57,6 +53,21 @@ It should show:
 
 Dashboard should not author timeline edits. If a user wants to change timing,
 source windows, subtitles, audio cues, or effect cues, route them to Workbench.
+
+Dashboard should present decision-making artifacts in Chinese while preserving
+English artifact names and JSON keys as the machine contract. Use the data
+dictionary and artifact visibility rules in
+`docs/construction-guides/dashboard/dashboard-route-review-ux-spec.md`:
+
+```text
+decision artifacts -> visible cards
+evidence artifacts -> visual proof / compact links
+debug artifacts -> collapsed details
+```
+
+Do not list every JSON file by default. Show artifacts that affect route,
+review, approval, repair, or render eligibility; keep mechanical handoff files
+behind a debug drawer.
 
 ### Workbench
 
@@ -74,6 +85,89 @@ It can:
 - create an agent/backend handoff package.
 
 Workbench must not overwrite canonical artifacts.
+
+The current `/workbench` SPA route is a thin host around the native Workbench:
+
+- `WorkbenchView` embeds `/workbench/index.html?root=...`.
+- The native runtime lives in `dashboard/workbench_native/`.
+- The SPA shell may show run context, health, and draft summaries.
+- The SPA shell must not reimplement the native monitor, timeline tracks, clip
+  selection, or patch math.
+
+### Native Editor Protected Zone
+
+Treat the native Workbench monitor and four lower tracks as protected during
+Dashboard/frontend migration:
+
+- video monitor / playback preview;
+- video, subtitle, audio, and effect tracks;
+- playhead mapping, source-window trim handles, media proxy playback, material
+  replacement, subtitle/audio/effect patch drafting, and save/handoff payloads.
+
+Do not change these regions while migrating Dashboard, Material Map, route
+review, or artifact review. Only touch them when a dedicated Workbench migration
+task names the layer and carries equivalent smoke coverage, or when backend
+contract/API changes require it.
+
+The minimal browser guard for this protected zone is:
+
+```powershell
+node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>
+```
+
+It starts a temporary Workbench server and checks the native editor directly at
+1366x900 and 1920x1080: no horizontal page overflow, the monitor stays 16:9,
+the playback controls remain present, and the video/subtitle/audio/effect lanes
+remain present. When a merged Dashboard server is already running, use:
+
+```powershell
+node tools\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench
+```
+
+Against the merged Dashboard route, the same guard also verifies the
+`/workbench` SPA host still uses `app-workbench`, keeps the native iframe
+visible in the first viewport, and points it at `/workbench/index.html` before
+entering the iframe for the native editor checks. It also rejects protected
+editor selectors in the outer SPA shell (`monitor-box`, `timeline-wrap`,
+`clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, `lane-video`) so the
+shell cannot silently grow a duplicate monitor or four-track editor.
+
+The faster `tools/workbench_frontend_smoke.py --artifact-root <run-folder>` is
+stricter than the layout smoke. It needs a Workbench-previewable run folder with
+`timeline.json`, `draft_timeline.json`, or `timeline.plan`, plus enough material
+data for at least one editable clip. Use it for HTML/API/draft-write protection,
+not for empty layout-only runs.
+
+For routine frontend migration work, run the Workbench tier first:
+
+```powershell
+python tools/test_tiers.py --tier workbench
+```
+
+That tier includes the SPA shell render/i18n smoke, the native Workbench
+server/frontend smoke, and the Workbench API/core/material helper smokes. It is
+the default guard before touching the Dashboard shell around Workbench; use the
+browser layout smoke when the change affects viewport sizing or iframe layout.
+The tier runner sets child-process `TMP` / `TEMP` to `.tmp/test-temp` so a
+corrupted Windows user temp folder does not look like a Workbench regression.
+
+For a self-contained fixture, run:
+
+```powershell
+python tools/workbench_frontend_smoke.py --artifact-root .tmp/workbench_frontend_smoke_fixture --init-fixture
+python tools/workbench_frontend_smoke.py --artifact-root .tmp/workbench_frontend_smoke_fixture --exercise-replace
+```
+
+`--init-fixture` refuses non-empty folders by default. Use it only with
+disposable `.tmp` paths, or add `--force-init-fixture` when intentionally
+recreating that scratch fixture.
+
+Current Workbench shell rules:
+
+- `/workbench` uses the `app-workbench` dense/wide layout.
+- `/workbench` does not render the Dashboard pause banner.
+- The iframe remains the compatibility bridge.
+- Native Workbench state is not mirrored into duplicate Dashboard controls.
 
 Source-window trims are contract-linked edits. The UI should show and preserve
 the chain:
@@ -219,41 +313,43 @@ changes.
 
 ## Local Commands
 
-Start Workbench against the current real 67th fuller replay artifact:
+Start the merged Dashboard/Workbench server:
 
 ```powershell
-python tools\workbench_server.py --artifact-root .tmp\srp_real67_fuller_replay --port 8770
+python tools\dashboard_server.py --artifact-root .tmp\srp_real67_fuller_replay --port 8765
 ```
 
 Open:
 
 ```text
-http://localhost:8000/
+http://localhost:8765/
 ```
 
 Dashboard:
 
 ```text
-http://localhost:8000/dashboard
+http://localhost:8765/dashboard
 ```
 
 Workbench:
 
 ```text
-http://localhost:8770/workbench
+http://localhost:8765/workbench
 ```
 
 Focused checks:
 
 ```powershell
-node --check dashboard\index.js
+node --check dashboard\src\main.js
 node --check dashboard\workbench_native\workbench.js
 node --check dashboard\workbench_native\workbench_api.js
 node --check dashboard\workbench_native\workbench_materials.js
 node --check dashboard\workbench_native\workbench_core.js
+node tests\dashboard_spa_render_smoke.mjs
 node tests\workbench_api_smoke.js
 node tests\workbench_materials_smoke.js
 node tests\workbench_core_smoke.js
+node tools\workbench_browser_layout_smoke.mjs --artifact-root .tmp\srp_real67_fuller_replay
 python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay
 python tools\workbench_frontend_smoke.py --artifact-root .tmp\srp_real67_fuller_replay --exercise-replace
 python -m unittest tests.test_preview_timeline tests.test_workbench_server tests.test_timeline_patch -q

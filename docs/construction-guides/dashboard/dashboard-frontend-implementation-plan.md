@@ -13,9 +13,11 @@ The frontend should help a Chinese-speaking user understand and review the pipel
 
 ## Current Boundary
 
-Do not continue prototype-driven UI work until the backend pipeline has been tested end to end against the two baseline runs.
+Prototype-only UI work is no longer the main path. The production dashboard should move slowly into the SPA shell while keeping the editing-critical Workbench native surface protected.
 
-For now, frontend work should stay as a plan/spec only. Implementation should resume after the pipeline test pass/fail picture is clear.
+Frontend work may proceed in small verified slices when it uses real pipeline artifacts and keeps the native Workbench editor stable. Mock HTML can be used as a design sketch, but production routes must not depend on mock-only state or prototype behavior.
+
+The highest-risk boundary is Workbench: the video monitor / playback preview area and the four lower timeline tracks must remain native and unchanged unless the underlying editing contract, ffmpeg handoff, source-window model, or Workbench API changes.
 
 ## Product Direction
 
@@ -133,7 +135,19 @@ Core editing model:
 Future migration:
 
 - Keep iframe containment until native modules are stable.
-- Later extract workbench modules into SPA-native components.
+- The SPA route may add only a thin outer shell: route tabs, selected run, health, draft summary, and handoff status.
+- Treat the native video monitor / playback preview area as a protected zone.
+- Treat the native four lower timeline tracks as a protected zone: video, subtitle, audio, and effect tracks.
+- Do not rewrite or restyle the protected zones during Dashboard, Material Map, artifact review, route review, or mockup cleanup work.
+- Do not replace the native Workbench layout with mockup-only blocks, mirrored state, or a separate SPA timeline unless there is a dedicated Workbench migration task with equivalent browser and core smoke coverage.
+- The outer SPA shell must not contain protected editor selectors such as `monitor-box`, `timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or `lane-video`; those are mock/native editor selectors, not shell controls.
+- Later extraction must preserve playback smoothness, clip selection, source-window math, drag/replace behavior, trim handles, media proxy playback, and draft patch/handoff payloads.
+- Any change touching the Workbench iframe shell, native monitor, or four lower
+  tracks must run:
+
+```powershell
+node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>
+```
 
 ### 5. Verify / Delivery
 
@@ -264,15 +278,18 @@ Frontend implementation should wait for this pass/fail report.
 
 ### Phase 4: Workbench Integration
 
-- Keep iframe if stable.
-- Move health/draft/handoff summary into SPA-native panels.
+- Keep iframe containment as the default implementation.
+- Keep the native video monitor / playback preview area and the native video/subtitle/audio/effect tracks unchanged.
+- Use `node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>`
+  as the browser guard for this protected zone.
+- Move only health/draft/handoff summary into SPA-native panels.
 - Add a read/write-draft view for source windows: show the contract segment,
   `need_refs`, accepted material-map scene, current `usable_range`, derived
   `start_sec`, and derived `duration_sec`.
 - Save source-window edits only as Workbench draft patches or material-map review
   verdict patches. Do not directly rewrite `segment_contract.json`,
   `project_material_map.json`, `timeline_build.json`, or `final.mp4`.
-- Only then consider replacing iframe composition.
+- Only consider replacing iframe composition after a dedicated Workbench extraction plan proves parity for playback, timeline interaction, drag/replace, trim, source-window mapping, and handoff artifacts.
 
 ### Phase 5: Edit And Save Flow
 
@@ -291,8 +308,10 @@ Frontend is acceptable when:
 - Important artifacts are visible but not the primary prose.
 - The dashboard does not list stale `.tmp` or old `video_project` cases.
 - Workbench remains draft-only.
+- Workbench protected zones remain native: video monitor / playback preview plus video, subtitle, audio, and effect tracks.
 - No production route serves mock/prototype UI.
-- Browser smoke test passes.
+- Browser smoke test passes:
+  `node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>`.
 - Backend API tests pass.
 
 ## Deferred
@@ -301,6 +320,7 @@ Do not do these before pipeline verification:
 
 - Full native Workbench rewrite.
 - Complex material drag timeline editor.
+- Any Workbench monitor or four-track rewrite not backed by dedicated parity tests.
 - OAuth/login/runtime packaging.
 - Renderer changes.
 - Node14/Remotion changes.

@@ -57,7 +57,16 @@ __pycache__/
 # graphify staging / temp
 .graphify_*.json
 .graphify_*.txt
+.graphify-corpus/
 graphify-out/cache/
+
+# local agent/session scratch
+.claude/
+.gf_chunk_*.txt
+
+# boundary smoke generated actuals
+examples/boundary_fixtures/**/actual/
+examples/boundary_fixtures/boundary_fixture_report.json
 
 # ── keep in git (design + knowledge graph outputs) ───────────────────────────
 # roadmap.md, HANDOFF.md, skills/*.md, design/*.md — tracked by default

@@ -1,0 +1,46 @@
+{
+  "artifact_role": "effect_role_policy",
+  "version": 1,
+  "note": "section_role -> effect_role 預設政策(對稱 style->transition)。recommended = 鼓勵;discouraged = 無 reason override 時 warn;forbidden = blocking。政策是預設、非鐵律:段落可用 effect.intent/creative_exception 加 reason override discouraged(forbidden 不可 override)。section_role 對齊 segment_contract core.section_role。未列 section_role 套用 _default。",
+  "override_rule": {
+    "discouraged_requires": "effect.target.story_function 或 effect 帶非空 reason/creative_exception 才放行,否則 warn(effect_role_discouraged_for_section)",
+    "forbidden_overridable": false
+  },
+  "by_section_role": {
+    "opening": {
+      "recommended": ["title_card", "motion_background", "chapter_transition"],
+      "discouraged": ["lower_third", "speed_line"],
+      "forbidden": []
+    },
+    "title": {
+      "recommended": ["title_card", "motion_background", "transition_plate"],
+      "discouraged": ["particle"],
+      "forbidden": []
+    },
+    "montage": {
+      "recommended": ["overlay", "light_leak", "speed_line", "particle"],
+      "discouraged": [],
+      "forbidden": []
+    },
+    "hold": {
+      "recommended": [],
+      "discouraged": ["particle", "overlay", "lower_third"],
+      "forbidden": ["speed_line"]
+    },
+    "closing": {
+      "recommended": ["title_card", "chapter_transition", "motion_background"],
+      "discouraged": ["speed_line"],
+      "forbidden": []
+    },
+    "reveal": {
+      "recommended": ["overlay", "particle", "lower_third"],
+      "discouraged": ["speed_line"],
+      "forbidden": []
+    },
+    "_default": {
+      "recommended": [],
+      "discouraged": [],
+      "forbidden": []
+    }
+  }
+}

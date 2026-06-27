@@ -143,6 +143,49 @@ class StorySoulBlueprintTest(unittest.TestCase):
             self.assertIn("clean manga watercolor", shot["prompt"])
             self.assertIn(shot["visual_family"], shot["prompt"])
 
+    def test_stage0_child_contracts_thread_into_director_and_needs(self):
+        brief = _training_brief()
+        brief["stage0_child_contracts"] = {
+            "material": {
+                "artifact_role": "stage0_material_intent",
+                "first_action": "material_map_quick_inventory",
+            },
+            "soundtrack": {
+                "artifact_role": "stage0_soundtrack_intent",
+                "music_role": "mixed",
+                "energy_intent": "warm_to_high",
+                "handoff_to": "soundtrack-arranger",
+            },
+            "effect": {
+                "artifact_role": "stage0_effect_policy",
+                "activation": "defer_to_brownfield_or_segment_review",
+            },
+            "subtitle_voiceover": {
+                "artifact_role": "stage0_subtitle_voiceover_intent",
+                "language": "zh-TW",
+                "subtitle_required": True,
+                "voiceover_required": True,
+                "handoff_to": "subtitle-director+audio-director",
+            },
+        }
+
+        result = build_story_soul_blueprint(brief)
+
+        self.assertTrue(result["ok"], result.get("errors"))
+        self.assertEqual(result["stage0_child_contracts"]["soundtrack"]["music_role"], "mixed")
+        self.assertEqual(
+            result["director_shot_plan"]["stage0_child_contracts"]["subtitle_voiceover"]["language"],
+            "zh-TW",
+        )
+        self.assertEqual(
+            result["material_needs"]["stage0_material_contract"]["first_action"],
+            "material_map_quick_inventory",
+        )
+        first_intent = result["director_shot_plan"]["shots"][0]["director_intent"]
+        self.assertEqual(first_intent["soundtrack_intent"]["music_role"], "mixed")
+        self.assertTrue(first_intent["subtitle_voiceover_intent"]["subtitle_required"])
+        self.assertEqual(first_intent["effect_policy"]["activation"], "defer_to_brownfield_or_segment_review")
+
     def test_generic_brief_without_story_subject_fails_closed(self):
         result = build_story_soul_blueprint({"project_type": "video"})
 
@@ -210,6 +253,57 @@ class StorySoulBlueprintTest(unittest.TestCase):
             )
 
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_cli_compiles_story_soul_directory_to_contract(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            brief = d / "brief.json"
+            out_dir = d / "story"
+            contract_path = d / "segment_contract.json"
+            payload = _comic_brief()
+            payload["stage0_child_contracts"] = {
+                "subtitle_voiceover": {"language": "zh-TW", "subtitle_required": True}
+            }
+            brief.write_text(json.dumps(payload), encoding="utf-8")
+            proc1 = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "story-soul-blueprint",
+                    str(brief),
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                cwd=root,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(proc1.returncode, 0, proc1.stdout + proc1.stderr)
+
+            proc2 = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "story-soul-to-contract",
+                    "--story-dir",
+                    str(out_dir),
+                    "--out",
+                    str(contract_path),
+                ],
+                cwd=root,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc2.returncode, 0, proc2.stdout + proc2.stderr)
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            self.assertTrue(contract["segments"])
+            self.assertEqual(contract["segments"][0]["text_layer"]["language"], "zh-TW")
 
 
 if __name__ == "__main__":

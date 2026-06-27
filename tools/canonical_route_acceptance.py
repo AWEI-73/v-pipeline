@@ -34,6 +34,8 @@ REQUIRED_SKILLS = [
     "video-pipeline-route.md",
     "story-soul-blueprint.md",
     "material-map.md",
+    "video-effect-factory.md",
+    "remotion-effect-worker.md",
     "material-generation-fallback.md",
     "generated-material-producer.md",
     "brownfield-edit.md",
@@ -80,6 +82,10 @@ REQUIRED_ARTIFACTS = [
     "patched_draft_timeline.json",
     "workbench_contract_patch.json",
     "effect_intent_plan.json",
+    "effect_design_map.json",
+    "effect_contract.json",
+    "effect_review.json",
+    "effect_handoff.json",
     "remotion_prompt_pack.json",
     "remotion_effect_review.json",
     "reviewer_policy_packet.json",
@@ -201,6 +207,7 @@ def run_check(root: Path) -> dict[str, Any]:
         "docs/canonical-video-pipeline-route.md",
         "docs/upstream-story-route.md",
         "docs/artifact-reviewer-map.md",
+        "docs/effect-factory-route.md",
         "review_policy",
     ]:
         if expected not in start_here:

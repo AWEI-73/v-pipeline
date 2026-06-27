@@ -109,6 +109,35 @@ def _string_contains_any(value: Any, needles: tuple[str, ...]) -> bool:
     return False
 
 
+def _audio_mix_report_blocks(audio_mix_report: dict[str, Any]) -> list[dict[str, Any]]:
+    blocking: list[dict[str, Any]] = []
+    placements = _as_list(audio_mix_report.get("placements"))
+    for index, placement in enumerate(placements):
+        if not isinstance(placement, dict):
+            continue
+        if placement.get("ducking_policy") == "duck_under_voice" and placement.get("ducking_applied") is not True:
+            blocking.append({
+                "rule": "required_audio_ducking_not_applied",
+                "tier": 1,
+                "artifact": "audio_mix_report.json",
+                "message": f"audio placement #{index} requires duck_under_voice but ducking_applied is not true",
+                "next_action": "repair_audio_mix_plan_ducking",
+            })
+    try:
+        peak_dbfs = float(audio_mix_report.get("peak_dbfs"))
+    except (TypeError, ValueError):
+        peak_dbfs = None
+    if peak_dbfs is not None and peak_dbfs > -0.5:
+        blocking.append({
+            "rule": "audio_mix_peak_too_hot",
+            "tier": 1,
+            "artifact": "audio_mix_report.json",
+            "message": f"audio mix peak is too close to clipping ({peak_dbfs:.1f} dBFS)",
+            "next_action": "lower_audio_mix_gain_or_limit",
+        })
+    return blocking
+
+
 def _clip_source_path(clip: dict[str, Any]) -> str | None:
     for key in (
         "source_path",
@@ -156,6 +185,283 @@ def _clip_duration_sec(clip: dict[str, Any]) -> float:
                 return max(0.0, parsed)
         return max(0.0, parsed)
     return 0.0
+
+
+def _segment_id(value: Any) -> str:
+    text = str(value or "").strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
+
+
+def _contract_segments_by_id(contract: Any) -> dict[str, dict[str, Any]]:
+    if isinstance(contract, dict):
+        segments = contract.get("segments") or []
+    elif isinstance(contract, list):
+        segments = contract
+    else:
+        segments = []
+    out: dict[str, dict[str, Any]] = {}
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        sid = _segment_id(segment.get("segment") or segment.get("id") or segment.get("segment_id"))
+        if sid:
+            out[sid] = segment
+    return out
+
+
+def _segment_need_refs(segment: dict[str, Any]) -> set[str]:
+    material_fit = segment.get("material_fit") or {}
+    refs: list[str] = []
+    for value in (segment.get("need_ref"), material_fit.get("need_ref")):
+        if isinstance(value, str) and value.strip():
+            refs.append(value.strip())
+    for values in (segment.get("need_refs") or [], material_fit.get("need_refs") or []):
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                refs.append(value.strip())
+    return set(refs)
+
+
+def _segment_material_map_ids(segment: dict[str, Any]) -> set[str]:
+    values = segment.get("material_map_ids") or segment.get("asset_ids") or []
+    return {str(value).strip() for value in values if isinstance(value, str) and value.strip()}
+
+
+def _timeline_scene_asset_id(scene_id: Any) -> str:
+    return str(scene_id or "").split(":", 1)[0].strip()
+
+
+def _timeline_clip_asset_id(clip: dict[str, Any]) -> str:
+    for key in ("material_map_id", "asset_id"):
+        value = clip.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return _timeline_scene_asset_id(clip.get("scene_id"))
+
+
+def _material_assets(material_map: Any) -> dict[str, dict[str, Any]]:
+    if isinstance(material_map, dict) and isinstance(material_map.get("assets"), list):
+        raw_assets = material_map.get("assets") or []
+    elif isinstance(material_map, list):
+        raw_assets = material_map
+    elif isinstance(material_map, dict) and material_map.get("asset_id"):
+        raw_assets = [material_map]
+    else:
+        raw_assets = []
+    assets: dict[str, dict[str, Any]] = {}
+    for asset in raw_assets:
+        if not isinstance(asset, dict):
+            continue
+        asset_id = str(asset.get("asset_id") or "").strip()
+        if asset_id:
+            assets[asset_id] = asset
+    return assets
+
+
+def _scene_need_from_asset(asset: dict[str, Any] | None, scene_id: Any) -> str | None:
+    if not asset:
+        return None
+    raw_index = str(scene_id or "").split(":", 1)[1:] or [None]
+    try:
+        index = int(raw_index[0])
+    except (TypeError, ValueError):
+        index = None
+    scenes = asset.get("scenes") or []
+    scene = scenes[index] if index is not None and 0 <= index < len(scenes) else {}
+    if isinstance(scene, dict):
+        for status in ("accepted", "candidate"):
+            for edge in scene.get("satisfies") or []:
+                if isinstance(edge, dict) and edge.get("status") == status and edge.get("need_id"):
+                    return str(edge["need_id"])
+                if isinstance(edge, str) and edge.strip():
+                    return edge.strip()
+        if scene.get("need_id"):
+            return str(scene["need_id"])
+    if asset.get("need_id"):
+        return str(asset["need_id"])
+    return None
+
+
+def _timeline_material_contract_blocks(
+    timeline_build: Any,
+    segment_contract: Any,
+    project_material_map: Any,
+) -> list[dict[str, Any]]:
+    clips = _timeline_clips(timeline_build)
+    if not clips:
+        return []
+    segments_by_id = _contract_segments_by_id(segment_contract)
+    if not segments_by_id:
+        return []
+    assets = _material_assets(project_material_map)
+    blocking: list[dict[str, Any]] = []
+    for clip in clips:
+        sid = _segment_id(clip.get("segment") or clip.get("segment_id"))
+        segment = segments_by_id.get(sid)
+        if not segment:
+            continue
+        scene_id = clip.get("scene_id")
+        asset_id = _timeline_clip_asset_id(clip)
+        if not asset_id:
+            continue
+        allowed_asset_ids = _segment_material_map_ids(segment)
+        if allowed_asset_ids and asset_id not in allowed_asset_ids:
+            blocking.append({
+                "rule": "timeline_material_map_id_mismatch",
+                "tier": 1,
+                "artifact": "timeline_build",
+                "segment": clip.get("segment"),
+                "scene_id": scene_id,
+                "message": (
+                    f"timeline clip {scene_id} is not in segment material_map_ids "
+                    f"{sorted(allowed_asset_ids)}"
+                ),
+                "next_action": "revise_material_selection_or_review",
+            })
+        need_refs = _segment_need_refs(segment)
+        actual_need = clip.get("need_id") or clip.get("need_ref") or _scene_need_from_asset(assets.get(asset_id), scene_id)
+        if need_refs and actual_need and actual_need not in need_refs:
+            blocking.append({
+                "rule": "timeline_need_ref_mismatch",
+                "tier": 1,
+                "artifact": "timeline_build",
+                "segment": clip.get("segment"),
+                "scene_id": scene_id,
+                "message": (
+                    f"timeline clip {scene_id} satisfies {actual_need}, "
+                    f"not segment need_refs {sorted(need_refs)}"
+                ),
+                "next_action": "revise_material_selection_or_review",
+            })
+    return blocking
+
+
+def _stage0_child_contracts_from_artifacts(artifacts: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(artifacts, dict):
+        return {}
+    candidates = [
+        artifacts.get("segment_contract"),
+        artifacts.get("contract"),
+        artifacts.get("generated_mv_script"),
+        artifacts.get("runtime_payload"),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            direct = candidate.get("stage0_child_contracts")
+            if isinstance(direct, dict) and direct:
+                return direct
+            for segment in candidate.get("segments") or []:
+                if isinstance(segment, dict) and isinstance(segment.get("stage0_child_contracts"), dict):
+                    return segment["stage0_child_contracts"]
+    return {}
+
+
+def _has_soundtrack_evidence(artifacts: dict[str, Any]) -> bool:
+    music_manifest = artifacts.get("music_manifest")
+    if _manifest_has_items(music_manifest if isinstance(music_manifest, dict) else None, "tracks", "cues"):
+        return True
+    audio_mix_report = artifacts.get("audio_mix_report")
+    if isinstance(audio_mix_report, dict) and (
+        audio_mix_report.get("music_included") is True
+        or audio_mix_report.get("audio_stream_present") is True
+    ):
+        return True
+    audio_build_handoff = artifacts.get("audio_build_handoff")
+    return isinstance(audio_build_handoff, dict) and bool(audio_build_handoff.get("selected_audio"))
+
+
+def _has_subtitle_evidence(artifacts: dict[str, Any]) -> bool:
+    subtitle_voiceover_handoff = artifacts.get("subtitle_voiceover_build_handoff")
+    if isinstance(subtitle_voiceover_handoff, dict) and subtitle_voiceover_handoff.get("subtitle_ready") is True:
+        return True
+    subtitles = artifacts.get("subtitles") or artifacts.get("subtitles_srt")
+    if isinstance(subtitles, str) and subtitles.strip():
+        return True
+    if isinstance(subtitles, dict) and (subtitles.get("path") or subtitles.get("cue_count")):
+        return True
+    caption_audit = artifacts.get("caption_audit")
+    return isinstance(caption_audit, dict) and caption_audit.get("pass") is True
+
+
+def _has_voiceover_evidence(artifacts: dict[str, Any]) -> bool:
+    subtitle_voiceover_handoff = artifacts.get("subtitle_voiceover_build_handoff")
+    if isinstance(subtitle_voiceover_handoff, dict) and subtitle_voiceover_handoff.get("voiceover_ready") is True:
+        return True
+    narration_manifest = artifacts.get("narration_manifest")
+    if _manifest_has_items(narration_manifest if isinstance(narration_manifest, dict) else None, "segments", "clips", "lines"):
+        return True
+    audio_mix_report = artifacts.get("audio_mix_report")
+    return isinstance(audio_mix_report, dict) and audio_mix_report.get("narration_included") is True
+
+
+def _has_effect_evidence(artifacts: dict[str, Any]) -> bool:
+    verification = artifacts.get("effect_render_verification")
+    if isinstance(verification, dict) and verification.get("pass") is True and _as_list(verification.get("verified_effects")):
+        return True
+    review = artifacts.get("effect_review")
+    if isinstance(review, dict) and review.get("pass") is True:
+        return True
+    for key in ("effect_handoff", "remotion_effect_handoff"):
+        handoff = artifacts.get(key)
+        if isinstance(handoff, dict) and bool(handoff.get("accepted_assets") or handoff.get("assets")):
+            return True
+    return False
+
+
+def _stage0_child_contract_blocks(artifacts: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(artifacts, dict):
+        return []
+    contracts = _stage0_child_contracts_from_artifacts(artifacts)
+    if not contracts:
+        return []
+    blocking: list[dict[str, Any]] = []
+    soundtrack = contracts.get("soundtrack") if isinstance(contracts.get("soundtrack"), dict) else {}
+    music_role = str(soundtrack.get("music_role") or "").strip().lower()
+    if music_role not in {"", "none", "unsure"} and not _has_soundtrack_evidence(artifacts):
+        blocking.append({
+            "rule": "missing_stage0_soundtrack_evidence",
+            "tier": 1,
+            "artifact": "stage0_child_contracts.soundtrack",
+            "message": f"Stage 0 requested soundtrack role {music_role}, but no music/audio evidence is present",
+            "next_action": "resolve_soundtrack_license_or_audio_handoff",
+        })
+    subtitle_voiceover = (
+        contracts.get("subtitle_voiceover")
+        if isinstance(contracts.get("subtitle_voiceover"), dict)
+        else {}
+    )
+    if subtitle_voiceover.get("subtitle_required") is True and not _has_subtitle_evidence(artifacts):
+        blocking.append({
+            "rule": "missing_stage0_subtitle_evidence",
+            "tier": 1,
+            "artifact": "stage0_child_contracts.subtitle_voiceover",
+            "message": "Stage 0 requested subtitles, but no subtitle/caption evidence is present",
+            "next_action": "generate_or_verify_subtitles",
+        })
+    if subtitle_voiceover.get("voiceover_required") is True and not _has_voiceover_evidence(artifacts):
+        blocking.append({
+            "rule": "missing_stage0_voiceover_evidence",
+            "tier": 1,
+            "artifact": "stage0_child_contracts.subtitle_voiceover",
+            "message": "Stage 0 requested voiceover/narration, but no narration/audio evidence is present",
+            "next_action": "generate_or_attach_voiceover",
+        })
+    effect_policy = contracts.get("effect") if isinstance(contracts.get("effect"), dict) else {}
+    effect_required = (
+        effect_policy.get("required_now") is True
+        or effect_policy.get("activation") == "route_to_effect_factory"
+    )
+    if effect_required and not _has_effect_evidence(artifacts):
+        blocking.append({
+            "rule": "missing_stage0_effect_evidence",
+            "tier": 1,
+            "artifact": "stage0_child_contracts.effect",
+            "message": "Stage 0 requested a required effect, but no effect review/render evidence is present",
+            "next_action": "verify_or_remove_required_effect",
+        })
+    return blocking
 
 
 def _is_finished_master_source(source: str, clip: dict[str, Any]) -> bool:
@@ -440,6 +746,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         or _effects_required(root)
     )
     language = _expected_language(requirements)
+    subtitle_voiceover_handoff = _load_json(root / "subtitle_voiceover_build_handoff.json") or {}
 
     final_path = root / "final.mp4"
     if not final_path.is_file() or final_path.stat().st_size <= 0:
@@ -491,6 +798,14 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                 })
 
     narration_manifest = _load_json(root / "narration_manifest.json")
+    if (
+        not _manifest_has_items(narration_manifest, "segments", "clips", "lines")
+        and isinstance(subtitle_voiceover_handoff, dict)
+        and subtitle_voiceover_handoff.get("voiceover_ready") is True
+    ):
+        handoff_manifest_path = _resolve_ref(root, subtitle_voiceover_handoff.get("narration_manifest"))
+        if handoff_manifest_path is not None:
+            narration_manifest = _load_json(handoff_manifest_path)
     if requires_narration and not _manifest_has_items(narration_manifest, "segments", "clips", "lines"):
         blocking.append({
             "rule": "missing_narration_manifest",
@@ -621,8 +936,16 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                         "message": "audio mix report declares fallback/cue-only narration",
                         "next_action": "replace_fallback_with_real_narration",
                     })
+            blocking.extend(_audio_mix_report_blocks(audio_mix_report))
 
     subtitles_path = root / "subtitles.srt"
+    if (
+        isinstance(subtitle_voiceover_handoff, dict)
+        and subtitle_voiceover_handoff.get("subtitle_ready") is True
+    ):
+        handoff_subtitles_path = _resolve_ref(root, subtitle_voiceover_handoff.get("subtitles"))
+        if handoff_subtitles_path is not None and handoff_subtitles_path.is_file():
+            subtitles_path = handoff_subtitles_path
     subtitles = ""
     if requires_subtitles:
         try:
@@ -1020,8 +1343,16 @@ def evaluate_delivery_gate(artifacts):
         and material_lifecycle.get("can_build") is True
         and material_lifecycle.get("next_action") in (None, "build")
     )
-    coverage = (artifacts or {}).get("material_coverage") or {}
     material_ready = delta_ready or lifecycle_ready
+    blocking.extend(_stage0_child_contract_blocks(artifacts or {}))
+    blocking.extend(_source_quality_blocking((artifacts or {}).get("timeline_build")))
+    blocking.extend(_timeline_material_contract_blocks(
+        (artifacts or {}).get("timeline_build"),
+        (artifacts or {}).get("segment_contract") or (artifacts or {}).get("contract"),
+        (artifacts or {}).get("project_material_map") or (artifacts or {}).get("material_maps"),
+    ))
+
+    coverage = (artifacts or {}).get("material_coverage") or {}
     for gap in coverage.get("gaps") or []:
         if material_ready:
             continue
@@ -1032,8 +1363,6 @@ def evaluate_delivery_gate(artifacts):
             "message": gap.get("reason") or "material gap unresolved",
             "next_action": "await_material",
         })
-
-    blocking.extend(_source_quality_blocking((artifacts or {}).get("timeline_build")))
 
     rough_cut_plan = (artifacts or {}).get("rough_cut_plan") or {}
     if isinstance(rough_cut_plan, dict) and rough_cut_plan.get("ok") is False:

@@ -5,6 +5,57 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
 
 # Dashboard Skill
 
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "dashboard",
+  "stage_owner": "dashboard_workbench_review_surface",
+  "triggers": [
+    "使用者要開 dashboard、檢查前端、查看 Workbench、或驗證 UI 是否讀到 artifacts",
+    "需要以瀏覽器檢查 dashboard/workbench 狀態"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/dashboard_server.py",
+      "when": "啟動 dashboard review surface",
+      "inputs": ["repo root", "optional run root"],
+      "outputs": ["local dashboard URL"],
+      "stop_if": ["server fails to bind or dashboard state cannot load"]
+    },
+    {
+      "tool": "tools/workbench_server.py",
+      "when": "啟動 Workbench review/edit surface",
+      "inputs": ["repo root", "optional run root"],
+      "outputs": ["local workbench URL"],
+      "stop_if": ["server fails to bind or workbench state cannot load"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/workbench_frontend_smoke.py",
+      "when": "用瀏覽器或前端 smoke 檢查 Workbench UI",
+      "inputs": ["workbench URL or local server"],
+      "outputs": ["frontend smoke report"],
+      "stop_if": ["browser check fails"]
+    },
+    {
+      "tool": "tools/workbench_proxy.py",
+      "when": "代理 Workbench 讀取本機素材或 run artifacts",
+      "inputs": ["repo root", "request path"],
+      "outputs": ["proxied artifact or media response"],
+      "stop_if": ["path escapes allowed workspace"]
+    }
+  ],
+  "forbidden_tools": [
+    "Dashboard must not silently rewrite canonical artifacts",
+    "Workbench UI drafts must return through review before canonical promotion",
+    "Do not use UI visibility as proof that delivery gates passed"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
 > ## AI Editor Review / Override Surface(Node 11 — AI 為主、人為輔)
 > **AI editor 是主控,human-in-the-loop 是選配且 targeted。** AI editor 讀 assembly_plan +
 > timeline_build + validation findings → 產 `editor_review`:`decision ∈ approve / auto_fix /

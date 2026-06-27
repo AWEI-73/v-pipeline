@@ -1,30 +1,10 @@
 import { ArtifactCard } from "../components/ArtifactCard.js";
-import { VerticalRouteTimeline, expandedRouteStages, stageLabelsZh } from "../components/VerticalRouteTimeline.js";
+import { VerticalRouteTimeline, expandedRouteStages } from "../components/VerticalRouteTimeline.js";
 import { escapeHtml } from "../components/StatusPill.js";
-
-const valueLabels = {
-  training_recap: "養成班 / 訓練回顧",
-  children_story: "兒童故事",
-  graduation_recap: "結訓 / 畢業回顧",
-  existing_material_available: "已有素材",
-  no_existing_visual_material: "沒有現成影像素材",
-  brief_available: "已有簡報或文字簡述",
-  story_outline_available: "已有故事大綱",
-  brownfield_existing_material: "棕地：已有素材，先消除模糊",
-  greenfield_story_first: "綠地：先定故事與素材需求",
-  material_first: "素材優先",
-  story_first: "故事優先",
-  existing_material_first: "既有素材優先",
-  story_first_generated_material: "故事優先，缺素材時生成",
-  material_delta_then_collect_or_generate_if_needed: "先看素材缺口，再決定補拍、補素材或生成",
-  generated_material_fallback: "缺素材時走生成素材 fallback",
-  material_map_lifecycle: "素材地圖生命週期",
-  story_blueprint_then_material_generation_fallback: "故事藍圖，再生成缺口素材",
-};
+import { stageLabelsZh, zhValue } from "../i18n/zh.js";
 
 function readable(value) {
-  if (value === undefined || value === null || value === "") return "-";
-  return valueLabels[value] || String(value).replaceAll("_", " ");
+  return zhValue(value);
 }
 
 function stageDescription(stage, materialMap) {
@@ -139,6 +119,71 @@ function chipList(items, emptyText) {
   `;
 }
 
+const boundaryStageLabels = {
+  stage2_3_material_wall_to_review_apply: "Stage 2/3 素材牆到審核套用",
+  stage4_build: "Stage 4 剪輯計畫邊界",
+  stage5_final_review: "Stage 5 最終審核邊界",
+};
+
+function boundaryStageLabel(stage) {
+  return boundaryStageLabels[stage] || String(stage || "-").replaceAll("_", " ");
+}
+
+function renderBoundaryAcceptance(artifacts) {
+  const report = artifacts?.material_first_boundary_acceptance_report;
+  if (!report) return "";
+
+  const stages = Array.isArray(report.stages) ? report.stages : [];
+  const statusText = report.ok ? "通過" : "需修復";
+  const statusTone = report.ok ? "pass" : "fail";
+  const nextAction = report.next_action || (report.ok ? "ready_for_render_or_human_review" : "repair_required");
+  const failedStage = report.failed_stage ? boundaryStageLabel(report.failed_stage) : "無";
+
+  return `
+    <section class="boundary-acceptance-panel" data-report="material_first_boundary_acceptance_report">
+      <div class="boundary-acceptance-head">
+        <div>
+          <p class="eyebrow">Material-first Acceptance</p>
+          <h3>邊界驗收</h3>
+          <p>用同一份 <code>material_first_boundary_acceptance_report.json</code> 顯示目前 route 是否已通過素材優先邊界。</p>
+        </div>
+        <span class="boundary-status ${statusTone}">${escapeHtml(statusText)}</span>
+      </div>
+      <div class="boundary-metrics">
+        <article>
+          <span>下一步</span>
+          <strong>${escapeHtml(nextAction)}</strong>
+        </article>
+        <article>
+          <span>失敗階段</span>
+          <strong>${escapeHtml(failedStage)}</strong>
+        </article>
+        <article>
+          <span>素材來源</span>
+          <strong title="${escapeHtml(report.source_dir || "-")}">${escapeHtml(report.source_dir || "-")}</strong>
+        </article>
+      </div>
+      <div class="boundary-stage-list">
+        ${stages.map((stage) => {
+          const blocking = Array.isArray(stage.blocking) ? stage.blocking : [];
+          return `
+            <article class="${stage.ok ? "pass" : "fail"}">
+              <div>
+                <strong>${escapeHtml(boundaryStageLabel(stage.stage))}</strong>
+                <span>${escapeHtml(stage.report || "no report file")}</span>
+              </div>
+              <div class="boundary-stage-result">
+                <span>${escapeHtml(stage.ok ? "通過" : "阻塞")}</span>
+                ${blocking.length ? `<small>${escapeHtml(blocking.join(" / "))}</small>` : ""}
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderIntentSummary(materialMap) {
   const intent = materialMap?.intent || {};
   return `
@@ -181,7 +226,132 @@ function renderStageInsight(selected, materialMap) {
   return "";
 }
 
-export function RouteOverviewView({ control, materialMap, activeStage }) {
+function artifactStatus(materialMap, artifact) {
+  const found = (materialMap?.stages || []).find((stage) => stage.artifact === artifact);
+  return found?.status || "declared";
+}
+
+function stageContract(selected, materialMap, control, artifacts) {
+  const stats = materialMap?.stats || {};
+  const delta = materialMap?.delta_summary || {};
+  const boundary = artifacts?.material_first_boundary_acceptance_report;
+  const route = [materialMap?.entry_path, materialMap?.route].filter(Boolean).join(" / ") || "尚未判定";
+  const contracts = {
+    Intent: {
+      verdict: materialMap?.intent?.route ? "需求已收斂，可交給後續流程" : "尚未讀到完整 video_intent",
+      params: `路線：${route}`,
+      result: `影片類型：${readable(materialMap?.intent?.video_type || "unknown")}；觀眾：${readable(materialMap?.intent?.audience || "unknown")}`,
+      gap: Array.isArray(materialMap?.intent?.required_followup_questions) && materialMap.intent.required_followup_questions.length
+        ? materialMap.intent.required_followup_questions.join(" / ")
+        : "目前沒有必要追問。",
+      next: materialMap?.intent?.handoff_to || "進入素材或故事路線",
+      stages: "Stage 0 / Video Intent Planner",
+    },
+    "Material Ingest": {
+      verdict: stats.assets ? "已有素材進場，可建立素材地圖" : "尚未看到可用素材統計",
+      params: `素材數：${stats.assets ?? 0}`,
+      result: "素材會被整理成可審核的 asset / scene / need 關係。",
+      gap: stats.assets ? "若素材分類錯誤，需在素材地圖審核時修正。" : "需要匯入素材或建立 generated candidates。",
+      next: "進入素材地圖與覆蓋檢查",
+      stages: "Stage 1 / Material Ingest",
+    },
+    "Material Map": {
+      verdict: materialMap?.ready_for_build ? "素材覆蓋足夠，可往 build 前進" : "素材仍需審核或補缺口",
+      params: `素材 ${stats.assets ?? 0} / 需求 ${stats.needs ?? 0} / 已接受對應 ${stats.accepted_edges ?? 0}`,
+      result: "已用素材地圖保存素材、需求、採用與候選關係。",
+      gap: stats.accepted_edges ? "仍需確認弱語意素材是否真的對題。" : "尚未有足夠 accepted edges，不能直接粗剪。",
+      next: materialMap?.ready_for_build ? "送往結構 / 契約 / Workbench" : "先做 material map review apply",
+      stages: "Stage 2-3 / Material Map Lifecycle",
+    },
+    "Coverage Delta": {
+      verdict: (delta.missing || 0) > 0 ? "存在素材缺口" : "目前未看到明確缺口",
+      params: `覆蓋 ${delta.covered ?? 0} / 偏薄 ${delta.thin ?? 0} / 缺口 ${delta.missing ?? 0}`,
+      result: "素材缺口會決定補拍、生成、降級使用或暫停。",
+      gap: (delta.missing || 0) > 0 ? "缺口需被標記為補拍 / 生成 / 接受不足。" : "仍需用實際畫面 review 確認不是假陽性。",
+      next: "決定是否可進段落契約",
+      stages: "Stage 3 / Coverage Delta",
+    },
+    Structure: {
+      verdict: artifactStatus(materialMap, "assembly_plan.json") !== "missing" ? "已有結構規劃線索" : "結構規劃尚未完整落地",
+      params: `路線：${route}`,
+      result: "把影片拆成可對應素材與時間軸的段落。",
+      gap: "若故事線與素材不一致，應先修 structure，不要硬剪。",
+      next: "產出或修正 segment_contract.json",
+      stages: "Stage 4 / Structure",
+    },
+    Contract: {
+      verdict: artifactStatus(materialMap, "segment_contract.json") !== "missing" ? "段落契約已宣告或存在" : "尚未看到段落契約",
+      params: "每段需包含目的、素材、字幕、音訊、特效意圖與時長。",
+      result: "契約是後續 timeline / ffmpeg / effect factory 的主要依據。",
+      gap: "若 contract 與素材供給不一致，必須回到 reviewer gate 修正。",
+      next: "送往 timeline build",
+      stages: "Stage 5 / Segment Contract",
+    },
+    Timeline: {
+      verdict: artifactStatus(materialMap, "timeline.json") !== "missing" ? "已有時間軸或預覽時間軸" : "尚未看到可預覽時間軸",
+      params: "影片 / 字幕 / 音訊 / 特效四層需要可追蹤。",
+      result: "時間軸會提供 Workbench 播放與草稿修改依據。",
+      gap: "這裡只看狀態，不直接修改 Workbench 的播放與四軌核心。",
+      next: "進入 Workbench 或審核關卡",
+      stages: "Stage 6-8 / Timeline Build",
+    },
+    "Review Gates": {
+      verdict: boundary ? (boundary.ok ? "邊界驗收通過" : "邊界驗收仍有阻擋") : "尚未看到邊界驗收報告",
+      params: boundary ? `next_action：${boundary.next_action || "-"}` : "material_first_boundary_acceptance_report.json",
+      result: boundary ? `failed_stage：${boundary.failed_stage || "無"}` : "沒有報告時，不能宣稱已完成素材優先驗收。",
+      gap: boundary?.ok ? "仍需人工看粗剪語意與畫面品質。" : "先補齊 blocking gate，不要直接 render。",
+      next: boundary?.ok ? "可進 human review / Workbench" : "修正失敗 stage",
+      stages: "Stage 9-11 / Review Gates",
+    },
+    Verify: {
+      verdict: artifacts?.verify_result ? "已有驗證結果" : "尚未看到最終驗證結果",
+      params: "delivery_gate / verify_result / evidence bundle",
+      result: "驗證要證明字幕、畫面、音訊、素材對題與交付狀態。",
+      gap: "沒有 verify evidence 時，不應只憑 final.mp4 宣稱完成。",
+      next: "通過後才進最終交付",
+      stages: "Stage 12-13 / Verify",
+    },
+  };
+  return contracts[selected?.label] || {
+    verdict: "尚未建立這個節點的契約紙",
+    params: "-",
+    result: "-",
+    gap: "-",
+    next: "-",
+    stages: selected?.label || "-",
+  };
+}
+
+function contractRow(label, value) {
+  return `
+    <div>${escapeHtml(label)}</div>
+    <div>${escapeHtml(value)}</div>
+  `;
+}
+
+function renderStageContractPaper(selected, materialMap, control, artifacts) {
+  const contract = stageContract(selected, materialMap, control, artifacts);
+  return `
+    <section class="dashboard-contract-paper" data-active-stage="${escapeHtml(selected?.label || "")}">
+      <div>
+        <p class="eyebrow">中文契約紙</p>
+        <h3>${escapeHtml(stageLabelsZh[selected?.label] || selected?.label || "階段")}</h3>
+        <p>${escapeHtml(stageDescription(selected, materialMap))}</p>
+      </div>
+      <div class="dashboard-contract-grid">
+        ${contractRow("目前判斷", contract.verdict)}
+        ${contractRow("主要參數", contract.params)}
+        ${contractRow("實際結果", contract.result)}
+        ${contractRow("問題缺口", contract.gap)}
+        ${contractRow("下一步", contract.next)}
+        ${contractRow("對應管線", contract.stages)}
+      </div>
+      ${renderStageInsight(selected, materialMap)}
+    </section>
+  `;
+}
+
+export function RouteOverviewView({ control, materialMap, artifacts, activeStage }) {
   const stages = materialMap?.stages || [];
   const expanded = expandedRouteStages(stages);
   const selected = expanded.find((stage) => stage.label === activeStage) || expanded[0];
@@ -204,13 +374,9 @@ export function RouteOverviewView({ control, materialMap, activeStage }) {
           <article><span>已接受對應</span><strong>${escapeHtml(stats.accepted_edges ?? "-")}</strong></article>
           <article><span>建議動作</span><strong>${escapeHtml(readable(control?.recommended_next_action || "-"))}</strong></article>
         </div>
+        ${renderBoundaryAcceptance(artifacts)}
         <section class="stage-detail-panel" data-active-stage="${escapeHtml(selected?.label || "")}">
-          <div>
-            <p class="eyebrow">節點詳情</p>
-            <h3>${escapeHtml(stageLabelsZh[selected?.label] || selected?.label || "階段")}</h3>
-            <p>${escapeHtml(stageDescription(selected, materialMap))}</p>
-            ${renderStageInsight(selected, materialMap)}
-          </div>
+          ${renderStageContractPaper(selected, materialMap, control, artifacts)}
           ${renderStageFiles(selected, materialMap)}
         </section>
         <div class="artifact-strip">

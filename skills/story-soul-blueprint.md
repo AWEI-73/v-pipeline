@@ -16,6 +16,9 @@ emotional spine, or generated comic/photo story plan.
 ```powershell
 python video_tools.py story-soul-blueprint project_brief.json `
   --out-dir story_blueprint
+python video_tools.py story-soul-to-contract `
+  --story-dir story_blueprint `
+  --out segment_contract.json
 ```
 
 Outputs:
@@ -27,6 +30,7 @@ Outputs:
 - `material_needs.json`
 - `generation_manifest.json`
 - `review_checklist.md`
+- optional bridge output: `segment_contract.json` via `story-soul-to-contract`
 
 ## Required Input Ideas
 
@@ -59,6 +63,13 @@ must stop instead of writing generic content.
    candidates instead of pretending the duration is supported.
 8. Compile toward existing canonical artifacts; do not invent a second BUILD
    schema.
+9. If the input brief carries Stage 0 child contracts, preserve them instead of
+   re-deciding them. `stage0_child_contracts.material` informs material needs,
+   `stage0_child_contracts.soundtrack` becomes director audio intent,
+   `stage0_child_contracts.effect` becomes effect policy, and
+   `stage0_child_contracts.subtitle_voiceover` becomes subtitle/voiceover
+   intent. These are constraints and handoffs, not permission to skip material
+   truth or BUILD gates.
 
 ## Good Output
 
@@ -130,6 +141,8 @@ neutral `effect_intent_plan.json` and `effect_asset_spec.json`.
 ```text
 story-soul-blueprint
   -> material_needs / director_shot_plan
+  -> stage0_child_contracts preserved into Director Shot Plan when present
+  -> story-soul-to-contract when the next owner is Segment Contract / Node 3
   -> effect-intent-plan when effect_intent exists
   -> material-map lifecycle
   -> material-generation-fallback when missing/thin

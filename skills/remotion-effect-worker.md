@@ -7,6 +7,11 @@ description: Bounded Remotion effect worker for Hermes Video Pipeline. Use for B
 
 This skill defines how a Remotion-capable worker plugs into the existing Hermes effect route. Remotion is an effect asset producer, not the main renderer. Final assembly remains owned by ffmpeg / `contract-run`.
 
+Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
+must be resolved by the main route before this worker is used for a pipeline
+film. Do not direct-cut from a fuzzy request; this worker only consumes bounded
+effect packets or prompt packs.
+
 ## Mainline Contract
 
 Use the existing route whenever possible:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,12 +27,37 @@ TEST_TIERS: Dict[str, Dict[str, object]] = {
         ],
     },
     "workbench": {
-        "description": "Workbench Python and native JS smoke tests.",
+        "description": "Workbench Python, native JS, and SPA-shell boundary smoke tests.",
         "commands": [
             ["python", "-m", "unittest", "tests.test_preview_timeline", "tests.test_timeline_patch", "tests.test_workbench_server", "-q"],
             ["python", "-m", "unittest", "tests.test_workbench_frontend_smoke", "tests.test_workbench_review_report", "-q"],
+            ["node", "tests/dashboard_spa_render_smoke.mjs"],
+            ["node", "tests/dashboard_i18n_smoke.mjs"],
+            ["node", "tests/workbench_api_smoke.js"],
             ["node", "tests/workbench_core_smoke.js"],
             ["node", "tests/workbench_materials_smoke.js"],
+        ],
+        "optional_checks": [
+            {
+                "name": "workbench-browser-layout",
+                "description": (
+                    "Real browser guard for the protected native monitor, playback controls, and four lanes. "
+                    "Use --artifact-root for native-direct checks, or --url against "
+                    "the merged /workbench route to also verify the SPA iframe shell."
+                ),
+                "command": ["node", "tools/workbench_browser_layout_smoke.mjs", "--artifact-root", "<run-folder>"],
+                "merged_spa_command": ["node", "tools/workbench_browser_layout_smoke.mjs", "--url", "http://localhost:8765/workbench"],
+            },
+            {
+                "name": "workbench-frontend-fixture",
+                "description": (
+                    "Self-contained fast HTML/API smoke fixture for protected monitor, playback controls, "
+                    "four lanes, draft writes, and replace_clip. --init-fixture refuses non-empty folders "
+                    "unless --force-init-fixture is used on a disposable scratch path."
+                ),
+                "command": ["python", "tools/workbench_frontend_smoke.py", "--artifact-root", ".tmp/workbench_frontend_smoke_fixture", "--init-fixture"],
+                "replace_command": ["python", "tools/workbench_frontend_smoke.py", "--artifact-root", ".tmp/workbench_frontend_smoke_fixture", "--exercise-replace"],
+            },
         ],
     },
     "material-map": {
@@ -67,6 +93,7 @@ def build_test_tier_manifest() -> dict:
             name: {
                 "description": spec["description"],
                 "commands": spec["commands"],
+                "optional_checks": spec.get("optional_checks", []),
             }
             for name, spec in sorted(TEST_TIERS.items())
         },
@@ -74,7 +101,13 @@ def build_test_tier_manifest() -> dict:
 
 
 def _default_runner(command: List[str]) -> int:
-    return subprocess.run(command, cwd=Path(__file__).resolve().parent.parent).returncode
+    root = Path(__file__).resolve().parent.parent
+    stable_temp = root / ".tmp" / "test-temp"
+    stable_temp.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["TMP"] = str(stable_temp)
+    env["TEMP"] = str(stable_temp)
+    return subprocess.run(command, cwd=root, env=env).returncode
 
 
 def run_test_tier(
@@ -88,6 +121,7 @@ def run_test_tier(
     if tier not in tiers:
         raise ValueError(f"unknown test tier: {tier}")
     commands = [list(cmd) for cmd in tiers[tier]["commands"]]
+    optional_checks = list(tiers[tier].get("optional_checks") or [])
     result = {
         "artifact_role": "test_tier_run",
         "version": 1,
@@ -96,6 +130,7 @@ def run_test_tier(
         "ok": True,
         "command_count": len(commands),
         "commands": commands,
+        "optional_checks": optional_checks,
         "results": [],
     }
     if dry_run:

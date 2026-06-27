@@ -1,4 +1,4 @@
-﻿# Docs Index ??canonical map (2026-06-20)
+﻿# Docs Index ??canonical map (2026-06-25)
 
 One page that says what is current and what is historical, so old/new no longer mix.
 
@@ -26,9 +26,16 @@ One page that says what is current and what is historical, so old/new no longer 
 - Skill: `skills/material-generation-fallback.md` ??MGF1 rescue layer that turns
   fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
   generated assets return through material-map review as candidates.
+- Skill: `skills/curator.md` -- material curator support skill. It adds
+  scene-level visual family, angle/scale, duplicate/reject, and diversity review
+  evidence before material delta and rough-cut decisions.
 - Skill: `skills/generated-material-producer.md` ??executes MGF1 jobs into
   generated files, manifests, candidate material maps, quality review, and
   explicit candidate promotion review.
+- Skill: `skills/shooting-brief.md` -- material gap brief route. It converts
+  `material_delta.json` missing/thin needs into `material_gap_brief.json`,
+  `shooting_brief.md`, generated-material jobs, stock retrieval jobs, rewrite
+  tasks, or waiver tasks before material-map re-review.
 - Harness: `tools/generated_material_flow_acceptance.py` ??replays two
   generated comic-style cases from empty material through candidate material maps
   and quality review.
@@ -61,6 +68,13 @@ One page that says what is current and what is historical, so old/new no longer 
   Plan, Contract Compile, and Material-Ready Handoff.
 - `docs/video-pipeline-operating-map.md` -- full operator manual linking every
   stable stage to skills, Python/JS tools, artifacts, gates, and return routes.
+- `docs/construction-guides/stage0-10-route-alignment-plan.md` -- active
+  construction guide for keeping the Stage 0-10 main spine, Material Map,
+  Soundtrack/Audio, Effect Factory, and Subtitle/Voiceover child contracts
+  aligned without creating competing routes.
+- `docs/stage-tool-simplification.md` -- compact skill/tool contract map:
+  stage-to-skill ownership, Python tool visibility, stop/pass rules, and the
+  audit command that checks `skills/*.md` tool contracts against `tools/*.py`.
 - `docs/route-orchestrator-harness.md` -- runner-neutral multi-agent task
   packet and fail-closed acceptance harness (`route-task-next`,
   `route-task-accept`, `route-orchestrator-report`).
@@ -90,6 +104,12 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/material-map-lifecycle.md` ??canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
+- `docs/effect-factory-route.md` -- designed-effects side branch. The main
+  route calls it when brownfield/material-first or greenfield/structure-first
+  work needs an opening, transition, title card, lower third, emotional overlay,
+  photo-wall treatment, or stylized effect asset. It integrates
+  `skills/video-effect-factory.md` with `skills/remotion-effect-worker.md`
+  without replacing the worker or owning `final.mp4`.
 - `docs/build-tool-runner-spec.md` ??BUILD runner tool selection + P1 audit pack.
 - `docs/video-autopilot-tool-integration-spec.md` ??editing/VERIFY tool integration.
 - `docs/capcut-pipeline-integration-design.md` ??optional CapCut finishing backend.
@@ -141,6 +161,10 @@ One page that says what is current and what is historical, so old/new no longer 
   verify gaps; Node14 remains a compatibility implementation node inside this
   route, including Remotion prompt packs, worker output review, and draft
   composite for adapter-route effect gaps.
+- Skill: `skills/video-effect-factory.md` -- side-branch route for designed
+  effects: design map, effect contract, backend choice, worker handoff, review,
+  and bounded handoff. Calls `skills/remotion-effect-worker.md` when Remotion is
+  appropriate.
 - `docs/archive/decisions/2026-06-17-tool-surface-and-run-layout-consolidation.md` --
   video_tools command catalog, run_layout read-only frontend consumption, and
   split criteria for future backend cleanup.
@@ -174,6 +198,14 @@ explicitly points to that construction area.
   `remotion_material_first_memory_acceptance_report.json`,
   `remotion_effect_handoff.json`, and the material-first `MemoryPhotoWall`
   boundary. This is **not final delivery**.
+- `docs/construction-guides/effects_spec_build_contract.md` -- Effect Factory /
+  Remotion build contract construction notes. Use the active route docs first.
+- `docs/construction-guides/boundary-convergence-plan.md` -- active construction
+  plan for route-map, material gap, curator/rough-cut, effect-factory, and E2E
+  boundary convergence. Effect Factory boundary checks use
+  `tools/effect_factory_boundary_acceptance.py`.
+- `docs/generated/pipeline_map.md` -- generated MVP route map for human review.
+  Regenerate with `python tools/pipeline_map.py --build-corpus`.
 
 ## Working conventions (read before contributing)
 

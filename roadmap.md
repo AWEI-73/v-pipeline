@@ -2,7 +2,7 @@
 title: Hermes Video Pipeline ??Canonical Roadmap
 type: project
 status: active
-updated: 2026-06-23
+updated: 2026-06-25
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
@@ -19,13 +19,15 @@ Read order for agents:
 3. `docs/START_HERE_VIDEO_PIPELINE.md`
 4. `docs/video-pipeline-end-to-end-line.md`
 5. `docs/video-pipeline-operating-map.md`
-6. `docs/route-orchestrator-harness.md`
-7. `docs/canonical-video-pipeline-route.md`
-8. `docs/upstream-story-route.md`
-9. `docs/artifact-reviewer-map.md`
-10. `RUNBOOK.md`
-11. `docs/INDEX.md`
-12. Topic-specific docs linked below
+6. `docs/material-map-lifecycle.md`
+7. `docs/effect-factory-route.md`
+8. `docs/route-orchestrator-harness.md`
+9. `docs/canonical-video-pipeline-route.md`
+10. `docs/upstream-story-route.md`
+11. `docs/artifact-reviewer-map.md`
+12. `RUNBOOK.md`
+13. `docs/INDEX.md`
+14. Topic-specific docs linked below
 
 ## Current Canonical State
 
@@ -56,6 +58,12 @@ The backend is stable through the material-map lifecycle and BUILD handoff:
 Canonical material-map summary:
 
 - `docs/material-map-lifecycle.md`
+
+Canonical effect-factory side branch:
+
+- `docs/effect-factory-route.md`
+- `skills/video-effect-factory.md`
+- `skills/remotion-effect-worker.md`
 
 Canonical full-route summary:
 
@@ -132,6 +140,10 @@ Current scope:
   `music_plan.json`, and `effect_intent_plan.json` may be surfaced and planned,
   but voice cloning, music sourcing, advanced effects, and hosted/OAuth runtime
   are deferred until the rough-cut loop is reliable.
+- Current construction sequence is tracked in
+  `docs/construction-guides/boundary-convergence-plan.md`: route map/orphan
+  audit, material gap brief, curator/rough-cut, effect-factory contract, then
+  small real E2E passes.
 
 Minimum landing acceptance:
 

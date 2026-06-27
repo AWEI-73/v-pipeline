@@ -31,6 +31,7 @@ material-map decisions, rough-cut selection, or segment contract rewriting.
 
 For v1, keep the route small:
 
+- v1 control surface is `effect_build_spec` inside existing `prompt_parameters`.
 - `visual_technique_plan.json` is the upstream translation artifact. It converts
   natural-language style intent into visual primitives, motion primitives,
   render strategy candidates, and controls.

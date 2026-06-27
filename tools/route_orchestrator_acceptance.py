@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from video_pipeline_core.route_orchestrator import STAGES, accept_task_result, write_next_task
+from video_pipeline_core.video_intent_planner import plan_video_intent
 
 
 ROUTE_CHOICES = {"existing-material-first", "story-first", "hybrid"}
@@ -22,6 +23,40 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _artifact_payload(filename: str, *, route: str, stage: str, stage_index: int) -> dict[str, Any]:
+    if filename == "video_intent.json":
+        if route == "story-first":
+            return plan_video_intent({
+                "request": "children story video with no existing material",
+                "video_type": "storybook",
+                "audience": "children",
+                "goal": "tell a gentle story",
+                "target_length": "3 minutes",
+                "material_availability": "none",
+                "text_availability": "brief",
+                "generation_allowed": True,
+                "tone": "warm story-driven",
+            })
+        if route == "hybrid":
+            return plan_video_intent({
+                "request": "graduation event recap with partial material",
+                "video_type": "graduation-event",
+                "audience": "classmates and instructors",
+                "goal": "commemorate the training journey",
+                "target_length": "4 minutes",
+                "material_availability": "partial",
+                "material_quality": "some gaps",
+                "tone": "energetic and warm",
+            })
+        return plan_video_intent({
+            "request": "teaching video with existing class and screen-recording material",
+            "video_type": "teaching",
+            "audience": "new students",
+            "goal": "teach clearly",
+            "target_length": "5 minutes",
+            "material_availability": "existing",
+            "material_quality": "enough usable screen recordings",
+            "tone": "clear instructional",
+        })
     role = Path(filename).stem
     payload: dict[str, Any] = {
         "artifact_role": role,

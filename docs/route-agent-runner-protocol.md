@@ -9,6 +9,34 @@ This protocol tells a Codex, Claude, Gemini, or human worker how to consume
 It is intentionally runner-neutral. The Python harness never calls a model API;
 it only issues bounded task packets and validates artifacts.
 
+Read `docs/stage-boundary-matrix.md` before dispatching or accepting a worker.
+It defines the three active route lines, their allowed outputs, forbidden writes,
+done gates, stop gates, and next handoff.
+
+## Worker Mode / Maintainer Mode
+
+Default execution is **worker mode**. In worker mode, the agent may only write
+run-folder artifacts listed in `task.allowed_outputs`. It must not modify
+pipeline framework files, skills, docs, tests, tools, or source code.
+
+**maintainer mode** is a separate explicit user request to change the framework:
+skills, docs, `video_pipeline_core/`, `tools/`, tests, dashboard, roadmap, or
+RUNBOOK. A worker must not silently switch into maintainer mode.
+
+Forbidden writes in worker mode:
+
+- `.git/` changes or commits;
+- `skills/`;
+- `docs/`, unless the exact path is listed in `task.allowed_outputs`;
+- `video_pipeline_core/`;
+- `tools/`;
+- `tests/`;
+- `dashboard/`;
+- `RUNBOOK.md`, `roadmap.md`, repository metadata.
+
+If a worker discovers a framework problem, it should return `blocked` or
+`needs_context` with a maintainer recommendation, not edit the framework.
+
 ## Worker Contract
 
 Before dispatching a worker, the parent should inspect the run folder with the
@@ -48,9 +76,12 @@ When you receive `route_subagent_task.json`:
    explicitly named by the operator.
 3. Write only files listed in `allowed_outputs`.
 4. Do not modify any path listed in `must_not_touch`.
-5. Satisfy `success_criteria` with concrete artifacts, not prose claims.
-6. Write `route_subagent_result.json`.
-7. Stop.
+5. Do not modify forbidden worker-mode paths from
+   `docs/stage-boundary-matrix.md`.
+6. Do not commit.
+7. Satisfy `success_criteria` with concrete artifacts, not prose claims.
+8. Write `route_subagent_result.json`.
+9. Stop.
 
 Workers are bounded workers. They own one node, one phase, or one explicit
 artifact handoff. They are not the lifetime owner for a full video route.
@@ -58,6 +89,8 @@ artifact handoff. They are not the lifetime owner for a full video route.
 The orchestrator will run `route-task-accept`. If artifacts are stale, outside
 the whitelist, or if protected files changed, the result is rejected even if the
 worker says it succeeded.
+The acceptance guard also snapshots repository state; if worker mode changes
+the repo or creates a commit, the result is rejected.
 
 ## Parent-Owned Long Execution
 
@@ -124,6 +157,8 @@ Rules:
 - Do not choose a different pipeline route.
 - Do not write outside task.allowed_outputs.
 - Do not modify task.must_not_touch.
+- Do not edit skills, docs, source code, tools, tests, dashboard, roadmap, or RUNBOOK.
+- Do not commit.
 - Use task.success_criteria as the acceptance checklist.
 - Write route_subagent_result.json with artifact_role="route_subagent_result".
 - If blocked, write status="blocked" and next_action.

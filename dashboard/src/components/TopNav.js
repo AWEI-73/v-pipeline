@@ -1,7 +1,7 @@
 import { pathForView } from "../router.js";
 
 const navItems = [
-  ["route", "流程總覽"],
+  ["route", "路線總覽"],
   ["material-map", "素材地圖"],
   ["timeline", "時間軸"],
   ["verify", "驗證"],
@@ -11,7 +11,7 @@ const navItems = [
 export function TopNav(activeView, root) {
   const query = root ? `?root=${encodeURIComponent(root)}` : "";
   return `
-    <nav class="top-nav" aria-label="儀表板視圖">
+    <nav class="top-nav" aria-label="Dashboard 導覽">
       ${navItems.map(([view, label]) => {
         const href = view === "route" ? pathForView("route") : pathForView(view);
         return `<a class="nav-item ${activeView === view ? "active" : ""}" href="${href}${query}" data-view="${view}">${label}</a>`;

@@ -88,6 +88,38 @@ class ContractToMvScriptTest(unittest.TestCase):
         self.assertEqual(s["music"]["brief"], "熱血")
         self.assertEqual(s["segments"][0]["_from_contract"], 7)   # 可追溯
 
+    def test_stage0_child_contracts_reach_runtime_payload(self):
+        child = {
+            "soundtrack": {"music_role": "mixed", "handoff_to": "soundtrack-arranger"},
+            "subtitle_voiceover": {
+                "language": "zh-TW",
+                "subtitle_required": True,
+                "voiceover_required": True,
+            },
+            "effect": {"activation": "defer_to_brownfield_or_segment_review"},
+        }
+        seg = self._seg(
+            stage0_child_contracts=child,
+            audio={
+                "role": "music",
+                "reason": "r",
+                "soundtrack_role": "mixed",
+                "voiceover_policy": "required",
+            },
+            text_layer={"subtitle": "required", "language": "zh-TW", "reason": "Stage 0 requested subtitles"},
+            effect_policy=child["effect"],
+        )
+
+        payload = ca.contract_to_mv_script({"stage0_child_contracts": child, "segments": [seg]})
+        out = payload["segments"][0]
+
+        self.assertEqual(payload["stage0_child_contracts"]["soundtrack"]["music_role"], "mixed")
+        self.assertEqual(out["stage0_child_contracts"]["subtitle_voiceover"]["language"], "zh-TW")
+        self.assertEqual(out["raw_audio"]["soundtrack_role"], "mixed")
+        self.assertEqual(out["raw_audio"]["voiceover_policy"], "required")
+        self.assertEqual(out["raw_text_layer"]["language"], "zh-TW")
+        self.assertEqual(out["effect_policy"]["activation"], "defer_to_brownfield_or_segment_review")
+
     def test_creative_exception_reaches_runtime_and_dry_render_plan(self):
         exception = {
             "rule_bent": "hold_discipline",
@@ -232,6 +264,261 @@ class ContractToMvScriptTest(unittest.TestCase):
                 self.assertIsNone(manifest[optional_key])
             self.assertTrue((outdir / "assembly_plan.json").exists())
             self.assertTrue((outdir / "timeline_build.json").exists())
+
+    def test_run_contract_prefers_audio_ready_final_audio_over_legacy_music(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            outdir.mkdir(parents=True)
+            material_db = Path(d) / "material_db.json"
+            legacy_music = Path(d) / "legacy_bgm.mp3"
+            final_audio = outdir / "final_audio.wav"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            legacy_music.write_bytes(b"legacy")
+            final_audio.write_bytes(b"canonical audio")
+            (outdir / "audio_mix_report.json").write_text(json.dumps({
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "output_audio": str(final_audio),
+                "duration_sec": 10,
+            }), encoding="utf-8")
+            captured = {}
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
+                captured["music_path"] = music_path
+                Path(out_path).write_bytes(b"mp4")
+                state = Path(out_path).parent / "state.json"
+                state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
+                return {"final": out_path, "state": str(state),
+                        "plan": [{"segment": 1, "source": "a.mp4", "extract_start": 0,
+                                  "extract_dur": 1.5, "slot_index": 0, "slot_dur": 1.5}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                captured["music_structure_audio"] = str(audio_path)
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path), "structure": {}}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                result = ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=legacy_music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            self.assertTrue(result["render_ok"])
+            self.assertEqual(captured["music_path"], str(final_audio))
+            self.assertEqual(captured["music_structure_audio"], str(final_audio))
+            handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            self.assertEqual(handoff["selection_reason"], "audio_ready_final_audio")
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
+            self.assertEqual(manifest["final_audio"], str(final_audio))
+            self.assertEqual(manifest["audio_mix_report"], str(outdir / "audio_mix_report.json"))
+
+    def test_run_contract_records_existing_branch_handoffs_in_manifest(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            outdir.mkdir(parents=True)
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+            subtitle_handoff = outdir / "subtitle_voiceover_build_handoff.json"
+            effect_handoff = outdir / "effect_handoff.json"
+            rough_cut = outdir / "rough_cut_plan.json"
+            subtitle_handoff.write_text(json.dumps({
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": True,
+                "voiceover_ready": False,
+                "subtitles": "subtitles.srt",
+            }), encoding="utf-8")
+            effect_handoff.write_text(json.dumps({
+                "artifact_role": "effect_handoff",
+                "status": "ready_for_build",
+                "accepted_assets": [{"asset_path": "effects/title.mp4"}],
+            }), encoding="utf-8")
+            rough_cut.write_text(json.dumps({
+                "artifact_role": "rough_cut_plan",
+                "ok": True,
+                "clips": [{"segment": 1, "asset_id": "a", "need_id": "nd_opening"}],
+                "gaps": [],
+            }), encoding="utf-8")
+
+            def fake_mv_chain(script, material_db_arg, out_path, music_path=None, mat_dir="/tmp", verbose=True, **kwargs):
+                Path(out_path).write_bytes(b"mp4")
+                state = Path(out_path).parent / "state.json"
+                state.write_text(json.dumps({"final": out_path, "next_action": None}), encoding="utf-8")
+                return {"final": out_path, "state": str(state),
+                        "plan": [{"segment": 1, "source": "a.mp4", "extract_start": 0,
+                                  "extract_dur": 1.5, "slot_index": 0, "slot_dur": 1.5}]}
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                Path(out_path).write_text(json.dumps({"source_audio": str(audio_path)}), encoding="utf-8")
+                return {"ok": True, "music_structure": str(out_path), "structure": {}}
+
+            with patch("video_pipeline_core.mv_cut.mv_chain", fake_mv_chain), \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                result = ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            self.assertTrue(result["render_ok"])
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
+            self.assertEqual(manifest["effect_handoff"], str(effect_handoff))
+            self.assertEqual(manifest["rough_cut_plan"], str(rough_cut))
+
+    def test_dry_build_records_audio_ready_handoff_without_rendering(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "dry"
+            outdir.mkdir(parents=True)
+            final_audio = outdir / "final_audio.wav"
+            final_audio.write_bytes(b"canonical audio")
+            (outdir / "audio_mix_report.json").write_text(json.dumps({
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "output_audio": str(final_audio),
+                "duration_sec": 10,
+            }), encoding="utf-8")
+
+            result = ca.dry_build(
+                EXAMPLES / "segment_contract_graduation_mv.json",
+                out_dir=outdir,
+                categories_path=EXAMPLES / "material_categories.json",
+                verbose=False,
+            )
+
+            self.assertTrue(result["ok"])
+            self.assertIn("audio_build_handoff", result["artifacts"])
+            self.assertFalse((outdir / "final.mp4").exists())
+            handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            self.assertFalse(handoff["rendered_video"])
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
+            self.assertEqual(manifest["final_audio"], str(final_audio))
+
+    def test_dry_build_records_existing_branch_handoffs_in_manifest(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "dry"
+            outdir.mkdir(parents=True)
+            subtitle_handoff = outdir / "subtitle_voiceover_build_handoff.json"
+            effect_handoff = outdir / "effect_handoff.json"
+            subtitle_handoff.write_text(json.dumps({
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": True,
+                "voiceover_ready": True,
+                "subtitles": "subtitles.srt",
+                "narration_manifest": "narration_manifest.json",
+            }), encoding="utf-8")
+            effect_handoff.write_text(json.dumps({
+                "artifact_role": "effect_handoff",
+                "status": "ready_for_build",
+                "accepted_assets": [{"asset_path": "effects/intro.mp4"}],
+            }), encoding="utf-8")
+
+            result = ca.dry_build(
+                EXAMPLES / "segment_contract_graduation_mv.json",
+                out_dir=outdir,
+                categories_path=EXAMPLES / "material_categories.json",
+                verbose=False,
+            )
+
+            self.assertTrue(result["ok"])
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("subtitle_voiceover_build_handoff", manifest)
+            self.assertIn("effect_handoff", manifest)
+            self.assertIn("subtitle_voiceover_build_handoff", result["artifacts"])
+            self.assertIn("effect_handoff", result["artifacts"])
+            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
+            self.assertEqual(manifest["effect_handoff"], str(effect_handoff))
+            self.assertEqual(result["artifacts"]["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
+            self.assertEqual(result["artifacts"]["effect_handoff"], str(effect_handoff))
+
+    def test_dry_build_records_existing_rough_cut_plan_as_build_input(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "dry"
+            outdir.mkdir(parents=True)
+            rough_cut = outdir / "rough_cut_plan.json"
+            rough_cut.write_text(json.dumps({
+                "artifact_role": "rough_cut_plan",
+                "ok": True,
+                "clips": [{
+                    "segment": 1,
+                    "asset_id": "asset_001",
+                    "need_id": "nd_opening",
+                    "scene_id": "asset_001:0",
+                    "start_sec": 4.0,
+                    "duration_sec": 6.0,
+                }],
+                "gaps": [],
+            }), encoding="utf-8")
+
+            result = ca.dry_build(
+                EXAMPLES / "segment_contract_graduation_mv.json",
+                out_dir=outdir,
+                categories_path=EXAMPLES / "material_categories.json",
+                verbose=False,
+            )
+
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["rough_cut_plan"], str(rough_cut))
+            self.assertEqual(result["artifacts"]["rough_cut_plan"], str(rough_cut))
+
+    def test_contract_dry_build_cli_records_audio_ready_handoff_without_rendering(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "dry_cli"
+            outdir.mkdir(parents=True)
+            final_audio = outdir / "final_audio.wav"
+            final_audio.write_bytes(b"canonical audio")
+            (outdir / "audio_mix_report.json").write_text(json.dumps({
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "output_audio": str(final_audio),
+                "duration_sec": 10,
+            }), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "contract-dry-build",
+                    str(EXAMPLES / "segment_contract_graduation_mv.json"),
+                    "--categories",
+                    str(EXAMPLES / "material_categories.json"),
+                    "--out-dir",
+                    str(outdir),
+                ],
+                cwd=repo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertFalse((outdir / "final.mp4").exists())
+            self.assertTrue((outdir / "audio_build_handoff.json").is_file())
+            handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["final_audio"], str(final_audio))
+            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
 
     def test_run_contract_emits_capcut_draft_when_backend_selected(self):
         with tempfile.TemporaryDirectory() as d:

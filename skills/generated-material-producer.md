@@ -8,6 +8,46 @@ description: Use when MGF1 material_generation_fallback.json must be executed in
 This skill turns planned generated-material jobs into files and reviewable
 material-map evidence.
 
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "generated-material-producer",
+  "stage_owner": "generated_material_fallback_branch",
+  "triggers": [
+    "structure-first 或 material gap 需要生成候選素材",
+    "需要驗證 generated material provider mapping、story-to-generated-material flow"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/generated_material_flow_acceptance.py",
+      "when": "驗證 generated material fallback flow，不把生成物直接當 proof material",
+      "inputs": ["material_generation_fallback.json", "material_needs.json"],
+      "outputs": ["generated_material_flow_acceptance_report.json"],
+      "stop_if": ["generated asset lacks review path", "candidate is treated as accepted material"]
+    },
+    {
+      "tool": "tools/story_to_generated_material_e2e.py",
+      "when": "驗證 story-first 到 generated-material candidate 的端到端邊界",
+      "inputs": ["story/brief fixture"],
+      "outputs": ["story_to_generated_material_e2e_report.json"],
+      "stop_if": ["provider packet missing", "generated candidates skip material-map review"]
+    }
+  ],
+  "supporting_tools": [],
+  "forbidden_tools": [
+    "Do not treat generated assets as real footage",
+    "Do not satisfy proof-critical material needs without explicit review",
+    "Do not render final.mp4 from generated-material acceptance"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
+Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
+must already be resolved before this skill runs. Do not direct-cut from a fuzzy
+request; generated material is a candidate branch, not permission to render.
+
 It is downstream of `skills/material-generation-fallback.md`.
 
 ## Core Boundary

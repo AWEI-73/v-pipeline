@@ -145,13 +145,10 @@ def cmd_spec_review(args):
     brief = {}
     supply_review = None
     if args.brief and Path(args.brief).exists():
-        with open(args.brief, encoding="utf-8") as f:
-            brief = json.load(f)
-    with open(args.contract, encoding="utf-8") as f:
-        contract = json.load(f)
+        brief = _load_json(args.brief)
+    contract = _load_json(args.contract)
     if getattr(args, "supply_review", None):
-        with open(args.supply_review, encoding="utf-8") as f:
-            supply_review = json.load(f)
+        supply_review = _load_json(args.supply_review)
     result = spec_review.review_spec(
         contract, brief,
         has_editorial_design=bool(args.editorial_design and Path(args.editorial_design).exists()),
@@ -172,16 +169,13 @@ def cmd_capability_manifest(args):
 
 def cmd_supply_review(args):
     from video_pipeline_core.supply_review import fallback_maps_from_coverage, review_supply
-    with open(args.contract, encoding="utf-8") as f:
-        contract = json.load(f)
+    contract = _load_json(args.contract)
     maps = []
     for path in Path(args.maps_dir).glob("*.map.json"):
-        with open(path, encoding="utf-8") as f:
-            maps.append(json.load(f))
+        maps.append(_load_json(path))
     coverage_map = None
     if args.coverage_map:
-        with open(args.coverage_map, encoding="utf-8") as f:
-            coverage_map = json.load(f)
+        coverage_map = _load_json(args.coverage_map)
         known_sources = {str(item.get("source") or "").lower() for item in maps}
         maps.extend(
             item for item in fallback_maps_from_coverage(coverage_map)
@@ -291,6 +285,103 @@ def cmd_effect_intent_plan(args):
         out_spec=args.out_spec,
     )
     print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))
+
+
+def cmd_visual_technique_plan(args):
+    from video_pipeline_core.visual_technique_plan import plan_visual_technique
+    brief = {
+        "request": args.request,
+        "effect_role": args.effect_role,
+        "duration_sec": args.duration_sec,
+        "material_state": args.material_state,
+    }
+    if getattr(args, "confirmed", False):
+        brief["confirmed_style_family"] = True
+    result = plan_visual_technique(brief)
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": True, "visual_technique_plan": args.out, **result}, ensure_ascii=False, indent=2))
+
+
+def cmd_soundtrack_arrange(args):
+    from video_pipeline_core.soundtrack_arranger import write_soundtrack_artifacts
+    with open(args.input, encoding="utf-8-sig") as f:
+        payload = json.load(f)
+    artifacts = write_soundtrack_artifacts(payload, args.out_dir)
+    print(json.dumps({
+        "ok": True,
+        "out_dir": args.out_dir,
+        "ready_for_audio_director": artifacts["audio_director_handoff"]["ready_for_audio_director"],
+        "blocks": artifacts["audio_director_handoff"]["blocks"],
+        "artifacts": [
+            "soundtrack_plan.json",
+            "music_source_candidates.json",
+            "sound_license_manifest.json",
+            "audio_director_handoff.json",
+        ],
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_soundtrack_provider_search(args):
+    from video_pipeline_core.soundtrack_providers import write_provider_candidates
+    with open(args.plan, encoding="utf-8-sig") as f:
+        plan = json.load(f)
+    providers = [item.strip() for item in str(args.providers).split(",") if item.strip()]
+    result = write_provider_candidates(
+        plan,
+        args.out,
+        providers=providers,
+        limit=args.limit,
+    )
+    print(json.dumps({
+        "ok": True,
+        "music_source_candidates": args.out,
+        "provider_status": result.get("provider_status") or {},
+        "candidate_count": len(result.get("candidates") or []),
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_soundtrack_provider_download(args):
+    from video_pipeline_core.soundtrack_providers import download_candidate, load_candidate_by_id
+    candidate = load_candidate_by_id(args.candidates, args.candidate_id)
+    result = download_candidate(candidate, args.out_dir)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_soundtrack_import_url(args):
+    from video_pipeline_core.soundtrack_providers import import_url_with_ytdlp
+    result = import_url_with_ytdlp(
+        args.url,
+        args.out_dir,
+        section_id=args.section_id,
+        source_type=args.source_type,
+        usage_scope=args.usage_scope,
+        license_note=args.license_note or "",
+        license_url=args.license_url or "",
+        ytdlp_path=args.ytdlp_path,
+        audio_format=args.audio_format,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_soundtrack_audio_handoff_accept(args):
+    from video_pipeline_core.audio_handoff_acceptance import accept_audio_handoff_files
+    result = accept_audio_handoff_files(
+        args.handoff,
+        out_dir=args.out_dir,
+        soundtrack_plan_path=args.soundtrack_plan,
+        license_manifest_path=args.license_manifest,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_visual_technique_review_apply(args):
+    from video_pipeline_core.visual_technique_plan import apply_visual_technique_review_file
+    try:
+        result = apply_visual_technique_review_file(args.plan, args.review, args.out)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"visual technique review apply failed: {exc}") from exc
+    print(json.dumps({"ok": True, "visual_technique_plan": args.out, **result}, ensure_ascii=False, indent=2))
 
 
 def cmd_effect_revision_request(args):
@@ -689,6 +780,49 @@ def cmd_story_soul_blueprint(args):
     if not result["ok"]:
         raise ToolError("story soul blueprint failed: "
                         + "; ".join(result.get("errors") or []))
+
+
+def cmd_story_soul_to_contract(args):
+    """SSB2: compile story-soul-blueprint artifacts into segment_contract.json."""
+    from video_pipeline_core import blueprint_to_contract as b2c
+    from video_pipeline_core import spec_contract
+
+    story_dir = Path(args.story_dir)
+    if not story_dir.is_dir():
+        raise ToolError(f"story dir not found: {story_dir}")
+
+    def read_required(name):
+        path = story_dir / name
+        if not path.is_file():
+            raise ToolError(f"missing story soul artifact: {path}")
+        return _load_json(str(path))
+
+    story = {
+        "ok": True,
+        "story_world": read_required("story_world.json"),
+        "creative_concept": read_required("creative_concept.json"),
+        "screenplay_beats": read_required("screenplay_beats.json"),
+        "director_shot_plan": read_required("director_shot_plan.json"),
+        "material_needs": read_required("material_needs.json"),
+        "generation_manifest": read_required("generation_manifest.json"),
+    }
+    child_contracts = story["director_shot_plan"].get("stage0_child_contracts")
+    if child_contracts:
+        story["stage0_child_contracts"] = child_contracts
+
+    contract = b2c.compile_story_soul_contract(story)
+    validation = spec_contract.validate_segment_contract(contract)
+    if not validation.get("ok"):
+        raise ToolError("compiled story soul contract failed validation: "
+                        + "; ".join(validation.get("errors") or []))
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(contract, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({
+        "ok": True,
+        "out": str(out_path),
+        "segments": len(contract.get("segments") or []),
+    }, ensure_ascii=False, indent=2))
 
 
 def cmd_video_intent_plan(args):
@@ -2256,8 +2390,16 @@ def _build_video_tools_dispatch():
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
         "generated-material-review": cmd_generated_material_review,
+        "soundtrack-arrange": cmd_soundtrack_arrange,
+        "soundtrack-provider-search": cmd_soundtrack_provider_search,
+        "soundtrack-provider-download": cmd_soundtrack_provider_download,
+        "soundtrack-import-url": cmd_soundtrack_import_url,
+        "soundtrack-audio-handoff-accept": cmd_soundtrack_audio_handoff_accept,
+        "visual-technique-plan": cmd_visual_technique_plan,
+        "visual-technique-review-apply": cmd_visual_technique_review_apply,
         "effect-intent-plan": cmd_effect_intent_plan,
         "story-soul-blueprint": cmd_story_soul_blueprint,
+        "story-soul-to-contract": cmd_story_soul_to_contract,
         "light-effects-plan": cmd_light_effects_plan,
         "effect-revision-request": cmd_effect_revision_request,
         "effect-revision-draft": cmd_effect_revision_draft,
@@ -2818,12 +2960,80 @@ def main():
     p_ssb.add_argument("--out-dir", required=True, dest="out_dir",
                        help="directory for SSB artifacts")
 
+    p_ssb2 = sub.add_parser("story-soul-to-contract")
+    p_ssb2.add_argument("--story-dir", required=True, dest="story_dir",
+                        help="directory containing story-soul-blueprint artifacts")
+    p_ssb2.add_argument("--out", required=True,
+                        help="segment_contract.json output")
+
     p_fx = sub.add_parser("effect-intent-plan")
     p_fx.add_argument("director_shot_plan", help="director_shot_plan.json with effect_intent fields")
     p_fx.add_argument("--out-plan", required=True, dest="out_plan",
                       help="effect_intent_plan.json output")
     p_fx.add_argument("--out-spec", required=True, dest="out_spec",
                       help="effect_asset_spec.json output")
+
+    p_vtp = sub.add_parser("visual-technique-plan")
+    p_vtp.add_argument("--request", required=True,
+                       help="fuzzy visual/effect request")
+    p_vtp.add_argument("--effect-role", default="", dest="effect_role",
+                       help="opening_title, transition, lower_third, montage_hit, closing_title, or outro")
+    p_vtp.add_argument("--duration-sec", type=float, default=None, dest="duration_sec",
+                       help="optional intended duration in seconds")
+    p_vtp.add_argument("--material-state", default=None, dest="material_state",
+                       help="optional material context, for example group_photo_available")
+    p_vtp.add_argument("--confirmed", action="store_true",
+                       help="mark the candidate direction as user/reviewer confirmed for downstream handoff")
+    p_vtp.add_argument("--json", action="store_true",
+                       help="accepted for compatibility; command always prints JSON")
+    p_vtp.add_argument("--out", required=True,
+                       help="visual_technique_plan.json output")
+
+    p_sta = sub.add_parser("soundtrack-arrange")
+    p_sta.add_argument("input", help="brief/video_intent JSON input")
+    p_sta.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="run folder for soundtrack artifacts")
+
+    p_sts = sub.add_parser("soundtrack-provider-search")
+    p_sts.add_argument("--plan", required=True, help="soundtrack_plan.json input")
+    p_sts.add_argument("--out", required=True, help="music_source_candidates.json output")
+    p_sts.add_argument("--providers", default="jamendo,pixabay",
+                       help="comma-separated providers, default: jamendo,pixabay")
+    p_sts.add_argument("--limit", type=int, default=3, help="max candidates per searched section")
+
+    p_std = sub.add_parser("soundtrack-provider-download")
+    p_std.add_argument("--candidates", required=True, help="music_source_candidates.json")
+    p_std.add_argument("--candidate-id", required=True, dest="candidate_id", help="candidate_id to download")
+    p_std.add_argument("--out-dir", required=True, dest="out_dir", help="run folder for audio/source and handoff artifacts")
+
+    p_stu = sub.add_parser("soundtrack-import-url")
+    p_stu.add_argument("--url", required=True, help="URL to import with yt-dlp")
+    p_stu.add_argument("--section-id", required=True, dest="section_id", help="target soundtrack section id")
+    p_stu.add_argument("--source-type", required=True, dest="source_type",
+                       help="youtube_audio_library, licensed_library, user_provided, or suno_udio_external")
+    p_stu.add_argument("--usage-scope", default="internal_only", dest="usage_scope",
+                       help="internal_only, non_commercial, public_delivery, or commercial_delivery")
+    p_stu.add_argument("--license-note", default="", dest="license_note",
+                       help="manual license/use assertion; required unless --license-url is provided")
+    p_stu.add_argument("--license-url", default="", dest="license_url",
+                       help="license/source URL; required unless --license-note is provided")
+    p_stu.add_argument("--ytdlp-path", default=YTDLP, dest="ytdlp_path", help="yt-dlp executable path")
+    p_stu.add_argument("--audio-format", default="mp3", dest="audio_format", help="yt-dlp audio format, default mp3")
+    p_stu.add_argument("--out-dir", required=True, dest="out_dir", help="run folder for audio/source and handoff artifacts")
+
+    p_saha = sub.add_parser("soundtrack-audio-handoff-accept")
+    p_saha.add_argument("--handoff", required=True, help="audio_director_handoff.json")
+    p_saha.add_argument("--out-dir", required=True, dest="out_dir", help="run folder for audio_handoff_acceptance.json and audio_mix_plan.json")
+    p_saha.add_argument("--soundtrack-plan", default=None, dest="soundtrack_plan", help="optional soundtrack_plan.json")
+    p_saha.add_argument("--license-manifest", default=None, dest="license_manifest", help="optional sound_license_manifest.json")
+
+    p_vtra = sub.add_parser("visual-technique-review-apply")
+    p_vtra.add_argument("--plan", required=True,
+                        help="candidate visual_technique_plan.json")
+    p_vtra.add_argument("--review", required=True,
+                        help="visual_technique_review.json with decision and selected_option")
+    p_vtra.add_argument("--out", required=True,
+                       help="confirmed visual_technique_plan.json output")
 
     p_le = sub.add_parser("light-effects-plan")
     p_le.add_argument("contract", help="canonical segment_contract.json")

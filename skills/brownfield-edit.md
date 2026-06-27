@@ -1,8 +1,111 @@
+---
+name: brownfield-edit
+description: Use when editing an existing Hermes draft, rough cut, final candidate, Workbench patch, VERIFY gap, local finishing request, subtitle patch, volume repair, clip replacement, or non-canonical preview without changing story/material truth.
+---
+
 # Brownfield Edit Route
 
 Brownfield Edit is the fast local patch route for an existing pipeline result.
 Use it after a draft/final candidate, Workbench patch, VERIFY gap, or effect gap
 already exists. It is not the canonical story/material pipeline.
+
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "brownfield-edit",
+  "stage_owner": "brownfield_workbench_patch_route",
+  "triggers": [
+    "使用者要調整既有 draft、換片段、改字幕、補特效、重做局部預覽",
+    "Workbench patch、VERIFY gap、effect gap 已存在，需要非 canonical 修補"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/workbench_handoff.py",
+      "when": "將 Workbench draft edits 打包成可審查 handoff",
+      "inputs": ["workbench draft state", "run folder"],
+      "outputs": ["workbench_handoff.json"],
+      "stop_if": ["draft references stale material or canonical artifact directly"]
+    },
+    {
+      "tool": "tools/workbench_patch_to_contract.py",
+      "when": "把已審查 Workbench patch 轉成 contract patch candidate",
+      "inputs": ["reviewed workbench patch", "segment_contract.json"],
+      "outputs": ["contract_patch.json"],
+      "stop_if": ["patch changes canonical truth without review"]
+    },
+    {
+      "tool": "tools/workbench_draft_rerender.py",
+      "when": "產生非 canonical draft preview 供人工/agent review",
+      "inputs": ["validated workbench handoff", "draft patch"],
+      "outputs": ["draft preview video", "draft render report"],
+      "stop_if": ["caller expects final.mp4 or canonical delivery"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/timeline_patch.py",
+      "when": "產生 timeline 局部 draft patch",
+      "inputs": ["timeline edit request", "timeline context"],
+      "outputs": ["timeline_patch.json"],
+      "stop_if": ["target segment cannot be resolved"]
+    },
+    {
+      "tool": "tools/subtitle_patch.py",
+      "when": "產生字幕局部 draft patch",
+      "inputs": ["subtitle edit request", "subtitle context"],
+      "outputs": ["subtitle_patch.json"],
+      "stop_if": ["subtitle would exceed safe area or line policy"]
+    },
+    {
+      "tool": "tools/effect_patch.py",
+      "when": "產生局部特效 draft patch",
+      "inputs": ["effect edit request", "effect context"],
+      "outputs": ["effect_patch.json"],
+      "stop_if": ["effect is required but lacks review evidence"]
+    },
+    {
+      "tool": "tools/preview_timeline.py",
+      "when": "預覽 timeline 結構與 draft impact，不作正式 render",
+      "inputs": ["timeline or contract"],
+      "outputs": ["preview timeline report"],
+      "stop_if": ["timeline cannot be parsed"]
+    },
+    {
+      "tool": "tools/workbench_export.py",
+      "when": "匯出 Workbench draft/review artifacts",
+      "inputs": ["workbench state"],
+      "outputs": ["workbench export package"],
+      "stop_if": ["export would overwrite canonical artifacts"]
+    },
+    {
+      "tool": "tools/workbench_review_report.py",
+      "when": "將 Workbench draft 轉成 review report",
+      "inputs": ["workbench state", "draft artifacts"],
+      "outputs": ["workbench_review_report.json"],
+      "stop_if": ["draft evidence missing"]
+    },
+    {
+      "tool": "tools/workbench_thumbs.py",
+      "when": "產生 Workbench 用縮圖與可視 review refs",
+      "inputs": ["media refs"],
+      "outputs": ["thumbnail artifacts"],
+      "stop_if": ["source media missing"]
+    }
+  ],
+  "forbidden_tools": [
+    "Do not use Brownfield as first response to a fuzzy new video request",
+    "Do not write final.mp4 from a draft rerender",
+    "Do not promote draft patches without backend/agent review"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
+Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
+still applies if the request is a new fuzzy video request. Do not direct-cut
+from a fuzzy request; Brownfield starts only from an existing reviewed candidate,
+gap, or draft patch.
 
 ## Purpose
 

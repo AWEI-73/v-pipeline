@@ -52,6 +52,13 @@ def _accepted_edge(scene: dict, need_id: str) -> dict | None:
     return None
 
 
+def _edge_is_rejected(edge: dict | None) -> bool:
+    if not edge:
+        return False
+    verdict = edge.get("curator_verdict") or edge.get("verdict")
+    return verdict in {"reject", "rejected", "duplicate"}
+
+
 def _scene_duration(scene: dict, fallback: float) -> float:
     try:
         start = float(scene.get("start") or 0.0)
@@ -93,6 +100,9 @@ def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
         for index, scene in enumerate(asset.get("scenes") or []):
             if need_id not in _accepted_need_ids(scene):
                 continue
+            edge = _accepted_edge(scene, need_id)
+            if _edge_is_rejected(edge):
+                continue
             scene_index = scene.get("scene_index")
             if not isinstance(scene_index, int):
                 scene_index = index
@@ -100,9 +110,11 @@ def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
             if usable:
                 available_start = usable[0]
                 available_duration = usable[1] - usable[0]
+                has_reviewed_usable_range = True
             else:
                 available_start = _scene_start(scene)
                 available_duration = _scene_duration(scene, 0.0)
+                has_reviewed_usable_range = False
             candidates.append({
                 "asset_id": asset_id,
                 "asset_type": asset.get("asset_type"),
@@ -112,6 +124,7 @@ def _candidate_scenes(project_map: dict, need_id: str) -> list[dict]:
                 "scene_duration_sec": _scene_duration(scene, 0.0),
                 "available_start_sec": available_start,
                 "available_range_sec": available_duration,
+                "has_reviewed_usable_range": has_reviewed_usable_range,
             })
     return sorted(
         candidates,
@@ -133,6 +146,9 @@ def _timeline_from_clips(clips: list[dict]) -> dict:
             "extract_dur": clip["duration_sec"],
             "slot_index": index,
             "scene_id": clip["scene_id"],
+            "asset_id": clip.get("asset_id"),
+            "material_map_id": clip.get("asset_id"),
+            "need_id": clip.get("need_id"),
             "caption": clip.get("caption"),
             "source_repeat_count": clip.get("source_repeat_count"),
             "reason": clip.get("reason"),
@@ -179,6 +195,12 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
         scene = chosen["scene"]
         source = chosen.get("source")
         available = float(chosen.get("available_range_sec") or _scene_duration(scene, requested))
+        is_still_asset = str(chosen.get("asset_type") or "").lower() in {"image", "photo", "still", "jpg", "jpeg", "png"}
+        if (
+            not chosen.get("has_reviewed_usable_range")
+            and is_still_asset
+        ):
+            available = max(available, float(requested))
         start = chosen.get("available_start_sec")
         if start is None:
             start = _scene_start(scene)
@@ -199,6 +221,18 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
             "source_repeat_count": source_counts[source],
             "reason": "selected first accepted material-map scene for segment need",
         })
+        missing_duration = round(max(0.0, requested - duration), 3)
+        if missing_duration > 0 and not is_still_asset:
+            gaps.append({
+                "segment": segment_id,
+                "need_id": chosen_need,
+                "asset_id": chosen.get("asset_id"),
+                "scene_id": f"{chosen.get('asset_id')}:{chosen.get('scene_index')}",
+                "reason": "accepted scene is shorter than requested segment duration",
+                "requested_duration_sec": round(float(requested), 3),
+                "selected_duration_sec": round(float(duration), 3),
+                "missing_duration_sec": missing_duration,
+            })
 
     plan = {
         "artifact_role": "rough_cut_plan",

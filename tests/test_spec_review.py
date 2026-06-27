@@ -1,6 +1,11 @@
 """Pre-BUILD whole-SPEC review gate (roadmap C0). Every rule encodes a real
 incident: soul-v3/v5 (ai-video) and the stock_story_e2e convergence dry-run."""
 import unittest
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 from video_pipeline_core.spec_review import review_spec
 
@@ -29,6 +34,40 @@ class ReadySpecTest(unittest.TestCase):
         self.assertTrue(r["ready_for_build"])
         self.assertEqual(r["blocking"], [])
         self.assertIsNone(r["next_action"])
+
+    def test_spec_review_cli_accepts_utf8_bom_json(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            contract_path = root / "segment_contract.json"
+            brief_path = root / "brief.json"
+            contract_path.write_text(
+                json.dumps({"segments": [_seg()]}, ensure_ascii=False),
+                encoding="utf-8-sig",
+            )
+            brief_path.write_text(json.dumps(BRIEF, ensure_ascii=False), encoding="utf-8-sig")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "spec-review",
+                    str(contract_path),
+                    "--brief",
+                    str(brief_path),
+                    "--editorial-design",
+                    str(brief_path),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ready_for_build"])
 
 
 class BlockingRulesTest(unittest.TestCase):

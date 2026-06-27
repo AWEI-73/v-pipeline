@@ -49,7 +49,39 @@ const materialMap = {
           caption: "students entering the classroom",
           need_ids: ["need_001"],
           statuses: ["accepted"],
+          usable_range: { start: 1.5, end: 8.5 },
+          start_sec: 2,
+          duration_sec: 5,
+          thumbnail_url: "/static/thumbs/clip.jpg?root=C%3A%2Fruns%2Fstory",
           visual_family: "classroom",
+          angle_scale: "wide",
+        },
+      ],
+    },
+    {
+      asset_id: "asset_002",
+      asset_type: "video",
+      source: "materials/rejected.mp4",
+      scene_count: 1,
+      scenes: [
+        {
+          caption: "wrong ceremony angle",
+          satisfies: [{ need_id: "need_001", status: "rejected" }],
+          visual_family: "ceremony",
+          angle_scale: "medium",
+        },
+      ],
+    },
+    {
+      asset_id: "asset_003",
+      asset_type: "video",
+      source: "materials/rejected-only.mp4",
+      scene_count: 1,
+      scenes: [
+        {
+          caption: "irrelevant hallway",
+          satisfies: [{ need_id: "need_002", status: "rejected" }],
+          visual_family: "hallway",
           angle_scale: "wide",
         },
       ],
@@ -64,6 +96,14 @@ const materialMap = {
       candidate: 0,
       outcome: "thin",
     },
+    {
+      need_id: "need_002",
+      purpose: "show closing promise",
+      count: 1,
+      accepted: 0,
+      candidate: 0,
+      outcome: "missing",
+    },
   ],
 };
 
@@ -76,14 +116,33 @@ const materialHtml = MaterialMapView({
   materialMap,
   selectedEvidence: { type: "need", id: "need_001" },
 });
-assert.match(materialHtml, /class="decision-panel"/);
-assert.match(materialHtml, /dashboard_review_decision_packet_preview/);
-assert.match(materialHtml, /class="decision-packet-preview"/);
-assert.match(materialHtml, /class="evidence-drawer" data-evidence-type="need"/);
+assert.match(materialHtml, /class="material-map-workspace"/);
+assert.match(materialHtml, /以劇本需求看素材/);
+assert.match(materialHtml, /class="mm-contract-paper"/);
+assert.match(materialHtml, /素材判斷契約紙/);
 assert.match(materialHtml, /data-asset-id="asset_001"/);
+assert.match(materialHtml, /data-asset-id="asset_002"/);
+assert.match(materialHtml, /<img class="mm-thumb"/);
+assert.match(materialHtml, /src="\/static\/thumbs\/clip\.jpg\?root=C%3A%2Fruns%2Fstory"/);
 assert.match(materialHtml, /data-need-id="need_001"/);
-assert.match(materialHtml, /need-card thin selected/);
-assert.match(materialHtml, /&quot;handoff_to&quot;: &quot;material_map_review&quot;/);
+assert.match(materialHtml, /mm-scene-card active/);
+assert.match(materialHtml, /wrong ceremony angle/);
+assert.match(materialHtml, /排除/);
+assert.match(materialHtml, /可用區間/);
+assert.match(materialHtml, /1\.5s - 8\.5s/);
+assert.match(materialHtml, /粗剪切點/);
+assert.match(materialHtml, /從 2s 開始，使用 5s/);
+assert.match(materialHtml, /可送 Workbench/);
+
+const rejectedOnlyHtml = MaterialMapView({
+  materialMap,
+  selectedEvidence: { type: "need", id: "need_002" },
+});
+assert.match(rejectedOnlyHtml, /data-asset-id="asset_003"/);
+assert.match(rejectedOnlyHtml, /排除/);
+assert.match(rejectedOnlyHtml, /暫停/);
+assert.match(rejectedOnlyHtml, /沒有可用素材/);
+assert.doesNotMatch(rejectedOnlyHtml, /可送 Workbench/);
 
 const routeHtml = RouteOverviewView({
   control,
@@ -93,7 +152,8 @@ const routeHtml = RouteOverviewView({
 assert.match(routeHtml, /class="stage-detail-panel" data-active-stage="Material Map"/);
 assert.match(routeHtml, /路線總覽/);
 assert.match(routeHtml, /影片流程審核/);
-assert.match(routeHtml, /節點詳情/);
+assert.match(routeHtml, /中文契約紙/);
+assert.match(routeHtml, /目前判斷/);
 assert.match(routeHtml, /class="stage-file-list"/);
 assert.match(routeHtml, /project_material_map\.json/);
 assert.match(routeHtml, /reviewed_project_material_map\.json/);
@@ -121,10 +181,30 @@ const headerHtml = AppHeader({
   root: "C:/runs/story",
   projects: [{ name: "Story Run", path: "C:/runs/story" }],
 });
-assert.match(headerHtml, /影片管線儀表板/);
+assert.match(headerHtml, /影片製作管線工作台/);
+assert.match(headerHtml, /白盒 Dashboard/);
 assert.match(headerHtml, /選擇 Run/);
 assert.match(headerHtml, /id="spa-project-select"/);
+assert.match(headerHtml, /id="spa-root-input"/);
+assert.match(headerHtml, /list="spa-project-paths"/);
+assert.match(headerHtml, /id="spa-project-paths"/);
+assert.match(headerHtml, /value="C:\/runs\/story"/);
+assert.match(headerHtml, /打開資料夾/);
+assert.match(headerHtml, />開啟</);
 assert.match(headerHtml, /data-root="C:\/runs\/story"/);
+assert.match(headerHtml, /class="pause-banner"/);
+assert.match(headerHtml, /目前路線/);
+
+const workbenchHeaderHtml = AppHeader({
+  control,
+  materialMap,
+  activeView: "workbench",
+  root: "C:/runs/story",
+  projects: [{ name: "Story Run", path: "C:/runs/story" }],
+});
+assert.match(workbenchHeaderHtml, /黑盒 Workbench/);
+assert.doesNotMatch(workbenchHeaderHtml, /class="pause-banner"/);
+assert.doesNotMatch(workbenchHeaderHtml, /目前路線/);
 
 const workbenchHtml = WorkbenchView({
   root: "C:/runs/story",
@@ -153,8 +233,22 @@ const workbenchHtml = WorkbenchView({
     },
   },
 });
-assert.match(workbenchHtml, /workbench-review-summary/);
-assert.match(workbenchHtml, /互動草稿工作區/);
+assert.match(workbenchHtml, /workbench-view/);
+assert.match(workbenchHtml, /workbench-run-strip/);
+assert.ok(workbenchHtml.includes("影片剪輯工作台"));
+assert.ok(workbenchHtml.includes("保留舊版 Workbench 的互動畫面、播放控制與四條時間軸"));
+assert.ok(workbenchHtml.includes("Workbench 草稿摘要"));
+assert.ok(workbenchHtml.includes("時間軸草稿 2"));
+assert.ok(workbenchHtml.includes("字幕草稿 1"));
+assert.ok(workbenchHtml.includes("音訊提示草稿 1"));
+assert.ok(workbenchHtml.includes("特效意圖草稿 0"));
+assert.ok(workbenchHtml.includes("交接驗證 通過"));
+assert.match(workbenchHtml, /<iframe title="Hermes Workbench 黑盒剪輯工作檯"/);
 assert.match(workbenchHtml, /src="\/workbench\/index.html\?root=C%3A%2Fruns%2Fstory"/);
+assert.doesNotMatch(workbenchHtml, /monitor-box/);
+assert.doesNotMatch(workbenchHtml, /timeline-wrap/);
+assert.doesNotMatch(workbenchHtml, /clip-video/);
+assert.doesNotMatch(workbenchHtml, /workbench-status-grid/);
+assert.doesNotMatch(workbenchHtml, /workbench-review-summary/);
 
 console.log("dashboard_spa_render_smoke: checks passed");

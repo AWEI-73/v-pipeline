@@ -1,8 +1,67 @@
-﻿---
+---
 name: verify
-description: VERIFY Skill??????5 蝬剖漲?芸?閰?嚗?祈????瑕??撟?蝣箝??閬?銵?鞈迎?嚗撓?箏?甈蜇??+ 憭望??? fix_target 頝舐?內嚗?銝虜 Skill ?仿?閬耨?芣挾??---
+description: Use when running or reviewing Hermes VERIFY and delivery gates: QA reports, visual/content audits, reviewer artifacts, final review smoke, fail-closed delivery evidence, stale artifact checks, or repair targets after BUILD.
+---
 
 # Verify Skill
+
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "verify",
+  "stage_owner": "verify_delivery_gate",
+  "triggers": [
+    "需要驗證成品、review report、delivery gate、orphan process、或 fail-closed 行為",
+    "BUILD 後或 no-render campaign 後需要 reviewer/verify evidence"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/stage5_final_review_smoke.py",
+      "when": "驗證 final review / delivery gate 邊界，不重跑完整 render",
+      "inputs": ["stage5 fixture or run folder"],
+      "outputs": ["stage5_final_review_smoke_report.json"],
+      "stop_if": ["delivery evidence missing or hard gate fails"]
+    },
+    {
+      "tool": "tools/reviewer_flow_acceptance.py",
+      "when": "驗證 reviewer flow 是否會 fail-closed 並回報正確 route",
+      "inputs": ["review fixture or run folder"],
+      "outputs": ["reviewer_flow_acceptance_report.json"],
+      "stop_if": ["reviewer blocks or missing review artifact"]
+    },
+    {
+      "tool": "tools/write_delivery_gate_report.py",
+      "when": "write delivery_gate.json from current run artifacts so verify_result.pass=true cannot be mistaken for delivery readiness",
+      "inputs": ["run folder with verify/material/audio/subtitle/effect evidence"],
+      "outputs": ["delivery_gate.json"],
+      "stop_if": ["delivery gate blocks or required evidence is missing"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/orphan_audit.py",
+      "when": "檢查是否有孤兒 render / ffmpeg / long-running process",
+      "inputs": ["optional process filters"],
+      "outputs": ["orphan audit report"],
+      "stop_if": ["unsafe long-running process is found"]
+    },
+    {
+      "tool": "tools/test_tiers.py",
+      "when": "列出或執行測試分層，用於 focused/full regression 決策",
+      "inputs": ["test tier name"],
+      "outputs": ["test tier command/report"],
+      "stop_if": ["requested tier is unknown"]
+    }
+  ],
+  "forbidden_tools": [
+    "Do not use local VLM for VERIFY unless explicitly opted into legacy experiment",
+    "Do not call a video passed when delivery evidence is missing",
+    "Do not confuse warning-only diagnostics with hard gate pass"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
 
 
 ## Current visual-judgment policy

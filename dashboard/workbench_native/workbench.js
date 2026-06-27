@@ -26,6 +26,7 @@
     effectAssets: [], // selectable effect assets from project_material_map (EF2)
     materialAssets: [], // project material browser; can replace selected timeline clips
     selectedAssetId: null,
+    selectedSceneIndex: 0,
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     trimDrag: null,
     seq: 0,
@@ -93,6 +94,7 @@
         state.effectAssets = (data.effect_assets || []).map(function (a) { return Object.assign({}, a); });
         state.materialAssets = (data.material_assets || []).map(function (a) { return Object.assign({}, a); });
         state.selectedAssetId = null;
+        state.selectedSceneIndex = 0;
         state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
@@ -173,14 +175,29 @@
       query: q,
       family: famFilter,
     });
+    var selectedClip = state.selectedSlot == null ? null : state.work.clips.find(function (c) {
+      return c.slot_index === state.selectedSlot;
+    });
+    var cards = selectedClip
+      ? Materials.replacementCandidates(assets, selectedClip)
+      : assets.map(function (asset) {
+        return Object.assign({}, asset, {
+          scene_index: 0,
+          scene: (asset.scenes || [])[0] || {},
+          match_status: "browse",
+        });
+      });
 
     if (els.material_map_summary) {
-      els.material_map_summary.textContent = assets.length + "/" + state.materialAssets.length + " 個素材";
+      els.material_map_summary.textContent = selectedClip
+        ? cards.length + " 個可替換場景 / need " + (selectedClip.need_id || "未標")
+        : assets.length + "/" + state.materialAssets.length + " 個素材";
     }
     els.material_assets_list.innerHTML = "";
-    assets.forEach(function (a) {
+    cards.forEach(function (a) {
       var card = document.createElement("div");
-      card.className = "material-card" + (a.asset_id === state.selectedAssetId ? " selected" : "");
+      var isSelected = a.asset_id === state.selectedAssetId && a.scene_index === state.selectedSceneIndex;
+      card.className = "material-card" + (isSelected ? " selected" : "") + " match-" + (a.match_status || "browse");
       var preview = Core.materialAssetPreview(a);
       var thumb;
       if (preview.kind === "image" && preview.img_url) {
@@ -198,11 +215,16 @@
       title.textContent = a.asset_id;
       var meta = document.createElement("div");
       meta.className = "material-meta";
+      var scene = a.scene || {};
+      var matchLabel = a.match_status === "accepted" ? "符合需求"
+        : a.match_status === "candidate" ? "候選需求"
+        : selectedClip ? "其他素材" : "瀏覽素材";
       meta.textContent = [
         a.asset_type || "素材",
-        a.visual_family || "未分類",
-        a.angle_scale || "未標角度",
-        (a.scene_count || 0) + " 個場景",
+        scene.visual_family || a.visual_family || "未分類",
+        scene.angle_scale || a.angle_scale || "未標角度",
+        "scene " + a.scene_index,
+        matchLabel,
       ].join(" · ");
       body.appendChild(title);
       body.appendChild(meta);
@@ -212,24 +234,28 @@
       card.title = "拖曳到時間軸片段，或先選片段後雙擊素材，即可替換。";
       card.ondragstart = function (ev) {
         state.selectedAssetId = a.asset_id;
+        state.selectedSceneIndex = a.scene_index || 0;
         ev.dataTransfer.setData("application/x-hermes-asset-id", a.asset_id);
+        ev.dataTransfer.setData("application/x-hermes-scene-index", String(a.scene_index || 0));
         ev.dataTransfer.setData("text/plain", a.asset_id);
         ev.dataTransfer.effectAllowed = "copy";
         renderMaterialBrowser();
       };
       card.onclick = function () {
         state.selectedAssetId = a.asset_id;
-        els.diagnostics.textContent = "已選擇素材 " + a.asset_id + "，可替換目前選取片段。";
+        state.selectedSceneIndex = a.scene_index || 0;
+        els.diagnostics.textContent = "已選擇素材 " + a.asset_id + " / scene " + state.selectedSceneIndex + "，可替換目前選取片段。";
         renderMaterialBrowser();
       };
       card.ondblclick = function () {
         state.selectedAssetId = a.asset_id;
+        state.selectedSceneIndex = a.scene_index || 0;
         if (state.selectedSlot == null) {
           els.diagnostics.textContent = "請先選擇時間軸片段，再雙擊素材替換。";
           renderMaterialBrowser();
           return;
         }
-        replaceClipWithAsset(state.selectedSlot, a.asset_id);
+        replaceClipWithAsset(state.selectedSlot, a.asset_id, state.selectedSceneIndex);
       };
       els.material_assets_list.appendChild(card);
     });
@@ -323,7 +349,8 @@
         ev.preventDefault();
         b.classList.remove("drop-target");
         var assetId = ev.dataTransfer.getData("application/x-hermes-asset-id") || ev.dataTransfer.getData("text/plain");
-        replaceClipWithAsset(c.slot_index, assetId);
+        var sceneIndex = parseInt(ev.dataTransfer.getData("application/x-hermes-scene-index") || "0", 10);
+        replaceClipWithAsset(c.slot_index, assetId, Number.isInteger(sceneIndex) ? sceneIndex : 0);
       };
       attachTrimHandles(b, c);
       lane.appendChild(b);
@@ -706,7 +733,7 @@
     state.trackSel = { type: "effect", id: id };
     var e = state.effects.find(function (x) { return x.effect_id === id; });
     if (!e) return;
-    els.track_insp_title.textContent = "效果 " + id + "（意圖）";
+    els.track_insp_title.textContent = "特效 " + id + "（意圖）";
     els.t_preset.value = e.preset;
     els.t_start.value = e.start_sec;
     els.t_duration.value = e.duration_sec;
@@ -730,7 +757,7 @@
 
   function addFx() {
     if (state.selectedSlot == null) {
-      els.diagnostics.textContent = "請先選擇片段，再新增效果。";
+      els.diagnostics.textContent = "請先選擇片段，再新增特效。";
       return;
     }
     var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
@@ -798,7 +825,7 @@
           var s = res.j.summary || {};
           els.diagnostics.textContent = "已儲存全部 -> " + (res.j.written || []).join(", ") +
             " [時間軸 " + (s.timeline_edits || 0) + ", 字幕 " + (s.subtitle_edits || 0) +
-            ", 音效提示 " + (s.audio_cues || 0) + ", 效果 " + (s.effect_intents || 0) + "]";
+            ", 音效提示 " + (s.audio_cues || 0) + ", 特效 " + (s.effect_intents || 0) + "]";
           state.dirty = false; updateDirty();
         } else {
           els.diagnostics.textContent = "儲存全部被拒絕，未寫入任何檔案：" + JSON.stringify(res.j.errors || res.j);
@@ -836,6 +863,7 @@
     // seek to clip start for immediate visual feedback
     seekTo(clip.timeline_start_sec + 0.001);
     renderTimelineLanes();
+    renderMaterialBrowser();
   }
 
   function applyOp(op, after) {
@@ -861,7 +889,7 @@
     selectClip(state.selectedSlot);
   }
 
-  function replaceClipWithAsset(slotIndex, assetId) {
+  function replaceClipWithAsset(slotIndex, assetId, sceneIndex) {
     var asset = state.materialAssets.find(function (a) { return a.asset_id === assetId; });
     if (!asset) {
       els.diagnostics.textContent = "替換失敗：找不到素材。";
@@ -871,7 +899,7 @@
     var next = Core.replaceClipWithAsset(before, {
       slot_index: slotIndex,
       asset: asset,
-      scene_index: 0,
+      scene_index: Number.isInteger(sceneIndex) ? sceneIndex : 0,
     });
     if (next === before) {
       els.diagnostics.textContent = "替換失敗：素材沒有可用的場景或來源。";
@@ -880,8 +908,9 @@
     state.work = next;
     state.selectedSlot = slotIndex;
     state.selectedAssetId = asset.asset_id;
+    state.selectedSceneIndex = Number.isInteger(sceneIndex) ? sceneIndex : 0;
     state.dirty = true;
-    els.diagnostics.textContent = "已用素材 " + asset.asset_id + " 替換片段 #" + slotIndex + "（草稿 patch）。";
+    els.diagnostics.textContent = "已用素材 " + asset.asset_id + " / scene " + state.selectedSceneIndex + " 替換片段 #" + slotIndex + "（草稿 patch）。";
     renderTimelineLanes();
     renderMaterialBrowser();
     renderMonitor();
@@ -899,7 +928,7 @@
       els.diagnostics.textContent = "請先選擇素材。";
       return;
     }
-    replaceClipWithAsset(state.selectedSlot, state.selectedAssetId);
+    replaceClipWithAsset(state.selectedSlot, state.selectedAssetId, state.selectedSceneIndex || 0);
   }
 
   function moveClip(dir) {

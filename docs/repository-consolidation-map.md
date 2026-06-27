@@ -86,7 +86,10 @@ guide, not a new orchestrator.
 
 `video_tools.py test-tiers [--tier NAME] [--dry-run]` emits or runs the standard
 verification tiers. Use it to choose focused checks before the full regression;
-it is a thin command runner over existing Python/Node tests.
+it is a thin command runner over existing Python/Node tests. The emitted
+manifest also carries non-blocking `optional_checks` for environment-dependent
+guards, such as the Workbench browser layout smoke that protects the native
+monitor and four timeline lanes.
 
 ### Runtime Resume
 
@@ -306,6 +309,10 @@ Frontend and Workbench:
 - `tests/test_workbench_tracks.py`
 - `tests/test_workbench_proxy.py`
 - `tests/workbench_*_smoke.js`
+- `tools/workbench_frontend_smoke.py` (fast HTML/API guard for native monitor,
+  playback controls, and the four tracks)
+- `tools/workbench_browser_layout_smoke.mjs` (optional browser guard; also
+  listed under `video_tools.py test-tiers` -> `workbench.optional_checks`)
 
 Material lifecycle:
 

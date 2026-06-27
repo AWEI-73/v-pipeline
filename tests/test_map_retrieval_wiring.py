@@ -260,6 +260,81 @@ class ExpandProjectMapTest(unittest.TestCase):
         self.assertTrue(all(slot["is_photo"] for slot in slots))
         self.assertEqual([slot["extract_dur"] for slot in slots], [3.5, 3.5])
 
+    def test_material_map_ids_hard_filter_ranked_scenes(self):
+        maps = [
+            {
+                "asset_id": "commute_001",
+                "source": "commute.mp4",
+                "asset_type": "video",
+                "scenes": [{
+                    "start": 0,
+                    "end": 5,
+                    "caption": "morning commute movement",
+                    "satisfies": [{"need_id": "need_commute_motion", "status": "accepted"}],
+                }],
+            },
+            {
+                "asset_id": "city_dawn_001",
+                "source": "city_dawn.mp4",
+                "asset_type": "video",
+                "scenes": [{
+                    "start": 0,
+                    "end": 5,
+                    "caption": "morning commute city movement",
+                    "satisfies": [{"need_id": "need_city_dawn", "status": "accepted"}],
+                }],
+            },
+        ]
+        segment = {
+            "segment": 2,
+            "material_map_ids": ["commute_001"],
+            "material_fit": {
+                "visual_desc": "morning commute movement",
+                "need_refs": ["need_commute_motion"],
+            },
+        }
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual([item["scene_id"] for item in ranked], ["commute_001:0"])
+
+    def test_need_refs_hard_filter_ranked_scenes_when_need_evidence_exists(self):
+        maps = [
+            {
+                "asset_id": "commute_001",
+                "source": "commute.mp4",
+                "asset_type": "video",
+                "scenes": [{
+                    "start": 0,
+                    "end": 5,
+                    "caption": "morning commute movement",
+                    "satisfies": [{"need_id": "need_commute_motion", "status": "accepted"}],
+                }],
+            },
+            {
+                "asset_id": "city_dawn_001",
+                "source": "city_dawn.mp4",
+                "asset_type": "video",
+                "scenes": [{
+                    "start": 0,
+                    "end": 5,
+                    "caption": "morning commute movement",
+                    "satisfies": [{"need_id": "need_city_dawn", "status": "accepted"}],
+                }],
+            },
+        ]
+        segment = {
+            "segment": 2,
+            "material_fit": {
+                "visual_desc": "morning commute movement",
+                "need_refs": ["need_commute_motion"],
+            },
+        }
+
+        ranked = rank_scenes(segment, maps)
+
+        self.assertEqual([item["scene_id"] for item in ranked], ["commute_001:0"])
+
 
 class WindowEvidenceTest(unittest.TestCase):
     def test_F_window_stays_within_scene_bounds(self):

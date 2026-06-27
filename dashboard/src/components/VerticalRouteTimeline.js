@@ -1,4 +1,5 @@
 import { escapeHtml } from "./StatusPill.js";
+import { stageLabelsZh, zhStatus } from "../i18n/zh.js";
 
 const routeOrder = [
   ["Intent", "釐清目的、觀眾與路線"],
@@ -11,18 +12,6 @@ const routeOrder = [
   ["Review Gates", "導演與系統審核停點"],
   ["Verify", "交付前驗證與證據"],
 ];
-
-export const stageLabelsZh = {
-  "Intent": "意圖規劃",
-  "Material Ingest": "素材匯入",
-  "Material Map": "素材地圖",
-  "Coverage Delta": "覆蓋差異",
-  "Structure": "結構規劃",
-  "Contract": "段落契約",
-  "Timeline": "時間軸",
-  "Review Gates": "審核關卡",
-  "Verify": "驗證",
-};
 
 function expandStages(stages) {
   const byLabel = new Map((stages || []).map((stage) => [stage.label, stage]));
@@ -48,7 +37,7 @@ export function VerticalRouteTimeline(stages = [], activeStage = "Material Map")
           <button type="button" class="rail-node ${escapeHtml(stage.status || "unknown")} ${stage.label === activeStage ? "active" : ""}" data-stage="${escapeHtml(stage.label)}" title="${escapeHtml(stage.artifact || stage.summary || "")}">
             <span class="rail-node-title">${escapeHtml(stageLabelsZh[stage.label] || stage.label)}</span>
             <span class="rail-node-summary">${escapeHtml(stage.summary || stage.artifact || "")}</span>
-            <span class="rail-node-state">${escapeHtml(stage.status === "ready" ? "可進行" : stage.status === "present" ? "已有資料" : stage.status === "missing" ? "缺資料" : "待處理")}</span>
+            <span class="rail-node-state">${escapeHtml(zhStatus(stage.status || "pending"))}</span>
           </button>
         `).join("")}
       </div>

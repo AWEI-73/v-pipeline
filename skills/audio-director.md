@@ -1,9 +1,51 @@
 ---
 name: audio-director
-description: 音控師 Skill。從劇本 JSON 生成 TTS 配音（按標點切句、累加時長，已驗證零誤差同步），混入 BGM 並做淡入淡出。輸出 tts_timing.json 供字幕師與剪輯師使用。
+description: Use when Hermes needs TTS, voiceover timing, approved music mixing, ducking, original speech preservation, final_audio.wav, tts_timing.json, or audio_mix_report.json after Soundtrack Arranger or SPEC handoff.
 ---
 
 # Audio Director Skill
+
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "audio-director",
+  "stage_owner": "audio_director_mix_execution",
+  "triggers": [
+    "audio_mix_plan is ready and must become final_audio.wav",
+    "pipeline needs TTS, ducking, original speech preservation, or audio_mix_report"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/audio_mix_plan_execute.py",
+      "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
+      "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing"],
+      "outputs": ["final_audio.wav", "audio_mix_report.json"],
+      "stop_if": ["audio_handoff_acceptance ok=false", "audio_mix_plan ready_for_mix=false", "audio_file missing"]
+    }
+  ],
+  "supporting_tools": [],
+  "forbidden_tools": [
+    "Do not render final.mp4 from Audio Director",
+    "Do not mix reference_only or unlicensed music",
+    "Do not bypass audio_handoff_acceptance"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
+## Soundtrack Arranger Handoff
+
+`soundtrack-arranger` owns soundtrack intent, source candidates, and license
+evidence before this skill executes audio work. Read `soundtrack_plan.json`,
+`music_source_candidates.json`, `sound_license_manifest.json`, and
+`audio_director_handoff.json` when they exist.
+
+Audio Director then owns TTS, music fetch/use of approved files, ducking,
+preserving original speech, `final_audio.wav`, `tts_timing.json`, and
+`audio_mix_report.json`. If `sound_license_manifest.json` marks a track as
+`reference_only`, placeholder, missing license, or delivery-disallowed, do not
+mix it into deliverable output.
 
 > **Facet 擁有權(Node 3,見 [spec-contract.md](spec-contract.md)):音控師擁有 `audio` facet。**
 > 欄位:`role`(music/duck/diegetic)/ `music_intent` / `original_audio_policy` / `voiceover_policy` / `reason`。

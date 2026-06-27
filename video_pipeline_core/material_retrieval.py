@@ -88,6 +88,14 @@ def _expected_need_ids(segment):
     return {str(value) for value in values}
 
 
+def _allowed_material_map_ids(segment):
+    values = []
+    for value in segment.get("material_map_ids") or segment.get("asset_ids") or []:
+        if isinstance(value, str) and value.strip():
+            values.append(value.strip())
+    return {str(value) for value in values}
+
+
 def _scene_need_id(material_map, scene):
     for status in ("accepted", "candidate"):
         for edge in scene.get("satisfies") or []:
@@ -105,11 +113,19 @@ def _need_score(segment, material_map, scene):
 def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
     """Rank evidenced scenes; external rankers may rerank but not admit zero-fit scenes."""
     query = (segment.get("material_fit") or {}).get("visual_desc") or segment.get("visual_desc")
+    allowed_asset_ids = _allowed_material_map_ids(segment)
+    expected_need_ids = _expected_need_ids(segment)
     ranked = []
     for material_map in material_maps or []:
         if material_map.get("asset_type") in NON_MAIN_TIMELINE_ASSET_TYPES:
             continue
+        asset_id = str(material_map.get("asset_id") or "")
+        if allowed_asset_ids and asset_id not in allowed_asset_ids:
+            continue
         for index, scene in enumerate(material_map.get("scenes") or []):
+            actual_need_id = _scene_need_id(material_map, scene)
+            if expected_need_ids and actual_need_id and str(actual_need_id) not in expected_need_ids:
+                continue
             breakdown = {
                 "need": _need_score(segment, material_map, scene),
                 "text": _text_score(query, scene.get("caption")),
@@ -118,6 +134,8 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
             }
             base_score = sum(breakdown.values())
             if base_score <= 0:
+                continue
+            if query and breakdown["text"] <= 0 and breakdown["need"] <= 0:
                 continue
             breakdown["soul"] = _soul_score(segment, scene) if soul_ranking else 0
             evidence_score = sum(breakdown.values())
@@ -130,7 +148,7 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
                 "start": float(scene.get("start") or 0),
                 "end": float(scene.get("end") or 0),
                 "caption": scene.get("caption"),
-                "need_id": _scene_need_id(material_map, scene),
+                "need_id": actual_need_id,
                 "score_breakdown": breakdown,
                 "ranker_score": external,
                 "score": evidence_score + external,

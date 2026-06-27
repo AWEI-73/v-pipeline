@@ -81,7 +81,23 @@ def _failed_stage_entry(stage: str, message: str, report_file: str | None = None
     }
 
 
-def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None) -> dict:
+def _load_stage0_contracts(run_dir: Path) -> dict:
+    video_intent = {}
+    intent_path = run_dir / "video_intent.json"
+    if intent_path.exists():
+        try:
+            video_intent = json.loads(intent_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            video_intent = {}
+    return {
+        "material": video_intent.get("material_contract") or {},
+        "soundtrack": video_intent.get("soundtrack_contract") or {},
+        "effect": video_intent.get("effect_policy") or {},
+        "subtitle_voiceover": video_intent.get("subtitle_voiceover_contract") or {},
+    }
+
+
+def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None, stage0_contracts=None) -> dict:
     failed = next((stage for stage in stages if not stage.get("ok")), None)
     if failed:
         next_action = failed.get("next_action") or f"repair:{failed.get('stage')}"
@@ -92,6 +108,7 @@ def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None) -> dict
         next_action = final.get("next_action") or "ready_for_render_or_human_review"
         failed_stage = None
         ok = True
+    stage0_contracts = stage0_contracts or _load_stage0_contracts(run_dir)
     return {
         "artifact_role": "material_first_boundary_acceptance_report",
         "version": 1,
@@ -99,6 +116,7 @@ def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None) -> dict
         "ok": ok,
         "next_action": next_action,
         "failed_stage": failed_stage,
+        "stage0_contracts": stage0_contracts,
         "source_dir": str(Path(source_dir).resolve()) if source_dir else None,
         "stages": stages,
         "stage_reports": {
@@ -118,6 +136,7 @@ def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None) -> dict
 def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict, max_assets=12) -> dict:
     root = Path(run_dir).resolve()
     stages: list[dict] = []
+    stage0_contracts = _load_stage0_contracts(root)
     verdict_for_runner, saved_in_run_verdict = _prepare_wall_verdict(root, wall_verdict)
 
     try:
@@ -136,26 +155,26 @@ def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict,
             str(exc),
             STAGE_REPORT_FILES["stage2_3_material_wall_to_review_apply"],
         ))
-        report = _build_report(root, stages, source_dir=source_dir)
+        report = _build_report(root, stages, source_dir=source_dir, stage0_contracts=stage0_contracts)
         write_json(root / "material_first_boundary_acceptance_report.json", report)
         return {"ok": False, "run_dir": str(root), "report": report}
     _cleanup_temp_wall_verdict(verdict_for_runner, saved_in_run_verdict)
     stages.append(_stage_entry(stage2_3))
     if not stage2_3.get("ok"):
-        report = _build_report(root, stages, source_dir=source_dir)
+        report = _build_report(root, stages, source_dir=source_dir, stage0_contracts=stage0_contracts)
         write_json(root / "material_first_boundary_acceptance_report.json", report)
         return {"ok": False, "run_dir": str(root), "report": report}
 
     stage4 = run_stage4_build_smoke(root)
     stages.append(_stage_entry(stage4))
     if not stage4.get("ok"):
-        report = _build_report(root, stages, source_dir=source_dir)
+        report = _build_report(root, stages, source_dir=source_dir, stage0_contracts=stage0_contracts)
         write_json(root / "material_first_boundary_acceptance_report.json", report)
         return {"ok": False, "run_dir": str(root), "report": report}
 
     stage5 = run_stage5_final_review_smoke(root)
     stages.append(_stage_entry(stage5))
-    report = _build_report(root, stages, source_dir=source_dir)
+    report = _build_report(root, stages, source_dir=source_dir, stage0_contracts=stage0_contracts)
     write_json(root / "material_first_boundary_acceptance_report.json", report)
     return {"ok": bool(report.get("ok")), "run_dir": str(root), "report": report}
 

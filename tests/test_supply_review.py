@@ -1,4 +1,9 @@
 import unittest
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 from video_pipeline_core.curator import build_material_coverage
 from video_pipeline_core.supply_review import fallback_maps_from_coverage, review_supply
@@ -13,6 +18,49 @@ def _map(asset_id, asset_type, scene_count=1):
 
 
 class SupplyReviewTest(unittest.TestCase):
+    def test_supply_review_cli_accepts_utf8_bom_contract_and_maps(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            maps_dir = root / "maps"
+            maps_dir.mkdir()
+            contract_path = root / "segment_contract.json"
+            contract_path.write_text(
+                json.dumps({
+                    "segments": [{
+                        "segment": 1,
+                        "requested_duration_sec": 3,
+                        "target_shot_sec": 3,
+                        "material_map_ids": ["v1"],
+                    }]
+                }, ensure_ascii=False),
+                encoding="utf-8-sig",
+            )
+            (maps_dir / "v1.map.json").write_text(
+                json.dumps(_map("v1", "video", 3), ensure_ascii=False),
+                encoding="utf-8-sig",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "supply-review",
+                    str(contract_path),
+                    "--maps-dir",
+                    str(maps_dir),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["segments"][0]["feasibility"], "ok")
+
     def test_coverage_fallback_counts_positive_pick_as_one_window(self):
         coverage = {"assignments": [{"segment": 1, "picks": [
             {"path": "one.mp4", "score": 0.5},
@@ -59,7 +107,7 @@ class SupplyReviewTest(unittest.TestCase):
             {"segment": 2, "picks": [], "gap": True},
         ]}
         result = review_supply(contract, maps, coverage_map=coverage)
-        self.assertEqual(result["segments"][0]["estimated_effective_shots"], 3)
+        self.assertEqual(result["segments"][0]["estimated_effective_shots"], 2)
         self.assertEqual(result["segments"][0]["feasibility"], "thin")
         self.assertEqual(result["segments"][1]["feasibility"], "gap")
 
@@ -198,6 +246,23 @@ class SupplyReviewTest(unittest.TestCase):
         self.assertEqual(segment["estimated_effective_shots"], 1)
         self.assertEqual(segment["max_honest_duration_sec"], 4.0)
         self.assertEqual(segment["feasibility"], "thin")
+
+    def test_fast_mode_single_scene_video_counts_duration_not_scene_count(self):
+        maps = [dict(_map("director_speech", "video"), scenes=[
+            {"start": 0, "end": 70, "kind": "fast_scan_whole_video"},
+        ])]
+
+        result = review_supply({"segments": [{
+            "segment": 1,
+            "requested_duration_sec": 20,
+            "target_shot_sec": 3,
+            "material_map_ids": ["director_speech"],
+        }]}, maps)
+
+        segment = result["segments"][0]
+        self.assertGreaterEqual(segment["estimated_effective_shots"], 6)
+        self.assertGreaterEqual(segment["max_honest_duration_sec"], 20)
+        self.assertEqual(segment["feasibility"], "ok")
 
 
 if __name__ == "__main__":

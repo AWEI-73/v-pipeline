@@ -77,6 +77,22 @@ class MaterialRoughCutTest(unittest.TestCase):
         self.assertEqual(first["duration_sec"], 4.0)
         self.assertEqual(first["scene_id"], "clip-a:0")
 
+    def test_timeline_clips_preserve_material_map_decision_fields(self):
+        plan = build_rough_cut_plan(_contract(), _project_map())
+
+        timeline_clip = plan["timeline_build"]["clips"][0]
+        self.assertEqual(timeline_clip["segment"], 1)
+        self.assertEqual(timeline_clip["scene_id"], "clip-a:0")
+        self.assertIn("asset_id", timeline_clip)
+        self.assertIn("material_map_id", timeline_clip)
+        self.assertIn("need_id", timeline_clip)
+        self.assertEqual(timeline_clip["asset_id"], "clip-a")
+        self.assertEqual(timeline_clip["material_map_id"], "clip-a")
+        self.assertEqual(timeline_clip["need_id"], "nd_opening")
+        self.assertEqual(timeline_clip["source_path"], "materials/a.mp4")
+        self.assertEqual(timeline_clip["start_sec"], 2.0)
+        self.assertEqual(timeline_clip["duration_sec"], 4.0)
+
     def test_flags_missing_segment_material_without_inventing_clip(self):
         contract = _contract()
         project_map = _project_map()
@@ -141,6 +157,171 @@ class MaterialRoughCutTest(unittest.TestCase):
         self.assertEqual(plan["clips"][0]["start_sec"], 12.0)
         self.assertEqual(plan["clips"][0]["duration_sec"], 20.0)
         self.assertEqual(plan["clips"][0]["available_range_sec"], 30.0)
+
+    def test_flags_duration_shortfall_when_reviewed_range_is_too_short(self):
+        contract = {
+            "segments": [
+                {
+                    "segment": 1,
+                    "requested_duration_sec": 12,
+                    "material_fit": {"need_refs": ["nd_opening"]},
+                }
+            ]
+        }
+        project_map = {
+            "assets": [
+                {
+                    "asset_id": "clip-a",
+                    "asset_type": "video",
+                    "source": "materials/a.mp4",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 0.0,
+                            "end": 20.0,
+                            "caption": "short usable proof",
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                    "usable_range": {"start": 4.0, "end": 9.0},
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        plan = build_rough_cut_plan(contract, project_map)
+
+        self.assertFalse(plan["ok"])
+        self.assertEqual(plan["clip_count"], 1)
+        self.assertEqual(plan["clips"][0]["duration_sec"], 5.0)
+        self.assertEqual(plan["gaps"][0]["reason"], "accepted scene is shorter than requested segment duration")
+        self.assertEqual(plan["gaps"][0]["requested_duration_sec"], 12.0)
+        self.assertEqual(plan["gaps"][0]["selected_duration_sec"], 5.0)
+        self.assertEqual(plan["gaps"][0]["missing_duration_sec"], 7.0)
+
+    def test_still_image_can_hold_for_requested_duration_without_shortfall(self):
+        contract = {
+            "segments": [
+                {
+                    "segment": 1,
+                    "requested_duration_sec": 8,
+                    "material_fit": {"need_refs": ["nd_opening"]},
+                }
+            ]
+        }
+        project_map = {
+            "assets": [
+                {
+                    "asset_id": "photo-a",
+                    "asset_type": "image",
+                    "source": "materials/a.jpg",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 0.0,
+                            "end": 1.0,
+                            "caption": "opening photo",
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        plan = build_rough_cut_plan(contract, project_map)
+
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["clips"][0]["duration_sec"], 8.0)
+        self.assertEqual(plan["clips"][0]["available_range_sec"], 8.0)
+        self.assertEqual(plan["gaps"], [])
+
+    def test_reject_and_duplicate_curator_verdicts_are_not_selected(self):
+        contract = {
+            "segments": [
+                {
+                    "segment": 1,
+                    "requested_duration_sec": 4,
+                    "material_fit": {"need_refs": ["nd_opening"]},
+                }
+            ]
+        }
+        project_map = {
+            "assets": [
+                {
+                    "asset_id": "clip-rejected",
+                    "asset_type": "video",
+                    "source": "materials/rejected.mp4",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 0.0,
+                            "end": 30.0,
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                    "curator_verdict": "reject",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "asset_id": "clip-duplicate",
+                    "asset_type": "video",
+                    "source": "materials/duplicate.mp4",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 0.0,
+                            "end": 20.0,
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                    "verdict": "duplicate",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "asset_id": "clip-keep",
+                    "asset_type": "video",
+                    "source": "materials/keep.mp4",
+                    "scenes": [
+                        {
+                            "scene_index": 0,
+                            "start": 10.0,
+                            "end": 16.0,
+                            "satisfies": [
+                                {
+                                    "need_id": "nd_opening",
+                                    "status": "accepted",
+                                    "curator_verdict": "keep",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+
+        plan = build_rough_cut_plan(contract, project_map)
+
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["clip_count"], 1)
+        self.assertEqual(plan["clips"][0]["asset_id"], "clip-keep")
+        self.assertEqual(plan["clips"][0]["source_path"], "materials/keep.mp4")
 
     def test_cli_writes_rough_cut_and_timeline_build(self):
         repo = Path(__file__).resolve().parents[1]

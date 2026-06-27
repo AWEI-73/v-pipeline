@@ -65,6 +65,67 @@ def _count_ops(patch: Optional[Dict[str, Any]], op_filter: Optional[str] = None)
     return sum(1 for o in ops if isinstance(o, dict) and o.get("op") == op_filter)
 
 
+def _add_route_back(items: List[Dict[str, Any]], *, owner: str, artifact: str, reason: str, next_action: str) -> None:
+    if any(item.get("owner") == owner and item.get("artifact") == artifact for item in items):
+        return
+    items.append({
+        "owner": owner,
+        "artifact": artifact,
+        "reason": reason,
+        "next_action": next_action,
+    })
+
+
+def _route_back(timeline_patch: Optional[Dict[str, Any]],
+                subtitle_patch: Optional[Dict[str, Any]],
+                audio_cue_patch: Optional[Dict[str, Any]],
+                effect_patch: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    if isinstance(timeline_patch, dict):
+        ops = [op for op in timeline_patch.get("patches") or [] if isinstance(op, dict)]
+        if any(op.get("op") in {"replace_clip", "insert_clip"} for op in ops):
+            _add_route_back(
+                items,
+                owner="material-map",
+                artifact="timeline_patch",
+                reason="timeline replacement changes material truth",
+                next_action="review_material_map_or_rough_cut_patch",
+            )
+        if any(op.get("op") in {"set_duration", "set_source_window", "move_clip"} for op in ops):
+            _add_route_back(
+                items,
+                owner="build-planning",
+                artifact="timeline_patch",
+                reason="timeline timing/order patch changes BUILD plan only",
+                next_action="review_build_timeline_patch",
+            )
+    if _count_ops(subtitle_patch):
+        _add_route_back(
+            items,
+            owner="subtitle-director",
+            artifact="subtitle_patch",
+            reason="subtitle patch must preserve readability and language policy",
+            next_action="review_subtitle_patch",
+        )
+    if _count_ops(audio_cue_patch):
+        _add_route_back(
+            items,
+            owner="audio-director",
+            artifact="audio_cue_patch",
+            reason="audio cue patch must preserve mix, ducking, and license policy",
+            next_action="review_audio_patch",
+        )
+    if _count_ops(effect_patch):
+        _add_route_back(
+            items,
+            owner="effect-factory",
+            artifact="effect_patch",
+            reason="effect patch must return to effect contract/review",
+            next_action="review_effect_patch",
+        )
+    return items
+
+
 def build_handoff(artifact_root: str) -> Dict[str, Any]:
     """Scan the root for draft artifacts and produce the handoff index."""
     root = Path(artifact_root)
@@ -87,6 +148,7 @@ def build_handoff(artifact_root: str) -> Dict[str, Any]:
         "audio_cues": _count_ops(audio_cue_patch, "add_cue"),
         "effect_intents": _count_ops(effect_patch, "add_effect"),
     }
+    route_back = _route_back(timeline_patch, subtitle_patch, audio_cue_patch, effect_patch)
 
     return {
         "artifact_role": ARTIFACT_ROLE,
@@ -94,7 +156,8 @@ def build_handoff(artifact_root: str) -> Dict[str, Any]:
         "artifacts": present,
         "artifact_details": details,
         "summary": summary,
-        "next_action": "agent_review_and_render_preview",
+        "route_back": route_back,
+        "next_action": "review_workbench_route_back" if route_back else "agent_review_and_render_preview",
     }
 
 

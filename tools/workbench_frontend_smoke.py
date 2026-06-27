@@ -35,6 +35,40 @@ CANONICAL_CANDIDATES = (
     "segment_contract.json",
 )
 
+SMOKE_FIXTURE_TIMELINE = {
+    "plan": [{
+        "slot_index": 0,
+        "segment": 1,
+        "source": "__MEDIA__",
+        "slot_dur": 2.0,
+        "extract_start": 0.0,
+        "extract_dur": 2.0,
+        "asset_id": "a0",
+        "caption": "demo",
+    }],
+}
+
+SMOKE_FIXTURE_MATERIAL_MAP = {
+    "artifact_role": "project_material_map",
+    "version": 1,
+    "assets": [
+        {
+            "asset_id": "a0",
+            "asset_type": "video",
+            "source": "__MEDIA__",
+            "duration_sec": 2.0,
+            "scenes": [{"start": 0.0, "end": 2.0, "caption": "demo"}],
+        },
+        {
+            "asset_id": "b0",
+            "asset_type": "video",
+            "source": "__REPLACEMENT__",
+            "duration_sec": 4.0,
+            "scenes": [{"index": 1, "start": 1.0, "end": 3.0, "caption": "replacement"}],
+        },
+    ],
+}
+
 
 class SmokeError(RuntimeError):
     """Raised when the Workbench smoke flow fails."""
@@ -96,6 +130,38 @@ def canonical_hashes(root: Path, names: Iterable[str] = CANONICAL_CANDIDATES) ->
         if path.is_file():
             hashes[name] = _sha256(path)
     return hashes
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_smoke_fixture(root: Path, *, force: bool = False) -> None:
+    """Create a tiny Workbench-previewable run folder for this smoke test.
+
+    The media files are byte placeholders. The frontend smoke exercises API
+    contracts, draft writes, and marker presence; it does not decode media.
+    """
+    if root.exists() and any(root.iterdir()) and not force:
+        raise SmokeError(
+            f"refusing to initialize fixture in non-empty folder: {root}. "
+            "Use --force-init-fixture only for disposable scratch folders."
+        )
+    root.mkdir(parents=True, exist_ok=True)
+    media = root / "clip.mp4"
+    replacement = root / "replacement.mp4"
+    media.write_bytes(b"0123456789" * 20)
+    replacement.write_bytes(b"abcdefghij" * 20)
+
+    timeline = json.loads(json.dumps(SMOKE_FIXTURE_TIMELINE))
+    timeline["plan"][0]["source"] = str(media)
+    material_map = json.loads(json.dumps(SMOKE_FIXTURE_MATERIAL_MAP))
+    material_map["assets"][0]["source"] = str(media)
+    material_map["assets"][1]["source"] = str(replacement)
+
+    _write_json(root / "timeline.json", timeline)
+    _write_json(root / "project_material_map.json", material_map)
+    (root / "final.mp4").write_bytes(b"canonical-final")
 
 
 def build_duration_patch(preview: Dict[str, Any]) -> Dict[str, Any]:
@@ -183,7 +249,25 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
     before = canonical_hashes(root)
 
     html = _read_text_url(f"{base_url}/workbench")
-    required_markers = ("Hermes 原生剪輯工作區", "btn-save-all", "lane-video")
+    required_markers = (
+        "Hermes 原生剪輯工作區",
+        'class="wb-monitor"',
+        'id="monitor"',
+        'class="wb-transport"',
+        'id="btn-play"',
+        'id="btn-rewind"',
+        'id="scrubber"',
+        'id="time-label"',
+        "btn-save-all",
+        'id="lane-video"',
+        'id="lane-subtitle"',
+        'id="lane-audio"',
+        'id="lane-effect"',
+        '<span class="track-label">影片</span>',
+        '<span class="track-label">字幕</span>',
+        '<span class="track-label">音訊</span>',
+        '<span class="track-label">特效</span>',
+    )
     missing = [m for m in required_markers if m not in html]
     if missing:
         raise SmokeError(f"workbench HTML missing markers: {missing}")
@@ -248,6 +332,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--base-url", help="Use an already running Workbench server")
     parser.add_argument("--exercise-replace", action="store_true",
                         help="Use replace_clip instead of a no-op duration patch")
+    parser.add_argument("--init-fixture", action="store_true",
+                        help="Create a tiny previewable run folder under --artifact-root before running")
+    parser.add_argument("--force-init-fixture", action="store_true",
+                        help="Allow --init-fixture to overwrite files in a non-empty scratch folder")
     parser.add_argument("--port", type=int, default=0, help="Port for the temporary server")
     parser.add_argument("--out", help="Optional JSON output path")
     args = parser.parse_args(argv)
@@ -256,6 +344,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     server = None
     thread = None
     try:
+        if args.init_fixture:
+            write_smoke_fixture(root, force=args.force_init_fixture)
         base_url = args.base_url
         if not base_url:
             server, thread, base_url = start_threaded_server(root, args.port)

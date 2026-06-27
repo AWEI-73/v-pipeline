@@ -82,6 +82,10 @@ def contract_to_mv_script(contract):
             flat["still_image_policy"] = seg["still_image_policy"]
         if seg.get("creative_exception"):
             flat["creative_exception"] = seg["creative_exception"]
+        if seg.get("stage0_child_contracts"):
+            flat["stage0_child_contracts"] = seg["stage0_child_contracts"]
+        if seg.get("effect_policy"):
+            flat["effect_policy"] = seg["effect_policy"]
         if section:
             flat["section_role"] = section
         # 來源 / 媒材
@@ -130,6 +134,8 @@ def contract_to_mv_script(contract):
               "segments": out_segs}
     if isinstance(contract, dict) and contract.get("music"):
         script["music"] = contract["music"]
+    if isinstance(contract, dict) and contract.get("stage0_child_contracts"):
+        script["stage0_child_contracts"] = contract["stage0_child_contracts"]
     return script
 
 
@@ -357,6 +363,9 @@ def _final_state_payload(state_json_data, dash_state, out_path, verify_report_pa
 def _manifest(*, canonical_contract, contract_hash, generated_payload, material_db,
               music, music_structure, model_routes, build_profile,
               stock_first_route, generated_asset_requests,
+              final_audio=None, audio_mix_report=None, audio_build_handoff=None,
+              subtitle_voiceover_build_handoff=None, effect_handoff=None,
+              rough_cut_plan=None,
               generated_asset_manifest=None,
               light_effects_plan=None,
               light_effects_manifest=None,
@@ -383,6 +392,14 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "material_db": str(material_db) if material_db is not None else None,
         "music": str(music) if music is not None else None,
         "music_structure": str(music_structure) if music_structure else None,
+        "final_audio": str(final_audio) if final_audio else None,
+        "audio_mix_report": str(audio_mix_report) if audio_mix_report else None,
+        "audio_build_handoff": str(audio_build_handoff) if audio_build_handoff else None,
+        "subtitle_voiceover_build_handoff": (
+            str(subtitle_voiceover_build_handoff) if subtitle_voiceover_build_handoff else None
+        ),
+        "effect_handoff": str(effect_handoff) if effect_handoff else None,
+        "rough_cut_plan": str(rough_cut_plan) if rough_cut_plan else None,
         "model_routes": str(model_routes) if model_routes else None,
         "build_profile": str(build_profile) if build_profile else None,
         "stock_first_route": str(stock_first_route) if stock_first_route else None,
@@ -416,6 +433,63 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "editorial_qa": str(editorial_qa) if editorial_qa else None,
         "spec_review": str(spec_review) if spec_review else None,
     }
+
+
+def _load_audio_mix_report_for_build(out_dir: Path) -> tuple[Path | None, dict | None]:
+    report_path = out_dir / "audio_mix_report.json"
+    if not report_path.exists():
+        return None, None
+    try:
+        with report_path.open(encoding="utf-8-sig") as f:
+            report = json.load(f)
+    except Exception:
+        return report_path, None
+    return report_path, report if isinstance(report, dict) else None
+
+
+def _resolve_audio_ready_for_build(out_dir: Path, legacy_music_path=None) -> dict:
+    report_path, report = _load_audio_mix_report_for_build(out_dir)
+    final_audio = out_dir / "final_audio.wav"
+    selected_audio = None
+    reason = "legacy_music"
+    source_report = None
+    if (
+        final_audio.exists()
+        and report
+        and report.get("ok") is True
+        and report.get("audio_stream_present") is True
+    ):
+        selected_audio = final_audio
+        reason = "audio_ready_final_audio"
+        source_report = report_path
+    elif legacy_music_path:
+        selected_audio = Path(legacy_music_path)
+
+    handoff = {
+        "artifact_role": "audio_build_handoff",
+        "version": 1,
+        "selected_audio": str(selected_audio) if selected_audio else None,
+        "selection_reason": reason if selected_audio else "no_audio_selected",
+        "final_audio": str(final_audio) if final_audio.exists() else None,
+        "audio_mix_report": str(source_report) if source_report else (str(report_path) if report_path else None),
+        "legacy_music": str(legacy_music_path) if legacy_music_path else None,
+        "audio_ready": reason == "audio_ready_final_audio",
+        "rendered_video": False,
+    }
+    handoff_path = out_dir / "audio_build_handoff.json"
+    _write_json(handoff_path, handoff)
+    return {
+        "handoff_path": handoff_path,
+        "handoff": handoff,
+        "selected_audio": selected_audio,
+        "final_audio": final_audio if final_audio.exists() else None,
+        "audio_mix_report": source_report if source_report else (report_path if report_path and report_path.exists() else None),
+    }
+
+
+def _existing_file(out_dir: Path, filename: str) -> Path | None:
+    path = out_dir / filename
+    return path if path.exists() else None
 
 
 def _write_p1_audits(out_dir, build_profile_payload, *, timeline_build_path=None,
@@ -1166,11 +1240,14 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     if verbose and delta_gate:
         print(f"[material-delta] {delta_gate['status']} — {delta_gate['reason']}")
 
+    audio_build = _resolve_audio_ready_for_build(out_path.parent, music_path)
+    effective_music_path = audio_build.get("selected_audio")
+
     music_struct = None
-    if music_path:
+    if effective_music_path:
         from . import music_structure  # noqa: PLC0415
         music_struct = music_structure.write_music_structure(
-            music_path, music_structure_path, every_n_beats=every_n_beats)
+            effective_music_path, music_structure_path, every_n_beats=every_n_beats)
 
     # brief.target_length caps the timeline: music length sets the rhythm, the
     # brief sets the runtime. Without this a 123s track stretches a 45s film to
@@ -1194,7 +1271,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     max_source_repeats = broll_policy.get("max_source_repeats")
     if max_source_repeats is None:
         max_source_repeats = 1
-    res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=music_path,
+    res = mv_cut.mv_chain(payload, material_db, str(out_path), music_path=str(effective_music_path) if effective_music_path else None,
                           mat_dir=mat_dir, verbose=verbose, skip_render=effective_skip_render,
                           target_sec=target_sec, burn_text=burn_base_text,
                           visual_judge=build_profile_payload.get("visual_judge", "agent"),
@@ -1458,11 +1535,20 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     )
     _write_json(state_path, state_json_data)
 
+    subtitle_voiceover_build_handoff = _existing_file(out_path.parent, "subtitle_voiceover_build_handoff.json")
+    effect_handoff = _existing_file(out_path.parent, "effect_handoff.json")
+    rough_cut_plan = _existing_file(out_path.parent, "rough_cut_plan.json")
     manifest = _manifest(canonical_contract=source, contract_hash=contract_hash,
                          brief=str(brief_path) if brief_path else None,
                          generated_payload=str(generated_payload_path),
-                         material_db=material_db, music=music_path,
-                         music_structure=str(music_structure_path) if music_path else None,
+                         material_db=material_db, music=effective_music_path,
+                         music_structure=str(music_structure_path) if effective_music_path else None,
+                         final_audio=audio_build.get("final_audio"),
+                         audio_mix_report=audio_build.get("audio_mix_report"),
+                         audio_build_handoff=audio_build.get("handoff_path"),
+                         subtitle_voiceover_build_handoff=subtitle_voiceover_build_handoff,
+                         effect_handoff=effect_handoff,
+                         rough_cut_plan=rough_cut_plan,
                          model_routes=model_routes_path,
                          build_profile=build_profile_path,
                          stock_first_route=stock_first_route_path if stock_route else None,
@@ -1706,10 +1792,20 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
 
     state_path = out_dir / "state.json"
     manifest_path = out_dir / "artifact_manifest.json"
+    audio_build = _resolve_audio_ready_for_build(out_dir, None)
+    subtitle_voiceover_build_handoff = _existing_file(out_dir, "subtitle_voiceover_build_handoff.json")
+    effect_handoff = _existing_file(out_dir, "effect_handoff.json")
+    rough_cut_plan = _existing_file(out_dir, "rough_cut_plan.json")
     manifest = _manifest(
         canonical_contract=source, contract_hash=contract_hash,
         generated_payload=str(generated_payload_path), material_db=None,
         music=None, music_structure=None, model_routes=None,
+        final_audio=audio_build.get("final_audio"),
+        audio_mix_report=audio_build.get("audio_mix_report"),
+        audio_build_handoff=audio_build.get("handoff_path"),
+        subtitle_voiceover_build_handoff=subtitle_voiceover_build_handoff,
+        effect_handoff=effect_handoff,
+        rough_cut_plan=rough_cut_plan,
         build_profile=build_profile_path,
         stock_first_route=(out_dir / "stock_first_route.json") if stock_route else None,
         generated_asset_requests=gen_requests_path,
@@ -1750,6 +1846,12 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
             "editor_review": str(editor_review_path) if editor_review_path else None,
             "spec_review": str(spec_review_path),
             "dry_build": str(dry_marker_path),
+            "audio_build_handoff": str(audio_build["handoff_path"]) if audio_build.get("handoff_path") else None,
+            "subtitle_voiceover_build_handoff": (
+                str(subtitle_voiceover_build_handoff) if subtitle_voiceover_build_handoff else None
+            ),
+            "effect_handoff": str(effect_handoff) if effect_handoff else None,
+            "rough_cut_plan": str(rough_cut_plan) if rough_cut_plan else None,
             "manifest": str(manifest_path),
             "state": str(state_path),
         },

@@ -82,6 +82,17 @@ CASES: list[dict[str, Any]] = [
             "min_followup_questions": 4,
         },
     },
+    {
+        "id": "vague_graduation_direct_cut_request",
+        "brief": {"request": "請幫我剪一部結訓典禮影片"},
+        "expect": {
+            "input_state": "unknown",
+            "entry_path": "needs-context",
+            "video_type": "graduation-event",
+            "handoff_to": "ask_followup",
+            "min_followup_questions": 4,
+        },
+    },
 ]
 
 
@@ -105,6 +116,9 @@ def run_video_intent_acceptance() -> dict[str, Any]:
         case_errors = _case_errors(actual, case["expect"])
         if actual.get("artifact_role") != "video_intent":
             case_errors.append("artifact_role must be video_intent")
+        for required_child in ("material_contract", "soundtrack_contract", "effect_policy"):
+            if not isinstance(actual.get(required_child), dict):
+                case_errors.append(f"{required_child} must be present")
         if case_errors:
             errors.extend(f"{case['id']}: {err}" for err in case_errors)
         cases.append(
@@ -123,6 +137,8 @@ def run_video_intent_acceptance() -> dict[str, Any]:
         "errors": errors,
         "cases": cases,
         "boundaries": [
+            "stage_0_entry_lock",
+            "no_direct_cut_from_fuzzy_request",
             "no_vip1_or_vip2_templates",
             "no_renderer",
             "no_node14_or_remotion",

@@ -219,12 +219,26 @@ def _build_material_assets(material_map: Optional[Dict[str, Any]], base_url: str
         for scene_index, scene in enumerate(scenes):
             if not isinstance(scene, dict):
                 continue
+            satisfies = [
+                item for item in (scene.get("satisfies") or [])
+                if isinstance(item, dict) and item.get("need_id")
+            ]
+            need_ids = [
+                str(item.get("need_id")) for item in satisfies
+                if isinstance(item.get("need_id"), str)
+            ]
+            statuses = [
+                str(item.get("status") or "candidate") for item in satisfies
+            ]
             start = scene.get("start")
             end = scene.get("end")
             projected_scenes.append({
                 "scene_index": scene_index,
                 "start_sec": start,
                 "end_sec": end,
+                "satisfies": satisfies,
+                "need_ids": need_ids,
+                "statuses": statuses,
                 "visual_family": scene.get("visual_family"),
                 "angle_scale": scene.get("angle_scale"),
                 "action_family": scene.get("action_family"),

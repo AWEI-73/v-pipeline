@@ -129,6 +129,141 @@ def _director_intent(decision: dict) -> dict[str, Any]:
     return out
 
 
+def _stage0_child_contracts(blueprint: dict) -> dict[str, Any]:
+    raw = blueprint.get("stage0_child_contracts")
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key in ("material", "soundtrack", "effect", "subtitle_voiceover"):
+        value = raw.get(key)
+        if isinstance(value, dict) and value:
+            out[key] = dict(value)
+    return out
+
+
+def _story_soul_content_pattern(beat: dict) -> str:
+    mode = _nonempty_string(beat.get("narrative_mode")) or ""
+    title = (_nonempty_string(beat.get("title")) or "").lower()
+    function = (_nonempty_string(beat.get("story_function")) or "").lower()
+    if mode == "interview" or "speech" in title or "encouragement" in title:
+        return "testimony"
+    if mode == "voiceover":
+        return "emotional"
+    if mode == "title_card":
+        return "establishing"
+    if any(token in function for token in ("process", "journey", "training", "course")):
+        return "process"
+    return "action" if mode == "mv" else "emotional"
+
+
+def _story_soul_to_blueprint(story_soul: dict) -> dict[str, Any]:
+    concept = story_soul.get("creative_concept") if isinstance(story_soul.get("creative_concept"), dict) else {}
+    beats_payload = story_soul.get("screenplay_beats") if isinstance(story_soul.get("screenplay_beats"), dict) else {}
+    beats = beats_payload.get("beats") if isinstance(beats_payload.get("beats"), list) else []
+    converted = []
+    for idx, beat in enumerate(beats):
+        if not isinstance(beat, dict):
+            continue
+        beat_id = _nonempty_string(beat.get("beat_id")) or f"B{idx + 1}"
+        if idx == 0:
+            role = "setup"
+        elif idx == len(beats) - 1:
+            role = "resolve"
+        elif "turn" in str(beat.get("conflict_or_turn") or "").lower():
+            role = "turn"
+        else:
+            role = "develop"
+        converted.append({
+            "id": beat_id,
+            "role": role,
+            "summary": _nonempty_string(beat.get("story_function")) or _nonempty_string(beat.get("title")) or beat_id,
+            "emotional_movement": beat.get("emotional_movement"),
+            "conflict_or_turn": beat.get("conflict_or_turn"),
+            "intended_viewer_feeling": beat.get("intended_viewer_feeling"),
+            "sensory_anchor": beat.get("sensory_anchor"),
+        })
+    return {
+        "artifact_role": "narrative_blueprint",
+        "version": 1,
+        "thesis": concept.get("logline") or concept.get("core_metaphor") or "story soul blueprint",
+        "mode_hint": "story_soul",
+        "creative_concept": concept,
+        "stage0_child_contracts": story_soul.get("stage0_child_contracts") or (
+            (story_soul.get("director_shot_plan") or {}).get("stage0_child_contracts")
+            if isinstance(story_soul.get("director_shot_plan"), dict) else {}
+        ),
+        "beats": converted,
+    }
+
+
+def _story_soul_decisions(story_soul: dict) -> dict[str, dict[str, Any]]:
+    beats_payload = story_soul.get("screenplay_beats") if isinstance(story_soul.get("screenplay_beats"), dict) else {}
+    beats = [beat for beat in beats_payload.get("beats") or [] if isinstance(beat, dict)]
+    director = story_soul.get("director_shot_plan") if isinstance(story_soul.get("director_shot_plan"), dict) else {}
+    shots_by_beat = {
+        str(shot.get("beat_id")): shot
+        for shot in director.get("shots") or []
+        if isinstance(shot, dict) and shot.get("beat_id")
+    }
+    decisions: dict[str, dict[str, Any]] = {}
+    for beat in beats:
+        beat_id = _nonempty_string(beat.get("beat_id"))
+        if not beat_id:
+            continue
+        shot = shots_by_beat.get(beat_id) or {}
+        raw_intent = shot.get("director_intent") if isinstance(shot.get("director_intent"), dict) else {}
+        prompt_requirements = raw_intent.get("material_prompt_requirements")
+        director_intent = {
+            "composition": raw_intent.get("composition"),
+            "camera_movement": raw_intent.get("camera_motion") or raw_intent.get("camera_movement"),
+            "emotion": beat.get("intended_viewer_feeling"),
+            "material_prompt_requirements": prompt_requirements,
+        }
+        decision = {
+            "content_pattern": _story_soul_content_pattern(beat),
+            "visual_desc": beat.get("story_function") or beat.get("visual_intent") or beat.get("title"),
+            "material_hint": shot.get("visual_family") or shot.get("action_family") or beat.get("title"),
+            "need_refs": [shot["need_id"]] if shot.get("need_id") else None,
+            "director_intent": director_intent,
+            "reason": beat.get("existence_test") or beat.get("story_function"),
+        }
+        if beat.get("narrative_mode") == "voiceover":
+            decision["audio"] = {"role": "music", "voiceover_policy": "required"}
+        if beat.get("narrative_mode") == "interview":
+            decision["audio"] = {"role": "duck", "original_audio_policy": "keep"}
+        decisions[beat_id] = {key: value for key, value in decision.items() if value is not None}
+    return decisions
+
+
+def compile_story_soul_contract(
+    story_soul: dict,
+    *,
+    music: dict | None = None,
+    categories_ref: str = "material_categories.json",
+    brief_ref: str = "brief.json",
+) -> dict:
+    """Compile story-soul-blueprint output directly into segment_contract.
+
+    This is the Stage 1/2 bridge: Story Soul remains the WHY layer, while this
+    helper converts its screenplay/director/material-need artifacts into the
+    existing Segment Contract compiler shape. It avoids a second hand-authored
+    decisions schema between Story Soul and BUILD.
+    """
+    if not isinstance(story_soul, dict) or not story_soul.get("ok", True):
+        raise ValueError("story_soul blueprint result must be an ok object")
+    blueprint = _story_soul_to_blueprint(story_soul)
+    decisions = _story_soul_decisions(story_soul)
+    material_needs = story_soul.get("material_needs") if isinstance(story_soul.get("material_needs"), dict) else None
+    return compile_contract(
+        blueprint,
+        decisions,
+        material_needs=material_needs,
+        music=music,
+        categories_ref=categories_ref,
+        brief_ref=brief_ref,
+    )
+
+
 def _section_role(beat_role: str, idx: int, n: int, content_pattern: str) -> str:
     if idx == 0:
         return "opening"
@@ -178,6 +313,7 @@ def compile_contract(
     n = len(beats)
     segments: list[dict] = []
     story_soul = _story_soul(blueprint)
+    stage0_child_contracts = _stage0_child_contracts(blueprint)
 
     for idx, beat in enumerate(beats):
         bid = str(beat.get("id") or "").strip()
@@ -279,6 +415,27 @@ def compile_contract(
         if text_layer:
             seg["text_layer"] = text_layer
 
+        if stage0_child_contracts:
+            seg["stage0_child_contracts"] = stage0_child_contracts
+            soundtrack = stage0_child_contracts.get("soundtrack") or {}
+            subtitle_voiceover = stage0_child_contracts.get("subtitle_voiceover") or {}
+            effect_policy = stage0_child_contracts.get("effect") or {}
+            if soundtrack:
+                audio["soundtrack_role"] = soundtrack.get("music_role") or "unspecified"
+                audio["soundtrack_energy_intent"] = soundtrack.get("energy_intent") or "unspecified"
+            if subtitle_voiceover:
+                if subtitle_voiceover.get("subtitle_required") and "text_layer" not in seg:
+                    seg["text_layer"] = {}
+                if subtitle_voiceover.get("subtitle_required"):
+                    seg["text_layer"]["subtitle"] = seg["text_layer"].get("subtitle") or "required"
+                    seg["text_layer"]["language"] = subtitle_voiceover.get("language") or "unknown"
+                    seg["text_layer"].setdefault("reason", "Stage 0 requested subtitles; BUILD must create readable subtitle evidence.")
+                if subtitle_voiceover.get("voiceover_required"):
+                    audio["voiceover_policy"] = "required"
+                    audio["voiceover_language"] = subtitle_voiceover.get("language") or "unknown"
+            if effect_policy:
+                seg["effect_policy"] = effect_policy
+
         # explicit material_treatment for enumeration/process (carry items/steps)
         if cp == "enumeration" and d.get("items"):
             seg["material_treatment"] = {
@@ -316,4 +473,6 @@ def compile_contract(
         contract["music"] = music
     if story_soul:
         contract["story_soul"] = story_soul
+    if stage0_child_contracts:
+        contract["stage0_child_contracts"] = stage0_child_contracts
     return contract

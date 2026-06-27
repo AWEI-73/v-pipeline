@@ -10,6 +10,7 @@ import { TopNav } from "./components/TopNav.js";
 import { RouteOverviewView } from "./views/RouteOverviewView.js";
 import { MaterialMapView } from "./views/MaterialMapView.js";
 import { WorkbenchView } from "./views/WorkbenchView.js";
+import { TimelineView } from "./views/TimelineView.js";
 import { VerifyView } from "./views/VerifyView.js";
 import { ArtifactsView } from "./views/ArtifactsView.js";
 
@@ -18,12 +19,19 @@ const app = document.getElementById("app");
 function renderView() {
   if (state.activeView === "material-map") return MaterialMapView({ materialMap: state.materialMap, selectedEvidence: state.selectedEvidence });
   if (state.activeView === "workbench") return WorkbenchView({ workbenchHealth: state.workbenchHealth, root: state.root, artifacts: state.artifacts });
-  if (state.activeView === "verify" || state.activeView === "timeline") return VerifyView({ artifacts: state.artifacts });
+  if (state.activeView === "timeline") return TimelineView({ artifacts: state.artifacts });
+  if (state.activeView === "verify") return VerifyView({ artifacts: state.artifacts });
   if (state.activeView === "artifacts") return ArtifactsView({ control: state.control, materialMap: state.materialMap, artifacts: state.artifacts });
-  return RouteOverviewView({ control: state.control, materialMap: state.materialMap, activeStage: state.activeStage });
+  return RouteOverviewView({
+    control: state.control,
+    materialMap: state.materialMap,
+    artifacts: state.artifacts,
+    activeStage: state.activeStage,
+  });
 }
 
 function render() {
+  app.className = state.activeView === "workbench" ? "app-workbench" : "";
   app.innerHTML = `
     ${AppHeader({ control: state.control, materialMap: state.materialMap, activeView: state.activeView, root: state.root, projects: state.projects })}
     ${TopNav(state.activeView, state.root)}
@@ -83,6 +91,17 @@ function bindInteractions() {
   if (selector) {
     selector.addEventListener("change", () => {
       const nextRoot = selector.value;
+      if (!nextRoot) return;
+      const path = window.location.pathname || "/dashboard";
+      window.location.href = `${path}?root=${encodeURIComponent(nextRoot)}`;
+    });
+  }
+  const rootForm = app.querySelector("#spa-root-form");
+  const rootInput = app.querySelector("#spa-root-input");
+  if (rootForm && rootInput) {
+    rootForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const nextRoot = rootInput.value.trim();
       if (!nextRoot) return;
       const path = window.location.pathname || "/dashboard";
       window.location.href = `${path}?root=${encodeURIComponent(nextRoot)}`;

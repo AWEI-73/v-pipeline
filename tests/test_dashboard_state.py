@@ -729,6 +729,49 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_timeline_material_contract_mismatch_surfaces_as_final_review_blocker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "brief.json").write_text(
+                json.dumps({"title": "material mismatch fixture"}), encoding="utf-8")
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8")
+            (workdir / "material_coverage_map.json").write_text(
+                json.dumps({"coverage": []}), encoding="utf-8")
+            (workdir / "segment_contract.json").write_text(json.dumps({
+                "segments": [{
+                    "segment": 2,
+                    "material_map_ids": ["commute_001"],
+                    "need_refs": ["need_commute_motion"],
+                }],
+            }), encoding="utf-8")
+            (workdir / "project_material_map.json").write_text(json.dumps({
+                "assets": [{
+                    "asset_id": "city_dawn_001",
+                    "scenes": [{
+                        "scene_id": "city_dawn_001:0",
+                        "satisfies": ["need_city_dawn"],
+                    }],
+                }],
+            }), encoding="utf-8")
+            (workdir / "timeline_build.json").write_text(json.dumps({
+                "clips": [{
+                    "segment": 2,
+                    "scene_id": "city_dawn_001:0",
+                    "source_path": "city_dawn.mp4",
+                }],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "revise_material_selection_or_review")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "timeline_build"
+                and "city_dawn_001:0" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_material_wall_handoff_report_surfaces_in_artifacts_and_findings(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -785,6 +828,96 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertTrue(any(
                 finding.get("artifact") == "material_first_boundary_acceptance_report"
                 and "timeline clip mismatch" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
+    def test_stage0_child_contracts_surface_for_dashboard_and_workbench(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "video_intent.json").write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "material_contract": {
+                    "artifact_role": "stage0_material_intent",
+                    "first_action": "material_map_quick_inventory",
+                },
+                "soundtrack_contract": {
+                    "artifact_role": "stage0_soundtrack_intent",
+                    "music_role": "mixed",
+                    "handoff_to": "soundtrack-arranger",
+                },
+                "effect_policy": {
+                    "artifact_role": "stage0_effect_policy",
+                    "activation": "defer_to_brownfield_or_segment_review",
+                    "handoff_to": "video-effect-factory_when_segment_requires_effect",
+                },
+                "subtitle_voiceover_contract": {
+                    "artifact_role": "stage0_subtitle_voiceover_intent",
+                    "language": "zh-TW",
+                    "subtitle_required": True,
+                    "voiceover_required": True,
+                    "handoff_to": "subtitle-director+audio-director",
+                },
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["artifacts"]["video_intent"]["entry_path"], "material-first")
+            self.assertEqual(
+                state["artifacts"]["stage0_contracts"]["material"]["first_action"],
+                "material_map_quick_inventory",
+            )
+            self.assertEqual(
+                state["artifacts"]["stage0_contracts"]["soundtrack"]["music_role"],
+                "mixed",
+            )
+            self.assertEqual(
+                state["artifacts"]["stage0_contracts"]["effect"]["activation"],
+                "defer_to_brownfield_or_segment_review",
+            )
+            self.assertEqual(
+                state["controls"]["stage0_contracts"]["soundtrack"]["handoff_to"],
+                "soundtrack-arranger",
+            )
+            self.assertEqual(
+                state["artifacts"]["stage0_contracts"]["subtitle_voiceover"]["language"],
+                "zh-TW",
+            )
+            self.assertEqual(
+                state["controls"]["stage0_contracts"]["subtitle_voiceover"]["handoff_to"],
+                "subtitle-director+audio-director",
+            )
+
+    def test_dashboard_routes_material_pass_to_soundtrack_when_stage0_requests_music(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "material_first_boundary_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "stage0_contracts": {
+                    "soundtrack": {
+                        "artifact_role": "stage0_soundtrack_intent",
+                        "status": "requested",
+                        "music_role": "mixed",
+                        "handoff_to": "soundtrack-arranger",
+                    }
+                },
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {"stage": "stage4_build", "ok": True},
+                    {"stage": "stage5_final_review", "ok": True},
+                ],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "soundtrack-arrange")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "stage0_soundtrack_intent"
+                and "mixed" in finding.get("message", "")
                 for finding in state["findings"]
             ))
 
@@ -848,6 +981,149 @@ class DashboardStateSpecTest(unittest.TestCase):
                 "ready_for_human_review",
             )
 
+    def test_soundtrack_artifacts_surface_and_block_next_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "soundtrack_plan.json").write_text(json.dumps({
+                "artifact_role": "soundtrack_plan",
+                "sections": [{"section_id": "mv_climax", "music_role": "song"}],
+            }), encoding="utf-8")
+            (workdir / "music_source_candidates.json").write_text(json.dumps({
+                "artifact_role": "music_source_candidates",
+                "candidates": [{"candidate_id": "music_mv_climax", "source_type": "reference_only"}],
+            }), encoding="utf-8")
+            (workdir / "sound_license_manifest.json").write_text(json.dumps({
+                "artifact_role": "sound_license_manifest",
+                "delivery_allowed": False,
+                "blocked_reasons": ["reference_only"],
+            }), encoding="utf-8")
+            (workdir / "audio_director_handoff.json").write_text(json.dumps({
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": False,
+                "blocks": ["reference_only"],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "resolve_soundtrack_license_or_reference_only")
+            self.assertFalse(state["run"]["pass"])
+            self.assertEqual(
+                state["artifacts"]["soundtrack_plan"]["sections"][0]["section_id"],
+                "mv_climax",
+            )
+            self.assertEqual(
+                state["artifacts"]["music_source_candidates"]["candidates"][0]["source_type"],
+                "reference_only",
+            )
+            self.assertEqual(
+                state["artifacts"]["audio_director_handoff"]["blocks"],
+                ["reference_only"],
+            )
+            self.assertTrue(any(
+                finding.get("artifact") == "audio_director_handoff"
+                and "reference_only" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
+    def test_audio_handoff_acceptance_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "audio_handoff_acceptance.json").write_text(json.dumps({
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": False,
+                "blocking": [{"rule": "audio_file_missing", "message": "selected audio_file does not exist"}],
+                "next_action": "repair_audio_handoff",
+            }), encoding="utf-8")
+            (workdir / "audio_mix_plan.json").write_text(json.dumps({
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": False,
+                "tracks": [],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "repair_audio_handoff")
+            self.assertFalse(state["run"]["pass"])
+            self.assertFalse(state["artifacts"]["audio_handoff_acceptance"]["ok"])
+            self.assertFalse(state["artifacts"]["audio_mix_plan"]["ready_for_mix"])
+            self.assertTrue(any(
+                finding.get("artifact") == "audio_handoff_acceptance"
+                and "audio_file_missing" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
+    def test_audio_build_handoff_surfaces_in_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "audio_build_handoff.json").write_text(json.dumps({
+                "artifact_role": "audio_build_handoff",
+                "selected_audio": str(workdir / "final_audio.wav"),
+                "selection_reason": "audio_ready_final_audio",
+                "audio_ready": True,
+            }), encoding="utf-8")
+            (workdir / "state.json").write_text(json.dumps({
+                "pass": False,
+                "next_action": "mix_audio_from_audio_mix_plan",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(
+                state["artifacts"]["audio_build_handoff"]["selection_reason"],
+                "audio_ready_final_audio",
+            )
+
+    def test_audio_build_handoff_prevents_audio_mix_backtracking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "final_audio.wav").write_bytes(b"audio")
+            (workdir / "audio_mix_plan.json").write_text(json.dumps({
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "tracks": [{"section_id": "mv"}],
+            }), encoding="utf-8")
+            (workdir / "audio_handoff_acceptance.json").write_text(json.dumps({
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": True,
+            }), encoding="utf-8")
+            (workdir / "audio_build_handoff.json").write_text(json.dumps({
+                "artifact_role": "audio_build_handoff",
+                "selected_audio": str(workdir / "final_audio.wav"),
+                "selection_reason": "audio_ready_final_audio",
+                "audio_ready": True,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertNotEqual(state["next_action"], "mix_audio_from_audio_mix_plan")
+
+    def test_subtitle_voiceover_handoff_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "subtitle_voiceover_handoff_acceptance.json").write_text(json.dumps({
+                "artifact_role": "subtitle_voiceover_handoff_acceptance",
+                "ok": False,
+                "blocking": [{"rule": "subtitles_missing", "message": "required subtitles.srt is missing"}],
+                "next_action": "repair_subtitle_voiceover_handoff",
+            }), encoding="utf-8")
+            (workdir / "subtitle_voiceover_build_handoff.json").write_text(json.dumps({
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": False,
+                "voiceover_ready": False,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "repair_subtitle_voiceover_handoff")
+            self.assertFalse(state["run"]["pass"])
+            self.assertFalse(state["artifacts"]["subtitle_voiceover_handoff_acceptance"]["ok"])
+            self.assertFalse(state["artifacts"]["subtitle_voiceover_build_handoff"]["subtitle_ready"])
+            self.assertTrue(any(
+                finding.get("artifact") == "subtitle_voiceover_handoff_acceptance"
+                and "subtitles_missing" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_selected_materials_folder_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -860,6 +1136,64 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(len(state["materials"]), 1)
             self.assertEqual(state["materials"][0]["category"], "selected_material")
             self.assertEqual(state["materials"][0]["segment"], 1)
+
+    def test_delivery_gate_report_file_surfaces_as_dashboard_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "verify_result.json").write_text(
+                json.dumps({"pass": True}), encoding="utf-8"
+            )
+            (workdir / "delivery_gate.json").write_text(json.dumps({
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": False,
+                "blocking": [{
+                    "rule": "timeline_need_ref_mismatch",
+                    "artifact": "timeline_build",
+                    "message": "timeline clip does not satisfy segment need_refs",
+                    "next_action": "revise_material_selection_or_review",
+                }],
+                "next_action": "revise_material_selection_or_review",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertIn("delivery_gate_report", state["artifacts"])
+            self.assertEqual(
+                state["artifacts"]["delivery_gate_report"]["blocking"][0]["rule"],
+                "timeline_need_ref_mismatch",
+            )
+            self.assertFalse(state["artifacts"]["delivery_gate_report"]["pass"])
+
+    def test_workbench_handoff_route_back_surfaces_as_dashboard_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "workbench_handoff.json").write_text(json.dumps({
+                "artifact_role": "workbench_handoff",
+                "version": 1,
+                "artifacts": {"timeline_patch": "timeline_patch.json"},
+                "route_back": [{
+                    "owner": "material-map",
+                    "artifact": "timeline_patch",
+                    "reason": "timeline replacement changes material truth",
+                    "next_action": "review_material_map_or_rough_cut_patch",
+                }],
+                "next_action": "review_workbench_route_back",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertIn("workbench_handoff", state["artifacts"])
+            self.assertEqual(
+                state["artifacts"]["workbench_handoff"]["route_back"][0]["owner"],
+                "material-map",
+            )
+            self.assertEqual(state["next_action"], "review_workbench_route_back")
+            self.assertTrue(any(
+                finding.get("artifact") == "workbench_handoff"
+                and "material-map" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
 
 if __name__ == "__main__":
     unittest.main()

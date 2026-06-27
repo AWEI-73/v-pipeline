@@ -59,6 +59,7 @@ def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=
         "run": "RUN",
         "repair": "REPAIR",
         "done": "DONE",
+        "waiting": "WAITING",
         "unknown": "UNKNOWN",
     }.get(mode, "UNKNOWN")
     return {
@@ -124,6 +125,26 @@ def _acceptance_summary(root: Path):
             source="material_first_boundary_acceptance_report.json",
         )
 
+    soundtrack_contract = ((report.get("stage0_contracts") or {}).get("soundtrack") or {})
+    soundtrack_requested = (
+        soundtrack_contract.get("handoff_to") == "soundtrack-arranger"
+        and str(soundtrack_contract.get("music_role") or "").strip().lower() not in {"", "none", "unsure"}
+    )
+    soundtrack_plan_path, soundtrack_plan = _find_json(root, "soundtrack_plan.json")
+    if soundtrack_requested and not soundtrack_plan:
+        return _contract(
+            "run",
+            "soundtrack_arranger",
+            next_action="soundtrack-arrange",
+            reason=(
+                "material-first acceptance passed; Stage 0 soundtrack contract "
+                f"requests {soundtrack_contract.get('music_role')}"
+            ),
+            read=read,
+            run_dir=root,
+            source="material_first_boundary_acceptance_report.json",
+        )
+
     return _contract(
         "run",
         "stage5_final_review",
@@ -173,6 +194,372 @@ def _remotion_material_first_memory_summary(root: Path):
         read=read,
         run_dir=root,
         source="remotion_material_first_memory_acceptance_report.json",
+    )
+
+
+def _effect_factory_boundary_summary(root: Path):
+    report_path, report = _find_json(root, "effect_factory_boundary_acceptance_report.json")
+    if not report:
+        return None
+
+    read = [_rel(root, report_path)]
+    handoff_path, handoff = _find_json(root, "effect_handoff.json")
+    if handoff:
+        read.append(_rel(root, handoff_path))
+    summary = report.get("summary") or {}
+    if report.get("ok") is False:
+        errors = [str(item) for item in report.get("validation_errors") or [] if item]
+        reason = "; ".join(errors) or "Effect Factory boundary acceptance failed"
+        return _contract(
+            "repair",
+            report.get("failed_stage") or "effect_factory_boundary",
+            next_action=report.get("next_action"),
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="effect_factory_boundary_acceptance_report.json",
+        )
+
+    family_count = len(report.get("style_signatures") or [])
+    job_count = summary.get("job_count", 0)
+    rendered_count = summary.get("rendered_count", 0)
+    return _contract(
+        "run",
+        "effect_factory_boundary",
+        next_action=report.get("next_action") or "ready_for_human_effect_review_or_pipeline_promotion",
+        reason=(
+            "Effect Factory boundary passed: "
+            f"{family_count} semantic families, {rendered_count}/{job_count} dry-run worker outputs"
+        ),
+        read=read,
+        run_dir=root,
+        source="effect_factory_boundary_acceptance_report.json",
+    )
+
+
+def _visual_technique_summary(root: Path):
+    confirmed_path, confirmed = _find_json(root, "visual_technique_plan.confirmed.json")
+    plan_path, plan = (confirmed_path, confirmed) if confirmed else _find_json(root, "visual_technique_plan.json")
+    if not plan:
+        return None
+
+    read = [_rel(root, plan_path)]
+    candidate_path = None
+    candidate = None
+    if confirmed:
+        candidate_path, candidate = _find_json(root, "visual_technique_plan.json")
+        if candidate:
+            read.append(_rel(root, candidate_path))
+    review_path, review = _find_json(root, "visual_technique_review.json")
+    if review:
+        read.append(_rel(root, review_path))
+    handoff_to = str(plan.get("handoff_to") or "")
+    style = str(plan.get("style_family") or "unknown_style")
+    role = str(plan.get("effect_role") or "unknown_role")
+    options = [
+        str(item.get("option_id") or item.get("label") or item)
+        for item in plan.get("candidate_options") or []
+        if item
+    ]
+    option_note = f"; options={', '.join(options)}" if options else ""
+    if handoff_to == "review_candidate_parameters":
+        if review:
+            selected = str(review.get("selected_option") or review.get("option_id") or "").strip()
+            selected_note = f": selected={selected}" if selected else ""
+            return _contract(
+                "repair",
+                "effect_factory_parameter_review_apply",
+                next_action="visual-technique-review-apply",
+                reason=f"visual technique review awaits apply{selected_note}",
+                read=read,
+                run_dir=root,
+                source="visual_technique_review.json",
+            )
+        return _contract(
+            "repair",
+            "effect_factory_parameter_review",
+            next_action="review_visual_technique_plan_or_rerun_with_confirmed",
+            reason=f"visual technique candidate awaits review: {style}/{role}{option_note}",
+            read=read,
+            run_dir=root,
+            source="visual_technique_plan.json",
+        )
+    if handoff_to == "remotion_prompt_parameters":
+        source = "visual_technique_plan.confirmed.json" if confirmed else "visual_technique_plan.json"
+        return _contract(
+            "run",
+            "effect_factory_contract",
+            next_action="effect_contract_or_remotion_prompt_pack",
+            reason=f"visual technique confirmed for effect contract: {style}/{role}",
+            read=read,
+            run_dir=root,
+            source=source,
+        )
+    return _contract(
+        "repair",
+        "effect_factory_parameter_review",
+        next_action="fix_visual_technique_plan",
+        reason=f"visual technique plan has unsupported handoff_to={handoff_to or 'missing'}",
+        read=read,
+        run_dir=root,
+        source="visual_technique_plan.json",
+    )
+
+
+def _soundtrack_summary(root: Path):
+    plan_path, plan = _find_json(root, "soundtrack_plan.json")
+    license_path, license_manifest = _find_json(root, "sound_license_manifest.json")
+    handoff_path, handoff = _find_json(root, "audio_director_handoff.json")
+    if not (plan or license_manifest or handoff):
+        return None
+
+    read = []
+    for path in (plan_path, license_path, handoff_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+
+    blocks = []
+    if isinstance(handoff, dict):
+        blocks.extend(str(item) for item in handoff.get("blocks") or [] if item)
+    if isinstance(license_manifest, dict):
+        blocks.extend(str(item) for item in license_manifest.get("blocked_reasons") or [] if item)
+        if license_manifest.get("delivery_allowed") is False and not blocks:
+            blocks.append("license_not_deliverable")
+    blocks = sorted(set(blocks))
+
+    if blocks or (handoff and handoff.get("ready_for_audio_director") is False):
+        return _contract(
+            "repair",
+            "soundtrack_review",
+            next_action="resolve_soundtrack_license_or_reference_only",
+            resume="audio_director",
+            reason="soundtrack blocks: " + ", ".join(blocks or ["not ready for audio director"]),
+            read=read,
+            run_dir=root,
+            source="audio_director_handoff.json" if handoff else "sound_license_manifest.json",
+        )
+
+    if handoff and handoff.get("ready_for_audio_director") is True:
+        section_count = len(plan.get("sections") or []) if isinstance(plan, dict) else 0
+        return _contract(
+            "run",
+            "audio_director",
+            next_action="tts_mix_ducking_or_audio_director",
+            reason=f"soundtrack handoff ready for Audio Director: {section_count} section(s)",
+            read=read,
+            run_dir=root,
+            source="audio_director_handoff.json",
+        )
+
+    return _contract(
+        "repair",
+        "soundtrack_review",
+        next_action="write_or_fix_audio_director_handoff",
+        reason="soundtrack artifacts exist but audio_director_handoff.json is missing or incomplete",
+        read=read,
+        run_dir=root,
+        source="soundtrack_plan.json" if plan else None,
+    )
+
+
+def _audio_acceptance_summary(root: Path):
+    acceptance_path, acceptance = _find_json(root, "audio_handoff_acceptance.json")
+    mix_path, mix_plan = _find_json(root, "audio_mix_plan.json")
+    if not (acceptance or mix_plan):
+        return None
+
+    read = []
+    for path in (acceptance_path, mix_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+
+    if acceptance and acceptance.get("ok") is False:
+        blocking = acceptance.get("blocking") or []
+        reason = "; ".join(
+            str(item.get("rule") or item.get("message") or item)
+            for item in blocking
+            if item
+        ) or "audio handoff acceptance failed"
+        return _contract(
+            "repair",
+            "audio_handoff_acceptance",
+            next_action=acceptance.get("next_action") or "repair_audio_handoff",
+            resume="audio_director",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="audio_handoff_acceptance.json",
+        )
+
+    if acceptance and acceptance.get("ok") is True and mix_plan and mix_plan.get("ready_for_mix") is True:
+        track_count = len(mix_plan.get("tracks") or [])
+        return _contract(
+            "run",
+            "audio_mix",
+            next_action="mix_audio_from_audio_mix_plan",
+            reason=f"audio handoff accepted: {track_count} accepted track(s)",
+            read=read,
+            run_dir=root,
+            source="audio_mix_plan.json",
+        )
+
+    return _contract(
+        "repair",
+        "audio_handoff_acceptance",
+        next_action="soundtrack-audio-handoff-accept",
+        reason="audio handoff artifacts are incomplete",
+        read=read,
+        run_dir=root,
+        source="audio_handoff_acceptance.json" if acceptance else "audio_mix_plan.json",
+    )
+
+
+def _audio_ready_summary(root: Path):
+    final_audio = root / "final_audio.wav"
+    report_path, report = _find_json(root, "audio_mix_report.json")
+    if not (final_audio.is_file() or report):
+        return None
+
+    read = []
+    if final_audio.is_file():
+        read.append(_rel(root, final_audio))
+    rel_report = _rel(root, report_path)
+    if rel_report and rel_report not in read:
+        read.append(rel_report)
+
+    if not final_audio.is_file():
+        return _contract(
+            "repair",
+            "audio_ready",
+            next_action="write_final_audio_from_audio_mix_report",
+            resume="audio_director",
+            reason="audio_mix_report exists but final_audio.wav is missing",
+            read=read,
+            run_dir=root,
+            source="audio_mix_report.json",
+        )
+    if report and report.get("ok") is False:
+        blocking = report.get("blocking") or []
+        reason = "; ".join(
+            str(item.get("rule") or item.get("message") or item)
+            for item in blocking
+            if item
+        ) or "audio_mix_report blocks delivery"
+        return _contract(
+            "repair",
+            "audio_ready",
+            next_action=report.get("next_action") or "repair_audio_mix_plan",
+            resume="audio_director",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="audio_mix_report.json",
+        )
+    if report and report.get("audio_stream_present") is False:
+        return _contract(
+            "repair",
+            "audio_ready",
+            next_action="repair_audio_mix_report",
+            resume="audio_director",
+            reason="audio_mix_report declares no audio stream",
+            read=read,
+            run_dir=root,
+            source="audio_mix_report.json",
+        )
+    return _contract(
+        "run",
+        "audio_ready",
+        next_action="return_to_build_with_final_audio",
+        reason="final_audio.wav and audio_mix_report.json are ready",
+        read=read,
+        run_dir=root,
+        source="audio_mix_report.json" if report else "final_audio.wav",
+    )
+
+
+def _audio_build_handoff_summary(root: Path):
+    handoff_path, handoff = _find_json(root, "audio_build_handoff.json")
+    if not handoff:
+        return None
+    read = [_rel(root, handoff_path)]
+    selected_audio = handoff.get("selected_audio")
+    if handoff.get("audio_ready") is not True or not selected_audio:
+        return _contract(
+            "repair",
+            "audio_build_handoff",
+            next_action="repair_audio_build_handoff",
+            resume="audio_director",
+            reason="audio_build_handoff exists but does not declare audio_ready selected_audio",
+            read=read,
+            run_dir=root,
+            source="audio_build_handoff.json",
+        )
+    return _contract(
+        "run",
+        "audio_build_handoff",
+        next_action="continue_build_or_material_gate",
+        reason=f"BUILD audio handoff uses {Path(str(selected_audio)).name}",
+        read=read,
+        run_dir=root,
+        source="audio_build_handoff.json",
+    )
+
+
+def _subtitle_voiceover_handoff_summary(root: Path):
+    acceptance_path, acceptance = _find_json(root, "subtitle_voiceover_handoff_acceptance.json")
+    handoff_path, handoff = _find_json(root, "subtitle_voiceover_build_handoff.json")
+    if not (acceptance or handoff):
+        return None
+    read = []
+    for path in (acceptance_path, handoff_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+    if acceptance and acceptance.get("ok") is False:
+        blocking = acceptance.get("blocking") or []
+        reason = "; ".join(
+            str(item.get("rule") or item.get("message") or item)
+            for item in blocking
+            if item
+        ) or "subtitle/voiceover handoff acceptance failed"
+        return _contract(
+            "repair",
+            "subtitle_voiceover_handoff",
+            next_action=acceptance.get("next_action") or "repair_subtitle_voiceover_handoff",
+            resume="subtitle_voiceover",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="subtitle_voiceover_handoff_acceptance.json",
+        )
+    if handoff and (
+        handoff.get("subtitle_ready") is True
+        or handoff.get("voiceover_ready") is True
+    ):
+        ready = []
+        if handoff.get("subtitle_ready") is True:
+            ready.append("subtitles")
+        if handoff.get("voiceover_ready") is True:
+            ready.append("voiceover")
+        return _contract(
+            "run",
+            "subtitle_voiceover_build_handoff",
+            next_action="continue_build_or_material_gate",
+            reason="subtitle/voiceover BUILD handoff ready: " + ", ".join(ready),
+            read=read,
+            run_dir=root,
+            source="subtitle_voiceover_build_handoff.json",
+        )
+    return _contract(
+        "repair",
+        "subtitle_voiceover_handoff",
+        next_action="subtitle-voiceover-handoff-accept",
+        reason="subtitle/voiceover handoff artifacts are incomplete",
+        read=read,
+        run_dir=root,
+        source="subtitle_voiceover_build_handoff.json" if handoff else "subtitle_voiceover_handoff_acceptance.json",
     )
 
 
@@ -331,8 +718,70 @@ def _intent_summary(root: Path):
         return None
 
     entry_path = str(intent.get("entry_path") or intent.get("route") or "").strip()
+    route_hint = str(
+        intent.get("semantic_route_hint")
+        or intent.get("specialized_route")
+        or intent.get("handoff_branch")
+        or ""
+    ).strip()
+    route_hint = route_hint.replace("_", "-").casefold()
+    questions = [str(item) for item in intent.get("required_followup_questions") or [] if item]
+    if entry_path == "needs-context" and questions:
+        reason = "needs context: " + "; ".join(questions[:3])
+        if route_hint:
+            reason += f"; route hint held for later: {route_hint}"
+        return _contract(
+            "waiting",
+            "stage0_video_intent",
+            next_action="ask_followup_questions",
+            reason=reason,
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
+    if route_hint in {"brownfield", "brownfield-edit", "workbench", "draft-edit", "rough-cut-edit"}:
+        return _contract(
+            "run",
+            "workbench_draft_review",
+            next_action="workbench-handoff-validate",
+            reason=f"video intent requests bounded draft/brownfield review: {route_hint}",
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
+    if route_hint in {"final-review", "verify", "delivery-review", "existing-final-review"}:
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action="verify_existing_final_or_delivery_gate",
+            reason=f"video intent requests existing final review: {route_hint}",
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
+    if route_hint in {"effect-factory", "effect-only", "effects", "visual-effect"}:
+        return _contract(
+            "run",
+            "effect_factory_parameter_review",
+            next_action="visual-technique-plan",
+            reason=f"video intent requests Effect Factory route: {route_hint}",
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
     material_first = {"material-first", "existing-material-first", "hybrid"}
     structure_first = {"structure-first", "story-first"}
+    if entry_path == "needs-context":
+        reason = "needs context before route handoff"
+        return _contract(
+            "waiting",
+            "stage0_video_intent",
+            next_action="ask_followup_questions",
+            reason=reason,
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
     if entry_path in material_first:
         return _contract(
             "run",
@@ -367,13 +816,44 @@ def _intent_summary(root: Path):
 def summarize_run(run_dir):
     root = Path(run_dir).resolve()
 
+    summary = _effect_factory_boundary_summary(root)
+    if summary:
+        return summary
+
+    summary = _visual_technique_summary(root)
+    if summary:
+        return summary
+
     summary = _remotion_material_first_memory_summary(root)
     if summary:
         return summary
 
-    summary = _acceptance_summary(root)
+    acceptance_summary = _acceptance_summary(root)
+    if acceptance_summary and acceptance_summary.get("mode") == "repair":
+        return acceptance_summary
+
+    summary = _audio_build_handoff_summary(root)
     if summary:
         return summary
+
+    summary = _subtitle_voiceover_handoff_summary(root)
+    if summary:
+        return summary
+
+    summary = _audio_ready_summary(root)
+    if summary:
+        return summary
+
+    summary = _audio_acceptance_summary(root)
+    if summary:
+        return summary
+
+    summary = _soundtrack_summary(root)
+    if summary:
+        return summary
+
+    if acceptance_summary:
+        return acceptance_summary
 
     _boundary_path, boundary = _find_json(root, "boundary_report.json")
     if boundary:

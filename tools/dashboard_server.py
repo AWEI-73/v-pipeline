@@ -107,6 +107,19 @@ CURRENT_ROUTE_SIGNALS = {
     "run_layout",
 }
 
+PROJECT_SCAN_SKIP_DIRS = {
+    ".git",
+    "__pycache__",
+    "media",
+    "materials",
+    "generated_materials",
+    "generated_real_imagegen",
+    "workbench_proxy",
+    "workbench_thumbs",
+    "node_modules",
+    ".venv",
+}
+
 
 def _run_has_file(run_path: Path, filenames: tuple[str, ...]) -> bool:
     for filename in filenames:
@@ -116,6 +129,24 @@ def _run_has_file(run_path: Path, filenames: tuple[str, ...]) -> bool:
             if (run_path / subdir / filename).is_file():
                 return True
     return False
+
+
+def _run_signal_mtime(run_path: Path) -> float:
+    """Return a cheap freshness score without recursively scanning media files."""
+    candidates = [run_path]
+    for filenames in PROJECT_RUN_SIGNAL_FILES.values():
+        for filename in filenames:
+            candidates.append(run_path / filename)
+            for subdir in ("verify", "m5_verify_evidence", "verify_evidence", "review", "artifacts"):
+                candidates.append(run_path / subdir / filename)
+    mtimes = []
+    for path in candidates:
+        try:
+            if path.exists():
+                mtimes.append(path.stat().st_mtime)
+        except OSError:
+            continue
+    return max(mtimes, default=0.0)
 
 
 def classify_project_run(run_path: Path) -> dict[str, Any]:
@@ -154,13 +185,7 @@ def classify_project_run(run_path: Path) -> dict[str, Any]:
     else:
         reason = "產物不足，暫不列入主要案例"
 
-    try:
-        last_modified = max(
-            [resolved.stat().st_mtime]
-            + [path.stat().st_mtime for path in resolved.rglob("*") if path.is_file()]
-        )
-    except OSError:
-        last_modified = 0.0
+    last_modified = _run_signal_mtime(resolved)
 
     return {
         "name": resolved.name,
@@ -188,6 +213,10 @@ def scan_project_runs(candidate_roots: list[Path], max_depth: int = 4, limit: in
 
         roots_to_check = [root]
         for current_root, dirs, _files in os.walk(root):
+            dirs[:] = [
+                d for d in dirs
+                if d not in PROJECT_SCAN_SKIP_DIRS and not d.startswith(".cache")
+            ]
             current = Path(current_root)
             try:
                 depth = len(current.relative_to(root).parts)
@@ -406,7 +435,8 @@ def scan_available_projects():
     """Scan known workspace roots and list usable pipeline run folders."""
     return scan_project_runs([
         Path(".tmp"),
-    ], max_depth=1)
+        Path("runs"),
+    ], max_depth=5)
 
 
 def parse_srt(srt_content: str):
@@ -550,6 +580,41 @@ def _safe_list(value):
     return value if isinstance(value, list) else []
 
 
+def _static_artifact_url(active_root: Path, ref):
+    if not ref or not isinstance(ref, str):
+        return None
+    if ref.startswith(("http://", "https://", "data:", "/static/")):
+        return ref
+    try:
+        root = active_root.resolve()
+        candidate = Path(ref)
+        if candidate.is_absolute():
+            resolved = candidate.resolve()
+            if root not in resolved.parents and resolved != root:
+                return None
+            rel = resolved.relative_to(root).as_posix()
+        else:
+            rel = candidate.as_posix().lstrip("/\\")
+    except Exception:
+        return None
+    if not rel or rel.startswith("../") or "/../" in rel:
+        return None
+    return f"/static/{urllib.parse.quote(rel, safe='/')}?root={urllib.parse.quote(str(active_root))}"
+
+
+def _scene_thumbnail_ref(scene: dict, asset: dict | None = None):
+    for key in ("thumbnail_url", "thumbnail", "thumbnail_path", "thumb_path", "poster", "frame_path", "preview_image"):
+        value = scene.get(key)
+        if value:
+            return value
+    asset = asset or {}
+    for key in ("thumbnail_url", "thumbnail", "thumbnail_path", "thumb_path", "poster", "frame_path", "preview_image"):
+        value = asset.get(key)
+        if value:
+            return value
+    return None
+
+
 def _count_satisfaction_edges(assets, status):
     count = 0
     for asset in assets:
@@ -606,17 +671,24 @@ def build_material_map_view(active_root: Path):
                 item.get("status") for item in satisfies
                 if item.get("status")
             ]
+            thumbnail_ref = _scene_thumbnail_ref(scene, asset)
             scenes.append({
                 "scene_index": index,
                 "caption": scene.get("caption") or "",
+                "thumbnail": thumbnail_ref,
+                "thumbnail_url": _static_artifact_url(active_root, thumbnail_ref),
                 "start": scene.get("start"),
                 "end": scene.get("end"),
+                "usable_range": scene.get("usable_range"),
+                "start_sec": scene.get("start_sec"),
+                "duration_sec": scene.get("duration_sec"),
                 "visual_family": scene.get("visual_family"),
                 "angle_scale": scene.get("angle_scale"),
                 "action_family": scene.get("action_family"),
                 "subject": scene.get("subject"),
                 "quality_score": scene.get("quality_score"),
                 "source_type": scene.get("source_type"),
+                "satisfies": satisfies,
                 "need_ids": need_ids,
                 "statuses": statuses,
             })
@@ -889,7 +961,22 @@ class DashboardHandler(WorkbenchHandler):
         query_params = urllib.parse.parse_qs(parsed_url.query)
 
         # Formal SPA routes. The SPA router chooses the active view from path.
-        if path_str in ("/", "/index.html", "/dashboard", "/dashboard/", "/material-map", "/material-map/", "/workbench", "/workbench/"):
+        if path_str in (
+            "/",
+            "/index.html",
+            "/dashboard",
+            "/dashboard/",
+            "/material-map",
+            "/material-map/",
+            "/workbench",
+            "/workbench/",
+            "/timeline",
+            "/timeline/",
+            "/verify",
+            "/verify/",
+            "/artifacts",
+            "/artifacts/",
+        ):
             html_path = self.dashboard_dir / "index.html"
             if not html_path.exists():
                 html_path = self.dashboard_dir / "dashboard_v1.html"
@@ -1089,6 +1176,7 @@ class DashboardHandler(WorkbenchHandler):
             broll_audit = load_optional_json("broll_audit.json")
             caption_audit = load_optional_json("caption_audit.json")
             verify_evidence_bundle = load_optional_json("verify_evidence_bundle.json")
+            material_first_boundary_acceptance_report = load_optional_json("material_first_boundary_acceptance_report.json")
 
             # Extract timeline slots list
             plan_list = []
@@ -1317,6 +1405,7 @@ class DashboardHandler(WorkbenchHandler):
                 "broll_audit": broll_audit,
                 "caption_audit": caption_audit,
                 "verify_evidence_bundle": verify_evidence_bundle,
+                "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
                 "review_report_md": review_report_md
             }
 

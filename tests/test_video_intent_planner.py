@@ -32,12 +32,20 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(intent["legacy_route"], "existing-material-first")
         self.assertEqual(intent["handoff_to"], "material_map_lifecycle")
         self.assertEqual(intent["gap_strategy"], "pending_material_delta")
+        self.assertEqual(intent["material_contract"]["artifact_role"], "stage0_material_intent")
+        self.assertEqual(intent["material_contract"]["first_action"], "material_map_quick_inventory")
         self.assertEqual(intent["handoff_packet"]["owner"], "material_map_lifecycle")
         self.assertEqual(intent["handoff_packet"]["first_action"], "material_map_quick_inventory")
         self.assertIn("project_material_map.json", intent["handoff_packet"]["expected_outputs"])
         self.assertIn("material_delta.json", intent["handoff_packet"]["expected_outputs"])
         self.assertIn("teaching-structure-planner", intent["later_planner"])
         self.assertEqual(intent["required_followup_questions"], [])
+        self.assertEqual(intent["soundtrack_contract"]["music_role"], "unsure")
+        self.assertEqual(intent["effect_policy"]["activation"], "none")
+        self.assertEqual(intent["subtitle_voiceover_contract"]["artifact_role"], "stage0_subtitle_voiceover_intent")
+        self.assertEqual(intent["subtitle_voiceover_contract"]["language"], "unknown")
+        self.assertEqual(intent["subtitle_voiceover_contract"]["subtitle_required"], True)
+        self.assertEqual(intent["subtitle_voiceover_contract"]["handoff_to"], "subtitle-director")
 
     def test_zero_material_with_text_or_story_enters_structure_first(self):
         intent = plan_video_intent(
@@ -61,6 +69,7 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(intent["handoff_to"], "upstream_structure_route")
         self.assertEqual(intent["handoff_packet"]["owner"], "upstream_structure_route")
         self.assertEqual(intent["handoff_packet"]["first_action"], "story_soul_blueprint")
+        self.assertEqual(intent["material_contract"]["first_action"], "derive_material_needs_after_structure")
         self.assertTrue(intent["needs_generated_material_fallback"])
         self.assertIn("generated material fallback", " ".join(intent["next_steps"]))
 
@@ -100,6 +109,149 @@ class VideoIntentPlannerTest(unittest.TestCase):
         question_text = " ".join(intent["required_followup_questions"]).lower()
         self.assertIn("material", question_text)
         self.assertIn("audience", question_text)
+
+    def test_effect_only_request_keeps_stage0_schema_and_adds_effect_hint(self):
+        intent = plan_video_intent(
+            {
+                "request": "我只想做一個開場特效和轉場效果",
+                "video_type": "event recap",
+                "audience": "students",
+                "goal": "make the opening stronger",
+                "target_length": "10 seconds",
+                "material_availability": "none",
+                "generation_allowed": True,
+                "tone": "cinematic",
+            }
+        )
+
+        self.assertIn(intent["entry_path"], {"structure-first", "needs-context"})
+        self.assertEqual(intent["semantic_route_hint"], "effect-factory")
+        self.assertEqual(intent["effect_policy"]["handoff_to"], "video-effect-factory")
+        self.assertTrue(intent["effect_policy"]["required_now"])
+
+    def test_generation_allowed_no_material_loose_idea_can_enter_structure_first(self):
+        intent = plan_video_intent(
+            {
+                "request": "做一支 90 秒兒童故事，沒有素材，可以生成素材",
+                "video_type": "storybook",
+                "audience": "children",
+                "goal": "tell a gentle short story",
+                "target_length": "90 seconds",
+                "material_availability": "none",
+                "generation_allowed": True,
+                "tone": "warm",
+            }
+        )
+
+        self.assertEqual(intent["entry_path"], "structure-first")
+        self.assertTrue(intent["needs_generated_material_fallback"])
+
+    def test_stage0_records_mixed_song_and_bgm_soundtrack_contract(self):
+        intent = plan_video_intent(
+            {
+                "request": "training recap with existing footage, warm story first half and hot-blooded MV with a pop song feeling later",
+                "video_type": "graduation-event",
+                "audience": "students and instructors",
+                "goal": "make a memorable graduation recap",
+                "target_length": "5 minutes",
+                "material_availability": "existing",
+                "style_direction": "first half warm story, second half MV with song and background music sections",
+            }
+        )
+
+        soundtrack = intent["soundtrack_contract"]
+        self.assertEqual(soundtrack["artifact_role"], "stage0_soundtrack_intent")
+        self.assertEqual(soundtrack["status"], "requested")
+        self.assertEqual(soundtrack["music_role"], "mixed")
+        self.assertEqual(soundtrack["vocal_policy"], "section_dependent")
+        self.assertEqual(soundtrack["section_strategy"], "section_based")
+        self.assertEqual(soundtrack["handoff_to"], "soundtrack-arranger")
+        self.assertIn("vocals/songs allowed", " ".join(soundtrack["required_followup_questions"]))
+        self.assertEqual(soundtrack["energy_intent"], "warm_to_high")
+        self.assertEqual(soundtrack["speech_preservation"], "preserve_if_detected")
+        self.assertEqual(soundtrack["fallback_policy"]["provider_fallback"], ["jamendo_song", "pixabay_music", "manual_import", "reference_only"])
+        self.assertEqual(soundtrack["fallback_policy"]["role_fallback"], "song_to_bgm_requires_review")
+        self.assertEqual(soundtrack["fallback_policy"]["brownfield_fallback"], "workbench_replace_or_retime_after_review")
+
+    def test_stage0_records_speech_preservation_when_speech_is_requested(self):
+        intent = plan_video_intent(
+            {
+                "request": "training recap with existing footage, keep director speech clear and use soft background music",
+                "video_type": "graduation-event",
+                "audience": "students",
+                "goal": "warm recap",
+                "target_length": "4 minutes",
+                "material_availability": "existing",
+                "style_direction": "soft background music under speech",
+            }
+        )
+
+        soundtrack = intent["soundtrack_contract"]
+        self.assertEqual(soundtrack["music_role"], "bgm")
+        self.assertEqual(soundtrack["speech_preservation"], "required")
+        self.assertEqual(soundtrack["ducking_policy"], "duck_under_voice")
+
+    def test_stage0_records_instrumental_bgm_preference(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a documentary recap with existing footage and instrumental background music only",
+                "video_type": "graduation-event",
+                "audience": "family",
+                "goal": "warm documentary memory",
+                "target_length": "3 minutes",
+                "material_availability": "existing",
+                "music_role": "bgm",
+                "style_direction": "instrumental no vocals",
+            }
+        )
+
+        soundtrack = intent["soundtrack_contract"]
+        self.assertEqual(soundtrack["music_role"], "bgm")
+        self.assertEqual(soundtrack["vocal_policy"], "instrumental_preferred")
+        self.assertEqual(soundtrack["handoff_to"], "soundtrack-arranger")
+
+    def test_whole_video_effect_words_are_deferred_not_launched_from_stage0(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a training recap from existing footage with warm transitions and a highlight overlay",
+                "video_type": "graduation-event",
+                "audience": "students",
+                "goal": "emotional recap",
+                "target_length": "4 minutes",
+                "material_availability": "existing",
+            }
+        )
+
+        policy = intent["effect_policy"]
+        self.assertEqual(policy["artifact_role"], "stage0_effect_policy")
+        self.assertEqual(policy["status"], "requested")
+        self.assertEqual(policy["activation"], "defer_to_brownfield_or_segment_review")
+        self.assertFalse(policy["required_now"])
+        self.assertEqual(policy["handoff_to"], "video-effect-factory_when_segment_requires_effect")
+
+    def test_stage0_records_voiceover_and_subtitle_language_intent(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a Chinese training recap with subtitles and voiceover narration",
+                "video_type": "graduation-event",
+                "audience": "students and family",
+                "goal": "explain the training journey clearly",
+                "target_length": "5 minutes",
+                "material_availability": "existing",
+                "language": "zh-TW",
+                "voiceover_required": True,
+                "subtitle_required": True,
+            }
+        )
+
+        contract = intent["subtitle_voiceover_contract"]
+        self.assertEqual(contract["artifact_role"], "stage0_subtitle_voiceover_intent")
+        self.assertEqual(contract["status"], "requested")
+        self.assertEqual(contract["language"], "zh-TW")
+        self.assertTrue(contract["subtitle_required"])
+        self.assertTrue(contract["voiceover_required"])
+        self.assertEqual(contract["narration_policy"], "required")
+        self.assertEqual(contract["handoff_to"], "subtitle-director+audio-director")
 
 
 class VideoIntentPlannerCliTest(unittest.TestCase):

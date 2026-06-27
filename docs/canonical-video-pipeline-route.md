@@ -1,6 +1,6 @@
 ﻿# Canonical Video Pipeline Route
 
-Date: 2026-06-20
+Date: 2026-06-25
 Status: v1 accepted / keep as route map before broad node renaming
 Scope: full Hermes Video Pipeline flow, skill routing, tools, artifacts, gates
 
@@ -25,20 +25,39 @@ Generated material, real footage, human-picked footage, and Workbench edits all
 must return to the same artifact route. No surface may silently become the new
 truth.
 
+The route has one main spine, plus child contracts that can call bounded side
+branches. The child contracts keep the route extensible without creating a new
+pipeline for every feature:
+
+```text
+Main route: Video Pipeline Route
+  -> Stage 0 child contracts: material_contract, soundtrack_contract,
+     effect_policy, subtitle_voiceover_contract
+  -> Material Map branch: material truth and coverage
+  -> Effect Factory branch: designed effect contracts, worker build, review
+  -> Soundtrack Arranger branch: music/song/BGM source, license, fallback,
+     and Audio Director handoff
+  -> Subtitle / Voiceover branch: language, subtitle readability, narration,
+     and voiceover evidence
+```
+
+Current construction guide:
+`docs/construction-guides/stage0-10-route-alignment-plan.md`.
+
 ## Canonical Route
 
 | # | Canonical stage | Purpose | Primary skill | Main tools | Main artifacts | Gate / stop condition |
 |---|---|---|---|---|---|---|
 | 0 | Video Intent Planner | Capture user goal, audience, length, style, available material, available text/article/idea, video type, and expected output; choose material-first, structure-first, or needs-context before story/build work. `Intake` remains a legacy label for this stage. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md` | `video-intent-plan`, project/run tools if needed | `video_intent.json`, project brief, run folder | Stop if input state, audience, goal, material availability, text availability, or generation permission is ambiguous enough to change handoff. |
 | 1 | Story Soul | Create story world, narrative device, emotional spine, and core idea before technical shot planning. | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-to-contract` when compiling from blueprint | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if story lacks a narrative device or character/emotional spine. |
-| 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, and material needs. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, subtitle plan | Stop if must-have needs are vague or untestable. |
+| 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, material needs, and required effect design contracts. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `video-effect-factory.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, `effect_design_map.json`, `effect_contract.json`, subtitle plan | Stop if must-have needs are vague or untestable, or if required effects lack reviewable contracts. |
 | 3 | Material Truth | Inventory real material, generate missing material if needed, and attach evidence to needs. | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `generated-material-import`, `generated-material-review` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed material map | Stop if material is missing, unreviewed, dangling, or insufficient for must-have needs. |
 | 4 | Coverage / Decision Gate | Compare needs to accepted material evidence; decide build, wait, generate, reshoot, rewrite, drop, or waive. | `gap-analyzer.md`, `shooting-brief.md`, `route.md` | `material-delta`, `lineage-link`, `material-revision`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD is blocked if delta is broken or must-have gaps lack valid fallback/waiver. |
 | 5 | BUILD Planning | Select windows, order material, create sequence/opening/story arc plans, subtitles, audio cues, and effect intents. | `editor.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `contract-adapt`, `contract-dry-build`, `rank-local`, `match-mv`, internal SRP/VD planning in `contract-run` | `generated_mv_script.json`, `timeline_build.json`, `sfx_cues`, story arc/opening/sequence traces | Stop if planning produces GAP, unrenderable windows, or contract/runtime mismatch. |
 | 6 | Official Render | Produce canonical video through backend renderer. | `editor.md` | `contract-run`, `script-run`, `assemble`, `merge-final`, `burnsub`, `mix-audio`, `sfx-mix` | `final.mp4`, `subtitles.srt`, `artifact_manifest.json`, `state.json` | Official output only exists after render + verify path succeeds. |
 | 7 | Verify | Check technical quality, content alignment, subtitles, black frames, visual fatigue, and delivery readiness. | `verify.md` | `verify`, `black-frame-audit`, `caption-audit`, `new-visual-audit`, `visual-audit`, `timeline-audit`, `verify-evidence` | `verify_result.json`, audit reports, contact sheet, review report | If failure is factual/material, return to Material Truth or Coverage Gate. If failure is finishing/editing, route to Brownfield Edit. |
 | 8 | Workbench Draft Review | Let humans/agents inspect composition, adjust draft timing/subtitles/audio/effect markers, and export preview/draft patches. | `dashboard.md`, `brownfield-edit.md` | `workbench_server.py`, `preview_timeline.py`, `timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft preview/export | Workbench must not overwrite canonical timeline, material map, or final. |
-| 9 | Brownfield Edit / Finishing | Apply bounded fixes after review: subtitle/audio/effect patch, generated effect assets, Remotion adapter route, or small material replacement. | `brownfield-edit.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `remotion-prompt-pack`, `remotion-worker-outputs`, `remotion-worker-smoke`, `remotion-composite-draft`, `light-effects-plan` | `effect_revision_request.json`, `effect_recipe_patch.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If edit changes material truth, return to Material Truth / Delta. If it only changes finishing, rerender/draft then verify. |
+| 9 | Brownfield Edit / Finishing | Apply bounded fixes after review: subtitle/audio/effect patch, generated effect assets, Effect Factory route, Remotion adapter route, or small material replacement. | `brownfield-edit.md`, `video-effect-factory.md`, `remotion-effect-worker.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `remotion-prompt-pack`, `remotion-worker-outputs`, `remotion-worker-smoke`, `remotion-composite-draft`, `light-effects-plan` | `effect_revision_request.json`, `effect_design_map.json`, `effect_contract.json`, `effect_review.json`, `effect_handoff.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If edit changes material truth, return to Material Truth / Delta. If it only changes finishing, review effect handoff, rerender/draft, then verify. |
 | 10 | Delivery | Produce final report, artifacts, and handoff. | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools, `validate_pipeline_run_folder --complete-video` | `final.mp4`, `delivery_requirements.json`, `narration_manifest.json`, `music_manifest.json`, `audio_mix_report.json`, `subtitles.srt`, `frame_evidence.json`, `effect_render_verification.json`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, required media streams, usable narration audio, readable review artifacts, language match, frame-level material evidence when real material is used, rendered-effect verification when effects are planned, generated-material consistency review, delivery manifests, no unresolved reviewer revise/block states, and known limitations. Complete-video validation has no warning channel: warnings are promoted to errors. |
 
 ## Skill Design Rules
@@ -83,6 +102,17 @@ Stage 0 artifact ownership:
 - `video_intent.json` is the canonical Stage 0 route decision.
 - `route_decision.json` is legacy/compat unless a current harness explicitly
   requires it.
+- `material_contract` records the first material owner, gap policy, and whether
+  Material Map must run before story/build decisions become concrete.
+- `soundtrack_contract` records song/BGM/mixed/none intent, vocal policy,
+  source fallback, ducking, speech preservation, and whether to call the
+  Soundtrack Arranger branch before BUILD.
+- `effect_policy` records bounded effect intent without launching Remotion from
+  fuzzy whole-video language.
+- `subtitle_voiceover_contract` is the reserved Stage 0 surface for whole-video
+  language, subtitle, narration, and voiceover intent. Today it threads into
+  Director Shot Plan, Subtitle Director, Audio Director, Verify, and Delivery
+  rather than owning a fully separate branch.
 
 ### 1. Skills ask for missing decisions, tools enforce facts
 
@@ -133,11 +163,15 @@ Remotion, or future providers are adapters.
 
 Current policy:
 
+- Effect Factory is the side branch that turns effect intent into design maps,
+  contracts, backend handoffs, reviews, and bounded asset handoff artifacts.
 - lightweight Workbench preview is approximate-by-design;
 - official output remains ffmpeg / contract-run unless Brownfield route creates
   an explicitly reviewed non-canonical composite;
 - Remotion is allowed as an effect asset/adapter worker, not as a replacement
   for the core pipeline yet.
+- `remotion-effect-worker.md` is the lower Remotion backend; it is not replaced
+  by Effect Factory.
 
 ### 5. Templates extend the route, not the route itself
 
@@ -220,6 +254,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 ### Effects / Brownfield
 
 - `effect-intent-plan`
+- `video-effect-factory` skill route (docs/skill only; artifact-driven)
 - `light-effects-plan`
 - `effect-revision-request`
 - `effect-revision-draft`
@@ -296,6 +331,10 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 | `patched_draft_timeline.json` | Workbench | draft | Not official unless routed back. |
 | `workbench_contract_patch.json` | Workbench | suggestion | Must be reviewed/applied via backend route. |
 | `effect_intent_plan.json` | Effects | yes | Backend-neutral effect intent. |
+| `effect_design_map.json` | Effect Factory | yes per effect branch | Design language map and style family selection for required or requested effects. |
+| `effect_contract.json` | Effect Factory | yes per effect branch | Reviewable contract for visual primitives, motion primitives, controls, negative rules, and backend policy. |
+| `effect_review.json` | Effect Factory | review | Parent/agent review of whether worker output matches the contract. |
+| `effect_handoff.json` | Effect Factory | handoff | Bounded effect asset handoff; does not own final delivery or material truth. |
 | `remotion_prompt_pack.json` | Effects | handoff | Optional adapter jobs. |
 | `remotion_effect_review.json` | Effects | review | Accepted/rejected adapter outputs. |
 | `remotion_composite_draft_report.json` | Effects | draft report | Non-canonical unless promoted by route. |
@@ -311,6 +350,7 @@ Templates should not bypass material maps, delta, BUILD, or verify.
 | SRP2 | Opening / Hook Planner | Keep as BUILD planning internals. |
 | SRP3 | Story Arc Planner | Keep as BUILD planning internals. |
 | FX1-FX4 | Effects Route increments | Keep until effects route stabilizes. |
+| Effect Factory | Designed-effects side branch | Use for design map, contract, backend handoff, review, and non-final handoff. |
 | Node14 | Brownfield Edit / Finishing Route | Use Brownfield Edit as canonical label; Node14 remains compatibility alias. |
 | Dashboard | Review surface | Keep. |
 | Workbench | Draft edit surface | Keep. |
@@ -386,8 +426,8 @@ Priority template families:
    - Uses panels, subtitles, light motion, optional TTS.
    - Needs stronger shot/panel grammar than generic storybook.
 5. `effects-finishing`
-   - For post-review polish.
-   - Uses Brownfield Edit and effect adapters.
+   - For post-review polish and required designed effects.
+   - Uses Effect Factory, Brownfield Edit, and effect adapters.
    - Must not change material truth unless routed back through material map.
 
 ## Review Checklist For New Routes

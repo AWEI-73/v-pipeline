@@ -3,6 +3,7 @@ import unittest
 
 from video_pipeline_core import blueprint_to_contract as b2c
 from video_pipeline_core import spec_contract, blueprint as bp_mod
+from video_pipeline_core.story_soul_blueprint import build_story_soul_blueprint
 
 
 def _bp():
@@ -47,6 +48,34 @@ def _soul_bp():
             },
         ],
     }
+
+
+def _bp_with_child_contracts():
+    payload = _bp()
+    payload["stage0_child_contracts"] = {
+        "material": {
+            "artifact_role": "stage0_material_intent",
+            "first_action": "material_map_quick_inventory",
+        },
+        "soundtrack": {
+            "artifact_role": "stage0_soundtrack_intent",
+            "music_role": "mixed",
+            "energy_intent": "warm_to_high",
+            "handoff_to": "soundtrack-arranger",
+        },
+        "effect": {
+            "artifact_role": "stage0_effect_policy",
+            "activation": "defer_to_brownfield_or_segment_review",
+        },
+        "subtitle_voiceover": {
+            "artifact_role": "stage0_subtitle_voiceover_intent",
+            "language": "zh-TW",
+            "subtitle_required": True,
+            "voiceover_required": True,
+            "handoff_to": "subtitle-director+audio-director",
+        },
+    }
+    return payload
 
 
 def _soul_decisions():
@@ -201,6 +230,69 @@ class TestCompileContract(unittest.TestCase):
 
         self.assertEqual(by["B1"]["material_fit"]["need_refs"], ["nd_setup"])
         self.assertEqual(by["B2"]["material_fit"]["need_refs"], ["nd_custom"])
+
+    def test_stage0_child_contracts_round_trip_to_segment_contract(self):
+        c = b2c.compile_contract(_bp_with_child_contracts(), _decisions())
+
+        self.assertEqual(c["stage0_child_contracts"]["soundtrack"]["music_role"], "mixed")
+        first = c["segments"][0]
+        self.assertEqual(first["stage0_child_contracts"]["subtitle_voiceover"]["language"], "zh-TW")
+        self.assertEqual(first["text_layer"]["subtitle"], "required")
+        self.assertEqual(first["text_layer"]["language"], "zh-TW")
+        self.assertEqual(first["audio"]["voiceover_policy"], "required")
+        self.assertEqual(first["audio"]["soundtrack_role"], "mixed")
+        self.assertEqual(
+            first["effect_policy"]["activation"],
+            "defer_to_brownfield_or_segment_review",
+        )
+
+        v = spec_contract.validate_segment_contract(c)
+        self.assertTrue(v["ok"], v.get("errors"))
+
+    def test_story_soul_blueprint_compiles_directly_to_segment_contract(self):
+        brief = {
+            "project_type": "graduation_training_film",
+            "audience": "trainees, instructors, family",
+            "duration_sec": 300,
+            "facts": {
+                "cohort": "66th training class",
+                "place": "training center",
+            },
+            "known_material_categories": ["morning assembly", "director encouragement"],
+            "seed_device": "0.66% of life spent in training center",
+            "stage0_child_contracts": {
+                "material": {"first_action": "material_map_quick_inventory"},
+                "soundtrack": {"music_role": "mixed", "handoff_to": "soundtrack-arranger"},
+                "effect": {"activation": "defer_to_brownfield_or_segment_review"},
+                "subtitle_voiceover": {
+                    "language": "zh-TW",
+                    "subtitle_required": True,
+                    "voiceover_required": True,
+                },
+            },
+        }
+        story = build_story_soul_blueprint(brief)
+
+        c = b2c.compile_story_soul_contract(story)
+
+        self.assertEqual(len(c["segments"]), len(story["screenplay_beats"]["beats"]))
+        self.assertEqual(
+            c["stage0_child_contracts"]["soundtrack"]["music_role"],
+            "mixed",
+        )
+        first = c["segments"][0]
+        first_need = story["material_needs"]["needs"][0]["need_id"]
+        self.assertEqual(first["core"]["blueprint_ref"], story["screenplay_beats"]["beats"][0]["beat_id"])
+        self.assertEqual(first["material_fit"]["need_refs"], [first_need])
+        self.assertEqual(first["text_layer"]["language"], "zh-TW")
+        self.assertEqual(first["audio"]["voiceover_policy"], "required")
+        self.assertEqual(
+            first["effect_policy"]["activation"],
+            "defer_to_brownfield_or_segment_review",
+        )
+        self.assertTrue(c["story_soul"]["narrative_device"])
+        v = spec_contract.validate_segment_contract(c)
+        self.assertTrue(v["ok"], v.get("errors"))
 
 
 if __name__ == "__main__":

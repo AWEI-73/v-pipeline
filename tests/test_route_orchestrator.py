@@ -28,13 +28,17 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
 
             self.assertEqual(packet["artifact_role"], "route_subagent_task")
             self.assertEqual(packet["stage"], "Video Intent Planner")
+            self.assertEqual(packet["mode"], "worker")
             self.assertIn(str(root / "video_intent.json"), packet["allowed_outputs"])
+            self.assertIn("docs", packet["forbidden_writes"])
+            self.assertIn("skills", packet["forbidden_writes"])
+            self.assertIn("video_pipeline_core", packet["forbidden_writes"])
             self.assertFalse(stale.exists())
             snapshot = packet["snapshot"]["must_not_touch"][str(protected)]
             self.assertTrue(snapshot["exists"])
             self.assertEqual(snapshot["sha256"], hashlib.sha256(b"KEEP").hexdigest())
 
-    def test_accept_done_advances_when_outputs_fresh_and_protected_unchanged(self):
+    def test_stage_zero_done_rejects_project_brief_without_video_intent(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "final.mp4").write_bytes(b"KEEP")
@@ -54,11 +58,9 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
 
             verdict = accept_task_result(root / "task.json", result_path, state_out=root / "state.json")
 
-            self.assertTrue(verdict["ok"], verdict)
-            state = _read_json(root / "state.json")
-            self.assertEqual(state["status"], "ready")
-            self.assertEqual(state["current_stage"], 1)
-            self.assertEqual(state["history"][-1]["accepted_status"], "done")
+            self.assertFalse(verdict["ok"])
+            self.assertTrue(any("video_intent.json" in err for err in verdict["errors"]))
+            self.assertFalse((root / "state.json").exists())
 
     def test_stage_zero_accepts_real_video_intent_artifact(self):
         with tempfile.TemporaryDirectory() as td:
@@ -75,6 +77,7 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
                             "goal": "teach clearly",
                             "target_length": "5 minutes",
                             "material_availability": "existing",
+                            "tone": "clear instructional",
                         }
                     ),
                     ensure_ascii=False,
@@ -102,6 +105,68 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
             state = _read_json(root / "state.json")
             self.assertEqual(state["current_stage"], 1)
             self.assertEqual(state["history"][-1]["outputs"], [str(output)])
+
+    def test_stage_zero_done_rejects_video_intent_with_followup_questions(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task = write_next_task(root, root / "task.json", now_epoch=1000.0)
+            output = root / "video_intent.json"
+            output.write_text(
+                json.dumps(plan_video_intent({"request": "請幫我剪一部結訓典禮影片"}), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            os.utime(output, (1001.0, 1001.0))
+            result_path = root / "result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "artifact_role": "route_subagent_result",
+                        "task_id": task["task_id"],
+                        "status": "done",
+                        "outputs": [str(output)],
+                        "summary": "video intent generated but still needs context",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            verdict = accept_task_result(root / "task.json", result_path, state_out=root / "state.json")
+
+            self.assertFalse(verdict["ok"])
+            self.assertTrue(any("required_followup_questions" in err for err in verdict["errors"]))
+            self.assertFalse((root / "state.json").exists())
+
+    def test_stage_zero_needs_context_accepts_followup_video_intent_without_advancing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task = write_next_task(root, root / "task.json", now_epoch=1000.0)
+            output = root / "video_intent.json"
+            output.write_text(
+                json.dumps(plan_video_intent({"request": "請幫我剪一部結訓典禮影片"}), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            os.utime(output, (1001.0, 1001.0))
+            result_path = root / "result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "artifact_role": "route_subagent_result",
+                        "task_id": task["task_id"],
+                        "status": "needs_context",
+                        "outputs": [str(output)],
+                        "next_action": "ask_followup",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            verdict = accept_task_result(root / "task.json", result_path, state_out=root / "state.json")
+
+            self.assertTrue(verdict["ok"], verdict)
+            state = _read_json(root / "state.json")
+            self.assertEqual(state["status"], "needs_context")
+            self.assertEqual(state["current_stage"], 0)
+            self.assertEqual(state["next_action"], "ask_followup")
 
     def test_accept_rejects_modified_must_not_touch(self):
         with tempfile.TemporaryDirectory() as td:
@@ -131,6 +196,54 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
             self.assertFalse(verdict["ok"])
             self.assertIn("must_not_touch changed", verdict["errors"][0])
             self.assertFalse((root / "state.json").exists())
+
+    def test_accept_rejects_repo_doc_change_by_bounded_worker(self):
+        repo_doc = Path(__file__).resolve().parents[1] / "docs" / "_route_orchestrator_forbidden_probe.tmp"
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                task = write_next_task(root, root / "task.json", now_epoch=1000.0)
+                output = root / "video_intent.json"
+                output.write_text(
+                    json.dumps(
+                        plan_video_intent(
+                            {
+                                "request": "teaching video with existing screen recordings",
+                                "video_type": "teaching",
+                                "audience": "new students",
+                                "goal": "teach clearly",
+                                "target_length": "5 minutes",
+                                "material_availability": "existing",
+                                "tone": "clear instructional",
+                            }
+                        ),
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                os.utime(output, (1001.0, 1001.0))
+                repo_doc.write_text("worker should not write docs\n", encoding="utf-8")
+                result_path = root / "result.json"
+                result_path.write_text(
+                    json.dumps(
+                        {
+                            "artifact_role": "route_subagent_result",
+                            "task_id": task["task_id"],
+                            "status": "done",
+                            "outputs": [str(output)],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                verdict = accept_task_result(root / "task.json", result_path, state_out=root / "state.json")
+
+                self.assertFalse(verdict["ok"])
+                self.assertTrue(any("repository guard changed" in err for err in verdict["errors"]))
+                self.assertFalse((root / "state.json").exists())
+        finally:
+            if repo_doc.exists():
+                repo_doc.unlink()
 
     def test_accept_rejects_stale_allowed_output(self):
         with tempfile.TemporaryDirectory() as td:
@@ -252,7 +365,7 @@ class RouteOrchestratorCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            subprocess.run(
+            completed = subprocess.run(
                 [
                     sys.executable,
                     "video_tools.py",
@@ -264,12 +377,13 @@ class RouteOrchestratorCliTest(unittest.TestCase):
                     "--state-out",
                     str(state),
                 ],
-                check=True,
                 cwd=Path(__file__).resolve().parents[1],
                 stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
-            self.assertEqual(_read_json(state)["current_stage"], 1)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertFalse(state.exists())
 
 
 if __name__ == "__main__":

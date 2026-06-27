@@ -76,6 +76,42 @@ def _story_motifs(brief: Mapping[str, Any]) -> list[str]:
     return values
 
 
+def _stage0_child_contracts(brief: Mapping[str, Any]) -> dict:
+    source = brief.get("stage0_child_contracts") if isinstance(brief.get("stage0_child_contracts"), Mapping) else {}
+    video_intent = brief.get("video_intent") if isinstance(brief.get("video_intent"), Mapping) else {}
+    material = (
+        source.get("material")
+        or video_intent.get("material_contract")
+        or brief.get("material_contract")
+        or {}
+    )
+    soundtrack = (
+        source.get("soundtrack")
+        or video_intent.get("soundtrack_contract")
+        or brief.get("soundtrack_contract")
+        or {}
+    )
+    effect = (
+        source.get("effect")
+        or video_intent.get("effect_policy")
+        or brief.get("effect_policy")
+        or {}
+    )
+    subtitle_voiceover = (
+        source.get("subtitle_voiceover")
+        or video_intent.get("subtitle_voiceover_contract")
+        or brief.get("subtitle_voiceover_contract")
+        or {}
+    )
+    contracts = {
+        "material": dict(material) if isinstance(material, Mapping) else {},
+        "soundtrack": dict(soundtrack) if isinstance(soundtrack, Mapping) else {},
+        "effect": dict(effect) if isinstance(effect, Mapping) else {},
+        "subtitle_voiceover": dict(subtitle_voiceover) if isinstance(subtitle_voiceover, Mapping) else {},
+    }
+    return {key: value for key, value in contracts.items() if value}
+
+
 def _story_world(brief: Mapping[str, Any]) -> dict:
     facts = brief.get("facts") if isinstance(brief.get("facts"), Mapping) else {}
     story_seed = _story_seed(brief)
@@ -359,8 +395,21 @@ def build_story_soul_blueprint(brief: Mapping[str, Any]) -> dict:
     concept = _creative_concept(brief, world)
     beats = _screenplay_beats(brief)
     director, needs, generation = _director_and_needs(brief, concept, beats)
+    child_contracts = _stage0_child_contracts(brief)
+    if child_contracts:
+        director["stage0_child_contracts"] = child_contracts
+        if child_contracts.get("material"):
+            needs["stage0_material_contract"] = child_contracts["material"]
+        for shot in director.get("shots") or []:
+            intent = shot.setdefault("director_intent", {})
+            if child_contracts.get("soundtrack"):
+                intent["soundtrack_intent"] = child_contracts["soundtrack"]
+            if child_contracts.get("subtitle_voiceover"):
+                intent["subtitle_voiceover_intent"] = child_contracts["subtitle_voiceover"]
+            if child_contracts.get("effect"):
+                intent["effect_policy"] = child_contracts["effect"]
     checklist = _review_checklist(concept, beats)
-    return {
+    result = {
         "ok": True,
         "errors": [],
         "story_world": world,
@@ -371,6 +420,9 @@ def build_story_soul_blueprint(brief: Mapping[str, Any]) -> dict:
         "generation_manifest": generation,
         "review_checklist": checklist,
     }
+    if child_contracts:
+        result["stage0_child_contracts"] = child_contracts
+    return result
 
 
 def write_story_soul_blueprint(brief: Mapping[str, Any], out_dir: str | Path) -> dict:

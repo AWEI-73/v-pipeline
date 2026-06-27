@@ -270,7 +270,11 @@ class HandoffTest(unittest.TestCase):
         self.assertEqual(h["summary"]["audio_cues"], 1)   # add_cue count
         self.assertEqual(h["summary"]["effect_intents"], 1)
         self.assertEqual(h["artifacts"]["subtitle_patch"], "subtitle_patch.json")
-        self.assertEqual(h["next_action"], "agent_review_and_render_preview")
+        self.assertEqual(h["next_action"], "review_workbench_route_back")
+        self.assertEqual(
+            {item["owner"] for item in h["route_back"]},
+            {"build-planning", "subtitle-director", "audio-director", "effect-factory"},
+        )
 
 
 if __name__ == "__main__":

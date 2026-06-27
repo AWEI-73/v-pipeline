@@ -1,0 +1,169 @@
+{
+  "artifact_role": "effect_backend_conformance",
+  "version": 1,
+  "note": "backend 面(agent 不可讀)。每個 backend 宣告它對 11 roles + 受控 tokens 的 fidelity:ok | degraded | none。這裡是 Remotion / 社群 repo 特效編目的唯一位置;adapter 更新只動本檔,意圖層不動。backend key 對齊 effect_contract.ALLOWED_BACKENDS。recipes 為選配 adapter 提示(role -> 渲染配方/component family),W2 gate 只讀 fidelity,不讀 recipes。",
+  "fidelity_enum": ["ok", "degraded", "none"],
+  "backends": {
+    "ffmpeg_light_effects": {
+      "kind": "deterministic_filter",
+      "roles": {
+        "title_card": "ok",
+        "chapter_transition": "degraded",
+        "lower_third": "ok",
+        "color_grade": "ok",
+        "overlay": "ok",
+        "particle": "none",
+        "light_leak": "degraded",
+        "transition_plate": "degraded",
+        "motion_background": "none",
+        "panel_frame": "degraded",
+        "speed_line": "none"
+      },
+      "tokens": {
+        "paper_texture": "degraded",
+        "timestamp_overlay": "ok",
+        "light_leak": "degraded",
+        "speed_line": "none",
+        "film_grain": "ok",
+        "bokeh": "none",
+        "glow_bloom": "degraded",
+        "dust_particles": "none",
+        "ink_wash": "none",
+        "grid_lines": "ok",
+        "vignette": "ok",
+        "gradient_wipe": "degraded",
+        "handwritten_label": "degraded",
+        "spotlight": "degraded",
+        "chromatic_aberration": "degraded"
+      },
+      "recipes": {
+        "title_card": "drawtext_fade",
+        "lower_third": "drawbox_drawtext",
+        "color_grade": "eq_colorbalance",
+        "overlay": "overlay_filter"
+      }
+    },
+    "motion_graphics": {
+      "kind": "template_recipe",
+      "roles": {
+        "title_card": "ok",
+        "chapter_transition": "ok",
+        "lower_third": "ok",
+        "color_grade": "degraded",
+        "overlay": "ok",
+        "particle": "degraded",
+        "light_leak": "ok",
+        "transition_plate": "ok",
+        "motion_background": "ok",
+        "panel_frame": "ok",
+        "speed_line": "ok"
+      },
+      "tokens": {
+        "paper_texture": "ok",
+        "timestamp_overlay": "ok",
+        "light_leak": "ok",
+        "speed_line": "ok",
+        "film_grain": "degraded",
+        "bokeh": "ok",
+        "glow_bloom": "ok",
+        "dust_particles": "degraded",
+        "ink_wash": "ok",
+        "grid_lines": "ok",
+        "vignette": "ok",
+        "gradient_wipe": "ok",
+        "handwritten_label": "ok",
+        "spotlight": "ok",
+        "chromatic_aberration": "degraded"
+      },
+      "recipes": {
+        "title_card": "title_fade",
+        "lower_third": "lower_third_clean",
+        "chapter_transition": "section_label",
+        "transition_plate": "section_label"
+      }
+    },
+    "remotion_preview": {
+      "kind": "prompt_driven_react_draft",
+      "non_canonical": true,
+      "requires_review_before_composite": true,
+      "roles": {
+        "title_card": "ok",
+        "chapter_transition": "ok",
+        "lower_third": "ok",
+        "color_grade": "degraded",
+        "overlay": "ok",
+        "particle": "ok",
+        "light_leak": "ok",
+        "transition_plate": "ok",
+        "motion_background": "ok",
+        "panel_frame": "ok",
+        "speed_line": "ok"
+      },
+      "tokens": {
+        "paper_texture": "ok",
+        "timestamp_overlay": "ok",
+        "light_leak": "ok",
+        "speed_line": "ok",
+        "film_grain": "ok",
+        "bokeh": "ok",
+        "glow_bloom": "ok",
+        "dust_particles": "ok",
+        "ink_wash": "ok",
+        "grid_lines": "ok",
+        "vignette": "ok",
+        "gradient_wipe": "ok",
+        "handwritten_label": "ok",
+        "spotlight": "ok",
+        "chromatic_aberration": "degraded"
+      },
+      "recipes": {
+        "title_card": "remotion_component_family:title",
+        "chapter_transition": "remotion_component_family:transition",
+        "particle": "remotion_component_family:particle",
+        "motion_background": "remotion_component_family:background"
+      }
+    },
+    "remotion_render": {
+      "kind": "prompt_driven_react_full",
+      "non_canonical": true,
+      "requires_review_before_composite": true,
+      "roles": {
+        "title_card": "ok",
+        "chapter_transition": "ok",
+        "lower_third": "ok",
+        "color_grade": "ok",
+        "overlay": "ok",
+        "particle": "ok",
+        "light_leak": "ok",
+        "transition_plate": "ok",
+        "motion_background": "ok",
+        "panel_frame": "ok",
+        "speed_line": "ok"
+      },
+      "tokens": {
+        "paper_texture": "ok",
+        "timestamp_overlay": "ok",
+        "light_leak": "ok",
+        "speed_line": "ok",
+        "film_grain": "ok",
+        "bokeh": "ok",
+        "glow_bloom": "ok",
+        "dust_particles": "ok",
+        "ink_wash": "ok",
+        "grid_lines": "ok",
+        "vignette": "ok",
+        "gradient_wipe": "ok",
+        "handwritten_label": "ok",
+        "spotlight": "ok",
+        "chromatic_aberration": "ok"
+      },
+      "recipes": {
+        "title_card": "remotion_component_family:title",
+        "chapter_transition": "remotion_component_family:transition",
+        "particle": "remotion_component_family:particle",
+        "motion_background": "remotion_component_family:background",
+        "panel_frame": "remotion_component_family:frame"
+      }
+    }
+  }
+}

@@ -162,7 +162,8 @@ body {
 
 /* --- SIDEBAR CONTENT LIBRARY --- */
 .wb-materials {
-  width: 300px;
+  flex: 0 0 clamp(280px, 17vw, 360px);
+  width: auto;
   background: var(--panel);
   border-right: 1px solid var(--border);
   display: flex;
@@ -224,6 +225,9 @@ body {
 .material-card > div { min-width: 0; }
 .material-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
 .material-card.selected { outline: 2px solid var(--accent); }
+.material-card.match-accepted { border-left: 4px solid #16a34a; }
+.material-card.match-candidate { border-left: 4px solid #f59e0b; }
+.material-card.match-other { border-left: 4px solid #cbd5e1; opacity: 0.88; }
 .material-thumb {
   width: 70px;
   height: 48px;
@@ -272,9 +276,9 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border);
   aspect-ratio: 16 / 9;
-  width: min(100%, 820px);
+  width: min(100%, clamp(520px, 54vw, 1040px), max(420px, calc((100vh - 456px) * 16 / 9)));
   max-height: 100%;
-  max-width: 640px;
+  max-width: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -427,8 +431,8 @@ body {
 
 /* --- INSPECTOR --- */
 .wb-inspector {
-  flex: 0 0 300px;
-  width: 300px;
+  flex: 0 0 clamp(300px, 18vw, 380px);
+  width: auto;
   background: var(--panel);
   border-left: 1px solid var(--border);
   padding: 16px;
@@ -628,6 +632,14 @@ body {
 }
 .track-tools button:hover { border-color: var(--accent); }
 .track-hint { color: var(--muted); font-size: 11px; }
+.track-tools select {
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--panel);
+  color: var(--text);
+}
 
 .cue-marker, .fx-marker {
   position: absolute;

@@ -252,3 +252,53 @@ Formal `contract-run` must write `material_coverage_map.json` and
 `supply_review.json`, then pass supply evidence into the tier-1 B6 spec gate
 before `mv_chain`. A script that exceeds evidenced material supply must route to
 shorten/merge, await material, or reshoot before rendering.
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "spec-contract",
+  "stage_owner": "spec_build_contract_boundary",
+  "triggers": [
+    "需要驗證 segment contract、build profile、boundary fixture 或 no-render build smoke",
+    "SPEC 到 BUILD 的契約邊界需要小步測試"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/boundary_smoke.py",
+      "when": "用既有 verify_fn/lifecycle source of truth 跑單一邊界 smoke",
+      "inputs": ["boundary fixture directory"],
+      "outputs": ["boundary_report.json"],
+      "stop_if": ["gate_status is fail or expected artifact is missing"]
+    },
+    {
+      "tool": "tools/stage4_build_smoke.py",
+      "when": "驗證 BUILD stage no-render handoff、timeline/build invariants",
+      "inputs": ["build-ready fixture or run folder"],
+      "outputs": ["stage4_build_smoke_report.json"],
+      "stop_if": ["timeline/build invariant fails"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/boundary_fixture_hub.py",
+      "when": "管理或產生 boundary fixture hub index",
+      "inputs": ["fixture root"],
+      "outputs": ["fixture hub report/index"],
+      "stop_if": ["fixture schema invalid"]
+    },
+    {
+      "tool": "tools/m6e_acceptance.py",
+      "when": "驗證 M6e contract/build acceptance path",
+      "inputs": ["M6e fixture"],
+      "outputs": ["M6e acceptance report"],
+      "stop_if": ["contract/build gate diverges"]
+    }
+  ],
+  "forbidden_tools": [
+    "Do not run final render from a boundary smoke",
+    "Do not treat dry-build success as visual delivery success",
+    "Do not bypass spec-review or supply-review findings"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->

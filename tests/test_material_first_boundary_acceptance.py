@@ -148,6 +148,51 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             self.assertEqual(restored["artifact_role"], "material_wall_review_verdict")
             self.assertTrue((run_dir / "material_first_boundary_acceptance_report.json").exists())
 
+    def test_acceptance_report_carries_stage0_contracts_when_video_intent_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = _source_folder(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            (run_dir / "video_intent.json").write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "material_contract": {
+                    "first_action": "material_map_quick_inventory",
+                },
+                "soundtrack_contract": {
+                    "music_role": "mixed",
+                    "handoff_to": "soundtrack-arranger",
+                },
+                "effect_policy": {
+                    "activation": "defer_to_brownfield_or_segment_review",
+                },
+                "subtitle_voiceover_contract": {
+                    "artifact_role": "stage0_subtitle_voiceover_intent",
+                    "language": "zh-TW",
+                    "subtitle_required": True,
+                    "voiceover_required": False,
+                    "handoff_to": "subtitle-director",
+                },
+            }), encoding="utf-8")
+            verdict = run_dir / "material_wall_review_verdict.json"
+            _write_verdict(verdict)
+
+            result = run_material_first_boundary_acceptance(
+                run_dir,
+                source_dir=source,
+                wall_verdict=verdict,
+                max_assets=5,
+            )
+
+            self.assertTrue(result["ok"], result)
+            report = result["report"]
+            self.assertEqual(report["stage0_contracts"]["material"]["first_action"], "material_map_quick_inventory")
+            self.assertEqual(report["stage0_contracts"]["soundtrack"]["music_role"], "mixed")
+            self.assertEqual(report["stage0_contracts"]["effect"]["activation"], "defer_to_brownfield_or_segment_review")
+            self.assertEqual(report["stage0_contracts"]["subtitle_voiceover"]["language"], "zh-TW")
+            self.assertEqual(report["stage0_contracts"]["subtitle_voiceover"]["handoff_to"], "subtitle-director")
+
     def test_cli_outputs_json_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

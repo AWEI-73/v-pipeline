@@ -5,6 +5,82 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
 
 # Subtitle Director Skill
 
+## Current Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "subtitle-director",
+  "stage_owner": "subtitle_voiceover_handoff",
+  "triggers": [
+    "subtitle_voiceover_contract requires subtitles, caption readability, narration, or voiceover evidence",
+    "subtitles.srt, caption_audit.json, or narration_manifest.json must be accepted before BUILD"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/subtitle_voiceover_handoff_accept.py",
+      "when": "accept subtitle/voiceover evidence into subtitle_voiceover_handoff_acceptance.json and subtitle_voiceover_build_handoff.json without rendering video",
+      "inputs": ["subtitle_voiceover_contract", "subtitles.srt", "caption_audit.json", "narration_manifest.json"],
+      "outputs": ["subtitle_voiceover_handoff_acceptance.json", "subtitle_voiceover_build_handoff.json"],
+      "stop_if": ["required subtitles missing", "caption audit failed or missing", "required voiceover has no narration manifest", "voiceover audio refs are missing"]
+    }
+  ],
+  "supporting_tools": [
+    {
+      "tool": "tools/subtitle_patch.py",
+      "when": "apply reviewed Workbench subtitle text/timing patches without overwriting canonical SRT",
+      "inputs": ["review_subtitles.srt", "subtitles.srt", "subtitle_patch.json"],
+      "outputs": ["patched_draft_subtitles.json"],
+      "stop_if": ["subtitle id is invalid", "patch would overwrite source subtitle file"]
+    }
+  ],
+  "forbidden_tools": [
+    "Do not render final.mp4 from Subtitle Director",
+    "Do not burn subtitles in the handoff acceptance step",
+    "Do not synthesize TTS from subtitle handoff acceptance"
+  ]
+}
+<!-- TOOL_CONTRACT_END -->
+
+Use this skill when the route needs subtitles, subtitle readability evidence,
+or voiceover/narration evidence after Stage 0/2 declares
+`subtitle_voiceover_contract`.
+
+Canonical no-render handoff:
+
+```powershell
+python tools\subtitle_voiceover_handoff_accept.py `
+  --contract RUN_DIR\subtitle_voiceover_contract.json `
+  --caption-audit RUN_DIR\caption_audit.json `
+  --subtitles RUN_DIR\subtitles.srt `
+  --narration-manifest RUN_DIR\narration_manifest.json `
+  --out-dir RUN_DIR `
+  --json
+```
+
+Inputs:
+
+- `subtitle_voiceover_contract` or equivalent Stage 0 contract
+- `subtitles.srt` when subtitles are required
+- `caption_audit.json` with `pass=true` when subtitles are required
+- `narration_manifest.json` with existing voiceover audio refs when voiceover is required
+
+Outputs:
+
+- `subtitle_voiceover_handoff_acceptance.json`
+- `subtitle_voiceover_build_handoff.json`
+
+Stop if:
+
+- required subtitles are missing
+- `caption_audit.json` is missing or failed
+- required voiceover has no narration manifest
+- narration manifest does not reference existing audio files
+
+Do not render `final.mp4`, burn subtitles, or synthesize TTS from this handoff
+step. TTS/audio execution belongs to `audio-director`; final subtitle burn-in
+belongs to BUILD/render after this handoff is accepted.
+
 字幕師負責影片字幕的生成與燒入。  
 **核心原則：字幕時間軸由 TTS 決定，不是反過來**。  
 路線 A（text-driven）下，TTS 是 ground truth，字幕師只是把 tts_timing.json 翻譯成 SRT。

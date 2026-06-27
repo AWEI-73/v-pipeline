@@ -79,6 +79,8 @@ class WorkbenchServerTest(unittest.TestCase):
     def test_get_preview_timeline_and_workbench_html(self):
         html = urllib.request.urlopen(self.url("/workbench")).read().decode("utf-8")
         self.assertIn("Hermes 原生剪輯工作區", html)
+        self.assertIn("素材", html)
+        self.assertIn("特效", html)
 
         payload = json.loads(urllib.request.urlopen(
             self.url("/api/workbench/preview-timeline")
@@ -89,6 +91,26 @@ class WorkbenchServerTest(unittest.TestCase):
         asset = next(a for a in payload["material_assets"] if a["asset_id"] == "b0")
         self.assertEqual(asset["scenes"][0]["start_sec"], 3.0)
         self.assertEqual(asset["scenes"][0]["end_sec"], 6.0)
+
+    def test_preview_timeline_projects_scene_satisfies_edges_for_replacement_candidates(self):
+        data = json.loads((self.root / "project_material_map.json").read_text(encoding="utf-8"))
+        data["assets"][1]["scenes"].append({
+            "start": 6.0,
+            "end": 8.0,
+            "caption": "closing group",
+            "satisfies": [{"need_id": "closing", "status": "accepted"}],
+        })
+        _write_json(self.root / "project_material_map.json", data)
+
+        payload = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/preview-timeline")
+        ).read().decode("utf-8"))
+
+        asset = next(a for a in payload["material_assets"] if a["asset_id"] == "b0")
+        self.assertEqual(asset["scenes"][1]["scene_index"], 1)
+        self.assertEqual(asset["scenes"][1]["need_ids"], ["closing"])
+        self.assertEqual(asset["scenes"][1]["statuses"], ["accepted"])
+        self.assertEqual(asset["scenes"][1]["satisfies"][0]["need_id"], "closing")
 
     def test_workbench_health_endpoint_reports_root_and_contract(self):
         payload = json.loads(urllib.request.urlopen(
@@ -304,12 +326,45 @@ class WorkbenchServerTest(unittest.TestCase):
     def test_stage_media_css_uses_fixed_monitor_box(self):
         css = (Path(__file__).resolve().parent.parent / "dashboard" /
                "workbench_native" / "workbench.css").read_text(encoding="utf-8")
+        monitor_start = css.index(".wb-monitor {")
+        monitor_block = css[monitor_start:css.index("}", monitor_start)]
+        monitor_lines = {line.strip() for line in monitor_block.splitlines()}
+        self.assertIn("aspect-ratio: 16 / 9;", monitor_lines)
+        self.assertIn("width: min(100%, clamp(520px, 54vw, 1040px), max(420px, calc((100vh - 456px) * 16 / 9)));", monitor_lines)
+        self.assertIn("max-height: 100%;", monitor_lines)
+        self.assertIn("max-width: 100%;", monitor_lines)
+        self.assertIn("overflow: hidden;", monitor_lines)
+        self.assertNotIn("max-width: 640px;", monitor_lines)
+
+        materials_start = css.index(".wb-materials {")
+        materials_block = css[materials_start:css.index("}", materials_start)]
+        materials_lines = {line.strip() for line in materials_block.splitlines()}
+        self.assertIn("flex: 0 0 clamp(280px, 17vw, 360px);", materials_lines)
+
+        inspector_start = css.index(".wb-inspector {")
+        inspector_block = css[inspector_start:css.index("}", inspector_start)]
+        inspector_lines = {line.strip() for line in inspector_block.splitlines()}
+        self.assertIn("flex: 0 0 clamp(300px, 18vw, 380px);", inspector_lines)
+
         start = css.index(".wb-monitor img,\n.wb-monitor video")
         block = css[start:css.index("}", start)]
         lines = {line.strip() for line in block.splitlines()}
         self.assertIn("width: 100%;", lines)
         self.assertIn("height: 100%;", lines)
         self.assertIn("object-fit: contain;", block)
+
+        timeline_start = css.index(".timeline-scroll {")
+        timeline_block = css[timeline_start:css.index("}", timeline_start)]
+        timeline_lines = {line.strip() for line in timeline_block.splitlines()}
+        self.assertIn("overflow-x: auto;", timeline_lines)
+        self.assertIn("overflow-y: auto;", timeline_lines)
+
+        track_start = css.index(".track-lane {")
+        track_block = css[track_start:css.index("}", track_start)]
+        track_lines = {line.strip() for line in track_block.splitlines()}
+        self.assertIn("position: relative;", track_lines)
+        self.assertIn("height: 32px;", track_lines)
+        self.assertIn("overflow: hidden;", track_lines)
 
     # ------------------------------------------------------------------ #
     # NPE4 editorial runtime tracks (save-all + boundaries)
