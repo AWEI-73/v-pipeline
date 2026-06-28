@@ -527,10 +527,28 @@ def _timeline_clips(timeline_build: Any) -> list[dict[str, Any]]:
     return [clip for clip in candidates if isinstance(clip, dict)]
 
 
-def _source_quality_blocking(timeline_build: Any) -> list[dict[str, Any]]:
+def _safe_single_source_highlight(artifacts: Any) -> bool:
+    if not isinstance(artifacts, dict):
+        return False
+    contract = artifacts.get("segment_contract") or artifacts.get("contract") or {}
+    highlight_report = artifacts.get("highlight_cut_report") or {}
+    if not isinstance(contract, dict) or not isinstance(highlight_report, dict):
+        return False
+    return (
+        contract.get("mode") == "single_source_highlight"
+        and highlight_report.get("artifact_role") == "highlight_cut_report"
+        and highlight_report.get("strategy") == "safe_reencode_highlight"
+        and highlight_report.get("source_artifact") == "rough_cut_plan"
+        and highlight_report.get("stream_copy") is False
+        and int(highlight_report.get("window_count") or 0) > 0
+    )
+
+
+def _source_quality_blocking(timeline_build: Any, artifacts: Any = None) -> list[dict[str, Any]]:
     clips = _timeline_clips(timeline_build)
     if len(clips) < 2:
         return []
+    allow_single_source_highlight = _safe_single_source_highlight(artifacts)
 
     by_source: dict[str, dict[str, Any]] = {}
     total_duration = 0.0
@@ -573,7 +591,11 @@ def _source_quality_blocking(timeline_build: Any) -> list[dict[str, Any]]:
                 ),
                 "next_action": "revise_material_selection_or_review",
             })
-        if count > 2 and (count_ratio > 0.50 or duration_ratio >= 0.35):
+        if (
+            not allow_single_source_highlight
+            and count > 2
+            and (count_ratio > 0.50 or duration_ratio >= 0.35)
+        ):
             blocking.append({
                 "rule": "repeated_source_over_limit",
                 "tier": 1,
@@ -1345,7 +1367,7 @@ def evaluate_delivery_gate(artifacts):
     )
     material_ready = delta_ready or lifecycle_ready
     blocking.extend(_stage0_child_contract_blocks(artifacts or {}))
-    blocking.extend(_source_quality_blocking((artifacts or {}).get("timeline_build")))
+    blocking.extend(_source_quality_blocking((artifacts or {}).get("timeline_build"), artifacts or {}))
     blocking.extend(_timeline_material_contract_blocks(
         (artifacts or {}).get("timeline_build"),
         (artifacts or {}).get("segment_contract") or (artifacts or {}).get("contract"),

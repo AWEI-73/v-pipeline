@@ -546,6 +546,20 @@ Use `--source ... --windows ...` only when a human/Workbench has already
 exported a standalone windows file. The `--rough-cut-plan` path is the default
 material-first handoff because it preserves segment labels and source windows.
 
+Single-source highlight policy:
+
+- A single source does not become multi-material after cutting. It remains a
+  single-source lineage with multiple accepted time windows.
+- For `segment_contract.mode=single_source_highlight`, delivery may allow
+  repeated source usage only when `highlight_cut_report.json` proves a safe
+  re-encoded cut from `rough_cut_plan.json`.
+- This route judges temporal diversity and required anchor coverage, not source
+  diversity. Anchors such as a named person, ceremony moment, bridge shot,
+  group photo, or required event must be explicit `material_needs`.
+- Intentional replay or emphasis repetition must be marked in the rough cut with
+  a repeat policy and reason. Unmarked repetition is treated as fatigue or
+  material shortage, not design.
+
 Generated candidate branch:
 
 ```powershell

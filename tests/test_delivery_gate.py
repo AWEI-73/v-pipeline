@@ -121,6 +121,30 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         self.assertEqual(result["blocking"][0]["rule"], "repeated_source_over_limit")
 
+    def test_single_source_highlight_with_safe_cut_report_allows_repeated_source(self):
+        result = evaluate_delivery_gate({
+            "verify_result": {"pass": True},
+            "segment_contract": {
+                "artifact_role": "segment_contract",
+                "mode": "single_source_highlight",
+            },
+            "highlight_cut_report": {
+                "artifact_role": "highlight_cut_report",
+                "strategy": "safe_reencode_highlight",
+                "source_artifact": "rough_cut_plan",
+                "stream_copy": False,
+                "window_count": 3,
+            },
+            "timeline_build": {"clips": [
+                {"segment": 1, "source_path": "raw_a.webm", "duration_sec": 20},
+                {"segment": 2, "source_path": "raw_a.webm", "duration_sec": 20},
+                {"segment": 3, "source_path": "raw_a.webm", "duration_sec": 20},
+            ]},
+        })
+
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["blocking"], [])
+
     def test_rough_cut_plan_gaps_block_delivery(self):
         result = evaluate_delivery_gate({
             "verify_result": {"pass": True},

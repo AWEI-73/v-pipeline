@@ -116,6 +116,13 @@ strategy must be backed by a Python tool in this skill contract.
 Future presets may add faster draft copy modes, but they must declare their
 limits and report artifacts before agents use them.
 
+Single-source highlight is not source diversity. It remains one source with
+multiple accepted time windows. In that mode, judge temporal diversity and
+explicit anchor coverage instead of repeated source count. If an edit repeats
+the same moment for emphasis, the rough cut must carry an intentional repeat
+policy with a reason such as `emphasis`, `rhythm_hit`, or `dramatic_replay`.
+Unmarked repetition remains a fatigue/material-shortage signal.
+
 ## 唯一入口:lifecycle runner(不要手動拼工具)
 
 ```
