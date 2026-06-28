@@ -138,6 +138,31 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "effect_factory_parameter_review")
             self.assertEqual(summary["next"], "visual-technique-plan")
 
+    def test_whole_video_deferred_effect_hint_preserves_material_first_mainline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "route": "material-first",
+                "semantic_route_hint": "effect-factory",
+                "effect_policy": {
+                    "artifact_role": "stage0_effect_policy",
+                    "status": "requested",
+                    "activation": "defer_to_brownfield_or_segment_review",
+                    "required_now": False,
+                    "handoff_to": "video-effect-factory_when_segment_requires_effect",
+                },
+                "required_followup_questions": [
+                    "Which section needs the effect, and what story function should it serve?"
+                ],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage2_material_map")
+            self.assertEqual(summary["next"], "material-map lifecycle / material acquisition")
+
     def test_needs_context_with_route_hint_does_not_bypass_waiting_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
@@ -153,6 +178,23 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["mode"], "waiting")
             self.assertEqual(summary["cursor"], "stage0_video_intent")
             self.assertIn("route hint held for later", summary["reason"])
+
+    def test_needs_context_with_empty_questions_still_does_not_bypass_waiting_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "needs-context",
+                "route": "needs-context",
+                "semantic_route_hint": "final-review",
+                "required_followup_questions": [],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "stage0_video_intent")
+            self.assertEqual(summary["next"], "ask_followup_questions")
+            self.assertIn("needs context", summary["reason"])
 
     def test_story_blueprint_routes_to_material_map(self):
         with tempfile.TemporaryDirectory() as tmp:

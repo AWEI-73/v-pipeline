@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -16,20 +17,24 @@ def _lower_text(*values: Any) -> str:
     return " ".join(_clean(v).lower() for v in values if _clean(v))
 
 
+def _has_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
 def _detect_video_type(brief: dict[str, Any]) -> str | None:
     explicit = _clean(brief.get("video_type") or brief.get("type"))
     if explicit:
         return explicit
     text = _lower_text(brief.get("request"), brief.get("goal"), brief.get("tone"))
-    if any(k in text for k in ("teaching", "tutorial", "lesson", "screen recording")):
+    if _has_any(text, ("teaching", "tutorial", "lesson", "screen recording", "教學", "課程")):
         return "teaching"
-    if any(k in text for k in ("storybook", "children", "comic", "picture book")):
+    if _has_any(text, ("storybook", "children", "comic", "picture book", "童話", "兒童故事", "繪本", "灰姑娘", "白雪公主")):
         return "storybook"
-    if any(k in text for k in ("graduation", "event recap", "結訓", "畢業", "典禮")):
+    if _has_any(text, ("graduation", "event recap", "結訓", "養成班", "活動回顧", "結訓回顧")):
         return "graduation-event"
-    if any(k in text for k in ("brand", "product")):
+    if _has_any(text, ("brand", "product", "品牌", "產品")):
         return "brand-product"
-    if any(k in text for k in ("memory", "personal")):
+    if _has_any(text, ("memory", "personal", "回憶", "紀念")):
         return "personal-memory"
     return None
 
@@ -44,11 +49,44 @@ def _detect_semantic_route_hint(brief: dict[str, Any]) -> str | None:
     if explicit:
         return explicit.replace("_", "-").lower()
     text = _lower_text(brief.get("request"), brief.get("goal"), brief.get("task"))
-    if any(k in text for k in ("effect only", "opening effect", "transition effect", "lower third", "特效", "轉場", "開場特效")):
+    effect_only_terms = (
+        "effect only",
+        "only the effect",
+        "opening effect only",
+        "transition effect only",
+        "lower third only",
+        "只做特效",
+        "只做一個",
+        "單獨做特效",
+        "只要開場特效",
+        "只做開場特效",
+        "只做轉場特效",
+    )
+    standalone_effect_terms = ("opening effect", "transition effect", "lower third", "開場特效", "轉場特效", "下標")
+    whole_video_terms = (
+        "whole video",
+        "full video",
+        "recap",
+        "film",
+        "movie",
+        "story",
+        "footage",
+        "material",
+        "clip",
+        "剪一支",
+        "剪一部",
+        "整支影片",
+        "整部影片",
+        "影片",
+        "素材",
+        "回顧",
+        "故事",
+    )
+    if _has_any(text, effect_only_terms) or (_has_any(text, standalone_effect_terms) and not _has_any(text, whole_video_terms)):
         return "effect-factory"
-    if any(k in text for k in ("rough cut", "draft edit", "brownfield", "workbench", "修改粗剪", "草稿剪輯")):
+    if _has_any(text, ("rough cut", "draft edit", "brownfield", "workbench", "粗剪", "草稿", "換素材", "剪輯工作檯")):
         return "brownfield-edit"
-    if any(k in text for k in ("review final", "existing final", "verify final", "delivery review", "審片", "成片 review", "檢查成片")):
+    if _has_any(text, ("review final", "existing final", "verify final", "delivery review", "檢查成片", "審核成片", "驗證成片", "最終檢查")):
         return "final-review"
     return None
 
@@ -70,10 +108,10 @@ def _detect_music_role(brief: dict[str, Any]) -> str:
         brief.get("soundtrack"),
         brief.get("music"),
     )
-    if any(k in text for k in ("no music", "without music", "silent")):
+    if _has_any(text, ("no music", "without music", "silent", "不要音樂", "無音樂")):
         return "none"
-    wants_song = any(k in text for k in ("song", "vocal", "pop", "lyrics", "singing"))
-    wants_bgm = any(k in text for k in ("bgm", "background music", "instrumental", "score", "soundtrack", "music"))
+    wants_song = _has_any(text, ("song", "vocal", "pop", "lyrics", "singing", "歌曲", "流行歌", "人聲歌", "歌詞"))
+    wants_bgm = _has_any(text, ("bgm", "background music", "instrumental", "score", "soundtrack", "music", "配樂", "背景音樂", "純音樂", "音樂", "mv"))
     if wants_song and wants_bgm:
         return "mixed"
     if wants_song:
@@ -84,8 +122,8 @@ def _detect_music_role(brief: dict[str, Any]) -> str:
 
 
 def _detect_energy_intent(text: str) -> str:
-    has_warm = any(k in text for k in ("warm", "emotional", "moving", "soft", "gentle", "感人", "溫馨"))
-    has_high = any(k in text for k in ("hot-blooded", "energetic", "high energy", "mv", "climax", "熱血", "澎湃"))
+    has_warm = _has_any(text, ("warm", "emotional", "moving", "soft", "gentle", "溫馨", "感人", "溫暖", "柔和", "含蓄"))
+    has_high = _has_any(text, ("hot-blooded", "energetic", "high energy", "mv", "climax", "熱血", "澎湃", "節奏", "高潮"))
     if has_warm and has_high:
         return "warm_to_high"
     if has_high:
@@ -96,7 +134,7 @@ def _detect_energy_intent(text: str) -> str:
 
 
 def _detect_speech_preservation(text: str) -> tuple[str, str]:
-    if any(k in text for k in ("director speech", "speech", "interview", "voiceover", "keep voice", "preserve speech", "長官", "主任", "致詞", "口白")):
+    if _has_any(text, ("director speech", "speech", "interview", "voiceover", "keep voice", "preserve speech", "主任勉勵", "致詞", "訪談", "旁白", "保留聲音")):
         return "required", "duck_under_voice"
     return "preserve_if_detected", "duck_under_voice"
 
@@ -114,7 +152,7 @@ def _soundtrack_contract(brief: dict[str, Any]) -> dict[str, Any]:
     )
     if music_role == "song":
         vocal_policy = "vocal_ok"
-    elif music_role in {"bgm", "mixed"} and any(k in text for k in ("instrumental", "no vocal", "no vocals")):
+    elif music_role in {"bgm", "mixed"} and _has_any(text, ("instrumental", "no vocal", "no vocals", "純音樂", "不要人聲")):
         vocal_policy = "instrumental_preferred"
     elif music_role == "mixed":
         vocal_policy = "section_dependent"
@@ -123,9 +161,7 @@ def _soundtrack_contract(brief: dict[str, Any]) -> dict[str, Any]:
     else:
         vocal_policy = "unknown"
 
-    requested = music_role != "unsure" or any(
-        k in text for k in ("music", "soundtrack", "bgm", "song", "mv")
-    )
+    requested = music_role != "unsure" or _has_any(text, ("music", "soundtrack", "bgm", "song", "mv", "音樂", "配樂", "歌曲", "流行歌"))
     followups: list[str] = []
     if requested and music_role == "unsure":
         followups.append("Should the soundtrack use songs with vocals, instrumental BGM, mixed sections, or no music?")
@@ -177,10 +213,22 @@ def _effect_policy(brief: dict[str, Any], semantic_route_hint: str | None) -> di
         "heart",
         "photo wall",
         "memory wall",
+        "特效",
+        "轉場",
+        "開場",
+        "標題",
+        "高亮",
+        "櫻花",
+        "閃電",
+        "火焰",
+        "愛心",
+        "照片牆",
+        "回憶牆",
     )
-    requested = semantic_route_hint == "effect-factory" or any(k in text for k in effect_terms)
-    bounded_only = semantic_route_hint == "effect-factory" and not any(
-        k in text for k in ("whole video", "full video", "recap", "film", "story")
+    requested = semantic_route_hint == "effect-factory" or _has_any(text, effect_terms)
+    bounded_only = semantic_route_hint == "effect-factory" and not _has_any(
+        text,
+        ("whole video", "full video", "recap", "film", "story", "整支影片", "整部影片", "回顧", "影片", "故事"),
     )
     if bounded_only:
         activation = "route_to_effect_factory"
@@ -226,9 +274,9 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     )
     if explicit_language:
         language = explicit_language
-    elif any(k in text for k in ("zh-tw", "traditional chinese", "chinese", "中文", "繁體")):
+    elif _has_any(text, ("zh-tw", "traditional chinese", "chinese", "中文", "繁體中文")):
         language = "zh-TW"
-    elif any(k in text for k in ("english", "en-us")):
+    elif _has_any(text, ("english", "en-us", "英文")):
         language = "en"
     else:
         language = "unknown"
@@ -237,7 +285,7 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     if explicit_subtitle is None:
         explicit_subtitle = brief.get("subtitles_required")
     if explicit_subtitle is None:
-        subtitle_required = not any(k in text for k in ("no subtitle", "no subtitles", "without subtitle", "不要字幕"))
+        subtitle_required = not _has_any(text, ("no subtitle", "no subtitles", "without subtitle", "不要字幕", "無字幕"))
     else:
         subtitle_required = bool(explicit_subtitle)
 
@@ -245,13 +293,13 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     if explicit_voiceover is None:
         explicit_voiceover = brief.get("narration_required")
     if explicit_voiceover is None:
-        voiceover_required = any(k in text for k in ("voiceover", "narration", "narrator", "旁白", "口白"))
+        voiceover_required = _has_any(text, ("voiceover", "narration", "narrator", "旁白", "口白", "配音"))
     else:
         voiceover_required = bool(explicit_voiceover)
 
     if voiceover_required:
         narration_policy = "required"
-    elif any(k in text for k in ("no narration", "no voiceover", "不要旁白", "不要口白")):
+    elif _has_any(text, ("no narration", "no voiceover", "不要旁白", "不要口白", "無旁白", "無口白")):
         narration_policy = "none"
     else:
         narration_policy = "optional"
@@ -269,7 +317,7 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
         language != "unknown"
         or subtitle_required
         or voiceover_required
-        or any(k in text for k in ("subtitle", "subtitles", "voiceover", "narration", "字幕", "旁白", "口白"))
+        or _has_any(text, ("subtitle", "subtitles", "voiceover", "narration", "字幕", "旁白", "口白", "配音"))
     )
     return {
         "artifact_role": "stage0_subtitle_voiceover_intent",
@@ -290,11 +338,11 @@ def _detect_material_availability(brief: dict[str, Any]) -> str | None:
     explicit = _clean(brief.get("material_availability") or brief.get("material_mode"))
     if explicit:
         text = explicit.lower()
-        if text in {"existing-material-first", "existing", "available", "has_material"}:
+        if text in {"existing-material-first", "existing", "available", "has_material", "有素材", "已有素材"}:
             return "existing"
-        if text in {"story-first", "none", "no_material", "zero"}:
+        if text in {"story-first", "none", "no_material", "zero", "沒有素材", "無素材", "沒素材"}:
             return "none"
-        if text in {"hybrid", "partial", "some"}:
+        if text in {"hybrid", "partial", "some", "部分素材", "有些素材"}:
             return "partial"
     text = _lower_text(
         brief.get("request"),
@@ -302,11 +350,34 @@ def _detect_material_availability(brief: dict[str, Any]) -> str | None:
         brief.get("material_quality"),
         brief.get("materials"),
     )
-    if any(k in text for k in ("no material", "without material", "none")):
+    if _has_any(text, ("no material", "without material", "none", "沒有素材", "無素材", "沒素材", "沒有圖片", "沒有影片", "沒圖片", "沒影片")):
         return "none"
-    if any(k in text for k in ("some material", "partial", "some gaps", "gap")):
+    if _has_any(text, ("some material", "partial", "some gaps", "gap", "部分素材", "有些素材", "素材不足", "素材缺口", "有一些素材")):
         return "partial"
-    if any(k in text for k in ("screen recording", "footage", "photos", "materials")):
+    has_existing_material_phrase = _has_any(text, (
+        "screen recording",
+        "footage",
+        "photos",
+        "materials",
+        "有素材",
+        "已有素材",
+        "手上有素材",
+        "素材在",
+        "素材給我",
+        "有一些影片",
+        "有些影片",
+        "一堆影片",
+        "多支影片",
+        "我的影片",
+        "剪輯我的影片",
+        "有照片",
+        "一些照片",
+        "照片和影片",
+        "照片/影片",
+        "照片影片",
+    ))
+    has_single_clip_phrase = re.search(r"有一[支段].{0,12}影片", text) is not None
+    if has_existing_material_phrase or has_single_clip_phrase:
         return "existing"
     return None
 
@@ -315,9 +386,9 @@ def _detect_text_availability(brief: dict[str, Any]) -> str:
     explicit = _clean(brief.get("text_availability") or brief.get("text_state"))
     if explicit:
         text = explicit.lower()
-        if text in {"article", "outline", "brief", "script", "story", "idea_text"}:
+        if text in {"article", "outline", "brief", "script", "story", "idea_text", "文章", "大綱", "腳本", "故事"}:
             return text
-        if text in {"none", "no_text", "unknown"}:
+        if text in {"none", "no_text", "unknown", "沒有文字", "無文字"}:
             return text
     text = _lower_text(
         brief.get("request"),
@@ -326,7 +397,7 @@ def _detect_text_availability(brief: dict[str, Any]) -> str:
         brief.get("script"),
         brief.get("story"),
     )
-    if any(k in text for k in ("article", "outline", "script", "story", "essay", "brief")):
+    if _has_any(text, ("article", "outline", "script", "story", "essay", "brief", "文章", "大綱", "腳本", "故事", "童話", "灰姑娘", "白雪公主")):
         return "brief"
     return "none"
 

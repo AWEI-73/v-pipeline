@@ -229,6 +229,46 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertFalse(policy["required_now"])
         self.assertEqual(policy["handoff_to"], "video-effect-factory_when_segment_requires_effect")
 
+    def test_chinese_whole_video_with_effect_music_and_subtitle_stays_mainline(self):
+        intent = plan_video_intent(
+            {
+                "request": "\u6211\u6709\u990a\u6210\u73ed\u7d20\u6750\uff0c\u60f3\u526a\u4e00\u652f5\u5206\u9418\u7d50\u8a13\u56de\u9867\u5f71\u7247\uff0c\u8981\u6709\u97f3\u6a02\u3001\u5b57\u5e55\u3001\u958b\u5834\u7279\u6548\u548c\u8f49\u5834",
+                "video_type": "graduation-event",
+                "audience": "\u5b78\u54e1\u548c\u6559\u5b98",
+                "goal": "\u505a\u6210\u5b8c\u6574\u7d50\u8a13\u56de\u9867",
+                "target_length": "5\u5206\u9418",
+                "material_availability": "existing",
+            }
+        )
+
+        self.assertEqual(intent["entry_path"], "material-first")
+        self.assertIsNone(intent["semantic_route_hint"])
+        self.assertEqual(intent["soundtrack_contract"]["handoff_to"], "soundtrack-arranger")
+        self.assertEqual(intent["subtitle_voiceover_contract"]["handoff_to"], "subtitle-director")
+        policy = intent["effect_policy"]
+        self.assertEqual(policy["status"], "requested")
+        self.assertEqual(policy["activation"], "defer_to_brownfield_or_segment_review")
+        self.assertFalse(policy["required_now"])
+        self.assertEqual(policy["handoff_to"], "video-effect-factory_when_segment_requires_effect")
+
+    def test_chinese_effect_only_opening_can_still_route_to_effect_factory(self):
+        intent = plan_video_intent(
+            {
+                "request": "\u53ea\u505a\u4e00\u500b10\u79d2\u958b\u5834\u7279\u6548\uff0c\u7d50\u8a13\u5100\u5f0f\u611f",
+                "video_type": "event recap",
+                "audience": "\u5b78\u54e1",
+                "goal": "\u5f37\u5316\u958b\u5834",
+                "target_length": "10\u79d2",
+                "material_availability": "none",
+                "generation_allowed": True,
+                "tone": "cinematic",
+            }
+        )
+
+        self.assertEqual(intent["semantic_route_hint"], "effect-factory")
+        self.assertTrue(intent["effect_policy"]["required_now"])
+        self.assertEqual(intent["effect_policy"]["handoff_to"], "video-effect-factory")
+
     def test_stage0_records_voiceover_and_subtitle_language_intent(self):
         intent = plan_video_intent(
             {
@@ -252,6 +292,78 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertTrue(contract["voiceover_required"])
         self.assertEqual(contract["narration_policy"], "required")
         self.assertEqual(contract["handoff_to"], "subtitle-director+audio-director")
+
+    def test_chinese_existing_single_clip_enters_material_first(self):
+        intent = plan_video_intent(
+            {
+                "request": "我有一支5分鐘影片，想剪成精華短片",
+                "audience": "家人",
+                "goal": "保留亮點",
+                "target_length": "60 seconds",
+                "tone": "溫馨",
+            }
+        )
+
+        self.assertEqual(intent["input_state"], "material_available")
+        self.assertEqual(intent["material_availability"], "existing")
+        self.assertEqual(intent["entry_path"], "material-first")
+        self.assertEqual(intent["soundtrack_contract"]["energy_intent"], "warm")
+
+    def test_chinese_photos_and_videos_recap_enters_material_first(self):
+        intent = plan_video_intent(
+            {
+                "request": "我有一些照片和影片想做結訓回顧，後半段偏MV熱血",
+                "audience": "學員和教官",
+                "goal": "回顧成長",
+                "target_length": "5 minutes",
+            }
+        )
+
+        self.assertEqual(intent["video_type"], "graduation-event")
+        self.assertEqual(intent["material_availability"], "existing")
+        self.assertEqual(intent["entry_path"], "material-first")
+        self.assertEqual(intent["soundtrack_contract"]["music_role"], "bgm")
+        self.assertEqual(intent["soundtrack_contract"]["energy_intent"], "high")
+
+    def test_chinese_no_material_story_enters_structure_first(self):
+        intent = plan_video_intent(
+            {
+                "request": "我想做灰姑娘童話故事短篇，沒有素材",
+                "audience": "兒童",
+                "goal": "說一個睡前故事",
+                "target_length": "90 seconds",
+                "tone": "日式可愛",
+                "generation_allowed": True,
+            }
+        )
+
+        self.assertEqual(intent["input_state"], "text_available")
+        self.assertEqual(intent["material_availability"], "none")
+        self.assertEqual(intent["entry_path"], "structure-first")
+        self.assertTrue(intent["needs_generated_material_fallback"])
+
+    def test_chinese_article_without_media_enters_structure_first(self):
+        intent = plan_video_intent(
+            {
+                "request": "我有一篇文章想轉成影片，沒有圖片或影片",
+                "audience": "一般觀眾",
+                "goal": "清楚傳達文章內容",
+                "target_length": "2 minutes",
+                "tone": "紀錄感",
+            }
+        )
+
+        self.assertEqual(intent["input_state"], "text_available")
+        self.assertEqual(intent["material_availability"], "none")
+        self.assertEqual(intent["text_availability"], "brief")
+        self.assertEqual(intent["entry_path"], "structure-first")
+
+    def test_chinese_vague_video_still_needs_context(self):
+        intent = plan_video_intent({"request": "幫我做一支影片"})
+
+        self.assertEqual(intent["input_state"], "unknown")
+        self.assertEqual(intent["entry_path"], "needs-context")
+        self.assertGreaterEqual(len(intent["required_followup_questions"]), 4)
 
 
 class VideoIntentPlannerCliTest(unittest.TestCase):

@@ -725,9 +725,14 @@ def _intent_summary(root: Path):
         or ""
     ).strip()
     route_hint = route_hint.replace("_", "-").casefold()
+    effect_policy = intent.get("effect_policy") if isinstance(intent.get("effect_policy"), dict) else {}
+    effect_activation = str(effect_policy.get("activation") or "").strip().casefold()
+    effect_required_now = effect_policy.get("required_now") is True
     questions = [str(item) for item in intent.get("required_followup_questions") or [] if item]
-    if entry_path == "needs-context" and questions:
-        reason = "needs context: " + "; ".join(questions[:3])
+    if entry_path == "needs-context":
+        reason = "needs context before route handoff"
+        if questions:
+            reason = "needs context: " + "; ".join(questions[:3])
         if route_hint:
             reason += f"; route hint held for later: {route_hint}"
         return _contract(
@@ -759,7 +764,16 @@ def _intent_summary(root: Path):
             run_dir=root,
             source="video_intent.json",
         )
-    if route_hint in {"effect-factory", "effect-only", "effects", "visual-effect"}:
+    effect_hint = route_hint in {"effect-factory", "effect-only", "effects", "visual-effect"}
+    effect_hint_is_primary = (
+        effect_hint
+        and (
+            not effect_policy
+            or effect_required_now
+            or effect_activation == "route_to_effect_factory"
+        )
+    )
+    if effect_hint_is_primary:
         return _contract(
             "run",
             "effect_factory_parameter_review",
@@ -771,17 +785,6 @@ def _intent_summary(root: Path):
         )
     material_first = {"material-first", "existing-material-first", "hybrid"}
     structure_first = {"structure-first", "story-first"}
-    if entry_path == "needs-context":
-        reason = "needs context before route handoff"
-        return _contract(
-            "waiting",
-            "stage0_video_intent",
-            next_action="ask_followup_questions",
-            reason=reason,
-            read=[_rel(root, intent_path)],
-            run_dir=root,
-            source="video_intent.json",
-        )
     if entry_path in material_first:
         return _contract(
             "run",
