@@ -43,6 +43,42 @@ def _load_windows(path: Path) -> list[dict[str, Any]]:
     return normalized
 
 
+def _load_rough_cut_plan(path: Path) -> tuple[Path, list[dict[str, Any]]]:
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    clips = payload.get("clips") or []
+    if not isinstance(clips, list) or not clips:
+        raise ValueError("rough_cut_plan clips must be a non-empty list")
+
+    source_paths: set[Path] = set()
+    windows: list[dict[str, Any]] = []
+    for item in clips:
+        if not isinstance(item, dict) or item.get("track", "video") != "video":
+            continue
+        source_path = item.get("source_path")
+        start = item.get("source_in_sec")
+        end = item.get("source_out_sec")
+        if not source_path:
+            raise ValueError("rough_cut_plan video clip is missing source_path")
+        if isinstance(start, bool) or isinstance(end, bool) or not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            raise ValueError("rough_cut_plan video clip source_in_sec/source_out_sec must be numbers")
+        if end <= start:
+            raise ValueError("rough_cut_plan video clip source_out_sec must be greater than source_in_sec")
+        source_paths.add(Path(source_path).resolve())
+        windows.append({
+            "index": len(windows),
+            "start": float(start),
+            "end": float(end),
+            "duration_sec": float(end) - float(start),
+            "label": str(item.get("segment_id") or item.get("role") or f"window_{len(windows) + 1}"),
+        })
+
+    if not windows:
+        raise ValueError("rough_cut_plan has no video clips")
+    if len(source_paths) != 1:
+        raise ValueError("safe_highlight_cut rough-cut mode supports one source video; use a multi-clip preset instead")
+    return next(iter(source_paths)), windows
+
+
 def _probe(path: Path) -> dict[str, Any]:
     result = subprocess.run([
         resolve_ffprobe(),
@@ -84,6 +120,40 @@ def cut_highlight(source: Path, windows_path: Path, out: Path, report: Path) -> 
     out = out.resolve()
     report = report.resolve()
     windows = _load_windows(windows_path)
+    return _cut_highlight_windows(
+        source,
+        windows,
+        out,
+        report,
+        source_artifact="windows",
+        source_artifact_path=windows_path,
+    )
+
+
+def cut_highlight_from_rough_cut(rough_cut_plan: Path, out: Path, report: Path) -> dict[str, Any]:
+    source, windows = _load_rough_cut_plan(rough_cut_plan)
+    return _cut_highlight_windows(
+        source,
+        windows,
+        out,
+        report,
+        source_artifact="rough_cut_plan",
+        source_artifact_path=rough_cut_plan,
+    )
+
+
+def _cut_highlight_windows(
+    source: Path,
+    windows: list[dict[str, Any]],
+    out: Path,
+    report: Path,
+    *,
+    source_artifact: str,
+    source_artifact_path: Path,
+) -> dict[str, Any]:
+    source = source.resolve()
+    out = out.resolve()
+    report = report.resolve()
     source_probe = _probe(source)
     has_audio = bool(source_probe.get("audio"))
     filtergraph, maps = _build_filter(windows, has_audio=has_audio)
@@ -121,6 +191,8 @@ def cut_highlight(source: Path, windows_path: Path, out: Path, report: Path) -> 
         "cut_mode": "reencode_filtergraph",
         "strategy": "safe_reencode_highlight",
         "stream_copy": False,
+        "source_artifact": source_artifact,
+        "source_artifact_path": str(Path(source_artifact_path).resolve()),
         "source": str(source),
         "out": str(out),
         "window_count": len(windows),
@@ -141,12 +213,20 @@ def cut_highlight(source: Path, windows_path: Path, out: Path, report: Path) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Safe re-encoded highlight cutter")
-    parser.add_argument("--source", required=True, help="source video")
-    parser.add_argument("--windows", required=True, help="JSON list or {windows:[...]}")
+    parser.add_argument("--source", help="source video")
+    parser.add_argument("--windows", help="JSON list or {windows:[...]}")
+    parser.add_argument("--rough-cut-plan", help="single-source rough_cut_plan.json")
     parser.add_argument("--out", required=True, help="output mp4")
     parser.add_argument("--report", required=True, help="highlight_cut_report.json")
     args = parser.parse_args()
-    payload = cut_highlight(Path(args.source), Path(args.windows), Path(args.out), Path(args.report))
+    if args.rough_cut_plan:
+        if args.source or args.windows:
+            parser.error("--rough-cut-plan cannot be combined with --source/--windows")
+        payload = cut_highlight_from_rough_cut(Path(args.rough_cut_plan), Path(args.out), Path(args.report))
+    else:
+        if not args.source or not args.windows:
+            parser.error("--source and --windows are required unless --rough-cut-plan is provided")
+        payload = cut_highlight(Path(args.source), Path(args.windows), Path(args.out), Path(args.report))
     print(json.dumps({
         "ok": True,
         "out": payload["out"],

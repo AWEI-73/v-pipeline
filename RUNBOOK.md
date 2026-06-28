@@ -537,11 +537,14 @@ Cut strategy presets:
 
 ```powershell
 python tools\safe_highlight_cut.py `
-  --source RUN_DIR\materials\raw\source.mp4 `
-  --windows RUN_DIR\highlight_windows.json `
+  --rough-cut-plan RUN_DIR\rough_cut_plan.json `
   --out RUN_DIR\final_safe_tool.mp4 `
   --report RUN_DIR\highlight_cut_report.json
 ```
+
+Use `--source ... --windows ...` only when a human/Workbench has already
+exported a standalone windows file. The `--rough-cut-plan` path is the default
+material-first handoff because it preserves segment labels and source windows.
 
 Generated candidate branch:
 
