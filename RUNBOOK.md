@@ -526,6 +526,23 @@ python video_tools.py material-delta --needs RUN_DIR\material_needs.json --proje
 python tools\material_gap_brief.py --delta RUN_DIR\material_delta.json --needs RUN_DIR\material_needs.json --out RUN_DIR\material_gap_brief.json --shooting-out RUN_DIR\shooting_brief.md
 ```
 
+Cut strategy presets:
+
+- `material_rough_cut.py`: creates the reviewable clip/window plan from
+  material-map facts, review verdicts, and usable ranges. It decides what to
+  cut, not how to encode it.
+- `safe_highlight_cut.py`: turns accepted windows into a stable playable MP4 by
+  re-encoding to H.264/AAC. Use this for yt-dlp, VP9/Opus, non-keyframe, or
+  stutter-prone sources. It writes `highlight_cut_report.json`.
+
+```powershell
+python tools\safe_highlight_cut.py `
+  --source RUN_DIR\materials\raw\source.mp4 `
+  --windows RUN_DIR\highlight_windows.json `
+  --out RUN_DIR\final_safe_tool.mp4 `
+  --report RUN_DIR\highlight_cut_report.json
+```
+
 Generated candidate branch:
 
 ```powershell
