@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.material_first_boundary_acceptance import run_material_first_boundary_acceptance  # noqa: E402
 from tools.material_first_landing_case import _scan_source_materials  # noqa: E402
+from video_pipeline_core.material_first_preview_plan import build_preview_plan  # noqa: E402
 from video_pipeline_core.material_rough_cut import write_json  # noqa: E402
 from video_pipeline_core.material_understanding_matrix import build_material_understanding_matrix  # noqa: E402
 from video_pipeline_core.material_wall_verdict_draft import build_wall_verdict_draft  # noqa: E402
@@ -23,6 +24,7 @@ def run_material_first_happy_path(
     max_assets=12,
     frame_budget=3,
     roles=None,
+    preview_target_duration_sec=72.0,
 ) -> dict:
     root = Path(run_dir).resolve()
     source = Path(source_dir).resolve()
@@ -51,6 +53,17 @@ def run_material_first_happy_path(
         out_path=verdict_path,
         required_roles=required_roles,
     )
+    preview = build_preview_plan(
+        matrix,
+        verdict,
+        target_duration_sec=float(preview_target_duration_sec),
+        min_duration_sec=60.0,
+        max_duration_sec=90.0,
+        clip_duration_sec=6.0,
+        roles=required_roles,
+    )
+    preview_path = prep / "preview_rough_cut_plan.json"
+    write_json(preview_path, preview)
 
     acceptance = run_material_first_boundary_acceptance(
         root,
@@ -62,6 +75,7 @@ def run_material_first_happy_path(
         shutil.copy2(materials_db_path, root / "materials_db.source_candidates.json")
         shutil.copytree(matrix_dir, root / "material_understanding", dirs_exist_ok=True)
         shutil.copy2(verdict_path, root / "material_wall_review_verdict.draft.json")
+        shutil.copy2(preview_path, root / "preview_rough_cut_plan.json")
     shutil.rmtree(prep, ignore_errors=True)
 
     report = acceptance.get("report") or {}
@@ -75,6 +89,9 @@ def run_material_first_happy_path(
         "matrix": str(root / "material_understanding" / "material_understanding_matrix.json"),
         "contact_sheet": str(root / "material_understanding" / "material_understanding_contact_sheet.jpg"),
         "wall_verdict_draft": str(root / "material_wall_review_verdict.draft.json"),
+        "preview_rough_cut_plan": str(root / "preview_rough_cut_plan.json"),
+        "preview_duration_sec": preview.get("total_duration_sec"),
+        "preview_clip_count": preview.get("clip_count"),
         "primary_selection": verdict.get("primary_selection") or {},
         "acceptance_report": str(root / "material_first_boundary_acceptance_report.json"),
         "next_action": report.get("next_action"),

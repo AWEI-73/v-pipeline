@@ -284,11 +284,11 @@ python tools\material_first_happy_path.py `
   --json
 ```
 
-This creates the matrix, contact sheet, conservative wall verdict draft, and
-material-first boundary acceptance report in one run folder. It does not render
-and the generated `rough_cut_plan.json` is a short smoke handoff, not a finished
-60-90 second highlight. Use it to earn the right to expand into a longer rough
-cut preview.
+This creates the matrix, contact sheet, conservative wall verdict draft,
+60-90 second `preview_rough_cut_plan.json`, and material-first boundary
+acceptance report in one run folder. It does not render. The canonical
+`rough_cut_plan.json` remains a short smoke handoff; review
+`preview_rough_cut_plan.json` before using it for render or Workbench changes.
 
 Manual steps, when you need to inspect or override each artifact:
 
@@ -317,6 +317,17 @@ python tools\material_wall_verdict_draft.py `
 Review or edit the draft before using it as the `--wall-verdict` input. If an
 alternate is better than the chosen primary, swap the statuses explicitly
 instead of promoting every plausible asset.
+
+To create only the preview proposal from existing matrix and draft verdict:
+
+```powershell
+python tools\material_first_preview_plan.py `
+  --matrix RUN_DIR\material_understanding\material_understanding_matrix.json `
+  --wall-verdict-draft RUN_DIR\material_wall_review_verdict.draft.json `
+  --out RUN_DIR\preview_rough_cut_plan.json `
+  --target-duration 72 `
+  --json
+```
 
 ```powershell
 python tools\material_first_boundary_acceptance.py `

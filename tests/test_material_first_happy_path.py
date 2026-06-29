@@ -54,11 +54,15 @@ class MaterialFirstHappyPathTest(unittest.TestCase):
             self.assertTrue((run_dir / "materials_db.source_candidates.json").is_file())
             self.assertTrue((run_dir / "material_understanding" / "material_understanding_matrix.json").is_file())
             self.assertTrue((run_dir / "material_wall_review_verdict.draft.json").is_file())
+            self.assertTrue((run_dir / "preview_rough_cut_plan.json").is_file())
             self.assertTrue((run_dir / "material_first_boundary_acceptance_report.json").is_file())
             self.assertFalse((run_dir / "final.mp4").exists())
 
             verdict = json.loads((run_dir / "material_wall_review_verdict.draft.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(verdict["primary_selection"]["training"], "real_0002")
+            preview = json.loads((run_dir / "preview_rough_cut_plan.json").read_text(encoding="utf-8-sig"))
+            self.assertEqual(preview["decision_scope"], "preview_proposal_not_canonical_timeline")
+            self.assertGreaterEqual(preview["total_duration_sec"], 60)
 
 
 if __name__ == "__main__":

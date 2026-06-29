@@ -218,6 +218,8 @@ Material exists or may exist
   +-- Need material truth / scene coverage?
   |     -> optional tools/material_first_happy_path.py for no-render full happy path
   |        when the goal is to prove matrix -> draft verdict -> acceptance before editing
+  |     -> optional tools/material_first_preview_plan.py for 60-90s review proposal
+  |        after matrix and wall verdict draft exist
   |     -> material map lifecycle
   |     -> project_material_map.json / per-asset maps
   |     -> material_wall_review_verdict.json when review is needed
@@ -268,6 +270,7 @@ Handoff artifacts:
 - `material_understanding_contact_sheet.jpg`
 - `material_wall_review_verdict.draft.json` when matrix-assisted drafting is used
 - `material_first_happy_path_report.json` when the no-render wrapper is used
+- `preview_rough_cut_plan.json` for 60-90 second non-canonical review proposal
 - `project_material_map.json`
 - `material_wall_review_verdict.json`
 - `material_delta.json`
