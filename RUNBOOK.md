@@ -260,6 +260,7 @@ coarse-screen, map, rough-cut, and reach a review/render handoff.
 ```text
 brief + source folder
   -> video_intent.json: entry_path=material-first
+  -> material_understanding_matrix.json / contact sheet
   -> material wall review
   -> material map / review apply
   -> rough_cut_plan.json / timeline_build.json
@@ -268,6 +269,20 @@ brief + source folder
 ```
 
 Minimal no-render acceptance:
+
+Optional review aid before writing the wall verdict:
+
+```powershell
+python tools\material_understanding_matrix.py `
+  --materials-db RUN_DIR\materials_db.json `
+  --out-dir RUN_DIR\material_understanding `
+  --max-assets 24 `
+  --frame-budget 3 `
+  --json
+```
+
+Use the contact sheet and matrix to write `material_wall_review_verdict.json`.
+The matrix is observation only; it does not prove coverage or authorize BUILD.
 
 ```powershell
 python tools\material_first_boundary_acceptance.py `

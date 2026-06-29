@@ -210,6 +210,8 @@ Material exists or may exist
   |     -> tools/material_quick_inventory.py
   |     -> material_inventory_summary.json
   |     -> human/agent reviews the inventory before deeper scan
+  |     -> tools/material_understanding_matrix.py when multiple assets need visual/audio evidence before wall verdict
+  |     -> material_understanding_matrix.json / contact sheet
   |
   +-- Need material truth / scene coverage?
   |     -> material map lifecycle
@@ -258,6 +260,8 @@ Handoff artifacts:
 
 - `material_inventory_summary.json`
 - `materials_db.json`
+- `material_understanding_matrix.json`
+- `material_understanding_contact_sheet.jpg`
 - `project_material_map.json`
 - `material_wall_review_verdict.json`
 - `material_delta.json`
