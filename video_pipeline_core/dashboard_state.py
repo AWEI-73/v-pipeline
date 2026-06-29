@@ -276,6 +276,20 @@ def load_dashboard_state(workdir):
         or safe_load_json("generated_material_review.json")
         or safe_load_json_by_role("generated_material_review")
     )
+    generated_provider_packet = (
+        safe_load_json(manifest.get("generated_provider_packet"))
+        or safe_load_json("generated_provider_packet.json")
+        or safe_load_json_by_role("generated_image_provider_packet")
+    )
+    generated_provider_outputs = (
+        safe_load_json(manifest.get("generated_provider_outputs"))
+        or safe_load_json("generated_provider_outputs.json")
+    )
+    generated_material_production = (
+        safe_load_json(manifest.get("generated_material_production"))
+        or safe_load_json("generated_material_production.json")
+        or safe_load_json_by_role("generated_material_production")
+    )
     delta_after_generated_review = (
         safe_load_json(manifest.get("delta_after_generated_review"))
         or safe_load_json("delta_after_generated_review.json")
@@ -783,6 +797,24 @@ def load_dashboard_state(workdir):
             "artifact": "delta_after_generated_review",
             "message": "Generated material delta is not ready for build",
         })
+    elif generated_provider_packet and not generated_provider_outputs and not generated_material_production:
+        next_action = "wait_for_generated_provider"
+        is_pass = False
+        findings.append({
+            "type": "warning",
+            "node": 2,
+            "artifact": "generated_provider_packet",
+            "message": "Generated image provider packet awaits real provider outputs",
+        })
+    elif generated_provider_outputs and not generated_material_production:
+        next_action = "generated-material-import"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 2,
+            "artifact": "generated_provider_outputs",
+            "message": "Generated provider outputs are ready for import and quality review",
+        })
     elif gen_request_items and not generated_manifest:
         next_action = "wait_for_generated_provider"
     elif visual_review_request and not visual_review_verdict:
@@ -995,6 +1027,8 @@ def load_dashboard_state(workdir):
         "write_delivery_gate_report_or_review_highlight_candidate",
         "write_delivery_gate_report_or_promote_one_source_preview",
         "repair_generated_material_candidates",
+        "wait_for_generated_provider",
+        "generated-material-import",
     } and not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
         is_pass = False
@@ -1313,6 +1347,9 @@ def load_dashboard_state(workdir):
             "generated_manifest": generated_manifest,
             "generated_material_quality_review": generated_material_quality_review,
             "generated_material_review": generated_material_review,
+            "generated_provider_packet": generated_provider_packet,
+            "generated_provider_outputs": generated_provider_outputs,
+            "generated_material_production": generated_material_production,
             "delta_after_generated_review": delta_after_generated_review,
             "material_coverage": material_coverage,
             "material_inventory_summary": material_inventory_summary,

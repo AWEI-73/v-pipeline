@@ -816,6 +816,31 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "generated/generated_material_quality_review.json")
             self.assertIn("generated material quality review failed", summary["reason"])
 
+    def test_generated_provider_packet_without_outputs_waits_for_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_generation_fallback.json", {
+                "artifact_role": "material_generation_fallback",
+                "ok": True,
+                "generation_jobs": [{"job_id": "gen_hero", "need_id": "nd_hero"}],
+            })
+            _write(Path(tmp) / "provider_packet", "generated_provider_packet.json", {
+                "artifact_role": "generated_image_provider_packet",
+                "items": [
+                    {
+                        "job_id": "gen_hero",
+                        "target_file": str(Path(tmp) / "provider_packet" / "provider_outputs" / "hero.png"),
+                        "preferred_provider": "codex_imagegen",
+                    }
+                ],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "generated_image_provider")
+            self.assertEqual(summary["next"], "wait_for_generated_provider")
+            self.assertIn("provider_packet/generated_provider_packet.json", summary["read"])
+
     def test_visual_technique_candidate_routes_to_parameter_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "visual_technique_plan.json", {

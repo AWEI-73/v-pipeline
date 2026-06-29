@@ -357,11 +357,30 @@ def _generated_material_summary(root: Path):
     )
     delta_path, delta = _find_json(root, "delta_after_generated_review.json")
     fallback_path, fallback = _find_json(root, "material_generation_fallback.json")
-    if not any((quality, review, delta, fallback)):
+    packet_path, packet = _find_json_name_or_role(
+        root,
+        "generated_provider_packet.json",
+        "generated_image_provider_packet",
+    )
+    outputs_path, outputs = _find_json(root, "generated_provider_outputs.json")
+    production_path, production = _find_json_name_or_role(
+        root,
+        "generated_material_production.json",
+        "generated_material_production",
+    )
+    if not any((quality, review, delta, fallback, packet, outputs, production)):
         return None
 
     read = []
-    for path in (quality_path, review_path, delta_path, fallback_path):
+    for path in (
+        quality_path,
+        review_path,
+        delta_path,
+        fallback_path,
+        packet_path,
+        outputs_path,
+        production_path,
+    ):
         rel = _rel(root, path)
         if rel and rel not in read:
             read.append(rel)
@@ -425,13 +444,38 @@ def _generated_material_summary(root: Path):
             source=_rel(root, delta_path),
         )
 
+    if packet and not outputs and not production:
+        item_count = len(packet.get("items") or []) if isinstance(packet, dict) else 0
+        return _contract(
+            "waiting",
+            "generated_image_provider",
+            next_action="wait_for_generated_provider",
+            resume="generated-material-import",
+            reason=f"generated image provider packet awaits real provider output: {item_count} image(s)",
+            read=read,
+            run_dir=root,
+            source=_rel(root, packet_path),
+        )
+
+    if outputs and not production:
+        return _contract(
+            "run",
+            "generated_material_import",
+            next_action="generated-material-import",
+            resume="stage2_material_map",
+            reason="generated provider outputs are ready for import and quality review",
+            read=read,
+            run_dir=root,
+            source=_rel(root, outputs_path),
+        )
+
     if fallback and not review:
         return _contract(
             "run",
-            "generated_material_review",
-            next_action="review_generated_material_candidates",
+            "generated_image_provider",
+            next_action="generated-image-provider-packet",
             resume="stage2_material_map",
-            reason="generated material fallback candidates await review",
+            reason="generated material fallback jobs need a real provider packet",
             read=read,
             run_dir=root,
             source=_rel(root, fallback_path),
