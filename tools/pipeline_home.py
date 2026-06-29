@@ -183,6 +183,27 @@ def _acceptance_summary(root: Path):
             source="material_first_boundary_acceptance_report.json",
         )
 
+    storyboard_path, storyboard = _find_json(root, "rough_cut_storyboard_preview_report.json")
+    if storyboard and storyboard.get("ok") is True:
+        output = storyboard.get("output_video") or storyboard.get("out")
+        output_path = Path(str(output)) if output else None
+        if output_path and not output_path.is_absolute():
+            output_path = root / output_path
+        output_rel = _rel(root, output_path) if output_path and output_path.is_file() else None
+        if output_rel:
+            return _contract(
+                "run",
+                "stage5_final_review",
+                next_action="review_storyboard_preview",
+                reason=(
+                    "material-first storyboard preview ready "
+                    f"({storyboard.get('clip_count', '?')} clips)"
+                ),
+                read=read + [_rel(root, storyboard_path), output_rel],
+                run_dir=root,
+                source="rough_cut_storyboard_preview_report.json",
+            )
+
     return _contract(
         "run",
         "stage5_final_review",

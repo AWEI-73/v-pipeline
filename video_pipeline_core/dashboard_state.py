@@ -190,6 +190,8 @@ def load_dashboard_state(workdir):
                     manifest["highlight_cut_report"] = f
                 elif f == "highlight_cut_from_rough_cut_report.json":
                     manifest["highlight_cut_report"] = f
+                elif f == "rough_cut_storyboard_preview_report.json":
+                    manifest["rough_cut_storyboard_preview_report"] = f
                 elif f == "editor_review.json":
                     manifest["editor_review"] = f
                 elif f == "visual_review_request.json":
@@ -400,6 +402,11 @@ def load_dashboard_state(workdir):
         or safe_load_json("highlight_cut_report.json")
         or safe_load_json("highlight_cut_from_rough_cut_report.json")
         or safe_load_json_by_role("highlight_cut_report")
+    )
+    rough_cut_storyboard_preview_report = (
+        safe_load_json(manifest.get("rough_cut_storyboard_preview_report"))
+        or safe_load_json("rough_cut_storyboard_preview_report.json")
+        or safe_load_json_by_role("rough_cut_storyboard_preview_report")
     )
     editor_review = safe_load_json(manifest.get("editor_review")) or safe_load_json("editor_review.json")
     visual_review_request = safe_load_json(manifest.get("visual_review_request")) or safe_load_json("visual_review_request.json")
@@ -739,6 +746,18 @@ def load_dashboard_state(workdir):
 
     # Normalize next_action
     next_action = None
+    storyboard_preview_output = None
+    if rough_cut_storyboard_preview_report and rough_cut_storyboard_preview_report.get("ok") is True:
+        storyboard_preview_output = (
+            rough_cut_storyboard_preview_report.get("output_video")
+            or rough_cut_storyboard_preview_report.get("out")
+        )
+    storyboard_preview_ready = bool(
+        material_first_boundary_acceptance_report
+        and material_first_boundary_acceptance_report.get("ok") is True
+        and rough_cut_storyboard_preview_report
+        and rough_cut_storyboard_preview_report.get("ok") is True
+    )
     if timeline_build_invalid:
         next_action = "fix_timeline_or_assembly"
         is_pass = False
@@ -752,6 +771,19 @@ def load_dashboard_state(workdir):
           )
           and not (final_exists and verify_result and verify_result.get("pass") is True)):
         next_action = state_data.get("next_action")
+    elif storyboard_preview_ready:
+        output_exists = bool(storyboard_preview_output and os.path.exists(storyboard_preview_output))
+        next_action = "review_storyboard_preview"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 5,
+            "artifact": "rough_cut_storyboard_preview_report",
+            "message": (
+                "Material-first storyboard preview is ready for review"
+                + ("" if output_exists else "; output video path is missing or unreadable")
+            ),
+        })
     elif editor_review and editor_review.get("decision") in ("rerender", "block", "human_review"):
         dec = editor_review.get("decision")
         if dec in ("rerender", "block"):
@@ -1370,6 +1402,7 @@ def load_dashboard_state(workdir):
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
+            "rough_cut_storyboard_preview_report": rough_cut_storyboard_preview_report,
             "source_timeline_map": source_timeline_map,
             "source_material_matrix": source_material_matrix,
             "dialogue_edit_script": dialogue_edit_script,

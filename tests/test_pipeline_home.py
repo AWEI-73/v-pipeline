@@ -447,6 +447,40 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "material_first_boundary_acceptance_report.json")
             self.assertIn("3/3 stages passed", summary["reason"])
 
+    def test_material_first_storyboard_preview_routes_to_review_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "material_first_boundary_acceptance_report.json", {
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "failed_stage": None,
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {"stage": "stage4_build", "ok": True},
+                    {"stage": "stage5_final_review", "ok": True},
+                ],
+            })
+            preview = root / "multi_material_storyboard_preview.mp4"
+            preview.write_bytes(b"fake")
+            _write(root, "rough_cut_storyboard_preview_report.json", {
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "clip_count": 10,
+                "next_action": "human_review_or_motion_preview",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "review_storyboard_preview")
+            self.assertEqual(summary["source"], "rough_cut_storyboard_preview_report.json")
+            self.assertIn("storyboard preview ready", summary["reason"])
+            self.assertIn("multi_material_storyboard_preview.mp4", summary["read"])
+
     def test_material_inventory_summary_routes_to_review_before_deep_material_map(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {

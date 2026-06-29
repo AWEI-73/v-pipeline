@@ -899,6 +899,41 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_rough_cut_storyboard_preview_surfaces_in_artifacts_and_next_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            preview = workdir / "multi_material_storyboard_preview.mp4"
+            preview.write_bytes(b"fake")
+            (workdir / "material_first_boundary_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "stages": [{"ok": True}, {"ok": True}, {"ok": True}],
+            }), encoding="utf-8")
+            (workdir / "rough_cut_storyboard_preview_report.json").write_text(json.dumps({
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "clip_count": 10,
+                "next_action": "human_review_or_motion_preview",
+            }), encoding="utf-8")
+            (workdir / "editor_review.json").write_text(json.dumps({
+                "artifact_role": "editor_review",
+                "decision": "human_review",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            report = state["artifacts"]["rough_cut_storyboard_preview_report"]
+            self.assertEqual(report["clip_count"], 10)
+            self.assertEqual(state["next_action"], "review_storyboard_preview")
+            self.assertTrue(any(
+                finding.get("artifact") == "rough_cut_storyboard_preview_report"
+                and "storyboard preview" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_material_inventory_summary_surfaces_in_artifacts_and_next_action(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
