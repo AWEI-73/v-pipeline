@@ -27,7 +27,7 @@ side branches:
 ```text
 Main route: Video Pipeline Route
   -> Stage 0 child contracts: material_contract, soundtrack_contract,
-     effect_policy, subtitle_voiceover_contract
+     material_scan_decision, effect_policy, subtitle_voiceover_contract
   -> Material Map branch: material truth, coverage, generated candidates
   -> Effect Factory branch: designed effect assets, worker build, effect review
   -> Soundtrack Arranger branch: music/song/voice intent, source candidates,
@@ -83,37 +83,40 @@ official pipeline changes.
 ## Read Order
 
 1. `docs/START_HERE_VIDEO_PIPELINE.md` -- this file.
-2. `docs/video-pipeline-end-to-end-line.md` -- one-page line from intent to
+2. `docs/pipeline-decision-tree.md` -- operator decision tree for the main
+   Stage 0-10 route, Material Map, Effect Factory, Audio Communication, and
+   cross-cutting Review / Verify / Delivery Gate branch.
+3. `docs/video-pipeline-end-to-end-line.md` -- one-page line from intent to
    delivery, including input state, entry path, and return loops.
-3. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual:
+4. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual:
    skills, tools, artifacts, gates, return routes.
-4. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
+5. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
    legacy alias mapping.
-5. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
+6. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
    through blueprint, Story Soul, Director Shot Plan, contract compile, and
    material-ready handoff.
-6. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
+7. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
    `light / normal / deep` and reviewer roles.
-7. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
+8. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
    lifecycle stages, and build handoff.
-8. `docs/effect-factory-route.md` -- designed-effects side branch: design map,
+9. `docs/effect-factory-route.md` -- designed-effects side branch: design map,
    contract, worker handoff, review, and bounded effect asset handoff.
-9. `docs/soundtrack-arranger-route.md` -- music/song/BGM/voice intent branch:
+10. `docs/soundtrack-arranger-route.md` -- music/song/BGM/voice intent branch:
    `soundtrack_plan.json`, `music_source_candidates.json`,
    `sound_license_manifest.json`, and `audio_director_handoff.json`.
-10. `docs/stage-boundary-matrix.md` -- worker/maintainer boundary matrix for
+11. `docs/stage-boundary-matrix.md` -- worker/maintainer boundary matrix for
    Main Pipeline, Material Map branch, Effect Factory branch, Soundtrack /
    Audio branch, and Subtitle / Voiceover branch.
-11. `docs/construction-guides/stage0-10-route-alignment-plan.md` -- current
+12. `docs/construction-guides/stage0-10-route-alignment-plan.md` -- current
    construction guide for keeping Stage 0-10 and child contracts aligned.
-12. `docs/build-capability-alignment.md` -- which capabilities truly affect
+13. `docs/build-capability-alignment.md` -- which capabilities truly affect
    BUILD/render today.
-13. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
+14. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
    and fail-closed acceptance harness.
-14. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
+15. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
    human worker should consume `route_subagent_task.json`.
-15. `RUNBOOK.md` -- current local command examples and Windows execution notes.
-16. `docs/INDEX.md` -- broader documentation index and historical links.
+16. `RUNBOOK.md` -- current local command examples and Windows execution notes.
+17. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
@@ -201,6 +204,9 @@ Video Intent Planner
   emotions, timeline, and gaps, then use interaction to remove ambiguity and
   build the structure. generation is fallback only for missing/non-proof
   support for teaching and personal video routes.
+  `material_scan_decision` is the Stage 0 child decision for this first
+  observation step: default to quick inventory over all materials, unless the
+  user specifies a folder/file scope. Do not treat it as another entry path.
 - **structure-first**: the user has no usable material but has text, an article,
   an outline, a story, or a developed idea. Clarify the structure first, then
   derive material needs and route missing visuals through existing generated
@@ -504,6 +510,15 @@ Check:
   effects were actually rendered; use the existing `keyframe-grid` /
   `visual-audit` evidence path (`keyframe_grid.jpg`, `visual_audit.json`) as the
   sampled render evidence instead of inventing a separate montage tool;
+- after visual BUILD and Audio Director both finish, assemble final media with
+  `tools/final_av_assemble.py` rather than ad hoc ffmpeg. `assembly_report.json`
+  must record the selected audio and whether original source audio was mapped;
+  replace-music routes should show `source_audio_mapped:false`;
+- if the soundtrack placement depends on music understanding, run
+  `tools/soundtrack_probe.py` and set
+  `delivery_requirements.requires_soundtrack_probe=true`; delivery must then
+  include a non-empty `soundtrack_probe_report.json` with `features`,
+  `sections`, `editing_fit`, and `section_fit`;
 - required review text artifacts must be readable UTF-8 and must not contain
   mojibake placeholders such as `????`;
 - subtitle/narration language must match the delivery requirements;

@@ -2,7 +2,37 @@
 
 One page that says what is current and what is historical, so old/new no longer mix.
 
-## Start here (entry points, in order)
+## Document Map
+
+This file is a document map, not the operator entrypoint.
+
+Single operator entry:
+
+- `RUNBOOK.md` -- start here for all operational work.
+
+Top-level project references:
+
+- `README.md` -- what this project is.
+- `roadmap.md` -- product and engineering roadmap. Long history lives in
+  `docs/archive/roadmap-history/`.
+- `HANDOFF_CURRENT.md` -- clean resume anchor for the next agent.
+
+Current document layers:
+
+| Layer | File or folder | Purpose |
+|---|---|---|
+| Single operator entry | `RUNBOOK.md` | What to do next, what to read, which skill/tool to use, and when to stop. |
+| Concept orientation | `docs/START_HERE_VIDEO_PIPELINE.md` | Overall route vocabulary and conceptual map. |
+| Decision tree | `docs/pipeline-decision-tree.md` | Main route, branch choice, insertion points, stop gates, and return route. |
+| Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-to-skill/tool/artifact map. |
+| Canonical route | `docs/canonical-video-pipeline-route.md` | Official stage names, route semantics, and delivery requirements. |
+| Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |
+| Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
+| Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
+| Generated maps | `docs/generated/` | Machine-generated route maps and audits. |
+| Historical archive | `docs/archive/` | Decision history and old roadmap evidence; not a current source unless linked by a current doc. |
+
+## Legacy Entry Notes
 
 1. `README.md` ??what this project is.
 2. `roadmap.md` ??canonical current roadmap and navigation index. Long history
@@ -56,6 +86,10 @@ One page that says what is current and what is historical, so old/new no longer 
 - `docs/START_HERE_VIDEO_PIPELINE.md` -- canonical operator entrypoint for
   agents and humans: which document to read, which route to choose, and what not
   to treat as truth.
+- `docs/pipeline-decision-tree.md` -- operator decision tree for the main
+  Stage 0-10 route, Material Map branch, Effect Factory branch, Audio
+  Communication branch, and Review / Verify / Delivery Gate cross-cutting
+  branch.
 - `docs/video-pipeline-end-to-end-line.md` -- one-page narrative line from
   Video Intent Planner through material truth, BUILD, verify, Workbench /
   Brownfield return loops, and delivery.

@@ -32,7 +32,7 @@ pipeline for every feature:
 ```text
 Main route: Video Pipeline Route
   -> Stage 0 child contracts: material_contract, soundtrack_contract,
-     effect_policy, subtitle_voiceover_contract
+     material_scan_decision, effect_policy, subtitle_voiceover_contract
   -> Material Map branch: material truth and coverage
   -> Effect Factory branch: designed effect contracts, worker build, review
   -> Soundtrack Arranger branch: music/song/BGM source, license, fallback,
@@ -104,6 +104,10 @@ Stage 0 artifact ownership:
   requires it.
 - `material_contract` records the first material owner, gap policy, and whether
   Material Map must run before story/build decisions become concrete.
+- `material_scan_decision` records the first observation policy for
+  material-first requests. It defaults to all-material quick inventory unless
+  the user provides a folder/file scope. It is a child decision inside Stage 0,
+  not a new route entry.
 - `soundtrack_contract` records song/BGM/mixed/none intent, vocal policy,
   source fallback, ducking, speech preservation, and whether to call the
   Soundtrack Arranger branch before BUILD.

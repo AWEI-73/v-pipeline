@@ -5,20 +5,44 @@ Status: current operator runbook for Windows-native runs
 
 This runbook is for agents and humans running Hermes locally.
 
-Read first:
+## Single Operator Entry
 
-```text
-docs/START_HERE_VIDEO_PIPELINE.md
-skills/video-pipeline-route.md
-docs/video-pipeline-operating-map.md
-docs/stage-tool-simplification.md
-docs/construction-guides/stage0-10-route-alignment-plan.md
-docs/material-map-lifecycle.md
-docs/effect-factory-route.md
-docs/soundtrack-arranger-route.md
-docs/generated/pipeline_map.md
-skills/shooting-brief.md
-```
+Start here for all operational work. Do not begin by browsing random docs,
+skills, or tools. Use this runbook to pick the route, then open only the
+referenced document or skill needed for the current task.
+
+Document roles:
+
+| Need | Read | Why |
+|---|---|---|
+| Concept orientation | `docs/START_HERE_VIDEO_PIPELINE.md` | Explains the overall route and vocabulary. Do not use it as the command runner. |
+| Decision tree | `docs/pipeline-decision-tree.md` | Decides the owner, branch, first safe action, stop gate, and return route. |
+| Stage/tool map | `docs/video-pipeline-operating-map.md` | Maps stable stages to skills, tools, artifacts, gates, and return routes. |
+| Canonical route definition | `docs/canonical-video-pipeline-route.md` | Defines official stage names, route semantics, and delivery gates. |
+| Skill/tool ownership | `docs/stage-tool-simplification.md` | Shows which skill owns which Python tools and how to audit ownership. |
+| Worker boundaries | `docs/stage-boundary-matrix.md` | Defines allowed writes, forbidden writes, done gates, and stop gates. |
+| Main route construction plan | `docs/construction-guides/stage0-10-route-alignment-plan.md` | Use when changing how Stage 0-10 child contracts, branches, BUILD, and delivery line up. |
+| Construction guides | `docs/construction-guides/` | Use only when actively changing implementation in that construction area. |
+| Historical archive | `docs/archive/` | Decision history only; not an operational source unless a current doc links to it. |
+
+## Task-to-Document Router
+
+Use this table before opening any other document.
+
+| Task | First document | First skill | First safe tool/action | Stop before |
+|---|---|---|---|---|
+| New or fuzzy whole-video request | `docs/pipeline-decision-tree.md` | `skills/video-pipeline-route.md` | Stage 0 package: `project_brief.json`, `interaction_log.md`, `video_intent.json` | branch work while `required_followup_questions` is non-empty |
+| Continue or inspect an existing run | `docs/pipeline-decision-tree.md` | `skills/video-pipeline-route.md` | `python tools\pipeline_home.py --run RUN_DIR --json` | any write until cursor/next_action is known |
+| Material-first / footage / photos | `docs/material-map-lifecycle.md` | `skills/material-map.md` | `material_scan_decision` then quick inventory or material-first acceptance | BUILD/render before delta/review gate |
+| Story/article/idea without material | `docs/upstream-story-route.md` | `skills/video-pipeline-route.md` | structure-first Stage 0, material needs, generated fallback only after delta | generated assets without explicit review |
+| Opening, transition, title, stylized effect | `docs/effect-factory-route.md` | `skills/video-effect-factory.md` | `visual_technique_plan.json` and parameter review | backend worker/render with unconfirmed parameters |
+| Music, BGM, original speech, ducking | `docs/soundtrack-arranger-route.md` | `skills/soundtrack-arranger.md` / `skills/audio-director.md` | `soundtrack_plan.json`, source/license manifest, probe or Audio Director handoff | final mix when license/source/ducking is unresolved |
+| Subtitle, narration, voiceover | `docs/pipeline-decision-tree.md` | `skills/subtitle-director.md` / `skills/audio-director.md` | subtitle/voiceover handoff acceptance | BUILD/delivery when language/readability evidence is missing |
+| Draft, rough cut, local patch | `docs/workbench-dashboard-integration.md` | `skills/brownfield-edit.md` | validate draft patch and `workbench_handoff.json` | overwriting canonical artifacts |
+| Verify final candidate / delivery | `docs/pipeline-decision-tree.md` | `skills/verify.md` | delivery gate / `write_delivery_gate_report.py` | accepting missing or stale evidence |
+
+If a task spans multiple rows, use `docs/pipeline-decision-tree.md` first. It
+defines branch insertion points and the return route.
 
 ## Architecture In One Page
 
@@ -56,6 +80,10 @@ Reserved child branch: Subtitle / Voiceover
   -> whole-video language, subtitle, narration, and voiceover intent
   -> subtitle-director / audio-director execution
   -> readability and narration evidence before delivery
+
+Cross-cutting branch: Review / Verify / Delivery Gate
+  -> route, material, contract, audio, effect, timeline, and final evidence
+  -> fail closed on missing or stale proof
 ```
 
 Do not jump directly to render. Do not treat `final.mp4`, generated files,

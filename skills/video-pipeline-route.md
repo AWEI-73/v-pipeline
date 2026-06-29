@@ -118,7 +118,7 @@ Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
 applies to this route. Do not direct-cut from a fuzzy request.
 
 Read `RUNBOOK.md` first for the semantic operation table. Then read
-`docs/START_HERE_VIDEO_PIPELINE.md`. Use
+`docs/START_HERE_VIDEO_PIPELINE.md` and `docs/pipeline-decision-tree.md`. Use
 `docs/video-pipeline-operating-map.md` as the stage/tool/artifact checklist and
 `docs/canonical-video-pipeline-route.md` as the route definition. Use
 `docs/stage-boundary-matrix.md` when dispatching workers or deciding what a
@@ -159,8 +159,9 @@ write it in `required_followup_questions` and stop before branch work.
 
 Do not turn a semantic trigger into a direct command. Translate the request into
 the entry, artifacts, allowed tools, and stop condition first. `RUNBOOK.md` is
-the operator manual, `pipeline_home.py` is the state reader, and
-`docs/stage-boundary-matrix.md` is the write-boundary table.
+the operator manual, `docs/pipeline-decision-tree.md` is the branch decision
+tree, `pipeline_home.py` is the state reader, and `docs/stage-boundary-matrix.md`
+is the write-boundary table.
 
 A route note is not a route artifact. `route_judgment is not a Stage 0 artifact`;
 `route_judgment.md/json` may be useful commentary, but it does not
@@ -210,7 +211,7 @@ python video_tools.py video-intent-plan project_brief.json --out video_intent.js
 
 It must include `input_state`, `entry_path`, `video_type`, `audience`, `goal`,
 `material_availability`, `text_availability`, `route`,
-`material_contract`, `soundtrack_contract`, `effect_policy`,
+`material_contract`, `material_scan_decision`, `soundtrack_contract`, `effect_policy`,
 `subtitle_voiceover_contract`,
 `required_followup_questions`, `assumptions`, and `handoff_to`.
 If route-changing information is missing, ask the follow-up questions instead
@@ -227,6 +228,11 @@ Stage 0 artifact ownership:
 - `entry_path` records `material-first`, `structure-first`, or `needs-context`;
   hybrid is not a primary Stage 0 entry path.
 - `material_contract` records the first material owner and gap policy.
+- `material_scan_decision` records whether the single Stage 0 entry should ask
+  for a scan scope and then run quick inventory. For material-first editing,
+  default to scanning all materials first unless the user names a folder/file
+  scope. This is not a second route; it is the first observation step before
+  deeper Material Map review and interaction.
 - `soundtrack_contract` records whether the route wants `song`, `bgm`, `mixed`,
   `none`, or `unsure`; bounded music work may then enter Soundtrack Arranger.
 - `effect_policy` records effect intent without launching Remotion. Only a

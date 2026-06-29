@@ -103,6 +103,11 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
     def test_runbook_has_operator_semantic_entry_router(self):
         text = read("RUNBOOK.md")
         for expected in [
+            "Single Operator Entry",
+            "Task-to-Document Router",
+            "Decision tree",
+            "Stage/tool map",
+            "Skill/tool ownership",
             "Semantic Entry Router",
             "Entry Precedence",
             "Stage 0 package",
@@ -129,6 +134,22 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
             "Material Delta is a gate",
         ]:
             self.assertIn(expected, text)
+
+    def test_docs_index_declares_runbook_single_entry(self):
+        text = read("docs/INDEX.md")
+        for expected in [
+            "Document Map",
+            "Single operator entry",
+            "RUNBOOK.md",
+            "Concept orientation",
+            "Decision tree",
+            "Stage/tool map",
+            "Skill/tool ownership",
+            "Construction guides",
+            "Historical archive",
+        ]:
+            self.assertIn(expected, text)
+        self.assertNotIn("Start here (entry points, in order)", text)
 
     def test_stage_tool_simplification_has_precedence_rules(self):
         text = read("docs/stage-tool-simplification.md")
