@@ -156,6 +156,7 @@ def run_story_to_generated_material_e2e(root: Path) -> dict:
         style_profile=_style_profile(),
         provider="codex_imagegen",
         renderer="test_pil",
+        allow_test_renderer=True,
     )
     project_map = json.loads(Path(production["refs"]["project_material_map"]).read_text(encoding="utf-8"))
     after_generation = material_delta.compute_material_delta(needs, project_map["assets"])

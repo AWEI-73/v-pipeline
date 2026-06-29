@@ -77,7 +77,9 @@ Every output must:
 material_needs.json
   -> material-delta proves missing/thin
   -> material-generation-fallback creates jobs
-  -> generated-material-produce creates provider outputs
+  -> generated-image-provider-packet creates provider jobs
+  -> real image provider writes generated_provider_outputs.json
+  -> generated-material-import validates provider outputs
   -> generated material maps as candidate evidence
   -> material_delta fresh rerun
   -> generated-material-review accepts/rejects candidates
@@ -87,13 +89,27 @@ material_needs.json
 
 ## Command
 
-Offline deterministic renderer:
+Default route for real work:
+
+```powershell
+python video_tools.py generated-image-provider-packet material_generation_fallback.json `
+  --style-profile style_profile.json `
+  --out-dir provider_packet `
+  --providers codex_imagegen,gemini,antigravity
+```
+
+Then an image-capable agent/provider must generate every requested image and
+write `generated_provider_outputs.json`. If no provider is available, stop with
+`wait_for_generated_provider`; do not create text-card placeholder images.
+
+Test-only deterministic renderer:
 
 ```powershell
 python video_tools.py generated-material-produce material_generation_fallback.json `
   --needs material_needs.json `
   --out-dir generated_materials `
   --renderer test_pil `
+  --allow-test-renderer `
   --provider codex_imagegen
 ```
 
@@ -118,10 +134,13 @@ Outputs:
 - `generated_material_quality_review.json`
 - `generated_material_production.json`
 
-`test_pil` is an offline deterministic renderer for flow tests. It proves
-artifact shape and candidate evidence. It is not final art.
+`test_pil` is an offline deterministic renderer for bounded flow tests only.
+It proves artifact shape and candidate evidence. It is not final art, is not
+delivery allowed, and must not be used to fill real story, recap, training, or
+generated-material gaps. Without `--allow-test-renderer`, the CLI fails closed
+and tells the agent to use provider packet/import instead.
 
-Real provider handoff packet:
+Real provider handoff packet details:
 
 ```powershell
 python video_tools.py generated-image-provider-packet material_generation_fallback.json `

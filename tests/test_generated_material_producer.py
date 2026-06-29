@@ -118,6 +118,7 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
                 },
                 provider="codex_imagegen",
                 renderer="test_pil",
+                allow_test_renderer=True,
             )
             out = Path(td)
 
@@ -175,7 +176,8 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
         artifact["generation_jobs"][0]["prompt"] = "nice picture"
         with tempfile.TemporaryDirectory() as td:
             result = produce_generated_materials(
-                artifact, td, material_needs=_needs(), renderer="test_pil")
+                artifact, td, material_needs=_needs(), renderer="test_pil",
+                allow_test_renderer=True)
             review = json.loads(
                 (Path(td) / "generated_material_quality_review.json").read_text(encoding="utf-8")
             )
@@ -198,6 +200,7 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
                 td,
                 material_needs=_needs(),
                 renderer="test_pil",
+                allow_test_renderer=True,
                 style_profile={
                     "look": "documentary memory inserts",
                     "style_anchors": ["muted amber grade"],
@@ -219,7 +222,8 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
         artifact["generation_jobs"][0]["panel_count"] = 2
         with tempfile.TemporaryDirectory() as td:
             result = produce_generated_materials(
-                artifact, td, material_needs=_needs(), renderer="test_pil")
+                artifact, td, material_needs=_needs(), renderer="test_pil",
+                allow_test_renderer=True)
             report_outputs = [
                 item for item in result["outputs"]
                 if item["need_id"] == "nd_report_memory"
@@ -257,6 +261,7 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
                     str(out_dir),
                     "--renderer",
                     "test_pil",
+                    "--allow-test-renderer",
                     "--provider",
                     "codex_imagegen",
                 ],
@@ -271,6 +276,55 @@ class GeneratedMaterialProducerTest(unittest.TestCase):
             report = json.loads((out_dir / "generated_material_production.json").read_text(encoding="utf-8"))
             self.assertTrue(report["ok"])
             self.assertEqual(report["summary"]["image_count"], 2)
+
+    def test_test_renderer_requires_explicit_allow_flag_and_writes_no_images(self):
+        with tempfile.TemporaryDirectory() as td:
+            result = produce_generated_materials(
+                _fallback_artifact(),
+                td,
+                material_needs=_needs(),
+                renderer="test_pil",
+                provider="codex_imagegen",
+            )
+
+            self.assertFalse(result["ok"])
+            self.assertIn("test_pil renderer is test-only", "; ".join(result["errors"]))
+            self.assertFalse((Path(td) / "generated_images").exists())
+            self.assertEqual(result["summary"]["image_count"], 0)
+
+    def test_cli_refuses_test_renderer_without_allow_flag(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            fallback = d / "material_generation_fallback.json"
+            needs = d / "material_needs.json"
+            out_dir = d / "out"
+            fallback.write_text(json.dumps(_fallback_artifact(), ensure_ascii=False), encoding="utf-8")
+            needs.write_text(json.dumps(_needs(), ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "generated-material-produce",
+                    str(fallback),
+                    "--needs",
+                    str(needs),
+                    "--out-dir",
+                    str(out_dir),
+                    "--renderer",
+                    "test_pil",
+                ],
+                cwd=root,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("test_pil renderer is test-only", proc.stdout + proc.stderr)
+            self.assertFalse((out_dir / "generated_images").exists())
 
 
 if __name__ == "__main__":

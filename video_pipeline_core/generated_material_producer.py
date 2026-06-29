@@ -574,6 +574,7 @@ def produce_generated_materials(
     style_profile: Optional[Mapping[str, Any]] = None,
     provider: str = "codex_imagegen",
     renderer: str = "test_pil",
+    allow_test_renderer: bool = False,
 ) -> dict:
     out = Path(out_dir)
     style = dict(DEFAULT_STYLE)
@@ -581,6 +582,16 @@ def produce_generated_materials(
         style.update(style_profile)
     if renderer not in ALLOWED_RENDERERS:
         return _error(out, f"unsupported renderer: {renderer}")
+    if renderer == "test_pil" and not allow_test_renderer:
+        return _error(
+            out,
+            (
+                "test_pil renderer is test-only and cannot create delivery "
+                "generated material; use generated-image-provider-packet plus "
+                "generated-material-import, or pass --allow-test-renderer for "
+                "bounded acceptance tests"
+            ),
+        )
     if not isinstance(fallback_artifact, Mapping) or fallback_artifact.get("ok") is not True:
         return {
             "artifact_role": "generated_material_production",

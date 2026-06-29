@@ -797,6 +797,7 @@ def cmd_generated_material_produce(args):
         style_profile=style_profile,
         provider=args.provider,
         renderer=args.renderer,
+        allow_test_renderer=args.allow_test_renderer,
     )
     print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
                       "quality_gate": result.get("quality_gate"),
@@ -3061,7 +3062,10 @@ def main():
     p_gmp.add_argument("--provider", default="codex_imagegen",
                        help="provider label recorded in generated manifest")
     p_gmp.add_argument("--renderer", default="test_pil",
-                       help="renderer adapter; test_pil is deterministic and offline")
+                       help="renderer adapter; test_pil is test-only and requires --allow-test-renderer")
+    p_gmp.add_argument("--allow-test-renderer", action="store_true",
+                       help=("allow test_pil placeholder images for bounded acceptance tests; "
+                             "omit for real E2E so missing image provider fails closed"))
 
     p_gipp = sub.add_parser("generated-image-provider-packet")
     p_gipp.add_argument("fallback", help="material_generation_fallback.json")

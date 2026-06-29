@@ -246,6 +246,7 @@ def _run_case(case: Mapping[str, Any], root: Path) -> dict:
         style_profile=case["style_profile"],
         provider="codex_imagegen",
         renderer="test_pil",
+        allow_test_renderer=True,
     )
     project_map = json.loads(
         Path(production["refs"]["project_material_map"]).read_text(encoding="utf-8"))
