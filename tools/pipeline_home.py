@@ -41,7 +41,13 @@ def _find_json_by_role(
     if not candidates:
         return None, None
     if prefer_reviewed:
-        reviewed_statuses = {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+        reviewed_statuses = {
+            "reviewed",
+            "reviewed_by_operator",
+            "agent_reviewed",
+            "accepted",
+            "approved",
+        }
         for path, payload in candidates:
             status = str(payload.get("review_status") or "").strip().casefold()
             if status in reviewed_statuses:
@@ -336,6 +342,101 @@ def _visual_technique_summary(root: Path):
         run_dir=root,
         source="visual_technique_plan.json",
     )
+
+
+def _generated_material_summary(root: Path):
+    quality_path, quality = _find_json_name_or_role(
+        root,
+        "generated_material_quality_review.json",
+        "generated_material_quality_review",
+    )
+    review_path, review = _find_json_name_or_role(
+        root,
+        "generated_material_review.json",
+        "generated_material_review",
+    )
+    delta_path, delta = _find_json(root, "delta_after_generated_review.json")
+    fallback_path, fallback = _find_json(root, "material_generation_fallback.json")
+    if not any((quality, review, delta, fallback)):
+        return None
+
+    read = []
+    for path in (quality_path, review_path, delta_path, fallback_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+
+    if quality and quality.get("pass") is False:
+        blocking = quality.get("blocking") or quality.get("findings") or []
+        reason = "generated material quality review failed"
+        if blocking:
+            reason += ": " + "; ".join(
+                str(item.get("message") or item.get("rule") or item)
+                for item in blocking[:3]
+                if item
+            )
+        return _contract(
+            "repair",
+            "generated_material_review",
+            next_action="repair_generated_material_candidates",
+            resume="stage2_material_map",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source=_rel(root, quality_path),
+        )
+
+    decisions = review.get("decisions") if isinstance(review, dict) else None
+    if isinstance(decisions, list) and decisions:
+        accepted_statuses = {"accept", "accepted", "approve", "approved", "keep", "selected", "use"}
+        accepted = [
+            item for item in decisions
+            if str((item or {}).get("status") or "").strip().casefold() in accepted_statuses
+        ]
+        if not accepted:
+            return _contract(
+                "repair",
+                "generated_material_review",
+                next_action="repair_generated_material_candidates",
+                resume="stage2_material_map",
+                reason=f"generated material review rejected all {len(decisions)} candidate(s)",
+                read=read,
+                run_dir=root,
+                source=_rel(root, review_path),
+            )
+
+    if isinstance(delta, dict) and (
+        delta.get("ready_for_build") is False
+        or delta.get("blocks_ready_for_build") is True
+    ):
+        summary = delta.get("summary") if isinstance(delta.get("summary"), dict) else {}
+        missing = summary.get("missing")
+        reason = "generated material delta is not ready for build"
+        if missing is not None:
+            reason += f": missing={missing}"
+        return _contract(
+            "repair",
+            "generated_material_review",
+            next_action="repair_generated_material_candidates",
+            resume="stage2_material_map",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source=_rel(root, delta_path),
+        )
+
+    if fallback and not review:
+        return _contract(
+            "run",
+            "generated_material_review",
+            next_action="review_generated_material_candidates",
+            resume="stage2_material_map",
+            reason="generated material fallback candidates await review",
+            read=read,
+            run_dir=root,
+            source=_rel(root, fallback_path),
+        )
+    return None
 
 
 def _soundtrack_summary(root: Path):
@@ -791,7 +892,7 @@ def _one_source_dialogue_preview_summary(root: Path):
     reviewed = bool(
         script
         and str(script.get("review_status") or "").strip().casefold()
-        in {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+        in {"reviewed", "reviewed_by_operator", "agent_reviewed", "accepted", "approved"}
     )
     if script and not reviewed:
         return _contract(
@@ -1109,6 +1210,10 @@ def summarize_run(run_dir):
     root = Path(run_dir).resolve()
 
     summary = _delivery_gate_summary(root)
+    if summary:
+        return summary
+
+    summary = _generated_material_summary(root)
     if summary:
         return summary
 

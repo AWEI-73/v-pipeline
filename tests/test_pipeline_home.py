@@ -780,6 +780,42 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "revise_effect_factory_contract")
             self.assertIn("evidence_refs", summary["reason"])
 
+    def test_generated_material_failure_blocks_before_effect_factory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(Path(tmp) / "generated", "generated_material_quality_review.json", {
+                "artifact_role": "generated_material_quality_review",
+                "pass": False,
+                "summary": {"item_count": 2, "avg_score": 60.0},
+                "blocking": [{"rule": "low_visual_quality", "message": "candidate is not usable"}],
+            })
+            _write(tmp, "generated_material_review.json", {
+                "artifact_role": "generated_material_review",
+                "decisions": [
+                    {"candidate_id": "gen_1", "status": "rejected"},
+                    {"candidate_id": "gen_2", "status": "rejected"},
+                ],
+            })
+            _write(tmp, "delta_after_generated_review.json", {
+                "artifact_role": "material_delta",
+                "ready_for_build": True,
+                "blocks_ready_for_build": False,
+                "summary": {"covered": 0, "missing": 2},
+            })
+            _write(tmp, "visual_technique_plan.json", {
+                "artifact_role": "visual_technique_plan",
+                "style_family": "japanese_sakura",
+                "effect_role": "opening_title",
+                "handoff_to": "remotion_prompt_parameters",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "generated_material_review")
+            self.assertEqual(summary["next"], "repair_generated_material_candidates")
+            self.assertEqual(summary["source"], "generated/generated_material_quality_review.json")
+            self.assertIn("generated material quality review failed", summary["reason"])
+
     def test_visual_technique_candidate_routes_to_parameter_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "visual_technique_plan.json", {
@@ -934,7 +970,7 @@ class PipelineHomeTest(unittest.TestCase):
             })
             _write(root / "dialogue_script", "dialogue_edit_script.reviewed.json", {
                 "artifact_role": "dialogue_edit_script",
-                "review_status": "reviewed_by_operator",
+                "review_status": "agent_reviewed",
                 "clip_count": 7,
                 "planned_duration_sec": 119.267,
             })

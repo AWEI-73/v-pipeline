@@ -117,7 +117,13 @@ def load_dashboard_state(workdir):
         if not candidates:
             return None
         if prefer_reviewed:
-            reviewed_statuses = {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+            reviewed_statuses = {
+                "reviewed",
+                "reviewed_by_operator",
+                "agent_reviewed",
+                "accepted",
+                "approved",
+            }
             for _filename, payload in candidates:
                 status = str(payload.get("review_status") or "").strip().lower()
                 if status in reviewed_statuses:
@@ -260,6 +266,20 @@ def load_dashboard_state(workdir):
     contract_data = safe_load_json(manifest.get("canonical_contract")) or safe_load_json("segment_contract.json")
     material_coverage = safe_load_json(manifest.get("material_coverage_map")) or safe_load_json("material_coverage_map.json")
     material_delta = safe_load_json(manifest.get("material_delta")) or safe_load_json("material_delta.json")
+    generated_material_quality_review = (
+        safe_load_json(manifest.get("generated_material_quality_review"))
+        or safe_load_json("generated_material_quality_review.json")
+        or safe_load_json_by_role("generated_material_quality_review")
+    )
+    generated_material_review = (
+        safe_load_json(manifest.get("generated_material_review"))
+        or safe_load_json("generated_material_review.json")
+        or safe_load_json_by_role("generated_material_review")
+    )
+    delta_after_generated_review = (
+        safe_load_json(manifest.get("delta_after_generated_review"))
+        or safe_load_json("delta_after_generated_review.json")
+    )
     project_material_map = (
         safe_load_json(manifest.get("project_material_map"))
         or safe_load_json("project_material_map.json")
@@ -724,6 +744,45 @@ def load_dashboard_state(workdir):
             next_action = "fix_timeline_or_assembly"
         else:
             next_action = "human_review"
+    elif generated_material_quality_review and generated_material_quality_review.get("pass") is False:
+        next_action = "repair_generated_material_candidates"
+        is_pass = False
+        findings.append({
+            "type": "error",
+            "node": 2,
+            "artifact": "generated_material_quality_review",
+            "message": "Generated material quality review failed; repair candidates before build/effects",
+        })
+    elif (
+        generated_material_review
+        and isinstance(generated_material_review.get("decisions"), list)
+        and generated_material_review.get("decisions")
+        and not any(
+            str((item or {}).get("status") or "").strip().lower()
+            in {"accept", "accepted", "approve", "approved", "keep", "selected", "use"}
+            for item in generated_material_review.get("decisions")
+        )
+    ):
+        next_action = "repair_generated_material_candidates"
+        is_pass = False
+        findings.append({
+            "type": "error",
+            "node": 2,
+            "artifact": "generated_material_review",
+            "message": "Generated material review rejected all candidates",
+        })
+    elif delta_after_generated_review and (
+        delta_after_generated_review.get("ready_for_build") is False
+        or delta_after_generated_review.get("blocks_ready_for_build") is True
+    ):
+        next_action = "repair_generated_material_candidates"
+        is_pass = False
+        findings.append({
+            "type": "error",
+            "node": 2,
+            "artifact": "delta_after_generated_review",
+            "message": "Generated material delta is not ready for build",
+        })
     elif gen_request_items and not generated_manifest:
         next_action = "wait_for_generated_provider"
     elif visual_review_request and not visual_review_verdict:
@@ -737,7 +796,7 @@ def load_dashboard_state(workdir):
     elif dialogue_edit_script and not highlight_cut_report:
         dialogue_reviewed = str(
             dialogue_edit_script.get("review_status") or ""
-        ).strip().lower() in {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+        ).strip().lower() in {"reviewed", "reviewed_by_operator", "agent_reviewed", "accepted", "approved"}
         next_action = "safe_highlight_cut" if dialogue_reviewed else "review_dialogue_edit_script_then_cut"
         is_pass = False
         findings.append({
@@ -781,27 +840,6 @@ def load_dashboard_state(workdir):
             "node": 5,
             "artifact": "highlight_selection_plan",
             "message": "Single-source highlight candidate is ready for human review or delivery-gate promotion",
-        })
-    elif (
-        material_inventory_summary
-        and not material_first_boundary_acceptance_report
-    ):
-        next_action = (
-            (material_inventory_summary.get("recommended_next_actions") or ["review_material_inventory_summary"])[0]
-            or "review_material_inventory_summary"
-        )
-        is_pass = False
-        counts = material_inventory_summary.get("counts") or {}
-        findings.append({
-            "type": "info",
-            "node": 2,
-            "artifact": "material_inventory_summary",
-            "message": (
-                "Material quick inventory ready: "
-                f"{counts.get('total_files', 0)} files, "
-                f"{counts.get('videos', 0)} videos, "
-                f"{counts.get('images', 0)} images"
-            ),
         })
     elif (
         material_first_boundary_acceptance_report
@@ -892,6 +930,27 @@ def load_dashboard_state(workdir):
     ):
         next_action = workbench_handoff.get("next_action") or "review_workbench_route_back"
         is_pass = False
+    elif (
+        material_inventory_summary
+        and not material_first_boundary_acceptance_report
+    ):
+        next_action = (
+            (material_inventory_summary.get("recommended_next_actions") or ["review_material_inventory_summary"])[0]
+            or "review_material_inventory_summary"
+        )
+        is_pass = False
+        counts = material_inventory_summary.get("counts") or {}
+        findings.append({
+            "type": "info",
+            "node": 2,
+            "artifact": "material_inventory_summary",
+            "message": (
+                "Material quick inventory ready: "
+                f"{counts.get('total_files', 0)} files, "
+                f"{counts.get('videos', 0)} videos, "
+                f"{counts.get('images', 0)} images"
+            ),
+        })
     else:
         # Check required missing nodes
         verified_final = bool(final_exists and verify_result and verify_result.get("pass") is True)
@@ -931,7 +990,12 @@ def load_dashboard_state(workdir):
         "material_delta": material_delta,
         "material_map_lifecycle": material_map_lifecycle,
     })
-    if next_action not in {"soundtrack-arrange", "write_delivery_gate_report_or_review_highlight_candidate"} and not delivery_gate["pass"]:
+    if next_action not in {
+        "soundtrack-arrange",
+        "write_delivery_gate_report_or_review_highlight_candidate",
+        "write_delivery_gate_report_or_promote_one_source_preview",
+        "repair_generated_material_candidates",
+    } and not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
         is_pass = False
         for item in delivery_gate["blocking"]:
@@ -1247,6 +1311,9 @@ def load_dashboard_state(workdir):
             "build_profile": profile_data,
             "generated_requests": gen_requests,
             "generated_manifest": generated_manifest,
+            "generated_material_quality_review": generated_material_quality_review,
+            "generated_material_review": generated_material_review,
+            "delta_after_generated_review": delta_after_generated_review,
             "material_coverage": material_coverage,
             "material_inventory_summary": material_inventory_summary,
             "material_wall_handoff_report": material_wall_handoff_report,

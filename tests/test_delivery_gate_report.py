@@ -116,6 +116,39 @@ class DeliveryGateReportCliTest(unittest.TestCase):
                 {"pass": True},
             )
 
+    def test_dashboard_gate_pass_without_video_candidate_fails_closed(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertFalse(summary["pass"])
+            self.assertEqual(summary["next_action"], "create_or_verify_video_candidate")
+            self.assertTrue(any(
+                item.get("rule") == "missing_video_candidate"
+                for item in summary.get("blocking", [])
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()

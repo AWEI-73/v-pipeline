@@ -63,6 +63,74 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_generated_material_failure_blocks_before_generic_delivery_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "video_intent.json").write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "structure-first",
+            }), encoding="utf-8")
+            (workdir / "generated").mkdir()
+            (workdir / "generated" / "generated_material_quality_review.json").write_text(json.dumps({
+                "artifact_role": "generated_material_quality_review",
+                "pass": False,
+                "summary": {"item_count": 2, "avg_score": 60.0},
+            }), encoding="utf-8")
+            (workdir / "generated_material_review.json").write_text(json.dumps({
+                "artifact_role": "generated_material_review",
+                "decisions": [
+                    {"candidate_id": "gen_1", "status": "rejected"},
+                    {"candidate_id": "gen_2", "status": "rejected"},
+                ],
+            }), encoding="utf-8")
+            (workdir / "delta_after_generated_review.json").write_text(json.dumps({
+                "artifact_role": "material_delta",
+                "ready_for_build": True,
+                "blocks_ready_for_build": False,
+                "summary": {"covered": 0, "missing": 2},
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["run"]["next_action"], "repair_generated_material_candidates")
+            self.assertIsNotNone(state["artifacts"]["generated_material_quality_review"])
+            self.assertIsNotNone(state["artifacts"]["generated_material_review"])
+            self.assertTrue(any(
+                finding.get("artifact") == "generated_material_quality_review"
+                for finding in state["findings"]
+            ))
+
+    def test_soundtrack_block_takes_precedence_over_stale_inventory_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "material_inventory_summary.json").write_text(json.dumps({
+                "artifact_role": "material_inventory_summary",
+                "counts": {"total_files": 10, "videos": 5, "images": 4},
+                "recommended_next_actions": ["review_material_inventory_summary"],
+            }), encoding="utf-8")
+            (workdir / "soundtrack_plan.json").write_text(json.dumps({
+                "artifact_role": "soundtrack_plan",
+                "sections": [{"section_id": "opening"}],
+            }), encoding="utf-8")
+            (workdir / "sound_license_manifest.json").write_text(json.dumps({
+                "artifact_role": "sound_license_manifest",
+                "delivery_allowed": False,
+                "blocked_reasons": ["license_missing"],
+            }), encoding="utf-8")
+            (workdir / "audio_director_handoff.json").write_text(json.dumps({
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": False,
+                "blocks": ["license_missing"],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["run"]["next_action"], "resolve_soundtrack_license_or_reference_only")
+            self.assertTrue(any(
+                finding.get("artifact") == "audio_director_handoff"
+                for finding in state["findings"]
+            ))
+
     def test_control_surface_is_artifact_first_and_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
