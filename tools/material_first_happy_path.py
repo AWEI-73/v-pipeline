@@ -1,0 +1,122 @@
+"""Run the no-render material-first happy path from source folder to review handoff."""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.material_first_boundary_acceptance import run_material_first_boundary_acceptance  # noqa: E402
+from tools.material_first_landing_case import _scan_source_materials  # noqa: E402
+from video_pipeline_core.material_rough_cut import write_json  # noqa: E402
+from video_pipeline_core.material_understanding_matrix import build_material_understanding_matrix  # noqa: E402
+from video_pipeline_core.material_wall_verdict_draft import build_wall_verdict_draft  # noqa: E402
+
+
+def run_material_first_happy_path(
+    run_dir,
+    *,
+    source_dir,
+    max_assets=12,
+    frame_budget=3,
+    roles=None,
+) -> dict:
+    root = Path(run_dir).resolve()
+    source = Path(source_dir).resolve()
+    if root.exists():
+        shutil.rmtree(root)
+    prep = root.parent / f"{root.name}._prep"
+    if prep.exists():
+        shutil.rmtree(prep)
+    prep.mkdir(parents=True)
+
+    required_roles = roles or ["opening", "training", "closing"]
+    materials_db = _scan_source_materials(source, max_assets=int(max_assets))
+    materials_db_path = prep / "materials_db.source_candidates.json"
+    write_json(materials_db_path, materials_db)
+
+    matrix_dir = prep / "material_understanding"
+    matrix = build_material_understanding_matrix(
+        materials_db,
+        out_dir=matrix_dir,
+        max_assets=int(max_assets),
+        frame_budget=int(frame_budget),
+    )
+    verdict_path = prep / "material_wall_review_verdict.draft.json"
+    verdict = build_wall_verdict_draft(
+        matrix,
+        out_path=verdict_path,
+        required_roles=required_roles,
+    )
+
+    acceptance = run_material_first_boundary_acceptance(
+        root,
+        source_dir=source,
+        wall_verdict=verdict_path,
+        max_assets=int(max_assets),
+    )
+    if root.exists():
+        shutil.copy2(materials_db_path, root / "materials_db.source_candidates.json")
+        shutil.copytree(matrix_dir, root / "material_understanding", dirs_exist_ok=True)
+        shutil.copy2(verdict_path, root / "material_wall_review_verdict.draft.json")
+    shutil.rmtree(prep, ignore_errors=True)
+
+    report = acceptance.get("report") or {}
+    summary = {
+        "artifact_role": "material_first_happy_path_report",
+        "version": 1,
+        "ok": bool(acceptance.get("ok")),
+        "run_dir": str(root),
+        "source_dir": str(source),
+        "materials_db": str(root / "materials_db.source_candidates.json"),
+        "matrix": str(root / "material_understanding" / "material_understanding_matrix.json"),
+        "contact_sheet": str(root / "material_understanding" / "material_understanding_contact_sheet.jpg"),
+        "wall_verdict_draft": str(root / "material_wall_review_verdict.draft.json"),
+        "primary_selection": verdict.get("primary_selection") or {},
+        "acceptance_report": str(root / "material_first_boundary_acceptance_report.json"),
+        "next_action": report.get("next_action"),
+        "failed_stage": report.get("failed_stage"),
+        "rendered": (root / "final.mp4").exists(),
+        "limitations": [
+            "This wrapper does not render final.mp4.",
+            "The wall verdict is a draft and remains reviewable.",
+            "Material truth still belongs to Material Map / review apply / delivery gates.",
+        ],
+    }
+    write_json(root / "material_first_happy_path_report.json", summary)
+    return summary
+
+
+def _roles(value: str) -> list[str]:
+    return [part.strip() for part in str(value or "").split(",") if part.strip()]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", required=True, help="run folder to create")
+    parser.add_argument("--source-dir", required=True, help="source material folder")
+    parser.add_argument("--max-assets", type=int, default=12)
+    parser.add_argument("--frame-budget", type=int, default=3)
+    parser.add_argument("--roles", default="opening,training,closing")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    result = run_material_first_happy_path(
+        args.out,
+        source_dir=args.source_dir,
+        max_assets=args.max_assets,
+        frame_budget=args.frame_budget,
+        roles=_roles(args.roles),
+    )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"ok={result['ok']} next_action={result.get('next_action')} run_dir={result['run_dir']}")
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

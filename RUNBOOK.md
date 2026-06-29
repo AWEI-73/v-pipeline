@@ -273,6 +273,25 @@ Minimal no-render acceptance:
 
 Optional review aid before writing the wall verdict:
 
+Fast operator wrapper:
+
+```powershell
+python tools\material_first_happy_path.py `
+  --out RUN_DIR `
+  --source-dir MATERIAL_SOURCE_DIR `
+  --max-assets 12 `
+  --frame-budget 3 `
+  --json
+```
+
+This creates the matrix, contact sheet, conservative wall verdict draft, and
+material-first boundary acceptance report in one run folder. It does not render
+and the generated `rough_cut_plan.json` is a short smoke handoff, not a finished
+60-90 second highlight. Use it to earn the right to expand into a longer rough
+cut preview.
+
+Manual steps, when you need to inspect or override each artifact:
+
 ```powershell
 python tools\material_understanding_matrix.py `
   --materials-db RUN_DIR\materials_db.json `
