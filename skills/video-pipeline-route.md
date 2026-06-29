@@ -430,6 +430,7 @@ story-soul-blueprint
 -> initial material_delta.json with ready_for_build=false
 -> material-generation-fallback
 -> generated-image-provider-packet
+-> wait_for_generated_provider if real provider outputs do not exist yet
 -> provider output mapping is required
 -> generated-material-import
 -> generated-material-review
@@ -440,6 +441,9 @@ story-soul-blueprint
 Generated files must be reviewed before they satisfy material needs.
 For zero-material projects, do not skip the initial delta: fallback should be
 driven by missing/thin evidence, not by agent confidence alone.
+For the bounded happy path, prefer `tools/story_first_provider_happy_path.py`;
+it writes the story-first artifacts and stops at provider handoff instead of
+creating placeholder cards.
 
 ### Hybrid route
 

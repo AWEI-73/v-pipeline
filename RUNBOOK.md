@@ -437,13 +437,39 @@ brief
   -> material_needs.json
   -> material_delta.json
   -> material_generation_fallback.json
-  -> generated candidate panels/assets
+  -> provider_packet/generated_provider_packet.json
+  -> wait_for_generated_provider
+  -> generated provider outputs
+  -> generated-material-import
   -> generated_material_review.json
   -> reviewed project material map
   -> delta covered after review
 ```
 
-Acceptance harness:
+Real-provider handoff wrapper:
+
+```powershell
+python tools\story_first_provider_happy_path.py `
+  --out RUN_DIR `
+  --title "月光森林裡迷路的小兔子" `
+  --style "日式可愛繪本風格" `
+  --target-duration 60 `
+  --json
+```
+
+Expected `pipeline_home.py` result:
+
+```text
+mode=waiting
+cursor=generated_image_provider
+next=wait_for_generated_provider
+final.mp4 absent
+```
+
+This is the correct stop point when no image-capable provider has written real
+files yet. Do not substitute `test_pil` or text-card placeholders for final art.
+
+Acceptance harness for shape-only regression:
 
 ```powershell
 python tools\story_to_generated_material_e2e.py .tmp\story_to_generated_material_e2e

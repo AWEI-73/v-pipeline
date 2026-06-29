@@ -151,12 +151,17 @@ entry_path = structure-first
   -> segment_contract.json or material-ready handoff
   -> Material Map if user later provides material
   -> generated-material fallback only after material delta / need review
+  -> story_first_provider_happy_path.py for no-material provider handoff
+  -> provider_packet/generated_provider_packet.json
+  -> wait_for_generated_provider until real provider outputs are supplied
 ```
 
 The structure route writes the first concrete `material_needs`. Material Map then
 proves or disproves those needs. If material remains missing, the explicit
 resolution choices are generated candidate fallback, shooting brief, rewrite,
-drop, or waiver.
+drop, or waiver. Generated candidate fallback must stop at
+`wait_for_generated_provider` when no real image provider outputs exist; do not
+promote placeholder or text-card images as material.
 
 ### BUILD Decision Section
 

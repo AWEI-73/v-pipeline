@@ -21,6 +21,13 @@ material-map evidence.
   ],
   "canonical_tools": [
     {
+      "tool": "tools/story_first_provider_happy_path.py",
+      "when": "no-material/story-first request needs the full safe path to real image provider handoff without test_pil or placeholder cards",
+      "inputs": ["title/story subject", "visual style", "target duration", "provider list"],
+      "outputs": ["video_intent.json", "story_blueprint/*", "material_generation_fallback.json", "style_profile.json", "provider_packet/generated_provider_packet.json", "provider_packet/generated_provider_prompts.md"],
+      "stop_if": ["pipeline_home does not return wait_for_generated_provider", "generated_material_production.json exists before provider outputs", "final.mp4 exists"]
+    },
+    {
       "tool": "tools/generated_material_flow_acceptance.py",
       "when": "驗證 generated material fallback flow，不把生成物直接當 proof material",
       "inputs": ["material_generation_fallback.json", "material_needs.json"],
@@ -88,6 +95,22 @@ material_needs.json
 ```
 
 ## Command
+
+For a no-material story request, use the bounded provider handoff wrapper first:
+
+```powershell
+python tools\story_first_provider_happy_path.py `
+  --out RUN_DIR `
+  --title "月光森林裡迷路的小兔子" `
+  --style "日式可愛繪本風格" `
+  --target-duration 60 `
+  --json
+```
+
+Expected `pipeline_home.py` result is `mode=waiting`,
+`cursor=generated_image_provider`, `next=wait_for_generated_provider`. This is
+the correct stop point when no image-capable provider has written files yet.
+Do not substitute `test_pil` or text-card placeholders for real generated art.
 
 Default route for real work:
 
