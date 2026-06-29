@@ -925,6 +925,74 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "write_delivery_gate_report_or_review_highlight_candidate")
             self.assertEqual(summary["source"], "highlight_selection_plan.json")
 
+    def test_one_source_dialogue_preview_routes_to_final_review_before_intent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+            _write(root / "dialogue_script", "dialogue_edit_script.reviewed.json", {
+                "artifact_role": "dialogue_edit_script",
+                "review_status": "reviewed_by_operator",
+                "clip_count": 7,
+                "planned_duration_sec": 119.267,
+            })
+            _write(root / "dialogue_script", "dialogue_highlight_windows.reviewed.json", {
+                "artifact_role": "dialogue_highlight_windows",
+                "windows": [{"start": 10.0, "end": 20.0, "label": "intro"}],
+            })
+            _write(root, "highlight_cut_report.reviewed.json", {
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 119.325,
+                "out": str(root / "dialogue_highlight_cut_reviewed.mp4"),
+                "output_probe": {
+                    "video": {"codec_name": "h264"},
+                    "audio": {"codec_name": "aac"},
+                },
+            })
+            (root / "dialogue_highlight_cut_reviewed.mp4").write_bytes(b"fake video")
+            _write(root / "final_product_verify", "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "visual": {"pass": True, "sample_count": 12},
+                "audio": {"pass": True},
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "write_delivery_gate_report_or_promote_one_source_preview")
+            self.assertEqual(summary["source"], "dialogue_edit_script.reviewed.json")
+            self.assertIn("one-source dialogue preview verified", summary["reason"])
+            self.assertIn("final_product_verify/final_product_verify_bundle.json", summary["read"])
+
+    def test_one_source_dialogue_preview_needs_verify_after_cut(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "dialogue_script", "dialogue_edit_script.reviewed.json", {
+                "artifact_role": "dialogue_edit_script",
+                "review_status": "reviewed_by_operator",
+                "clip_count": 3,
+            })
+            _write(root, "highlight_cut_report.json", {
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 70.0,
+                "out": str(root / "dialogue_highlight_cut.mp4"),
+                "output_probe": {
+                    "video": {"codec_name": "h264"},
+                    "audio": {"codec_name": "aac"},
+                },
+            })
+            (root / "dialogue_highlight_cut.mp4").write_bytes(b"fake video")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "final-product-verify")
+            self.assertIn("needs final-product-verify", summary["reason"])
+
     def test_cli_prints_json_contract(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

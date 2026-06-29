@@ -27,6 +27,38 @@ def _find_json(root: Path, name: str) -> tuple[Path, dict[str, Any]] | tuple[Non
     return None, None
 
 
+def _find_json_by_role(
+    root: Path,
+    role: str,
+    *,
+    prefer_reviewed: bool = False,
+) -> tuple[Path, dict[str, Any]] | tuple[None, None]:
+    candidates = []
+    for path in sorted(root.rglob("*.json")):
+        payload = _load_json(path)
+        if payload and payload.get("artifact_role") == role:
+            candidates.append((path, payload))
+    if not candidates:
+        return None, None
+    if prefer_reviewed:
+        reviewed_statuses = {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+        for path, payload in candidates:
+            status = str(payload.get("review_status") or "").strip().casefold()
+            if status in reviewed_statuses:
+                return path, payload
+        for path, payload in candidates:
+            if "reviewed" in path.name.casefold():
+                return path, payload
+    return candidates[0]
+
+
+def _find_json_name_or_role(root: Path, name: str, role: str) -> tuple[Path, dict[str, Any]] | tuple[None, None]:
+    path, payload = _find_json(root, name)
+    if payload:
+        return path, payload
+    return _find_json_by_role(root, role)
+
+
 def _rel(root: Path, path: Any) -> str | None:
     if not path:
         return None
@@ -726,6 +758,137 @@ def _source_highlight_summary(root: Path):
     )
 
 
+def _one_source_dialogue_preview_summary(root: Path):
+    script_path, script = _find_json_by_role(
+        root,
+        "dialogue_edit_script",
+        prefer_reviewed=True,
+    )
+    windows_path, windows = _find_json_by_role(
+        root,
+        "dialogue_highlight_windows",
+        prefer_reviewed=True,
+    )
+    highlight_path, highlight = _find_json_name_or_role(
+        root,
+        "highlight_cut_report.json",
+        "highlight_cut_report",
+    )
+    verify_path, verify = _find_json_name_or_role(
+        root,
+        "final_product_verify_bundle.json",
+        "final_product_verify_bundle",
+    )
+    if not (script or windows or highlight or verify):
+        return None
+
+    read = []
+    for path in (script_path, windows_path, highlight_path, verify_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+
+    reviewed = bool(
+        script
+        and str(script.get("review_status") or "").strip().casefold()
+        in {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+    )
+    if script and not reviewed:
+        return _contract(
+            "waiting",
+            "dialogue_script_review",
+            next_action="review_dialogue_edit_script_then_cut",
+            reason="one-source dialogue script exists but is not reviewed",
+            read=read,
+            run_dir=root,
+            source=_rel(root, script_path),
+        )
+
+    if script and not highlight:
+        return _contract(
+            "run",
+            "stage4_highlight_build",
+            next_action="safe_highlight_cut",
+            reason="reviewed dialogue script is ready for safe highlight cut",
+            read=read,
+            run_dir=root,
+            source=_rel(root, script_path),
+        )
+
+    output_path = None
+    if highlight:
+        output_path = highlight.get("out") or highlight.get("output")
+    output_exists = bool(output_path and Path(str(output_path)).is_file())
+    output_probe = highlight.get("output_probe") if isinstance(highlight, dict) else {}
+    playable = bool(
+        highlight
+        and (
+            output_exists
+            or (
+                isinstance(output_probe, dict)
+                and output_probe.get("video")
+                and output_probe.get("audio")
+            )
+        )
+    )
+    if highlight and not playable:
+        return _contract(
+            "repair",
+            "stage4_highlight_build",
+            next_action="repair_safe_highlight_cut",
+            reason="highlight_cut_report exists but playable output evidence is missing",
+            read=read,
+            run_dir=root,
+            source=_rel(root, highlight_path),
+        )
+
+    if highlight and not verify:
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action="final-product-verify",
+            reason="one-source dialogue highlight cut exists and needs final-product-verify",
+            read=read,
+            run_dir=root,
+            source=_rel(root, highlight_path),
+        )
+
+    verify_pass = bool(verify and verify.get("pass") is True)
+    if verify and not verify_pass:
+        return _contract(
+            "repair",
+            "stage5_final_review",
+            next_action=verify.get("next_action") or "repair_final_product_verify_evidence",
+            reason="one-source dialogue preview failed final-product-verify",
+            read=read,
+            run_dir=root,
+            source=_rel(root, verify_path),
+        )
+
+    if verify_pass:
+        clip_count = script.get("clip_count") if isinstance(script, dict) else None
+        duration = (
+            highlight.get("duration_sec")
+            if isinstance(highlight, dict)
+            else script.get("planned_duration_sec") if isinstance(script, dict) else None
+        )
+        reason = "one-source dialogue preview verified"
+        if clip_count is not None:
+            reason += f": {clip_count} clip(s)"
+        if duration is not None:
+            reason += f", {duration}s"
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action="write_delivery_gate_report_or_promote_one_source_preview",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source=Path(str(script_path)).name if script_path else "dialogue_edit_script.json",
+        )
+    return None
+
+
 def _story_summary(root: Path):
     story_path, story = _find_json(root, "story_world.json")
     beats_path, beats = _find_json(root, "screenplay_beats.json")
@@ -1003,6 +1166,10 @@ def summarize_run(run_dir):
         return summary
 
     summary = _source_highlight_summary(root)
+    if summary:
+        return summary
+
+    summary = _one_source_dialogue_preview_summary(root)
     if summary:
         return summary
 

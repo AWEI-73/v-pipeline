@@ -80,12 +80,52 @@ def load_dashboard_state(workdir):
             if os.path.exists(p2):
                 p = p2
             else:
-                return None
+                basename = os.path.basename(str(filename))
+                found = None
+                if os.path.isdir(workdir):
+                    for dirpath, dirnames, filenames in os.walk(workdir):
+                        dirnames[:] = [
+                            d for d in dirnames
+                            if d not in {"node_modules", ".git", "__pycache__"}
+                        ]
+                        if basename in filenames:
+                            found = os.path.join(dirpath, basename)
+                            break
+                if found:
+                    p = found
+                else:
+                    return None
         try:
             with open(p, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             return None
+
+    def safe_load_json_by_role(role, prefer_reviewed=False):
+        if not role or not os.path.isdir(workdir):
+            return None
+        candidates = []
+        for dirpath, dirnames, filenames in os.walk(workdir):
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in {"node_modules", ".git", "__pycache__"}
+            ]
+            for filename in sorted(f for f in filenames if f.endswith(".json")):
+                payload = safe_load_json(os.path.join(dirpath, filename))
+                if isinstance(payload, dict) and payload.get("artifact_role") == role:
+                    candidates.append((filename, payload))
+        if not candidates:
+            return None
+        if prefer_reviewed:
+            reviewed_statuses = {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+            for _filename, payload in candidates:
+                status = str(payload.get("review_status") or "").strip().lower()
+                if status in reviewed_statuses:
+                    return payload
+            for filename, payload in candidates:
+                if "reviewed" in filename.lower():
+                    return payload
+        return candidates[0][1]
 
     def artifact_path(filename):
         if not filename:
@@ -307,6 +347,16 @@ def load_dashboard_state(workdir):
     rough_cut_plan = safe_load_json(manifest.get("rough_cut_plan")) or safe_load_json("rough_cut_plan.json")
     source_timeline_map = safe_load_json(manifest.get("source_timeline_map")) or safe_load_json("source_timeline_map.json")
     source_material_matrix = safe_load_json(manifest.get("source_material_matrix")) or safe_load_json("source_material_matrix.json")
+    dialogue_edit_script = (
+        safe_load_json_by_role("dialogue_edit_script", prefer_reviewed=True)
+        or safe_load_json(manifest.get("dialogue_edit_script"))
+        or safe_load_json("dialogue_edit_script.json")
+    )
+    dialogue_highlight_windows = (
+        safe_load_json_by_role("dialogue_highlight_windows", prefer_reviewed=True)
+        or safe_load_json(manifest.get("dialogue_highlight_windows"))
+        or safe_load_json("dialogue_highlight_windows.json")
+    )
     highlight_selection_plan = (
         safe_load_json(manifest.get("highlight_selection_plan"))
         or safe_load_json("highlight_selection_plan.json")
@@ -315,13 +365,18 @@ def load_dashboard_state(workdir):
         safe_load_json(manifest.get("highlight_cut_report"))
         or safe_load_json("highlight_cut_report.json")
         or safe_load_json("highlight_cut_from_rough_cut_report.json")
+        or safe_load_json_by_role("highlight_cut_report")
     )
     editor_review = safe_load_json(manifest.get("editor_review")) or safe_load_json("editor_review.json")
     visual_review_request = safe_load_json(manifest.get("visual_review_request")) or safe_load_json("visual_review_request.json")
     visual_review_verdict = safe_load_json(manifest.get("visual_review_verdict")) or safe_load_json("visual_review_verdict.json")
     state_data = safe_load_json(manifest.get("state")) or safe_load_json("state.json")
     verify_result = safe_load_json(manifest.get("verify_result")) or safe_load_json("qa_report.json") or safe_load_json("verify_result.json")
-    final_product_verify_bundle = safe_load_json(manifest.get("final_product_verify_bundle")) or safe_load_json("final_product_verify_bundle.json")
+    final_product_verify_bundle = (
+        safe_load_json(manifest.get("final_product_verify_bundle"))
+        or safe_load_json("final_product_verify_bundle.json")
+        or safe_load_json_by_role("final_product_verify_bundle")
+    )
     
     effects_render_plan = safe_load_json(manifest.get("motion_graphics_render_plan")) or safe_load_json("motion_graphics_render_plan.json")
     effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest")) or safe_load_json("motion_graphics_manifest.json")
@@ -678,6 +733,45 @@ def load_dashboard_state(workdir):
             "node": 11,
             "artifact": "visual_review_request.json",
             "message": "Visual review request awaits agent verdict",
+        })
+    elif dialogue_edit_script and not highlight_cut_report:
+        dialogue_reviewed = str(
+            dialogue_edit_script.get("review_status") or ""
+        ).strip().lower() in {"reviewed", "reviewed_by_operator", "accepted", "approved"}
+        next_action = "safe_highlight_cut" if dialogue_reviewed else "review_dialogue_edit_script_then_cut"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 5,
+            "artifact": "dialogue_edit_script",
+            "message": (
+                "Reviewed one-source dialogue script is ready for safe highlight cut"
+                if dialogue_reviewed
+                else "One-source dialogue script awaits review before cutting"
+            ),
+        })
+    elif dialogue_edit_script and highlight_cut_report and not final_product_verify_bundle:
+        next_action = "final-product-verify"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 12,
+            "artifact": "highlight_cut_report",
+            "message": "One-source dialogue highlight cut needs final-product-verify evidence",
+        })
+    elif (
+        dialogue_edit_script
+        and highlight_cut_report
+        and final_product_verify_bundle
+        and final_product_verify_bundle.get("pass") is True
+    ):
+        next_action = "write_delivery_gate_report_or_promote_one_source_preview"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 12,
+            "artifact": "final_product_verify_bundle",
+            "message": "One-source dialogue preview is verified and ready for delivery-gate promotion review",
         })
     elif source_timeline_map and highlight_selection_plan and rough_cut_plan and highlight_cut_report:
         next_action = "write_delivery_gate_report_or_review_highlight_candidate"
@@ -1174,6 +1268,8 @@ def load_dashboard_state(workdir):
             "rough_cut_plan": rough_cut_plan,
             "source_timeline_map": source_timeline_map,
             "source_material_matrix": source_material_matrix,
+            "dialogue_edit_script": dialogue_edit_script,
+            "dialogue_highlight_windows": dialogue_highlight_windows,
             "highlight_selection_plan": highlight_selection_plan,
             "highlight_cut_report": highlight_cut_report,
             "editor_review": editor_review,

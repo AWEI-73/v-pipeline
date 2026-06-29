@@ -1295,5 +1295,49 @@ class DashboardStateSpecTest(unittest.TestCase):
             )
             self.assertTrue(state["artifacts"]["final_product_verify_bundle"]["pass"])
 
+    def test_one_source_dialogue_preview_nested_artifacts_surface(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "video_intent.json").write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            }), encoding="utf-8")
+            (workdir / "dialogue_script").mkdir()
+            (workdir / "dialogue_script" / "dialogue_edit_script.reviewed.json").write_text(json.dumps({
+                "artifact_role": "dialogue_edit_script",
+                "review_status": "reviewed_by_operator",
+                "clip_count": 7,
+            }), encoding="utf-8")
+            (workdir / "dialogue_script" / "dialogue_highlight_windows.reviewed.json").write_text(json.dumps({
+                "artifact_role": "dialogue_highlight_windows",
+                "windows": [{"start": 1.0, "end": 5.0}],
+            }), encoding="utf-8")
+            (workdir / "highlight_cut_report.reviewed.json").write_text(json.dumps({
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 80.0,
+                "out": str(workdir / "dialogue_highlight_cut_reviewed.mp4"),
+                "output_probe": {
+                    "video": {"codec_name": "h264"},
+                    "audio": {"codec_name": "aac"},
+                },
+            }), encoding="utf-8")
+            (workdir / "dialogue_highlight_cut_reviewed.mp4").write_bytes(b"fake")
+            (workdir / "final_product_verify").mkdir()
+            (workdir / "final_product_verify" / "final_product_verify_bundle.json").write_text(json.dumps({
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "visual": {"pass": True, "sample_count": 12},
+                "audio": {"pass": True},
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "write_delivery_gate_report_or_promote_one_source_preview")
+            self.assertIn("dialogue_edit_script", state["artifacts"])
+            self.assertIn("dialogue_highlight_windows", state["artifacts"])
+            self.assertIn("highlight_cut_report", state["artifacts"])
+            self.assertIn("final_product_verify_bundle", state["artifacts"])
+            self.assertTrue(state["artifacts"]["final_product_verify_bundle"]["pass"])
+
 if __name__ == "__main__":
     unittest.main()
