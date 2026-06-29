@@ -1243,5 +1243,57 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_source_highlight_artifacts_surface_without_missing_brief_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "source_timeline_map.json").write_text(json.dumps({
+                "artifact_role": "source_timeline_map",
+                "windows": [{"window_id": "win_000"}],
+            }), encoding="utf-8")
+            (workdir / "highlight_selection_plan.json").write_text(json.dumps({
+                "artifact_role": "highlight_selection_plan",
+                "clips": [{"segment_id": "seg01_opening"}],
+            }), encoding="utf-8")
+            (workdir / "rough_cut_plan.json").write_text(json.dumps({
+                "artifact_role": "rough_cut_plan",
+                "route": "single_source_highlight",
+                "clips": [{"segment_id": "seg01_opening"}],
+            }), encoding="utf-8")
+            (workdir / "highlight_cut_report.json").write_text(json.dumps({
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 70.0,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "write_delivery_gate_report_or_review_highlight_candidate")
+            self.assertIn("source_timeline_map", state["artifacts"])
+            self.assertIn("highlight_selection_plan", state["artifacts"])
+
+    def test_source_matrix_and_final_verify_bundle_surface_as_dashboard_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "source_material_matrix.json").write_text(json.dumps({
+                "artifact_role": "source_material_matrix",
+                "windows": [{"window_id": "win_000", "visual": {"keyframe": "frame.jpg"}}],
+                "audio": {"soundtrack_probe_report": "source_soundtrack_probe_report.json"},
+            }), encoding="utf-8")
+            (workdir / "final_product_verify_bundle.json").write_text(json.dumps({
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "visual": {"keyframe_grid": "keyframe_grid.jpg", "pass": True},
+                "audio": {"soundtrack_probe_report": "soundtrack_probe_report.json", "pass": True},
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertIn("source_material_matrix", state["artifacts"])
+            self.assertIn("final_product_verify_bundle", state["artifacts"])
+            self.assertEqual(
+                state["artifacts"]["source_material_matrix"]["windows"][0]["window_id"],
+                "win_000",
+            )
+            self.assertTrue(state["artifacts"]["final_product_verify_bundle"]["pass"])
+
 if __name__ == "__main__":
     unittest.main()

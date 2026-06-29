@@ -53,11 +53,11 @@ Use this with:
 | 0 | Video Intent Planner | What are we making, for whom, with what inputs? Decide `input_state` and choose `entry_path`: material-first, structure-first, or needs-context before deeper story/build work. `Intake` is the legacy label. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md`, `route.md` | `video-intent-plan`, `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | `video_intent.json`, project brief, run folder | Stop if audience, goal, input state, material/text availability, generation permission, or handoff changes the plan. | Back to user / brief refinement |
 | 1 | Story Soul | What is the narrative device and emotional spine? | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `story-soul-to-contract`, `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` | `story_soul_blueprint.json`, screenplay beats, director shot plan, `segment_contract.json` bridge | Stop if the output is just a parameter sheet with no conflict/turn/feeling. | Intake / writer refinement |
 | 2 | Director Shot Plan | What exact shots, audio, subtitles, effects, and material needs prove the story? | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `video-effect-factory.md`, `spec-contract.md` | `validate-needs`, `effect-intent-plan`, `spec-review`, `capability-manifest`, `supply-review` | `material_needs.json`, `effect_intent_plan.json`, `effect_design_map.json`, `effect_contract.json`, subtitle/audio intent, `segment_contract.json` | Stop if must-have needs are vague, untestable, unsupported, or if required effects lack a reviewable contract. | Story Soul / Director refinement |
-| 3 | Material Truth | What real or generated assets can satisfy each need? | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `codex-imagegen-provider-fill`, `generated-material-import`, `generated-material-review`, `visual-diversity-review`, `visual-family-normalize` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, generated manifests, reviewed map | Stop if maps are dangling, unreviewed, missing must-have evidence, or generated candidates are not accepted. | Material generation / curator review |
+| 3 | Material Truth | What real or generated assets can satisfy each need? | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `source-section-map`, `source-motion-profile`, `source-material-matrix`, `material-generation-fallback`, `generated-image-provider-packet`, `codex-imagegen-provider-fill`, `generated-material-import`, `generated-material-review`, `visual-diversity-review`, `visual-family-normalize` | per-asset `.map.json`, `project_material_map.json`, `source_section_map.json`, `source_motion_profile.json`, `source_motion_points.jpg`, `source_material_matrix.json`, `source_material_matrix_contact_sheet.jpg`, `material_generation_fallback.json`, `generated_provider_packet.json`, generated manifests, reviewed map | Stop if maps are dangling, unreviewed, missing must-have evidence, generated candidates are not accepted, or one-long-source highlight windows lack section/motion/matrix evidence. | Material generation / curator review |
 | 4 | Coverage Gate | Are needs covered, thin, missing, or broken? | `gap-analyzer.md`, `shooting-brief.md`, `route.md` | `lineage-link`, `material-delta`, `material-revision`, `contract-dry-build`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD only if `delta.ok == true` and `ready_for_build == true`, or accepted revision/waiver re-gates cleanly. | Material Truth / Story revision |
 | 5 | BUILD Planning | Which accepted windows become timeline clips, sequence beats, opening, arc, audio/subtitle/effect cues? | `editor.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `contract-adapt`, `contract-dry-build`, `rank-local`, `match-mv`, internal VD/SRP planning in `contract-run` | `generated_mv_script.json`, `rough_cut_plan.json`, `timeline_build.json`, `audio_build_handoff.json`, `subtitle_voiceover_build_handoff.json`, `effect_handoff.json`, SRP traces, `sfx_cues`, subtitle plan | Stop if planning creates GAP, unrenderable windows, bad window ranges, or contract/runtime mismatch. | Material Truth / Coverage Gate |
 | 6 | Official Render | Produce the canonical video. | `editor.md` | `contract-run`, `script-run`, `assemble`, `merge-final`, `burnsub`, `mix-audio`, `sfx-mix`, `gen-bgm`, `music-fetch` | `final.mp4`, `subtitles.srt`, `artifact_manifest.json`, `state.json` | Pass only if canonical render path succeeds and artifacts are current. | BUILD Planning / runtime fix |
-| 7 | Verify | Does the output match story, material truth, subtitles, audio, and technical constraints? | `verify.md` | `verify`, `verify-evidence`, `timeline-audit`, `broll-audit`, `new-visual-audit`, `black-frame-audit`, `caption-audit`, `keyframe-grid`, `visual-audit`, `semantic-novelty-audit`, `action-progression-audit`, `replay-acceptance` | `verify_result.json`, audit reports, contact sheet, review report | Stop on tier-1 defects; tier-2 findings route to quality/brownfield work. | Material Truth or Brownfield Edit |
+| 7 | Verify | Does the output match story, material truth, subtitles, audio, and technical constraints? | `verify.md` | `verify`, `verify-evidence`, `final-product-verify`, `timeline-audit`, `broll-audit`, `new-visual-audit`, `black-frame-audit`, `caption-audit`, `keyframe-grid`, `visual-audit`, `semantic-novelty-audit`, `action-progression-audit`, `replay-acceptance` | `verify_result.json`, `final_product_verify_bundle.json`, audit reports, contact sheet, review report | Stop on tier-1 defects; tier-2 findings route to quality/brownfield work. | Material Truth or Brownfield Edit |
 | 8 | Workbench Draft Review | Can a human/agent inspect and patch the material composition without changing truth? | `dashboard.md`, `brownfield-edit.md` | `tools/workbench_server.py`, `tools/preview_timeline.py`, `tools/timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft export | Drafts must not overwrite canonical timeline/map/final. | Brownfield Edit / official rerender |
 | 9 | Brownfield Edit / Finishing | What small reviewed fixes or finishing assets are needed after verify/review? | `brownfield-edit.md`, `video-effect-factory.md`, `remotion-effect-worker.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `light-effects-plan`, `remotion-prompt-pack`, `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `workbench-draft-rerender` | `effect_revision_request.json`, `effect_design_map.json`, `effect_contract.json`, `effect_review.json`, `effect_handoff.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If it changes material truth, return to Stage 3/4. If finishing-only, review the effect handoff, draft/rerender, then verify. | Verify or Material Truth |
 | 10 | Delivery | What can be handed off, with what limitations? | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, `run-layout-validate`, `operator-flow-acceptance` | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark complete without output path, verify evidence, and known limitations. | Verify / Brownfield Edit |
@@ -276,6 +276,28 @@ python video_tools.py project-material-map --maps-dir maps --out project_materia
 python video_tools.py material-map-lifecycle --out-dir run --needs material_needs.json --material-db materials_db.json --contract segment_contract.json
 ```
 
+One-long-source highlight route:
+
+```powershell
+python video_tools.py source-section-map --video source.mp4 --out run\source_section_map.json --soundtrack-probe run\source_soundtrack_probe_report.json
+python video_tools.py source-motion-profile --video source.mp4 --out-dir run\source_motion_profile --soundtrack-probe run\source_soundtrack_probe_report.json --sample-sec 1
+python video_tools.py source-material-matrix --source source.mp4 --out-dir run\source_matrix --window-sec 12
+python video_tools.py source-dialogue-script --json3 run\source\subs.en.json3 --out-dir run\dialogue_script --rough-windows run\rough_dialogue_windows.json --target-sec 90
+python video_tools.py source-highlight-plan --source source.mp4 --out-dir run --target-sec 75
+```
+
+Use `source_section_map.json`, `source_motion_profile.json`,
+`source_motion_points.jpg`, `source_material_matrix.json`, and
+`source_material_matrix_contact_sheet.jpg` before selecting highlight windows.
+The section map is the big structure pass, the motion profile is local
+edit-point evidence, and the matrix is the eye/ear review pass: visual windows
+plus extracted source audio and `source_soundtrack_probe_report.json`. Do not
+treat a purely time-based `source_highlight_plan.py` output as enough evidence
+for practical, training, ending, speech, music, or event-content selection.
+For dialogue/podcast/interview routes, use `source-dialogue-script` after a
+correct subtitle or reviewed ASR transcript is available. The soft target
+duration must not override complete sentence boundaries or natural speech flow.
+
 Generated material route:
 
 ```powershell
@@ -400,6 +422,7 @@ Commands:
 
 ```powershell
 python video_tools.py verify ...
+python video_tools.py final-product-verify final.mp4 --out-dir verify_final
 python video_tools.py black-frame-audit ...
 python video_tools.py caption-audit ...
 python video_tools.py timeline-audit ...
@@ -563,14 +586,14 @@ python video_tools.py operator-flow-acceptance ...
 | `effects-director.md` | neutral effect intent and finishing route | `effect-intent-plan`, `light-effects-plan`, `remotion-prompt-pack` |
 | `video-effect-factory.md` | designed effect side branch: design map, contract, backend handoff, review | `effect-revision-*`, `remotion-prompt-pack`, `remotion-worker-outputs`, handoff artifacts |
 | `remotion-effect-worker.md` | bounded Remotion backend worker | `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `tools/remotion_worker_bridge.mjs` |
-| `material-map.md` | material truth lifecycle | `project-material-map`, `material-map-lifecycle`, `material-delta` |
+| `material-map.md` | material truth lifecycle and single-source highlight planning | `project-material-map`, `material-map-lifecycle`, `material-delta`, `source-section-map`, `source-motion-profile`, `source-dialogue-script`, `tools/source_material_matrix.py`, `tools/source_highlight_plan.py`, `tools/safe_highlight_cut.py` |
 | `curator.md` | material review/labeling | `visual-diversity-review`, `visual-family-normalize` |
 | `material-generation-fallback.md` | convert missing/thin material into generation jobs | `material-generation-fallback`, `generated-image-provider-packet` |
 | `generated-material-producer.md` | execute/import/review generated material | `generated-material-produce`, `generated-material-import`, `generated-material-review` |
 | `gap-analyzer.md` | gap interpretation and routes | `material-delta`, `supply-review`, `material-revision` |
 | `shooting-brief.md` | collect/reshoot guidance | `lineage-link`, `material-revision` |
 | `editor.md` | official BUILD and render | `contract-run`, `script-run`, `assemble`, `merge-final` |
-| `verify.md` | quality and delivery checks | `verify`, `black-frame-audit`, `timeline-audit`, `verify-evidence` |
+| `verify.md` | quality and delivery checks | `verify`, `final-product-verify`, `black-frame-audit`, `timeline-audit`, `verify-evidence` |
 | `dashboard.md` | dashboard/review surface | `dashboard`, `story-map`, `serve` |
 | `brownfield-edit.md` | post-review bounded edits | `timeline_patch.py`, `workbench-draft-rerender`, `effect-revision-*` |
 | `artifact-reviewer-map.md` | reviewer role/eval policy | `reviewer-policy`, `reviewer-flow-acceptance` |

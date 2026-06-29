@@ -37,6 +37,13 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       "inputs": ["run folder with verify/material/audio/subtitle/effect evidence"],
       "outputs": ["delivery_gate.json"],
       "stop_if": ["delivery gate blocks or required evidence is missing"]
+    },
+    {
+      "tool": "tools/final_product_verify.py",
+      "when": "build complete-video eye/ear evidence for a final or draft candidate before delivery or Brownfield repair",
+      "inputs": ["final.mp4 or draft candidate video"],
+      "outputs": ["final_product_verify_bundle.json", "keyframe_grid.jpg", "visual_audit.json", "final_audio.wav", "soundtrack_probe_report.json"],
+      "stop_if": ["video cannot be sampled", "audio cannot be extracted", "visual or audio evidence fails"]
     }
   ],
   "supporting_tools": [
@@ -85,6 +92,20 @@ must fail closed when `soundtrack_probe_report.json` is missing, `pass` is not
 true, or `features`, `sections`, `editing_fit`, or `section_fit` are empty.
 This keeps music analysis as a Soundtrack Arranger responsibility while still
 making final delivery accountable.
+
+## Final Product Minimum Visual Evidence
+
+`final-product-verify` is the complete-video evidence bundle for drafts and
+final candidates. For static, interview, lecture, podcast, or low-motion
+sources, do not accept a verify bundle that only sampled one or two frames when
+a higher sample count was requested. Sparse scene detection is not proof that
+the video has no visual issues.
+
+When scene-change sampling returns too few points, `keyframe-grid` should use
+its sparse scene fallback and add evenly spaced samples until the requested
+minimum visual evidence is present. Treat this as evidence coverage only: a
+larger keyframe grid proves the reviewer had enough frames to inspect, not that
+the semantic edit is automatically correct.
 > ## Continuous Verify / QA Contract(Node 12 ??銝蝯?,?航疵蝛踵?園?)
 > **VERIFY ?航疵蝛踹瘚???園?,撠文?具?鞎?render 銋???*,銝?敺?蝡?> `verify_result`:`status ??pass / warn / fail / blocked` + `findings`[撅斤?/蝭暺???/撱箄降頝舐] + `next_route`??> **?拙惜瑼Ｘ(撠??拙惜璅∪?):** 璈１瑼Ｘ??(靘踹??eterministic:閬/?/摮?/?喲?/EDL trace/
 > 敹?/fallback ?臬鋡恍?暺????**撠芋??VLM(qwen3-vl 蝑????蝡舫?蝖砍神)?芸

@@ -34,6 +34,7 @@ Use this table before opening any other document.
 | New or fuzzy whole-video request | `docs/pipeline-decision-tree.md` | `skills/video-pipeline-route.md` | Stage 0 package: `project_brief.json`, `interaction_log.md`, `video_intent.json` | branch work while `required_followup_questions` is non-empty |
 | Continue or inspect an existing run | `docs/pipeline-decision-tree.md` | `skills/video-pipeline-route.md` | `python tools\pipeline_home.py --run RUN_DIR --json` | any write until cursor/next_action is known |
 | Material-first / footage / photos | `docs/material-map-lifecycle.md` | `skills/material-map.md` | `material_scan_decision` then quick inventory or material-first acceptance | BUILD/render before delta/review gate |
+| One long video / interview / podcast highlight | `docs/pipeline-decision-tree.md` | `skills/material-map.md` | source matrix, correct subtitle or ASR, then `source-dialogue-script` | cutting before transcript/script review |
 | Story/article/idea without material | `docs/upstream-story-route.md` | `skills/video-pipeline-route.md` | structure-first Stage 0, material needs, generated fallback only after delta | generated assets without explicit review |
 | Opening, transition, title, stylized effect | `docs/effect-factory-route.md` | `skills/video-effect-factory.md` | `visual_technique_plan.json` and parameter review | backend worker/render with unconfirmed parameters |
 | Music, BGM, original speech, ducking | `docs/soundtrack-arranger-route.md` | `skills/soundtrack-arranger.md` / `skills/audio-director.md` | `soundtrack_plan.json`, source/license manifest, probe or Audio Director handoff | final mix when license/source/ducking is unresolved |
@@ -61,6 +62,7 @@ Main route: Video Pipeline Route
 
 Side branch 1: Material Map
   -> material truth
+  -> one-source eye/ear/head evidence when the material is a long source
   -> coverage/delta
   -> generated candidates or reshoot/rewrite/waiver
 
@@ -136,6 +138,7 @@ Use these tie-breakers before choosing a row:
 | "this run is stuck", "continue this run", "resume", "接著跑" | `skills/video-pipeline-route.md` resume | read-only `pipeline_home.py` inspection | run folder, state/artifact cursor | unknown run, repair cursor, unresolved gate/review |
 | "help me cut a video", "make a recap", "剪一支影片" | `skills/video-pipeline-route.md` | Stage 0 Video Intent Planner | `project_brief.json`, `video_intent.json`, `interaction_log.md` | `required_followup_questions` is non-empty |
 | "I already have footage", "use this folder", "我有素材" | `skills/material-map.md` via main route | material-first boundary acceptance | `material_wall_review_verdict.json`, `material_first_boundary_acceptance_report.json` | report returns `repair:*` or missing/thin needs |
+| "cut this 5-10 minute video into highlights", "interview clip", "podcast highlight" | `skills/material-map.md` via main route | one-source understanding: section map, motion/audio matrix, correct subtitle or ASR | `source_section_map.json`, `source_material_matrix.json`, `source_transcript.json`, `dialogue_edit_script.json` | transcript is low-confidence, clips cut half sentences, or script is unreviewed |
 | "I only have a story/article/idea", "沒有素材" | `skills/video-pipeline-route.md` + upstream story route | structure-first, material needs, generated candidate fallback | `material_needs.json`, `material_generation_fallback.json`, generated review artifacts | generated candidates are not explicitly reviewed |
 | "I need an opening effect", "transition", "特效/開場/轉場" | `skills/video-effect-factory.md` | visual technique plan and parameter review | `visual_technique_plan.json`, review/apply artifact, effect handoff | candidate parameters are unconfirmed |
 | "edit this draft", "change the rough cut", "換素材" | `skills/brownfield-edit.md` / Workbench | validate draft patch; keep preview non-canonical | `preview_timeline.json`, `timeline_patch.json`, handoff report | patch would overwrite canonical truth |
@@ -288,6 +291,81 @@ final.mp4 absent
 
 If this fails, repair the reported stage before BUILD. Do not render around a
 failed material-first report.
+
+### A2. One Long Source / Dialogue Highlight
+
+Use this when the user gives one long source video, such as a 5-10 minute
+finished clip, interview, podcast, lecture, or conversation, and asks for a
+60-120 second highlight. This is still material-first. The source does not
+become many independent materials; it becomes one source lineage with accepted
+time windows.
+
+The route is eye / ear / head:
+
+```text
+source video
+  -> eyes: source-section-map + source-motion-profile + source-material-matrix
+  -> ears: correct subtitle when available, otherwise reviewed ASR
+  -> head: source-dialogue-script creates dialogue_edit_script.json
+  -> human/agent reviews meaning and selected windows
+  -> safe_highlight_cut creates a stable preview
+  -> final-product-verify checks eye/ear evidence
+```
+
+For dialogue, the transcript is truthier than visual motion. Prefer a correct
+subtitle or manual caption downloaded by `yt-dlp` over ASR. Use ASR only as a
+fallback, and review it before using it as a semantic script. Do not force an
+exact target duration by cutting half sentences; complete sentence flow is more
+important than hitting 90 seconds exactly.
+
+Typical commands:
+
+```powershell
+python tools\soundtrack_probe.py `
+  --audio RUN_DIR\source\source.mp4 `
+  --out RUN_DIR\source_soundtrack_probe_report.json `
+  --enable-asr
+
+python video_tools.py source-section-map `
+  --video RUN_DIR\source\source.mp4 `
+  --out RUN_DIR\source_section_map.json `
+  --soundtrack-probe RUN_DIR\source_soundtrack_probe_report.json
+
+python video_tools.py source-motion-profile `
+  --video RUN_DIR\source\source.mp4 `
+  --out-dir RUN_DIR\source_motion_profile
+
+python video_tools.py source-material-matrix `
+  --video RUN_DIR\source\source.mp4 `
+  --out-dir RUN_DIR\source_matrix `
+  --soundtrack-probe RUN_DIR\source_soundtrack_probe_report.json
+
+yt-dlp --write-subs --write-auto-subs --sub-langs "en.*,zh.*" `
+  --sub-format json3 --skip-download `
+  --output RUN_DIR\source\subs.%(ext)s SOURCE_URL
+
+python video_tools.py source-dialogue-script `
+  --json3 RUN_DIR\source\subs.en.json3 `
+  --out-dir RUN_DIR\dialogue_script `
+  --rough-windows RUN_DIR\rough_dialogue_windows.json `
+  --target-sec 90
+
+python tools\safe_highlight_cut.py `
+  --source RUN_DIR\source\source.mp4 `
+  --windows RUN_DIR\dialogue_script\dialogue_highlight_windows.json `
+  --out RUN_DIR\dialogue_highlight_cut.mp4 `
+  --report RUN_DIR\highlight_cut_report.json
+
+python video_tools.py final-product-verify `
+  RUN_DIR\dialogue_highlight_cut.mp4 `
+  --out-dir RUN_DIR\final_product_verify
+```
+
+Review `dialogue_edit_script.json` before cutting whenever the user's goal is
+meaning, message, interview logic, or speech-first highlight. Keep original
+speech audio unless the user explicitly asks for music overlay, replacement, or
+ducking. If music is added under speech, route the mix through Soundtrack
+Arranger / Audio Director and verify ducking.
 
 ### B. No Material / Story-First Generated Candidates
 

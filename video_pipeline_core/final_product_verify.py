@@ -1,0 +1,107 @@
+"""Final product eye/ear verification bundle for complete video candidates."""
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import Any, Callable
+
+from .keyframe_grid import generate_keyframe_grid
+from .platform_tools import resolve_ffmpeg
+from .soundtrack_probe import build_soundtrack_probe
+from .visual_audit import audit_visual
+
+
+def _extract_audio(video: str | Path, out_path: str | Path) -> str:
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        [
+            resolve_ffmpeg(),
+            "-y",
+            "-i",
+            str(video),
+            "-vn",
+            "-ac",
+            "2",
+            "-ar",
+            "44100",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr or "audio extraction failed")
+    return str(out)
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def build_final_product_verify_bundle(
+    video: str | Path,
+    *,
+    out_dir: str | Path,
+    sample_count: int = 12,
+    keyframe_grid_builder: Callable[[str | Path, str | Path], dict[str, Any]] | None = None,
+    visual_audit_builder: Callable[[dict[str, Any], str | Path], dict[str, Any]] | None = None,
+    audio_extractor: Callable[[str | Path, str | Path], str] | None = None,
+    soundtrack_probe_builder: Callable[[str | Path], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    video_path = str(Path(video).resolve())
+
+    grid_path = out / "keyframe_grid.jpg"
+    if keyframe_grid_builder:
+        grid_meta = keyframe_grid_builder(video_path, grid_path)
+        if not grid_path.exists():
+            grid_path.write_bytes(b"")
+    else:
+        grid_meta = generate_keyframe_grid(
+            video_path,
+            grid_path,
+            sample_count=sample_count,
+            columns=4,
+        )
+
+    visual_path = out / "visual_audit.json"
+    if visual_audit_builder:
+        visual_audit = visual_audit_builder(grid_meta, visual_path)
+    else:
+        visual_audit = audit_visual(grid_meta, min_samples=1)
+    _write_json(visual_path, visual_audit)
+
+    audio_path = out / "final_audio.wav"
+    (audio_extractor or _extract_audio)(video_path, audio_path)
+    probe = (soundtrack_probe_builder or build_soundtrack_probe)(audio_path)
+    probe_path = out / "soundtrack_probe_report.json"
+    _write_json(probe_path, probe)
+
+    visual_pass = bool(visual_audit.get("pass") is True)
+    audio_pass = bool(probe.get("pass") is True)
+    bundle = {
+        "artifact_role": "final_product_verify_bundle",
+        "version": 1,
+        "pass": visual_pass and audio_pass,
+        "video": video_path,
+        "visual": {
+            "keyframe_grid": "keyframe_grid.jpg",
+            "visual_audit": "visual_audit.json",
+            "pass": visual_pass,
+            "sample_count": grid_meta.get("sample_count"),
+        },
+        "audio": {
+            "final_audio": "final_audio.wav",
+            "soundtrack_probe_report": "soundtrack_probe_report.json",
+            "pass": audio_pass,
+            "analysis_depth": probe.get("analysis_depth"),
+        },
+        "next_action": None if visual_pass and audio_pass else "repair_final_product_verify_evidence",
+    }
+    _write_json(out / "final_product_verify_bundle.json", bundle)
+    return bundle

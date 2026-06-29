@@ -134,6 +134,12 @@ def load_dashboard_state(workdir):
                     manifest["timeline_build"] = f
                 elif f == "rough_cut_plan.json":
                     manifest["rough_cut_plan"] = f
+                elif f == "source_timeline_map.json":
+                    manifest["source_timeline_map"] = f
+                elif f == "source_material_matrix.json":
+                    manifest["source_material_matrix"] = f
+                elif f == "highlight_selection_plan.json":
+                    manifest["highlight_selection_plan"] = f
                 elif f == "highlight_cut_report.json":
                     manifest["highlight_cut_report"] = f
                 elif f == "highlight_cut_from_rough_cut_report.json":
@@ -148,6 +154,8 @@ def load_dashboard_state(workdir):
                     manifest["state"] = f
                 elif f == "qa_report.json" or f == "verify_result.json":
                     manifest["verify_result"] = f
+                elif f == "final_product_verify_bundle.json":
+                    manifest["final_product_verify_bundle"] = f
                 elif f == "final.mp4":
                     manifest["final"] = f
                 elif f == "motion_graphics_render_plan.json":
@@ -297,6 +305,12 @@ def load_dashboard_state(workdir):
     assembly_plan = safe_load_json(manifest.get("assembly_plan")) or safe_load_json("assembly_plan.json")
     timeline_build = safe_load_json(manifest.get("timeline_build")) or safe_load_json("timeline_build.json")
     rough_cut_plan = safe_load_json(manifest.get("rough_cut_plan")) or safe_load_json("rough_cut_plan.json")
+    source_timeline_map = safe_load_json(manifest.get("source_timeline_map")) or safe_load_json("source_timeline_map.json")
+    source_material_matrix = safe_load_json(manifest.get("source_material_matrix")) or safe_load_json("source_material_matrix.json")
+    highlight_selection_plan = (
+        safe_load_json(manifest.get("highlight_selection_plan"))
+        or safe_load_json("highlight_selection_plan.json")
+    )
     highlight_cut_report = (
         safe_load_json(manifest.get("highlight_cut_report"))
         or safe_load_json("highlight_cut_report.json")
@@ -307,6 +321,7 @@ def load_dashboard_state(workdir):
     visual_review_verdict = safe_load_json(manifest.get("visual_review_verdict")) or safe_load_json("visual_review_verdict.json")
     state_data = safe_load_json(manifest.get("state")) or safe_load_json("state.json")
     verify_result = safe_load_json(manifest.get("verify_result")) or safe_load_json("qa_report.json") or safe_load_json("verify_result.json")
+    final_product_verify_bundle = safe_load_json(manifest.get("final_product_verify_bundle")) or safe_load_json("final_product_verify_bundle.json")
     
     effects_render_plan = safe_load_json(manifest.get("motion_graphics_render_plan")) or safe_load_json("motion_graphics_render_plan.json")
     effects_manifest = safe_load_json(manifest.get("motion_graphics_manifest")) or safe_load_json("motion_graphics_manifest.json")
@@ -664,6 +679,15 @@ def load_dashboard_state(workdir):
             "artifact": "visual_review_request.json",
             "message": "Visual review request awaits agent verdict",
         })
+    elif source_timeline_map and highlight_selection_plan and rough_cut_plan and highlight_cut_report:
+        next_action = "write_delivery_gate_report_or_review_highlight_candidate"
+        is_pass = False
+        findings.append({
+            "type": "info",
+            "node": 5,
+            "artifact": "highlight_selection_plan",
+            "message": "Single-source highlight candidate is ready for human review or delivery-gate promotion",
+        })
     elif (
         material_inventory_summary
         and not material_first_boundary_acceptance_report
@@ -813,7 +837,7 @@ def load_dashboard_state(workdir):
         "material_delta": material_delta,
         "material_map_lifecycle": material_map_lifecycle,
     })
-    if next_action not in {"soundtrack-arrange"} and not delivery_gate["pass"]:
+    if next_action not in {"soundtrack-arrange", "write_delivery_gate_report_or_review_highlight_candidate"} and not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
         is_pass = False
         for item in delivery_gate["blocking"]:
@@ -1148,9 +1172,13 @@ def load_dashboard_state(workdir):
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
+            "source_timeline_map": source_timeline_map,
+            "source_material_matrix": source_material_matrix,
+            "highlight_selection_plan": highlight_selection_plan,
             "highlight_cut_report": highlight_cut_report,
             "editor_review": editor_review,
             "verify_result": verify_result,
+            "final_product_verify_bundle": final_product_verify_bundle,
             "state": state_data,
             "timeline_invariants": timeline_invariants,
             "broll_audit": broll_audit,

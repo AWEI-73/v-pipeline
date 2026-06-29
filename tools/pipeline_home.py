@@ -685,6 +685,47 @@ def _build_summary(root: Path):
     return None
 
 
+def _source_highlight_summary(root: Path):
+    timeline_path, timeline = _find_json(root, "source_timeline_map.json")
+    selection_path, selection = _find_json(root, "highlight_selection_plan.json")
+    rough_path, rough = _find_json(root, "rough_cut_plan.json")
+    if not (timeline and selection and rough):
+        return None
+
+    read = [_rel(root, path) for path in (timeline_path, selection_path, rough_path) if path]
+    highlight_path, highlight = _find_json(root, "highlight_cut_report.json")
+    candidate_names = [
+        "final.mp4",
+        "highlight_final_quiet.mp4",
+        "highlight_safe.mp4",
+        "highlight_final.mp4",
+    ]
+    candidate = next((name for name in candidate_names if (root / name).is_file()), None)
+    if highlight_path:
+        read.append(_rel(root, highlight_path))
+
+    if candidate:
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action="write_delivery_gate_report_or_review_highlight_candidate",
+            reason=f"single-source highlight candidate ready: {candidate}",
+            read=read + [candidate],
+            run_dir=root,
+            source="highlight_selection_plan.json",
+        )
+
+    return _contract(
+        "run",
+        "stage4_highlight_build",
+        next_action="safe_highlight_cut",
+        reason="source highlight plan is ready but no playable highlight candidate was found",
+        read=read,
+        run_dir=root,
+        source="highlight_selection_plan.json",
+    )
+
+
 def _story_summary(root: Path):
     story_path, story = _find_json(root, "story_world.json")
     beats_path, beats = _find_json(root, "screenplay_beats.json")
@@ -958,6 +999,10 @@ def summarize_run(run_dir):
         return summary
 
     summary = _build_summary(root)
+    if summary:
+        return summary
+
+    summary = _source_highlight_summary(root)
     if summary:
         return summary
 

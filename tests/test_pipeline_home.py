@@ -897,6 +897,34 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("no reviewed material refs", summary["reason"])
             self.assertIn("remotion_material_first_memory_acceptance_report.json", summary["read"])
 
+    def test_source_highlight_candidate_routes_to_final_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "source_timeline_map.json", {
+                "artifact_role": "source_timeline_map",
+                "windows": [{"window_id": "win_000"}],
+            })
+            _write(root, "highlight_selection_plan.json", {
+                "artifact_role": "highlight_selection_plan",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+            _write(root, "rough_cut_plan.json", {
+                "artifact_role": "rough_cut_plan",
+                "route": "single_source_highlight",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+            _write(root, "highlight_cut_report.json", {
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 70.0,
+            })
+            (root / "highlight_final_quiet.mp4").write_bytes(b"fake")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "write_delivery_gate_report_or_review_highlight_candidate")
+            self.assertEqual(summary["source"], "highlight_selection_plan.json")
+
     def test_cli_prints_json_contract(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

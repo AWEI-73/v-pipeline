@@ -46,6 +46,41 @@ description: 素材地圖生命週期 Skill。把討論/現有素材/補拍需�
       "stop_if": ["reject/duplicate material is still selected", "usable ranges are ignored"]
     },
     {
+      "tool": "tools/source_highlight_plan.py",
+      "when": "single long source video needs a 60-90s highlight and the request is about practical/training/event highlights rather than a full multi-asset material map",
+      "inputs": ["one source video", "optional soundtrack_probe_report.json", "brief intent such as internship highlights, ending, or music refill"],
+      "outputs": ["source_timeline_map.json", "highlight_selection_plan.json", "rough_cut_plan.json"],
+      "stop_if": ["source video duration cannot be probed", "rough_cut_plan has no clips", "content-critical selection has no human/VLM review evidence"]
+    },
+    {
+      "tool": "tools/source_section_map.py",
+      "when": "one long source video needs structural understanding before highlight selection; use this first to split the source into big visual/audio sections",
+      "inputs": ["one source video", "optional source_soundtrack_probe_report.json"],
+      "outputs": ["source_section_map.json"],
+      "stop_if": ["source video duration cannot be probed", "section map has no sections", "section boundaries are treated as semantic labels without review"]
+    },
+    {
+      "tool": "tools/source_motion_profile.py",
+      "when": "one long source video needs edit-point or transition evidence; use after source_section_map for scoped high-motion or quiet-boundary scans",
+      "inputs": ["one source video", "optional source_soundtrack_probe_report.json", "optional start/end scope"],
+      "outputs": ["source_motion_profile.json", "source_motion_points.jpg", "motion_frames/*.jpg"],
+      "stop_if": ["source video duration cannot be probed", "ranked edit points are used as semantic truth without matrix/review evidence"]
+    },
+    {
+      "tool": "tools/source_dialogue_script.py",
+      "when": "one long source video is dialogue/podcast/interview-driven; import correct subtitles or ASR and expand rough picks to complete sentence-safe clips before cutting",
+      "inputs": ["yt-dlp json3 subtitle or reviewed ASR transcript", "optional rough dialogue windows", "soft target duration"],
+      "outputs": ["source_transcript.json", "dialogue_edit_script.json", "dialogue_highlight_windows.json"],
+      "stop_if": ["transcript source is missing or low-confidence", "selected clips cut half sentences", "exact target duration is forced over speech flow"]
+    },
+    {
+      "tool": "tools/source_material_matrix.py",
+      "when": "one long source video must be understood before highlight selection; build window-level visual keyframes plus audio evidence before deciding clips",
+      "inputs": ["one source video", "optional source_material_matrix_review.json", "optional precomputed source_soundtrack_probe_report.json with ASR"],
+      "outputs": ["source_material_matrix.json", "source_material_matrix_contact_sheet.jpg", "source_audio.wav", "source_soundtrack_probe_report.json", "source_matrix_frames/*.jpg"],
+      "stop_if": ["source video/audio cannot be probed", "content-critical windows remain unreviewed", "requested ending/practice/music decisions are not backed by matrix evidence"]
+    },
+    {
       "tool": "tools/safe_highlight_cut.py",
       "when": "material-first or Workbench highlight cut has accepted time windows and needs a stable playable MP4; use for yt-dlp, VP9/Opus, non-keyframe, or stutter-prone sources",
       "inputs": ["rough_cut_plan.json for single-source highlights, or source video plus windows JSON from Workbench selection", "output mp4 path", "highlight_cut_report.json path"],
@@ -148,6 +183,29 @@ explicit anchor coverage instead of repeated source count. If an edit repeats
 the same moment for emphasis, the rough cut must carry an intentional repeat
 policy with a reason such as `emphasis`, `rhythm_hit`, or `dramatic_replay`.
 Unmarked repetition remains a fatigue/material-shortage signal.
+
+## One Long Source / Dialogue Highlight
+
+Use this path when a user gives one long video and asks for a shorter highlight,
+especially interviews, podcasts, lectures, conversations, or speech-first
+recaps. Do not use `source-highlight-plan` alone for dialogue content. That tool
+can propose windows, but it cannot replace transcript-level meaning review.
+
+The required reasoning layers are eye / ear / head:
+
+- eye: `source-section-map`, `source-motion-profile`, and
+  `source-material-matrix` expose visual sections, motion points, keyframes,
+  and source-level evidence.
+- ear: a correct subtitle or manual caption is preferred. Reviewed ASR is the
+  fallback. A low-confidence transcript is a stop gate.
+- head: `source-dialogue-script` turns rough picks into
+  `dialogue_edit_script.json` and complete sentence-safe
+  `dialogue_highlight_windows.json`.
+
+For speech-first highlight edits, review `dialogue_edit_script.json` before
+cutting. Keep the original speech audio by default. Add music only when the
+user asks for overlay/replacement/ducking and the audio branch can verify the
+mix.
 
 ## 唯一入口:lifecycle runner(不要手動拼工具)
 

@@ -543,6 +543,132 @@ def cmd_material_map_review_apply(args):
     return result
 
 
+def cmd_source_highlight_plan(args):
+    """Plan source timeline windows and rough cut for one long source video."""
+    from video_pipeline_core.source_highlight_planner import write_source_highlight_plan
+
+    result = write_source_highlight_plan(
+        args.source,
+        out_dir=args.out_dir,
+        soundtrack_probe_path=args.soundtrack_probe,
+        intent=args.intent or "",
+        target_sec=args.target_sec,
+        window_sec=args.window_sec,
+        clip_sec=args.clip_sec,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return result
+
+
+def cmd_source_material_matrix(args):
+    """Build window-level eye/ear evidence for one long source video."""
+    from video_pipeline_core.source_material_matrix import build_source_material_matrix
+
+    visual_review = None
+    if getattr(args, "visual_review", None):
+        visual_review = json.loads(Path(args.visual_review).read_text(encoding="utf-8-sig"))
+    result = build_source_material_matrix(
+        args.source,
+        out_dir=args.out_dir,
+        window_sec=args.window_sec,
+        visual_review=visual_review,
+        soundtrack_probe_path=getattr(args, "soundtrack_probe", None),
+    )
+    print(json.dumps({
+        "artifact_role": result["artifact_role"],
+        "source_material_matrix": str(Path(args.out_dir) / "source_material_matrix.json"),
+        "window_count": len(result.get("windows") or []),
+        "next_action": result.get("next_action"),
+    }, ensure_ascii=False, indent=2))
+    return result
+
+
+def cmd_source_section_map(args):
+    """Build section-level source structure from visual cuts and audio energy."""
+    from video_pipeline_core.keyframe_grid import probe_duration
+    from video_pipeline_core.mv_cut import detect_shots
+    from video_pipeline_core.source_section_map import write_source_section_map
+
+    energy_curve = []
+    if getattr(args, "soundtrack_probe", None):
+        probe = json.loads(Path(args.soundtrack_probe).read_text(encoding="utf-8-sig"))
+        features = probe.get("features") if isinstance(probe, dict) else {}
+        curve = features.get("energy_curve") if isinstance(features, dict) else []
+        energy_curve = curve if isinstance(curve, list) else []
+    result = write_source_section_map(
+        args.out,
+        duration_sec=probe_duration(args.video),
+        energy_curve=energy_curve,
+        shots=detect_shots(args.video),
+        target_section_sec=args.target_section_sec,
+        min_section_sec=args.min_section_sec,
+    )
+    print(json.dumps({
+        "artifact_role": result["artifact_role"],
+        "source_section_map": str(Path(args.out)),
+        "section_count": len(result.get("sections") or []),
+        "boundary_count": len(result.get("boundaries") or []),
+    }, ensure_ascii=False, indent=2))
+    return result
+
+
+def cmd_source_motion_profile(args):
+    """Build edit-point motion/transition evidence for one long source video."""
+    from video_pipeline_core.mv_cut import detect_shots
+    from video_pipeline_core.source_motion_profile import build_source_motion_profile
+
+    energy_curve = []
+    if getattr(args, "soundtrack_probe", None):
+        probe = json.loads(Path(args.soundtrack_probe).read_text(encoding="utf-8-sig"))
+        features = probe.get("features") if isinstance(probe, dict) else {}
+        curve = features.get("energy_curve") if isinstance(features, dict) else []
+        energy_curve = curve if isinstance(curve, list) else []
+    shot_boundaries = set()
+    for start, end in detect_shots(args.video):
+        if end > start:
+            shot_boundaries.add(round(float(start), 3))
+            shot_boundaries.add(round(float(end), 3))
+    result = build_source_motion_profile(
+        args.video,
+        out_dir=args.out_dir,
+        audio_curve=energy_curve,
+        shot_boundaries=sorted(shot_boundaries),
+        start_sec=args.start_sec,
+        end_sec=args.end_sec,
+        sample_sec=args.sample_sec,
+    )
+    print(json.dumps({
+        "artifact_role": result["artifact_role"],
+        "source_motion_profile": str(Path(args.out_dir) / "source_motion_profile.json"),
+        "sample_count": result.get("sample_count"),
+        "ranked_edit_point_count": len(result.get("ranked_edit_points") or []),
+        "motion_points_sheet": str(Path(args.out_dir) / "source_motion_points.jpg"),
+    }, ensure_ascii=False, indent=2))
+    return result
+
+
+def cmd_source_dialogue_script(args):
+    """Build transcript-safe dialogue edit script from subtitle cues."""
+    from video_pipeline_core.source_dialogue_script import write_dialogue_edit_script
+
+    result = write_dialogue_edit_script(
+        args.json3,
+        out_dir=args.out_dir,
+        rough_windows_path=args.rough_windows,
+        target_sec=args.target_sec,
+    )
+    print(json.dumps({
+        "artifact_role": result["artifact_role"],
+        "dialogue_edit_script": str(Path(args.out_dir) / "dialogue_edit_script.json"),
+        "source_transcript": str(Path(args.out_dir) / "source_transcript.json"),
+        "dialogue_highlight_windows": str(Path(args.out_dir) / "dialogue_highlight_windows.json"),
+        "planned_duration_sec": result.get("planned_duration_sec"),
+        "clip_count": result.get("clip_count"),
+        "next_action": result.get("next_action"),
+    }, ensure_ascii=False, indent=2))
+    return result
+
+
 def cmd_material_wall_build(args):
     """Build a coarse material montage wall request for bounded review."""
     from video_pipeline_core import material_wall
@@ -1229,6 +1355,19 @@ def cmd_verify_evidence(args):
         critical_samples=getattr(args, "critical_samples", 32),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_final_product_verify(args):
+    """Build final product eye/ear verify bundle."""
+    from video_pipeline_core.final_product_verify import build_final_product_verify_bundle
+
+    result = build_final_product_verify_bundle(
+        args.video,
+        out_dir=args.out_dir,
+        sample_count=getattr(args, "samples", None) or 12,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return result
 
 
 def cmd_replay_acceptance(args):
@@ -2427,6 +2566,11 @@ def _build_video_tools_dispatch():
         "material-wall-review-apply": cmd_material_wall_review_apply,
         "material-db-slice-from-wall": cmd_material_db_slice_from_wall,
         "project-material-map": cmd_project_material_map,
+        "source-highlight-plan": cmd_source_highlight_plan,
+        "source-material-matrix": cmd_source_material_matrix,
+        "source-section-map": cmd_source_section_map,
+        "source-motion-profile": cmd_source_motion_profile,
+        "source-dialogue-script": cmd_source_dialogue_script,
         "visual-diversity-coverage": cmd_visual_diversity_coverage,
         "visual-diversity-review": cmd_visual_diversity_review,
         "visual-family-normalize": cmd_visual_family_normalize,
@@ -2439,6 +2583,7 @@ def _build_video_tools_dispatch():
         "keyframe-grid":   cmd_keyframe_grid,
         "visual-audit":    cmd_visual_audit,
         "verify-evidence": cmd_verify_evidence,
+        "final-product-verify": cmd_final_product_verify,
         "replay-acceptance": cmd_replay_acceptance,
         "creator-profile": cmd_creator_profile,
         "blueprint-coverage": cmd_blueprint_coverage,
@@ -3240,6 +3385,55 @@ def main():
                         choices=["ignore-with-report"],
                         help="handle decisions for timeout-skipped assets without fabricating edges")
 
+    p_shp = sub.add_parser("source-highlight-plan")
+    p_shp.add_argument("--source", required=True, help="single long source video")
+    p_shp.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="run/output directory for source_timeline_map, highlight_selection_plan, and rough_cut_plan")
+    p_shp.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe",
+                       help="optional soundtrack_probe_report.json for source audio")
+    p_shp.add_argument("--intent", default="",
+                       help="brief selection intent such as internship highlights, ending, or music refill")
+    p_shp.add_argument("--target-sec", type=float, default=90.0, dest="target_sec")
+    p_shp.add_argument("--window-sec", type=float, default=12.0, dest="window_sec")
+    p_shp.add_argument("--clip-sec", type=float, default=10.0, dest="clip_sec")
+
+    p_smm = sub.add_parser("source-material-matrix")
+    p_smm.add_argument("--source", required=True, help="single long source video")
+    p_smm.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="run/output directory for source_material_matrix.json")
+    p_smm.add_argument("--window-sec", type=float, default=12.0, dest="window_sec")
+    p_smm.add_argument("--visual-review", default=None, dest="visual_review",
+                       help="optional source_material_matrix_review.json")
+    p_smm.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe",
+                       help="optional precomputed source_soundtrack_probe_report.json")
+
+    p_ssm = sub.add_parser("source-section-map")
+    p_ssm.add_argument("--video", required=True, help="single long source video")
+    p_ssm.add_argument("--out", required=True, help="source_section_map.json output")
+    p_ssm.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe",
+                       help="optional source_soundtrack_probe_report.json")
+    p_ssm.add_argument("--target-section-sec", type=float, default=80.0, dest="target_section_sec")
+    p_ssm.add_argument("--min-section-sec", type=float, default=24.0, dest="min_section_sec")
+
+    p_smp = sub.add_parser("source-motion-profile")
+    p_smp.add_argument("--video", required=True, help="single long source video")
+    p_smp.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for source_motion_profile.json and source_motion_points.jpg")
+    p_smp.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe",
+                       help="optional source_soundtrack_probe_report.json")
+    p_smp.add_argument("--start-sec", type=float, default=0.0, dest="start_sec")
+    p_smp.add_argument("--end-sec", type=float, default=None, dest="end_sec")
+    p_smp.add_argument("--sample-sec", type=float, default=1.0, dest="sample_sec")
+
+    p_sds = sub.add_parser("source-dialogue-script")
+    p_sds.add_argument("--json3", required=True, help="yt-dlp json3 subtitle file")
+    p_sds.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for source_transcript.json and dialogue_edit_script.json")
+    p_sds.add_argument("--rough-windows", default=None, dest="rough_windows",
+                       help="optional rough dialogue_highlight_windows.json to expand to complete sentences")
+    p_sds.add_argument("--target-sec", type=float, default=None, dest="target_sec",
+                       help="soft target duration; sentence completeness wins over exact time")
+
     p_mwb = sub.add_parser("material-wall-build")
     p_mwb.add_argument("--db", required=True, help="materials_db.json")
     p_mwb.add_argument("--out-dir", required=True, dest="out_dir",
@@ -3367,6 +3561,12 @@ def main():
     p_ve.add_argument("--overview-samples", type=int, default=48)
     p_ve.add_argument("--chapter-samples", type=int, default=16)
     p_ve.add_argument("--critical-samples", type=int, default=32)
+
+    p_fpv = sub.add_parser("final-product-verify")
+    p_fpv.add_argument("video", help="final/draft video candidate")
+    p_fpv.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for keyframe_grid, visual_audit, final_audio, soundtrack_probe, and bundle")
+    p_fpv.add_argument("--samples", type=int, default=12, help="number of keyframes")
 
     p_ra = sub.add_parser("replay-acceptance")
     p_ra.add_argument("timeline", help="timeline_build.json")

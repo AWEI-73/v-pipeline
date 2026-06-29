@@ -43,6 +43,17 @@ class KeyframeTimestampTest(unittest.TestCase):
         self.assertEqual(timestamps, [1.25, 8.75])
         self.assertEqual(sampling, "explicit")
 
+    def test_sparse_scene_midpoints_fall_back_to_even_samples(self):
+        timestamps, sampling = kg.resolve_grid_timestamps(
+            120,
+            12,
+            shots=[(0, 60), (60, 120)],
+            min_sample_count=6,
+        )
+        self.assertEqual(len(timestamps), 12)
+        self.assertEqual(sampling, "even_sparse_scene_fallback")
+        self.assertEqual(timestamps[:2], [5.0, 15.0])
+
 
 @unittest.skipUnless(_ffmpeg_available(), "ffmpeg not available")
 class KeyframeGridSmokeTest(unittest.TestCase):

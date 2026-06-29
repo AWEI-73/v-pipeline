@@ -46,6 +46,27 @@ class SkillToolContractsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
 
+    def test_dialogue_highlight_route_is_documented(self):
+        runbook = (ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
+        decision_tree = (ROOT / "docs" / "pipeline-decision-tree.md").read_text(
+            encoding="utf-8"
+        )
+        material_skill = (ROOT / "skills" / "material-map.md").read_text(
+            encoding="utf-8"
+        )
+        verify_skill = (ROOT / "skills" / "verify.md").read_text(encoding="utf-8")
+
+        for text in [runbook, decision_tree, material_skill]:
+            self.assertIn("source-dialogue-script", text)
+            self.assertIn("dialogue_edit_script.json", text)
+
+        self.assertIn("correct subtitle", runbook)
+        self.assertIn("complete sentence", runbook)
+        self.assertIn("speech-first highlight", decision_tree)
+        self.assertIn("eye / ear / head", material_skill)
+        self.assertIn("minimum visual evidence", verify_skill)
+        self.assertIn("sparse scene", verify_skill)
+
 
 if __name__ == "__main__":
     unittest.main()

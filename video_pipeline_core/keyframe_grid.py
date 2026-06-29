@@ -48,12 +48,15 @@ def _ts_label(seconds):
     return f"[{m:02d}:{s:02d}]"
 
 
-def resolve_grid_timestamps(duration_sec, sample_count, *, explicit=None, shots=None):
+def resolve_grid_timestamps(duration_sec, sample_count, *, explicit=None, shots=None, min_sample_count=None):
     """Resolve explicit, scene-aligned, or evenly-spaced grid timestamps."""
     if explicit is not None:
         return [round(float(value), 3) for value in explicit], "explicit"
     scene_points = scene_midpoints(shots or [], sample_count)
     if scene_points:
+        minimum = int(min_sample_count) if min_sample_count is not None else 1
+        if len(scene_points) < minimum:
+            return select_timestamps(duration_sec, sample_count), "even_sparse_scene_fallback"
         return scene_points, "scene_midpoints"
     return select_timestamps(duration_sec, sample_count), "even"
 
@@ -85,7 +88,8 @@ def probe_duration(video_path, ffprobe=None):
 
 def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
                            cell_width=480, cell_height=270, duration_sec=None,
-                           ffmpeg=None, ffprobe=None, timestamps=None):
+                           ffmpeg=None, ffprobe=None, timestamps=None,
+                           min_sample_count=None):
     """(I/O) Build a keyframe grid image and return its metadata.
 
     Returns a metadata dict suitable for ``visual_audit.json``::
@@ -98,6 +102,8 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
 
     if duration_sec is None:
         duration_sec = probe_duration(video_path, ffprobe=ffprobe)
+    if min_sample_count is None:
+        min_sample_count = min(int(sample_count), 6)
 
     # Scene-aligned sampling first (one cell per real cut = story-representative);
     # even spacing is the fallback when detection finds <2 scenes or is unavailable.
@@ -112,9 +118,12 @@ def generate_keyframe_grid(video_path, out_path, *, sample_count=12, columns=4,
             raise RuntimeError("explicit timestamps supplied")
         from .mv_cut import detect_shots  # noqa: PLC0415 — lazy (scenedetect)
         shots = detect_shots(str(video_path))
-        if len(shots) >= 2:
-            timestamps = scene_midpoints(shots, sample_count)
-            sampling = "scene_midpoints"
+        timestamps, sampling = resolve_grid_timestamps(
+            duration_sec,
+            sample_count,
+            shots=shots,
+            min_sample_count=min_sample_count,
+        )
     except Exception:
         if sampling != "explicit":
             timestamps = []

@@ -86,6 +86,9 @@ depend on the entry path but should still be recorded before branch work starts.
    - material exists -> `material-first`;
    - no material but text/story/idea exists -> `structure-first`;
    - route-changing facts are missing -> `needs-context`.
+   One long source, interview, podcast, lecture, or dialogue highlight still
+   enters `material-first`; it then uses the one-source / dialogue sub-branch
+   before any cut.
 3. If `entry_path = material-first`, fill `material_scan_decision` before any
    material tool: all materials vs user-specified scope, quick inventory first,
    and first action.
@@ -218,6 +221,13 @@ Material exists or may exist
   |     -> satisfies edges: scene -> need_id
   |     -> material_delta.json
   |
+  +-- One long source / speech-first highlight?
+  |     -> source-section-map / source-motion-profile / source-material-matrix
+  |     -> correct subtitle or reviewed ASR
+  |     -> source-dialogue-script
+  |     -> dialogue_edit_script.json review
+  |     -> safe_highlight_cut only after script/windows are accepted
+  |
   +-- Enough accepted coverage?
   |     -> rough_cut_plan.json if trimming / highlight cut is needed
   |     -> return route: BUILD / structure contract
@@ -232,6 +242,8 @@ Stop gates:
 - inventory summary exists but user has not reviewed scope;
 - `await_map_review`;
 - missing `satisfies` edges for must-have needs;
+- one-source speech-first highlight has no reviewed transcript/script;
+- selected dialogue windows cut half sentences or ignore complete sentence flow;
 - duplicate/rejected material would enter the timeline;
 - generated candidates have not been explicitly reviewed.
 
@@ -250,6 +262,11 @@ Handoff artifacts:
 - `material_wall_review_verdict.json`
 - `material_delta.json`
 - `rough_cut_plan.json`
+- `source_section_map.json`
+- `source_material_matrix.json`
+- `source_transcript.json`
+- `dialogue_edit_script.json`
+- `dialogue_highlight_windows.json`
 - `material_first_boundary_acceptance_report.json`
 
 Return route:

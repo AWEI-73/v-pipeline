@@ -38,6 +38,9 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         self.assertEqual(manifest["commands"]["video-intent-plan"]["group"], "workspace")
         self.assertEqual(manifest["commands"]["contract-run"]["group"], "contract")
         self.assertEqual(manifest["commands"]["material-map-lifecycle"]["group"], "material")
+        self.assertEqual(manifest["commands"]["source-section-map"]["group"], "material")
+        self.assertEqual(manifest["commands"]["source-motion-profile"]["group"], "material")
+        self.assertEqual(manifest["commands"]["source-dialogue-script"]["group"], "material")
         self.assertEqual(manifest["commands"]["verify-evidence"]["group"], "verify")
         self.assertEqual(manifest["commands"]["dashboard"]["group"], "frontend")
         self.assertEqual(manifest["commands"]["replay-acceptance"]["group"], "acceptance")
@@ -67,6 +70,7 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         self.assertIn("video_intent_planner", manifest["workflows"])
         self.assertIn("video_intent_acceptance", manifest["workflows"])
         self.assertIn("workbench_review_rerender", manifest["workflows"])
+        self.assertIn("source_understanding", manifest["workflows"])
 
         for workflow in manifest["workflows"].values():
             self.assertIsInstance(workflow["steps"], list)
@@ -90,6 +94,17 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         via_steps = manifest["workflows"]["video_intent_acceptance"]["steps"]
         self.assertEqual([s["command"] for s in via_steps], ["video-intent-acceptance"])
         self.assertEqual(via_steps[0]["requires"], ["video-intent-plan:implemented"])
+
+        source_steps = manifest["workflows"]["source_understanding"]["steps"]
+        self.assertEqual([s["command"] for s in source_steps], [
+            "source-section-map",
+            "source-motion-profile",
+            "source-material-matrix",
+            "source-dialogue-script",
+            "source-highlight-plan",
+        ])
+        self.assertEqual(source_steps[1]["requires"], ["source-section-map:ok"])
+        self.assertIn("one long source", manifest["workflows"]["source_understanding"]["description"])
 
     def test_brownfield_edit_route_is_explicit_workflow(self):
         manifest = video_tools.build_video_tools_workflow_manifest()

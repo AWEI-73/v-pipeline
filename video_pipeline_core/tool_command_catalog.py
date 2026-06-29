@@ -119,6 +119,11 @@ COMMAND_GROUPS: Dict[str, str] = {
     "material-wall-review-apply": "material",
     "material-db-slice-from-wall": "material",
     "project-material-map": "material",
+    "source-highlight-plan": "material",
+    "source-material-matrix": "material",
+    "source-section-map": "material",
+    "source-motion-profile": "material",
+    "source-dialogue-script": "material",
     "visual-diversity-coverage": "material",
     "visual-diversity-review": "material",
     "visual-family-normalize": "material",
@@ -140,6 +145,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "keyframe-grid": "verify",
     "visual-audit": "verify",
     "verify-evidence": "verify",
+    "final-product-verify": "verify",
 
     # Replay / acceptance proof commands.
     "replay-acceptance": "acceptance",
@@ -236,6 +242,40 @@ WORKFLOWS = {
                 "command": "material-map-review-apply",
                 "purpose": "apply bounded reviewer decisions as scene-level satisfies edges",
                 "requires": ["material-map-lifecycle:await_map_review"],
+            },
+        ],
+    },
+    "source_understanding": {
+        "description": "Analyze one long source video before highlight selection: section map, motion/edit-point profile, source material matrix, then rough highlight plan.",
+        "steps": [
+            {
+                "id": "source_section_map",
+                "command": "source-section-map",
+                "purpose": "derive big sections from visual shot boundaries, audio energy changes, and target spacing",
+            },
+            {
+                "id": "source_motion_profile",
+                "command": "source-motion-profile",
+                "purpose": "derive local edit-point and transition candidates from visual motion/change signals",
+                "requires": ["source-section-map:ok"],
+            },
+            {
+                "id": "source_material_matrix",
+                "command": "source-material-matrix",
+                "purpose": "write source_material_matrix.json, contact sheet, and source audio probe before semantic review",
+                "requires": ["source-motion-profile:ok_or_scoped"],
+            },
+            {
+                "id": "source_dialogue_script",
+                "command": "source-dialogue-script",
+                "purpose": "convert correct subtitle/ASR cues into source_transcript.json and sentence-safe dialogue_edit_script.json",
+                "requires": ["source-material-matrix:ok", "subtitle_or_asr:available"],
+            },
+            {
+                "id": "source_highlight_plan",
+                "command": "source-highlight-plan",
+                "purpose": "create highlight_selection_plan.json and rough_cut_plan.json from reviewed source evidence when the route is not dialogue-script driven",
+                "requires": ["source-material-matrix:reviewed_or_explicitly_deferred"],
             },
         ],
     },
