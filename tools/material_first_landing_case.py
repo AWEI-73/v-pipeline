@@ -48,6 +48,28 @@ NEED_KEYWORDS = {
 }
 NEED_IDS_BY_ROLE = {kind: need_id for need_id, kind, _purpose in NEEDS}
 VALID_NEED_IDS = {need_id for need_id, _kind, _purpose in NEEDS}
+PIPELINE_RUN_MARKERS = {
+    "video_intent.json",
+    "project_brief.json",
+    "soundtrack_plan.json",
+    "audio_mix_plan.json",
+    "final_audio.wav",
+    "delivery_gate.json",
+    "segment_contract.json",
+    "timeline_build.json",
+}
+
+
+def _refuse_existing_pipeline_run(run_dir: Path):
+    if not run_dir.exists():
+        return
+    markers = sorted(name for name in PIPELINE_RUN_MARKERS if (run_dir / name).exists())
+    if not markers:
+        return
+    raise ValueError(
+        "refusing to overwrite existing pipeline run; use a fresh run folder "
+        f"or remove protected artifacts first: {', '.join(markers)}"
+    )
 
 
 def _copytree_contents(source: Path, target: Path):
@@ -356,6 +378,7 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
 
 def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12, wall_verdict=None) -> dict:
     run_dir = Path(run_dir).resolve()
+    _refuse_existing_pipeline_run(run_dir)
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)

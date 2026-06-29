@@ -113,6 +113,69 @@ class AudioHandoffAcceptanceTest(unittest.TestCase):
             )
             self.assertEqual(result["audio_mix_plan"]["tracks"][0]["section_id"], "mv_climax")
 
+    def test_accepts_multi_section_probe_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            intro = root / "audio" / "sources" / "intro.mp3"
+            climax = root / "audio" / "sources" / "climax.mp3"
+            intro.parent.mkdir(parents=True)
+            intro.write_bytes(b"ID3 intro")
+            climax.write_bytes(b"ID3 climax")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [
+                    {
+                        "candidate_id": "jamendo_intro",
+                        "section_id": "intro",
+                        "source_type": "jamendo_song",
+                        "audio_file": str(intro),
+                        "license_status": "license_metadata_present",
+                        "delivery_allowed": True,
+                    },
+                    {
+                        "candidate_id": "jamendo_mv_climax",
+                        "section_id": "mv_climax",
+                        "source_type": "jamendo_song",
+                        "audio_file": str(climax),
+                        "license_status": "license_metadata_present",
+                        "delivery_allowed": True,
+                    },
+                ],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [
+                    {"section_id": "intro", "duration_sec": 8, "music_role": "song"},
+                    {"section_id": "mv_climax", "duration_sec": 12, "music_role": "song"},
+                ],
+            }
+            intro_probe = _probe_for(intro)
+            intro_probe["candidate_id"] = "jamendo_intro"
+            intro_probe["section_id"] = "intro"
+            climax_probe = _probe_for(climax)
+            climax_probe["candidate_id"] = "jamendo_mv_climax"
+            climax_probe["section_id"] = "mv_climax"
+            probe_bundle = {
+                "artifact_role": "soundtrack_probe_bundle",
+                "version": 1,
+                "track_reports": [intro_probe, climax_probe],
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=probe_bundle,
+                out_dir=root,
+            )
+
+            self.assertTrue(result["audio_handoff_acceptance"]["ok"])
+            self.assertEqual(result["audio_handoff_acceptance"]["accepted_track_count"], 2)
+            self.assertEqual(
+                {track["candidate_id"] for track in result["audio_mix_plan"]["tracks"]},
+                {"jamendo_intro", "jamendo_mv_climax"},
+            )
+
     def test_blocks_reference_only_and_missing_audio(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

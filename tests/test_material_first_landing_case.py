@@ -15,6 +15,17 @@ def _jpg(path, color):
 
 
 class MaterialFirstLandingCaseTest(unittest.TestCase):
+    def test_refuses_to_overwrite_existing_pipeline_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "existing_run"
+            run_dir.mkdir()
+            (run_dir / "video_intent.json").write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "refusing to overwrite existing pipeline run"):
+                run_material_first_landing_case(run_dir)
+
+            self.assertTrue((run_dir / "video_intent.json").exists())
+
     def test_existing_material_boundary_case_reaches_stable_review_cursor(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "material_first_case"

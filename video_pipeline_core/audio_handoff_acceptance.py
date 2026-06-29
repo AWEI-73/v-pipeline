@@ -113,6 +113,63 @@ def _music_track_requires_probe(selected: Mapping[str, Any], section: Mapping[st
     return role in {"bgm", "song", "music", "mixed"} or source_type in MUSIC_SOURCE_TYPES
 
 
+def _same_path(left: Any, right: Path) -> bool:
+    value = _clean(left)
+    if not value:
+        return False
+    try:
+        return Path(value).resolve() == right.resolve()
+    except OSError:
+        return str(Path(value)) == str(right)
+
+
+def _probe_matches(
+    report: Mapping[str, Any],
+    *,
+    selected_audio_file: Path,
+    candidate_id: str,
+    section_id: str,
+) -> bool:
+    report_candidate = _clean(report.get("candidate_id"))
+    if report_candidate and report_candidate != candidate_id:
+        return False
+
+    report_section = _clean(report.get("section_id"))
+    if report_section and section_id and report_section != section_id:
+        return False
+
+    report_audio = _clean(report.get("audio_file"))
+    if report_audio and not _same_path(report_audio, selected_audio_file):
+        return False
+
+    return bool(report_candidate or report_section or report_audio)
+
+
+def _select_probe_report(
+    soundtrack_probe_report: Mapping[str, Any] | None,
+    *,
+    selected_audio_file: Path,
+    candidate_id: str,
+    section_id: str,
+) -> Mapping[str, Any] | None:
+    if not soundtrack_probe_report:
+        return None
+
+    track_reports = soundtrack_probe_report.get("track_reports")
+    if isinstance(track_reports, list):
+        for report in track_reports:
+            if isinstance(report, Mapping) and _probe_matches(
+                report,
+                selected_audio_file=selected_audio_file,
+                candidate_id=candidate_id,
+                section_id=section_id,
+            ):
+                return report
+        return None
+
+    return soundtrack_probe_report
+
+
 def _probe_blocks(
     *,
     soundtrack_probe_report: Mapping[str, Any] | None,
@@ -293,9 +350,15 @@ def accept_audio_handoff(
                 "message": "preserve_speech section requires duck_under_voice or preserve_original_audio",
             })
         if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
+            probe_report = _select_probe_report(
+                soundtrack_probe_report,
+                selected_audio_file=audio_path,
+                candidate_id=candidate_id,
+                section_id=section_id,
+            )
             blocking.extend(
                 _probe_blocks(
-                    soundtrack_probe_report=soundtrack_probe_report,
+                    soundtrack_probe_report=probe_report,
                     selected_audio_file=audio_path,
                     candidate_id=candidate_id,
                 )
@@ -312,12 +375,21 @@ def accept_audio_handoff(
                 "source_type": source_type,
                 "license_status": license_status,
             }
-            if soundtrack_probe_report and _music_track_requires_probe(item, section):
+            if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
+                probe_report = _select_probe_report(
+                    soundtrack_probe_report,
+                    selected_audio_file=audio_path,
+                    candidate_id=candidate_id,
+                    section_id=section_id,
+                )
+            else:
+                probe_report = None
+            if probe_report and _music_track_requires_probe(item, section):
                 track["soundtrack_probe"] = {
                     "artifact": "soundtrack_probe_report.json",
-                    "duration_sec": soundtrack_probe_report.get("duration_sec"),
-                    "section_fit_count": len(soundtrack_probe_report.get("section_fit") or []),
-                    "analysis_depth": soundtrack_probe_report.get("analysis_depth"),
+                    "duration_sec": probe_report.get("duration_sec"),
+                    "section_fit_count": len(probe_report.get("section_fit") or []),
+                    "analysis_depth": probe_report.get("analysis_depth"),
                 }
             tracks.append(track)
 
