@@ -200,6 +200,12 @@ footage from silently entering BUILD as a formal `maybe`. If the selected
 primary is visually weaker than an alternate, edit the verdict; do not loosen
 the gate by promoting every plausible asset.
 
+Primary ranking is intentionally shallow and explainable. It uses role hints,
+risk flags, and small role preference dictionaries. For example, `training`
+prefers practical operation / hands-on footage over meeting or briefing
+footage when both match the same role. This is only an initial reviewer aid; if
+the contact sheet shows a better take, update the draft verdict explicitly.
+
 ## Material Availability Route Boundary
 
 - **existing-material-first**: material-map is the story source and constraint.

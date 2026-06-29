@@ -13,6 +13,31 @@ from typing import Any, Mapping, Sequence
 
 BLOCKING_RISKS = {"looks_like_finished_export", "source_missing", "unsupported_media_type"}
 DUPLICATE_RISKS = {"possible_duplicate_name"}
+ROLE_PREFERENCES = {
+    "opening": {
+        "prefer": ("aerial", "establish", "opening", "intro", "空拍", "開場", "全景"),
+        "avoid": ("meeting", "briefing", "早會", "簡報"),
+    },
+    "training": {
+        "prefer": (
+            "practice",
+            "practical",
+            "operation",
+            "hands-on",
+            "field",
+            "換桿",
+            "訓練",
+            "實作",
+            "操作",
+            "演練",
+        ),
+        "avoid": ("meeting", "briefing", "classroom", "早會", "簡報", "會議"),
+    },
+    "closing": {
+        "prefer": ("group", "chant", "closing", "ending", "隊呼", "合照", "結尾", "收尾"),
+        "avoid": (),
+    },
+}
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]):
@@ -33,6 +58,17 @@ def _roles(asset: Mapping[str, Any]) -> list[str]:
 
 def _risks(asset: Mapping[str, Any]) -> set[str]:
     return {str(flag).strip() for flag in (asset.get("risk_flags") or []) if str(flag).strip()}
+
+
+def _text_blob(asset: Mapping[str, Any]) -> str:
+    visual = asset.get("visual_evidence") if isinstance(asset.get("visual_evidence"), Mapping) else {}
+    parts = [
+        asset.get("asset_id"),
+        asset.get("source_path"),
+        visual.get("caption_hint"),
+    ]
+    parts.extend(asset.get("folder_tags") or [])
+    return " ".join(str(part) for part in parts if part).lower()
 
 
 def _evidence_refs(asset: Mapping[str, Any]) -> list[str]:
@@ -65,14 +101,22 @@ def _usable_ranges(asset: Mapping[str, Any]) -> list[dict[str, float]]:
     return [{"start": round(start, 3), "end": round(end, 3)}]
 
 
-def _candidate_score(asset: Mapping[str, Any], role: str, index: int) -> tuple[int, int, float, int]:
+def _preference_score(asset: Mapping[str, Any], role: str) -> int:
+    prefs = ROLE_PREFERENCES.get(role) or {}
+    text = _text_blob(asset)
+    prefer = sum(1 for keyword in prefs.get("prefer", ()) if keyword.lower() in text)
+    avoid = sum(1 for keyword in prefs.get("avoid", ()) if keyword.lower() in text)
+    return avoid - prefer
+
+
+def _candidate_score(asset: Mapping[str, Any], role: str, index: int) -> tuple[int, int, int, float, int]:
     roles = _roles(asset)
     risks = _risks(asset)
     role_miss = 0 if role in roles else 1
     risk_penalty = len(risks.intersection(BLOCKING_RISKS)) * 100 + len(risks.intersection(DUPLICATE_RISKS)) * 10
     # Prefer assets with enough footage, but keep order as the main tie breaker.
     duration_bonus = -min(_duration(asset), 12.0)
-    return (role_miss, risk_penalty, duration_bonus, index)
+    return (role_miss, risk_penalty, _preference_score(asset, role), duration_bonus, index)
 
 
 def _select_primaries(assets: list[Mapping[str, Any]], required_roles: Sequence[str]) -> dict[str, str]:
