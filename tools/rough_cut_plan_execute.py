@@ -90,8 +90,8 @@ def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int) -> str
     parts = []
     labels = []
     for index, clip in enumerate(clips):
-        start = clip["start_sec"]
-        end = start + clip["duration_sec"]
+        start = 0.0
+        end = clip["duration_sec"]
         label = f"v{index}"
         parts.append(
             f"[{index}:v]trim=start={start:.3f}:end={end:.3f},"
@@ -106,27 +106,24 @@ def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int) -> str
     return ";".join(parts)
 
 
-def execute_rough_cut_plan(
-    plan_path: str | Path,
-    out_path: str | Path,
-    report_path: str | Path,
+def build_rough_cut_ffmpeg_command(
+    clips: list[dict[str, Any]],
     *,
-    audio_path: str | Path | None = None,
+    out: Path,
+    audio: Path | None = None,
     width: int = 1280,
     height: int = 720,
-) -> dict[str, Any]:
-    plan = _load_json(Path(plan_path))
-    clips = _clips(plan)
-    out = Path(out_path)
-    report = Path(report_path)
-    audio = Path(audio_path) if audio_path else None
-    if audio and not audio.is_file():
-        raise FileNotFoundError(f"audio file does not exist: {audio}")
-
-    out.parent.mkdir(parents=True, exist_ok=True)
+) -> list[str]:
     cmd = [resolve_ffmpeg(), "-y", "-hide_banner"]
     for clip in clips:
-        cmd += ["-i", clip["source_path"]]
+        cmd += [
+            "-ss",
+            f"{clip['start_sec']:.3f}",
+            "-t",
+            f"{clip['duration_sec']:.3f}",
+            "-i",
+            clip["source_path"],
+        ]
     if audio:
         cmd += ["-i", str(audio)]
 
@@ -153,6 +150,35 @@ def execute_rough_cut_plan(
     if audio:
         cmd += ["-c:a", "aac", "-b:a", "160k"]
     cmd += ["-movflags", "+faststart", str(out)]
+    return cmd
+
+
+def execute_rough_cut_plan(
+    plan_path: str | Path,
+    out_path: str | Path,
+    report_path: str | Path,
+    *,
+    audio_path: str | Path | None = None,
+    width: int = 1280,
+    height: int = 720,
+) -> dict[str, Any]:
+    plan = _load_json(Path(plan_path))
+    clips = _clips(plan)
+    out = Path(out_path)
+    report = Path(report_path)
+    audio = Path(audio_path) if audio_path else None
+    if audio and not audio.is_file():
+        raise FileNotFoundError(f"audio file does not exist: {audio}")
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    total_duration = round(sum(clip["duration_sec"] for clip in clips), 3)
+    cmd = build_rough_cut_ffmpeg_command(
+        clips,
+        out=out,
+        audio=audio,
+        width=width,
+        height=height,
+    )
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

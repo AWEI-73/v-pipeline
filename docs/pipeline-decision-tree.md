@@ -225,6 +225,7 @@ Material exists or may exist
   |        when the goal is to prove matrix -> draft verdict -> acceptance before editing
   |     -> optional tools/material_first_preview_plan.py for 60-90s review proposal
   |        after matrix and wall verdict draft exist
+  |     -> optional tools/rough_cut_storyboard_preview.py when source clips are too large for quick motion preview
   |     -> material map lifecycle
   |     -> project_material_map.json / per-asset maps
   |     -> material_wall_review_verdict.json when review is needed

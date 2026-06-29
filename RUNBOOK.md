@@ -290,6 +290,21 @@ acceptance report in one run folder. It does not render. The canonical
 `rough_cut_plan.json` remains a short smoke handoff; review
 `preview_rough_cut_plan.json` before using it for render or Workbench changes.
 
+For large source clips, use a storyboard preview built from matrix keyframes
+before attempting motion preview:
+
+```powershell
+python tools\rough_cut_storyboard_preview.py `
+  --matrix RUN_DIR\material_understanding\material_understanding_matrix.json `
+  --rough-cut-plan RUN_DIR\preview_rough_cut_plan.json `
+  --out RUN_DIR\multi_material_storyboard_preview.mp4 `
+  --report RUN_DIR\rough_cut_storyboard_preview_report.json `
+  --json
+```
+
+This is a review aid for material choice and order. It is not `final.mp4` and
+does not verify motion timing.
+
 Manual steps, when you need to inspect or override each artifact:
 
 ```powershell

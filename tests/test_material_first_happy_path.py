@@ -5,18 +5,39 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from video_pipeline_core.platform_tools import resolve_ffmpeg
+
 
 class MaterialFirstHappyPathTest(unittest.TestCase):
+    def _write_video(self, path: Path, color: str):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                resolve_ffmpeg(),
+                "-y",
+                "-hide_banner",
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=c={color}:s=160x90:d=9",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                str(path),
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
     def _source_dir(self, root: Path) -> Path:
         source = root / "source"
-        (source / "66期學長空拍影片").mkdir(parents=True)
-        (source / "工安早會").mkdir(parents=True)
-        (source / "換桿").mkdir(parents=True)
-        (source / "運動會").mkdir(parents=True)
-        (source / "66期學長空拍影片" / "MAX_0169.MP4").write_bytes(b"fake")
-        (source / "工安早會" / "IMG_8515.MOV").write_bytes(b"fake")
-        (source / "換桿" / "IMG_8346.MOV").write_bytes(b"fake")
-        (source / "運動會" / "66期配四班隊呼.mp4").write_bytes(b"fake")
+        self._write_video(source / "opening drone" / "MAX_0169.mp4", "red")
+        self._write_video(source / "training pole" / "IMG_8346.mp4", "blue")
+        self._write_video(source / "closing group" / "group_call.mp4", "green")
+        self._write_video(source / "training safety" / "IMG_8515.mp4", "yellow")
         return source
 
     def test_wrapper_creates_matrix_draft_and_acceptance_report_without_render(self):
@@ -63,6 +84,18 @@ class MaterialFirstHappyPathTest(unittest.TestCase):
             preview = json.loads((run_dir / "preview_rough_cut_plan.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(preview["decision_scope"], "preview_proposal_not_canonical_timeline")
             self.assertGreaterEqual(preview["total_duration_sec"], 60)
+            matrix = json.loads(
+                (run_dir / "material_understanding" / "material_understanding_matrix.json").read_text(encoding="utf-8-sig")
+            )
+            keyframes = [
+                Path(item["image_path"])
+                for asset in matrix["assets"]
+                for item in asset["visual_evidence"]["keyframes"]
+                if item.get("image_path")
+            ]
+            self.assertTrue(keyframes)
+            self.assertTrue(all(path.is_file() for path in keyframes))
+            self.assertTrue(all(run_dir in path.parents for path in keyframes))
 
 
 if __name__ == "__main__":

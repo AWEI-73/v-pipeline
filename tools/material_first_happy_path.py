@@ -17,6 +17,35 @@ from video_pipeline_core.material_understanding_matrix import build_material_und
 from video_pipeline_core.material_wall_verdict_draft import build_wall_verdict_draft  # noqa: E402
 
 
+def _rewrite_matrix_paths(matrix_path: Path, *, old_dir: Path, new_dir: Path) -> None:
+    payload = json.loads(matrix_path.read_text(encoding="utf-8-sig"))
+
+    def rewrite(value):
+        if not value:
+            return value
+        path = Path(str(value))
+        try:
+            rel = path.resolve().relative_to(old_dir.resolve())
+        except ValueError:
+            return value
+        return str((new_dir / rel).resolve())
+
+    visual = payload.get("visual") if isinstance(payload.get("visual"), dict) else {}
+    if visual:
+        visual["contact_sheet"] = rewrite(visual.get("contact_sheet"))
+        visual["frames_dir"] = rewrite(visual.get("frames_dir"))
+    for asset in payload.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        evidence = asset.get("visual_evidence") if isinstance(asset.get("visual_evidence"), dict) else {}
+        if evidence.get("photo"):
+            evidence["photo"] = rewrite(evidence.get("photo"))
+        for frame in evidence.get("keyframes") or []:
+            if isinstance(frame, dict) and frame.get("image_path"):
+                frame["image_path"] = rewrite(frame.get("image_path"))
+    write_json(matrix_path, payload)
+
+
 def run_material_first_happy_path(
     run_dir,
     *,
@@ -74,6 +103,11 @@ def run_material_first_happy_path(
     if root.exists():
         shutil.copy2(materials_db_path, root / "materials_db.source_candidates.json")
         shutil.copytree(matrix_dir, root / "material_understanding", dirs_exist_ok=True)
+        _rewrite_matrix_paths(
+            root / "material_understanding" / "material_understanding_matrix.json",
+            old_dir=matrix_dir,
+            new_dir=root / "material_understanding",
+        )
         shutil.copy2(verdict_path, root / "material_wall_review_verdict.draft.json")
         shutil.copy2(preview_path, root / "preview_rough_cut_plan.json")
     shutil.rmtree(prep, ignore_errors=True)

@@ -880,6 +880,14 @@ def _source_highlight_summary(root: Path):
     candidate = next((name for name in candidate_names if (root / name).is_file()), None)
     if highlight_path:
         read.append(_rel(root, highlight_path))
+    if not candidate and isinstance(highlight, dict):
+        reported_out = highlight.get("out") or highlight.get("output")
+        if reported_out:
+            reported_path = Path(str(reported_out))
+            if not reported_path.is_absolute():
+                reported_path = root / reported_path
+            if reported_path.is_file():
+                candidate = _rel(root, reported_path) or reported_path.name
 
     if candidate:
         return _contract(

@@ -986,6 +986,41 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "write_delivery_gate_report_or_review_highlight_candidate")
             self.assertEqual(summary["source"], "highlight_selection_plan.json")
 
+    def test_source_highlight_candidate_uses_report_out_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "source_timeline_map.json", {
+                "artifact_role": "source_timeline_map",
+                "windows": [{"window_id": "win_000"}],
+            })
+            _write(root, "highlight_selection_plan.json", {
+                "artifact_role": "highlight_selection_plan",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+            _write(root, "rough_cut_plan.json", {
+                "artifact_role": "rough_cut_plan",
+                "route": "single_source_highlight",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+            custom_output = root / "single_source_highlight_preview.mp4"
+            _write(root, "highlight_cut_report.json", {
+                "artifact_role": "highlight_cut_report",
+                "duration_sec": 75.0,
+                "out": str(custom_output),
+                "output_probe": {
+                    "video": {"codec_name": "h264"},
+                    "audio": {"codec_name": "aac"},
+                },
+            })
+            custom_output.write_bytes(b"fake")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "write_delivery_gate_report_or_review_highlight_candidate")
+            self.assertIn("single_source_highlight_preview.mp4", summary["reason"])
+            self.assertIn("single_source_highlight_preview.mp4", summary["read"])
+
     def test_one_source_dialogue_preview_routes_to_final_review_before_intent(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
