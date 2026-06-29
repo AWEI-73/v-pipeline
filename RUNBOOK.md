@@ -261,6 +261,7 @@ coarse-screen, map, rough-cut, and reach a review/render handoff.
 brief + source folder
   -> video_intent.json: entry_path=material-first
   -> material_understanding_matrix.json / contact sheet
+  -> optional material_wall_review_verdict.draft.json
   -> material wall review
   -> material map / review apply
   -> rough_cut_plan.json / timeline_build.json
@@ -283,6 +284,20 @@ python tools\material_understanding_matrix.py `
 
 Use the contact sheet and matrix to write `material_wall_review_verdict.json`.
 The matrix is observation only; it does not prove coverage or authorize BUILD.
+For a bounded first pass, draft a conservative verdict with one primary keep
+per role and alternates separated from formal keep/maybe:
+
+```powershell
+python tools\material_wall_verdict_draft.py `
+  --matrix RUN_DIR\material_understanding\material_understanding_matrix.json `
+  --out RUN_DIR\material_wall_review_verdict.draft.json `
+  --roles opening,training,closing `
+  --json
+```
+
+Review or edit the draft before using it as the `--wall-verdict` input. If an
+alternate is better than the chosen primary, swap the statuses explicitly
+instead of promoting every plausible asset.
 
 ```powershell
 python tools\material_first_boundary_acceptance.py `

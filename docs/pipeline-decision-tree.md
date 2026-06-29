@@ -212,6 +212,8 @@ Material exists or may exist
   |     -> human/agent reviews the inventory before deeper scan
   |     -> tools/material_understanding_matrix.py when multiple assets need visual/audio evidence before wall verdict
   |     -> material_understanding_matrix.json / contact sheet
+  |     -> optional tools/material_wall_verdict_draft.py for one-primary-per-role draft
+  |     -> review/edit draft before it becomes material_wall_review_verdict.json
   |
   +-- Need material truth / scene coverage?
   |     -> material map lifecycle
@@ -262,6 +264,7 @@ Handoff artifacts:
 - `materials_db.json`
 - `material_understanding_matrix.json`
 - `material_understanding_contact_sheet.jpg`
+- `material_wall_review_verdict.draft.json` when matrix-assisted drafting is used
 - `project_material_map.json`
 - `material_wall_review_verdict.json`
 - `material_delta.json`
