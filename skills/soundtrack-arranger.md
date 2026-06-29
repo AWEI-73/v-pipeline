@@ -27,9 +27,16 @@ description: Use for bounded music, song, BGM, soundtrack mood, section audio so
     {
       "tool": "tools/soundtrack_flow_acceptance.py",
       "when": "run a no-render acceptance from soundtrack plan through reviewed selected audio, handoff acceptance, audio_mix_plan, and pipeline_home",
-      "inputs": ["video_intent or brief JSON", "optional reviewed selected audio decision"],
+      "inputs": ["video_intent or brief JSON", "optional reviewed selected audio decision", "soundtrack_probe_report.json for selected music"],
       "outputs": ["soundtrack_flow_acceptance_report.json", "audio_handoff_acceptance.json", "audio_mix_plan.json"],
-      "stop_if": ["audio_handoff_acceptance ok=false", "selected audio is missing or unlicensed"]
+      "stop_if": ["audio_handoff_acceptance ok=false", "selected audio is missing or unlicensed", "selected music has no soundtrack_probe_report or section_fit"]
+    },
+    {
+      "tool": "tools/soundtrack_probe.py",
+      "when": "inspect an accepted music/audio file before placement so agents can see tempo, beats, energy sections, silence, loudness, optional vocals/transcript, and section fit",
+      "inputs": ["audio file"],
+      "outputs": ["soundtrack_probe_report.json"],
+      "stop_if": ["probe pass=false", "sections, editing_fit, or required section_fit are missing"]
     }
   ],
   "supporting_tools": [
@@ -69,6 +76,7 @@ Canonical artifacts:
 - `soundtrack_plan.json`
 - `music_source_candidates.json`
 - `sound_license_manifest.json`
+- `soundtrack_probe_report.json`
 - `audio_director_handoff.json`
 
 ## Required Contract
@@ -88,8 +96,11 @@ Each section should record:
 
 When the input is `video_intent.json`, preserve
 `soundtrack_contract` as `stage0_soundtrack_contract` in
-`soundtrack_plan.json`. Carry its `fallback_policy` into
-`sound_license_manifest.json` and `audio_director_handoff.json`.
+`soundtrack_plan.json`. Also preserve `communication_intent` as
+`source_audio_policy` when present, so later Audio Director / BUILD steps know
+whether source footage audio is preserved, replaced by music, or mixed by
+section. Carry its `fallback_policy` into `sound_license_manifest.json` and
+`audio_director_handoff.json`.
 
 Fallback policy:
 
@@ -156,3 +167,52 @@ Never commit `.env` values.
 `audio_director_handoff.json` must include only accepted or placeholder audio
 decisions. Audio Director may then fetch approved files, run TTS, apply ducking,
 and output `final_audio.wav` / `audio_mix_report.json`.
+
+Selected deliverable music must be probed before Audio Director handoff.
+`audio_handoff_acceptance.json` now fails closed when a selected BGM/song track
+does not have `soundtrack_probe_report.json` with `pass=true`, non-empty
+`features`, and non-empty `section_fit[]`. Original source speech tracks are
+not blocked by the music probe rule; they are governed by
+`preserve_original_audio` / ducking policy instead.
+
+## Soundtrack Probe
+
+Before placing a selected song or BGM into `audio_mix_plan.json`, run:
+
+```powershell
+python tools\soundtrack_probe.py --audio PATH\song.mp3 --out RUN_DIR\soundtrack_probe_report.json --json
+```
+
+The first implementation is intentionally bounded:
+
+- ffprobe duration/codec
+- ffmpeg `volumedetect`
+- ffmpeg `silencedetect`
+- optional librosa tempo, beat times, and RMS energy curve when available
+- optional faster-whisper ASR vocal/transcript pass when requested:
+
+```powershell
+python tools\soundtrack_probe.py `
+  --audio PATH\song.mp3 `
+  --out RUN_DIR\soundtrack_probe_report.json `
+  --enable-asr `
+  --asr-model small `
+  --language zh `
+  --json
+```
+
+It does not yet run source separation, CLAP, or a music-language model. ASR is a
+bounded optional layer: it can identify likely vocals, transcript preview,
+vocal density, and instrumental windows, but it is not a final lyric or singing
+quality judge.
+
+The output is an agent-readable music material map: use it to decide where a
+track fits, whether it is too dense under speech, and which window can support
+montage/climax/ending. `section_fit[]` translates the probe into video-section
+choices such as `opening_intro`, `hotblooded_montage`, `warm_story`,
+`speech_underlay`, and `ending_reflection`.
+
+If delivery requires music understanding, set
+`delivery_requirements.requires_soundtrack_probe=true`; Delivery Gate will then
+block if `soundtrack_probe_report.json` is missing, empty, or lacks
+`section_fit`.

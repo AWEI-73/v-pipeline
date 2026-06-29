@@ -20,12 +20,20 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
     {
       "tool": "tools/audio_mix_plan_execute.py",
       "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
-      "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing"],
+      "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing", "source_audio_policy"],
       "outputs": ["final_audio.wav", "audio_mix_report.json"],
       "stop_if": ["audio_handoff_acceptance ok=false", "audio_mix_plan ready_for_mix=false", "audio_file missing"]
     }
   ],
-  "supporting_tools": [],
+  "supporting_tools": [
+    {
+      "tool": "tools/final_av_assemble.py",
+      "when": "assemble an already-approved visual video stream with final_audio.wav after BUILD and Audio Director are both complete; write assembly_report.json and do not choose clips, music, voice, subtitles, or effects",
+      "inputs": ["approved visual video", "final_audio.wav", "source_audio_policy"],
+      "outputs": ["final.mp4", "assembly_report.json"],
+      "stop_if": ["visual video missing", "final_audio.wav missing", "audio_mix_report.json missing for required audio", "source_audio_policy is preserve_speech but final_audio.wav has not already mixed protected speech"]
+    }
+  ],
   "forbidden_tools": [
     "Do not render final.mp4 from Audio Director",
     "Do not mix reference_only or unlicensed music",
@@ -46,6 +54,28 @@ preserving original speech, `final_audio.wav`, `tts_timing.json`, and
 `audio_mix_report.json`. If `sound_license_manifest.json` marks a track as
 `reference_only`, placeholder, missing license, or delivery-disallowed, do not
 mix it into deliverable output.
+
+For selected deliverable music, require `audio_handoff_acceptance.json` to have
+already validated `soundtrack_probe_report.json`. Do not mix a selected BGM/song
+track that bypassed the probe gate. The probe is not a genre oracle; it is the
+minimum evidence that duration, loudness, sections, and section fit were
+inspected before mixing.
+
+`tools/final_av_assemble.py` is a final glue helper only after visual BUILD and
+Audio Director are both complete. It may replace source-video audio with the
+accepted `final_audio.wav` and write `assembly_report.json`. It must not choose
+music, clip timing, voiceover, subtitles, or effects; those decisions must
+already exist in upstream artifacts.
+
+When `audio_mix_plan.json` contains `source_audio_policy`, keep it in the
+resulting `audio_mix_report.json` and respect it during BUILD handoff:
+
+- `preserve_speech`: include protected original speech or voiceover and duck
+  music under it.
+- `replace_with_music`: do not preserve source-video audio in the final
+  deliverable.
+- `mixed`: require section-level placements that state where original speech is
+  preserved and where music replaces source audio.
 
 > **Facet 擁有權(Node 3,見 [spec-contract.md](spec-contract.md)):音控師擁有 `audio` facet。**
 > 欄位:`role`(music/duck/diegetic)/ `music_intent` / `original_audio_policy` / `voiceover_policy` / `reason`。

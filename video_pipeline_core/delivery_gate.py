@@ -138,6 +138,65 @@ def _audio_mix_report_blocks(audio_mix_report: dict[str, Any]) -> list[dict[str,
     return blocking
 
 
+def _soundtrack_probe_report_blocks(soundtrack_probe_report: dict[str, Any] | None, *, required: bool) -> list[dict[str, Any]]:
+    blocking: list[dict[str, Any]] = []
+    if soundtrack_probe_report is None:
+        if required:
+            blocking.append({
+                "rule": "missing_soundtrack_probe_report",
+                "tier": 1,
+                "artifact": "soundtrack_probe_report.json",
+                "message": "soundtrack/music delivery requires soundtrack_probe_report.json",
+                "next_action": "run_soundtrack_probe",
+            })
+        return blocking
+    if soundtrack_probe_report.get("pass") is not True:
+        blocking.append({
+            "rule": "soundtrack_probe_not_passed",
+            "tier": 1,
+            "artifact": "soundtrack_probe_report.json",
+            "message": "soundtrack_probe_report.json did not pass",
+            "next_action": "repair_or_rerun_soundtrack_probe",
+        })
+    features = soundtrack_probe_report.get("features")
+    if not isinstance(features, dict) or not features:
+        blocking.append({
+            "rule": "soundtrack_probe_has_no_features",
+            "tier": 1,
+            "artifact": "soundtrack_probe_report.json",
+            "message": "soundtrack_probe_report.json must include non-empty features",
+            "next_action": "rerun_soundtrack_probe",
+        })
+    sections = _as_list(soundtrack_probe_report.get("sections"))
+    if not sections:
+        blocking.append({
+            "rule": "soundtrack_probe_has_no_sections",
+            "tier": 1,
+            "artifact": "soundtrack_probe_report.json",
+            "message": "soundtrack_probe_report.json must include music sections",
+            "next_action": "rerun_soundtrack_probe",
+        })
+    section_fit = _as_list(soundtrack_probe_report.get("section_fit"))
+    if required and not section_fit:
+        blocking.append({
+            "rule": "soundtrack_probe_has_no_section_fit",
+            "tier": 1,
+            "artifact": "soundtrack_probe_report.json",
+            "message": "soundtrack_probe_report.json must include section_fit when soundtrack probing is required",
+            "next_action": "rerun_soundtrack_probe",
+        })
+    editing_fit = soundtrack_probe_report.get("editing_fit")
+    if not isinstance(editing_fit, dict) or not editing_fit:
+        blocking.append({
+            "rule": "soundtrack_probe_has_no_editing_fit",
+            "tier": 1,
+            "artifact": "soundtrack_probe_report.json",
+            "message": "soundtrack_probe_report.json must include editing_fit for video placement decisions",
+            "next_action": "rerun_soundtrack_probe",
+        })
+    return blocking
+
+
 def _clip_source_path(clip: dict[str, Any]) -> str | None:
     for key in (
         "source_path",
@@ -761,6 +820,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
     requires_narration = bool(requirements.get("requires_narration", True))
     requires_music = bool(requirements.get("requires_music", True))
     requires_subtitles = bool(requirements.get("requires_subtitles", True))
+    requires_soundtrack_probe = bool(requirements.get("requires_soundtrack_probe", False))
     allow_narration_fallback = bool(requirements.get("allow_narration_fallback", False))
     requires_frame_evidence = bool(requirements.get("requires_frame_evidence", False)) or _is_real_material_route(root)
     requires_effect_render_verification = (
@@ -912,6 +972,15 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             "message": "music is required but music_manifest.json has no tracks/cues",
             "next_action": "generate_or_attach_music",
         })
+
+    soundtrack_probe_report = _load_json(root / "soundtrack_probe_report.json")
+    if requires_music or soundtrack_probe_report is not None:
+        blocking.extend(
+            _soundtrack_probe_report_blocks(
+                soundtrack_probe_report,
+                required=requires_soundtrack_probe,
+            )
+        )
 
     audio_mix_report = _load_json(root / "audio_mix_report.json")
     if requires_audio:

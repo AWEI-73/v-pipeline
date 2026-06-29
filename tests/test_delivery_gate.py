@@ -1,3 +1,4 @@
+import json
 import unittest
 import wave
 from pathlib import Path
@@ -1095,6 +1096,105 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         rules = {item["rule"] for item in result["blocking"]}
         self.assertIn("audio_mix_peak_too_hot", rules)
+
+    def test_complete_video_gate_requires_soundtrack_probe_when_requested(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            (root / "delivery_requirements.json").write_text(
+                json.dumps(requirements),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_soundtrack_probe_report", rules)
+
+    def test_complete_video_gate_accepts_valid_soundtrack_probe_when_requested(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            (root / "delivery_requirements.json").write_text(json.dumps(requirements), encoding="utf-8")
+            (root / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "version": 1,
+                    "pass": True,
+                    "audio_file": "music.wav",
+                    "duration_sec": 60.0,
+                    "features": {"mean_dbfs": -18.0, "peak_dbfs": -2.0},
+                    "sections": [{"start_sec": 0.0, "end_sec": 60.0, "role": "full_track"}],
+                    "editing_fit": {"speech_underlay": "low", "montage": "medium"},
+                    "section_fit": [{"video_section": "hotblooded_montage", "fit": "medium"}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+
+    def test_complete_video_gate_blocks_empty_soundtrack_probe(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            (root / "delivery_requirements.json").write_text(json.dumps(requirements), encoding="utf-8")
+            (root / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "version": 1,
+                    "pass": True,
+                    "audio_file": "music.wav",
+                    "duration_sec": 60.0,
+                    "features": {},
+                    "sections": [],
+                    "editing_fit": {},
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("soundtrack_probe_has_no_sections", rules)
+        self.assertIn("soundtrack_probe_has_no_editing_fit", rules)
+
+    def test_complete_video_gate_blocks_soundtrack_probe_without_section_fit(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            (root / "delivery_requirements.json").write_text(json.dumps(requirements), encoding="utf-8")
+            (root / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "version": 1,
+                    "pass": True,
+                    "audio_file": "music.wav",
+                    "duration_sec": 60.0,
+                    "features": {"mean_dbfs": -18.0, "peak_dbfs": -2.0},
+                    "sections": [{"start_sec": 0.0, "end_sec": 60.0, "role": "full_track"}],
+                    "editing_fit": {"montage": "medium"},
+                    "section_fit": [],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("soundtrack_probe_has_no_section_fit", rules)
 
     def test_complete_video_gate_blocks_visual_audit_evidence_without_samples(self):
         with TemporaryDirectory() as tmp:

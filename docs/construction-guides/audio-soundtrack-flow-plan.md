@@ -46,6 +46,19 @@ Current progress:
   section-level music, apply ducking evidence, and keep delivery headroom.
 - Still open: replace test-only voice placeholders with real TTS/original
   speech and run a full-video E2E where BUILD consumes `final_audio.wav`.
+- Soundtrack Probe now has an optional ASR layer:
+  `tools/soundtrack_probe.py --enable-asr --asr-model small --language zh`.
+  It writes `features.vocal_analysis` and `section_fit[]`. Soundtrack
+  Arranger owns producing this probe; Verify / Delivery Gate owns blocking
+  required music-understanding delivery when the probe or `section_fit` is
+  missing.
+- Soundtrack Probe is sealed as MVP for now. Do not expand into deep genre
+  classification before the route is wired into Stage 0 / Audio Director /
+  Verify.
+- Audio handoff now requires a probe for selected deliverable music. A BGM/song
+  track can remain a candidate without a probe, but it cannot become an
+  `audio_mix_plan.tracks[]` item until `soundtrack_probe_report.json` passes
+  and includes `section_fit[]`.
 
 ## Goal
 
@@ -68,6 +81,9 @@ connected before doing real ffmpeg mixing.
 - `soundtrack_plan.json`: section-level emotional/audio contract.
 - `music_source_candidates.json`: provider/manual candidates.
 - `sound_license_manifest.json`: source and license evidence.
+- `soundtrack_probe_report.json`: agent-readable audio material map containing
+  tempo, beat/energy sections, loudness/silence, optional vocal/transcript
+  analysis, and section fit suggestions.
 - `audio_director_handoff.json`: accepted or blocked handoff to Audio Director.
 - `audio_handoff_acceptance.json`: no-render gate result.
 - `audio_mix_plan.json`: mix instructions for Audio Director.
@@ -81,6 +97,9 @@ connected before doing real ffmpeg mixing.
 - Internal-only YouTube or manual library audio requires `license_note` or
   `license_url`.
 - Speech-critical sections require ducking or original-audio preservation.
+- Selected deliverable BGM/song requires `soundtrack_probe_report.json` before
+  Audio Director handoff. Original speech preservation is governed by source
+  audio policy and ducking, not by the music probe.
 - No Soundtrack tool may render `final.mp4` or mix deliverable audio.
 
 ## Stage 0 Communication Policy
@@ -97,9 +116,11 @@ Recommended Stage 0 fields:
   "communication_intent": {
     "voiceover_policy": "required | optional | none | undecided",
     "subtitle_policy": "required | optional | none | undecided",
-    "original_audio_policy": "preserve_speech | mixed | replace_with_music | none | undecided",
-    "music_policy": "bgm | song | reference_only | none | undecided",
+    "original_audio_policy": "preserve_speech | mixed | replace_with_music | preserve_if_detected | none | undecided",
+    "music_policy": "bgm | song | mixed | reference_only | none | undecided",
     "speech_priority": "high | medium | low | unknown",
+    "ducking_policy": "duck_under_voice | none",
+    "time_authority": "video_sections | music_sections",
     "handoff_to": [
       "material_map",
       "soundtrack_arranger",
@@ -118,6 +139,9 @@ Ownership split:
   narration, subtitle layout, music choices, or mix policy.
 - Segment Contract carries the decision per segment: narration intent,
   subtitle intent, original-audio policy, music intent, and effect intent.
+- `communication_intent` is the whole-video/default policy. `segment_contract`
+  may override it per section, but missing per-segment policy should inherit
+  this Stage 0 surface instead of guessing at BUILD time.
 - Soundtrack Arranger owns music/song/BGM sourcing, section mood, license
   status, and `audio_director_handoff.json`.
 - Audio Director owns TTS, accepted music/original-audio mixing, ducking,
@@ -143,6 +167,11 @@ Fail-closed routing:
   Director or verify must prove on-screen readability.
 - If `original_audio_policy=preserve_speech`, music placement must use ducking
   or speech-safe sections.
+- If `original_audio_policy=replace_with_music`, BUILD should not map source
+  video audio into the final deliverable unless Workbench or a later reviewed
+  patch changes the policy.
+- If `original_audio_policy=mixed`, each audio section must declare whether it
+  preserves original speech, ducks music under speech, or replaces source audio.
 - If `music_policy=song` and no licensed/user-provided source exists, keep the
   source `reference_only` and block deliverable audio until reviewed.
 
@@ -160,10 +189,15 @@ python tools\soundtrack_flow_acceptance.py `
 ```
 
 Use `--fake-reviewed-audio` only for no-render tests. Real runs should first
-write or download a reviewed audio file, then pass through the same acceptance
-gate without fake media:
+write or download a reviewed audio file, run Soundtrack Probe, then pass through
+the same acceptance gate without fake media:
 
 ```powershell
+python tools\soundtrack_probe.py `
+  --audio RUN_DIR\audio\sources\jamendo_mv_climax.mp3 `
+  --out RUN_DIR\soundtrack_probe_report.json `
+  --json
+
 python tools\soundtrack_flow_acceptance.py `
   --input RUN_DIR\video_intent.json `
   --out-dir RUN_DIR `
@@ -171,6 +205,7 @@ python tools\soundtrack_flow_acceptance.py `
   --source-type jamendo_song `
   --license-note "Jamendo metadata reviewed for this run" `
   --selected-audio-file RUN_DIR\audio\sources\jamendo_mv_climax.mp3 `
+  --soundtrack-probe-report RUN_DIR\soundtrack_probe_report.json `
   --json
 ```
 
@@ -180,6 +215,69 @@ python tools\soundtrack_flow_acceptance.py `
    internal-only URL import.
 2. Add VERIFY checks for speech ducking, audible clipping, and missing licensed
    evidence.
+
+## Soundtrack Probe / Verify Split
+
+Soundtrack Arranger should run the probe after a candidate audio file is
+accepted and before Audio Director places it:
+
+```powershell
+python tools\soundtrack_probe.py `
+  --audio RUN_DIR\audio\sources\selected.mp3 `
+  --out RUN_DIR\soundtrack_probe_report.json `
+  --enable-asr `
+  --asr-model small `
+  --language zh `
+  --json
+```
+
+Use `--enable-asr` only when vocals, lyrics, singing, or speech conflict matter.
+Without ASR, the probe still provides duration, loudness, silence, tempo, beat
+times, energy sections, `editing_fit`, and `section_fit`.
+
+When a deliverable depends on this music understanding, write:
+
+```json
+{
+  "requires_soundtrack_probe": true
+}
+```
+
+into `delivery_requirements.json`. Delivery Gate then blocks if
+`soundtrack_probe_report.json` is missing, `pass` is false, `features` /
+`sections` / `editing_fit` are empty, or required `section_fit[]` is missing.
+
+## Validated Probe Example
+
+Run folder:
+
+```text
+runs/ytdlp_music_probe_20260628_good_pace
+```
+
+Source:
+
+```text
+Good Pace - Thomas Gresen | Background Music For Videos No Copyright Trap Music Instrumental Free
+https://www.youtube.com/watch?v=CNA1ZZ8ioq8
+```
+
+Observed probe result:
+
+- `analysis_depth=basic_ffmpeg+music_features+vocal_asr`
+- `duration_sec=161.808`
+- `tempo_bpm=99.384`
+- `features.vocal_analysis.has_vocals=false`
+- `transcript_preview=""`
+- `section_fit.hotblooded_montage.fit=medium`
+- `section_fit.speech_underlay.fit=high`
+- `peak_dbfs=0.0`, so Audio Director should reduce/limit before final mix
+
+External listening review agreed with the probe: the track is instrumental,
+mid-tempo Chill Trap / Lo-Fi Trap / Future Bass style, suitable for steady
+movement or neutral modern background, not a hard explosive climax. Treat this
+as the acceptance example for how agents should interpret
+`soundtrack_probe_report.json`.
 
 ## Mix Execution
 
@@ -197,6 +295,9 @@ python tools\audio_mix_plan_execute.py `
 This writes `final_audio.wav` and `audio_mix_report.json`. It does not render
 video or write `final.mp4`. `pipeline_home.py` should then move from
 `audio_mix` to `audio_ready` with `next=return_to_build_with_final_audio`.
+`audio_mix_plan.json` also carries `source_audio_policy` so BUILD and Workbench
+can see whether source footage audio should be preserved, ducked, replaced, or
+handled section-by-section.
 
 When `audio_mix_plan.json` contains `sections[]`, the executor uses section
 timing instead of simple concat:
@@ -284,3 +385,89 @@ Expected:
 - `final.mp4` is absent.
 - `pipeline_home.py` reports `cursor=audio_build_handoff` and
   `next=continue_build_or_material_gate`.
+
+## Final AV Assembly Smoke
+
+When visual BUILD has already produced a bounded visual draft such as
+`video_cut.mp4`, and Audio Director has produced `final_audio.wav`, use the
+small final assembly tool instead of hand-writing an ffmpeg command:
+
+```powershell
+python tools\final_av_assemble.py `
+  --video RUN_DIR\video_cut.mp4 `
+  --audio RUN_DIR\final_audio.wav `
+  --out RUN_DIR\final.mp4 `
+  --report RUN_DIR\assembly_report.json `
+  --title "HERMES E2E HIGHLIGHT" `
+  --label "0:15:OPENING" `
+  --label "15:30:ACTION" `
+  --source-audio-policy replace_with_music `
+  --json
+```
+
+This tool only assembles already-approved streams. It does not choose clips,
+music, voiceover, or effects. It always maps the selected audio as `1:a:0` and
+does not map source-video audio, so `assembly_report.json` must record
+`source_audio_mapped:false`. If Stage 0 declares `preserve_speech` or `mixed`,
+the upstream audio plan must first produce a mixed `final_audio.wav`; final
+assembly still maps only that accepted output.
+
+After final assembly, regenerate delivery evidence:
+
+```powershell
+python video_tools.py keyframe-grid RUN_DIR\final.mp4 --out RUN_DIR\keyframe_grid.jpg
+python video_tools.py visual-audit RUN_DIR\final.mp4 --out RUN_DIR\visual_audit.json --grid RUN_DIR\keyframe_grid.jpg
+python video_tools.py verify-evidence RUN_DIR\final.mp4 --timeline RUN_DIR\timeline_build.json --out-dir RUN_DIR
+python video_tools.py effect-render-verification `
+  --effect-intent-plan RUN_DIR\effect_intent_plan.json `
+  --remotion-review RUN_DIR\remotion_effect_review.json `
+  --out RUN_DIR\effect_render_verification.json `
+  --root RUN_DIR
+python tools\write_delivery_gate_report.py --run RUN_DIR --out-name delivery_gate.json --json
+python tools\pipeline_home.py --run RUN_DIR --json
+python tools\preview_timeline.py build --artifact-root RUN_DIR --out RUN_DIR\preview_timeline.json
+```
+
+Expected final state:
+
+- `delivery_gate.json` has `pass:true`.
+- `pipeline_home.py` returns `mode=done`, `cursor=complete`, and
+  `source=delivery_gate.json`.
+- `preview_timeline.json` exposes video clips, audio placements, and effect
+  markers for Workbench review.
+
+## Soundtrack Probe / Music Material Map
+
+Music should not be placed only by duration or waveform existence. Before a
+selected track becomes part of the final mix, build a lightweight music material
+map:
+
+```powershell
+python tools\soundtrack_probe.py `
+  --audio RUN_DIR\audio\sources\selected_music.mp3 `
+  --out RUN_DIR\soundtrack_probe_report.json `
+  --json
+```
+
+The current probe is deliberately local and bounded. It records:
+
+- audio duration and codec from ffprobe;
+- mean/peak dBFS from ffmpeg `volumedetect`;
+- silence count/ratio from ffmpeg `silencedetect`;
+- optional librosa tempo, beat timestamps, and RMS energy curve;
+- coarse sections such as `intro`, `build`, `candidate_climax`, and
+  `outro_or_resolve`;
+- `editing_fit` hints for montage, speech underlay, and ending reflection.
+
+This is not a final music taste judge. It is a decision artifact for Stage 0.5,
+Soundtrack Arranger, Workbench, and Delivery Gate. To require it at final
+delivery, set:
+
+```json
+{
+  "requires_soundtrack_probe": true
+}
+```
+
+Delivery Gate then blocks if `soundtrack_probe_report.json` is missing, did not
+pass, has no sections, or has no `editing_fit`.

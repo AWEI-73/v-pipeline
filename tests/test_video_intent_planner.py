@@ -47,6 +47,48 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(intent["subtitle_voiceover_contract"]["subtitle_required"], True)
         self.assertEqual(intent["subtitle_voiceover_contract"]["handoff_to"], "subtitle-director")
 
+    def test_existing_material_defaults_to_all_material_quick_inventory_scan(self):
+        intent = plan_video_intent(
+            {
+                "request": "剪一支養成班精華影片，我有一批素材但還沒整理",
+                "video_type": "graduation-event",
+                "audience": "學員和教官",
+                "goal": "先看素材再決定剪輯方向",
+                "target_length": "3 minutes",
+                "material_availability": "existing",
+            }
+        )
+
+        scan = intent["material_scan_decision"]
+        self.assertEqual(scan["artifact_role"], "stage0_material_scan_decision")
+        self.assertTrue(scan["needed"])
+        self.assertEqual(scan["default_scope"], "all_materials")
+        self.assertIsNone(scan["user_scope"])
+        self.assertEqual(scan["scan_depth"], "quick_inventory_first")
+        self.assertEqual(scan["first_action"], "material_map_quick_inventory")
+        self.assertEqual(scan["followup_question"], "要先掃全部素材，還是只掃指定資料夾 / 檔案？")
+        self.assertEqual(intent["material_contract"]["scan_decision"]["scan_depth"], "quick_inventory_first")
+
+    def test_existing_material_respects_user_specified_scan_scope(self):
+        intent = plan_video_intent(
+            {
+                "request": "請只先看主任勉勵資料夾和合照，不要先掃全部素材",
+                "video_type": "graduation-event",
+                "audience": "學員",
+                "goal": "剪一段結尾",
+                "target_length": "60 seconds",
+                "material_availability": "existing",
+                "material_scope": "主任勉勵資料夾; 合照",
+            }
+        )
+
+        scan = intent["material_scan_decision"]
+        self.assertTrue(scan["needed"])
+        self.assertEqual(scan["default_scope"], "user_specified")
+        self.assertEqual(scan["user_scope"], "主任勉勵資料夾; 合照")
+        self.assertEqual(scan["scan_depth"], "quick_inventory_first")
+        self.assertIn("user specified", scan["reason"])
+
     def test_zero_material_with_text_or_story_enters_structure_first(self):
         intent = plan_video_intent(
             {
@@ -190,6 +232,71 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(soundtrack["music_role"], "bgm")
         self.assertEqual(soundtrack["speech_preservation"], "required")
         self.assertEqual(soundtrack["ducking_policy"], "duck_under_voice")
+        comms = intent["communication_intent"]
+        self.assertEqual(comms["original_audio_policy"], "preserve_speech")
+        self.assertEqual(comms["music_policy"], "bgm")
+        self.assertEqual(comms["speech_priority"], "high")
+        self.assertIn("audio_director", comms["handoff_to"])
+
+    def test_stage0_chinese_preserve_source_speech_under_bgm(self):
+        intent = plan_video_intent(
+            {
+                "request": "我有一段訪談影片，請保留原聲講話，下面加背景音樂，不要蓋過人聲",
+                "video_type": "event recap",
+                "audience": "同事",
+                "goal": "剪成精華",
+                "target_length": "60 seconds",
+                "material_availability": "existing",
+            }
+        )
+
+        soundtrack = intent["soundtrack_contract"]
+        self.assertEqual(soundtrack["music_role"], "bgm")
+        self.assertEqual(soundtrack["speech_preservation"], "required")
+        self.assertEqual(soundtrack["ducking_policy"], "duck_under_voice")
+        comms = intent["communication_intent"]
+        self.assertEqual(comms["original_audio_policy"], "preserve_speech")
+        self.assertEqual(comms["music_policy"], "bgm")
+        self.assertEqual(comms["speech_priority"], "high")
+
+    def test_stage0_replaces_source_audio_for_music_led_no_speech_recap(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a 60 second highlight reel from one clip, no speech, energetic music only",
+                "video_type": "event recap",
+                "audience": "friends",
+                "goal": "fast visual highlight",
+                "target_length": "60 seconds",
+                "material_availability": "existing",
+                "style_direction": "MV rhythm with background music",
+            }
+        )
+
+        comms = intent["communication_intent"]
+        self.assertEqual(comms["voiceover_policy"], "none")
+        self.assertEqual(comms["subtitle_policy"], "optional")
+        self.assertEqual(comms["original_audio_policy"], "replace_with_music")
+        self.assertEqual(comms["music_policy"], "bgm")
+        self.assertEqual(comms["speech_priority"], "low")
+
+    def test_stage0_records_mixed_source_audio_policy_for_speech_then_mv(self):
+        intent = plan_video_intent(
+            {
+                "request": "training recap: first preserve the instructor speech, later cut an MV montage with music",
+                "video_type": "graduation-event",
+                "audience": "students",
+                "goal": "ceremony and memory",
+                "target_length": "5 minutes",
+                "material_availability": "existing",
+                "style_direction": "speech first, MV with music later",
+            }
+        )
+
+        comms = intent["communication_intent"]
+        self.assertEqual(comms["original_audio_policy"], "mixed")
+        self.assertEqual(comms["music_policy"], "bgm")
+        self.assertEqual(comms["speech_priority"], "high")
+        self.assertEqual(comms["time_authority"], "video_sections")
 
     def test_stage0_records_instrumental_bgm_preference(self):
         intent = plan_video_intent(

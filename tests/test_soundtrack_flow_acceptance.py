@@ -92,6 +92,24 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
             )
             reviewed_audio = run / "reviewed_song.mp3"
             reviewed_audio.write_bytes(b"ID3 reviewed audio from provider")
+            probe = run / "soundtrack_probe_report.json"
+            probe.write_text(
+                json.dumps(
+                    {
+                        "artifact_role": "soundtrack_probe_report",
+                        "version": 1,
+                        "pass": True,
+                        "audio_file": str(reviewed_audio),
+                        "duration_sec": 30.0,
+                        "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+                        "sections": [{"start_sec": 0.0, "end_sec": 30.0, "role": "full_track"}],
+                        "editing_fit": {"montage": "medium"},
+                        "section_fit": [{"video_section": "hotblooded_montage", "fit": "medium"}],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 [
@@ -109,6 +127,8 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                     "Jamendo metadata reviewed for this acceptance test",
                     "--selected-audio-file",
                     str(reviewed_audio),
+                    "--soundtrack-probe-report",
+                    str(probe),
                     "--json",
                 ],
                 cwd=repo,

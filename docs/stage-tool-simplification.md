@@ -57,11 +57,11 @@ another route-changing fact is unknown, it must appear in
 | Stage / branch | Purpose | Canonical entry | Key outputs | Stop / pass rule |
 |---|---|---|---|---|
 | Route / Stage 0 | classify input state, entry path, and next handoff | `skills/video-pipeline-route.md`, `tools/pipeline_home.py`, `video_tools.py video-intent-plan` | `project_brief.json`, `interaction_log.md`, `video_intent.json`, route cursor | stop on missing route-changing information or non-empty follow-up questions |
-| Material Map | prove material truth, coverage, deltas, gaps, and rough-cut supply | `skills/material-map.md`, material-first acceptance tools, material lifecycle commands | `materials_db.json`, `project_material_map.json`, `material_delta.json`, `rough_cut_plan.json` | stop on `await_map_review`, missing must-have needs, invalid maps, or unreviewed generated assets |
+| Material Map | prove material truth, coverage, deltas, gaps, and rough-cut supply | `skills/material-map.md`, material-first acceptance tools, material lifecycle commands | `material_inventory_summary.json`, `materials_db.json`, `project_material_map.json`, `material_delta.json`, `rough_cut_plan.json` | stop on inventory review, `await_map_review`, missing must-have needs, invalid maps, or unreviewed generated assets |
 | Spec / Build | validate and dry-build the contract without guessing around gates | `skills/spec-contract.md`, boundary/build smoke tools | `segment_contract.json`, `build_profile.json`, dry-build reports | pass only when spec/supply/build invariants are green |
 | Brownfield / Workbench | draft local edits without overwriting canonical truth | `skills/brownfield-edit.md`, workbench patch tools | draft patch artifacts, preview handoff, review reports | stop before canonical promotion; never write `final.mp4` from draft status |
 | Effect Factory | translate effect intent into reviewable controls and bounded worker payloads | `skills/video-effect-factory.md`, visual technique and effect acceptance tools | `visual_technique_plan.json`, effect contracts, review/handoff artifacts | stop on unconfirmed candidate parameters or missing rendered evidence for required effects |
-| Soundtrack | plan music/song/licensing and hand off accepted audio decisions | `skills/soundtrack-arranger.md`, soundtrack tools | `soundtrack_plan.json`, `music_source_candidates.json`, `sound_license_manifest.json` | block delivery when license metadata is missing or music is reference-only |
+| Soundtrack | plan music/song/licensing, probe accepted audio, and hand off accepted audio decisions | `skills/soundtrack-arranger.md`, soundtrack tools | `soundtrack_plan.json`, `music_source_candidates.json`, `sound_license_manifest.json`, `soundtrack_probe_report.json` | block delivery when license metadata is missing, music is reference-only, or required `section_fit` is missing |
 | Verify / Delivery | inspect outputs, evidence, and fail-closed delivery status | `skills/verify.md`, verify/reviewer tools | verify reports, review reports, delivery gate evidence | fail closed on missing evidence, stale artifacts, or hard-gate review failure |
 | Dashboard / Workbench UI | review visible artifacts and draft user edits | `skills/dashboard.md`, dashboard/workbench servers and frontend smoke | dashboard state, workbench UI evidence, export artifacts | UI is a surface; backend/agent review owns canonical promotion |
 
@@ -122,6 +122,12 @@ Run:
 ```powershell
 python tools/skill_tool_contract_audit.py --skills-dir skills --tools-dir tools --json
 ```
+
+For final deliverable folders, `tools/write_delivery_gate_report.py` must use
+the complete-video delivery gate, not only dashboard state. A run with
+`delivery_requirements.json` or `final.mp4` is considered a final-delivery
+candidate, so missing music probe, audio, subtitle, effect, or frame evidence
+must fail closed before `delivery_gate.json` is written as passed.
 
 The audit fails when:
 

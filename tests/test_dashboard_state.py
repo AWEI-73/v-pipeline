@@ -831,6 +831,40 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_material_inventory_summary_surfaces_in_artifacts_and_next_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "video_intent.json").write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "material_scan_decision": {
+                    "needed": True,
+                    "default_scope": "all_materials",
+                    "scan_depth": "quick_inventory_first",
+                },
+            }), encoding="utf-8")
+            (workdir / "material_inventory_summary.json").write_text(json.dumps({
+                "artifact_role": "material_inventory_summary",
+                "ok": True,
+                "counts": {"total_files": 12, "videos": 8, "images": 4},
+                "recommended_next_actions": [
+                    "review_material_inventory_summary",
+                    "continue_to_material_map_deep_review",
+                ],
+                "suggested_followup_questions": ["要全量深篩，還是只看候選資料夾？"],
+            }, ensure_ascii=False), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["artifacts"]["material_inventory_summary"]["counts"]["total_files"], 12)
+            self.assertEqual(state["next_action"], "review_material_inventory_summary")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "material_inventory_summary"
+                and "12" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
     def test_stage0_child_contracts_surface_for_dashboard_and_workbench(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
@@ -857,6 +891,12 @@ class DashboardStateSpecTest(unittest.TestCase):
                     "subtitle_required": True,
                     "voiceover_required": True,
                     "handoff_to": "subtitle-director+audio-director",
+                },
+                "communication_intent": {
+                    "artifact_role": "stage0_communication_intent",
+                    "original_audio_policy": "mixed",
+                    "music_policy": "mixed",
+                    "handoff_to": ["soundtrack_arranger", "audio_director"],
                 },
             }), encoding="utf-8")
 
@@ -886,6 +926,14 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(
                 state["controls"]["stage0_contracts"]["subtitle_voiceover"]["handoff_to"],
                 "subtitle-director+audio-director",
+            )
+            self.assertEqual(
+                state["artifacts"]["stage0_contracts"]["communication"]["original_audio_policy"],
+                "mixed",
+            )
+            self.assertEqual(
+                state["controls"]["stage0_contracts"]["communication"]["handoff_to"],
+                ["soundtrack_arranger", "audio_director"],
             )
 
     def test_dashboard_routes_material_pass_to_soundtrack_when_stage0_requests_music(self):

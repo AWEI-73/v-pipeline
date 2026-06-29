@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _write(path: Path, payload: dict) -> None:
@@ -11,6 +12,44 @@ def _write(path: Path, payload: dict) -> None:
 
 
 class DeliveryGateReportCliTest(unittest.TestCase):
+    def test_complete_delivery_run_uses_complete_video_gate_not_dashboard_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            _write(run / "delivery_requirements.json", {
+                "requires_audio": True,
+                "requires_music": True,
+                "requires_soundtrack_probe": True,
+            })
+            (run / "final.mp4").write_bytes(b"placeholder")
+            _write(run / "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+            })
+
+            complete_gate = {
+                "artifact_role": "complete_video_delivery_gate",
+                "version": 1,
+                "pass": False,
+                "blocking": [{
+                    "rule": "soundtrack_probe_has_no_section_fit",
+                    "artifact": "soundtrack_probe_report.json",
+                    "next_action": "rerun_soundtrack_probe",
+                }],
+                "next_action": "rerun_soundtrack_probe",
+            }
+            with patch("tools.write_delivery_gate_report.evaluate_complete_video_delivery", return_value=complete_gate) as mocked:
+                from tools.write_delivery_gate_report import write_delivery_gate_report
+                gate = write_delivery_gate_report(run)
+
+            mocked.assert_called_once_with(run)
+            self.assertFalse(gate["pass"])
+            self.assertEqual(gate["report_source"], "complete_video_delivery_gate")
+            self.assertEqual(gate["next_action"], "rerun_soundtrack_probe")
+            self.assertEqual(gate["blocking"][0]["rule"], "soundtrack_probe_has_no_section_fit")
+
     def test_writes_delivery_gate_json_even_when_verify_result_passes(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

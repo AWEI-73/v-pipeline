@@ -41,7 +41,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".webm", ".m4v", ".mkv"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
 # Editorial source artifacts, in priority order (first hit wins).
-TIMELINE_CANDIDATES = ("draft_timeline.json", "timeline.json")
+TIMELINE_CANDIDATES = ("draft_timeline.json", "timeline.json", "timeline_build.json")
 
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +147,19 @@ def _resolve_timeline(root: Path) -> Tuple[Optional[Dict[str, Any]], Optional[st
             if isinstance(data, dict):
                 return data, name
     return None, None
+
+
+def _resolve_artifact_ref(root: Path, value: Any) -> Path:
+    path = Path(str(value))
+    if path.is_absolute():
+        return path
+    root_candidate = root / path
+    if root_candidate.exists():
+        return root_candidate
+    cwd_candidate = Path.cwd() / path
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return root_candidate
 
 
 def _build_asset_index(material_map: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -312,17 +325,17 @@ def build_preview_timeline(
     durations: List[float] = []
     for fallback_idx, (_, raw) in enumerate(ordered):
         slot_index = raw.get("slot_index", fallback_idx)
-        source_path = raw.get("source")
+        source_path = raw.get("source") or raw.get("source_path")
         asset = _asset_for(source_path, asset_index)
         clip_type = classify_clip_type(source_path, asset.get("asset_type"))
 
-        duration_sec = float(raw.get("slot_dur") or raw.get("extract_dur") or 0.0)
+        duration_sec = float(raw.get("slot_dur") or raw.get("extract_dur") or raw.get("duration_sec") or 0.0)
         if clip_type == "video":
-            source_start_sec = float(raw.get("extract_start") or 0.0)
-            source_duration_sec = float(raw.get("extract_dur") or duration_sec or 0.0)
+            source_start_sec = float(raw.get("extract_start") or raw.get("start_sec") or 0.0)
+            source_duration_sec = float(raw.get("extract_dur") or raw.get("duration_sec") or duration_sec or 0.0)
         else:
             source_start_sec = 0.0
-            source_duration_sec = float(raw.get("extract_dur") or duration_sec or 0.0)
+            source_duration_sec = float(raw.get("extract_dur") or raw.get("duration_sec") or duration_sec or 0.0)
 
         status = "matched"
         if not source_path:
@@ -350,13 +363,13 @@ def build_preview_timeline(
             "type": clip_type,
             "src_url": path_to_url(source_path, base_url),
             "source_path": source_path,
-            "timeline_start_sec": 0.0,  # filled below
+            "timeline_start_sec": float(raw.get("timeline_in_sec") or 0.0),
             "duration_sec": round(duration_sec, 3),
             "source_start_sec": round(source_start_sec, 3),
             "source_duration_sec": round(source_duration_sec, 3),
             "source_asset_duration_sec": asset.get("duration_sec"),
             "scene_id": raw.get("scene_id"),
-            "need_id": raw.get("need_id"),
+            "need_id": raw.get("need_id") or raw.get("need_ref"),
             "visual_family": raw.get("visual_family"),
             "angle_scale": raw.get("angle_scale"),
             "caption": raw.get("caption"),
@@ -365,7 +378,8 @@ def build_preview_timeline(
 
     starts = compute_timeline_starts(durations)
     for clip, start in zip(clips, starts):
-        clip["timeline_start_sec"] = start
+        if not clip.get("timeline_start_sec"):
+            clip["timeline_start_sec"] = start
 
     total_duration = round(sum(durations), 3)
 
@@ -387,16 +401,55 @@ def build_preview_timeline(
     subtitle_track = [s["id"] for s in subtitles]
 
     audio: List[Dict[str, Any]] = []
-    for name in ("music.wav", "bgm.webm", "narration.wav", "voiceover.wav"):
-        if (root / name).is_file():
+    audio_mix_report = _load_json(root / "audio_mix_report.json")
+    if isinstance(audio_mix_report, dict):
+        output_audio = audio_mix_report.get("output_audio")
+        output_audio_path = _resolve_artifact_ref(root, output_audio) if output_audio else root / "final_audio.wav"
+        source_audio_policy = audio_mix_report.get("source_audio_policy")
+        placements = audio_mix_report.get("placements") if isinstance(audio_mix_report.get("placements"), list) else []
+        if output_audio_path.is_file() and placements:
+            for placement in placements:
+                if not isinstance(placement, dict):
+                    continue
+                audio.append({
+                    "id": f"audio-{len(audio) + 1}",
+                    "label": placement.get("section_id") or placement.get("role") or "audio_mix",
+                    "src_url": path_to_url(str(output_audio_path.resolve()), base_url),
+                    "source_path": str(output_audio_path),
+                    "section_id": placement.get("section_id"),
+                    "role": placement.get("role"),
+                    "ducking_policy": placement.get("ducking_policy"),
+                    "ducking_applied": bool(placement.get("ducking_applied")),
+                    "start_sec": float(placement.get("start_sec") or 0.0),
+                    "duration_sec": float(placement.get("duration_sec") or total_duration),
+                    "source_start_sec": float(placement.get("start_sec") or 0.0),
+                    "marker_only": False,
+                    "source_audio_policy": source_audio_policy if isinstance(source_audio_policy, dict) else {},
+                })
+        elif output_audio_path.is_file():
             audio.append({
-                "id": f"audio-{len(audio) + 1}",
-                "label": name,
-                "src_url": path_to_url(str((root / name).resolve()), base_url),
+                "id": "audio-1",
+                "label": "final_audio",
+                "src_url": path_to_url(str(output_audio_path.resolve()), base_url),
+                "source_path": str(output_audio_path),
                 "start_sec": 0.0,
                 "duration_sec": total_duration,
-                "marker_only": True,
+                "source_start_sec": 0.0,
+                "marker_only": False,
+                "source_audio_policy": source_audio_policy if isinstance(source_audio_policy, dict) else {},
             })
+
+    if not audio:
+        for name in ("music.wav", "bgm.webm", "narration.wav", "voiceover.wav"):
+            if (root / name).is_file():
+                audio.append({
+                    "id": f"audio-{len(audio) + 1}",
+                    "label": name,
+                    "src_url": path_to_url(str((root / name).resolve()), base_url),
+                    "start_sec": 0.0,
+                    "duration_sec": total_duration,
+                    "marker_only": True,
+                })
 
     effects: List[Dict[str, Any]] = []
     for clip in clips:
@@ -425,6 +478,37 @@ def build_preview_timeline(
                 "level": "warning",
                 "code": "effect_patch_unreadable",
                 "message": f"effect_patch.json present but could not be applied: {exc}",
+            })
+
+    effect_intent_plan = _load_json(root / "effect_intent_plan.json")
+    effect_render_verification = _load_json(root / "effect_render_verification.json")
+    verified_by_id: Dict[str, Dict[str, Any]] = {}
+    if isinstance(effect_render_verification, dict):
+        for item in effect_render_verification.get("verified_effects") or []:
+            if isinstance(item, dict) and item.get("effect_id"):
+                verified_by_id[str(item["effect_id"])] = item
+    if isinstance(effect_intent_plan, dict):
+        for raw in effect_intent_plan.get("effects") or []:
+            if not isinstance(raw, dict):
+                continue
+            effect_id = raw.get("effect_id")
+            if not effect_id or any(item.get("id") == effect_id for item in effects):
+                continue
+            verified = verified_by_id.get(str(effect_id), {})
+            effects.append({
+                "id": str(effect_id),
+                "effect_id": str(effect_id),
+                "label": raw.get("role") or raw.get("type") or str(effect_id),
+                "role": raw.get("role"),
+                "type": raw.get("type"),
+                "story_function": raw.get("story_function"),
+                "required_for_story": bool(raw.get("required_for_story", raw.get("render_required", False))),
+                "rendered": verified.get("rendered") is True,
+                "evidence_refs": verified.get("evidence_refs") or verified.get("sampled_frames") or [],
+                "start_sec": float(raw.get("start_sec") or 0.0),
+                "duration_sec": float(raw.get("duration_sec") or total_duration),
+                "marker_only": True,
+                "source": "effect_intent_plan",
             })
 
     return {
@@ -469,7 +553,15 @@ def _cmd_build(args: argparse.Namespace) -> int:
     preview = build_preview_timeline(args.artifact_root, args.base_url, fps=args.fps)
     out_path = Path(args.out)
     if not out_path.is_absolute():
-        out_path = Path(args.artifact_root) / out_path
+        root_path = Path(args.artifact_root)
+        root_abs = root_path.resolve()
+        out_abs = (Path.cwd() / out_path).resolve()
+        try:
+            out_abs.relative_to(root_abs)
+            out_path = out_abs
+        except ValueError:
+            out_path = root_path / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(preview, ensure_ascii=False, indent=2),
         encoding="utf-8",

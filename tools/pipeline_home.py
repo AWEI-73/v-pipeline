@@ -624,6 +624,39 @@ def _verify_summary(root: Path):
     return None
 
 
+def _delivery_gate_summary(root: Path):
+    gate_path, gate = _find_json(root, "delivery_gate.json")
+    if not gate:
+        return None
+    read = [_rel(root, gate_path)]
+    if gate.get("pass") is True and (root / "final.mp4").exists():
+        return _contract(
+            "done",
+            "complete",
+            reason="delivery gate passed and final.mp4 exists",
+            read=read,
+            run_dir=root,
+            source="delivery_gate.json",
+        )
+    if gate.get("pass") is False:
+        blocking = gate.get("blocking") or []
+        reason = "; ".join(
+            str(item.get("message") or item.get("rule") or item)
+            for item in blocking
+            if item
+        ) or "delivery gate failed"
+        return _contract(
+            "repair",
+            "stage5_final_review",
+            next_action=gate.get("next_action") or "repair_delivery_gate",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="delivery_gate.json",
+        )
+    return None
+
+
 def _build_summary(root: Path):
     timeline_path, timeline = _find_json(root, "timeline_build.json")
     editor_path, editor = _find_json(root, "editor_review.json")
@@ -712,6 +745,35 @@ def _material_wall_handoff_summary(root: Path):
     )
 
 
+def _material_inventory_summary(root: Path):
+    summary_path, summary = _find_json(root, "material_inventory_summary.json")
+    if not summary:
+        return None
+    counts = summary.get("counts") if isinstance(summary.get("counts"), dict) else {}
+    total = counts.get("total_files", 0)
+    videos = counts.get("videos", 0)
+    images = counts.get("images", 0)
+    audio = counts.get("audio", 0)
+    actions = [
+        str(item)
+        for item in summary.get("recommended_next_actions") or []
+        if str(item).strip()
+    ]
+    next_action = actions[0] if actions else "review_material_inventory_summary"
+    return _contract(
+        "waiting",
+        "material_inventory_review",
+        next_action=next_action,
+        reason=(
+            f"material quick inventory ready: {total} file(s), "
+            f"{videos} video(s), {images} image(s), {audio} audio file(s)"
+        ),
+        read=[_rel(root, summary_path)],
+        run_dir=root,
+        source="material_inventory_summary.json",
+    )
+
+
 def _intent_summary(root: Path):
     intent_path, intent = _find_json(root, "video_intent.json")
     if not intent:
@@ -729,10 +791,22 @@ def _intent_summary(root: Path):
     effect_activation = str(effect_policy.get("activation") or "").strip().casefold()
     effect_required_now = effect_policy.get("required_now") is True
     questions = [str(item) for item in intent.get("required_followup_questions") or [] if item]
+    if questions:
+        reason = "needs context before route handoff"
+        reason = "needs context: " + "; ".join(questions[:3])
+        if route_hint:
+            reason += f"; route hint held for later: {route_hint}"
+        return _contract(
+            "waiting",
+            "stage0_video_intent",
+            next_action="ask_followup_questions",
+            reason=reason,
+            read=[_rel(root, intent_path)],
+            run_dir=root,
+            source="video_intent.json",
+        )
     if entry_path == "needs-context":
         reason = "needs context before route handoff"
-        if questions:
-            reason = "needs context: " + "; ".join(questions[:3])
         if route_hint:
             reason += f"; route hint held for later: {route_hint}"
         return _contract(
@@ -786,6 +860,17 @@ def _intent_summary(root: Path):
     material_first = {"material-first", "existing-material-first", "hybrid"}
     structure_first = {"structure-first", "story-first"}
     if entry_path in material_first:
+        scan = intent.get("material_scan_decision") if isinstance(intent.get("material_scan_decision"), dict) else {}
+        if scan.get("needed") is True and scan.get("scan_depth") == "quick_inventory_first":
+            return _contract(
+                "run",
+                "stage2_material_inventory",
+                next_action="material-quick-inventory",
+                reason="video intent requests material-first quick inventory before deep material map",
+                read=[_rel(root, intent_path)],
+                run_dir=root,
+                source="video_intent.json",
+            )
         return _contract(
             "run",
             "stage2_material_map",
@@ -818,6 +903,10 @@ def _intent_summary(root: Path):
 
 def summarize_run(run_dir):
     root = Path(run_dir).resolve()
+
+    summary = _delivery_gate_summary(root)
+    if summary:
+        return summary
 
     summary = _effect_factory_boundary_summary(root)
     if summary:
@@ -878,7 +967,7 @@ def summarize_run(run_dir):
         if summary:
             return summary
 
-    for summarize in (_material_wall_handoff_summary, _story_summary, _intent_summary):
+    for summarize in (_material_wall_handoff_summary, _material_inventory_summary, _story_summary, _intent_summary):
         summary = summarize(root)
         if summary:
             return summary

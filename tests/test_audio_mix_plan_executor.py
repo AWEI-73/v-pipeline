@@ -253,6 +253,11 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             plan = _write_json(root, "audio_mix_plan.json", {
                 "artifact_role": "audio_mix_plan",
                 "ready_for_mix": True,
+                "source_audio_policy": {
+                    "original_audio_policy": "preserve_speech",
+                    "music_policy": "bgm",
+                    "time_authority": "video_sections",
+                },
                 "sections": [
                     {"section_id": "director_words", "start_sec": 0.0, "duration_sec": 2.0}
                 ],
@@ -300,6 +305,7 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             music_placement = next(p for p in payload["placements"] if p["role"] == "music_bed")
             voice_placement = next(p for p in payload["placements"] if p["role"] == "voice")
             self.assertTrue(payload["ducking_applied"])
+            self.assertEqual(payload["source_audio_policy"]["original_audio_policy"], "preserve_speech")
             self.assertTrue(music_placement["ducking_applied"])
             self.assertAlmostEqual(music_placement["applied_volume"], 0.28, delta=0.01)
             self.assertFalse(voice_placement["ducking_applied"])

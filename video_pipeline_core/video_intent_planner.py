@@ -112,6 +112,10 @@ def _detect_music_role(brief: dict[str, Any]) -> str:
         return "none"
     wants_song = _has_any(text, ("song", "vocal", "pop", "lyrics", "singing", "歌曲", "流行歌", "人聲歌", "歌詞"))
     wants_bgm = _has_any(text, ("bgm", "background music", "instrumental", "score", "soundtrack", "music", "配樂", "背景音樂", "純音樂", "音樂", "mv"))
+    if _has_any(text, ("歌曲", "流行歌", "有人聲", "唱歌")):
+        wants_song = True
+    if _has_any(text, ("背景音樂", "配樂", "純音樂")):
+        wants_bgm = True
     if wants_song and wants_bgm:
         return "mixed"
     if wants_song:
@@ -134,6 +138,8 @@ def _detect_energy_intent(text: str) -> str:
 
 
 def _detect_speech_preservation(text: str) -> tuple[str, str]:
+    if _has_any(text, ("保留原聲", "保留原音", "人聲", "講話", "訪談", "不要蓋過")):
+        return "required", "duck_under_voice"
     if _has_any(text, ("director speech", "speech", "interview", "voiceover", "keep voice", "preserve speech", "主任勉勵", "致詞", "訪談", "旁白", "保留聲音")):
         return "required", "duck_under_voice"
     return "preserve_if_detected", "duck_under_voice"
@@ -334,6 +340,130 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _communication_intent(
+    brief: dict[str, Any],
+    soundtrack_contract: dict[str, Any],
+    subtitle_voiceover_contract: dict[str, Any],
+) -> dict[str, Any]:
+    text = _lower_text(
+        brief.get("request"),
+        brief.get("goal"),
+        brief.get("tone"),
+        brief.get("style"),
+        brief.get("style_direction"),
+        brief.get("soundtrack"),
+        brief.get("music"),
+        brief.get("voiceover"),
+        brief.get("narration"),
+        brief.get("subtitle"),
+        brief.get("subtitles"),
+    )
+    speech_terms = (
+        "speech",
+        "interview",
+        "director speech",
+        "instructor speech",
+        "speaker",
+        "spoken",
+        "keep voice",
+        "preserve speech",
+        "original audio",
+        "現場聲",
+        "致詞",
+        "訪談",
+        "講話",
+        "口令",
+        "保留原音",
+    )
+    no_speech_terms = (
+        "no speech",
+        "no voice",
+        "music only",
+        "no original audio",
+        "mute source",
+        "without speech",
+        "不要原音",
+        "不用原音",
+        "不要講話",
+    )
+    mv_terms = ("mv", "montage", "highlight reel", "music video", "節奏", "蒙太奇")
+
+    music_role = soundtrack_contract.get("music_role") or "unsure"
+    if music_role in {"bgm", "song", "mixed"}:
+        music_policy = music_role
+    elif music_role == "none":
+        music_policy = "none"
+    else:
+        music_policy = "undecided"
+
+    voiceover_required = bool(subtitle_voiceover_contract.get("voiceover_required"))
+    if voiceover_required:
+        voiceover_policy = "required"
+    elif _has_any(text, ("no narration", "no voiceover", "no speech", "不要旁白", "不用旁白")):
+        voiceover_policy = "none"
+    else:
+        voiceover_policy = "optional"
+
+    explicit_subtitle = brief.get("subtitle_required")
+    if explicit_subtitle is None:
+        explicit_subtitle = brief.get("subtitles_required")
+    if bool(explicit_subtitle):
+        subtitle_policy = "required"
+    elif _has_any(text, ("subtitle", "subtitles", "字幕")):
+        subtitle_policy = "required"
+    elif _has_any(text, ("no subtitle", "no subtitles", "不要字幕", "不用字幕")):
+        subtitle_policy = "none"
+    else:
+        subtitle_policy = "optional"
+
+    no_speech = _has_any(text, no_speech_terms)
+    has_speech = (
+        not no_speech
+        and (soundtrack_contract.get("speech_preservation") == "required" or _has_any(text, speech_terms))
+    )
+    music_requested = music_policy in {"bgm", "song", "mixed"}
+    if has_speech and music_requested and _has_any(text, mv_terms):
+        original_audio_policy = "mixed"
+    elif has_speech:
+        original_audio_policy = "preserve_speech"
+    elif no_speech and music_requested:
+        original_audio_policy = "replace_with_music"
+    elif music_requested:
+        original_audio_policy = "replace_with_music"
+    elif music_policy == "none":
+        original_audio_policy = "preserve_if_detected"
+    else:
+        original_audio_policy = "undecided"
+
+    if has_speech:
+        speech_priority = "high"
+    elif no_speech:
+        speech_priority = "low"
+    else:
+        speech_priority = "unknown"
+
+    handoff_to: list[str] = []
+    if music_requested:
+        handoff_to.append("soundtrack_arranger")
+    if original_audio_policy in {"preserve_speech", "mixed"} or voiceover_policy == "required":
+        handoff_to.append("audio_director")
+    if subtitle_policy == "required":
+        handoff_to.append("subtitle_director")
+
+    return {
+        "artifact_role": "stage0_communication_intent",
+        "voiceover_policy": voiceover_policy,
+        "subtitle_policy": subtitle_policy,
+        "original_audio_policy": original_audio_policy,
+        "music_policy": music_policy,
+        "speech_priority": speech_priority,
+        "ducking_policy": "duck_under_voice" if original_audio_policy in {"preserve_speech", "mixed"} else "none",
+        "time_authority": "video_sections",
+        "handoff_to": handoff_to,
+        "boundary": "Stage 0 decides communication policy; Soundtrack/Audio/Subtitle directors execute it and Workbench may draft-review it.",
+    }
+
+
 def _detect_material_availability(brief: dict[str, Any]) -> str | None:
     explicit = _clean(brief.get("material_availability") or brief.get("material_mode"))
     if explicit:
@@ -458,7 +588,45 @@ def _handoff_packet(entry_path: str) -> dict[str, Any]:
     }
 
 
-def _material_contract(entry_path: str, material_availability: str | None, input_state: str) -> dict[str, Any]:
+def _material_scan_decision(brief: dict[str, Any], entry_path: str) -> dict[str, Any]:
+    explicit_scope = _clean(
+        brief.get("material_scope")
+        or brief.get("scan_scope")
+        or brief.get("source_scope")
+        or brief.get("material_paths")
+        or brief.get("source_dir")
+    )
+    needed = entry_path == "material-first"
+    if not needed:
+        default_scope = "not_applicable"
+        reason = "no material-first scan is needed before the selected entry path"
+        followup = None
+    elif explicit_scope:
+        default_scope = "user_specified"
+        reason = "user specified the material scan scope"
+        followup = None
+    else:
+        default_scope = "all_materials"
+        reason = "editing request with available materials; scan all materials first to reduce ambiguity"
+        followup = "要先掃全部素材，還是只掃指定資料夾 / 檔案？"
+    return {
+        "artifact_role": "stage0_material_scan_decision",
+        "needed": needed,
+        "default_scope": default_scope,
+        "user_scope": explicit_scope or None,
+        "scan_depth": "quick_inventory_first" if needed else "none",
+        "first_action": "material_map_quick_inventory" if needed else "none",
+        "reason": reason,
+        "followup_question": followup,
+    }
+
+
+def _material_contract(
+    entry_path: str,
+    material_availability: str | None,
+    input_state: str,
+    material_scan_decision: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if entry_path == "material-first":
         first_action = "material_map_quick_inventory"
         owner = "material_map_lifecycle"
@@ -475,6 +643,7 @@ def _material_contract(entry_path: str, material_availability: str | None, input
         "owner": owner,
         "first_action": first_action,
         "gap_policy": "material_delta_decides_generate_reshoot_rewrite_drop_or_waiver",
+        "scan_decision": material_scan_decision or {},
     }
 
 
@@ -557,8 +726,10 @@ def plan_video_intent(brief: dict[str, Any]) -> dict[str, Any]:
 
     soundtrack_contract = _soundtrack_contract(brief)
     effect_policy = _effect_policy(brief, semantic_route_hint)
-    material_contract = _material_contract(entry_path, material_availability, input_state)
+    material_scan_decision = _material_scan_decision(brief, entry_path)
+    material_contract = _material_contract(entry_path, material_availability, input_state, material_scan_decision)
     subtitle_voiceover_contract = _subtitle_voiceover_contract(brief)
+    communication_intent = _communication_intent(brief, soundtrack_contract, subtitle_voiceover_contract)
 
     return {
         "artifact_role": "video_intent",
@@ -579,7 +750,9 @@ def plan_video_intent(brief: dict[str, Any]) -> dict[str, Any]:
         "semantic_route_hint": semantic_route_hint,
         "gap_strategy": gap_strategy,
         "material_contract": material_contract,
+        "material_scan_decision": material_scan_decision,
         "soundtrack_contract": soundtrack_contract,
+        "communication_intent": communication_intent,
         "effect_policy": effect_policy,
         "subtitle_voiceover_contract": subtitle_voiceover_contract,
         "needs_material_map_first": entry_path == "material-first",

@@ -148,6 +148,18 @@ class PreviewTimelineBuildTest(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertEqual((root / "timeline.json").read_text(encoding="utf-8"), before)
 
+    def test_build_cli_accepts_relative_out_path_already_under_artifact_root(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            root = self._make_root(tmp)
+            relative_root = Path(tmp).relative_to(Path.cwd())
+            out = relative_root / "preview_timeline.json"
+
+            rc = main(["build", "--artifact-root", str(relative_root), "--out", str(out)])
+
+            self.assertEqual(rc, 0)
+            self.assertTrue((root / "preview_timeline.json").is_file())
+            self.assertFalse((root / str(relative_root) / "preview_timeline.json").exists())
+
     def test_build_never_writes_timeline_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = self._make_root(tmp)
@@ -234,6 +246,138 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(assets[0]["scenes"][0]["start_sec"], 0.0)
         self.assertEqual(assets[0]["scenes"][0]["end_sec"], 3.5)
         self.assertEqual(assets[0]["scenes"][0]["caption"], "training field")
+
+    def test_timeline_build_clips_are_projected_for_workbench(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            source.write_bytes(b"\x00")
+            _write(root, "timeline_build.json", {
+                "artifact_role": "timeline_build",
+                "clips": [{
+                    "segment": 1,
+                    "source_path": str(source),
+                    "start_sec": 8.0,
+                    "duration_sec": 15.0,
+                    "timeline_in_sec": 0.0,
+                    "scene_id": "asset_01:0",
+                    "material_map_id": "asset_01",
+                    "need_id": "need_opening_motion",
+                    "caption": "opening",
+                }],
+            })
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        self.assertEqual(preview["source_artifact"], "timeline_build.json")
+        self.assertEqual(len(preview["clips"]), 1)
+        clip = preview["clips"][0]
+        self.assertEqual(clip["source_path"], str(source))
+        self.assertEqual(clip["duration_sec"], 15.0)
+        self.assertEqual(clip["source_start_sec"], 8.0)
+        self.assertEqual(clip["source_duration_sec"], 15.0)
+        self.assertEqual(clip["timeline_start_sec"], 0.0)
+        self.assertEqual(clip["scene_id"], "asset_01:0")
+
+    def test_audio_mix_report_projects_section_audio_for_workbench(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            final_audio = root / "final_audio.wav"
+            final_audio.write_bytes(b"RIFF fake")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "output_audio": str(final_audio),
+                "mix_mode": "section_timeline",
+                "source_audio_policy": {
+                    "original_audio_policy": "mixed",
+                    "music_policy": "bgm",
+                    "time_authority": "video_sections",
+                },
+                "placements": [
+                    {
+                        "section_id": "speech",
+                        "start_sec": 0.0,
+                        "duration_sec": 2.0,
+                        "role": "music_bed",
+                        "ducking_policy": "duck_under_voice",
+                        "ducking_applied": True,
+                    },
+                    {
+                        "section_id": "speech",
+                        "start_sec": 0.0,
+                        "duration_sec": 2.0,
+                        "role": "voice",
+                        "ducking_policy": "preserve_original_audio",
+                    },
+                ],
+            })
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        self.assertEqual(len(preview["audio"]), 2)
+        self.assertEqual(preview["audio"][0]["section_id"], "speech")
+        self.assertEqual(preview["audio"][0]["role"], "music_bed")
+        self.assertEqual(preview["audio"][0]["ducking_policy"], "duck_under_voice")
+        self.assertTrue(preview["audio"][0]["ducking_applied"])
+        self.assertEqual(preview["audio"][0]["source_audio_policy"]["original_audio_policy"], "mixed")
+        self.assertTrue(preview["audio"][0]["src_url"].startswith(BASE_URL))
+
+    def test_audio_mix_report_accepts_repo_relative_output_audio_under_artifact_root(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            root = self._make_root(tmp)
+            relative_root = Path(tmp).relative_to(Path.cwd())
+            final_audio = root / "final_audio.wav"
+            final_audio.write_bytes(b"RIFF fake")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "output_audio": str(relative_root / "final_audio.wav"),
+                "placements": [{
+                    "section_id": "opening",
+                    "start_sec": 0.0,
+                    "duration_sec": 2.0,
+                    "role": "music_main",
+                }],
+            })
+
+            preview = build_preview_timeline(str(relative_root), BASE_URL)
+
+        self.assertEqual(len(preview["audio"]), 1)
+        self.assertEqual(preview["audio"][0]["section_id"], "opening")
+
+    def test_effect_intent_plan_projects_verified_effects_for_workbench(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            _write(root, "effect_intent_plan.json", {
+                "artifact_role": "effect_intent_plan",
+                "version": 1,
+                "effects": [{
+                    "effect_id": "fx-title",
+                    "role": "title_card",
+                    "type": "text_overlay",
+                    "story_function": "opening identity",
+                    "required_for_story": True,
+                }],
+            })
+            _write(root, "effect_render_verification.json", {
+                "artifact_role": "effect_render_verification",
+                "version": 1,
+                "pass": True,
+                "verified_effects": [{
+                    "effect_id": "fx-title",
+                    "kind": "title_card",
+                    "rendered": True,
+                    "evidence_refs": ["keyframe_grid.jpg"],
+                }],
+            })
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        effect = next(e for e in preview["effects"] if e["id"] == "fx-title")
+        self.assertEqual(effect["role"], "title_card")
+        self.assertTrue(effect["rendered"])
+        self.assertEqual(effect["evidence_refs"], ["keyframe_grid.jpg"])
 
 
 if __name__ == "__main__":

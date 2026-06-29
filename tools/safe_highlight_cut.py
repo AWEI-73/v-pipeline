@@ -57,10 +57,15 @@ def _load_rough_cut_plan(path: Path) -> tuple[Path, list[dict[str, Any]]]:
         source_path = item.get("source_path")
         start = item.get("source_in_sec")
         end = item.get("source_out_sec")
+        if start is None or end is None:
+            start = item.get("start_sec")
+            duration = item.get("duration_sec")
+            if isinstance(start, (int, float)) and not isinstance(start, bool) and isinstance(duration, (int, float)) and not isinstance(duration, bool):
+                end = float(start) + float(duration)
         if not source_path:
             raise ValueError("rough_cut_plan video clip is missing source_path")
         if isinstance(start, bool) or isinstance(end, bool) or not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
-            raise ValueError("rough_cut_plan video clip source_in_sec/source_out_sec must be numbers")
+            raise ValueError("rough_cut_plan video clip source_in_sec/source_out_sec or start_sec/duration_sec must be numbers")
         if end <= start:
             raise ValueError("rough_cut_plan video clip source_out_sec must be greater than source_in_sec")
         source_paths.add(Path(source_path).resolve())
@@ -69,7 +74,7 @@ def _load_rough_cut_plan(path: Path) -> tuple[Path, list[dict[str, Any]]]:
             "start": float(start),
             "end": float(end),
             "duration_sec": float(end) - float(start),
-            "label": str(item.get("segment_id") or item.get("role") or f"window_{len(windows) + 1}"),
+            "label": str(item.get("segment_id") or item.get("segment") or item.get("role") or f"window_{len(windows) + 1}"),
         })
 
     if not windows:

@@ -113,3 +113,44 @@ class SafeHighlightCutTest(unittest.TestCase):
             self.assertEqual(payload["source"], str(source.resolve()))
             self.assertEqual([item["label"] for item in payload["windows"]], ["seg1", "seg2"])
             self.assertAlmostEqual(payload["duration_sec"], 2.0, delta=0.25)
+
+    def test_accepts_material_rough_cut_start_and_duration_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            rough_cut = root / "rough_cut_plan.json"
+            out = root / "highlight.mp4"
+            report = root / "highlight_cut_report.json"
+
+            self._make_source(source)
+            rough_cut.write_text(json.dumps({
+                "artifact_role": "rough_cut_plan",
+                "clips": [
+                    {
+                        "segment": 1,
+                        "source_path": str(source),
+                        "start_sec": 0.2,
+                        "duration_sec": 1.0,
+                    },
+                    {
+                        "segment": 2,
+                        "source_path": str(source),
+                        "start_sec": 2.0,
+                        "duration_sec": 1.0,
+                    },
+                ],
+            }), encoding="utf-8")
+
+            result = subprocess.run([
+                "python",
+                "tools/safe_highlight_cut.py",
+                "--rough-cut-plan", str(rough_cut),
+                "--out", str(out),
+                "--report", str(report),
+            ], capture_output=True, text=True)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual([item["label"] for item in payload["windows"]], ["1", "2"])
+            self.assertEqual(payload["windows"][0]["start"], 0.2)
+            self.assertEqual(payload["windows"][0]["end"], 1.2)

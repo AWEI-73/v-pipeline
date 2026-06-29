@@ -157,6 +157,12 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             (run_dir / "video_intent.json").write_text(json.dumps({
                 "artifact_role": "video_intent",
                 "entry_path": "material-first",
+                "material_scan_decision": {
+                    "artifact_role": "stage0_material_scan_decision",
+                    "needed": True,
+                    "default_scope": "all_materials",
+                    "scan_depth": "quick_inventory_first",
+                },
                 "material_contract": {
                     "first_action": "material_map_quick_inventory",
                 },
@@ -175,6 +181,13 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
                     "handoff_to": "subtitle-director",
                 },
             }), encoding="utf-8")
+            (run_dir / "material_inventory_summary.json").write_text(json.dumps({
+                "artifact_role": "material_inventory_summary",
+                "ok": True,
+                "scan_depth": "quick_inventory_first",
+                "scope": {"mode": "all_materials"},
+                "counts": {"total_files": 5, "videos": 0, "images": 5, "audio": 0},
+            }), encoding="utf-8")
             verdict = run_dir / "material_wall_review_verdict.json"
             _write_verdict(verdict)
 
@@ -188,6 +201,8 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             self.assertTrue(result["ok"], result)
             report = result["report"]
             self.assertEqual(report["stage0_contracts"]["material"]["first_action"], "material_map_quick_inventory")
+            self.assertEqual(report["stage0_contracts"]["material_scan_decision"]["default_scope"], "all_materials")
+            self.assertEqual(report["material_inventory_summary"]["counts"]["total_files"], 5)
             self.assertEqual(report["stage0_contracts"]["soundtrack"]["music_role"], "mixed")
             self.assertEqual(report["stage0_contracts"]["effect"]["activation"], "defer_to_brownfield_or_segment_review")
             self.assertEqual(report["stage0_contracts"]["subtitle_voiceover"]["language"], "zh-TW")

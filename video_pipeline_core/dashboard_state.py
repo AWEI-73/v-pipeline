@@ -172,6 +172,8 @@ def load_dashboard_state(workdir):
                     manifest["material_map_lifecycle"] = f
                 elif f == "material_wall_handoff_report.json":
                     manifest["material_wall_handoff_report"] = f
+                elif f == "material_inventory_summary.json":
+                    manifest["material_inventory_summary"] = f
                 elif f == "material_first_boundary_acceptance_report.json":
                     manifest["material_first_boundary_acceptance_report"] = f
                 elif f == "remotion_material_first_memory_acceptance_report.json":
@@ -221,6 +223,10 @@ def load_dashboard_state(workdir):
     material_wall_handoff_report = (
         safe_load_json(manifest.get("material_wall_handoff_report"))
         or safe_load_json("material_wall_handoff_report.json")
+    )
+    material_inventory_summary = (
+        safe_load_json(manifest.get("material_inventory_summary"))
+        or safe_load_json("material_inventory_summary.json")
     )
     material_first_boundary_acceptance_report = (
         safe_load_json(manifest.get("material_first_boundary_acceptance_report"))
@@ -281,6 +287,7 @@ def load_dashboard_state(workdir):
     stage0_contracts = {
         "material": (video_intent or {}).get("material_contract") or {},
         "soundtrack": (video_intent or {}).get("soundtrack_contract") or {},
+        "communication": (video_intent or {}).get("communication_intent") or {},
         "effect": (video_intent or {}).get("effect_policy") or {},
         "subtitle_voiceover": (video_intent or {}).get("subtitle_voiceover_contract") or {},
     }
@@ -656,6 +663,27 @@ def load_dashboard_state(workdir):
             "node": 11,
             "artifact": "visual_review_request.json",
             "message": "Visual review request awaits agent verdict",
+        })
+    elif (
+        material_inventory_summary
+        and not material_first_boundary_acceptance_report
+    ):
+        next_action = (
+            (material_inventory_summary.get("recommended_next_actions") or ["review_material_inventory_summary"])[0]
+            or "review_material_inventory_summary"
+        )
+        is_pass = False
+        counts = material_inventory_summary.get("counts") or {}
+        findings.append({
+            "type": "info",
+            "node": 2,
+            "artifact": "material_inventory_summary",
+            "message": (
+                "Material quick inventory ready: "
+                f"{counts.get('total_files', 0)} files, "
+                f"{counts.get('videos', 0)} videos, "
+                f"{counts.get('images', 0)} images"
+            ),
         })
     elif (
         material_first_boundary_acceptance_report
@@ -1102,6 +1130,7 @@ def load_dashboard_state(workdir):
             "generated_requests": gen_requests,
             "generated_manifest": generated_manifest,
             "material_coverage": material_coverage,
+            "material_inventory_summary": material_inventory_summary,
             "material_wall_handoff_report": material_wall_handoff_report,
             "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
             "remotion_material_first_memory_acceptance_report": remotion_material_first_memory_acceptance_report,

@@ -376,6 +376,7 @@ def execute_audio_mix_plan(
         })
 
     tracks = list(audio_mix_plan.get("tracks") or [])
+    source_audio_policy = audio_mix_plan.get("source_audio_policy") if isinstance(audio_mix_plan.get("source_audio_policy"), Mapping) else {}
     if not tracks:
         blocking.append({
             "rule": "tracks_missing",
@@ -433,6 +434,7 @@ def execute_audio_mix_plan(
             "music_included": False,
             "rendered_video": False,
             "output_audio": None,
+            "source_audio_policy": dict(source_audio_policy),
             "section_verification": section_verification,
             "blocking": blocking,
             "next_action": "repair_audio_mix_plan",
@@ -486,6 +488,7 @@ def execute_audio_mix_plan(
         "music_included": any(role.startswith("music") or role == "preserve_original_audio" for role in roles),
         "rendered_video": False,
         "output_audio": str(output_path),
+        "source_audio_policy": dict(source_audio_policy),
         "duration_sec": round(output_duration, 3),
         "mean_dbfs": levels["mean_dbfs"],
         "peak_dbfs": levels["peak_dbfs"],

@@ -25,6 +25,7 @@ Decide only what changes the route:
 - target length;
 - video type;
 - existing material availability, quality, and quantity;
+- material scan scope decision when material exists;
 - text/article/outline/story availability;
 - input state: `material_available`, `text_available`, `idea_only`, or
   `unknown`;
@@ -69,7 +70,17 @@ Required shape:
     "availability": "existing | none | partial | unknown",
     "owner": "material_map_lifecycle | upstream_structure_route | Video Intent Planner",
     "first_action": "material_map_quick_inventory | derive_material_needs_after_structure | ask_material_availability",
-    "gap_policy": "material_delta_decides_generate_reshoot_rewrite_drop_or_waiver"
+    "gap_policy": "material_delta_decides_generate_reshoot_rewrite_drop_or_waiver",
+    "scan_decision": {}
+  },
+  "material_scan_decision": {
+    "artifact_role": "stage0_material_scan_decision",
+    "needed": true,
+    "default_scope": "all_materials | user_specified | not_applicable",
+    "user_scope": "optional user-provided folder/file scope",
+    "scan_depth": "quick_inventory_first | none",
+    "first_action": "material_map_quick_inventory | none",
+    "followup_question": "要先掃全部素材，還是只掃指定資料夾 / 檔案？"
   },
   "soundtrack_contract": {
     "artifact_role": "stage0_soundtrack_intent",
@@ -86,6 +97,17 @@ Required shape:
     },
     "section_strategy": "section_based | unknown",
     "handoff_to": "soundtrack-arranger | none"
+  },
+  "communication_intent": {
+    "artifact_role": "stage0_communication_intent",
+    "voiceover_policy": "required | optional | none | undecided",
+    "subtitle_policy": "required | optional | none | undecided",
+    "original_audio_policy": "preserve_speech | replace_with_music | mixed | preserve_if_detected | undecided",
+    "music_policy": "bgm | song | mixed | none | undecided",
+    "speech_priority": "high | medium | low | unknown",
+    "ducking_policy": "duck_under_voice | none",
+    "time_authority": "video_sections | music_sections",
+    "handoff_to": ["soundtrack_arranger", "audio_director", "subtitle_director"]
   },
   "effect_policy": {
     "artifact_role": "stage0_effect_policy",
@@ -124,6 +146,8 @@ instead of guessing:
 - What kind of video is this: teaching, event recap, story, brand short,
   personal memory, or other?
 - Do you already have material? Is it complete, partial, or uncertain quality?
+- If this is an editing request with material, should we scan all materials
+  first or only a specified folder/file scope?
 - Do you have an article, outline, script, story, or only a loose idea?
 - Roughly how long should the final video be?
 - Who is the audience?
@@ -133,6 +157,70 @@ instead of guessing:
   section, or no music?
 - If effects matter, which section needs the effect and what story function
   should it serve?
+
+## Second-Turn Canonical Output Rule
+
+After the user answers the first clarification question, write or update the
+Stage 0 summary as canonical objects. Do not collapse child contracts into
+free-form strings just because the branch will run later.
+
+For material-first editing requests, the second-turn summary must include:
+
+```json
+{
+  "input_state": "material_available",
+  "entry_path": "material-first",
+  "route": "material-first",
+  "material_scan_decision": {
+    "artifact_role": "stage0_material_scan_decision",
+    "needed": true,
+    "default_scope": "all_materials",
+    "user_scope": null,
+    "scan_depth": "quick_inventory_first",
+    "first_action": "material_map_quick_inventory",
+    "followup_question": "要先掃全部素材，還是只掃指定資料夾 / 檔案？"
+  },
+  "soundtrack_contract": {
+    "artifact_role": "stage0_soundtrack_intent",
+    "status": "requested | unspecified",
+    "music_role": "song | bgm | mixed | none | unsure",
+    "vocal_policy": "vocal_ok | instrumental_preferred | section_dependent | none | unknown",
+    "speech_preservation": "required | preserve_if_detected",
+    "ducking_policy": "duck_under_voice | none",
+    "handoff_to": "soundtrack-arranger | none"
+  },
+  "subtitle_voiceover_contract": {
+    "artifact_role": "stage0_subtitle_voiceover_intent",
+    "status": "requested | unspecified",
+    "language": "zh-TW | en | mixed | unknown",
+    "subtitle_required": true,
+    "voiceover_required": false,
+    "handoff_to": "subtitle-director | audio-director | none"
+  },
+  "handoff_packet": {
+    "owner": "material_map_lifecycle",
+    "first_action": "material_map_quick_inventory"
+  }
+}
+```
+
+If the user says "scan everything", set `default_scope` to `all_materials` and
+`user_scope` to `null`. If the user names a folder, file, time range, or
+selection, set `default_scope` to `user_specified` and put the plain user scope
+in `user_scope`.
+
+Exact key names are part of the contract. Use the keys from the JSON block
+above even when writing a short summary. Do not rename `scan_depth` to `mode`,
+`scope`, or `quick_inventory_first`. Do not rename `first_action` value `material_map_quick_inventory` to `material_quick_inventory`. Do not move
+`material_scan_decision` under a custom `video_intent` wrapper unless the same
+canonical object is also present at top level.
+
+Do not write `"material_scan_decision": "scan_all_materials"`.
+Do not write `"soundtrack_contract": "defer"`.
+Do not write `"subtitle_voiceover_contract": "defer"`.
+Use `status: "unspecified"` and `handoff_to: "none"` when a branch is not
+requested yet; use `status: "requested"` when the user asked for music,
+subtitles, narration, voiceover, or source-audio preservation.
 
 ## Handoff
 
@@ -147,11 +235,21 @@ fuzzy whole-video intake:
 
 - `material_contract` is always written so the next operator knows whether
   Material Map or upstream structure owns the first real work.
+- `material_scan_decision` is a Stage 0 child decision, not a separate entry.
+  For material-first editing requests, default to `all_materials` with
+  `quick_inventory_first` unless the user specifies a folder/file scope. This
+  first scan is only to reveal enough material facts for better interaction; it
+  is not full VLM review, BUILD, or render.
 - `soundtrack_contract` records the initial song/BGM/mixed/none choice,
   energy direction, speech preservation, ducking, and fallback policy. It may
   hand off to Soundtrack Arranger after Stage 0. Provider fallback is allowed,
   but role fallback such as `song -> bgm` must be reviewed and cannot happen
   silently.
+- `communication_intent` is the cross-lane policy for voiceover, subtitles,
+  original source audio, and music. It decides the safe default before BUILD:
+  preserve speech when speech is important, replace source audio with music for
+  music-only highlight/MV sections, and use section-level mixed policy when the
+  request combines speech-led and music-led parts.
 - `effect_policy` records whether a bounded effect should go to Effect Factory
   now, or whether effects should wait for Brownfield/segment review. Do not
   launch Remotion from Stage 0 just because the whole video has a warm,

@@ -101,6 +101,22 @@ def _write_selected_handoff(
     return {"sound_license_manifest": manifest, "audio_director_handoff": handoff}
 
 
+def _minimal_soundtrack_probe(audio_file: str | Path) -> dict[str, Any]:
+    return {
+        "artifact_role": "soundtrack_probe_report",
+        "version": 1,
+        "pass": True,
+        "audio_file": str(Path(audio_file)),
+        "duration_sec": 30.0,
+        "analysis_depth": "acceptance_stub",
+        "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+        "sections": [{"start_sec": 0.0, "end_sec": 30.0, "role": "full_track"}],
+        "editing_fit": {"montage": "medium", "speech_underlay": "high"},
+        "section_fit": [{"video_section": "hotblooded_montage", "fit": "medium"}],
+        "limitations": ["No-render acceptance stub; real delivery must run tools/soundtrack_probe.py."],
+    }
+
+
 def run_acceptance(
     input_path: str | Path,
     out_dir: str | Path,
@@ -109,6 +125,7 @@ def run_acceptance(
     source_type: str = "licensed_library",
     license_note: str = "",
     selected_audio_file: str = "",
+    soundtrack_probe_report: str = "",
     fake_reviewed_audio: bool = False,
 ) -> dict[str, Any]:
     out_root = Path(out_dir)
@@ -128,11 +145,20 @@ def run_acceptance(
                 fake_reviewed_audio=fake_reviewed_audio,
             )
         )
+        selected = (artifacts["audio_director_handoff"].get("selected_audio_files") or [{}])[0]
+        if soundtrack_probe_report:
+            probe_payload = _load_json(soundtrack_probe_report)
+            _write_json(out_root / "soundtrack_probe_report.json", probe_payload)
+        elif fake_reviewed_audio:
+            _write_json(out_root / "soundtrack_probe_report.json", _minimal_soundtrack_probe(selected.get("audio_file")))
 
     acceptance = accept_audio_handoff(
         artifacts["audio_director_handoff"],
         soundtrack_plan=artifacts["soundtrack_plan"],
         sound_license_manifest=artifacts["sound_license_manifest"],
+        soundtrack_probe_report=_load_json(out_root / "soundtrack_probe_report.json")
+        if (out_root / "soundtrack_probe_report.json").is_file()
+        else None,
         out_dir=out_root,
     )
     home = summarize_run(out_root)
@@ -148,6 +174,7 @@ def run_acceptance(
             "music_source_candidates.json",
             "sound_license_manifest.json",
             "audio_director_handoff.json",
+            "soundtrack_probe_report.json",
             "audio_handoff_acceptance.json",
             "audio_mix_plan.json",
         ],
@@ -166,6 +193,7 @@ def main() -> int:
     parser.add_argument("--source-type", default="licensed_library", help="selected audio source_type")
     parser.add_argument("--license-note", default="", help="required when selected audio is provided")
     parser.add_argument("--selected-audio-file", default="", help="existing reviewed/downloaded audio file to pass to Audio Director")
+    parser.add_argument("--soundtrack-probe-report", default="", help="existing soundtrack_probe_report.json for selected audio")
     parser.add_argument("--fake-reviewed-audio", action="store_true", help="write a tiny fake audio file for no-render tests")
     parser.add_argument("--json", action="store_true", help="print report JSON")
     args = parser.parse_args()
@@ -178,6 +206,7 @@ def main() -> int:
             source_type=args.source_type,
             license_note=args.license_note,
             selected_audio_file=args.selected_audio_file,
+            soundtrack_probe_report=args.soundtrack_probe_report,
             fake_reviewed_audio=args.fake_reviewed_audio,
         )
     except Exception as exc:

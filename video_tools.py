@@ -371,6 +371,7 @@ def cmd_soundtrack_audio_handoff_accept(args):
         out_dir=args.out_dir,
         soundtrack_plan_path=args.soundtrack_plan,
         license_manifest_path=args.license_manifest,
+        soundtrack_probe_report_path=args.soundtrack_probe_report,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
@@ -3026,6 +3027,7 @@ def main():
     p_saha.add_argument("--out-dir", required=True, dest="out_dir", help="run folder for audio_handoff_acceptance.json and audio_mix_plan.json")
     p_saha.add_argument("--soundtrack-plan", default=None, dest="soundtrack_plan", help="optional soundtrack_plan.json")
     p_saha.add_argument("--license-manifest", default=None, dest="license_manifest", help="optional sound_license_manifest.json")
+    p_saha.add_argument("--soundtrack-probe-report", default=None, dest="soundtrack_probe_report", help="optional soundtrack_probe_report.json for selected music")
 
     p_vtra = sub.add_parser("visual-technique-review-apply")
     p_vtra.add_argument("--plan", required=True,

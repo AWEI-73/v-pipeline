@@ -16,6 +16,47 @@ def _write(root, name, payload):
 
 
 class PipelineHomeTest(unittest.TestCase):
+    def test_passed_delivery_gate_takes_precedence_over_audio_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+            })
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "output_audio": str(root / "final_audio.wav"),
+            })
+            (root / "final_audio.wav").write_bytes(b"RIFF fake")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "done")
+            self.assertEqual(summary["cursor"], "complete")
+            self.assertEqual(summary["source"], "delivery_gate.json")
+
+    def test_failed_delivery_gate_routes_to_final_review_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": False,
+                "blocking": [{"rule": "missing_frame_evidence", "message": "missing frame evidence"}],
+                "next_action": "run_frame_level_material_recognition",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "run_frame_level_material_recognition")
+            self.assertIn("missing frame evidence", summary["reason"])
+
     def test_material_first_intent_routes_to_stage2(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
@@ -29,6 +70,25 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["mode"], "run")
             self.assertEqual(summary["cursor"], "stage2_material_map")
             self.assertIn("video_intent.json", summary["read"])
+
+    def test_material_first_with_required_followups_waits_at_stage0(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "video_type": "recap",
+                "required_followup_questions": [
+                    "Which folder should be scanned?",
+                    "Should the tone be heartfelt or high-energy?",
+                ],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "stage0_video_intent")
+            self.assertEqual(summary["next"], "ask_followup_questions")
+            self.assertIn("Which folder should be scanned?", summary["reason"])
 
     def test_material_acceptance_with_stage0_soundtrack_contract_routes_to_soundtrack_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -138,7 +198,7 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "effect_factory_parameter_review")
             self.assertEqual(summary["next"], "visual-technique-plan")
 
-    def test_whole_video_deferred_effect_hint_preserves_material_first_mainline(self):
+    def test_whole_video_deferred_effect_hint_with_required_followups_waits_at_stage0(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
                 "artifact_role": "video_intent",
@@ -159,9 +219,9 @@ class PipelineHomeTest(unittest.TestCase):
 
             summary = summarize_run(tmp)
 
-            self.assertEqual(summary["mode"], "run")
-            self.assertEqual(summary["cursor"], "stage2_material_map")
-            self.assertEqual(summary["next"], "material-map lifecycle / material acquisition")
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "stage0_video_intent")
+            self.assertEqual(summary["next"], "ask_followup_questions")
 
     def test_needs_context_with_route_hint_does_not_bypass_waiting_state(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -386,6 +446,32 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "ready_for_render_or_human_review")
             self.assertEqual(summary["source"], "material_first_boundary_acceptance_report.json")
             self.assertIn("3/3 stages passed", summary["reason"])
+
+    def test_material_inventory_summary_routes_to_review_before_deep_material_map(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "material_scan_decision": {
+                    "needed": True,
+                    "default_scope": "all_materials",
+                    "scan_depth": "quick_inventory_first",
+                },
+            })
+            _write(tmp, "material_inventory_summary.json", {
+                "artifact_role": "material_inventory_summary",
+                "ok": True,
+                "counts": {"total_files": 12, "videos": 8, "images": 4},
+                "recommended_next_actions": ["review_material_inventory_summary", "continue_to_material_map_deep_review"],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "material_inventory_review")
+            self.assertEqual(summary["next"], "review_material_inventory_summary")
+            self.assertEqual(summary["source"], "material_inventory_summary.json")
+            self.assertIn("12 file", summary["reason"])
 
     def test_soundtrack_blocks_override_material_first_ready_summary(self):
         with tempfile.TemporaryDirectory() as tmp:

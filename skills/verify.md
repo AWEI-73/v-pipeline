@@ -73,6 +73,18 @@ experiment. When visual judgment is needed, produce or consume the canonical
 review artifacts (`visual_review_request.json`, `visual_review_verdict.json`,
 or `material_visual_review_*`) and let the route pause at the corresponding
 `await_*visual_review` action.
+
+## Soundtrack Probe Gate
+
+VERIFY does not create music understanding artifacts. `soundtrack-arranger`
+owns `tools/soundtrack_probe.py` and writes `soundtrack_probe_report.json`.
+VERIFY only consumes that report through `tools/write_delivery_gate_report.py`.
+
+If `delivery_requirements.json` sets `requires_soundtrack_probe=true`, delivery
+must fail closed when `soundtrack_probe_report.json` is missing, `pass` is not
+true, or `features`, `sections`, `editing_fit`, or `section_fit` are empty.
+This keeps music analysis as a Soundtrack Arranger responsibility while still
+making final delivery accountable.
 > ## Continuous Verify / QA Contract(Node 12 ??銝蝯?,?航疵蝛踵?園?)
 > **VERIFY ?航疵蝛踹瘚???園?,撠文?具?鞎?render 銋???*,銝?敺?蝡?> `verify_result`:`status ??pass / warn / fail / blocked` + `findings`[撅斤?/蝭暺???/撱箄降頝舐] + `next_route`??> **?拙惜瑼Ｘ(撠??拙惜璅∪?):** 璈１瑼Ｘ??(靘踹??eterministic:閬/?/摮?/?喲?/EDL trace/
 > 敹?/fallback ?臬鋡恍?暺????**撠芋??VLM(qwen3-vl 蝑????蝡舫?蝖砍神)?芸

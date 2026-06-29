@@ -9,6 +9,14 @@ from typing import Any, Mapping
 
 BAD_LICENSE_STATUSES = {"license_missing", "provider_unavailable", "reference_only"}
 SPEECH_DUCKING_POLICIES = {"duck_under_voice", "preserve_original_audio"}
+MUSIC_SOURCE_TYPES = {
+    "licensed_library",
+    "youtube_audio_library",
+    "jamendo_song",
+    "pixabay_music",
+    "manual_import",
+    "reviewed_manual",
+}
 
 
 def _clean(value: Any) -> str:
@@ -94,11 +102,122 @@ def _role_for_track(selected: Mapping[str, Any], section: Mapping[str, Any] | No
     return "music_bed"
 
 
+def _music_track_requires_probe(selected: Mapping[str, Any], section: Mapping[str, Any] | None) -> bool:
+    section = section or {}
+    if _clean(selected.get("ducking_policy") or section.get("ducking_policy")) == "preserve_original_audio":
+        return False
+    if _clean(selected.get("source_type")) in {"original_audio", "user_provided_original"}:
+        return False
+    role = _clean(section.get("music_role") or selected.get("music_role"))
+    source_type = _clean(selected.get("source_type"))
+    return role in {"bgm", "song", "music", "mixed"} or source_type in MUSIC_SOURCE_TYPES
+
+
+def _probe_blocks(
+    *,
+    soundtrack_probe_report: Mapping[str, Any] | None,
+    selected_audio_file: Path,
+    candidate_id: str,
+) -> list[dict[str, Any]]:
+    if not soundtrack_probe_report:
+        return [{
+            "rule": "missing_soundtrack_probe_report",
+            "candidate_id": candidate_id,
+            "message": "selected music must have soundtrack_probe_report.json before Audio Director handoff",
+        }]
+    if soundtrack_probe_report.get("pass") is not True:
+        return [{
+            "rule": "soundtrack_probe_not_passed",
+            "candidate_id": candidate_id,
+            "message": "soundtrack_probe_report.pass must be true before Audio Director handoff",
+        }]
+    section_fit = soundtrack_probe_report.get("section_fit")
+    if not isinstance(section_fit, list) or not section_fit:
+        return [{
+            "rule": "soundtrack_probe_has_no_section_fit",
+            "candidate_id": candidate_id,
+            "message": "soundtrack_probe_report must include section_fit for music placement",
+        }]
+    features = soundtrack_probe_report.get("features")
+    if not isinstance(features, Mapping) or not features:
+        return [{
+            "rule": "soundtrack_probe_has_no_features",
+            "candidate_id": candidate_id,
+            "message": "soundtrack_probe_report must include audio features for music placement",
+        }]
+    reported_audio = _clean(soundtrack_probe_report.get("audio_file"))
+    if reported_audio:
+        try:
+            if Path(reported_audio).resolve() != selected_audio_file.resolve():
+                return [{
+                    "rule": "soundtrack_probe_audio_mismatch",
+                    "candidate_id": candidate_id,
+                    "message": "soundtrack_probe_report.audio_file does not match selected audio_file",
+                }]
+        except OSError:
+            return [{
+                "rule": "soundtrack_probe_audio_mismatch",
+                "candidate_id": candidate_id,
+                "message": "soundtrack_probe_report.audio_file cannot be resolved against selected audio_file",
+            }]
+    return []
+
+
+def _source_audio_policy(
+    soundtrack_plan: Mapping[str, Any] | None,
+    tracks: list[dict[str, Any]],
+    sections: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    if soundtrack_plan and isinstance(soundtrack_plan.get("source_audio_policy"), Mapping):
+        raw = soundtrack_plan["source_audio_policy"]
+        return {
+            "artifact_role": "audio_source_policy",
+            "original_audio_policy": _clean(raw.get("original_audio_policy")) or "undecided",
+            "music_policy": _clean(raw.get("music_policy")) or "undecided",
+            "time_authority": _clean(raw.get("time_authority")) or "video_sections",
+            "ducking_policy": _clean(raw.get("ducking_policy")) or "duck_under_voice",
+        }
+
+    roles = {_clean(track.get("role")) for track in tracks}
+    ducking = {_clean(track.get("ducking_policy")) for track in tracks}
+    section_music_roles = {
+        _clean(section.get("music_role"))
+        for section in sections.values()
+        if _clean(section.get("music_role"))
+    }
+    if "mixed" in section_music_roles:
+        music_policy = "mixed"
+    elif "song" in section_music_roles:
+        music_policy = "song"
+    elif any(role in section_music_roles for role in ("bgm", "music")) or any(role.startswith("music") for role in roles):
+        music_policy = "bgm"
+    else:
+        music_policy = "none"
+
+    if "preserve_original_audio" in roles or "preserve_original_audio" in ducking:
+        original_audio_policy = "preserve_speech"
+    elif "music_ducked" in roles or "duck_under_voice" in ducking:
+        original_audio_policy = "mixed"
+    elif any(role.startswith("music") for role in roles) or "bgm" in section_music_roles or "song" in section_music_roles:
+        original_audio_policy = "replace_with_music"
+    else:
+        original_audio_policy = "undecided"
+
+    return {
+        "artifact_role": "audio_source_policy",
+        "original_audio_policy": original_audio_policy,
+        "music_policy": music_policy,
+        "time_authority": "video_sections",
+        "ducking_policy": "duck_under_voice" if original_audio_policy in {"preserve_speech", "mixed"} else "none",
+    }
+
+
 def accept_audio_handoff(
     audio_director_handoff: Mapping[str, Any],
     *,
     soundtrack_plan: Mapping[str, Any] | None = None,
     sound_license_manifest: Mapping[str, Any] | None = None,
+    soundtrack_probe_report: Mapping[str, Any] | None = None,
     out_dir: str | Path,
 ) -> dict[str, Any]:
     out_root = Path(out_dir)
@@ -173,9 +292,17 @@ def accept_audio_handoff(
                 "section_id": section_id,
                 "message": "preserve_speech section requires duck_under_voice or preserve_original_audio",
             })
+        if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
+            blocking.extend(
+                _probe_blocks(
+                    soundtrack_probe_report=soundtrack_probe_report,
+                    selected_audio_file=audio_path,
+                    candidate_id=candidate_id,
+                )
+            )
 
         if audio_path.is_file() and source_type != "reference_only" and item.get("delivery_allowed") is True and license_status not in BAD_LICENSE_STATUSES:
-            tracks.append({
+            track = {
                 "section_id": section_id,
                 "candidate_id": candidate_id,
                 "audio_file": str(audio_path),
@@ -184,10 +311,23 @@ def accept_audio_handoff(
                 "usage_scope": item.get("usage_scope") or "unknown",
                 "source_type": source_type,
                 "license_status": license_status,
-            })
+            }
+            if soundtrack_probe_report and _music_track_requires_probe(item, section):
+                track["soundtrack_probe"] = {
+                    "artifact": "soundtrack_probe_report.json",
+                    "duration_sec": soundtrack_probe_report.get("duration_sec"),
+                    "section_fit_count": len(soundtrack_probe_report.get("section_fit") or []),
+                    "analysis_depth": soundtrack_probe_report.get("analysis_depth"),
+                }
+            tracks.append(track)
 
     ok = not blocking
+    rules = {_clean(item.get("rule")) for item in blocking if isinstance(item, Mapping)}
+    next_action = "audio_mix_plan_ready" if ok else "repair_audio_handoff"
+    if not ok and any(rule.startswith("soundtrack_probe") or rule == "missing_soundtrack_probe_report" for rule in rules):
+        next_action = "run_soundtrack_probe"
     mix_sections = _mix_sections(soundtrack_plan)
+    source_audio_policy = _source_audio_policy(soundtrack_plan, tracks if ok else [], sections)
     acceptance = {
         "artifact_role": "audio_handoff_acceptance",
         "version": 1,
@@ -195,12 +335,13 @@ def accept_audio_handoff(
         "blocking": blocking,
         "warnings": warnings,
         "accepted_track_count": len(tracks) if ok else 0,
-        "next_action": "audio_mix_plan_ready" if ok else "repair_audio_handoff",
+        "next_action": next_action,
     }
     mix_plan = {
         "artifact_role": "audio_mix_plan",
         "version": 1,
         "ready_for_mix": ok,
+        "source_audio_policy": source_audio_policy,
         "tracks": tracks if ok else [],
         "sections": mix_sections if ok else [],
         "requires_ffmpeg": True,
@@ -226,6 +367,7 @@ def accept_audio_handoff_files(
     out_dir: str | Path,
     soundtrack_plan_path: str | Path | None = None,
     license_manifest_path: str | Path | None = None,
+    soundtrack_probe_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
     handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8-sig"))
     soundtrack = None
@@ -234,9 +376,13 @@ def accept_audio_handoff_files(
         soundtrack = json.loads(Path(soundtrack_plan_path).read_text(encoding="utf-8-sig"))
     if license_manifest_path:
         license_manifest = json.loads(Path(license_manifest_path).read_text(encoding="utf-8-sig"))
+    soundtrack_probe_report = None
+    if soundtrack_probe_report_path:
+        soundtrack_probe_report = json.loads(Path(soundtrack_probe_report_path).read_text(encoding="utf-8-sig"))
     return accept_audio_handoff(
         handoff,
         soundtrack_plan=soundtrack,
         sound_license_manifest=license_manifest,
+        soundtrack_probe_report=soundtrack_probe_report,
         out_dir=out_dir,
     )
