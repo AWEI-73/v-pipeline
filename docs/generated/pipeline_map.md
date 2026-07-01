@@ -26,7 +26,7 @@ Main route: Video Pipeline Route
 | Verify / Review | skills/verify.md | video_tools.py:verify<br>video_tools.py:keyframe-grid<br>video_tools.py:visual-audit | verify_result.json<br>keyframe_grid.jpg<br>visual_audit.json<br>caption_audit.json | Failures route back by owner: material, effects, subtitle/audio, or build. |
 | Workbench Draft Review | skills/brownfield-edit.md<br>skills/dashboard.md | tools/test_tiers.py --tier workbench<br>tools/workbench_server.py<br>tools/workbench_frontend_smoke.py<br>tools/workbench_browser_layout_smoke.mjs<br>video_tools.py:workbench-handoff-validate | preview_timeline.json<br>timeline_patch.json<br>workbench_contract_patch.json | Draft artifacts must not overwrite canonical truth. |
 | Brownfield / Finishing | skills/brownfield-edit.md<br>skills/video-effect-factory.md<br>skills/remotion-effect-worker.md<br>skills/audio-director.md<br>skills/subtitle-director.md | tools/subtitle_patch.py<br>tools/audio_cue_patch.py<br>tools/effect_patch.py<br>video_tools.py:workbench-handoff-validate<br>video_tools.py:workbench-draft-rerender | subtitle_patch.json<br>audio_cue_patch.json<br>effect_patch.json<br>workbench_handoff.json | Finishing-only fixes return to owning branch or BUILD; material-truth changes return to Material Map. |
-| Delivery | skills/verify.md<br>skills/video-pipeline-route.md | tools/validate_pipeline_run_folder.py --complete-video | final.mp4<br>verified_preview_package.json<br>delivery_candidate.mp4<br>final_promotion_report.json<br>delivery_requirements.json<br>verify_result.json<br>audio_mix_report.json<br>subtitles.srt<br>effect_render_verification.json<br>review_report.md<br>run_layout.json | Delivery must pass technical verify plus material/audio/subtitle/effect semantic evidence; warnings are blocked. |
+| Delivery | skills/verify.md<br>skills/video-pipeline-route.md | tools/validate_pipeline_run_folder.py --complete-video | final.mp4<br>verified_preview_package.json<br>delivery_candidate.mp4<br>verified_preview_review_decision.json<br>final_promotion_report.json<br>delivery_requirements.json<br>verify_result.json<br>audio_mix_report.json<br>subtitles.srt<br>effect_render_verification.json<br>review_report.md<br>run_layout.json | Delivery must pass technical verify plus material/audio/subtitle/effect semantic evidence; warnings are blocked. |
 
 ## Side Branches
 
@@ -165,6 +165,7 @@ Bounded route task packets and runner-neutral handoffs.
 - `tools/subtitle_voiceover_handoff_accept.py`
 - `tools/validate_pipeline_run_folder.py`
 - `tools/package_verified_preview.py`
+- `tools/verified_preview_review_decision.py`
 - `tools/promote_verified_preview.py`
 - `tools/run_artifact_index.py`
 - `tools/dashboard_server.py`

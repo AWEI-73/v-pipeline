@@ -67,10 +67,13 @@ class SkillToolContractsTest(unittest.TestCase):
         self.assertIn("minimum visual evidence", verify_skill)
         self.assertIn("sparse scene", verify_skill)
         self.assertIn("package_verified_preview.py", runbook)
+        self.assertIn("verified_preview_review_decision.py", runbook)
         self.assertIn("promote_verified_preview.py", runbook)
         self.assertIn("verified_preview_package.json", decision_tree)
+        self.assertIn("verified_preview_review_decision.json", decision_tree)
         self.assertIn("delivery_candidate.mp4", decision_tree)
         self.assertIn("tools/package_verified_preview.py", material_skill)
+        self.assertIn("tools/verified_preview_review_decision.py", material_skill)
         self.assertIn("tools/promote_verified_preview.py", material_skill)
 
 
