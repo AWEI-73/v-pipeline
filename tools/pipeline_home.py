@@ -10,7 +10,7 @@ from typing import Any
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -296,6 +296,48 @@ def _effect_factory_boundary_summary(root: Path):
     )
 
 
+def _effect_factory_route_summary(root: Path):
+    report_path, report = _find_json(root, "effect_factory_route_acceptance_report.json")
+    if not report:
+        return None
+
+    read = [_rel(root, report_path)]
+    handoff_path, handoff = _find_json(root, "effect_handoff.json")
+    if handoff:
+        read.append(_rel(root, handoff_path))
+    summary = report.get("summary") or {}
+    if report.get("ok") is False:
+        errors = [str(item) for item in report.get("validation_errors") or [] if item]
+        reason = "; ".join(errors) or "Effect Factory route acceptance failed"
+        return _contract(
+            "repair",
+            report.get("failed_stage") or "effect_factory_route_acceptance",
+            next_action=report.get("next_action"),
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="effect_factory_route_acceptance_report.json",
+        )
+
+    style_family = summary.get("style_family") or "unknown_style"
+    rendered_count = summary.get("worker_rendered_count", 0)
+    job_count = summary.get("worker_job_count", 0)
+    capability = summary.get("capability_decision") or "unknown_capability"
+    return _contract(
+        "run",
+        "effect_factory_route_acceptance",
+        next_action=report.get("next_action") or "ready_for_human_effect_review_or_pipeline_promotion",
+        reason=(
+            "Effect Factory route acceptance passed: "
+            f"{style_family}, capability={capability}, "
+            f"{rendered_count}/{job_count} dry-run worker outputs"
+        ),
+        read=read,
+        run_dir=root,
+        source="effect_factory_route_acceptance_report.json",
+    )
+
+
 def _visual_technique_summary(root: Path):
     confirmed_path, confirmed = _find_json(root, "visual_technique_plan.confirmed.json")
     plan_path, plan = (confirmed_path, confirmed) if confirmed else _find_json(root, "visual_technique_plan.json")
@@ -383,6 +425,11 @@ def _generated_material_summary(root: Path):
         "generated_provider_packet.json",
         "generated_image_provider_packet",
     )
+    handoff_path, handoff = _find_json_name_or_role(
+        root,
+        "image_agent_prompt_handoff.json",
+        "image_agent_prompt_handoff",
+    )
     outputs_path, outputs = _find_json(root, "generated_provider_outputs.json")
     production_path, production = _find_json_name_or_role(
         root,
@@ -399,6 +446,7 @@ def _generated_material_summary(root: Path):
         delta_path,
         fallback_path,
         packet_path,
+        handoff_path,
         outputs_path,
         production_path,
     ):
@@ -463,6 +511,19 @@ def _generated_material_summary(root: Path):
             read=read,
             run_dir=root,
             source=_rel(root, delta_path),
+        )
+
+    if packet and handoff and not outputs and not production:
+        item_count = len(handoff.get("items") or []) if isinstance(handoff, dict) else 0
+        return _contract(
+            "waiting",
+            "generated_image_agent",
+            next_action="call_image_generation_agent",
+            resume="generated-material-import",
+            reason=f"image agent handoff awaits real generated images: {item_count} image(s)",
+            read=read,
+            run_dir=root,
+            source=_rel(root, handoff_path),
         )
 
     if packet and not outputs and not production:
@@ -1287,6 +1348,10 @@ def summarize_run(run_dir):
         return summary
 
     summary = _generated_material_summary(root)
+    if summary:
+        return summary
+
+    summary = _effect_factory_route_summary(root)
     if summary:
         return summary
 

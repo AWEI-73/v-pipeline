@@ -13,6 +13,7 @@ ARTIFACT_CLASSES = ("decision", "contract", "handoff", "evidence", "asset", "deb
 DECISION_NAMES = {
     "video_intent.json",
     "material_delta.json",
+    "material_generation_fallback.json",
     "material_first_boundary_acceptance_report.json",
     "material_map_lifecycle.json",
     "supply_review.json",
@@ -21,6 +22,9 @@ DECISION_NAMES = {
     "soundtrack_flow_acceptance_report.json",
     "audio_handoff_acceptance.json",
     "subtitle_voiceover_handoff_acceptance.json",
+    "story_first_provider_happy_path_report.json",
+    "highlight_selection_plan.json",
+    "highlight_cut_report.json",
     "delivery_gate.json",
     "verify_result.json",
     "state.json",
@@ -32,6 +36,12 @@ CONTRACT_NAMES = {
     "reviewed_project_material_map.json",
     "materials_db.json",
     "material_needs.json",
+    "creative_concept.json",
+    "director_shot_plan.json",
+    "generation_manifest.json",
+    "screenplay_beats.json",
+    "story_world.json",
+    "generated_provider_outputs.template.json",
     "effect_contract.json",
     "segment_contract.json",
     "soundtrack_plan.json",
@@ -40,6 +50,8 @@ CONTRACT_NAMES = {
     "audio_mix_plan.json",
     "narration_manifest.json",
     "subtitle_voiceover_contract.json",
+    "rough_cut_plan.json",
+    "source_timeline_map.json",
     "effect_intent_plan.json",
     "visual_technique_plan.json",
     "visual_technique_plan.confirmed.json",
@@ -50,6 +62,10 @@ HANDOFF_SUFFIXES = (
     "_handoff.json",
     "_build_handoff.json",
 )
+
+HANDOFF_NAMES = {
+    "generated_provider_packet.json",
+}
 
 EVIDENCE_HINTS = (
     "review",
@@ -68,6 +84,11 @@ EVIDENCE_MEDIA_HINTS = (
     "contact_sheet",
     "montage",
 )
+
+EVIDENCE_NAMES = {
+    "generated_provider_prompts.md",
+    "image_agent_prompt.md",
+}
 
 ASSET_EXTENSIONS = {
     ".mp3",
@@ -104,20 +125,30 @@ def classify_artifact(path: Path, root: Path) -> str:
     rel = _rel(path, root)
     lower_name = path.name.lower()
     lower_rel = rel.lower()
+    path_parts = lower_rel.split("/")
 
-    if any(part in lower_rel.split("/") for part in DEBUG_HINTS):
+    if any(part in path_parts for part in DEBUG_HINTS) or any(part.endswith("_frames") for part in path_parts):
         return "debug"
     if lower_name in DECISION_NAMES:
         return "decision"
     if lower_name in CONTRACT_NAMES:
         return "contract"
-    if lower_name.endswith(HANDOFF_SUFFIXES):
+    if lower_name in HANDOFF_NAMES or lower_name.endswith(HANDOFF_SUFFIXES):
         return "handoff"
     if any(hint in lower_name for hint in EVIDENCE_MEDIA_HINTS):
+        return "evidence"
+    if lower_name in EVIDENCE_NAMES:
         return "evidence"
     if path.suffix.lower() in ASSET_EXTENSIONS:
         return "asset"
     if any(hint in lower_name for hint in EVIDENCE_HINTS):
+        return "evidence"
+    if lower_name in {
+        "source_section_map.json",
+        "source_motion_profile.json",
+        "source_material_matrix.json",
+        "source_soundtrack_probe_report.json",
+    }:
         return "evidence"
     if lower_name == "artifact_manifest.json":
         return "contract"

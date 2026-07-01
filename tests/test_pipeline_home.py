@@ -814,6 +814,57 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "revise_effect_factory_contract")
             self.assertIn("evidence_refs", summary["reason"])
 
+    def test_effect_factory_route_acceptance_ready_routes_to_effect_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "effect_factory_route_acceptance_report.json", {
+                "artifact_role": "effect_factory_route_acceptance_report",
+                "ok": True,
+                "failed_stage": None,
+                "next_action": "ready_for_human_effect_review_or_pipeline_promotion",
+                "summary": {
+                    "style_family": "electric_lightning_energy",
+                    "capability_decision": "supported",
+                    "worker_job_count": 1,
+                    "worker_rendered_count": 1,
+                    "worker_review_status": "pending_review",
+                    "handoff_status": "ready_for_human_review",
+                    "canonical_final_exists": False,
+                },
+            })
+            _write(tmp, "effect_handoff.json", {
+                "artifact_role": "effect_handoff",
+                "version": 1,
+                "status": "ready_for_human_review",
+                "accepted_assets": [{"job_id": "rm_fx_route_acceptance_01"}],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "effect_factory_route_acceptance")
+            self.assertEqual(summary["next"], "ready_for_human_effect_review_or_pipeline_promotion")
+            self.assertEqual(summary["source"], "effect_factory_route_acceptance_report.json")
+            self.assertIn("electric_lightning_energy", summary["reason"])
+            self.assertIn("1/1 dry-run worker outputs", summary["reason"])
+            self.assertIn("effect_handoff.json", summary["read"])
+
+    def test_effect_factory_route_acceptance_failed_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "effect_factory_route_acceptance_report.json", {
+                "artifact_role": "effect_factory_route_acceptance_report",
+                "ok": False,
+                "failed_stage": "effect_capability_review",
+                "next_action": "revise_effect_capability",
+                "validation_errors": ["unsupported layer type dragon_3d"],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "effect_capability_review")
+            self.assertEqual(summary["next"], "revise_effect_capability")
+            self.assertIn("unsupported layer", summary["reason"])
+
     def test_generated_material_failure_blocks_before_effect_factory(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(Path(tmp) / "generated", "generated_material_quality_review.json", {
@@ -874,6 +925,45 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "generated_image_provider")
             self.assertEqual(summary["next"], "wait_for_generated_provider")
             self.assertIn("provider_packet/generated_provider_packet.json", summary["read"])
+
+    def test_image_agent_handoff_routes_to_call_image_generation_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "material_generation_fallback.json", {
+                "artifact_role": "material_generation_fallback",
+                "ok": True,
+                "generation_jobs": [{"job_id": "gen_hero", "need_id": "nd_hero"}],
+            })
+            _write(Path(tmp) / "provider_packet", "generated_provider_packet.json", {
+                "artifact_role": "generated_image_provider_packet",
+                "items": [
+                    {
+                        "job_id": "gen_hero",
+                        "target_file": str(Path(tmp) / "provider_packet" / "provider_outputs" / "hero.png"),
+                        "preferred_provider": "codex_imagegen",
+                    }
+                ],
+            })
+            _write(Path(tmp) / "provider_packet" / "image_agent_handoff", "image_agent_prompt_handoff.json", {
+                "artifact_role": "image_agent_prompt_handoff",
+                "next_action": "call_image_generation_agent",
+                "items": [
+                    {
+                        "job_id": "gen_hero",
+                        "target_file": str(Path(tmp) / "provider_packet" / "provider_outputs" / "hero.png"),
+                        "prompt": "real illustration prompt",
+                    }
+                ],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "generated_image_agent")
+            self.assertEqual(summary["next"], "call_image_generation_agent")
+            self.assertIn(
+                "provider_packet/image_agent_handoff/image_agent_prompt_handoff.json",
+                summary["read"],
+            )
 
     def test_visual_technique_candidate_routes_to_parameter_review(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1018,6 +1108,30 @@ class PipelineHomeTest(unittest.TestCase):
 
             self.assertEqual(summary["cursor"], "stage5_final_review")
             self.assertEqual(summary["next"], "write_delivery_gate_report_or_review_highlight_candidate")
+            self.assertEqual(summary["source"], "highlight_selection_plan.json")
+
+    def test_source_highlight_summary_skips_non_utf8_json_noise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "bad_binary.json").write_bytes(b"\xff\xfe\x00\x00")
+            _write(root, "source_timeline_map.json", {
+                "artifact_role": "source_timeline_map",
+                "windows": [{"window_id": "win_000"}],
+            })
+            _write(root, "highlight_selection_plan.json", {
+                "artifact_role": "highlight_selection_plan",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+            _write(root, "rough_cut_plan.json", {
+                "artifact_role": "rough_cut_plan",
+                "route": "single_source_highlight",
+                "clips": [{"segment_id": "seg01_opening"}],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["cursor"], "stage4_highlight_build")
+            self.assertEqual(summary["next"], "safe_highlight_cut")
             self.assertEqual(summary["source"], "highlight_selection_plan.json")
 
     def test_source_highlight_candidate_uses_report_out_path(self):
