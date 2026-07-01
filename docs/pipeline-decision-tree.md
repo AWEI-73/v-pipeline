@@ -210,6 +210,10 @@ source_section_map / source_motion_profile / source_material_matrix
   -> final.mp4 + final_promotion_report.json
   -> write_delivery_gate_report.py
   -> pipeline_home.py must report mode=done, cursor=complete
+  -> if decision=revise_workbench
+  -> workbench_revision_request.json + workbench_handoff.json
+  -> preview_timeline.json
+  -> Workbench / Brownfield draft patch
 ```
 
 Rules:
@@ -218,6 +222,9 @@ Rules:
 - `verified_preview_review_decision.py` is the explicit stop after operator
   review. Valid decisions are `accept_promote`, `revise_workbench`,
   `rebuild_motion_preview`, and `reject`.
+- `decision=revise_workbench` writes `workbench_revision_request.json`; this
+  request carries the operator notes and suggested Workbench edits. It does not
+  mutate `final.mp4`, `timeline_build.json`, or `project_material_map.json`.
 - `promote_verified_preview.py` is only allowed after
   `verified_preview_review_decision.json` says `decision=accept_promote`; it
   copies the verified candidate to `final.mp4`.

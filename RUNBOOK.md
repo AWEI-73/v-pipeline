@@ -481,6 +481,11 @@ python tools\verified_preview_review_decision.py `
   --notes "accepted after review" `
   --json
 
+# If the decision is revise_workbench, this writes
+# workbench_revision_request.json. Rebuild workbench_handoff.json so the
+# Workbench/Brownfield agent reads preview_timeline.json, the revision request,
+# and the review report before drafting patches.
+
 # Only after verified_preview_review_decision.json says decision=accept_promote:
 python tools\promote_verified_preview.py `
   --run RUN_DIR `
@@ -509,7 +514,8 @@ Single-source delivery closeout:
   `delivery_candidate.mp4`; it does not create `final.mp4`.
 - `verified_preview_review_decision.py` records the explicit operator decision:
   `accept_promote`, `revise_workbench`, `rebuild_motion_preview`, or `reject`.
-  It does not create `final.mp4`.
+  It does not create `final.mp4`. `revise_workbench` produces
+  `workbench_revision_request.json` for draft-only Workbench/Brownfield repair.
 - `promote_verified_preview.py` is the explicit operator action that copies the
   accepted delivery candidate to `final.mp4` and writes
   `final_promotion_report.json`.

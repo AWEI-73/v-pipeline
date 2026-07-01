@@ -333,6 +333,7 @@
       ],
       "artifacts": [
         "preview_timeline.json",
+        "workbench_revision_request.json",
         "timeline_patch.json",
         "workbench_contract_patch.json"
       ],
@@ -365,10 +366,11 @@
         "video_tools.py:workbench-draft-rerender"
       ],
       "artifacts": [
+        "workbench_handoff.json",
+        "workbench_revision_request.json",
         "subtitle_patch.json",
         "audio_cue_patch.json",
-        "effect_patch.json",
-        "workbench_handoff.json"
+        "effect_patch.json"
       ],
       "gate": "Finishing-only fixes return to owning branch or BUILD; material-truth changes return to Material Map.",
       "returns_to": [
@@ -584,6 +586,7 @@
     ],
     "workbench": [
       "preview_timeline.json",
+      "workbench_revision_request.json",
       "timeline_patch.json",
       "workbench_contract_patch.json"
     ],

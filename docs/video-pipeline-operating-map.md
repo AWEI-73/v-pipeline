@@ -309,6 +309,11 @@ is reviewable, `verified_preview_review_decision.json` records the explicit
 accept/revise/rebuild/reject decision, `final.mp4` exists only after
 `accept_promote` plus explicit promotion, and the final delivery gate must pass
 after promotion.
+If the operator chooses `revise_workbench`, the review decision writes
+`workbench_revision_request.json`; rebuild `workbench_handoff.json` so the
+Workbench/Brownfield agent reads `preview_timeline.json`, the revision request,
+and any review report before drafting patches. This is a draft-only repair path
+and must not write `final.mp4`.
 
 Generated material route:
 
