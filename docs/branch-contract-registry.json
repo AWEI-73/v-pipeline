@@ -1,0 +1,511 @@
+{
+  "artifact_role": "branch_contract_registry",
+  "version": 1,
+  "status": "mvp_current",
+  "purpose": "Machine-readable ownership contracts for Hermes main route and side branches. This registry defines entry conditions, canonical artifacts, stop gates, forbidden writes, and return routes so agents can route work without guessing.",
+  "global_rules": [
+    "Existing run state wins: inspect tools/pipeline_home.py before writing when a run folder exists.",
+    "Whole-video requests enter Stage 0 first; side branches are child lanes unless the request is bounded branch-only work.",
+    "Branch outputs are not canonical delivery until the owning gate accepts them.",
+    "Workbench, Effect Factory, Soundtrack Arranger, Subtitle/Voiceover, and Verify must not overwrite upstream canonical truth directly.",
+    "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone."
+  ],
+  "branches": [
+    {
+      "branch_id": "main-pipeline",
+      "name": "Main Video Pipeline",
+      "purpose": "Owns Stage 0 route selection, full-video orchestration, BUILD eligibility, delivery promotion, and branch return coordination.",
+      "docs": [
+        "RUNBOOK.md",
+        "docs/pipeline-decision-tree.md",
+        "docs/canonical-video-pipeline-route.md",
+        "docs/video-pipeline-operating-map.md"
+      ],
+      "skills": [
+        "skills/video-pipeline-route.md",
+        "skills/video-intent-planner.md"
+      ],
+      "entry_conditions": [
+        "new or fuzzy whole-video request",
+        "existing run resume/inspect request",
+        "delivery/export/final candidate request",
+        "branch handoff returning to main route"
+      ],
+      "required_inputs": [
+        "project_brief.json or user brief",
+        "interaction_log.md when interactive clarification occurred",
+        "existing run folder when resuming"
+      ],
+      "canonical_outputs": [
+        "video_intent.json",
+        "project_brief.json",
+        "interaction_log.md",
+        "handoff_packet",
+        "segment_contract.json",
+        "delivery_requirements.json",
+        "final.mp4",
+        "final_promotion_report.json"
+      ],
+      "handoff_outputs": [
+        "route_subagent_task.json",
+        "route_subagent_result.json",
+        "route_orchestrator_state.json"
+      ],
+      "next_actions": [
+        "material-first",
+        "structure-first",
+        "needs-context",
+        "soundtrack-arrange",
+        "effect-factory-contract",
+        "subtitle-voiceover-handoff",
+        "review_workbench_route_back",
+        "ready_for_delivery_gate"
+      ],
+      "stop_gates": [
+        "required_followup_questions is non-empty",
+        "pipeline_home reports unknown/waiting/repair",
+        "branch child contract is required but unresolved",
+        "delivery gate blocks"
+      ],
+      "forbidden_writes": [
+        "final.mp4 from Stage 0",
+        "route_judgment.json as replacement for video_intent.json",
+        "canonical material or timeline rewrites from side branch claims"
+      ],
+      "return_to": [
+        "material-map",
+        "soundtrack-arranger",
+        "subtitle-voiceover",
+        "effect-factory",
+        "workbench-brownfield",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "material-map",
+      "name": "Material Map",
+      "purpose": "Owns material truth: inventory, visual/audio/source understanding, scene-to-need edges, coverage delta, generated/reshoot/rewrite decisions, and one-source highlight understanding.",
+      "docs": [
+        "docs/material-map-lifecycle.md",
+        "docs/pipeline-decision-tree.md"
+      ],
+      "skills": [
+        "skills/material-map.md",
+        "skills/curator.md",
+        "skills/material-generation-fallback.md",
+        "skills/generated-material-producer.md"
+      ],
+      "entry_conditions": [
+        "material_contract or entry_path is material-first",
+        "user provides footage/photos/audio-video source folder",
+        "one long video/interview/podcast highlight request",
+        "material delta requires generated candidate, reshoot, rewrite, drop, or waiver"
+      ],
+      "required_inputs": [
+        "video_intent.json",
+        "material_needs.json when needs exist",
+        "source directory or material DB",
+        "material_scan_decision"
+      ],
+      "canonical_outputs": [
+        "material_inventory_summary.json",
+        "source_section_map.json",
+        "source_motion_profile.json",
+        "source_material_matrix.json",
+        "source_transcript.json",
+        "dialogue_edit_script.json",
+        "material_understanding_matrix.json",
+        "material_wall_review_verdict.json",
+        "project_material_map.json",
+        "reviewed_project_material_map.json",
+        "material_delta.json",
+        "material_map_lifecycle.json",
+        "rough_cut_plan.json"
+      ],
+      "handoff_outputs": [
+        "material_first_boundary_acceptance_report.json",
+        "material_wall_handoff_report.json",
+        "material_generation_fallback.json",
+        "generated_provider_packet.json",
+        "image_agent_prompt_handoff.json",
+        "generated_material_review.json",
+        "shooting_brief.md"
+      ],
+      "next_actions": [
+        "await_material_review",
+        "apply_material_review",
+        "return_to_structure_contract",
+        "return_to_build",
+        "generated_material_fallback",
+        "rewrite_or_reshoot_or_waiver",
+        "source_dialogue_script_review"
+      ],
+      "stop_gates": [
+        "inventory scope not reviewed when required",
+        "await_map_review",
+        "must-have need has no accepted satisfies edge",
+        "dialogue/script windows are unreviewed or cut incomplete sentences",
+        "generated candidate has no explicit review"
+      ],
+      "forbidden_writes": [
+        "final.mp4",
+        "silent generated-material promotion",
+        "BUILD/render from filenames only when visual evidence is required",
+        "treating storyboard or motion preview as delivery"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "story-structure",
+        "workbench-brownfield",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "soundtrack-arranger",
+      "name": "Soundtrack Arranger",
+      "purpose": "Owns music/song/BGM sourcing intent, section placement, source candidates, license/source notes, soundtrack probing, and Audio Director handoff.",
+      "docs": [
+        "docs/soundtrack-arranger-route.md",
+        "RUNBOOK.md"
+      ],
+      "skills": [
+        "skills/soundtrack-arranger.md",
+        "skills/audio-director.md"
+      ],
+      "entry_conditions": [
+        "soundtrack_contract requests song/BGM/mixed music",
+        "bounded request asks for music/song/BGM/source search",
+        "BUILD requires music source, license manifest, or ducking plan",
+        "existing draft needs music replacement or section-aware audio planning"
+      ],
+      "required_inputs": [
+        "video_intent.json or soundtrack brief",
+        "target sections/durations when available",
+        "speech/original-audio policy",
+        "source/license policy"
+      ],
+      "canonical_outputs": [
+        "soundtrack_plan.json",
+        "music_source_candidates.json",
+        "sound_license_manifest.json",
+        "soundtrack_probe_report.json",
+        "audio_director_handoff.json",
+        "audio_handoff_acceptance.json",
+        "audio_mix_plan.json",
+        "final_audio.wav",
+        "audio_mix_report.json",
+        "audio_build_handoff.json"
+      ],
+      "handoff_outputs": [
+        "soundtrack_flow_acceptance_report.json",
+        "audio_director_handoff.json"
+      ],
+      "next_actions": [
+        "search_or_import_soundtrack",
+        "probe_candidate_audio",
+        "audio_director_handoff",
+        "execute_audio_mix_plan",
+        "return_to_build_with_final_audio",
+        "repair_license_or_ducking"
+      ],
+      "stop_gates": [
+        "license/source note missing",
+        "reference-only famous song selected for delivery",
+        "required speech preservation or ducking policy unresolved",
+        "audio_handoff_acceptance.ok is false",
+        "audio_mix_plan.ready_for_mix is false"
+      ],
+      "forbidden_writes": [
+        "final.mp4",
+        "burned-in subtitles",
+        "music delivery without license/source note",
+        "covering required original speech without explicit policy"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "workbench-brownfield",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "subtitle-voiceover",
+      "name": "Subtitle / Voiceover",
+      "purpose": "Owns subtitle intent, caption readability evidence, narration/voiceover provider handoff, VoxCPM provider bridge, and BUILD-facing subtitle/voiceover readiness.",
+      "docs": [
+        "RUNBOOK.md",
+        "docs/pipeline-decision-tree.md",
+        "docs/stage-boundary-matrix.md"
+      ],
+      "skills": [
+        "skills/subtitle-director.md",
+        "skills/audio-director.md"
+      ],
+      "entry_conditions": [
+        "subtitle_voiceover_contract requires subtitles, narration, or voiceover",
+        "existing draft needs subtitle repair",
+        "BUILD requires narration audio or subtitle handoff",
+        "delivery gate reports caption/readability/voiceover evidence missing"
+      ],
+      "required_inputs": [
+        "subtitle_voiceover_contract",
+        "script/narration lines when voiceover is required",
+        "caption_audit.json when subtitle delivery is required",
+        "voiceover provider policy"
+      ],
+      "canonical_outputs": [
+        "subtitle_voiceover_handoff_acceptance.json",
+        "subtitle_voiceover_build_handoff.json",
+        "voiceover_provider_plan.json",
+        "voxcpm_runtime_check.json",
+        "narration_manifest.json",
+        "subtitles.srt",
+        "caption_audit.json"
+      ],
+      "handoff_outputs": [
+        "subtitle_patch.json",
+        "subtitle_voiceover_build_handoff.json"
+      ],
+      "next_actions": [
+        "accept_subtitle_voiceover_handoff",
+        "run_voiceover_provider_plan",
+        "run_voxcpm_voiceover_provider",
+        "return_to_build",
+        "repair_caption_or_voiceover"
+      ],
+      "stop_gates": [
+        "required subtitles missing",
+        "caption audit failed or missing",
+        "required voiceover has no narration_manifest",
+        "voiceover provider unavailable and fallback disabled",
+        "voiceover_ready=false when BUILD requires narration"
+      ],
+      "forbidden_writes": [
+        "final.mp4",
+        "synthesizing TTS from handoff acceptance alone",
+        "burning subtitles during handoff acceptance",
+        "pretending missing provider audio is ready"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "workbench-brownfield",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "effect-factory",
+      "name": "Effect Factory",
+      "purpose": "Owns semantic-to-effect translation, visual technique parameters, Remotion/light backend handoff, effect review, and bounded effect assets. It is a factory/translator, not a final renderer.",
+      "docs": [
+        "docs/effect-factory-route.md",
+        "docs/remotion_prompt_parameter_contract.md"
+      ],
+      "skills": [
+        "skills/video-effect-factory.md",
+        "skills/remotion-effect-worker.md"
+      ],
+      "entry_conditions": [
+        "effect_policy marks a required or bounded effect",
+        "user asks for opening/title/transition/highlight/visual treatment only",
+        "Workbench/Brownfield asks for finishing effect",
+        "delivery gate reports required effect evidence missing"
+      ],
+      "required_inputs": [
+        "visual intent or effect brief",
+        "section/segment timing",
+        "story function",
+        "source refs when material-linked",
+        "backend capability boundary"
+      ],
+      "canonical_outputs": [
+        "visual_technique_plan.json",
+        "visual_technique_review.json",
+        "visual_technique_plan.confirmed.json",
+        "effect_design_map.json",
+        "effect_contract.json",
+        "effect_intent_plan.json",
+        "effect_revision_request.json",
+        "remotion_prompt_pack.json",
+        "remotion_worker_outputs.json",
+        "remotion_effect_review.json",
+        "effect_render_verification.json",
+        "effect_handoff.json",
+        "remotion_effect_handoff.json"
+      ],
+      "handoff_outputs": [
+        "effect_factory_boundary_acceptance_report.json",
+        "effect_factory_route_acceptance_report.json",
+        "effect_patch.json"
+      ],
+      "next_actions": [
+        "review_candidate_parameters",
+        "effect_factory_contract",
+        "run_remotion_worker_and_review",
+        "human_review_or_promote_effect_assets_to_timeline",
+        "return_to_build",
+        "repair_effect_contract_or_worker_output"
+      ],
+      "stop_gates": [
+        "candidate parameters are unconfirmed",
+        "required effect has no render/review evidence",
+        "backend cannot render the requested effect and no fallback is accepted",
+        "effect output is generic and does not satisfy story function"
+      ],
+      "forbidden_writes": [
+        "final.mp4",
+        "timeline_build.json direct mutation",
+        "template promotion without user/reviewer acceptance",
+        "claiming Remotion draft assets are final delivery"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "workbench-brownfield",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "workbench-brownfield",
+      "name": "Workbench / Brownfield",
+      "purpose": "Owns draft-only local patching, preview timeline editing, user review handoff, and route-back patches. It is the black-box editing workbench, not the source of canonical truth.",
+      "docs": [
+        "docs/workbench-dashboard-integration.md",
+        "dashboard/workbench_native/API_CONTRACT.md"
+      ],
+      "skills": [
+        "skills/brownfield-edit.md",
+        "skills/dashboard.md"
+      ],
+      "entry_conditions": [
+        "user refers to draft/rough cut/final candidate/local fix",
+        "verified preview review decision requests revise_workbench",
+        "BUILD/Verify creates a preview timeline for review",
+        "user wants to swap clip, adjust subtitle, audio cue, or finishing effect"
+      ],
+      "required_inputs": [
+        "preview_timeline.json or draft timeline",
+        "workbench_revision_request.json when generated by review",
+        "material candidates or current clip refs",
+        "route-back owner for each patch type"
+      ],
+      "canonical_outputs": [
+        "preview_timeline.json",
+        "timeline_patch.json",
+        "patched_draft_timeline.json",
+        "workbench_contract_patch.json",
+        "subtitle_patch.json",
+        "audio_cue_patch.json",
+        "effect_patch.json",
+        "workbench_handoff.json",
+        "workbench_handoff_report.json",
+        "workbench_review_report.json"
+      ],
+      "handoff_outputs": [
+        "workbench_handoff.json",
+        "workbench_revision_request.json",
+        "workbench_rerender.mp4"
+      ],
+      "next_actions": [
+        "review_workbench_route_back",
+        "workbench_draft_review",
+        "rerender_draft_preview",
+        "return_to_material_map",
+        "return_to_build",
+        "return_to_effect_factory",
+        "return_to_soundtrack_arranger",
+        "return_to_subtitle_voiceover"
+      ],
+      "stop_gates": [
+        "draft patch references stale material",
+        "patch changes material truth without Material Map review",
+        "patch changes required effect/audio/subtitle without owning branch acceptance",
+        "caller expects final.mp4 from Workbench"
+      ],
+      "forbidden_writes": [
+        "final.mp4",
+        "project_material_map.json",
+        "segment_contract.json",
+        "timeline_build.json without BUILD promotion"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "material-map",
+        "soundtrack-arranger",
+        "subtitle-voiceover",
+        "effect-factory",
+        "verify-delivery"
+      ]
+    },
+    {
+      "branch_id": "verify-delivery",
+      "name": "Verify / Delivery Gate",
+      "purpose": "Owns fail-closed review, final product evidence, material/audio/subtitle/effect semantic gates, delivery packaging, and repair routing.",
+      "docs": [
+        "docs/pipeline-decision-tree.md",
+        "docs/artifact-reviewer-map.md",
+        "RUNBOOK.md"
+      ],
+      "skills": [
+        "skills/verify.md"
+      ],
+      "entry_conditions": [
+        "final candidate or preview candidate needs review",
+        "user asks whether output is correct",
+        "delivery/export/publish request",
+        "branch handoff needs acceptance evidence"
+      ],
+      "required_inputs": [
+        "video candidate or draft preview",
+        "delivery_requirements.json when available",
+        "verify_result.json",
+        "material/audio/subtitle/effect evidence when required"
+      ],
+      "canonical_outputs": [
+        "verify_result.json",
+        "qa_report.json",
+        "delivery_gate.json",
+        "final_product_verify_bundle.json",
+        "verify_evidence_bundle.json",
+        "contact_sheet.jpg",
+        "overview_grid.jpg",
+        "caption_audit.json",
+        "broll_audit.json",
+        "timeline_invariants.json",
+        "verified_preview_package.json",
+        "delivery_candidate.mp4",
+        "verified_preview_review_decision.json"
+      ],
+      "handoff_outputs": [
+        "workbench_revision_request.json",
+        "final_promotion_report.json",
+        "review_report.md"
+      ],
+      "next_actions": [
+        "complete",
+        "revise_material_selection_or_review",
+        "fix_audio_mix",
+        "fix_subtitles",
+        "revise_effect_intent",
+        "review_workbench_route_back",
+        "promote_verified_preview"
+      ],
+      "stop_gates": [
+        "delivery gate blocks",
+        "required evidence missing or stale",
+        "verify_result.pass=true but semantic delivery gate fails",
+        "reviewer blocks or routes repair"
+      ],
+      "forbidden_writes": [
+        "silently accepting missing evidence",
+        "promoting delivery_candidate.mp4 without verified_preview_review_decision=accept_promote",
+        "repairing canonical artifacts directly from verify findings"
+      ],
+      "return_to": [
+        "main-pipeline",
+        "material-map",
+        "soundtrack-arranger",
+        "subtitle-voiceover",
+        "effect-factory",
+        "workbench-brownfield"
+      ]
+    }
+  ]
+}

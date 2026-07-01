@@ -18,6 +18,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT_DIR = ROOT / "docs" / "generated"
 DEFAULT_CORPUS_DIR = ROOT / ".graphify-corpus" / "mvp"
+BRANCH_CONTRACT_REGISTRY_PATH = ROOT / "docs" / "branch-contract-registry.json"
 
 
 ACTIVE_DOCS = [
@@ -26,6 +27,8 @@ ACTIVE_DOCS = [
     "RUNBOOK.md",
     "docs/START_HERE_VIDEO_PIPELINE.md",
     "docs/canonical-video-pipeline-route.md",
+    "docs/branch-contract-registry.md",
+    "docs/branch-contract-registry.json",
     "docs/video-pipeline-operating-map.md",
     "docs/video-pipeline-end-to-end-line.md",
     "docs/repository-consolidation-map.md",
@@ -426,7 +429,19 @@ def _rel(path: Path) -> str:
     return path.as_posix()
 
 
+def _load_branch_contract_registry() -> dict[str, Any]:
+    if not BRANCH_CONTRACT_REGISTRY_PATH.exists():
+        return {
+            "artifact_role": "branch_contract_registry",
+            "version": 1,
+            "status": "missing",
+            "branches": BRANCHES,
+        }
+    return json.loads(BRANCH_CONTRACT_REGISTRY_PATH.read_text(encoding="utf-8"))
+
+
 def build_map() -> dict[str, Any]:
+    branch_registry = _load_branch_contract_registry()
     return {
         "artifact_role": "pipeline_architecture_map",
         "version": 1,
@@ -438,7 +453,8 @@ def build_map() -> dict[str, Any]:
         "core_tools": CORE_TOOLS,
         "support_tools": SUPPORT_TOOLS,
         "stages": STAGES,
-        "branches": BRANCHES,
+        "branch_contract_registry": branch_registry,
+        "branches": branch_registry.get("branches") or BRANCHES,
         "run_folder_structure": RUN_FOLDERS,
         "graphify_profile": {
             "name": "mvp",
@@ -489,6 +505,7 @@ def write_markdown(data: dict[str, Any], out_dir: Path) -> Path:
         lines.append(f"| {stage['name']} | {skills} | {tools} | {artifacts} | {stage['gate']} |")
     lines.extend(["", "## Side Branches", ""])
     for branch in data["branches"]:
+        artifacts = branch.get("artifacts") or branch.get("canonical_outputs") or []
         lines.extend([
             f"### {branch['name']}",
             "",
@@ -496,7 +513,7 @@ def write_markdown(data: dict[str, Any], out_dir: Path) -> Path:
             "",
             f"- Docs: {', '.join(branch['docs'])}",
             f"- Skills: {', '.join(branch['skills'])}",
-            f"- Artifacts: {', '.join(branch['artifacts'])}",
+            f"- Artifacts: {', '.join(artifacts)}",
             "",
         ])
     lines.extend(["## Run Folder Structure", ""])

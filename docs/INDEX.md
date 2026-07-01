@@ -24,6 +24,7 @@ Current document layers:
 | Single operator entry | `RUNBOOK.md` | What to do next, what to read, which skill/tool to use, and when to stop. |
 | Concept orientation | `docs/START_HERE_VIDEO_PIPELINE.md` | Overall route vocabulary and conceptual map. |
 | Decision tree | `docs/pipeline-decision-tree.md` | Main route, branch choice, insertion points, stop gates, and return route. |
+| Branch contracts | `docs/branch-contract-registry.md`, `docs/branch-contract-registry.json` | Human and machine-readable branch ownership, allowed artifacts, stop gates, forbidden writes, and return routes. |
 | Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-to-skill/tool/artifact map. |
 | Canonical route | `docs/canonical-video-pipeline-route.md` | Official stage names, route semantics, and delivery requirements. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |

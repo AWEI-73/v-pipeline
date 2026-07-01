@@ -17,6 +17,7 @@ Document roles:
 |---|---|---|
 | Concept orientation | `docs/START_HERE_VIDEO_PIPELINE.md` | Explains the overall route and vocabulary. Do not use it as the command runner. |
 | Decision tree | `docs/pipeline-decision-tree.md` | Decides the owner, branch, first safe action, stop gate, and return route. |
+| Branch contracts | `docs/branch-contract-registry.md` / `docs/branch-contract-registry.json` | Defines branch ownership, allowed artifacts, stop gates, forbidden writes, and return routes in human and machine-readable form. |
 | Stage/tool map | `docs/video-pipeline-operating-map.md` | Maps stable stages to skills, tools, artifacts, gates, and return routes. |
 | Canonical route definition | `docs/canonical-video-pipeline-route.md` | Defines official stage names, route semantics, and delivery gates. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Shows which skill owns which Python tools and how to audit ownership. |
@@ -45,7 +46,9 @@ Use this table before opening any other document.
 | Repo route/skill/tool consolidation without UI | `docs/construction-guides/repo-consolidation-non-ui-plan.md` | owning route skill for the touched branch | update manifest/docs/tests for the specific branch; classify run noise with `python tools\run_artifact_index.py --run RUN_DIR --json` | dashboard/workbench redesign or unreviewed template promotion |
 
 If a task spans multiple rows, use `docs/pipeline-decision-tree.md` first. It
-defines branch insertion points and the return route.
+defines branch insertion points and the return route. Then check
+`docs/branch-contract-registry.json` before dispatching or writing artifacts so
+the branch owner, allowed outputs, stop gates, and forbidden writes are explicit.
 
 ## Architecture In One Page
 
@@ -91,6 +94,10 @@ Cross-cutting branch: Review / Verify / Delivery Gate
   -> route, material, contract, audio, effect, timeline, and final evidence
   -> fail closed on missing or stale proof
 ```
+
+The machine-readable ownership source for these routes is
+`docs/branch-contract-registry.json`; the short human summary is
+`docs/branch-contract-registry.md`.
 
 Do not jump directly to render. Do not treat `final.mp4`, generated files,
 Workbench patches, or effect previews as truth unless the owning route has

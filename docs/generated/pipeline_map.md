@@ -30,45 +30,61 @@ Main route: Video Pipeline Route
 
 ## Side Branches
 
-### Material Map Branch
+### Main Video Pipeline
 
-Material truth, satisfies edges, coverage, generated candidate review.
+Owns Stage 0 route selection, full-video orchestration, BUILD eligibility, delivery promotion, and branch return coordination.
 
-- Docs: docs/material-map-lifecycle.md
+- Docs: RUNBOOK.md, docs/pipeline-decision-tree.md, docs/canonical-video-pipeline-route.md, docs/video-pipeline-operating-map.md
+- Skills: skills/video-pipeline-route.md, skills/video-intent-planner.md
+- Artifacts: video_intent.json, project_brief.json, interaction_log.md, handoff_packet, segment_contract.json, delivery_requirements.json, final.mp4, final_promotion_report.json
+
+### Material Map
+
+Owns material truth: inventory, visual/audio/source understanding, scene-to-need edges, coverage delta, generated/reshoot/rewrite decisions, and one-source highlight understanding.
+
+- Docs: docs/material-map-lifecycle.md, docs/pipeline-decision-tree.md
 - Skills: skills/material-map.md, skills/curator.md, skills/material-generation-fallback.md, skills/generated-material-producer.md
-- Artifacts: project_material_map.json, material_delta.json, generated_material_review.json
+- Artifacts: material_inventory_summary.json, source_section_map.json, source_motion_profile.json, source_material_matrix.json, source_transcript.json, dialogue_edit_script.json, material_understanding_matrix.json, material_wall_review_verdict.json, project_material_map.json, reviewed_project_material_map.json, material_delta.json, material_map_lifecycle.json, rough_cut_plan.json
 
-### Effect Factory Branch
+### Soundtrack Arranger
 
-Designed effect contracts, worker build, effect review, bounded handoff.
-
-- Docs: docs/effect-factory-route.md, docs/remotion_prompt_parameter_contract.md
-- Skills: skills/video-effect-factory.md, skills/remotion-effect-worker.md
-- Artifacts: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_factory_boundary_acceptance_report.json, effect_factory_route_acceptance_report.json, effect_review.json, effect_handoff.json, remotion_effect_handoff.json, effect_render_verification.json
-
-### Soundtrack Arranger Branch
-
-Music/song/BGM section planning, provider/source/license review, and Audio Director handoff.
+Owns music/song/BGM sourcing intent, section placement, source candidates, license/source notes, soundtrack probing, and Audio Director handoff.
 
 - Docs: docs/soundtrack-arranger-route.md, RUNBOOK.md
 - Skills: skills/soundtrack-arranger.md, skills/audio-director.md
-- Artifacts: soundtrack_plan.json, music_source_candidates.json, sound_license_manifest.json, audio_director_handoff.json, audio_handoff_acceptance.json, audio_mix_plan.json, final_audio.wav, audio_mix_report.json, audio_build_handoff.json
+- Artifacts: soundtrack_plan.json, music_source_candidates.json, sound_license_manifest.json, soundtrack_probe_report.json, audio_director_handoff.json, audio_handoff_acceptance.json, audio_mix_plan.json, final_audio.wav, audio_mix_report.json, audio_build_handoff.json
 
-### Subtitle / Voiceover Branch
+### Subtitle / Voiceover
 
-Whole-video language, subtitle readability, narration/voiceover manifests, and repair handoff.
+Owns subtitle intent, caption readability evidence, narration/voiceover provider handoff, VoxCPM provider bridge, and BUILD-facing subtitle/voiceover readiness.
 
-- Docs: RUNBOOK.md, docs/stage-boundary-matrix.md
-- Skills: skills/audio-director.md, skills/subtitle-director.md
-- Artifacts: subtitle_voiceover_contract, narration_manifest.json, subtitles.srt, caption_audit.json, subtitle_voiceover_handoff_acceptance.json, subtitle_voiceover_build_handoff.json, subtitle_patch.json
+- Docs: RUNBOOK.md, docs/pipeline-decision-tree.md, docs/stage-boundary-matrix.md
+- Skills: skills/subtitle-director.md, skills/audio-director.md
+- Artifacts: subtitle_voiceover_handoff_acceptance.json, subtitle_voiceover_build_handoff.json, voiceover_provider_plan.json, voxcpm_runtime_check.json, narration_manifest.json, subtitles.srt, caption_audit.json
 
-### Multi-Agent Orchestration Branch
+### Effect Factory
 
-Bounded route task packets and runner-neutral handoffs.
+Owns semantic-to-effect translation, visual technique parameters, Remotion/light backend handoff, effect review, and bounded effect assets. It is a factory/translator, not a final renderer.
 
-- Docs: docs/route-orchestrator-harness.md, docs/route-agent-runner-protocol.md
-- Skills: skills/video-pipeline-route.md
-- Artifacts: route_subagent_task.json, route_subagent_result.json, route_orchestrator_state.json
+- Docs: docs/effect-factory-route.md, docs/remotion_prompt_parameter_contract.md
+- Skills: skills/video-effect-factory.md, skills/remotion-effect-worker.md
+- Artifacts: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_intent_plan.json, effect_revision_request.json, remotion_prompt_pack.json, remotion_worker_outputs.json, remotion_effect_review.json, effect_render_verification.json, effect_handoff.json, remotion_effect_handoff.json
+
+### Workbench / Brownfield
+
+Owns draft-only local patching, preview timeline editing, user review handoff, and route-back patches. It is the black-box editing workbench, not the source of canonical truth.
+
+- Docs: docs/workbench-dashboard-integration.md, dashboard/workbench_native/API_CONTRACT.md
+- Skills: skills/brownfield-edit.md, skills/dashboard.md
+- Artifacts: preview_timeline.json, timeline_patch.json, patched_draft_timeline.json, workbench_contract_patch.json, subtitle_patch.json, audio_cue_patch.json, effect_patch.json, workbench_handoff.json, workbench_handoff_report.json, workbench_review_report.json
+
+### Verify / Delivery Gate
+
+Owns fail-closed review, final product evidence, material/audio/subtitle/effect semantic gates, delivery packaging, and repair routing.
+
+- Docs: docs/pipeline-decision-tree.md, docs/artifact-reviewer-map.md, RUNBOOK.md
+- Skills: skills/verify.md
+- Artifacts: verify_result.json, qa_report.json, delivery_gate.json, final_product_verify_bundle.json, verify_evidence_bundle.json, contact_sheet.jpg, overview_grid.jpg, caption_audit.json, broll_audit.json, timeline_invariants.json, verified_preview_package.json, delivery_candidate.mp4, verified_preview_review_decision.json
 
 ## Run Folder Structure
 
@@ -114,6 +130,8 @@ Bounded route task packets and runner-neutral handoffs.
 - `RUNBOOK.md`
 - `docs/START_HERE_VIDEO_PIPELINE.md`
 - `docs/canonical-video-pipeline-route.md`
+- `docs/branch-contract-registry.md`
+- `docs/branch-contract-registry.json`
 - `docs/video-pipeline-operating-map.md`
 - `docs/video-pipeline-end-to-end-line.md`
 - `docs/repository-consolidation-map.md`

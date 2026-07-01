@@ -4,13 +4,26 @@ Status: canonical operator decision tree for main route and side branches
 
 This file is the "what should I do next?" layer. It does not replace
 `docs/video-pipeline-operating-map.md`, `docs/canonical-video-pipeline-route.md`,
-or `docs/stage-boundary-matrix.md`. Use it before choosing tools, dispatching a
-worker, or continuing a run.
+`docs/stage-boundary-matrix.md`, or `docs/branch-contract-registry.json`. Use
+this decision tree before choosing tools, dispatching a worker, or continuing a
+run. After the current owner branch is known, use the branch contract registry
+to check allowed writes, required handoff artifacts, stop gates, and return
+routes.
 
 The rule is simple: decide the owner, write or inspect the handoff artifacts,
 then stop at the owning gate. Do not turn a user phrase into a direct command.
 Each branch lists forbidden actions, handoff artifacts, and return route so a
 worker can stop without guessing.
+
+The branch registry is the machine-readable ownership contract for:
+
+- `main-pipeline`
+- `material-map`
+- `soundtrack-arranger`
+- `subtitle-voiceover`
+- `effect-factory`
+- `workbench-brownfield`
+- `verify-delivery`
 
 ## Global Precedence
 
