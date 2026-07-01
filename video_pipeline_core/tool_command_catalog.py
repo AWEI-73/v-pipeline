@@ -87,6 +87,8 @@ COMMAND_GROUPS: Dict[str, str] = {
     "soundtrack-audio-handoff-accept": "contract",
     "voiceover-provider-plan": "contract",
     "effect-intent-plan": "contract",
+    "effect-capability-review": "contract",
+    "effect-dictionary-promote": "contract",
     "effect-revision-request": "contract",
     "effect-revision-draft": "contract",
     "effect-revision-apply": "contract",

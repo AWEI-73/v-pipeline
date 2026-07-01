@@ -284,6 +284,12 @@ python video_tools.py source-motion-profile --video source.mp4 --out-dir run\sou
 python video_tools.py source-material-matrix --source source.mp4 --out-dir run\source_matrix --window-sec 12
 python video_tools.py source-dialogue-script --json3 run\source\subs.en.json3 --out-dir run\dialogue_script --rough-windows run\rough_dialogue_windows.json --target-sec 90
 python video_tools.py source-highlight-plan --source source.mp4 --out-dir run --target-sec 75
+python tools\safe_highlight_cut.py --rough-cut-plan run\rough_cut_plan.json --out run\single_source_highlight_preview.mp4 --report run\highlight_cut_report.json
+python video_tools.py final-product-verify run\single_source_highlight_preview.mp4 --out-dir run\final_product_verify
+python tools\write_delivery_gate_report.py --run run --json
+python tools\package_verified_preview.py --run run --json
+python tools\promote_verified_preview.py --run run --reviewer operator --json
+python tools\write_delivery_gate_report.py --run run --json
 ```
 
 Use `source_section_map.json`, `source_motion_profile.json`,
@@ -297,6 +303,9 @@ for practical, training, ending, speech, music, or event-content selection.
 For dialogue/podcast/interview routes, use `source-dialogue-script` after a
 correct subtitle or reviewed ASR transcript is available. The soft target
 duration must not override complete sentence boundaries or natural speech flow.
+Package and promote only after preview verification: `delivery_candidate.mp4`
+is reviewable, `final.mp4` exists only after explicit promotion, and the final
+delivery gate must pass after promotion.
 
 Generated material route:
 

@@ -189,6 +189,38 @@ the current build. "Deferred" without owner or reason is still unresolved.
 If BUILD creates a rough cut, draft preview, failed verify, or user patch request,
 the next owner may be Workbench / Brownfield rather than immediate Delivery.
 
+### Single-Source Highlight Closeout
+
+When a material-first sub-route uses one long source video and creates a
+highlight preview, do not skip the preview/final boundary.
+
+```text
+source_section_map / source_motion_profile / source_material_matrix
+  -> reviewed dialogue_edit_script or highlight_selection_plan
+  -> rough_cut_plan.json
+  -> safe_highlight_cut.py
+  -> highlight_cut_report.json + preview mp4
+  -> final-product-verify
+  -> write_delivery_gate_report.py
+  -> package_verified_preview.py
+  -> delivery_candidate.mp4 + verified_preview_package.json
+  -> operator review accepts candidate
+  -> promote_verified_preview.py
+  -> final.mp4 + final_promotion_report.json
+  -> write_delivery_gate_report.py
+  -> pipeline_home.py must report mode=done, cursor=complete
+```
+
+Rules:
+
+- `delivery_candidate.mp4` is not canonical final output.
+- `promote_verified_preview.py` is the only shortcut allowed to copy a verified
+  candidate to `final.mp4`; it records the operator decision.
+- Preserve-original-audio highlights may write minimal delivery requirements:
+  audio required, narration/music/subtitles not required.
+- If the complete delivery gate fails after promotion, return to Stage 5/7
+  repair. Do not claim the preview as complete delivery.
+
 Forbidden actions:
 
 - direct-cut from a fuzzy request;

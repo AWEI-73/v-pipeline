@@ -57,6 +57,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "stop_if": ["map generation fails"]
     },
     {
+      "tool": "tools/run_artifact_index.py",
+      "when": "operator, dashboard, or agent needs a compact review index for a run folder instead of reading every generated file",
+      "inputs": ["run folder"],
+      "outputs": ["run_artifact_index.json"],
+      "stop_if": ["run folder is missing", "decision/contract/evidence files are hidden as debug noise"]
+    },
+    {
       "tool": "tools/skill_tool_contract_audit.py",
       "when": "檢查 skills/*.md 的 Tool Contract 與 tools/*.py 歸屬是否完整",
       "inputs": ["skills directory", "tools directory"],

@@ -438,6 +438,28 @@ python tools\safe_highlight_cut.py `
 python video_tools.py final-product-verify `
   RUN_DIR\dialogue_highlight_cut.mp4 `
   --out-dir RUN_DIR\final_product_verify
+
+python tools\write_delivery_gate_report.py `
+  --run RUN_DIR `
+  --json
+
+python tools\package_verified_preview.py `
+  --run RUN_DIR `
+  --json
+
+# Only after operator review accepts delivery_candidate.mp4:
+python tools\promote_verified_preview.py `
+  --run RUN_DIR `
+  --reviewer operator `
+  --json
+
+python tools\write_delivery_gate_report.py `
+  --run RUN_DIR `
+  --json
+
+python tools\pipeline_home.py `
+  --run RUN_DIR `
+  --json
 ```
 
 Review `dialogue_edit_script.json` before cutting whenever the user's goal is
@@ -445,6 +467,22 @@ meaning, message, interview logic, or speech-first highlight. Keep original
 speech audio unless the user explicitly asks for music overlay, replacement, or
 ducking. If music is added under speech, route the mix through Soundtrack
 Arranger / Audio Director and verify ducking.
+
+Single-source delivery closeout:
+
+- `final-product-verify` must pass before packaging.
+- `package_verified_preview.py` writes `verified_preview_package.json` and
+  `delivery_candidate.mp4`; it does not create `final.mp4`.
+- `promote_verified_preview.py` is the explicit operator action that copies the
+  accepted delivery candidate to `final.mp4` and writes
+  `final_promotion_report.json`.
+- For preserve-original-audio highlights, promotion writes minimal
+  `delivery_requirements.json` and `audio_mix_report.json` if they are missing:
+  audio required, narration/music/subtitles not required.
+- After promotion, rerun `write_delivery_gate_report.py`. The expected terminal
+  state from `pipeline_home.py` is `mode=done`, `cursor=complete`.
+- If `write_delivery_gate_report.py` fails after promotion, follow the blocking
+  rules. Do not claim the preview is a complete delivery.
 
 ### B. No Material / Story-First Generated Candidates
 
@@ -775,6 +813,13 @@ python tools\safe_highlight_cut.py `
   --rough-cut-plan RUN_DIR\rough_cut_plan.json `
   --out RUN_DIR\final_safe_tool.mp4 `
   --report RUN_DIR\highlight_cut_report.json
+
+python video_tools.py final-product-verify RUN_DIR\final_safe_tool.mp4 --out-dir RUN_DIR\final_product_verify
+python tools\write_delivery_gate_report.py --run RUN_DIR --json
+python tools\package_verified_preview.py --run RUN_DIR --json
+# After operator accepts delivery_candidate.mp4:
+python tools\promote_verified_preview.py --run RUN_DIR --reviewer operator --json
+python tools\write_delivery_gate_report.py --run RUN_DIR --json
 ```
 
 Use `--source ... --windows ...` only when a human/Workbench has already
@@ -794,6 +839,9 @@ Single-source highlight policy:
 - Intentional replay or emphasis repetition must be marked in the rough cut with
   a repeat policy and reason. Unmarked repetition is treated as fatigue or
   material shortage, not design.
+- `delivery_candidate.mp4` is reviewable, not final. Only
+  `promote_verified_preview.py` may turn it into `final.mp4`, and the complete
+  delivery gate must pass afterward.
 
 Generated candidate branch:
 

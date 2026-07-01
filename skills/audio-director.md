@@ -32,6 +32,13 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
       "stop_if": ["local VoxCPM repo is missing and --allow-legacy-fallback is not set", "VoxCPM dependencies/model are missing during --execute", "voiceover_ready=false and BUILD requires narration audio"]
     },
     {
+      "tool": "tools/voxcpm_runtime_check.py",
+      "when": "diagnose whether the local reference repo\\VoxCPM-main runtime can execute before choosing VoxCPM as the primary voiceover provider",
+      "inputs": ["reference repo\\VoxCPM-main", "optional VOXCPM_PYTHON"],
+      "outputs": ["voxcpm_runtime_check report"],
+      "stop_if": ["VoxCPM repo path is missing", "required Python modules are missing", "runtime is treated as usable without checking"]
+    },
+    {
       "tool": "tools/audio_mix_plan_execute.py",
       "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
       "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing", "source_audio_policy"],
