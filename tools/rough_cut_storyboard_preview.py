@@ -81,6 +81,7 @@ def build_storyboard_preview(
     rough_cut_plan_path: str | Path,
     out_path: str | Path,
     report_path: str | Path,
+    audio_path: str | Path | None = None,
     seconds_per_clip: float = 1.5,
     width: int = 854,
     height: int = 480,
@@ -90,6 +91,9 @@ def build_storyboard_preview(
     rough_cut_plan_path = Path(rough_cut_plan_path)
     out = Path(out_path)
     report = Path(report_path)
+    audio = Path(audio_path) if audio_path else None
+    if audio and not audio.is_file():
+        raise FileNotFoundError(f"audio file not found: {audio}")
     matrix = _load_json(matrix_path)
     plan = _load_json(rough_cut_plan_path)
     refs = _asset_keyframes(matrix)
@@ -143,6 +147,10 @@ def build_storyboard_preview(
         str(fps),
         "-i",
         str(frame_dir / "frame_%04d.jpg"),
+    ]
+    if audio:
+        cmd.extend(["-i", str(audio)])
+    cmd.extend([
         "-c:v",
         "libx264",
         "-preset",
@@ -151,10 +159,22 @@ def build_storyboard_preview(
         "20",
         "-pix_fmt",
         "yuv420p",
+    ])
+    if audio:
+        cmd.extend([
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:a",
+            "aac",
+            "-shortest",
+        ])
+    cmd.extend([
         "-movflags",
         "+faststart",
         str(out),
-    ]
+    ])
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr)
@@ -168,6 +188,7 @@ def build_storyboard_preview(
         "source_matrix": str(matrix_path.resolve()),
         "source_rough_cut_plan": str(rough_cut_plan_path.resolve()),
         "output_video": str(out.resolve()),
+        "audio_file": str(audio.resolve()) if audio else None,
         "clip_count": len(used),
         "seconds_per_clip": seconds_per_clip,
         "fps": fps,
@@ -190,6 +211,7 @@ def main(argv=None) -> int:
     parser.add_argument("--out", required=True)
     parser.add_argument("--report", required=True)
     parser.add_argument("--seconds-per-clip", type=float, default=1.5)
+    parser.add_argument("--audio", default=None, help="optional approved final_audio.wav to mux into storyboard preview")
     parser.add_argument("--width", type=int, default=854)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=2)
@@ -201,6 +223,7 @@ def main(argv=None) -> int:
         rough_cut_plan_path=args.rough_cut_plan,
         out_path=args.out,
         report_path=args.report,
+        audio_path=args.audio,
         seconds_per_clip=args.seconds_per_clip,
         width=args.width,
         height=args.height,

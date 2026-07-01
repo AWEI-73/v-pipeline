@@ -134,6 +134,37 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "verified_preview_package.json")
             self.assertIn("delivery_candidate.mp4", summary["read"])
 
+    def test_failed_delivery_gate_invalidates_existing_verified_preview_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "delivery_candidate.mp4").write_bytes(b"fake preview")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": False,
+                "blocking": [{
+                    "rule": "preview_duration_below_stage0_target",
+                    "message": "rough cut preview is below target",
+                    "next_action": "extend_or_rebuild_preview_to_target_length",
+                }],
+                "next_action": "extend_or_rebuild_preview_to_target_length",
+            })
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "version": 1,
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+                "promotes_to_final_mp4": False,
+                "next_action": "operator_review_or_explicit_final_promotion",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "extend_or_rebuild_preview_to_target_length")
+            self.assertEqual(summary["source"], "delivery_gate.json")
+
     def test_material_first_intent_routes_to_stage2(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {

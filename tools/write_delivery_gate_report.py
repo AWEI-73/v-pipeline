@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -31,6 +32,7 @@ def _has_video_candidate(root: Path) -> bool:
     candidate_names = {
         "final.mp4",
         "rough_cut_preview.mp4",
+        "rough_cut_storyboard_preview.mp4",
         "dialogue_highlight_cut.mp4",
         "dialogue_highlight_cut_reviewed.mp4",
         "highlight_final_quiet.mp4",
@@ -56,7 +58,10 @@ def _has_video_candidate(root: Path) -> bool:
             return True
     for report_path in root.rglob("*.json"):
         report = _load_json(report_path)
-        if not report or report.get("artifact_role") != "rough_cut_preview_report":
+        if not report or report.get("artifact_role") not in {
+            "rough_cut_preview_report",
+            "rough_cut_storyboard_preview_report",
+        }:
             continue
         if report.get("ok") is not True:
             continue
@@ -69,6 +74,88 @@ def _has_video_candidate(root: Path) -> bool:
         if output_path.is_file() and output_path.stat().st_size > 0:
             return True
     return False
+
+
+def _target_length_bounds_sec(value) -> tuple[float | None, float | None]:
+    if value is None:
+        return None, None
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        return seconds, seconds
+    text = str(value).strip().lower()
+    if not text:
+        return None, None
+    range_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*(?:-|–|~|to)\s*(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m)\b",
+        text,
+    )
+    if range_match:
+        low = float(range_match.group(1))
+        high = float(range_match.group(2))
+        unit = range_match.group(3)
+        multiplier = 60.0 if unit.startswith(("m", "min")) else 1.0
+        return low * multiplier, high * multiplier
+    single_match = re.search(r"(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m)\b", text)
+    if single_match:
+        seconds = float(single_match.group(1))
+        unit = single_match.group(2)
+        if unit.startswith(("m", "min")):
+            seconds *= 60.0
+        return seconds, seconds
+    return None, None
+
+
+def _preview_report_duration_sec(report: dict) -> float | None:
+    duration = report.get("duration_sec") or report.get("planned_duration_sec")
+    if duration is None:
+        probe = report.get("output_probe") if isinstance(report.get("output_probe"), dict) else {}
+        fmt = probe.get("format") if isinstance(probe.get("format"), dict) else {}
+        duration = fmt.get("duration")
+    try:
+        return float(duration)
+    except (TypeError, ValueError):
+        return None
+
+
+def _review_preview_duration_sec(root: Path) -> float | None:
+    for report_path in root.rglob("*.json"):
+        report = _load_json(report_path)
+        if not report or report.get("artifact_role") not in {
+            "rough_cut_preview_report",
+            "rough_cut_storyboard_preview_report",
+        }:
+            continue
+        if report.get("ok") is not True:
+            continue
+        duration = _preview_report_duration_sec(report)
+        if duration is not None:
+            return duration
+    return None
+
+
+def _preview_duration_target_block(root: Path) -> dict | None:
+    intent = _load_json(root / "video_intent.json")
+    if not intent:
+        return None
+    min_target, _max_target = _target_length_bounds_sec(intent.get("target_length"))
+    if min_target is None or min_target <= 0:
+        return None
+    duration = _review_preview_duration_sec(root)
+    if duration is None:
+        return None
+    if duration + 0.5 >= min_target:
+        return None
+    return {
+        "rule": "preview_duration_below_stage0_target",
+        "artifact": "rough_cut_preview_report.json",
+        "message": (
+            f"rough cut preview is {duration:.1f}s, below Stage 0 target minimum "
+            f"{min_target:.1f}s"
+        ),
+        "preview_duration_sec": duration,
+        "target_min_duration_sec": min_target,
+        "next_action": "extend_or_rebuild_preview_to_target_length",
+    }
 
 
 def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_gate.json") -> dict:
@@ -105,6 +192,15 @@ def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_ga
             gate["pass"] = False
             gate["blocking"] = blocking
             gate["next_action"] = "create_or_verify_video_candidate"
+        elif gate.get("pass") is True:
+            duration_block = _preview_duration_target_block(root)
+            if duration_block:
+                gate = dict(gate)
+                blocking = list(gate.get("blocking") or [])
+                blocking.append(duration_block)
+                gate["pass"] = False
+                gate["blocking"] = blocking
+                gate["next_action"] = duration_block["next_action"]
     gate = dict(gate)
     gate["generated_by"] = "tools/write_delivery_gate_report.py"
     gate["report_source"] = report_source

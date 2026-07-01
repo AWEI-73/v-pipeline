@@ -73,6 +73,34 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             self.assertTrue((root / "delivery_candidate.mp4").exists())
             self.assertFalse((root / "final.mp4").exists())
 
+    def test_packages_storyboard_preview_report_candidate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            preview = root / "rough_cut_storyboard_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(root / "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "pass": True,
+                "blocking": [],
+            })
+            _write(root / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+            _write(root / "rough_cut_storyboard_preview_report.json", {
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+            })
+
+            package = package_verified_preview(root)
+
+            self.assertEqual(package["source_video"], "rough_cut_storyboard_preview.mp4")
+            self.assertEqual(package["packaged_video"], "delivery_candidate.mp4")
+            self.assertTrue((root / "delivery_candidate.mp4").exists())
+            self.assertFalse((root / "final.mp4").exists())
+
     def test_requires_passing_delivery_gate(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -10,6 +10,7 @@ from typing import Any
 
 KNOWN_PREVIEW_NAMES = (
     "rough_cut_preview.mp4",
+    "rough_cut_storyboard_preview.mp4",
     "single_source_highlight_preview.mp4",
     "dialogue_highlight_cut_reviewed.mp4",
     "dialogue_highlight_cut.mp4",
@@ -37,9 +38,16 @@ def _rel(root: Path, path: Path) -> str:
 def _resolve_candidate_from_highlight_report(root: Path) -> Path | None:
     for report_path in sorted(root.rglob("*.json")):
         report = _load_json(report_path)
-        if not report or report.get("artifact_role") not in {"highlight_cut_report", "rough_cut_preview_report"}:
+        if not report or report.get("artifact_role") not in {
+            "highlight_cut_report",
+            "rough_cut_preview_report",
+            "rough_cut_storyboard_preview_report",
+        }:
             continue
-        if report.get("artifact_role") == "rough_cut_preview_report" and report.get("ok") is not True:
+        if report.get("artifact_role") in {
+            "rough_cut_preview_report",
+            "rough_cut_storyboard_preview_report",
+        } and report.get("ok") is not True:
             continue
         output = report.get("out") or report.get("output") or report.get("output_video")
         if not output:

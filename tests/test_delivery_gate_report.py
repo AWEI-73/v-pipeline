@@ -194,6 +194,96 @@ class DeliveryGateReportCliTest(unittest.TestCase):
                 for item in summary.get("blocking", [])
             ))
 
+    def test_rough_cut_preview_shorter_than_stage0_target_fails_closed(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "rough_cut_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "target_length": "60-90 seconds preview first",
+            })
+            _write(run / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "duration_sec": 12.0,
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertFalse(summary["pass"])
+            self.assertEqual(summary["next_action"], "extend_or_rebuild_preview_to_target_length")
+            self.assertTrue(any(
+                item.get("rule") == "preview_duration_below_stage0_target"
+                for item in summary.get("blocking", [])
+            ))
+
+    def test_storyboard_preview_candidate_can_satisfy_stage0_target(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "rough_cut_storyboard_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "target_length": "60-90 seconds preview first",
+            })
+            _write(run / "rough_cut_storyboard_preview_report.json", {
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "output_probe": {"format": {"duration": "64.0"}},
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["pass"])
+            self.assertFalse(summary.get("blocking"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -86,6 +86,98 @@ class RoughCutStoryboardPreviewTest(unittest.TestCase):
             self.assertEqual(payload["source_mode"], "matrix_keyframes")
             self.assertTrue(out.is_file())
 
+    def test_cli_can_mux_approved_audio_into_storyboard_preview(self):
+        from PIL import Image
+        from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe
+
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            frame = root / "frame.jpg"
+            Image.new("RGB", (160, 90), (40, 180, 80)).save(frame)
+            audio = root / "audio.wav"
+            subprocess.run(
+                [
+                    resolve_ffmpeg(),
+                    "-y",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=frequency=440:duration=1",
+                    "-ac",
+                    "2",
+                    "-ar",
+                    "48000",
+                    str(audio),
+                ],
+                check=True,
+            )
+            matrix_path = root / "matrix.json"
+            plan_path = root / "rough_cut_plan.json"
+            matrix_path.write_text(json.dumps({
+                "artifact_role": "material_understanding_matrix",
+                "assets": [{
+                    "asset_id": "real_0001",
+                    "visual_evidence": {"keyframes": [{"image_path": str(frame)}]},
+                }],
+            }), encoding="utf-8")
+            plan_path.write_text(json.dumps({
+                "artifact_role": "material_first_preview_rough_cut_plan",
+                "clips": [{"asset_id": "real_0001", "segment": 1, "role": "opening"}],
+            }), encoding="utf-8")
+            out = root / "storyboard_preview.mp4"
+            report = root / "storyboard_preview_report.json"
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/rough_cut_storyboard_preview.py",
+                    "--matrix",
+                    str(matrix_path),
+                    "--rough-cut-plan",
+                    str(plan_path),
+                    "--out",
+                    str(out),
+                    "--report",
+                    str(report),
+                    "--seconds-per-clip",
+                    "1",
+                    "--audio",
+                    str(audio),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            probe = subprocess.run(
+                [
+                    resolve_ffprobe(),
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a",
+                    "-show_entries",
+                    "stream=codec_type",
+                    "-of",
+                    "json",
+                    str(out),
+                ],
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            )
+            self.assertIn("audio", probe.stdout)
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(payload["audio_file"], str(audio))
+
 
 if __name__ == "__main__":
     unittest.main()

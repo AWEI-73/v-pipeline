@@ -1010,6 +1010,9 @@ def _verified_preview_package_summary(root: Path):
         return None
     if (root / "final.mp4").exists():
         return None
+    _gate_path, gate = _find_json(root, "delivery_gate.json")
+    if isinstance(gate, dict) and gate.get("pass") is False:
+        return None
     read = [_rel(root, package_path)]
     packaged_video = package.get("packaged_video")
     if packaged_video:
