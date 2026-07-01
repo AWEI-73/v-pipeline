@@ -52,6 +52,24 @@ class WorkbenchHandoffTest(unittest.TestCase):
             r"^[0-9a-f]{64}$",
         )
 
+    def test_handoff_records_preview_timeline_when_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "preview_timeline.json", {
+                "artifact_role": "preview_timeline",
+                "version": 1,
+                "clips": [],
+            })
+
+            handoff = build_handoff(str(root))
+            _write(root / "workbench_handoff.json", handoff)
+            validation = validate_handoff(str(root))
+
+        self.assertEqual(handoff["artifacts"]["preview_timeline"], "preview_timeline.json")
+        self.assertRegex(handoff["artifact_details"]["preview_timeline"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertTrue(validation["ok"], validation["errors"])
+        self.assertIn("preview_timeline", validation["present_artifacts"])
+
     def test_handoff_routes_draft_patches_back_to_owning_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
