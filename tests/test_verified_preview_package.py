@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from video_pipeline_core.verified_preview_package import package_verified_preview
+from video_pipeline_core.verified_preview_package import package_verified_preview, promote_verified_preview_to_final
 
 
 def _write(path: Path, payload: dict):
@@ -107,6 +107,140 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             payload = json.loads(proc.stdout)
             self.assertEqual(payload["artifact_role"], "verified_preview_package")
             self.assertTrue((root / "delivery_candidate.mp4").exists())
+
+    def test_promotes_packaged_candidate_to_final_with_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            candidate = root / "delivery_candidate.mp4"
+            candidate.write_bytes(b"candidate")
+            _write(root / "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "pass": True,
+            })
+            _write(root / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+            })
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+                "promotes_to_final_mp4": False,
+            })
+
+            report = promote_verified_preview_to_final(root, reviewer="operator")
+
+            self.assertEqual(report["artifact_role"], "final_promotion_report")
+            self.assertEqual(report["status"], "promoted")
+            self.assertEqual(report["source_package"], "verified_preview_package.json")
+            self.assertEqual(report["source_video"], "delivery_candidate.mp4")
+            self.assertEqual(report["final_video"], "final.mp4")
+            self.assertEqual(report["reviewer"], "operator")
+            self.assertTrue((root / "final.mp4").exists())
+            self.assertEqual((root / "final.mp4").read_bytes(), b"candidate")
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            self.assertTrue(requirements["requires_audio"])
+            self.assertFalse(requirements["requires_narration"])
+            self.assertFalse(requirements["requires_music"])
+            self.assertFalse(requirements["requires_subtitles"])
+            mix = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertTrue(mix["audio_stream_present"])
+            self.assertFalse(mix["narration_included"])
+            self.assertFalse(mix["music_included"])
+            saved = json.loads((root / "final_promotion_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["next_action"], "write_delivery_gate_report")
+
+    def test_promote_does_not_overwrite_existing_delivery_requirements(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+            _write(root / "delivery_requirements.json", {
+                "artifact_role": "delivery_requirements",
+                "requires_audio": True,
+                "requires_narration": True,
+                "requires_music": True,
+                "requires_subtitles": True,
+            })
+            _write(root / "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "audio_stream_present": True,
+                "narration_included": True,
+                "music_included": True,
+            })
+
+            promote_verified_preview_to_final(root)
+
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            mix = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertTrue(requirements["requires_narration"])
+            self.assertTrue(requirements["requires_music"])
+            self.assertTrue(requirements["requires_subtitles"])
+            self.assertTrue(mix["narration_included"])
+            self.assertTrue(mix["music_included"])
+
+    def test_promote_refuses_to_overwrite_final_by_default(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            (root / "final.mp4").write_bytes(b"existing")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            with self.assertRaises(FileExistsError):
+                promote_verified_preview_to_final(root)
+
+            self.assertEqual((root / "final.mp4").read_bytes(), b"existing")
+
+    def test_promote_requires_ready_package(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "draft",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            with self.assertRaises(ValueError):
+                promote_verified_preview_to_final(root)
+
+    def test_promote_cli_writes_final(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            proc = subprocess.run(
+                [
+                    "python",
+                    "tools/promote_verified_preview.py",
+                    "--run",
+                    str(root),
+                    "--reviewer",
+                    "operator",
+                    "--json",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["artifact_role"], "final_promotion_report")
+            self.assertTrue((root / "final.mp4").exists())
 
 
 if __name__ == "__main__":

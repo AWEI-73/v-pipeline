@@ -71,6 +71,7 @@ class RunArtifactIndexTest(unittest.TestCase):
                 "project_material_map.json",
                 "reviewed_project_material_map.json",
                 "materials_db.json",
+                "delivery_requirements.json",
                 "soundtrack_plan.json",
                 "sound_license_manifest.json",
                 "music_manifest.json",
@@ -96,6 +97,7 @@ class RunArtifactIndexTest(unittest.TestCase):
                 "material_matrix_review.md",
                 "source_transcript.json",
                 "soundtrack_probe_report.json",
+                "audio_mix_report.json",
             ]:
                 (root / name).write_text("{}", encoding="utf-8")
 
@@ -106,6 +108,7 @@ class RunArtifactIndexTest(unittest.TestCase):
             for artifact_class, items in index["classes"].items()
         }
         self.assertIn("project_material_map.json", by_class["contract"])
+        self.assertIn("delivery_requirements.json", by_class["contract"])
         self.assertIn("sound_license_manifest.json", by_class["contract"])
         self.assertIn("material_delta.json", by_class["decision"])
         self.assertIn("soundtrack_flow_acceptance_report.json", by_class["decision"])
@@ -114,6 +117,7 @@ class RunArtifactIndexTest(unittest.TestCase):
         self.assertIn("material_matrix_review.md", by_class["evidence"])
         self.assertIn("source_transcript.json", by_class["evidence"])
         self.assertIn("soundtrack_probe_report.json", by_class["evidence"])
+        self.assertIn("audio_mix_report.json", by_class["evidence"])
 
     def test_classifies_single_source_highlight_artifacts_without_frame_noise(self):
         from video_pipeline_core.run_artifact_index import build_run_artifact_index
@@ -125,6 +129,7 @@ class RunArtifactIndexTest(unittest.TestCase):
                 "highlight_cut_report.json",
                 "delivery_gate.json",
                 "verified_preview_package.json",
+                "final_promotion_report.json",
                 "final_product_verify_bundle.json",
             ]:
                 (root / name).write_text("{}", encoding="utf-8")
@@ -160,6 +165,7 @@ class RunArtifactIndexTest(unittest.TestCase):
         self.assertIn("highlight_cut_report.json", by_class["decision"])
         self.assertIn("delivery_gate.json", by_class["decision"])
         self.assertIn("verified_preview_package.json", by_class["decision"])
+        self.assertIn("final_promotion_report.json", by_class["decision"])
         self.assertIn("final_product_verify_bundle.json", by_class["decision"])
         self.assertIn("rough_cut_plan.json", by_class["contract"])
         self.assertIn("source_timeline_map.json", by_class["contract"])

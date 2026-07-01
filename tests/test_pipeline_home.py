@@ -40,6 +40,35 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "complete")
             self.assertEqual(summary["source"], "delivery_gate.json")
 
+    def test_promoted_preview_with_gate_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+            })
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+            _write(root, "final_promotion_report.json", {
+                "artifact_role": "final_promotion_report",
+                "status": "promoted",
+                "final_video": "final.mp4",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "done")
+            self.assertEqual(summary["cursor"], "complete")
+            self.assertIn("final_promotion_report.json", summary["read"])
+            self.assertIn("explicit preview promotion", summary["reason"])
+
     def test_failed_delivery_gate_routes_to_final_review_repair(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "delivery_gate.json", {

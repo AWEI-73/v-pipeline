@@ -888,11 +888,17 @@ def _delivery_gate_summary(root: Path):
     if not gate:
         return None
     read = [_rel(root, gate_path)]
+    promotion_path, promotion = _find_json(root, "final_promotion_report.json")
+    if promotion:
+        read.append(_rel(root, promotion_path))
     if gate.get("pass") is True and (root / "final.mp4").exists():
         return _contract(
             "done",
             "complete",
-            reason="delivery gate passed and final.mp4 exists",
+            reason=(
+                "delivery gate passed and final.mp4 exists"
+                + (" after explicit preview promotion" if promotion else "")
+            ),
             read=read,
             run_dir=root,
             source="delivery_gate.json",
@@ -929,6 +935,8 @@ def _delivery_gate_summary(root: Path):
 def _verified_preview_package_summary(root: Path):
     package_path, package = _find_json(root, "verified_preview_package.json")
     if not package:
+        return None
+    if (root / "final.mp4").exists():
         return None
     read = [_rel(root, package_path)]
     packaged_video = package.get("packaged_video")

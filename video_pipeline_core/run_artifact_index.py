@@ -27,6 +27,7 @@ DECISION_NAMES = {
     "highlight_cut_report.json",
     "delivery_gate.json",
     "verified_preview_package.json",
+    "final_promotion_report.json",
     "final_product_verify_bundle.json",
     "verify_result.json",
     "state.json",
@@ -58,6 +59,7 @@ CONTRACT_NAMES = {
     "visual_technique_plan.json",
     "visual_technique_plan.confirmed.json",
     "voiceover_provider_plan.json",
+    "delivery_requirements.json",
 }
 
 HANDOFF_SUFFIXES = (
@@ -90,6 +92,7 @@ EVIDENCE_MEDIA_HINTS = (
 EVIDENCE_NAMES = {
     "generated_provider_prompts.md",
     "image_agent_prompt.md",
+    "audio_mix_report.json",
 }
 
 ASSET_EXTENSIONS = {

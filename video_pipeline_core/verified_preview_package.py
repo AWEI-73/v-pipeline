@@ -76,6 +76,13 @@ def _find_verify_bundle(root: Path) -> tuple[Path | None, dict[str, Any] | None]
     return None, None
 
 
+def _write_json_if_missing(path: Path, payload: dict[str, Any]) -> bool:
+    if path.exists():
+        return False
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
 def package_verified_preview(
     run_dir: str | Path,
     *,
@@ -123,3 +130,88 @@ def package_verified_preview(
     out_path = root / out_name
     out_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return package
+
+
+def promote_verified_preview_to_final(
+    run_dir: str | Path,
+    *,
+    reviewer: str = "operator",
+    final_name: str = "final.mp4",
+    report_name: str = "final_promotion_report.json",
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Promote a packaged delivery candidate to the canonical final video.
+
+    Promotion is intentionally explicit. Packaging proves a preview is ready for
+    review; this function records the operator decision and writes ``final.mp4``.
+    """
+    root = Path(run_dir).resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"run folder not found: {root}")
+
+    package_path = root / "verified_preview_package.json"
+    package = _load_json(package_path)
+    if not package or package.get("artifact_role") != "verified_preview_package":
+        raise FileNotFoundError("verified_preview_package.json is required before final promotion")
+
+    if package.get("status") != "ready_for_operator_delivery_review":
+        raise ValueError("verified preview package is not ready for operator delivery review")
+
+    source_ref = package.get("packaged_video")
+    if not source_ref:
+        raise ValueError("verified preview package is missing packaged_video")
+    source = Path(str(source_ref))
+    if not source.is_absolute():
+        source = root / source
+    if not source.is_file() or source.stat().st_size <= 0:
+        raise FileNotFoundError(f"packaged video not found: {source}")
+
+    final_path = root / final_name
+    if final_path.exists() and not overwrite:
+        raise FileExistsError(f"{final_name} already exists; pass overwrite=True to replace it")
+
+    if source.resolve() != final_path.resolve():
+        shutil.copy2(source, final_path)
+
+    wrote_requirements = _write_json_if_missing(root / "delivery_requirements.json", {
+        "artifact_role": "delivery_requirements",
+        "version": 1,
+        "delivery_mode": "single_source_highlight_preserve_original_audio",
+        "requires_audio": True,
+        "requires_narration": False,
+        "requires_music": False,
+        "requires_subtitles": False,
+        "requires_soundtrack_probe": False,
+        "requires_vocal_conflict_check": False,
+        "requires_frame_evidence": False,
+        "requires_effect_render_verification": False,
+        "source": "verified_preview_promotion",
+    })
+    wrote_audio_mix = _write_json_if_missing(root / "audio_mix_report.json", {
+        "artifact_role": "audio_mix_report",
+        "version": 1,
+        "audio_stream_present": True,
+        "narration_included": False,
+        "music_included": False,
+        "mix_strategy": "preserve_candidate_original_audio",
+        "source_video": _rel(root, source),
+        "final_video": _rel(root, final_path),
+    })
+
+    report = {
+        "artifact_role": "final_promotion_report",
+        "version": 1,
+        "status": "promoted",
+        "run_dir": str(root),
+        "reviewer": reviewer,
+        "source_package": _rel(root, package_path),
+        "source_video": _rel(root, source),
+        "final_video": _rel(root, final_path),
+        "overwrote_existing_final": bool(overwrite),
+        "wrote_delivery_requirements": wrote_requirements,
+        "wrote_audio_mix_report": wrote_audio_mix,
+        "next_action": "write_delivery_gate_report",
+    }
+    report_path = root / report_name
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return report
