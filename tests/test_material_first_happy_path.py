@@ -156,6 +156,55 @@ class MaterialFirstHappyPathTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "soundtrack_arranger")
             self.assertEqual(summary["next"], "soundtrack-arrange")
 
+    def test_wrapper_preserves_video_intent_when_it_starts_inside_output_folder(self):
+        from tools.pipeline_home import summarize_run
+
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self._source_dir(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            intent = run_dir / "video_intent.json"
+            intent.write_text(json.dumps({
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "soundtrack_contract": {
+                    "music_role": "mixed",
+                    "handoff_to": "soundtrack-arranger",
+                },
+            }), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/material_first_happy_path.py",
+                    "--out",
+                    str(run_dir),
+                    "--source-dir",
+                    str(source),
+                    "--video-intent",
+                    str(intent),
+                    "--max-assets",
+                    "12",
+                    "--frame-budget",
+                    "1",
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertTrue((run_dir / "video_intent.json").is_file())
+            report = json.loads((run_dir / "material_first_boundary_acceptance_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["stage0_contracts"]["soundtrack"]["handoff_to"], "soundtrack-arranger")
+            summary = summarize_run(run_dir)
+            self.assertEqual(summary["next"], "soundtrack-arrange")
+
 
 if __name__ == "__main__":
     unittest.main()

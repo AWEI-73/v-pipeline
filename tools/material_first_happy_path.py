@@ -68,16 +68,16 @@ def run_material_first_happy_path(
 ) -> dict:
     root = Path(run_dir).resolve()
     source = Path(source_dir).resolve()
+    video_intent_payload = None
+    if video_intent:
+        intent_path = Path(video_intent).resolve()
+        video_intent_payload = json.loads(intent_path.read_text(encoding="utf-8-sig"))
     if root.exists():
         shutil.rmtree(root)
     prep = root.parent / f"{root.name}._prep"
     if prep.exists():
         shutil.rmtree(prep)
     prep.mkdir(parents=True)
-    video_intent_payload = None
-    if video_intent:
-        intent_path = Path(video_intent).resolve()
-        video_intent_payload = json.loads(intent_path.read_text(encoding="utf-8-sig"))
 
     required_roles = roles or ["opening", "training", "closing"]
     materials_db = _scan_source_materials(source, max_assets=int(max_assets))
