@@ -257,6 +257,7 @@ run the no-render happy path once:
 python tools\material_first_happy_path.py `
   --out RUN_DIR `
   --source-dir MATERIAL_SOURCE_DIR `
+  --video-intent RUN_DIR\video_intent.json `
   --max-assets 12 `
   --frame-budget 3 `
   --json
@@ -271,6 +272,9 @@ The preview planner should prefer unique accepted assets and extend their
 bounded clip duration before repeating the same asset. Repetition is reserved
 for cases where unique reviewed material cannot reach the minimum preview
 length.
+When Stage 0 contracts already exist, pass `--video-intent` so soundtrack,
+effect, and subtitle/voiceover handoffs remain visible after material-first
+acceptance.
 
 If source clips are large or slow to decode, create a fast storyboard preview
 from matrix keyframes instead of forcing a motion concat:

@@ -56,6 +56,25 @@ def _cleanup_temp_wall_verdict(verdict_path: Path, saved: dict | None):
         pass
 
 
+def _stash_stage0_context(run_dir: Path) -> dict[str, dict]:
+    stashed: dict[str, dict] = {}
+    for name in ("video_intent.json", "material_inventory_summary.json"):
+        path = run_dir / name
+        if not path.is_file():
+            continue
+        stashed[name] = {
+            "path": path,
+            "payload": json.loads(path.read_text(encoding="utf-8-sig")),
+        }
+        path.unlink()
+    return stashed
+
+
+def _restore_stage0_context(stashed: dict[str, dict]):
+    for item in stashed.values():
+        write_json(item["path"], item["payload"])
+
+
 def _stage_entry(result: dict) -> dict:
     report = result.get("report") or {}
     return {
@@ -158,6 +177,7 @@ def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict,
     stage0_contracts = _load_stage0_contracts(root)
     inventory_summary = _load_inventory_summary(root)
     verdict_for_runner, saved_in_run_verdict = _prepare_wall_verdict(root, wall_verdict)
+    stashed_stage0 = _stash_stage0_context(root)
 
     try:
         stage2_3 = run_stage2_3_smoke(
@@ -166,8 +186,10 @@ def run_material_first_boundary_acceptance(run_dir, *, source_dir, wall_verdict,
             wall_verdict=verdict_for_runner,
             max_assets=max_assets,
         )
+        _restore_stage0_context(stashed_stage0)
         _restore_in_run_wall_verdict(saved_in_run_verdict)
     except Exception as exc:
+        _restore_stage0_context(stashed_stage0)
         _restore_in_run_wall_verdict(saved_in_run_verdict)
         _cleanup_temp_wall_verdict(verdict_for_runner, saved_in_run_verdict)
         stages.append(_failed_stage_entry(

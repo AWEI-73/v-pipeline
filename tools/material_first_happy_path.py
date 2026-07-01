@@ -17,6 +17,16 @@ from video_pipeline_core.material_understanding_matrix import build_material_und
 from video_pipeline_core.material_wall_verdict_draft import build_wall_verdict_draft  # noqa: E402
 
 
+def _stage0_contracts_from_intent(video_intent: dict) -> dict:
+    return {
+        "material": video_intent.get("material_contract") or {},
+        "material_scan_decision": video_intent.get("material_scan_decision") or {},
+        "soundtrack": video_intent.get("soundtrack_contract") or {},
+        "effect": video_intent.get("effect_policy") or {},
+        "subtitle_voiceover": video_intent.get("subtitle_voiceover_contract") or {},
+    }
+
+
 def _rewrite_matrix_paths(matrix_path: Path, *, old_dir: Path, new_dir: Path) -> None:
     payload = json.loads(matrix_path.read_text(encoding="utf-8-sig"))
 
@@ -50,6 +60,7 @@ def run_material_first_happy_path(
     run_dir,
     *,
     source_dir,
+    video_intent=None,
     max_assets=12,
     frame_budget=3,
     roles=None,
@@ -63,6 +74,10 @@ def run_material_first_happy_path(
     if prep.exists():
         shutil.rmtree(prep)
     prep.mkdir(parents=True)
+    video_intent_payload = None
+    if video_intent:
+        intent_path = Path(video_intent).resolve()
+        video_intent_payload = json.loads(intent_path.read_text(encoding="utf-8-sig"))
 
     required_roles = roles or ["opening", "training", "closing"]
     materials_db = _scan_source_materials(source, max_assets=int(max_assets))
@@ -100,6 +115,12 @@ def run_material_first_happy_path(
         wall_verdict=verdict_path,
         max_assets=int(max_assets),
     )
+    if video_intent_payload is not None:
+        write_json(root / "video_intent.json", video_intent_payload)
+        report = acceptance.get("report") or {}
+        report["stage0_contracts"] = _stage0_contracts_from_intent(video_intent_payload)
+        write_json(root / "material_first_boundary_acceptance_report.json", report)
+        acceptance["report"] = report
     if root.exists():
         shutil.copy2(materials_db_path, root / "materials_db.source_candidates.json")
         shutil.copytree(matrix_dir, root / "material_understanding", dirs_exist_ok=True)
@@ -149,6 +170,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, help="run folder to create")
     parser.add_argument("--source-dir", required=True, help="source material folder")
+    parser.add_argument("--video-intent", default=None, help="optional Stage 0 video_intent.json to carry into the run")
     parser.add_argument("--max-assets", type=int, default=12)
     parser.add_argument("--frame-budget", type=int, default=3)
     parser.add_argument("--roles", default="opening,training,closing")
@@ -158,6 +180,7 @@ def main(argv=None):
     result = run_material_first_happy_path(
         args.out,
         source_dir=args.source_dir,
+        video_intent=args.video_intent,
         max_assets=args.max_assets,
         frame_budget=args.frame_budget,
         roles=_roles(args.roles),

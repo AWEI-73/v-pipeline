@@ -283,6 +283,7 @@ Fast operator wrapper:
 python tools\material_first_happy_path.py `
   --out RUN_DIR `
   --source-dir MATERIAL_SOURCE_DIR `
+  --video-intent RUN_DIR\video_intent.json `
   --max-assets 12 `
   --frame-budget 3 `
   --json
@@ -295,6 +296,10 @@ acceptance report in one run folder. It does not render. The canonical
 `preview_rough_cut_plan.json` before using it for render or Workbench changes.
 The preview proposal should use unique reviewed assets first and extend their
 bounded clip lengths before repeating an asset just to fill time.
+When Stage 0 already wrote music/effect/subtitle contracts, pass
+`--video-intent`; the wrapper carries those contracts into
+`material_first_boundary_acceptance_report.json` so `pipeline_home.py` can route
+to Soundtrack Arranger, Effect Factory, or Subtitle Director before render.
 
 For large source clips, use a storyboard preview built from matrix keyframes
 before attempting motion preview:
