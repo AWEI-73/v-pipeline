@@ -122,9 +122,16 @@ class PipelineHomeTest(unittest.TestCase):
                 "version": 1,
                 "status": "ready_for_operator_delivery_review",
                 "packaged_video": "delivery_candidate.mp4",
+                "review_packet": "verified_preview_review_packet.json",
+                "review_report_md": "review_report.md",
                 "promotes_to_final_mp4": False,
                 "next_action": "operator_review_or_explicit_final_promotion",
             })
+            _write(root, "verified_preview_review_packet.json", {
+                "artifact_role": "verified_preview_review_packet",
+                "status": "ready_for_operator_review",
+            })
+            (root / "review_report.md").write_text("# Review", encoding="utf-8")
 
             summary = summarize_run(tmp)
 
@@ -133,6 +140,8 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "operator_review_or_explicit_final_promotion")
             self.assertEqual(summary["source"], "verified_preview_package.json")
             self.assertIn("delivery_candidate.mp4", summary["read"])
+            self.assertIn("verified_preview_review_packet.json", summary["read"])
+            self.assertIn("review_report.md", summary["read"])
 
     def test_failed_delivery_gate_invalidates_existing_verified_preview_package(self):
         with tempfile.TemporaryDirectory() as tmp:

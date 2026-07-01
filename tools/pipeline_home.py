@@ -1014,9 +1014,12 @@ def _verified_preview_package_summary(root: Path):
     if isinstance(gate, dict) and gate.get("pass") is False:
         return None
     read = [_rel(root, package_path)]
-    packaged_video = package.get("packaged_video")
-    if packaged_video:
-        read.append(_rel(root, packaged_video))
+    for ref_key in ("packaged_video", "review_packet", "review_report_md"):
+        ref = package.get(ref_key)
+        if ref:
+            rel = _rel(root, ref)
+            if rel and rel not in read:
+                read.append(rel)
     status = str(package.get("status") or "").strip()
     if status == "ready_for_operator_delivery_review":
         return _contract(

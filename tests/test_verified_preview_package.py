@@ -44,6 +44,11 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             self.assertFalse((root / "final.mp4").exists())
             saved = json.loads((root / "verified_preview_package.json").read_text(encoding="utf-8"))
             self.assertEqual(saved["next_action"], "operator_review_or_explicit_final_promotion")
+            packet = json.loads((root / "verified_preview_review_packet.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["artifact_role"], "verified_preview_review_packet")
+            self.assertEqual(packet["candidate_video"], "delivery_candidate.mp4")
+            self.assertFalse(packet["promotes_to_final_mp4"])
+            self.assertTrue((root / "review_report.md").is_file())
 
     def test_packages_rough_cut_preview_report_candidate(self):
         with tempfile.TemporaryDirectory() as temp:

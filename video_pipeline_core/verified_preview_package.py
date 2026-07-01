@@ -94,6 +94,117 @@ def _write_json_if_missing(path: Path, payload: dict[str, Any]) -> bool:
     return True
 
 
+def _find_preview_report(root: Path, source: Path) -> tuple[Path | None, dict[str, Any] | None]:
+    roles = {"rough_cut_storyboard_preview_report", "rough_cut_preview_report", "highlight_cut_report"}
+    for path in sorted(root.rglob("*.json")):
+        payload = _load_json(path)
+        if not payload or payload.get("artifact_role") not in roles:
+            continue
+        output = payload.get("output_video") or payload.get("out") or payload.get("output")
+        if not output:
+            continue
+        output_path = Path(str(output))
+        if not output_path.is_absolute():
+            output_path = root / output_path
+        try:
+            if output_path.resolve() == source.resolve():
+                return path, payload
+        except OSError:
+            continue
+    return None, None
+
+
+def _preview_duration_sec(preview_report: dict[str, Any] | None, verify: dict[str, Any] | None) -> float | None:
+    if preview_report:
+        for value in (
+            preview_report.get("duration_sec"),
+            preview_report.get("planned_duration_sec"),
+            ((preview_report.get("output_probe") or {}).get("format") or {}).get("duration")
+            if isinstance(preview_report.get("output_probe"), dict)
+            else None,
+        ):
+            try:
+                if value is not None:
+                    return float(value)
+            except (TypeError, ValueError):
+                pass
+    if verify:
+        for section in ("visual", "audio"):
+            payload = verify.get(section)
+            if isinstance(payload, dict):
+                try:
+                    value = payload.get("duration_sec")
+                    if value is not None:
+                        return float(value)
+                except (TypeError, ValueError):
+                    pass
+    return None
+
+
+def _write_review_packet(
+    root: Path,
+    *,
+    package: dict[str, Any],
+    source: Path,
+    destination: Path,
+    gate_path: Path,
+    gate: dict[str, Any],
+    verify_path: Path | None,
+    verify: dict[str, Any] | None,
+) -> dict[str, Any]:
+    preview_path, preview_report = _find_preview_report(root, source)
+    duration = _preview_duration_sec(preview_report, verify)
+    limitations = []
+    if isinstance(preview_report, dict):
+        limitations.extend(str(item) for item in preview_report.get("limitations") or [] if item)
+    if not limitations:
+        limitations.append("This is a verified preview candidate, not canonical final.mp4.")
+
+    packet = {
+        "artifact_role": "verified_preview_review_packet",
+        "version": 1,
+        "status": "ready_for_operator_review",
+        "candidate_video": _rel(root, destination),
+        "source_video": _rel(root, source),
+        "duration_sec": duration,
+        "delivery_gate_pass": gate.get("pass") is True,
+        "final_product_verify_pass": bool(verify and verify.get("pass") is True),
+        "preview_report": _rel(root, preview_path) if preview_path else None,
+        "delivery_gate": _rel(root, gate_path),
+        "final_product_verify": _rel(root, verify_path) if verify_path else None,
+        "promotes_to_final_mp4": False,
+        "limitations": limitations,
+        "operator_questions": [
+            "Does the candidate represent the requested story/sequence well enough for review?",
+            "Should this preview be promoted, revised in Workbench, or rebuilt as a motion preview?",
+        ],
+        "next_action": "operator_review_or_explicit_final_promotion",
+    }
+    packet_path = root / "verified_preview_review_packet.json"
+    packet_path.write_text(json.dumps(packet, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    duration_note = f"{duration:.1f}s" if isinstance(duration, (int, float)) else "unknown"
+    md = [
+        "# Verified Preview Review Packet",
+        "",
+        f"- Candidate: `{packet['candidate_video']}`",
+        f"- Source: `{packet['source_video']}`",
+        f"- Duration: `{duration_note}`",
+        f"- Delivery gate: `{str(packet['delivery_gate_pass']).lower()}`",
+        f"- Final product verify: `{str(packet['final_product_verify_pass']).lower()}`",
+        f"- Promotes to final.mp4: `{str(packet['promotes_to_final_mp4']).lower()}`",
+        "",
+        "## Limitations",
+        *[f"- {item}" for item in limitations],
+        "",
+        "## Operator Questions",
+        *[f"- {item}" for item in packet["operator_questions"]],
+        "",
+    ]
+    (root / "review_report.md").write_text("\n".join(md), encoding="utf-8")
+    return packet
+
+
 def package_verified_preview(
     run_dir: str | Path,
     *,
@@ -139,6 +250,20 @@ def package_verified_preview(
         "next_action": "operator_review_or_explicit_final_promotion",
     }
     out_path = root / out_name
+    out_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    packet = _write_review_packet(
+        root,
+        package=package,
+        source=source,
+        destination=destination,
+        gate_path=gate_path,
+        gate=gate,
+        verify_path=verify_path,
+        verify=verify,
+    )
+    package["review_packet"] = "verified_preview_review_packet.json"
+    package["review_report_md"] = "review_report.md"
+    package["review_packet_status"] = packet.get("status")
     out_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return package
 
