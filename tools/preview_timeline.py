@@ -7,9 +7,10 @@ single Hermes-native artifact -- ``preview_timeline.json`` -- that the native
 workbench frontend consumes for *interactive* preview.
 
 It never renders. ffmpeg BUILD stays canonical. This module only translates the
-already-built editorial artifacts (``timeline.json`` / ``draft_timeline.json`` +
-``project_material_map.json`` + ``review_subtitles.srt``) into a browser-ready,
-seconds-first timeline state.
+already-built editorial artifacts (``draft_timeline.json`` /
+``preview_rough_cut_plan.json`` / ``timeline.json`` / ``timeline_build.json`` +
+``project_material_map.json`` + ``review_subtitles.srt`` / ``subtitles.srt``)
+into a browser-ready, seconds-first timeline state.
 
 CLI::
 
@@ -40,8 +41,17 @@ DEFAULT_FPS = 30
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".m4v", ".mkv"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
-# Editorial source artifacts, in priority order (first hit wins).
-TIMELINE_CANDIDATES = ("draft_timeline.json", "timeline.json", "timeline_build.json")
+# Editorial source artifacts, in priority order (first hit wins). Draft edits
+# are highest priority; rough-cut preview plans are the reviewed candidate a
+# Workbench user is usually revising, so they must win over dry/canonical build
+# placeholders when both exist.
+TIMELINE_CANDIDATES = (
+    "draft_timeline.json",
+    "preview_rough_cut_plan.json",
+    "rough_cut_plan.json",
+    "timeline.json",
+    "timeline_build.json",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -385,15 +395,16 @@ def build_preview_timeline(
 
     # Subtitles (SRT -> overlay).
     subtitles: List[Dict[str, Any]] = []
-    srt_path = root / "review_subtitles.srt"
-    if srt_path.is_file():
+    srt_path = next((root / name for name in ("review_subtitles.srt", "subtitles.srt")
+                     if (root / name).is_file()), None)
+    if srt_path is not None:
         try:
             subtitles = parse_srt(srt_path.read_text(encoding="utf-8"))
         except OSError:
             diagnostics.append({
                 "level": "warning",
                 "code": "srt_unreadable",
-                "message": "review_subtitles.srt present but could not be read.",
+                "message": f"{srt_path.name} present but could not be read.",
             })
 
     # Track summaries (audio/effect are first-version markers only).

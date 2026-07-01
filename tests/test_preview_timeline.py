@@ -106,12 +106,52 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(i["timeline_start_sec"], 3.5)
         self.assertEqual(preview["duration_sec"], 5.5)
 
+    def test_preview_rough_cut_plan_wins_over_timeline_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rough_a = root / "rough-a.mp4"
+            rough_b = root / "rough-b.mp4"
+            rough_a.write_bytes(b"\x00")
+            rough_b.write_bytes(b"\x00")
+            _write(root, "timeline_build.json", {
+                "clips": [
+                    {"segment": 1, "source_path": "dry://segment-1", "duration_sec": 20.0},
+                ],
+            })
+            _write(root, "preview_rough_cut_plan.json", {
+                "artifact_role": "material_first_preview_rough_cut_plan",
+                "clips": [
+                    {"segment": 1, "source_path": str(rough_a), "start_sec": 2.0, "duration_sec": 4.0},
+                    {"segment": 2, "source_path": str(rough_b), "start_sec": 3.0, "duration_sec": 5.0},
+                ],
+            })
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        self.assertEqual(preview["source_artifact"], "preview_rough_cut_plan.json")
+        self.assertEqual(len(preview["clips"]), 2)
+        self.assertEqual(preview["clips"][0]["source_path"], str(rough_a))
+        self.assertEqual(preview["clips"][0]["source_start_sec"], 2.0)
+        self.assertEqual(preview["duration_sec"], 9.0)
+
     def test_subtitles_become_overlays(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = self._make_root(tmp)
             preview = build_preview_timeline(str(root), BASE_URL)
         self.assertEqual(len(preview["subtitles"]), 2)
         self.assertEqual(preview["subtitles"][0]["text"], "Seg 1")
+
+    def test_subtitles_srt_is_used_when_review_subtitles_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            (root / "review_subtitles.srt").unlink()
+            _write(root, "subtitles.srt",
+                   "1\n00:00:00,000 --> 00:00:02,000\nFallback subtitle\n")
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        self.assertEqual(len(preview["subtitles"]), 1)
+        self.assertEqual(preview["subtitles"][0]["text"], "Fallback subtitle")
 
     def test_src_url_is_browser_safe(self):
         with tempfile.TemporaryDirectory() as tmp:
