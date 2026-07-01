@@ -48,10 +48,11 @@ def _write_selected_handoff(
 ) -> dict[str, Any]:
     if not license_note.strip():
         raise ValueError("license_note is required for selected audio")
+    out_dir = out_dir.resolve()
     section = _section_by_id(soundtrack_plan, section_id)
     audio_dir = out_dir / "audio" / "sources"
     audio_dir.mkdir(parents=True, exist_ok=True)
-    audio_file = Path(selected_audio_file) if selected_audio_file else audio_dir / f"reviewed_{section_id}.mp3"
+    audio_file = Path(selected_audio_file).resolve() if selected_audio_file else (audio_dir / f"reviewed_{section_id}.mp3").resolve()
     if selected_audio_file and not audio_file.is_file():
         raise ValueError(f"selected_audio_file does not exist: {selected_audio_file}")
     if fake_reviewed_audio and not selected_audio_file:
@@ -102,11 +103,12 @@ def _write_selected_handoff(
 
 
 def _minimal_soundtrack_probe(audio_file: str | Path) -> dict[str, Any]:
+    audio_path = Path(audio_file).resolve()
     return {
         "artifact_role": "soundtrack_probe_report",
         "version": 1,
         "pass": True,
-        "audio_file": str(Path(audio_file)),
+        "audio_file": str(audio_path),
         "duration_sec": 30.0,
         "analysis_depth": "acceptance_stub",
         "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
@@ -128,7 +130,7 @@ def run_acceptance(
     soundtrack_probe_report: str = "",
     fake_reviewed_audio: bool = False,
 ) -> dict[str, Any]:
-    out_root = Path(out_dir)
+    out_root = Path(out_dir).resolve()
     out_root.mkdir(parents=True, exist_ok=True)
     payload = _load_json(input_path)
     artifacts = write_soundtrack_artifacts(payload, out_root)

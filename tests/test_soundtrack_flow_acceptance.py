@@ -152,6 +152,67 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                 for section in mix_plan["sections"]
             ))
 
+    def test_relative_out_dir_fake_audio_uses_resolvable_audio_path(self):
+        repo = Path(__file__).resolve().parents[1]
+        run = Path("runs") / "_tmp_soundtrack_relative_acceptance"
+        if (repo / run).exists():
+            import shutil
+            shutil.rmtree(repo / run)
+        try:
+            (repo / run).mkdir(parents=True)
+            intent = repo / run / "video_intent.json"
+            intent.write_text(
+                json.dumps(
+                    {
+                        "artifact_role": "video_intent",
+                        "video_type": "training graduation recap",
+                        "target_length": "90 seconds",
+                        "soundtrack_contract": {
+                            "music_role": "mixed",
+                            "handoff_to": "soundtrack-arranger",
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/soundtrack_flow_acceptance.py",
+                    "--input",
+                    str(run / "video_intent.json"),
+                    "--out-dir",
+                    str(run),
+                    "--selected-section-id",
+                    "mv_climax",
+                    "--source-type",
+                    "youtube_audio_library",
+                    "--license-note",
+                    "reviewed internal-use test source",
+                    "--fake-reviewed-audio",
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["ok"], summary)
+            mix_plan = json.loads((repo / run / "audio_mix_plan.json").read_text(encoding="utf-8"))
+            audio_file = Path(mix_plan["tracks"][0]["audio_file"])
+            self.assertTrue(audio_file.is_absolute())
+            self.assertTrue(audio_file.is_file())
+        finally:
+            if (repo / run).exists():
+                import shutil
+                shutil.rmtree(repo / run)
+
     def test_blocks_without_selected_audio(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
