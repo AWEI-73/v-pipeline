@@ -57,6 +57,26 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "run_frame_level_material_recognition")
             self.assertIn("missing frame evidence", summary["reason"])
 
+    def test_passed_delivery_gate_without_final_routes_to_preview_promotion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+            })
+            (root / "single_source_highlight_preview.mp4").write_bytes(b"fake preview")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "promote_or_package_verified_preview")
+            self.assertEqual(summary["source"], "delivery_gate.json")
+            self.assertIn("final.mp4 is not present", summary["reason"])
+
     def test_material_first_intent_routes_to_stage2(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {

@@ -897,6 +897,16 @@ def _delivery_gate_summary(root: Path):
             run_dir=root,
             source="delivery_gate.json",
         )
+    if gate.get("pass") is True:
+        return _contract(
+            "run",
+            "stage5_final_review",
+            next_action="promote_or_package_verified_preview",
+            reason="delivery gate passed for a verified preview candidate; final.mp4 is not present",
+            read=read,
+            run_dir=root,
+            source="delivery_gate.json",
+        )
     if gate.get("pass") is False:
         blocking = gate.get("blocking") or []
         reason = "; ".join(
