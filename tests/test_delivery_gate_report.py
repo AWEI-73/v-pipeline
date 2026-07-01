@@ -149,6 +149,51 @@ class DeliveryGateReportCliTest(unittest.TestCase):
                 for item in summary.get("blocking", [])
             ))
 
+    def test_rough_cut_preview_candidate_satisfies_dashboard_video_candidate_gate(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "rough_cut_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+            _write(run / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "next_action": "human_review_or_final_product_verify",
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["pass"])
+            self.assertFalse(any(
+                item.get("rule") == "missing_video_candidate"
+                for item in summary.get("blocking", [])
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()

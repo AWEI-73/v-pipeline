@@ -30,6 +30,7 @@ def _load_json(path: Path) -> dict | None:
 def _has_video_candidate(root: Path) -> bool:
     candidate_names = {
         "final.mp4",
+        "rough_cut_preview.mp4",
         "dialogue_highlight_cut.mp4",
         "dialogue_highlight_cut_reviewed.mp4",
         "highlight_final_quiet.mp4",
@@ -46,6 +47,20 @@ def _has_video_candidate(root: Path) -> bool:
         if not report or report.get("artifact_role") != "highlight_cut_report":
             continue
         output = report.get("out") or report.get("output")
+        if not output:
+            continue
+        output_path = Path(str(output))
+        if not output_path.is_absolute():
+            output_path = root / output_path
+        if output_path.is_file() and output_path.stat().st_size > 0:
+            return True
+    for report_path in root.rglob("*.json"):
+        report = _load_json(report_path)
+        if not report or report.get("artifact_role") != "rough_cut_preview_report":
+            continue
+        if report.get("ok") is not True:
+            continue
+        output = report.get("output_video") or report.get("out")
         if not output:
             continue
         output_path = Path(str(output))
