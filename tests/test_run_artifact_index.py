@@ -123,6 +123,9 @@ class RunArtifactIndexTest(unittest.TestCase):
             for name in [
                 "highlight_selection_plan.json",
                 "highlight_cut_report.json",
+                "delivery_gate.json",
+                "verified_preview_package.json",
+                "final_product_verify_bundle.json",
             ]:
                 (root / name).write_text("{}", encoding="utf-8")
             for name in [
@@ -145,6 +148,7 @@ class RunArtifactIndexTest(unittest.TestCase):
             matrix_frames.mkdir()
             (matrix_frames / "win_000.jpg").write_bytes(b"jpg")
             (root / "single_source_highlight_preview.mp4").write_bytes(b"mp4")
+            (root / "delivery_candidate.mp4").write_bytes(b"mp4")
 
             index = build_run_artifact_index(root)
 
@@ -154,6 +158,9 @@ class RunArtifactIndexTest(unittest.TestCase):
         }
         self.assertIn("highlight_selection_plan.json", by_class["decision"])
         self.assertIn("highlight_cut_report.json", by_class["decision"])
+        self.assertIn("delivery_gate.json", by_class["decision"])
+        self.assertIn("verified_preview_package.json", by_class["decision"])
+        self.assertIn("final_product_verify_bundle.json", by_class["decision"])
         self.assertIn("rough_cut_plan.json", by_class["contract"])
         self.assertIn("source_timeline_map.json", by_class["contract"])
         self.assertIn("source_section_map.json", by_class["evidence"])
@@ -161,6 +168,7 @@ class RunArtifactIndexTest(unittest.TestCase):
         self.assertIn("source_matrix/source_material_matrix.json", by_class["evidence"])
         self.assertIn("source_matrix/source_material_matrix_contact_sheet.jpg", by_class["evidence"])
         self.assertIn("single_source_highlight_preview.mp4", by_class["asset"])
+        self.assertIn("delivery_candidate.mp4", by_class["asset"])
         self.assertIn("source_motion_profile/motion_frames/motion_0001.jpg", by_class["debug"])
         self.assertIn("source_matrix/source_matrix_frames/win_000.jpg", by_class["debug"])
 

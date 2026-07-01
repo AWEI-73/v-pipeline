@@ -926,6 +926,39 @@ def _delivery_gate_summary(root: Path):
     return None
 
 
+def _verified_preview_package_summary(root: Path):
+    package_path, package = _find_json(root, "verified_preview_package.json")
+    if not package:
+        return None
+    read = [_rel(root, package_path)]
+    packaged_video = package.get("packaged_video")
+    if packaged_video:
+        read.append(_rel(root, packaged_video))
+    status = str(package.get("status") or "").strip()
+    if status == "ready_for_operator_delivery_review":
+        return _contract(
+            "run",
+            "verified_preview_delivery_candidate",
+            next_action=package.get("next_action") or "operator_review_or_explicit_final_promotion",
+            reason=(
+                "verified preview package is ready for operator delivery review; "
+                "final.mp4 has not been promoted"
+            ),
+            read=read,
+            run_dir=root,
+            source="verified_preview_package.json",
+        )
+    return _contract(
+        "repair",
+        "verified_preview_delivery_candidate",
+        next_action="repair_verified_preview_package",
+        reason=f"verified_preview_package has unsupported status={status or 'missing'}",
+        read=read,
+        run_dir=root,
+        source="verified_preview_package.json",
+    )
+
+
 def _build_summary(root: Path):
     timeline_path, timeline = _find_json(root, "timeline_build.json")
     editor_path, editor = _find_json(root, "editor_review.json")
@@ -1352,6 +1385,10 @@ def _intent_summary(root: Path):
 
 def summarize_run(run_dir):
     root = Path(run_dir).resolve()
+
+    summary = _verified_preview_package_summary(root)
+    if summary:
+        return summary
 
     summary = _delivery_gate_summary(root)
     if summary:

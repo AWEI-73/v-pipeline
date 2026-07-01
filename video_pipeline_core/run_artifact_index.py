@@ -26,6 +26,8 @@ DECISION_NAMES = {
     "highlight_selection_plan.json",
     "highlight_cut_report.json",
     "delivery_gate.json",
+    "verified_preview_package.json",
+    "final_product_verify_bundle.json",
     "verify_result.json",
     "state.json",
 }

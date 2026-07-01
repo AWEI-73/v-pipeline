@@ -77,6 +77,34 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "delivery_gate.json")
             self.assertIn("final.mp4 is not present", summary["reason"])
 
+    def test_verified_preview_package_takes_precedence_over_delivery_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "delivery_candidate.mp4").write_bytes(b"fake preview")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+            })
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "version": 1,
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+                "promotes_to_final_mp4": False,
+                "next_action": "operator_review_or_explicit_final_promotion",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "verified_preview_delivery_candidate")
+            self.assertEqual(summary["next"], "operator_review_or_explicit_final_promotion")
+            self.assertEqual(summary["source"], "verified_preview_package.json")
+            self.assertIn("delivery_candidate.mp4", summary["read"])
+
     def test_material_first_intent_routes_to_stage2(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
