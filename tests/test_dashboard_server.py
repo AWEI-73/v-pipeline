@@ -738,6 +738,7 @@ class DashboardServerTest(unittest.TestCase):
             json.dumps({
                 "artifact_role": "workbench_revision_request",
                 "issues": [{"description": "ending is weak"}],
+                "next_action": "open_workbench_for_preview_revision",
             }),
             encoding="utf-8",
         )
@@ -771,8 +772,19 @@ class DashboardServerTest(unittest.TestCase):
 
         summary = data["workbench"]["draft_summary"]
         self.assertEqual(summary["present_count"], 4)
+        self.assertEqual(
+            summary["revision_next_action"],
+            "open_workbench_for_preview_revision",
+        )
         self.assertEqual(summary["timeline_edits"], 1)
         self.assertEqual(summary["contract_edits"], 1)
+
+        status_resp = urllib.request.urlopen(f"{base_url}/api/control/status").read()
+        status = json.loads(status_resp.decode("utf-8"))
+        self.assertEqual(
+            status["recommended_next_action"],
+            "open_workbench_for_preview_revision",
+        )
         self.assertFalse(summary["has_handoff"])
         self.assertFalse(summary["has_review_report"])
         self.assertFalse(summary["agent_ready"])

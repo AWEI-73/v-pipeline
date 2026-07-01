@@ -1421,6 +1421,15 @@ class DashboardStateSpecTest(unittest.TestCase):
                 }],
                 "next_action": "open_workbench_for_preview_revision",
             }), encoding="utf-8")
+            (workdir / "preview_timeline.json").write_text(json.dumps({
+                "artifact_role": "preview_timeline",
+                "clips": [{
+                    "clip_id": "clip_001",
+                    "segment_id": "seg01",
+                    "start_sec": 0,
+                    "duration_sec": 4,
+                }],
+            }), encoding="utf-8")
             (workdir / "material_first_boundary_acceptance_report.json").write_text(json.dumps({
                 "artifact_role": "material_first_boundary_acceptance_report",
                 "ok": True,
@@ -1433,6 +1442,10 @@ class DashboardStateSpecTest(unittest.TestCase):
             self.assertEqual(
                 state["artifacts"]["workbench_revision_request"]["issues"][0]["description"],
                 "ending is weak",
+            )
+            self.assertEqual(
+                state["artifacts"]["preview_timeline"]["clips"][0]["clip_id"],
+                "clip_001",
             )
             self.assertEqual(state["next_action"], "open_workbench_for_preview_revision")
 

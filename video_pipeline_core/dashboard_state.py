@@ -262,6 +262,8 @@ def load_dashboard_state(workdir):
                     manifest["workbench_handoff"] = f
                 elif f == "workbench_revision_request.json":
                     manifest["workbench_revision_request"] = f
+                elif f == "preview_timeline.json":
+                    manifest["preview_timeline"] = f
                 elif f == "delivery_gate.json":
                     manifest["delivery_gate_report"] = f
 
@@ -386,6 +388,10 @@ def load_dashboard_state(workdir):
     workbench_revision_request = (
         safe_load_json(manifest.get("workbench_revision_request"))
         or safe_load_json("workbench_revision_request.json")
+    )
+    preview_timeline = (
+        safe_load_json(manifest.get("preview_timeline"))
+        or safe_load_json("preview_timeline.json")
     )
     delivery_gate_report = (
         safe_load_json(manifest.get("delivery_gate_report"))
@@ -1484,6 +1490,7 @@ def load_dashboard_state(workdir):
             "subtitle_voiceover_build_handoff": subtitle_voiceover_build_handoff,
             "workbench_handoff": workbench_handoff,
             "workbench_revision_request": workbench_revision_request,
+            "preview_timeline": preview_timeline,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,

@@ -286,6 +286,16 @@ def _json_patch_op_count(path: Path) -> int:
     return len([p for p in patches if isinstance(p, dict)])
 
 
+def _workbench_revision_next_action(path: Path) -> str | None:
+    data = load_json_file(path)
+    if not isinstance(data, dict):
+        return None
+    if data.get("artifact_role") != "workbench_revision_request":
+        return None
+    next_action = str(data.get("next_action") or "").strip()
+    return next_action or None
+
+
 def collect_workbench_draft_status(root_dir: Path):
     """Return read-only status for draft artifacts produced by the Workbench."""
     artifacts = {}
@@ -317,6 +327,9 @@ def collect_workbench_draft_status(root_dir: Path):
         "subtitle_edits": _json_patch_op_count(root_dir / "subtitle_patch.json"),
         "audio_cues": _json_patch_op_count(root_dir / "audio_cue_patch.json"),
         "effect_intents": _json_patch_op_count(root_dir / "effect_patch.json"),
+        "revision_next_action": _workbench_revision_next_action(
+            root_dir / "workbench_revision_request.json"
+        ),
     }
     summary["has_handoff"] = artifacts["workbench_handoff"]["exists"]
     summary["has_review_report"] = artifacts["workbench_review_report"]["exists"]
@@ -529,7 +542,10 @@ def build_control_status(active_root: Path):
     agent_ready = bool(summary.get("agent_ready"))
     final_exists = final_path.is_file()
 
-    if agent_ready:
+    revision_next_action = summary.get("revision_next_action")
+    if revision_next_action:
+        next_action = revision_next_action
+    elif agent_ready:
         next_action = "review_workbench_drafts"
     elif not final_exists:
         next_action = "run_pipeline_or_open_dashboard"
