@@ -183,9 +183,13 @@ class PipelineHomeTest(unittest.TestCase):
                 "version": 1,
                 "artifacts": {
                     "preview_timeline": "preview_timeline.json",
+                    "workbench_revision_request": "workbench_revision_request.json",
                     "workbench_review_report": "workbench_review_report.json",
                 },
                 "artifact_details": {},
+            })
+            _write(root, "workbench_revision_request.json", {
+                "artifact_role": "workbench_revision_request",
             })
             _write(root, "workbench_review_report.json", {
                 "artifact_role": "workbench_review_report",
@@ -201,6 +205,7 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("delivery_candidate.mp4", summary["read"])
             self.assertIn("workbench_handoff.json", summary["read"])
             self.assertIn("preview_timeline.json", summary["read"])
+            self.assertIn("workbench_revision_request.json", summary["read"])
             self.assertIn("workbench_review_report.json", summary["read"])
 
     def test_verified_preview_review_rebuild_decision_routes_to_repair(self):

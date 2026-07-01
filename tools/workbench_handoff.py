@@ -18,6 +18,7 @@ SCHEMA_VERSION = 1
 # draft artifact name -> handoff key
 DRAFT_ARTIFACTS = {
     "preview_timeline": "preview_timeline.json",
+    "workbench_revision_request": "workbench_revision_request.json",
     "timeline_patch": "timeline_patch.json",
     "patched_draft_timeline": "patched_draft_timeline.json",
     "workbench_contract_patch": "workbench_contract_patch.json",
@@ -185,6 +186,7 @@ def _json_role_for(key: str) -> Optional[str]:
         "effect_patch": "effect_patch",
         "workbench_contract_patch": "workbench_contract_patch",
         "preview_timeline": "preview_timeline",
+        "workbench_revision_request": "workbench_revision_request",
         "workbench_review_report": "workbench_review_report",
     }
     return roles.get(key)

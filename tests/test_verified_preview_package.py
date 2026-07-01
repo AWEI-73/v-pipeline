@@ -397,9 +397,15 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             self.assertEqual(decision["reviewer"], "tester")
             self.assertEqual(decision["next_action"], "open_workbench_for_preview_revision")
             self.assertEqual(decision["route_back"][0]["owner"], "brownfield-edit")
+            self.assertEqual(decision["workbench_revision_request"], "workbench_revision_request.json")
             self.assertFalse((root / "final.mp4").exists())
             saved = json.loads((root / "verified_preview_review_decision.json").read_text(encoding="utf-8"))
             self.assertEqual(saved["notes"], "tighten the ending")
+            request = json.loads((root / "workbench_revision_request.json").read_text(encoding="utf-8"))
+            self.assertEqual(request["artifact_role"], "workbench_revision_request")
+            self.assertEqual(request["source_decision"], "verified_preview_review_decision.json")
+            self.assertEqual(request["candidate_video"], "delivery_candidate.mp4")
+            self.assertEqual(request["issues"][0]["description"], "tighten the ending")
 
     def test_review_decision_rejects_unknown_decision(self):
         with tempfile.TemporaryDirectory() as temp:

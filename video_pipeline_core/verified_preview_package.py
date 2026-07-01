@@ -458,6 +458,31 @@ def record_verified_preview_review_decision(
         "next_action": selected["next_action"],
         "route_back": selected["route_back"],
     }
+    if normalized == "revise_workbench":
+        request = {
+            "artifact_role": "workbench_revision_request",
+            "version": 1,
+            "source_decision": out_name,
+            "source_package": "verified_preview_package.json",
+            "candidate_video": package.get("packaged_video"),
+            "reviewer": reviewer,
+            "issues": [{
+                "issue_id": "operator-review-1",
+                "type": "operator_notes",
+                "description": notes.strip() or "Operator requested Workbench revision.",
+                "target": "preview_timeline",
+                "suggested_actions": [
+                    "review clip order and story flow",
+                    "reduce repeated or weak material",
+                    "choose a stronger closing before final promotion",
+                ],
+            }],
+            "handoff_to": "brownfield-edit",
+            "next_action": "open_workbench_for_preview_revision",
+        }
+        request_path = root / "workbench_revision_request.json"
+        request_path.write_text(json.dumps(request, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        payload["workbench_revision_request"] = "workbench_revision_request.json"
     out_path = root / out_name
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return payload

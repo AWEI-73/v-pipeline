@@ -70,6 +70,26 @@ class WorkbenchHandoffTest(unittest.TestCase):
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertIn("preview_timeline", validation["present_artifacts"])
 
+    def test_handoff_records_workbench_revision_request_when_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "workbench_revision_request.json", {
+                "artifact_role": "workbench_revision_request",
+                "version": 1,
+                "issues": [],
+            })
+
+            handoff = build_handoff(str(root))
+            _write(root / "workbench_handoff.json", handoff)
+            validation = validate_handoff(str(root))
+
+        self.assertEqual(
+            handoff["artifacts"]["workbench_revision_request"],
+            "workbench_revision_request.json",
+        )
+        self.assertTrue(validation["ok"], validation["errors"])
+        self.assertIn("workbench_revision_request", validation["present_artifacts"])
+
     def test_handoff_routes_draft_patches_back_to_owning_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
