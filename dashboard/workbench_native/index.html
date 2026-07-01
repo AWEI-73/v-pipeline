@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hermes 原生剪輯工作區</title>
+  <title>Hermes 影片剪輯工作檯</title>
   <link rel="stylesheet" href="/workbench/workbench.css" />
 </head>
 <body>
   <header class="wb-header">
     <div class="header-left">
       <div class="wb-title">
-        <strong>Hermes 原生剪輯工作區</strong>
-        <span class="wb-sub">素材預覽 / 時間軸草稿 / ffmpeg 匯出</span>
+        <strong>Hermes 影片剪輯工作檯</strong>
+        <span class="wb-sub">素材替換 / 段落微調 / ffmpeg 草稿輸出</span>
       </div>
-      <div class="undo-redo" aria-label="歷史操作">
+      <div class="undo-redo" aria-label="復原與重做">
         <button class="btn-icon" id="btn-undo" title="復原" type="button" disabled>
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" fill="currentColor"/></svg>
         </button>
@@ -24,7 +24,7 @@
     </div>
 
     <div class="header-mid">
-      <select id="aspect-ratio" class="aspect-ratio-select" title="預覽比例">
+      <select id="aspect-ratio" class="aspect-ratio-select" title="畫面比例">
         <option value="16:9">16:9 橫式</option>
         <option value="9:16">9:16 直式</option>
         <option value="1:1">1:1 方形</option>
@@ -32,22 +32,22 @@
     </div>
 
     <div class="wb-badges">
-      <span class="badge badge-warn">互動草稿提案</span>
+      <span class="badge badge-warn">草稿編輯</span>
       <span class="badge">正式輸出 = ffmpeg BUILD</span>
     </div>
   </header>
 
   <main class="wb-main-container">
-    <nav class="tab-bar" aria-label="剪輯工作區面板">
+    <nav class="tab-bar" aria-label="工作檯工具">
       <button class="tab-item active" type="button" data-drawer="drawer-media">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" fill="currentColor"/></svg>
         <span>素材</span>
       </button>
-      <button class="tab-item" type="button" data-drawer="drawer-media" title="目前文字在字幕時間軸軌道編輯。" disabled aria-disabled="true">
+      <button class="tab-item" type="button" data-drawer="drawer-media" title="字幕軌可在下方時間軸選取後編輯" disabled aria-disabled="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 4v3h5.5v12h3V7H19V4H5z" fill="currentColor"/></svg>
         <span>字幕</span>
       </button>
-      <button class="tab-item" type="button" data-drawer="drawer-media" title="目前音訊在音訊時間軸軌道編輯。" disabled aria-disabled="true">
+      <button class="tab-item" type="button" data-drawer="drawer-media" title="音訊軌可在下方時間軸選取後編輯" disabled aria-disabled="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" fill="currentColor"/></svg>
         <span>音訊</span>
       </button>
@@ -56,14 +56,14 @@
     <div class="wb-content-layout">
       <aside class="wb-materials" id="drawer-media">
         <div class="materials-head">
-          <h2>素材</h2>
+          <h2>可用素材</h2>
           <span id="material-map-summary" class="muted">載入中...</span>
         </div>
         <div class="search-box">
-          <input id="asset-search" class="asset-search" type="search" placeholder="搜尋素材 / 類型 / 說明" />
+          <input id="asset-search" class="asset-search" type="search" placeholder="搜尋素材 / 分類 / 需求" />
         </div>
         <select id="asset-family-filter" class="asset-family-filter">
-          <option value="">全部類型</option>
+          <option value="">全部分類</option>
         </select>
         <div id="material-assets-list" class="material-assets-list"></div>
       </aside>
@@ -74,7 +74,7 @@
             <img id="stage-image" alt="" hidden />
             <video id="stage-video" hidden playsinline muted></video>
             <audio id="preview-audio" preload="metadata"></audio>
-            <div id="stage-empty" class="stage-empty">目前沒有作用中的片段</div>
+            <div id="stage-empty" class="stage-empty">尚未載入可預覽片段</div>
             <div id="effect-overlay" class="effect-overlay" hidden></div>
             <div id="effect-label" class="effect-label" hidden></div>
             <div id="subtitle-overlay" class="subtitle-overlay"></div>
@@ -89,13 +89,13 @@
           <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
           <span id="time-label" class="time-label">0.00 / 0.00s</span>
           <span id="frame-label" class="frame-label">f0</span>
-          <span id="audio-status" class="audio-status">音訊：關閉</span>
+          <span id="audio-status" class="audio-status">音訊：未載入</span>
         </div>
       </section>
 
       <section class="wb-inspector" id="inspector">
-        <h2>檢視器</h2>
-        <div id="inspector-empty" class="muted">請在時間軸選擇一個片段。</div>
+        <h2>鏡頭契約</h2>
+        <div id="inspector-empty" class="muted">請選取影片軌上的片段，查看素材、時長與來源範圍。</div>
         <div id="inspector-body" hidden>
           <dl class="meta-grid" id="inspector-meta"></dl>
           <div class="field">
@@ -112,14 +112,14 @@
           </div>
           <div class="field-row">
             <button id="btn-apply-clip" type="button">套用</button>
-            <button id="btn-replace-clip" type="button" title="用選取素材替換目前片段，只會儲存為 timeline_patch 草稿。">以選取素材替換</button>
+            <button id="btn-replace-clip" type="button" title="用左側選取素材替換目前片段，只會儲存為 timeline_patch 草稿。">以選取素材替換</button>
             <button id="btn-move-left" type="button">左移</button>
             <button id="btn-move-right" type="button">右移</button>
           </div>
         </div>
 
         <div id="track-inspector" hidden>
-          <h2 id="track-insp-title">軌道</h2>
+          <h2 id="track-insp-title">軌道項目</h2>
           <div class="field" id="tf-text"><label>text</label><input id="t-text" type="text" /></div>
           <div class="field" id="tf-preset"><label>preset</label><select id="t-preset"></select></div>
           <div class="field" id="tf-cuetype"><label>cue_type</label><select id="t-cuetype"></select></div>
@@ -137,12 +137,12 @@
   </main>
 
   <div class="track-tools">
-    <button id="btn-add-cue" type="button" title="在播放頭位置新增音效提示">+ 音效提示 @ 播放頭</button>
-    <select id="effect-asset-select" title="可選擇素材地圖中的特效素材">
-      <option value="">僅使用預設</option>
+    <button id="btn-add-cue" type="button" title="在目前播放時間新增音效提示。">+ 音效提示 @ 播放點</button>
+    <select id="effect-asset-select" title="選擇素材地圖中的特效素材">
+      <option value="">選擇特效素材</option>
     </select>
-    <button id="btn-add-fx" type="button" title="在選取片段上新增特效意圖標記">+ 特效到選取片段</button>
-    <span class="track-hint">BGM 會跟著播放頭預覽；音效提示與特效只是意圖標記；正式渲染仍交給管線。</span>
+    <button id="btn-add-fx" type="button" title="在目前播放片段新增特效意圖。">+ 特效意圖到片段</button>
+    <span class="track-hint">BGM、字幕、音效與特效會寫成草稿 patch，正式出片仍由後段 BUILD 驗證。</span>
   </div>
 
   <section class="wb-timeline">
@@ -173,12 +173,12 @@
   <footer class="wb-footer">
     <div id="diagnostics" class="diagnostics"></div>
     <div class="footer-actions">
-      <span id="dirty-flag" class="muted">目前沒有本機修改</span>
+      <span id="dirty-flag" class="muted">尚未儲存草稿</span>
       <button id="btn-download-patch" type="button">下載 patch</button>
-      <button id="btn-save-patch" type="button">儲存 patch 到伺服器</button>
-      <button id="btn-sync-contract" type="button" title="把剪輯修改轉成管線契約草稿，不會覆寫正式產物；超出場景範圍會 fail-closed。">同步到契約</button>
-      <button id="btn-save-all" type="button" title="一起儲存時間軸、字幕、音訊提示、特效意圖 patch，並建立給 Agent 的 workbench_handoff.json。">儲存全部並建立交接包</button>
-      <button id="btn-export" type="button" title="選用：透過 canonical ffmpeg 渲染，速度較慢。只寫入 workbench_export.mp4，不會寫 final.mp4。">匯出 ffmpeg</button>
+      <button id="btn-save-patch" type="button">儲存 patch 到資料夾</button>
+      <button id="btn-sync-contract" type="button" title="把時間軸 patch 轉成草稿合約，仍需後續 gate 驗證。">同步草稿合約</button>
+      <button id="btn-save-all" type="button" title="一次儲存時間軸、字幕、音訊與特效 patch，並產生 workbench_handoff.json。">儲存全部並交接</button>
+      <button id="btn-export" type="button" title="可選：輸出 workbench_export.mp4，不會覆蓋 final.mp4。">輸出 ffmpeg 草稿</button>
     </div>
   </footer>
 

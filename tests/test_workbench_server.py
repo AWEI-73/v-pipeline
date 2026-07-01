@@ -78,8 +78,8 @@ class WorkbenchServerTest(unittest.TestCase):
 
     def test_get_preview_timeline_and_workbench_html(self):
         html = urllib.request.urlopen(self.url("/workbench")).read().decode("utf-8")
-        self.assertIn("Hermes 原生剪輯工作區", html)
-        self.assertIn("素材", html)
+        self.assertIn("Hermes 影片剪輯工作檯", html)
+        self.assertIn("可用素材", html)
         self.assertIn("特效", html)
 
         payload = json.loads(urllib.request.urlopen(

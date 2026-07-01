@@ -439,13 +439,13 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn('state.activeView === "workbench"', main_js)
 
         for text in (
-            "Hermes 原生剪輯工作區",
-            "素材",
+            "Hermes 影片剪輯工作檯",
+            "可用素材",
             "字幕",
             "音訊",
-            "檢視器",
+            "鏡頭契約",
             "套用",
-            "儲存全部並建立交接包",
+            "儲存全部並交接",
         ):
             self.assertIn(text, native_html)
 

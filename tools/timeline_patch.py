@@ -42,7 +42,7 @@ PROTECTED_OUTPUTS = {
     "delivery_gate.json",
 }
 
-TIMELINE_CANDIDATES = ("draft_timeline.json", "timeline.json")
+TIMELINE_CANDIDATES = ("draft_timeline.json", "timeline.json", "preview_timeline.json")
 
 
 # --------------------------------------------------------------------------- #
@@ -55,12 +55,58 @@ def _load_json(path: Path) -> Optional[Any]:
         return None
 
 
+def _preview_timeline_as_draft(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Adapt preview_timeline clips into the draft timeline plan shape.
+
+    Workbench review routes can intentionally stop after preview generation.
+    In that state there is no canonical timeline.json yet, but the user can
+    still propose draft edits against preview_timeline.json. This adapter keeps
+    that path draft-only by normalizing preview clips into an in-memory plan.
+    """
+    plan = []
+    for index, clip in enumerate(data.get("clips") or []):
+        if not isinstance(clip, dict) or clip.get("status") == "gap":
+            continue
+        source = clip.get("source") or clip.get("source_path")
+        duration = clip.get("slot_dur") or clip.get("duration_sec")
+        if not source or duration is None:
+            continue
+        out = {
+            "slot_index": clip.get("slot_index", index),
+            "segment": clip.get("segment"),
+            "source": source,
+            "slot_dur": duration,
+            "extract_start": clip.get("extract_start", clip.get("source_start_sec", 0.0)),
+            "extract_dur": clip.get("extract_dur", clip.get("source_duration_sec", duration)),
+            "asset_id": clip.get("asset_id"),
+            "asset_type": clip.get("asset_type") or clip.get("type"),
+            "scene_id": clip.get("scene_id"),
+            "need_id": clip.get("need_id"),
+            "caption": clip.get("caption"),
+        }
+        for key in ("visual_family", "angle_scale", "action_family", "subject", "function"):
+            if clip.get(key) is not None:
+                out[key] = clip.get(key)
+        plan.append(out)
+    result = {
+        "artifact_role": "draft_timeline",
+        "version": 1,
+        "plan": plan,
+        "_draft_from": "preview_timeline.json",
+    }
+    if data.get("duration_sec") is not None:
+        result["duration_sec"] = data.get("duration_sec")
+    return result
+
+
 def _resolve_base_timeline(root: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     for name in TIMELINE_CANDIDATES:
         p = root / name
         if p.is_file():
             data = _load_json(p)
             if isinstance(data, dict):
+                if name == "preview_timeline.json":
+                    data = _preview_timeline_as_draft(data)
                 return data, name
     return None, None
 
@@ -174,7 +220,7 @@ def validate_patch(
 
     timeline, _ = _resolve_base_timeline(root)
     if timeline is None:
-        return False, errors + ["no base timeline (draft_timeline.json / timeline.json) found"]
+        return False, errors + ["no base timeline (draft_timeline.json / timeline.json / preview_timeline.json) found"]
     plan = _plan_of(timeline)
     by_slot = _index_by_slot(plan)
     material_map = _load_json(root / "project_material_map.json")

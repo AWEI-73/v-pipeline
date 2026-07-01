@@ -47,6 +47,38 @@ def _make_root(tmp: str) -> Path:
     return root
 
 
+def _make_preview_only_root(tmp: str) -> Path:
+    root = Path(tmp)
+    vid = root / "clip.mp4"
+    vid.write_bytes(b"\x00")
+    _write(root, "preview_timeline.json", {
+        "artifact_role": "preview_timeline",
+        "version": 1,
+        "clips": [{
+            "slot_index": 0,
+            "segment": 1,
+            "type": "video",
+            "source_path": str(vid),
+            "duration_sec": 3.0,
+            "source_start_sec": 0.0,
+            "source_duration_sec": 3.0,
+            "caption": "preview clip",
+        }],
+    })
+    _write(root, "project_material_map.json", {
+        "artifact_role": "project_material_map",
+        "version": 1,
+        "assets": [{
+            "asset_id": "a0",
+            "asset_type": "video",
+            "source": str(vid),
+            "duration_sec": 6.0,
+            "scenes": [{"start": 0.0, "end": 6.0, "caption": "video scene"}],
+        }],
+    })
+    return root
+
+
 def _patch(*ops):
     return {"artifact_role": "timeline_patch", "version": 1,
             "base_timeline_ref": "timeline.json", "patches": list(ops), "diagnostics": []}
@@ -156,6 +188,14 @@ class TimelinePatchValidateTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(any("new_index" in e for e in errors))
 
+    def test_preview_timeline_can_be_draft_base_when_no_timeline_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_preview_only_root(tmp)
+            ok, errors = validate_patch(str(root), _patch(
+                {"op": "set_duration", "slot_index": 0, "after": {"duration_sec": 2.5}},
+            ))
+        self.assertTrue(ok, errors)
+
 
 class TimelinePatchApplyTest(unittest.TestCase):
     def test_move_clip_is_deterministic(self):
@@ -218,6 +258,18 @@ class TimelinePatchApplyTest(unittest.TestCase):
         self.assertEqual(clip["slot_dur"], 2.0)
         self.assertEqual(clip["extract_start"], 0.0)
         self.assertEqual(clip["extract_dur"], 2.0)
+
+    def test_apply_preview_timeline_base_writes_draft_plan_shape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _make_preview_only_root(tmp)
+            result = apply_patch(str(root), _patch(
+                {"op": "set_duration", "slot_index": 0, "after": {"duration_sec": 2.5}},
+            ))
+        self.assertEqual(result["_patched_from"], "preview_timeline.json")
+        self.assertEqual(result["plan"][0]["source"], str(root / "clip.mp4"))
+        self.assertEqual(result["plan"][0]["slot_dur"], 2.5)
+        self.assertEqual(result["plan"][0]["extract_start"], 0.0)
+        self.assertEqual(result["plan"][0]["extract_dur"], 3.0)
 
     def test_apply_insert_clip_uses_new_slot_identity_and_reindexes_position(self):
         with tempfile.TemporaryDirectory() as tmp:

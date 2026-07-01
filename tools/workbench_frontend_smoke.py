@@ -250,7 +250,7 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
 
     html = _read_text_url(f"{base_url}/workbench")
     required_markers = (
-        "Hermes 原生剪輯工作區",
+        "Hermes 影片剪輯工作檯",
         'class="wb-monitor"',
         'id="monitor"',
         'class="wb-transport"',
