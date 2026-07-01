@@ -293,6 +293,8 @@ This creates the matrix, contact sheet, conservative wall verdict draft,
 acceptance report in one run folder. It does not render. The canonical
 `rough_cut_plan.json` remains a short smoke handoff; review
 `preview_rough_cut_plan.json` before using it for render or Workbench changes.
+The preview proposal should use unique reviewed assets first and extend their
+bounded clip lengths before repeating an asset just to fill time.
 
 For large source clips, use a storyboard preview built from matrix keyframes
 before attempting motion preview:

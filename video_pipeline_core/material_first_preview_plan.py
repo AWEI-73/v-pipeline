@@ -81,7 +81,6 @@ def build_preview_plan(
     candidates = _ordered_candidates(matrix, wall_verdict_draft, roles)
     clips: list[dict[str, Any]] = []
     total = 0.0
-    index = 0
     if not candidates:
         return {
             "artifact_role": "material_first_preview_rough_cut_plan",
@@ -95,15 +94,18 @@ def build_preview_plan(
             "gaps": [{"reason": "no primary or alternate candidates in wall verdict draft"}],
         }
 
-    while total < min_duration_sec and total < max_duration_sec:
-        candidate = candidates[index % len(candidates)]
+    preferred_total = min(float(max_duration_sec), max(float(min_duration_sec), float(target_duration_sec)))
+    available_total = sum((_duration(candidate["asset"]) or float(clip_duration_sec)) for candidate in candidates)
+    first_pass_goal = min(preferred_total, available_total)
+    first_pass_duration = max(float(clip_duration_sec), first_pass_goal / max(1, len(candidates)))
+
+    def append_clip(candidate: Mapping[str, Any], *, index: int, cycle: int, duration_goal: float) -> float:
         asset = candidate["asset"]
         asset_id = str(asset.get("asset_id"))
         available = _duration(asset) or clip_duration_sec
-        duration = min(float(clip_duration_sec), available, max_duration_sec - total)
+        duration = min(float(duration_goal), available, max_duration_sec - total)
         if duration <= 0:
-            break
-        cycle = index // len(candidates)
+            return 0.0
         start = min(max(0.0, cycle * float(clip_duration_sec)), max(0.0, available - duration))
         clips.append({
             "segment": len(clips) + 1,
@@ -119,6 +121,20 @@ def build_preview_plan(
             "review_required": True,
             "reason": "preview proposal from material understanding matrix and wall verdict draft",
         })
+        return duration
+
+    for index, candidate in enumerate(candidates):
+        if total >= min_duration_sec or total >= max_duration_sec:
+            break
+        total += append_clip(candidate, index=index, cycle=0, duration_goal=first_pass_duration)
+
+    index = len(clips)
+    while total < min_duration_sec and total < max_duration_sec:
+        candidate = candidates[index % len(candidates)]
+        cycle = index // len(candidates)
+        duration = append_clip(candidate, index=index, cycle=cycle, duration_goal=float(clip_duration_sec))
+        if duration <= 0:
+            break
         total += duration
         index += 1
         if total >= target_duration_sec and total >= min_duration_sec:

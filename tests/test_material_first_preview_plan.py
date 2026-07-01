@@ -68,6 +68,53 @@ class MaterialFirstPreviewPlanTest(unittest.TestCase):
         self.assertEqual(statuses["open_b"], "alternate")
         self.assertTrue(all(clip["source_path"] for clip in plan["clips"]))
 
+    def test_extends_unique_candidates_before_repeating_assets(self):
+        from video_pipeline_core.material_first_preview_plan import build_preview_plan
+
+        matrix = {
+            "artifact_role": "material_understanding_matrix",
+            "version": 1,
+            "assets": [
+                {
+                    "asset_id": f"asset_{index}",
+                    "source_path": f"C:/media/asset_{index}.mp4",
+                    "media_type": "video",
+                    "duration_sec": 8.0,
+                    "role_hints": [["opening", "training", "closing"][index % 3]],
+                    "visual_evidence": {"caption_hint": f"asset {index}"},
+                }
+                for index in range(8)
+            ],
+        }
+        draft = {
+            "artifact_role": "material_wall_review_verdict",
+            "version": 1,
+            "primary_selection": {
+                "opening": "asset_0",
+                "training": "asset_1",
+                "closing": "asset_2",
+            },
+            "alternate_candidates": [
+                {"asset_id": f"asset_{index}", "for_role": ["opening", "training", "closing"][index % 3]}
+                for index in range(3, 8)
+            ],
+        }
+
+        plan = build_preview_plan(
+            matrix,
+            draft,
+            target_duration_sec=72,
+            min_duration_sec=60,
+            max_duration_sec=90,
+            clip_duration_sec=6,
+        )
+
+        asset_ids = [clip["asset_id"] for clip in plan["clips"]]
+        self.assertTrue(plan["ok"], plan)
+        self.assertGreaterEqual(plan["total_duration_sec"], 60)
+        self.assertEqual(len(asset_ids), len(set(asset_ids)))
+        self.assertTrue(any(clip["duration_sec"] > 6 for clip in plan["clips"]))
+
     def test_cli_writes_preview_plan(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

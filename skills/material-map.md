@@ -267,6 +267,10 @@ This wraps source scanning, material understanding matrix, wall verdict draft,
 acceptance. It intentionally stops at reviewable artifacts. The canonical
 `rough_cut_plan.json` is still a short smoke handoff; use
 `preview_rough_cut_plan.json` for human/Workbench review before render.
+The preview planner should prefer unique accepted assets and extend their
+bounded clip duration before repeating the same asset. Repetition is reserved
+for cases where unique reviewed material cannot reach the minimum preview
+length.
 
 If source clips are large or slow to decode, create a fast storyboard preview
 from matrix keyframes instead of forcing a motion concat:
