@@ -262,6 +262,8 @@ def load_dashboard_state(workdir):
                     manifest["workbench_handoff"] = f
                 elif f == "workbench_revision_request.json":
                     manifest["workbench_revision_request"] = f
+                elif f == "workbench_rerender_report.json":
+                    manifest["workbench_rerender_report"] = f
                 elif f == "preview_timeline.json":
                     manifest["preview_timeline"] = f
                 elif f == "delivery_gate.json":
@@ -388,6 +390,10 @@ def load_dashboard_state(workdir):
     workbench_revision_request = (
         safe_load_json(manifest.get("workbench_revision_request"))
         or safe_load_json("workbench_revision_request.json")
+    )
+    workbench_rerender_report = (
+        safe_load_json(manifest.get("workbench_rerender_report"))
+        or safe_load_json("workbench_rerender_report.json")
     )
     preview_timeline = (
         safe_load_json(manifest.get("preview_timeline"))
@@ -1065,6 +1071,13 @@ def load_dashboard_state(workdir):
         next_action = workbench_handoff.get("next_action") or "review_workbench_route_back"
         is_pass = False
     elif (
+        workbench_rerender_report
+        and workbench_rerender_report.get("artifact_role") == "workbench_draft_rerender"
+        and workbench_rerender_report.get("ok") is True
+    ):
+        next_action = "review_workbench_rerender_preview"
+        is_pass = False
+    elif (
         material_inventory_summary
         and not material_first_boundary_acceptance_report
     ):
@@ -1291,6 +1304,21 @@ def load_dashboard_state(workdir):
             "artifact": "workbench_handoff",
             "message": "workbench draft edits require route-back review: " + ", ".join(owners),
         })
+    if (
+        workbench_rerender_report
+        and workbench_rerender_report.get("artifact_role") == "workbench_draft_rerender"
+        and workbench_rerender_report.get("ok") is True
+    ):
+        export = workbench_rerender_report.get("export") or {}
+        findings.append({
+            "type": "info",
+            "node": "brownfield",
+            "artifact": "workbench_rerender_report",
+            "message": (
+                "Workbench draft preview was rerendered for review"
+                + (f": {export.get('out')}" if export.get("out") else "")
+            ),
+        })
 
     # Populate segments timeline (three-layer)
     normalized_segs = []
@@ -1490,6 +1518,7 @@ def load_dashboard_state(workdir):
             "subtitle_voiceover_build_handoff": subtitle_voiceover_build_handoff,
             "workbench_handoff": workbench_handoff,
             "workbench_revision_request": workbench_revision_request,
+            "workbench_rerender_report": workbench_rerender_report,
             "preview_timeline": preview_timeline,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,

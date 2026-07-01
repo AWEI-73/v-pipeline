@@ -1449,6 +1449,33 @@ class DashboardStateSpecTest(unittest.TestCase):
             )
             self.assertEqual(state["next_action"], "open_workbench_for_preview_revision")
 
+    def test_workbench_rerender_report_surfaces_as_review_preview_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "workbench_rerender_report.json").write_text(json.dumps({
+                "artifact_role": "workbench_draft_rerender",
+                "version": 1,
+                "ok": True,
+                "export": {
+                    "out": str(workdir / "workbench_rerender.mp4"),
+                    "source": "patched_timeline",
+                },
+                "canonical_changed": False,
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertIn("workbench_rerender_report", state["artifacts"])
+            self.assertEqual(
+                state["artifacts"]["workbench_rerender_report"]["artifact_role"],
+                "workbench_draft_rerender",
+            )
+            self.assertEqual(state["next_action"], "review_workbench_rerender_preview")
+            self.assertTrue(any(
+                finding.get("artifact") == "workbench_rerender_report"
+                for finding in state["findings"]
+            ))
+
     def test_source_highlight_artifacts_surface_without_missing_brief_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
