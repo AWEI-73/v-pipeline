@@ -174,6 +174,22 @@ class PipelineHomeTest(unittest.TestCase):
                 "artifact_role": "verified_preview_review_packet",
             })
             (root / "review_report.md").write_text("# Review", encoding="utf-8")
+            _write(root, "preview_timeline.json", {
+                "artifact_role": "preview_timeline",
+                "version": 1,
+            })
+            _write(root, "workbench_handoff.json", {
+                "artifact_role": "workbench_handoff",
+                "version": 1,
+                "artifacts": {
+                    "preview_timeline": "preview_timeline.json",
+                    "workbench_review_report": "workbench_review_report.json",
+                },
+                "artifact_details": {},
+            })
+            _write(root, "workbench_review_report.json", {
+                "artifact_role": "workbench_review_report",
+            })
 
             summary = summarize_run(tmp)
 
@@ -183,6 +199,9 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "verified_preview_review_decision.json")
             self.assertIn("verified_preview_review_decision.json", summary["read"])
             self.assertIn("delivery_candidate.mp4", summary["read"])
+            self.assertIn("workbench_handoff.json", summary["read"])
+            self.assertIn("preview_timeline.json", summary["read"])
+            self.assertIn("workbench_review_report.json", summary["read"])
 
     def test_verified_preview_review_rebuild_decision_routes_to_repair(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1064,6 +1064,16 @@ def _verified_preview_review_decision_summary(root: Path):
             ref = _rel(root, package.get(ref_key))
             if ref and ref not in read:
                 read.append(ref)
+    handoff_path, handoff = _find_json(root, "workbench_handoff.json")
+    if handoff_path:
+        handoff_ref = _rel(root, handoff_path)
+        if handoff_ref and handoff_ref not in read:
+            read.append(handoff_ref)
+    if isinstance(handoff, dict):
+        for ref in (handoff.get("artifacts") or {}).values():
+            rel = _rel(root, ref)
+            if rel and rel not in read:
+                read.append(rel)
 
     mode = decision.get("mode")
     if mode not in {"run", "repair", "waiting"}:
