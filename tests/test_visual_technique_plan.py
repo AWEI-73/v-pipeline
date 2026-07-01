@@ -75,6 +75,252 @@ class VisualTechniquePlanTest(unittest.TestCase):
         self.assertIn("flash_frequency", plan["controls"])
         self.assertEqual(plan["followup_questions"], [])
 
+    def test_chinese_lightning_opening_maps_to_reviewable_electric_family(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u52d5\u611f\u9583\u96fb\u958b\u5834\uff0c\u8981\u6709\u885d\u64ca\u611f\u4f46\u4e0d\u8981\u50cf\u6050\u6016\u7247",
+                "effect_role": "opening_title",
+                "duration_sec": 5,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "electric_lightning_energy")
+        self.assertEqual(plan["handoff_to"], "review_candidate_parameters")
+        self.assertIn("branching_lightning_arcs", plan["visual_primitives"])
+        self.assertIn("arc_strike", plan["motion_primitives"])
+        self.assertIn("strike_count", plan["controls"])
+        self.assertIn("no horror tone", plan["negative_rules"])
+
+    def test_chinese_earthquake_crack_opening_maps_to_impact_family(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u5730\u9707\u88c2\u52d5\u958b\u5834\uff0c\u50cf\u6311\u6230\u958b\u59cb\u7684\u885d\u64ca\u756b\u9762",
+                "effect_role": "opening_title",
+                "duration_sec": 4,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "earthquake_crack_impact")
+        self.assertEqual(plan["handoff_to"], "review_candidate_parameters")
+        self.assertIn("surface_crack_lines", plan["visual_primitives"])
+        self.assertIn("impact_shake", plan["motion_primitives"])
+        self.assertIn("shake_strength", plan["controls"])
+        self.assertIn("no injury implication", plan["negative_rules"])
+
+    def test_chinese_mothers_day_heart_background_maps_to_warm_family(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u6bcd\u89aa\u7bc0\u611b\u5fc3\u5e03\u666f\uff0c\u6eab\u67d4\u611f\u8b1d\u7684\u958b\u5834",
+                "effect_role": "opening_title",
+                "duration_sec": 6,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "mothers_day_heart_stage")
+        self.assertEqual(plan["handoff_to"], "review_candidate_parameters")
+        self.assertIn("soft_heart_bokeh", plan["visual_primitives"])
+        self.assertIn("heart_float", plan["motion_primitives"])
+        self.assertIn("heart_count", plan["controls"])
+        self.assertIn("no harsh red", plan["negative_rules"])
+
+    def test_broad_japanese_cute_style_maps_to_dictionary_not_fixed_sakura_template(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u65e5\u5f0f\u53ef\u611b\u98a8\u683c\u7684\u6545\u4e8b\u958b\u5834\uff0c\u60f3\u8981\u8f15\u67d4\u3001\u6709\u7d19\u672c\u611f",
+                "effect_role": "opening_title",
+                "duration_sec": 6,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "japanese_soft_storybook")
+        self.assertEqual(plan["handoff_to"], "review_candidate_parameters")
+        self.assertIn("storybook_paper_texture", plan["visual_primitives"])
+        self.assertIn("soft_character_plate", plan["visual_primitives"])
+        self.assertIn("gentle_parallax", plan["motion_primitives"])
+        self.assertIn("palette", plan["controls"])
+        self.assertNotIn("sakura", plan["visual_primitives"])
+        self.assertTrue(plan["requires_human_review"])
+        self.assertEqual(plan["semantic_slots"]["tone"], "gentle_cute_storybook")
+        self.assertIn("remotion_layered_paper", plan["remotion_capability_plan"]["capabilities"])
+        self.assertIn("remotion_text_layers", plan["remotion_capability_plan"]["capabilities"])
+        self.assertEqual(plan["remotion_capability_plan"]["timing_model"], "useCurrentFrame_interpolate")
+        self.assertIn("layers", plan["remotion_capability_plan"])
+        self.assertIn("parameter_schema", plan["remotion_capability_plan"])
+        self.assertIn("fallback_policy", plan["remotion_capability_plan"])
+        self.assertIn("remotion_layered_paper", plan["remotion_capability_plan"]["parameter_schema"])
+        self.assertIn("duration_sec", plan["remotion_capability_plan"]["timing_controls"])
+
+    def test_memory_wall_translates_to_supported_build_spec_not_only_style_label(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u56de\u61b6\u7167\u7247\u7246\uff0c\u7167\u7247\u4e00\u5f35\u4e00\u5f35\u6162\u6162\u51fa\u73fe\uff0c\u6eab\u99a8\u60c5\u7dd2",
+                "effect_role": "transition",
+                "duration_sec": 8,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "memory_photo_wall_warm")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "memory_transition_or_emotional_recap")
+        self.assertEqual(plan["semantic_slots"]["pacing"], "slow")
+        self.assertEqual(plan["semantic_slots"]["reveal_mode"], "one_by_one")
+        self.assertIn("remotion_photo_layers", plan["remotion_capability_plan"]["capabilities"])
+        self.assertIn("sequence_layers", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("material_refs", plan["remotion_capability_plan"]["parameter_schema"])
+        self.assertEqual(plan["remotion_capability_plan"]["layers"][0]["role"], "image_layout")
+        self.assertEqual(plan["remotion_capability_plan"]["layers"][0]["source"], "reviewed_material_refs")
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "MemoryPhotoWall")
+        self.assertEqual(spec["duration_sec"], 8.0)
+        self.assertEqual(spec["reveal_mode"], "one_by_one")
+        self.assertEqual(spec["camera_motion"], "slow_push_in")
+
+    def test_story_to_mv_transition_translates_to_supported_build_spec(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u524d\u534a\u6bb5\u6545\u4e8b\u8f49\u5230\u5f8c\u534a\u6bb5 MV \u8499\u592a\u5947\uff0c\u8981\u52a0\u901f\u6709\u885d\u64ca",
+                "effect_role": "transition",
+                "duration_sec": 4,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "story_to_mv_transition")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "story_to_montage_energy_shift")
+        self.assertEqual(plan["semantic_slots"]["pacing_shift"], "slow_to_fast")
+        self.assertIn("transition_series", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("remotion_timeline_cuts", plan["remotion_capability_plan"]["capabilities"])
+        self.assertIn("impact_moment_sec", plan["remotion_capability_plan"]["timing_controls"])
+        self.assertTrue(any(layer["role"] == "transition_overlay" for layer in plan["remotion_capability_plan"]["layers"]))
+        self.assertIn("TransitionSeries.Transition", plan["remotion_capability_plan"]["remotion_api_refs"])
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "StoryToMVTransition")
+        self.assertEqual(spec["section_from"], "story")
+        self.assertEqual(spec["section_to"], "montage")
+        self.assertIn("thumbnail_acceleration", spec["motion_grammar"])
+
+    def test_terminal_data_reveal_keeps_cyber_semantics_instead_of_lightning_fallback(self):
+        plan = plan_visual_technique(
+            {
+                "request": (
+                    "\u9ed1\u5ba2\u8cc7\u6599\u6d41\u63ed\u793a\u958b\u5834\uff0c"
+                    "\u50cf\u7d42\u7aef\u6a5f\u8cc7\u6599\u5feb\u901f\u6d41\u52d5\uff0c"
+                    "\u6700\u5f8c\u7d44\u6210\u4e3b\u6a19\u984c\uff0c\u79d1\u6280\u7dca\u5f35\u4f46\u6587\u5b57\u6e05\u695a"
+                ),
+                "effect_role": "opening_title",
+                "duration_sec": 5,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "terminal_data_reveal")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "cyber_information_reveal")
+        self.assertEqual(plan["semantic_slots"]["material_relation"], "abstract_generated_overlay")
+        self.assertIn("glyph_stream_layer", plan["visual_primitives"])
+        self.assertIn("title_assembly", plan["motion_primitives"])
+        self.assertIn("scanline_layer", plan["remotion_capability_plan"]["primitives"])
+        self.assertTrue(any(layer["role"] == "data_stream_layer" for layer in plan["remotion_capability_plan"]["layers"]))
+        self.assertIn("glyph_speed", plan["remotion_capability_plan"]["parameter_schema"])
+        self.assertEqual(plan["controls"]["readability_guard"], "title_clear_after_reveal")
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "text" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "glyph_stream" for layer in spec["layers"]))
+        self.assertNotEqual(plan["style_family"], "electric_lightning_energy")
+
+    def test_vintage_film_burn_transition_keeps_burn_through_semantics(self):
+        plan = plan_visual_technique(
+            {
+                "request": (
+                    "\u5fa9\u53e4\u81a0\u7247\u71d2\u707c\u8f49\u5834\uff0c"
+                    "\u50cf\u8001\u96fb\u5f71\u81a0\u5377\u908a\u7de3\u88ab\u5149\u71d2\u958b\uff0c"
+                    "\u5f9e\u4e0a\u4e00\u6bb5\u56de\u61b6\u5207\u5230\u4e0b\u4e00\u6bb5\u771f\u76f8\uff0c"
+                    "\u61f7\u820a\u3001\u4e0d\u5b89\u4f46\u4e0d\u6050\u6016"
+                ),
+                "effect_role": "transition",
+                "duration_sec": 3,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "vintage_film_burn_transition")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "memory_to_truth_transition")
+        self.assertIn("burn_mask_edge", plan["visual_primitives"])
+        self.assertIn("burn_through_wipe", plan["motion_primitives"])
+        self.assertIn("mask_wipe_layer", plan["remotion_capability_plan"]["primitives"])
+        self.assertTrue(any(layer["role"] == "burn_mask_wipe" for layer in plan["remotion_capability_plan"]["layers"]))
+        self.assertIn("burn_edge_width", plan["remotion_capability_plan"]["parameter_schema"])
+        self.assertIn("transition_duration_sec", plan["remotion_capability_plan"]["timing_controls"])
+        self.assertEqual(plan["controls"]["horror_guard"], "no_horror_no_gore")
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "mask_wipe" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "film_grain" for layer in spec["layers"]))
+        self.assertNotEqual(plan["style_family"], "warm_documentary")
+
+    def test_ink_spread_reveal_translates_to_mask_and_fluid_layers(self):
+        plan = plan_visual_technique(
+            {
+                "request": "ink spread reveal opening, black ink blooms across rice paper and reveals the title",
+                "effect_role": "opening_title",
+                "duration_sec": 5,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "ink_spread_reveal")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "organic_title_reveal")
+        self.assertIn("ink_bloom_mask", plan["visual_primitives"])
+        self.assertIn("paper_fiber_texture", plan["visual_primitives"])
+        self.assertIn("fluid_spread", plan["motion_primitives"])
+        self.assertIn("mask_reveal_layer", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("noise_displacement_layer", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("ink_spread_radius", plan["remotion_capability_plan"]["parameter_schema"])
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "mask_reveal" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "texture_overlay" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "text" for layer in spec["layers"]))
+        self.assertFalse(any(layer["type"] == "film_grain" for layer in spec["layers"]))
+
+    def test_prism_glass_refraction_translates_to_refraction_layers(self):
+        plan = plan_visual_technique(
+            {
+                "request": "prism glass refraction transition, crystalline split colors bend the footage into the next chapter",
+                "effect_role": "transition",
+                "duration_sec": 4,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "prism_glass_refraction")
+        self.assertEqual(plan["semantic_slots"]["story_function"], "crystalline_transition")
+        self.assertIn("glass_prism_planes", plan["visual_primitives"])
+        self.assertIn("rgb_spectral_split", plan["visual_primitives"])
+        self.assertIn("refraction_sweep", plan["motion_primitives"])
+        self.assertIn("refraction_layer", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("clip_path_planes", plan["remotion_capability_plan"]["primitives"])
+        self.assertIn("chromatic_aberration_px", plan["remotion_capability_plan"]["parameter_schema"])
+        spec = plan["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "refraction" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "chromatic_split" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "mask_wipe" for layer in spec["layers"]))
+
+    def test_supported_build_spec_is_preserved_into_prompt_parameters(self):
+        plan = plan_visual_technique(
+            {
+                "request": "\u56de\u61b6\u7167\u7247\u7246\uff0c\u7167\u7247\u4e00\u5f35\u4e00\u5f35\u6162\u6162\u51fa\u73fe",
+                "effect_role": "transition",
+                "duration_sec": 8,
+                "confirmed_style_family": True,
+            }
+        )
+        effect = technique_to_effect(plan, effect_id="fx_memory_wall_01")
+
+        self.assertEqual(
+            effect["prompt_parameters"]["effect_build_spec"]["component"],
+            "MemoryPhotoWall",
+        )
+        self.assertEqual(
+            effect["prompt_parameters"]["visual_technique_plan"]["remotion_capability_plan"]["engine"],
+            "remotion",
+        )
+
     def test_vague_or_unsupported_request_requires_followup_not_fake_completion(self):
         plan = plan_visual_technique({"request": "make it nice"})
 
@@ -186,6 +432,36 @@ class VisualTechniquePlanTest(unittest.TestCase):
             params["visual_technique_plan"]["candidate_options"][1]["option_id"],
             "balanced",
         )
+        spec = params["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "particle_overlay" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "light_overlay" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "camera_motion" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "text" for layer in spec["layers"]))
+
+    def test_confirmed_earthquake_candidate_can_handoff_as_generic_crack_layers(self):
+        plan = plan_visual_technique(
+            {
+                "request": "earthquake crack impact opening, concrete lines expand with dust and shake",
+                "effect_role": "opening_title",
+                "duration_sec": 4,
+                "confirmed_style_family": True,
+            }
+        )
+
+        self.assertEqual(plan["style_family"], "earthquake_crack_impact")
+        self.assertEqual(plan["handoff_to"], "remotion_prompt_parameters")
+        effect = technique_to_effect(
+            plan,
+            effect_id="fx_crack_opening_01",
+            display_text="Impact",
+        )
+        spec = effect["prompt_parameters"]["effect_build_spec"]
+        self.assertEqual(spec["component"], "GenericRemotionEffect")
+        self.assertTrue(any(layer["type"] == "crack_lines" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "particle_overlay" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "camera_motion" for layer in spec["layers"]))
+        self.assertTrue(any(layer["type"] == "text" for layer in spec["layers"]))
 
     def test_review_apply_promotes_candidate_with_selected_option_and_overrides(self):
         plan = plan_visual_technique(
@@ -455,8 +731,9 @@ class VisualTechniquePlanTest(unittest.TestCase):
         self.assertEqual(len(pack["jobs"]), 1)
         job = pack["jobs"][0]
         self.assertEqual(job["route"], ADAPTER_ROUTE)
-        self.assertEqual(job["props"]["template_id"], "training_opening_title")
+        self.assertIsNone(job["props"]["template_id"])
         prompt_parameters = job["props"]["prompt_parameters"]
+        self.assertEqual(prompt_parameters["effect_build_spec"]["component"], "GenericRemotionEffect")
         technique_plan = prompt_parameters["visual_technique_plan"]
         self.assertEqual(technique_plan["style_family"], "japanese_sakura")
         self.assertIn("drift", prompt_parameters["motion_grammar"])

@@ -73,6 +73,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "generated-manifest": "contract",
     "generated-material-import": "material",
     "generated-image-provider-packet": "material",
+    "image-agent-prompt-handoff": "material",
     "codex-imagegen-provider-fill": "material",
     "generated-material-produce": "material",
     "generated-material-review": "material",
@@ -84,6 +85,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "soundtrack-provider-download": "provider_optional",
     "soundtrack-import-url": "provider_optional",
     "soundtrack-audio-handoff-accept": "contract",
+    "voiceover-provider-plan": "contract",
     "effect-intent-plan": "contract",
     "effect-revision-request": "contract",
     "effect-revision-draft": "contract",
@@ -279,6 +281,35 @@ WORKFLOWS = {
             },
         ],
     },
+    "generated_material_provider_handoff": {
+        "description": "Turn generated-material fallback jobs into real image-provider prompts, image-agent execution packets, and importable provider outputs.",
+        "steps": [
+            {
+                "id": "generated_image_provider_packet",
+                "command": "generated-image-provider-packet",
+                "purpose": "write target filenames, prompts, and generated_provider_outputs template for real image providers",
+                "requires": ["material-generation-fallback:ok"],
+            },
+            {
+                "id": "image_agent_prompt_handoff",
+                "command": "image-agent-prompt-handoff",
+                "purpose": "write an image-agent executable prompt packet; fail closed if only placeholder/text-card output is possible",
+                "requires": ["generated-image-provider-packet:ok"],
+            },
+            {
+                "id": "codex_imagegen_provider_fill",
+                "command": "codex-imagegen-provider-fill",
+                "purpose": "copy already-generated image files into packet target paths and write generated_provider_outputs.json",
+                "requires": ["image-agent-prompt-handoff:generated_files_ready"],
+            },
+            {
+                "id": "generated_material_import",
+                "command": "generated-material-import",
+                "purpose": "import real generated images back into generated material production artifacts for review",
+                "requires": ["generated_provider_outputs:ok"],
+            },
+        ],
+    },
     "canonical_build": {
         "description": "Run canonical backend build and verification gates.",
         "steps": [
@@ -304,6 +335,17 @@ WORKFLOWS = {
                 "command": "verify",
                 "purpose": "run delivery verification on the rendered output",
                 "requires": ["contract-run:ok"],
+            },
+        ],
+    },
+    "voiceover_provider_handoff": {
+        "description": "Plan or execute provider-backed narration before BUILD consumes subtitle/voiceover evidence.",
+        "steps": [
+            {
+                "id": "voiceover_provider_plan",
+                "command": "voiceover-provider-plan",
+                "purpose": "write voiceover_provider_plan.json, narration_manifest.json, and subtitle_voiceover_build_handoff.json; optionally execute VoxCPM or explicit legacy fallback",
+                "requires": ["segment_contract:has_narration_or_script_text"],
             },
         ],
     },

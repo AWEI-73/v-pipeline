@@ -1140,6 +1140,77 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertTrue(result["pass"], result)
 
+    def test_complete_video_gate_requires_vocal_analysis_when_requested(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            requirements["requires_vocal_conflict_check"] = True
+            (root / "delivery_requirements.json").write_text(json.dumps(requirements), encoding="utf-8")
+            (root / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "version": 1,
+                    "pass": True,
+                    "audio_file": "music.wav",
+                    "duration_sec": 60.0,
+                    "features": {
+                        "mean_dbfs": -18.0,
+                        "peak_dbfs": -2.0,
+                        "vocal_analysis": {"has_vocals": "unknown", "method": "not_run"},
+                    },
+                    "sections": [{"start_sec": 0.0, "end_sec": 60.0, "role": "full_track"}],
+                    "editing_fit": {"speech_underlay": "unknown", "montage": "medium"},
+                    "section_fit": [{"video_section": "speech_underlay", "fit": "unknown"}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("soundtrack_probe_missing_vocal_analysis", rules)
+
+    def test_complete_video_gate_blocks_vocal_music_conflict_when_requested(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
+            requirements["requires_soundtrack_probe"] = True
+            requirements["requires_vocal_conflict_check"] = True
+            (root / "delivery_requirements.json").write_text(json.dumps(requirements), encoding="utf-8")
+            (root / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "version": 1,
+                    "pass": True,
+                    "audio_file": "music.wav",
+                    "duration_sec": 60.0,
+                    "features": {
+                        "mean_dbfs": -18.0,
+                        "peak_dbfs": -2.0,
+                        "vocal_analysis": {
+                            "has_vocals": True,
+                            "method": "faster_whisper",
+                            "vocal_density": "high",
+                            "vocal_ratio": 0.58,
+                        },
+                    },
+                    "sections": [{"start_sec": 0.0, "end_sec": 60.0, "role": "full_track"}],
+                    "editing_fit": {"speech_underlay": "low", "montage": "medium"},
+                    "section_fit": [{"video_section": "speech_underlay", "fit": "low"}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("vocal_music_conflicts_with_voiceover", rules)
+
     def test_complete_video_gate_blocks_empty_soundtrack_probe(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

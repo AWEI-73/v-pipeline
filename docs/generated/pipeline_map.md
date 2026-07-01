@@ -44,7 +44,7 @@ Designed effect contracts, worker build, effect review, bounded handoff.
 
 - Docs: docs/effect-factory-route.md, docs/remotion_prompt_parameter_contract.md
 - Skills: skills/video-effect-factory.md, skills/remotion-effect-worker.md
-- Artifacts: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_factory_boundary_acceptance_report.json, effect_review.json, effect_handoff.json, remotion_effect_handoff.json, effect_render_verification.json
+- Artifacts: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_factory_boundary_acceptance_report.json, effect_factory_route_acceptance_report.json, effect_review.json, effect_handoff.json, remotion_effect_handoff.json, effect_render_verification.json
 
 ### Soundtrack Arranger Branch
 
@@ -79,7 +79,7 @@ Bounded route task packets and runner-neutral handoffs.
 - `build`: build_profile.json, assembly_plan.json, generated_mv_script.json
 - `verify`: keyframe_grid.jpg, visual_audit.json, caption_audit.json
 - `workbench`: preview_timeline.json, timeline_patch.json, workbench_contract_patch.json
-- `effects`: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_factory_boundary_acceptance_report.json, remotion_prompt_pack.json, remotion_effect_review.json
+- `effects`: visual_technique_plan.json, visual_technique_review.json, visual_technique_plan.confirmed.json, effect_design_map.json, effect_contract.json, effect_factory_boundary_acceptance_report.json, effect_factory_route_acceptance_report.json, remotion_prompt_pack.json, remotion_effect_review.json
 
 ## Support Tools
 
@@ -158,6 +158,7 @@ Bounded route task packets and runner-neutral handoffs.
 - `tools/material_gap_brief.py`
 - `tools/visual_technique_plan.py`
 - `tools/effect_factory_boundary_acceptance.py`
+- `tools/effect_factory_route_acceptance.py`
 - `tools/remotion_material_first_memory_acceptance.py`
 - `tools/soundtrack_flow_acceptance.py`
 - `tools/audio_mix_plan_execute.py`

@@ -153,15 +153,17 @@ entry_path = structure-first
   -> generated-material fallback only after material delta / need review
   -> story_first_provider_happy_path.py for no-material provider handoff
   -> provider_packet/generated_provider_packet.json
-  -> wait_for_generated_provider until real provider outputs are supplied
+  -> provider_packet/image_agent_handoff/image_agent_prompt_handoff.json
+  -> call_image_generation_agent until real provider outputs are supplied
 ```
 
 The structure route writes the first concrete `material_needs`. Material Map then
 proves or disproves those needs. If material remains missing, the explicit
 resolution choices are generated candidate fallback, shooting brief, rewrite,
 drop, or waiver. Generated candidate fallback must stop at
-`wait_for_generated_provider` when no real image provider outputs exist; do not
-promote placeholder or text-card images as material.
+`call_image_generation_agent` when no real image provider outputs exist but an
+image-agent handoff is present. If no image-capable provider is available, report
+provider unavailable; do not promote placeholder or text-card images as material.
 
 ### BUILD Decision Section
 
@@ -328,13 +330,18 @@ Effect language appears
   +-- Bounded effect request?
   |     -> visual_technique_plan.json
   |     -> ask/confirm candidate parameters if ambiguous
+  |     -> visual_technique_plan.confirmed.json after review
   |
   +-- Effect is required for story or delivery?
+  |     -> effect_capability_review.json
   |     -> effect_design_map.json
   |     -> effect_contract.json
   |     -> backend handoff: Remotion worker or light backend
   |
   +-- Worker output exists?
+        -> remotion_prompt_pack.json
+        -> remotion_worker_outputs.json
+        -> remotion_effect_review.json
         -> effect_review.json
         -> effect_handoff.json
         -> return route: Workbench / BUILD / Verify
@@ -355,6 +362,47 @@ Use Effect Factory for:
 - stylized asset such as fire, lightning, hearts, sakura, memory wall, or
   ceremony light, when the request is bounded enough to review.
 
+Current no-render route acceptance:
+
+```powershell
+python tools\effect_factory_route_acceptance.py `
+  --out RUN_DIR `
+  --request "electric lightning opening with readable title" `
+  --effect-role opening_title `
+  --duration-sec 4 `
+  --json
+```
+
+This is the preferred smoke for the complete Effect Factory line. It proves:
+
+```text
+semantic request
+  -> visual_technique_plan.json
+  -> visual_technique_plan.confirmed.json
+  -> effect_capability_review.json
+  -> effect_intent_plan.json
+  -> effect_revision_request.json
+  -> timeline_build.json
+  -> remotion_prompt_pack.json
+  -> remotion_worker_outputs.json
+  -> remotion_effect_review.json
+  -> effect_handoff.json
+  -> effect_factory_route_acceptance_report.json
+```
+
+Expected route surface after a pass:
+
+```text
+pipeline_home.py --run RUN_DIR --json
+cursor=effect_factory_route_acceptance
+next=ready_for_human_effect_review_or_pipeline_promotion
+final.mp4 must remain absent
+```
+
+This smoke does not prove final visual quality. It proves translation,
+capability review, worker handoff, review artifact presence, and bounded
+handoff. Use a separate preview/render probe for visual-quality judgment.
+
 Stop gates:
 
 - effect parameters are unconfirmed;
@@ -372,10 +420,14 @@ Forbidden actions:
 Handoff artifacts:
 
 - `visual_technique_plan.json`
+- `visual_technique_plan.confirmed.json`
+- `effect_capability_review.json`
 - `effect_design_map.json`
 - `effect_contract.json`
 - `remotion_prompt_pack.json`
 - `remotion_worker_outputs.json`
+- `remotion_effect_review.json`
+- `effect_factory_route_acceptance_report.json`
 - `effect_review.json`
 - `effect_handoff.json`
 - `effect_render_verification.json`
@@ -482,7 +534,13 @@ Audio / subtitle / voice intent appears
   |
   +-- Subtitle / narration / voiceover matters?
   |     -> Subtitle Director or Audio Director handoff
-  |     -> subtitle_voiceover_handoff.json
+  |     -> choose provider policy:
+  |        - no voiceover needed -> subtitle_only or no-op
+  |        - source speech is primary -> preserve_source_audio
+  |        - Chinese/Mandarin narration -> preferred_provider=voxcpm,
+  |          fallback_allowed=false by default
+  |        - quick allowed fallback -> legacy_tts
+  |     -> subtitle_voiceover_handoff.json / narration_manifest.json
   |
   +-- Mix is ready for delivery?
         -> final_audio.wav / audio_mix_report.json
@@ -495,6 +553,11 @@ Common policies:
   duck music under speech.
 - If the section is music-led / MV-like and no speech is needed, source audio may
   be removed or lowered by contract.
+- VoxCPM is a provider inside Audio Director, not a separate route. Use
+  `tools/voxcpm_runtime_check.py` before execution and
+  `tools/voxcpm_voiceover_provider.py` only after the contract requires real
+  narration audio. For Mandarin/Chinese voiceover, Stage 0 should prefer
+  VoxCPM and fail closed unless the contract explicitly allows fallback.
 - Songs with vocals and instrumental BGM are different roles. Role fallback
   requires review.
 - Famous songs or YouTube references may be `reference_only` unless the license
@@ -509,6 +572,9 @@ Stop gates:
   depends on music fit;
 - subtitles required but language, source text, or readability evidence is
   missing.
+- required voiceover but `narration_manifest.json` or
+  `subtitle_voiceover_build_handoff.json` is missing, or
+  `voiceover_ready=false`.
 
 Forbidden actions:
 

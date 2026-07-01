@@ -19,6 +19,7 @@ const usage = () => `Usage:
     --rendered-asset overlay.mov \\
     --project-root remotion_project \\
     [--remotion-bin path/to/remotion] \\
+    [--preview-only] \\
     [--write-entry-only]
 `;
 
@@ -28,6 +29,10 @@ function parseArgs(argv) {
     const key = argv[i];
     if (key === "--write-entry-only") {
       out.writeEntryOnly = true;
+      continue;
+    }
+    if (key === "--preview-only") {
+      out.previewOnly = true;
       continue;
     }
     if (!key.startsWith("--")) {
@@ -136,6 +141,31 @@ function buildEntry(job, jobDir = process.cwd()) {
   const effectBuildSpecForMedia = promptParameters.effect_build_spec && typeof promptParameters.effect_build_spec === "object"
     ? promptParameters.effect_build_spec
     : {};
+  const promptParametersForRender = JSON.parse(JSON.stringify(promptParameters || {}));
+  const effectBuildSpecForRender = promptParametersForRender.effect_build_spec && typeof promptParametersForRender.effect_build_spec === "object"
+    ? promptParametersForRender.effect_build_spec
+    : null;
+  if (effectBuildSpecForRender && Array.isArray(effectBuildSpecForRender.layers)) {
+    effectBuildSpecForRender.layers = effectBuildSpecForRender.layers.map((layer) => {
+      const params = layer && typeof layer.params === "object" ? layer.params : {};
+      if (!Array.isArray(params.refs)) {
+        return layer;
+      }
+      return {
+        ...layer,
+        params: {
+          ...params,
+          refs: params.refs.map((item, index) => ({
+            refId: String(item?.ref_id || item?.refId || `effect_media_${index + 1}`),
+            src: normalizeMediaSrc(item?.src || item?.path || item?.file || "", jobDir),
+            path: item?.path || item?.file || item?.src || "",
+            label: String(item?.label || ""),
+            visualRole: String(item?.visual_role || item?.visualRole || ""),
+          })).filter((item) => item.src || item.path),
+        },
+      };
+    });
+  }
   const rawCollageMediaRefs = Array.isArray(props.collage_media_refs) && props.collage_media_refs.length > 0
     ? props.collage_media_refs
     : (Array.isArray(effectBuildSpecForMedia.material_refs) ? effectBuildSpecForMedia.material_refs : []);
@@ -179,7 +209,7 @@ function buildEntry(job, jobDir = process.cwd()) {
     titleHierarchy: String(presentation.title_hierarchy || ""),
     heroMediaPolicy: String(presentation.hero_media_policy || ""),
     thumbnailDensity: String(presentation.thumbnail_density || ""),
-    promptParameters,
+    promptParameters: promptParametersForRender,
   };
 
   return `import React from "react";
@@ -234,6 +264,32 @@ const isHighlightWarmGlow = JOB.templateId === "highlight_warm_glow";
 const isBlurredSideFill = JOB.backgroundStyle === "blurred_side_fill" || JOB.templateId === "blurred_side_fill";
 const isCinematicOpening = isBlackCollage && JOB.variant === "cinematic_collage_reveal";
 const effectBuildSpec = JOB.promptParameters?.effect_build_spec || JOB.promptParameters?.effectBuildSpec || {};
+const genericEffectLayers = Array.isArray(effectBuildSpec.layers) ? effectBuildSpec.layers : [];
+const genericLayerTypes = genericEffectLayers.map((layer) => String(layer?.type || ""));
+const genericLayerByType = (type) => genericEffectLayers.find((layer) => String(layer?.type || "") === type) || null;
+const genericInkMaskLayer = genericLayerByType("mask_reveal");
+const genericTextureOverlayLayer = genericLayerByType("texture_overlay");
+const genericRefractionLayer = genericLayerByType("refraction");
+const genericChromaticSplitLayer = genericLayerByType("chromatic_split");
+const genericPlaneWipeLayer = genericLayerByType("mask_wipe");
+const genericTextLayer = genericLayerByType("text");
+const genericElectricArcLayer = genericLayerByType("electric_arcs");
+const genericCrackLineLayer = genericLayerByType("crack_lines");
+const genericParticleLayer = genericLayerByType("particle_overlay");
+const genericLightOverlayLayer = genericLayerByType("light_overlay");
+const genericCameraMotionLayer = genericLayerByType("camera_motion");
+const genericGlyphStreamLayer = genericLayerByType("glyph_stream");
+const genericFilmGrainLayer = genericLayerByType("film_grain");
+const genericImageLayoutLayer = genericLayerByType("image_layout");
+const genericRadialCurrentLayer = genericLayerByType("radial_current");
+const isGenericRemotionEffect = String(effectBuildSpec.component || "") === "GenericRemotionEffect";
+const isGenericInkSpread = isGenericRemotionEffect
+  && Boolean(genericInkMaskLayer)
+  && Boolean(genericTextureOverlayLayer)
+  && String(genericInkMaskLayer?.params?.mask_family || genericInkMaskLayer?.params?.maskFamily || "").includes("ink");
+const isGenericPrismGlass = isGenericRemotionEffect
+  && Boolean(genericRefractionLayer)
+  && Boolean(genericChromaticSplitLayer);
 const sakuraPetalCount = Math.min(180, Math.max(12, Number(visualTechniqueControls.petal_count || visualTechniqueControls.petalCount || 80)));
 const sakuraWindStrength = Number(visualTechniqueControls.wind_strength ?? visualTechniqueControls.windStrength ?? 0.25);
 const sakuraFallSpeed = Number(visualTechniqueControls.fall_speed ?? visualTechniqueControls.fallSpeed ?? 0.25);
@@ -480,6 +536,123 @@ const HermesEffectOverlay = ({ preview = false }) => {
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.in(Easing.cubic) },
   );
   const opacity = clamp(enter * exit);
+  const genericProgress = clamp(frame / Math.max(1, JOB.durationFrames - 1));
+  const genericInkRevealSec = Number(genericInkMaskLayer?.params?.reveal_sec ?? genericInkMaskLayer?.params?.revealSec ?? 3.2);
+  const genericInkRevealFrame = Math.max(1, Math.round(genericInkRevealSec * JOB.fps));
+  const genericInkProgress = clamp(frame / genericInkRevealFrame);
+  const genericInkRadius = interpolate(genericInkProgress, [0, 1], [120, 1120], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  const genericInkFeatherPx = Number(genericInkMaskLayer?.params?.edge_feather_px ?? genericInkMaskLayer?.params?.edgeFeatherPx ?? 42);
+  const genericInkTextureStrength = String(genericTextureOverlayLayer?.params?.strength || "medium");
+  const genericPrismPlaneCount = Math.max(3, Math.min(9, Number(genericRefractionLayer?.params?.plane_count ?? genericRefractionLayer?.params?.planeCount ?? 5)));
+  const genericPrismOffsetPx = Number(genericChromaticSplitLayer?.params?.offset_px ?? genericChromaticSplitLayer?.params?.offsetPx ?? 14);
+  const genericPrismSweep = interpolate(genericProgress, [0, 1], [-0.24, 1.24], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.inOut(Easing.cubic),
+  });
+  const genericElectricArcPaths = Array.from({ length: Math.max(1, Math.min(8, Number(genericElectricArcLayer?.params?.strike_count ?? genericElectricArcLayer?.params?.strikeCount ?? 3))) }, (_, index) => {
+    const offset = (index - 2) * 96;
+    return "M " + (360 + index * 180) + " 130 L " + (500 + offset) + " 360 L " + (455 + index * 120) + " 520 L " + (640 + offset) + " 760 L " + (590 + index * 130) + " 940";
+  });
+  const genericCurrentFadeOutStartFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_out_start_sec ?? genericRadialCurrentLayer?.params?.fadeOutStartSec ?? JOB.durationFrames / JOB.fps * 0.68) * JOB.fps);
+  const genericCurrentFadeOutEndFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_out_end_sec ?? genericRadialCurrentLayer?.params?.fadeOutEndSec ?? JOB.durationFrames / JOB.fps * 0.96) * JOB.fps);
+  const genericCurrentFadeInStartFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_in_start_sec ?? genericRadialCurrentLayer?.params?.fadeInStartSec ?? 0.0) * JOB.fps);
+  const genericCurrentFadeInEndFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_in_end_sec ?? genericRadialCurrentLayer?.params?.fadeInEndSec ?? 2.2) * JOB.fps);
+  const genericCurrentFadeIn = genericRadialCurrentLayer
+    ? interpolate(frame, [genericCurrentFadeInStartFrame, Math.max(genericCurrentFadeInStartFrame + 1, genericCurrentFadeInEndFrame)], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.out(Easing.cubic),
+      })
+    : 1;
+  const genericCurrentFade = genericRadialCurrentLayer
+    ? genericCurrentFadeIn * (1 - interpolate(frame, [genericCurrentFadeOutStartFrame, Math.max(genericCurrentFadeOutStartFrame + 1, genericCurrentFadeOutEndFrame)], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.inOut(Easing.cubic),
+      }))
+    : 1;
+  const genericCurrentPulse = genericRadialCurrentLayer
+    ? (String(genericRadialCurrentLayer?.params?.pulse || "") === "subtle"
+        ? 0.86 + Math.sin(frame * 0.052) * 0.07
+        : 0.72 + Math.sin(frame * 0.105) * 0.18 + Math.sin(frame * 0.031) * 0.10)
+    : 1;
+  const genericCurrentIsSmoothOuterRing = String(genericRadialCurrentLayer?.params?.flow_style || genericRadialCurrentLayer?.params?.flowStyle || "").includes("smooth");
+  const genericRadialCurrentRings = Array.from({ length: genericRadialCurrentLayer ? Math.max(2, Math.min(7, Number(genericRadialCurrentLayer?.params?.ring_count ?? genericRadialCurrentLayer?.params?.ringCount ?? 4))) : 0 }, (_, index) => ({
+    id: index,
+    radius: (genericCurrentIsSmoothOuterRing ? 294 : 262) + index * (genericCurrentIsSmoothOuterRing ? 30 : 38),
+    width: genericCurrentIsSmoothOuterRing ? Math.max(2, 5 - index * 0.35) : Math.max(2, 7 - index),
+    speed: (genericCurrentIsSmoothOuterRing ? 1.12 : 2.8) + index * (genericCurrentIsSmoothOuterRing ? 0.22 : 0.82),
+    opacity: (genericCurrentIsSmoothOuterRing ? 0.64 : 0.92) - index * (genericCurrentIsSmoothOuterRing ? 0.06 : 0.11),
+    color: index % 3 === 1 ? "rgba(255,70,78,.80)" : "rgba(72,218,255,.92)",
+  }));
+  const genericCrackPaths = Array.from({ length: Math.max(2, Math.min(12, Number(genericCrackLineLayer?.params?.crack_count ?? genericCrackLineLayer?.params?.crackCount ?? 5))) }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(1, Number(genericCrackLineLayer?.params?.crack_count ?? genericCrackLineLayer?.params?.crackCount ?? 5));
+    const endX = 960 + Math.cos(angle) * (220 + index * 34);
+    const endY = 540 + Math.sin(angle) * (110 + index * 24);
+    const midX = 960 + Math.cos(angle + 0.18) * (120 + index * 18);
+    const midY = 540 + Math.sin(angle - 0.12) * (70 + index * 12);
+    return "M 960 540 L " + midX.toFixed(1) + " " + midY.toFixed(1) + " L " + endX.toFixed(1) + " " + endY.toFixed(1);
+  });
+  const genericParticles = Array.from({ length: genericParticleLayer ? Math.max(12, Math.min(96, String(genericParticleLayer?.params?.density || "medium") === "high" ? 72 : (String(genericParticleLayer?.params?.density || "medium") === "low" ? 24 : 44))) : 0 }, (_, index) => {
+    const seed = (index * 61 + 11) % 997;
+    return {
+      id: index,
+      x: (seed * 1.91) % 1920,
+      y: (seed * 1.17) % 1080,
+      size: 3 + (seed % 9),
+      drift: ((seed % 41) - 20) * 1.4,
+      delay: (seed % 60) / 60,
+    };
+  });
+  const genericGlyphRows = Array.from({ length: genericGlyphStreamLayer ? 14 : 0 }, (_, row) => ({
+    row,
+    text: Array.from({ length: 44 }, (_, index) => ((row + index) % 3 === 0 ? "1" : ((row * index) % 5 === 0 ? "0" : "・"))).join(""),
+    y: 70 + row * 68,
+    speed: 18 + (row % 5) * 10,
+  }));
+const genericImageRefs = Array.isArray(genericImageLayoutLayer?.params?.refs)
+  ? genericImageLayoutLayer.params.refs
+  : (Array.isArray(JOB.collageMediaRefs) ? JOB.collageMediaRefs : []);
+const genericImageLayoutMode = String(genericImageLayoutLayer?.params?.layout || genericImageLayoutLayer?.params?.layout_mode || genericImageLayoutLayer?.params?.layoutMode || "");
+const isGenericCenterLogoLayout = genericImageLayoutMode === "center_logo" || genericImageLayoutMode === "logo_focus";
+const isGenericFullBleedHeroLayout = genericImageLayoutMode === "full_bleed_hero" || genericImageLayoutMode === "hero_background";
+const genericCenterLogoSize = Math.max(220, Math.min(720, Number(genericImageLayoutLayer?.params?.logo_size_px ?? genericImageLayoutLayer?.params?.logoSizePx ?? 330)));
+const genericHeroFadeInStartFrame = Math.round(Number(genericImageLayoutLayer?.params?.fade_in_start_sec ?? genericImageLayoutLayer?.params?.fadeInStartSec ?? 0) * JOB.fps);
+const genericHeroFadeInEndFrame = Math.round(Number(genericImageLayoutLayer?.params?.fade_in_end_sec ?? genericImageLayoutLayer?.params?.fadeInEndSec ?? 0) * JOB.fps);
+const genericHeroFadeIn = genericImageLayoutLayer && genericHeroFadeInEndFrame > genericHeroFadeInStartFrame
+  ? interpolate(frame, [genericHeroFadeInStartFrame, genericHeroFadeInEndFrame], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.out(Easing.cubic),
+    })
+  : 1;
+const genericHeroFadeOutStartFrame = Math.round(Number(genericImageLayoutLayer?.params?.fade_out_start_sec ?? genericImageLayoutLayer?.params?.fadeOutStartSec ?? JOB.durationFrames / JOB.fps * 0.72) * JOB.fps);
+const genericHeroFadeOutEndFrame = Math.round(Number(genericImageLayoutLayer?.params?.fade_out_end_sec ?? genericImageLayoutLayer?.params?.fadeOutEndSec ?? JOB.durationFrames / JOB.fps * 0.98) * JOB.fps);
+const genericHeroFade = genericImageLayoutLayer
+  ? interpolate(frame, [genericHeroFadeOutStartFrame, Math.max(genericHeroFadeOutStartFrame + 1, genericHeroFadeOutEndFrame)], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.inOut(Easing.cubic),
+    })
+  : 0;
+const genericHeroFadeToDarkStrength = Math.max(0, Math.min(0.92, Number(genericImageLayoutLayer?.params?.fade_to_dark_strength ?? genericImageLayoutLayer?.params?.fadeToDarkStrength ?? 0)));
+const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || genericTextLayer?.params?.safeArea || "");
+  const genericCameraMode = String(genericCameraMotionLayer?.params?.camera_motion || genericCameraMotionLayer?.params?.cameraMotion || "");
+  const genericCameraShake = genericCameraMotionLayer && genericCameraMode.includes("shake")
+    ? Math.sin(frame * 0.92) * 9 * (1 - genericProgress)
+    : 0;
+  const genericSnapScale = genericCameraMotionLayer
+    ? 1 + interpolate(frame, [0, Math.max(1, JOB.durationFrames * 0.18), Math.max(2, JOB.durationFrames * 0.42)], [0, 0.038, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.out(Easing.cubic),
+      })
+    : 1;
   const slowPushInScale = isMemoryPhotoWall && effectBuildSpec.camera_motion === "slow_push_in"
     ? interpolate(frame, [0, JOB.durationFrames - 1], [1, 1.045], {
         extrapolateLeft: "clamp",
@@ -489,6 +662,561 @@ const HermesEffectOverlay = ({ preview = false }) => {
     : 1;
   return (
     <AbsoluteFill style={{ backgroundColor: preview ? "#101018" : "transparent", overflow: "hidden" }}>
+      {isGenericInkSpread ? (
+        <AbsoluteFill
+          className="genericInkSpreadLayerGraph"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(237,226,202,1), rgba(220,207,178,1)), repeating-linear-gradient(72deg, rgba(65,52,34,.10) 0 1px, rgba(255,255,255,0) 1px 18px)",
+            opacity,
+          }}
+        >
+          <AbsoluteFill
+            className="genericTextureOverlayLayer"
+            style={{
+              background:
+                "repeating-linear-gradient(96deg, rgba(55,42,26,.12) 0 1px, rgba(255,255,255,0) 1px 22px), repeating-linear-gradient(12deg, rgba(255,255,255,.10) 0 1px, rgba(0,0,0,0) 1px 28px)",
+              opacity: genericInkTextureStrength === "high" ? 0.72 : (genericInkTextureStrength === "low" ? 0.28 : 0.48),
+              mixBlendMode: "multiply",
+            }}
+          />
+          <div
+            className="genericInkMaskLayer"
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: genericInkRadius,
+              height: genericInkRadius * 0.62,
+              transform: "translate(-50%, -50%) scaleX(" + (1.2 + genericInkProgress * 0.18) + ") rotate(" + (-2 + genericInkProgress * 4) + "deg)",
+              borderRadius: "48% 42% 50% 44%",
+              background:
+                "radial-gradient(circle at 32% 44%, rgba(10,10,9,.92), rgba(12,12,10,.78) 38%, rgba(16,16,14,.50) 58%, rgba(16,16,14,0) 78%)",
+              filter: "blur(" + genericInkFeatherPx + "px)",
+              opacity: opacity * 0.98,
+            }}
+          />
+          <div
+            className="genericInkMaskLayer"
+            style={{
+              position: "absolute",
+              left: "33%",
+              top: "44%",
+              width: genericInkRadius * 0.48,
+              height: genericInkRadius * 0.34,
+              transform: "translate(-50%, -50%) rotate(-8deg)",
+              borderRadius: "58% 44% 50% 38%",
+              background: "rgba(10,10,9,.56)",
+              filter: "blur(" + Math.max(12, genericInkFeatherPx * 0.65) + "px)",
+              opacity: opacity * genericInkProgress,
+            }}
+          />
+          <div
+            className="genericInkMaskLayer"
+            style={{
+              position: "absolute",
+              left: "68%",
+              top: "42%",
+              width: genericInkRadius * 0.34,
+              height: genericInkRadius * 0.28,
+              transform: "translate(-50%, -50%) rotate(14deg)",
+              borderRadius: "45% 58% 36% 52%",
+              background: "rgba(10,10,9,.46)",
+              filter: "blur(" + Math.max(10, genericInkFeatherPx * 0.55) + "px)",
+              opacity: opacity * genericInkProgress,
+            }}
+          />
+          <div
+            className="genericInkTitle"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: "42%",
+              textAlign: "center",
+              color: String(genericTextLayer?.params?.color || JOB.textColor || "#f5eedb"),
+              fontSize: 74,
+              fontWeight: 900,
+              letterSpacing: 0,
+              textShadow: "0 4px 26px rgba(0,0,0,.58)",
+              opacity: opacity * interpolate(genericInkProgress, [0.24, 0.68], [0, 1], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              }),
+            }}
+          >
+            {String(genericTextLayer?.params?.content || JOB.label)}
+            {JOB.subtitle ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  fontSize: 24,
+                  fontWeight: 600,
+                  color: "rgba(245,238,219,.78)",
+                  letterSpacing: 0,
+                }}
+              >
+                {JOB.subtitle}
+              </div>
+            ) : null}
+          </div>
+        </AbsoluteFill>
+      ) : null}
+      {isGenericPrismGlass ? (
+        <AbsoluteFill
+          className="genericPrismGlassLayerGraph"
+          style={{
+            background:
+              "radial-gradient(circle at 62% 32%, rgba(100,154,220,.24), rgba(0,0,0,0) 42%), linear-gradient(135deg, rgba(10,14,28,1), rgba(25,28,58,1) 55%, rgba(6,8,18,1))",
+            opacity,
+          }}
+        >
+          {Array.from({ length: genericPrismPlaneCount }, (_, index) => {
+            const left = (genericPrismSweep * 100) + (index - Math.floor(genericPrismPlaneCount / 2)) * 12;
+            const color = [
+              "rgba(80,210,255,.38)",
+              "rgba(255,80,180,.34)",
+              "rgba(255,230,120,.28)",
+              "rgba(160,120,255,.32)",
+            ][index % 4];
+            return (
+              <div
+                key={"generic-prism-plane-" + index}
+                className="genericRefractionLayer"
+                style={{
+                  position: "absolute",
+                  left: left + "%",
+                  top: -120,
+                  width: "18%",
+                  height: "140%",
+                  transform: "skewX(-12deg) rotate(" + (index % 2 === 0 ? -4 : 3) + "deg)",
+                  background: color,
+                  borderLeft: "2px solid rgba(255,255,255,.38)",
+                  borderRight: "1px solid rgba(255,255,255,.20)",
+                  boxShadow: "0 0 46px rgba(160,210,255,.22)",
+                  opacity: opacity * 0.88,
+                  mixBlendMode: "screen",
+                }}
+              />
+            );
+          })}
+          <div
+            className="genericChromaticSplitLayer"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: "43%",
+              textAlign: "center",
+              fontSize: 78,
+              fontWeight: 900,
+              color: JOB.textColor,
+              letterSpacing: 0,
+              textShadow:
+                (-genericPrismOffsetPx) + "px 0 rgba(255,56,92,.70), " +
+                genericPrismOffsetPx + "px 0 rgba(56,220,255,.70), 0 8px 34px rgba(0,0,0,.75)",
+              opacity,
+            }}
+          >
+            {String(genericTextLayer?.params?.content || JOB.label)}
+            {JOB.subtitle ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: "rgba(220,232,248,.78)",
+                  textShadow: "none",
+                }}
+              >
+                {JOB.subtitle}
+              </div>
+            ) : null}
+          </div>
+          <div
+            className="genericPlaneWipeLayer"
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: (100 - genericProgress * 72) + "%",
+              clipPath: "polygon(16% 0, 100% 0, 100% 100%, 0 100%)",
+              background: "rgba(6,8,18,.72)",
+              borderLeft: "2px solid rgba(220,240,255,.22)",
+              opacity: opacity * 0.9,
+            }}
+          />
+        </AbsoluteFill>
+      ) : null}
+      {isGenericRemotionEffect && (genericElectricArcLayer || genericCrackLineLayer || genericGlyphStreamLayer || genericParticleLayer || genericLightOverlayLayer || genericFilmGrainLayer || genericImageLayoutLayer || genericRadialCurrentLayer) ? (
+        <AbsoluteFill
+          className="genericCameraMotionLayer"
+          style={{
+            opacity,
+            transform: "translate(" + genericCameraShake.toFixed(2) + "px, " + (-genericCameraShake * 0.42).toFixed(2) + "px) scale(" + genericSnapScale.toFixed(4) + ")",
+            transformOrigin: "50% 50%",
+          }}
+        >
+          {genericGlyphStreamLayer ? (
+            <AbsoluteFill
+              className="genericDataStreamLayerGraph"
+              style={{
+                background: "radial-gradient(circle at 50% 48%, rgba(22,255,190,.16), rgba(0,0,0,0) 48%), linear-gradient(180deg, rgba(2,8,10,.98), rgba(0,0,0,.96))",
+                overflow: "hidden",
+              }}
+            >
+              {genericGlyphRows.map((row) => (
+                <div
+                  key={"generic-glyph-row-" + row.row}
+                  className="genericGlyphStreamLayer"
+                  style={{
+                    position: "absolute",
+                    left: ((frame * row.speed + row.row * 83) % 420) - 220,
+                    top: row.y,
+                    color: "rgba(87,255,202,.42)",
+                    fontFamily: "monospace",
+                    fontSize: 26,
+                    whiteSpace: "pre",
+                    textShadow: "0 0 16px rgba(87,255,202,.28)",
+                    opacity: 0.34 + (row.row % 4) * 0.08,
+                  }}
+                >
+                  {row.text}
+                </div>
+              ))}
+            </AbsoluteFill>
+          ) : null}
+          {genericLightOverlayLayer ? (
+            <AbsoluteFill
+              className="genericLightOverlayLayer"
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 45%, rgba(126,231,255,.34), rgba(126,231,255,.08) 26%, rgba(0,0,0,0) 58%), radial-gradient(circle at 24% 30%, rgba(255,245,180,.22), rgba(0,0,0,0) 34%)",
+                mixBlendMode: "screen",
+                opacity: String(genericLightOverlayLayer?.params?.glow_strength || genericLightOverlayLayer?.params?.glowStrength || "medium") === "high" ? 0.9 : 0.58,
+              }}
+            />
+          ) : null}
+          {genericImageLayoutLayer ? (
+            <AbsoluteFill className="genericImageLayoutLayer" style={{ opacity: opacity * 0.92 }}>
+              {isGenericFullBleedHeroLayout && genericImageRefs[0] ? (
+                <AbsoluteFill className="genericFullBleedHeroStage">
+                  <img
+                    src={genericImageRefs[0].src || genericImageRefs[0].path || genericImageRefs[0].file || ""}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      transform: "scale(" + interpolate(genericProgress, [0, 1], [1.035, 1.085], {
+                        extrapolateLeft: "clamp",
+                        extrapolateRight: "clamp",
+                        easing: Easing.out(Easing.cubic),
+                      }).toFixed(4) + ")",
+                      filter:
+                        "contrast(" + (1.04 - genericHeroFade * 0.16).toFixed(3) + ") " +
+                        "saturate(" + (1.08 - genericHeroFade * 0.46).toFixed(3) + ") " +
+                        "brightness(" + (1 - genericHeroFade * 0.48).toFixed(3) + ")",
+                      opacity: genericHeroFadeIn,
+                    }}
+                  />
+                  <AbsoluteFill
+                    style={{
+                      background:
+                        "radial-gradient(circle at 50% 48%, rgba(0,0,0,0) 0 42%, rgba(0,0,0,.38) 78%, rgba(0,0,0,.72) 100%), linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.40))",
+                    }}
+                  />
+                  {genericHeroFadeIn < 1 ? (
+                    <AbsoluteFill
+                      className="genericFullBleedHeroFadeInDark"
+                      style={{
+                        background: "rgba(0,0,0,1)",
+                        opacity: 1 - genericHeroFadeIn,
+                      }}
+                    />
+                  ) : null}
+                  {genericHeroFadeToDarkStrength > 0 ? (
+                    <AbsoluteFill
+                      className="genericFullBleedHeroFadeToDark"
+                      style={{
+                        background:
+                          "radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 0 28%, rgba(0,0,0,.42) 72%, rgba(0,0,0,.92) 100%), linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.82))",
+                        opacity: genericHeroFade * genericHeroFadeToDarkStrength,
+                      }}
+                    />
+                  ) : null}
+                </AbsoluteFill>
+              ) : null}
+              {isGenericCenterLogoLayout && genericImageRefs[0] ? (
+                <div
+                  className="genericCenterLogoStage"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "42%",
+                    width: genericCenterLogoSize + 120,
+                    height: genericCenterLogoSize + 120,
+                    transform: "translate(-50%, -50%) scale(" + interpolate(genericProgress, [0, 0.18, 0.82, 1], [0.82, 1, 1.04, 0.98], {
+                      extrapolateLeft: "clamp",
+                      extrapolateRight: "clamp",
+                      easing: Easing.out(Easing.cubic),
+                    }).toFixed(4) + ")",
+                    borderRadius: 999,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "radial-gradient(circle, rgba(255,255,255,.62), rgba(230,246,255,.38) 42%, rgba(36,150,214,.14) 62%, rgba(0,0,0,0) 74%)",
+                    boxShadow: "0 0 42px rgba(54,197,255,.24), inset 0 0 24px rgba(8,76,120,.12)",
+                  }}
+                >
+                  <div
+                    className="genericCenterLogoRing"
+                    style={{
+                      position: "absolute",
+                      inset: -28,
+                      borderRadius: 999,
+                      border: "2px solid rgba(84,214,255,.28)",
+                      boxShadow: "0 0 34px rgba(84,214,255,.22)",
+                      transform: "rotate(" + (frame * 0.42).toFixed(2) + "deg)",
+                    }}
+                  />
+                  <div
+                    className="genericCenterLogoRing"
+                    style={{
+                      position: "absolute",
+                      inset: -60,
+                      borderRadius: 999,
+                      border: "1px dashed rgba(255,255,255,.24)",
+                      transform: "rotate(" + (-frame * 0.28).toFixed(2) + "deg)",
+                    }}
+                  />
+                  <img
+                    src={genericImageRefs[0].src || genericImageRefs[0].path || genericImageRefs[0].file || ""}
+                    style={{
+                      width: genericCenterLogoSize,
+                      height: genericCenterLogoSize,
+                      objectFit: "contain",
+                      filter: "drop-shadow(0 16px 28px rgba(0,32,64,.22))",
+                    }}
+                  />
+                </div>
+              ) : null}
+              {!isGenericFullBleedHeroLayout && !isGenericCenterLogoLayout && (genericImageRefs.length ? genericImageRefs.slice(0, 6) : [0, 1, 2]).map((ref, index) => {
+                const src = typeof ref === "object" && ref ? (ref.src || ref.path || ref.file || "") : "";
+                const x = 330 + (index % 3) * 430;
+                const y = 190 + Math.floor(index / 3) * 320;
+                return src ? (
+                  <img
+                    key={"generic-image-layout-" + index}
+                    src={src}
+                    style={{
+                      position: "absolute",
+                      left: x,
+                      top: y,
+                      width: 340,
+                      height: 210,
+                      objectFit: "cover",
+                      borderRadius: 14,
+                      boxShadow: "0 18px 42px rgba(0,0,0,.42)",
+                      transform: "rotate(" + ((index % 2 === 0 ? -1 : 1) * (2 + index)) + "deg)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    key={"generic-image-layout-placeholder-" + index}
+                    style={{
+                      position: "absolute",
+                      left: x,
+                      top: y,
+                      width: 340,
+                      height: 210,
+                      borderRadius: 14,
+                      background: "linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.05))",
+                      border: "1px solid rgba(255,255,255,.22)",
+                      boxShadow: "0 18px 42px rgba(0,0,0,.32)",
+                    }}
+                  />
+                );
+              })}
+            </AbsoluteFill>
+          ) : null}
+          {genericElectricArcLayer ? (
+            <svg
+              className="genericElectricArcLayer"
+              viewBox="0 0 1920 1080"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+            >
+              {genericElectricArcPaths.map((path, index) => (
+                <path
+                  key={"generic-electric-arc-" + index}
+                  className="genericElectricArcPath"
+                  d={path}
+                  fill="none"
+                  stroke={index % 2 === 0 ? "rgba(126,231,255,.92)" : "rgba(245,252,255,.72)"}
+                  strokeWidth={index % 2 === 0 ? 7 : 3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    filter: "drop-shadow(0 0 18px rgba(126,231,255,.86))",
+                    opacity: opacity * interpolate(frame % 18, [0, 4, 16], [0.1, 1, 0.18], {
+                      extrapolateLeft: "clamp",
+                      extrapolateRight: "clamp",
+                    }),
+                  }}
+                />
+              ))}
+            </svg>
+          ) : null}
+          {genericRadialCurrentLayer ? (
+            <svg
+              className="genericRadialCurrentLayer"
+              viewBox="0 0 1920 1080"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                overflow: "visible",
+                mixBlendMode: "screen",
+                opacity: opacity * genericCurrentFade * genericCurrentPulse,
+              }}
+            >
+              <defs>
+                <filter id="genericRadialCurrentGlow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="5.5" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              {genericRadialCurrentRings.map((ring) => (
+                <circle
+                  key={"generic-radial-current-" + ring.id}
+                  cx="960"
+                  cy="496"
+                  r={ring.radius}
+                  fill="none"
+                  stroke={ring.color}
+                  strokeWidth={ring.width}
+                  strokeLinecap="round"
+                  strokeDasharray={genericCurrentIsSmoothOuterRing
+                    ? (132 + ring.id * 18) + " " + (54 + ring.id * 8)
+                    : (34 + ring.id * 8) + " " + (94 + ring.id * 16)}
+                  strokeDashoffset={(-frame * ring.speed + ring.id * 37).toFixed(2)}
+                  filter="url(#genericRadialCurrentGlow)"
+                  style={{ opacity: ring.opacity }}
+                />
+              ))}
+              {genericRadialCurrentRings.map((ring) => (
+                <circle
+                  key={"generic-radial-current-halo-" + ring.id}
+                  cx="960"
+                  cy="496"
+                  r={ring.radius + 12}
+                  fill="none"
+                  stroke={ring.id % 2 ? "rgba(255,78,86,.22)" : "rgba(72,218,255,.26)"}
+                  strokeWidth={ring.width + 8}
+                  strokeDasharray={genericCurrentIsSmoothOuterRing
+                    ? (220 + ring.id * 24) + " " + (72 + ring.id * 10)
+                    : (20 + ring.id * 5) + " " + (150 + ring.id * 20)}
+                  strokeDashoffset={(frame * (ring.speed * 0.64) + ring.id * 23).toFixed(2)}
+                  filter="url(#genericRadialCurrentGlow)"
+                  style={{ opacity: ring.opacity * 0.62 }}
+                />
+              ))}
+            </svg>
+          ) : null}
+          {genericCrackLineLayer ? (
+            <svg
+              className="genericCrackLineLayer"
+              viewBox="0 0 1920 1080"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+            >
+              {genericCrackPaths.map((path, index) => (
+                <path
+                  key={"generic-crack-path-" + index}
+                  className="genericCrackPath"
+                  d={path}
+                  fill="none"
+                  stroke="rgba(246,230,205,.78)"
+                  strokeWidth={Math.max(2, 8 - index * 0.4)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    filter: "drop-shadow(0 3px 8px rgba(0,0,0,.72))",
+                    opacity: opacity * interpolate(genericProgress, [0.08, 0.28, 1], [0, 1, 0.82], {
+                      extrapolateLeft: "clamp",
+                      extrapolateRight: "clamp",
+                    }),
+                  }}
+                />
+              ))}
+            </svg>
+          ) : null}
+          {genericParticleLayer ? (
+            <AbsoluteFill className="genericParticleLayer" style={{ pointerEvents: "none" }}>
+              {genericParticles.map((particle) => {
+                const driftProgress = clamp((genericProgress - particle.delay * 0.24) / 0.76);
+                return (
+                  <div
+                    key={"generic-particle-" + particle.id}
+                    style={{
+                      position: "absolute",
+                      left: particle.x + particle.drift * driftProgress,
+                      top: particle.y - 190 * driftProgress,
+                      width: particle.size,
+                      height: particle.size,
+                      borderRadius: 999,
+                      background: String(genericParticleLayer?.params?.particle_kind || genericParticleLayer?.params?.particleKind || "").includes("dust") ? "rgba(226,205,172,.54)" : "rgba(126,231,255,.82)",
+                      boxShadow: "0 0 18px rgba(126,231,255,.38)",
+                      opacity: opacity * (1 - driftProgress * 0.72),
+                    }}
+                  />
+                );
+              })}
+            </AbsoluteFill>
+          ) : null}
+          {genericFilmGrainLayer ? (
+            <AbsoluteFill
+              className="genericFilmGrainLayer"
+              style={{
+                background:
+                  "repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,.08) 0 1px, rgba(0,0,0,0) 1px 4px), repeating-linear-gradient(92deg, rgba(255,255,255,.03) 0 1px, rgba(0,0,0,0) 1px 7px)",
+                mixBlendMode: "overlay",
+                opacity: opacity * Number(genericFilmGrainLayer?.params?.grain_amount ?? genericFilmGrainLayer?.params?.grainAmount ?? 0.18),
+              }}
+            />
+          ) : null}
+          {genericTextLayer && !isGenericInkSpread && !isGenericPrismGlass ? (
+            <div
+              className="genericTextLayer"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: genericTextSafeArea === "bottom_center" ? "72%" : "43%",
+                textAlign: "center",
+                color: String(genericTextLayer?.params?.color || JOB.textColor || "#ffffff"),
+                fontSize: genericTextSafeArea === "bottom_center" ? 56 : 82,
+                fontWeight: 900,
+                letterSpacing: 0,
+                textShadow: "0 7px 34px rgba(0,0,0,.68)",
+                opacity,
+              }}
+            >
+              {String(genericTextLayer?.params?.content || JOB.label)}
+              {JOB.subtitle ? (
+                <div style={{ marginTop: 12, fontSize: 24, fontWeight: 650, color: "rgba(255,255,255,.76)" }}>
+                  {JOB.subtitle}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </AbsoluteFill>
+      ) : null}
       {isBlackCollage ? (
         <AbsoluteFill
           style={{
@@ -1644,23 +2372,26 @@ function main() {
     "--pixel-format=yuv420p",
   ];
   const payload = {
-    status: args.writeEntryOnly ? "entry_written" : "rendered",
+    status: args.writeEntryOnly ? "entry_written" : (args.previewOnly ? "preview_rendered" : "rendered"),
     backend: "remotion_cli",
     job_id: job.job_id,
     entry,
     preview_file: previewFile,
-    rendered_asset: renderedAsset,
+    rendered_asset: args.previewOnly ? null : renderedAsset,
+    preview_only: Boolean(args.previewOnly),
     remotion_bin: remotionBin,
-    render_command: [remotionBin, ...renderArgs],
+    render_command: args.previewOnly ? null : [remotionBin, ...renderArgs],
     preview_command: [remotionBin, ...previewArgs],
   };
   if (!args.writeEntryOnly) {
-    const render = runCommand(remotionBin, renderArgs, projectRoot);
+    const render = args.previewOnly ? null : runCommand(remotionBin, renderArgs, projectRoot);
     const preview = runCommand(remotionBin, previewArgs, projectRoot);
-    if (!fs.existsSync(renderedAsset) || !fs.existsSync(previewFile)) {
+    if ((!args.previewOnly && !fs.existsSync(renderedAsset)) || !fs.existsSync(previewFile)) {
       throw new Error("Remotion render completed but expected output files are missing");
     }
-    payload.render_stdout = render.stdout;
+    if (render) {
+      payload.render_stdout = render.stdout;
+    }
     payload.preview_stdout = preview.stdout;
   }
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);

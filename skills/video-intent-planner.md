@@ -123,6 +123,10 @@ Required shape:
     "subtitle_required": true,
     "voiceover_required": false,
     "narration_policy": "required | optional | none | unknown",
+    "preferred_provider": "voxcpm | legacy_tts | none",
+    "fallback_provider": "legacy_tts | none",
+    "fallback_allowed": false,
+    "provider_runtime": "local | generic | none",
     "handoff_to": "subtitle-director | audio-director | none"
   },
   "required_followup_questions": [],
@@ -195,6 +199,10 @@ For material-first editing requests, the second-turn summary must include:
     "language": "zh-TW | en | mixed | unknown",
     "subtitle_required": true,
     "voiceover_required": false,
+    "preferred_provider": "voxcpm | legacy_tts | none",
+    "fallback_provider": "legacy_tts | none",
+    "fallback_allowed": false,
+    "provider_runtime": "local | generic | none",
     "handoff_to": "subtitle-director | audio-director | none"
   },
   "handoff_packet": {

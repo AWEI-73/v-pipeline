@@ -249,6 +249,222 @@ def _memory_photo_wall_job(target_file="rendered.mov", preview_file="preview.mp4
     return job
 
 
+def _generic_ink_spread_job(target_file="rendered.mov", preview_file="preview.mp4"):
+    job = _job(target_file, preview_file)
+    job["component_family"] = "title_reveal"
+    job["timing"]["duration_sec"] = 5.0
+    job["props"].update({
+        "display_text": "INK REVEAL",
+        "subtitle_text": "organic mask reveal",
+        "duration_sec": 5.0,
+        "presentation": {
+            "background_style": "transparent",
+            "text_position": "bottom_center",
+            "text_scale": "large",
+            "effect_strength": "medium",
+            "safe_area": "title_safe",
+            "accent_color": "#111111",
+            "text_color": "#f5eedb",
+        },
+        "prompt_parameters": {
+            "effect_build_spec": {
+                "component": "GenericRemotionEffect",
+                "duration_sec": 5,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {
+                        "id": "ink_mask",
+                        "type": "mask_reveal",
+                        "params": {
+                            "mask_family": "ink_bloom",
+                            "edge_feather_px": 42,
+                            "noise_scale": 0.72,
+                            "reveal_sec": 3.2,
+                        },
+                    },
+                    {
+                        "id": "paper_texture",
+                        "type": "texture_overlay",
+                        "params": {
+                            "texture": "paper_fiber",
+                            "strength": "medium",
+                            "palette": "black_ink_on_warm_paper",
+                        },
+                    },
+                    {
+                        "id": "title",
+                        "type": "text",
+                        "params": {"content": "INK REVEAL", "safe_area": "center"},
+                    },
+                ],
+                "timing": {"duration_sec": 5, "reveal_sec": 3.2, "hold_sec": 1.8},
+                "review_required": True,
+            },
+        },
+    })
+    return job
+
+
+def _generic_prism_glass_job(target_file="rendered.mov", preview_file="preview.mp4"):
+    job = _job(target_file, preview_file)
+    job["component_family"] = "page_turn_transition"
+    job["timing"]["duration_sec"] = 4.0
+    job["props"].update({
+        "display_text": "PRISM CUT",
+        "subtitle_text": "refraction transition",
+        "duration_sec": 4.0,
+        "presentation": {
+            "background_style": "transparent",
+            "text_position": "bottom_center",
+            "text_scale": "large",
+            "effect_strength": "medium",
+            "safe_area": "title_safe",
+            "accent_color": "#8fd8ff",
+            "text_color": "#f5f8ff",
+        },
+        "prompt_parameters": {
+            "effect_build_spec": {
+                "component": "GenericRemotionEffect",
+                "duration_sec": 4,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {
+                        "id": "prism_refraction",
+                        "type": "refraction",
+                        "params": {
+                            "plane_count": 5,
+                            "refraction_strength": "medium",
+                            "plane_angle_deg": 18,
+                        },
+                    },
+                    {
+                        "id": "chromatic_split",
+                        "type": "chromatic_split",
+                        "params": {"offset_px": 14, "highlight_strength": "soft"},
+                    },
+                    {
+                        "id": "plane_wipe",
+                        "type": "mask_wipe",
+                        "params": {"wipe_family": "clip_path_planes", "transition_duration_sec": 2.4},
+                    },
+                ],
+                "timing": {"duration_sec": 4, "reveal_sec": 2.8, "hold_sec": 1.2},
+                "review_required": True,
+            },
+        },
+    })
+    return job
+
+
+def _generic_lightning_job(target_file="rendered.mov", preview_file="preview.mp4"):
+    job = _job(target_file, preview_file)
+    job["component_family"] = "title_reveal"
+    job["timing"]["duration_sec"] = 4.0
+    job["props"].update({
+        "display_text": "POWER UP",
+        "subtitle_text": "controlled electric opening",
+        "duration_sec": 4.0,
+        "presentation": {
+            "background_style": "transparent",
+            "text_position": "bottom_center",
+            "text_scale": "large",
+            "effect_strength": "high",
+            "safe_area": "title_safe",
+            "accent_color": "#7ee7ff",
+            "text_color": "#f6fbff",
+        },
+        "prompt_parameters": {
+            "effect_build_spec": {
+                "component": "GenericRemotionEffect",
+                "duration_sec": 4,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {"id": "electric_arcs", "type": "electric_arcs", "params": {"strike_count": 4, "arc_branching": "medium", "flash_intensity": "high"}},
+                    {"id": "particles", "type": "particle_overlay", "params": {"density": "medium", "motion_intensity": "high", "particle_kind": "spark"}},
+                    {"id": "light_overlay", "type": "light_overlay", "params": {"accent_light": "electric_blue", "glow_strength": "high"}},
+                    {"id": "camera_motion", "type": "camera_motion", "params": {"camera_motion": "snap_scale", "pacing": "fast"}},
+                    {"id": "title", "type": "text", "params": {"content": "POWER UP", "safe_area": "center"}},
+                ],
+                "timing": {"duration_sec": 4, "reveal_sec": 2.4, "hold_sec": 1.6},
+                "review_required": True,
+            },
+        },
+    })
+    return job
+
+
+def _generic_crack_job(target_file="rendered.mov", preview_file="preview.mp4"):
+    job = _job(target_file, preview_file)
+    job["component_family"] = "title_reveal"
+    job["timing"]["duration_sec"] = 4.0
+    job["props"].update({
+        "display_text": "IMPACT",
+        "subtitle_text": "crack and dust opening",
+        "duration_sec": 4.0,
+        "presentation": {
+            "background_style": "transparent",
+            "text_position": "bottom_center",
+            "text_scale": "large",
+            "effect_strength": "high",
+            "safe_area": "title_safe",
+            "accent_color": "#e2d2b6",
+            "text_color": "#fff8ec",
+        },
+        "prompt_parameters": {
+            "effect_build_spec": {
+                "component": "GenericRemotionEffect",
+                "duration_sec": 4,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {"id": "crack_lines", "type": "crack_lines", "params": {"crack_count": 6, "crack_spread": "center_out", "shake_strength": "medium"}},
+                    {"id": "particles", "type": "particle_overlay", "params": {"density": "low", "motion_intensity": "medium", "particle_kind": "dust"}},
+                    {"id": "camera_motion", "type": "camera_motion", "params": {"camera_motion": "impact_shake", "pacing": "fast_then_hold"}},
+                    {"id": "film_grain", "type": "film_grain", "params": {"grain_amount": 0.22, "gate_weave_strength": "low"}},
+                    {"id": "title", "type": "text", "params": {"content": "IMPACT", "safe_area": "center"}},
+                ],
+                "timing": {"duration_sec": 4, "reveal_sec": 2.2, "hold_sec": 1.8},
+                "review_required": True,
+            },
+        },
+    })
+    return job
+
+
+def _generic_terminal_job(target_file="rendered.mov", preview_file="preview.mp4"):
+    job = _job(target_file, preview_file)
+    job["component_family"] = "title_reveal"
+    job["timing"]["duration_sec"] = 4.0
+    job["props"].update({
+        "display_text": "SYSTEM READY",
+        "subtitle_text": "data stream reveal",
+        "duration_sec": 4.0,
+        "presentation": {
+            "background_style": "transparent",
+            "text_position": "bottom_center",
+            "text_scale": "large",
+            "effect_strength": "medium",
+            "safe_area": "title_safe",
+            "accent_color": "#38ffc7",
+            "text_color": "#e8fff7",
+        },
+        "prompt_parameters": {
+            "effect_build_spec": {
+                "component": "GenericRemotionEffect",
+                "duration_sec": 4,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {"id": "data_stream", "type": "glyph_stream", "params": {"glyph_speed": "fast", "glyph_density": "high", "palette": "cyan_green_on_dark"}},
+                    {"id": "light_overlay", "type": "light_overlay", "params": {"accent_light": "cyan_green", "glow_strength": "medium"}},
+                    {"id": "title", "type": "text", "params": {"content": "SYSTEM READY", "animation": "assemble", "safe_area": "center"}},
+                ],
+                "timing": {"duration_sec": 4, "reveal_sec": 2.6, "hold_sec": 1.4},
+                "review_required": True,
+            },
+        },
+    })
+    return job
+
+
 def _soft_light_transition_job(target_file="rendered.mov", preview_file="preview.mp4"):
     job = _job(target_file, preview_file)
     job["component_family"] = "light_leak_overlay"
@@ -1146,6 +1362,201 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             self.assertIn("reviewed keyframe", text)
             self.assertIn("data:image/jpeg;base64,", text)
 
+    def test_generic_ink_spread_build_spec_writes_mask_and_texture_layers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job_path.write_text(
+                json.dumps(_generic_ink_spread_job(str(rendered), str(preview)), ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("GenericRemotionEffect", text)
+            self.assertIn("genericLayerTypes", text)
+            self.assertIn("isGenericInkSpread", text)
+            self.assertIn("genericInkMaskLayer", text)
+            self.assertIn("genericTextureOverlayLayer", text)
+            self.assertIn("mask_reveal", text)
+            self.assertIn("texture_overlay", text)
+            self.assertIn("ink_bloom", text)
+            self.assertIn("paper_fiber", text)
+
+    def test_generic_prism_glass_build_spec_writes_refraction_and_chromatic_layers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job_path.write_text(
+                json.dumps(_generic_prism_glass_job(str(rendered), str(preview)), ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("GenericRemotionEffect", text)
+            self.assertIn("isGenericPrismGlass", text)
+            self.assertIn("genericRefractionLayer", text)
+            self.assertIn("genericChromaticSplitLayer", text)
+            self.assertIn("genericPlaneWipeLayer", text)
+            self.assertIn("refraction", text)
+            self.assertIn("chromatic_split", text)
+            self.assertIn("clip_path_planes", text)
+
+    def test_generic_lightning_build_spec_writes_electric_arc_layers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job_path.write_text(
+                json.dumps(_generic_lightning_job(str(rendered), str(preview)), ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("genericElectricArcLayer", text)
+            self.assertIn("genericParticleLayer", text)
+            self.assertIn("genericLightOverlayLayer", text)
+            self.assertIn("genericCameraMotionLayer", text)
+            self.assertIn("genericElectricArcPath", text)
+            self.assertIn("electric_arcs", text)
+
+    def test_generic_crack_build_spec_writes_crack_dust_and_motion_layers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job_path.write_text(
+                json.dumps(_generic_crack_job(str(rendered), str(preview)), ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("genericCrackLineLayer", text)
+            self.assertIn("genericParticleLayer", text)
+            self.assertIn("genericCameraMotionLayer", text)
+            self.assertIn("genericFilmGrainLayer", text)
+            self.assertIn("genericCrackPath", text)
+            self.assertIn("crack_lines", text)
+
+    def test_generic_terminal_build_spec_writes_glyph_stream_layers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job_path.write_text(
+                json.dumps(_generic_terminal_job(str(rendered), str(preview)), ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            self.assertIn("genericGlyphStreamLayer", text)
+            self.assertIn("genericGlyphRows", text)
+            self.assertIn("genericDataStreamLayerGraph", text)
+            self.assertIn("glyph_stream", text)
+
+    def test_worker_bridge_mentions_every_worker_supported_generic_layer(self):
+        from video_pipeline_core.effect_layer_manifest import generic_worker_renderer_markers
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job = _generic_terminal_job(str(rendered), str(preview))
+            job["props"]["prompt_parameters"]["effect_build_spec"]["layers"] = [
+                {"id": layer_type, "type": layer_type, "params": {"content": layer_type}}
+                for layer_type in sorted(generic_worker_renderer_markers())
+            ]
+            job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            for layer_type, marker in sorted(generic_worker_renderer_markers().items()):
+                self.assertIn(marker, text, layer_type)
+
     def test_bridge_refuses_canonical_outputs(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1206,6 +1617,32 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             ], cwd=ROOT, capture_output=True, text=True)
 
             self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_bridge_preview_only_marks_rendered_asset_optional(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            job_path.write_text(json.dumps(_job(str(rendered), str(preview))), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(root / "project"),
+                "--preview-only",
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "entry_written")
+            self.assertTrue(payload["preview_only"])
+            self.assertIsNone(payload["rendered_asset"])
+            self.assertIsNone(payload["render_command"])
 
 
 if __name__ == "__main__":

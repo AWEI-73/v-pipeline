@@ -58,6 +58,7 @@
     "tools/material_gap_brief.py",
     "tools/visual_technique_plan.py",
     "tools/effect_factory_boundary_acceptance.py",
+    "tools/effect_factory_route_acceptance.py",
     "tools/remotion_material_first_memory_acceptance.py",
     "tools/soundtrack_flow_acceptance.py",
     "tools/audio_mix_plan_execute.py",
@@ -441,6 +442,7 @@
       "tools": [
         "tools/visual_technique_plan.py",
         "tools/effect_factory_boundary_acceptance.py",
+        "tools/effect_factory_route_acceptance.py",
         "tools/remotion_material_first_memory_acceptance.py"
       ],
       "artifacts": [
@@ -450,6 +452,7 @@
         "effect_design_map.json",
         "effect_contract.json",
         "effect_factory_boundary_acceptance_report.json",
+        "effect_factory_route_acceptance_report.json",
         "effect_review.json",
         "effect_handoff.json",
         "remotion_effect_handoff.json",
@@ -583,6 +586,7 @@
       "effect_design_map.json",
       "effect_contract.json",
       "effect_factory_boundary_acceptance_report.json",
+      "effect_factory_route_acceptance_report.json",
       "remotion_prompt_pack.json",
       "remotion_effect_review.json"
     ]
@@ -640,6 +644,7 @@
       "tools/material_gap_brief.py",
       "tools/visual_technique_plan.py",
       "tools/effect_factory_boundary_acceptance.py",
+      "tools/effect_factory_route_acceptance.py",
       "tools/remotion_material_first_memory_acceptance.py",
       "tools/soundtrack_flow_acceptance.py",
       "tools/audio_mix_plan_execute.py",

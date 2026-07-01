@@ -430,7 +430,8 @@ story-soul-blueprint
 -> initial material_delta.json with ready_for_build=false
 -> material-generation-fallback
 -> generated-image-provider-packet
--> wait_for_generated_provider if real provider outputs do not exist yet
+-> image-agent-prompt-handoff
+-> call_image_generation_agent if real provider outputs do not exist yet
 -> provider output mapping is required
 -> generated-material-import
 -> generated-material-review
@@ -442,7 +443,7 @@ Generated files must be reviewed before they satisfy material needs.
 For zero-material projects, do not skip the initial delta: fallback should be
 driven by missing/thin evidence, not by agent confidence alone.
 For the bounded happy path, prefer `tools/story_first_provider_happy_path.py`;
-it writes the story-first artifacts and stops at provider handoff instead of
+it writes the story-first artifacts and stops at image-agent handoff instead of
 creating placeholder cards.
 
 ### Hybrid route
@@ -561,7 +562,9 @@ Generated material:
 ```powershell
 python video_tools.py material-generation-fallback material_delta.json --needs material_needs.json --out material_generation_fallback.json
 python video_tools.py generated-image-provider-packet material_generation_fallback.json --out-dir provider_packet
+python video_tools.py image-agent-prompt-handoff provider_packet/generated_provider_packet.json --out-dir provider_packet/image_agent_handoff
 # image-capable agent writes each target_file from generated_provider_packet.json
+python video_tools.py codex-imagegen-provider-fill provider_packet/generated_provider_packet.json --image-files <generated images in packet order>
 python video_tools.py generated-material-import material_generation_fallback.json --needs material_needs.json --provider-outputs provider_outputs.json --out-dir generated_material
 python video_tools.py generated-material-review generated_material/project_material_map.json --needs material_needs.json --verdict generated_material_review.json --out reviewed_project_material_map.json
 ```

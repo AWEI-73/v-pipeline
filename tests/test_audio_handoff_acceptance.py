@@ -21,7 +21,17 @@ def _probe_for(audio_file):
         "pass": True,
         "audio_file": str(audio_file),
         "duration_sec": 30.0,
-        "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+        "features": {
+            "mean_dbfs": -18.0,
+            "peak_dbfs": -3.0,
+            "vocal_analysis": {
+                "has_vocals": False,
+                "method": "faster_whisper",
+                "vocal_density": "none",
+                "vocal_ratio": 0.0,
+                "segments": [],
+            },
+        },
         "sections": [{"start_sec": 0.0, "end_sec": 30.0, "role": "full_track"}],
         "editing_fit": {"montage": "medium", "speech_underlay": "high"},
         "section_fit": [{"video_section": "hotblooded_montage", "fit": "medium"}],
@@ -384,7 +394,105 @@ class AudioHandoffAcceptanceTest(unittest.TestCase):
             self.assertFalse(result["audio_handoff_acceptance"]["ok"])
             rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
             self.assertIn("missing_soundtrack_probe_report", rules)
-            self.assertEqual(result["audio_handoff_acceptance"]["next_action"], "run_soundtrack_probe")
+            self.assertEqual(result["audio_handoff_acceptance"]["next_action"], "run_soundtrack_probe_with_asr")
+
+    def test_blocks_vocal_heavy_music_under_voiceover(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "vocal_song.mp3"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"ID3 vocal")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "vocal_story_bed",
+                    "section_id": "warm_story",
+                    "source_type": "youtube_audio_library",
+                    "audio_file": str(music),
+                    "license_status": "user_asserted",
+                    "delivery_allowed": True,
+                    "ducking_policy": "duck_under_voice",
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "warm_story",
+                    "duration_sec": 20,
+                    "music_role": "bgm",
+                    "ducking_policy": "duck_under_voice",
+                    "vocal_policy": "instrumental_required",
+                }],
+            }
+            probe = _probe_for(music)
+            probe["features"]["vocal_analysis"] = {
+                "has_vocals": True,
+                "method": "faster_whisper",
+                "vocal_density": "high",
+                "vocal_ratio": 0.58,
+                "segments": [{"start_sec": 0.0, "end_sec": 12.0, "text": "lyrics"}],
+                "instrumental_windows": [{"start_sec": 12.0, "end_sec": 30.0}],
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=probe,
+                out_dir=root,
+            )
+
+            self.assertFalse(result["audio_handoff_acceptance"]["ok"])
+            rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
+            self.assertIn("vocal_music_conflicts_with_voiceover", rules)
+            self.assertEqual(
+                result["audio_handoff_acceptance"]["next_action"],
+                "select_instrumental_music_or_use_instrumental_window",
+            )
+
+    def test_requires_asr_vocal_analysis_for_voiceover_bed_music(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "unknown.mp3"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"ID3 unknown")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "unknown_story_bed",
+                    "section_id": "warm_story",
+                    "source_type": "licensed_library",
+                    "audio_file": str(music),
+                    "license_status": "user_asserted",
+                    "delivery_allowed": True,
+                    "ducking_policy": "duck_under_voice",
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "warm_story",
+                    "duration_sec": 20,
+                    "music_role": "bgm",
+                    "ducking_policy": "duck_under_voice",
+                    "vocal_policy": "instrumental_required",
+                }],
+            }
+            probe = _probe_for(music)
+            probe["features"]["vocal_analysis"] = {"has_vocals": "unknown", "method": "not_run"}
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=probe,
+                out_dir=root,
+            )
+
+            self.assertFalse(result["audio_handoff_acceptance"]["ok"])
+            rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
+            self.assertIn("soundtrack_probe_missing_vocal_analysis", rules)
+            self.assertEqual(result["audio_handoff_acceptance"]["next_action"], "run_soundtrack_probe_with_asr")
 
     def test_cli_writes_acceptance_and_mix_plan(self):
         repo = Path(__file__).resolve().parents[1]

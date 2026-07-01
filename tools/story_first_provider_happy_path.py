@@ -11,7 +11,10 @@ from typing import Any, Mapping
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from video_pipeline_core import material_delta, material_generation_fallback, story_soul_blueprint  # noqa: E402
-from video_pipeline_core.generated_image_provider_packet import build_generated_image_provider_packet  # noqa: E402
+from video_pipeline_core.generated_image_provider_packet import (  # noqa: E402
+    build_generated_image_provider_packet,
+    build_image_agent_prompt_handoff,
+)
 from video_pipeline_core.material_rough_cut import write_json  # noqa: E402
 
 
@@ -96,6 +99,12 @@ def run_story_first_provider_happy_path(
     )
     if not packet_result.get("ok"):
         raise RuntimeError("; ".join(packet_result.get("errors") or ["provider packet failed"]))
+    handoff_result = build_image_agent_prompt_handoff(
+        packet_result["refs"]["provider_packet"],
+        out_dir=root / "provider_packet" / "image_agent_handoff",
+    )
+    if not handoff_result.get("ok"):
+        raise RuntimeError("; ".join(handoff_result.get("errors") or ["image agent handoff failed"]))
 
     report = {
         "artifact_role": "story_first_provider_happy_path_report",
@@ -108,8 +117,10 @@ def run_story_first_provider_happy_path(
         "provider_packet": packet_result["refs"]["provider_packet"],
         "provider_prompts": packet_result["refs"]["provider_prompts"],
         "provider_outputs_template": packet_result["refs"]["provider_outputs_template"],
+        "image_agent_handoff": handoff_result["refs"]["image_agent_handoff"],
+        "image_agent_prompt": handoff_result["refs"]["image_agent_prompt"],
         "image_count": packet_result["summary"]["image_count"],
-        "next_action": "wait_for_generated_provider",
+        "next_action": "call_image_generation_agent",
         "rendered": (root / "final.mp4").exists(),
         "limitations": [
             "This wrapper does not use test_pil or placeholder text-card generation.",

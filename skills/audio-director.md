@@ -18,6 +18,20 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
   ],
   "canonical_tools": [
     {
+      "tool": "video_tools.py voiceover-provider-plan",
+      "when": "plan or optionally execute provider-backed narration/voiceover audio before BUILD; prefer VoxCPM when available and fall back to legacy edge-tts only through an explicit artifact",
+      "inputs": ["script.json or segment_contract.json with narration/text", "voice style", "optional VoxCPM reference audio", "optional VOXCPM_BIN / VOXCPM_MODEL_ID"],
+      "outputs": ["voiceover_provider_plan.json", "subtitle_voiceover_build_handoff.json", "narration_manifest.json"],
+      "stop_if": ["voiceover is required but provider is unavailable and fallback is disabled", "voiceover_provider_plan has errors", "voiceover_ready=false and BUILD requires narration audio"]
+    },
+    {
+      "tool": "tools/voxcpm_voiceover_provider.py",
+      "when": "use the checked-out local reference repo\\VoxCPM-main as the preferred narration provider; this is the simple local wrapper for VoxCPM-specific runs",
+      "inputs": ["script.json or segment_contract.json with narration/text", "reference repo\\VoxCPM-main", "voice style", "optional reference audio"],
+      "outputs": ["voiceover_provider_plan.json", "subtitle_voiceover_build_handoff.json", "narration_manifest.json"],
+      "stop_if": ["local VoxCPM repo is missing and --allow-legacy-fallback is not set", "VoxCPM dependencies/model are missing during --execute", "voiceover_ready=false and BUILD requires narration audio"]
+    },
+    {
       "tool": "tools/audio_mix_plan_execute.py",
       "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
       "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing", "source_audio_policy"],
@@ -54,6 +68,87 @@ preserving original speech, `final_audio.wav`, `tts_timing.json`, and
 `audio_mix_report.json`. If `sound_license_manifest.json` marks a track as
 `reference_only`, placeholder, missing license, or delivery-disallowed, do not
 mix it into deliverable output.
+
+## Thin VoxCPM Bridge
+
+VoxCPM is not a separate route skill. Treat it as one local voiceover provider
+inside Audio Director.
+
+### Default Mandarin Voiceover SOP
+
+When `subtitle_voiceover_contract.voiceover_required=true` and
+`preferred_provider=voxcpm`, do this exact sequence:
+
+1. Inspect the contract. Confirm `language`, `preferred_provider`,
+   `fallback_allowed`, and `handoff_to`.
+2. Run the runtime check:
+
+   ```powershell
+   python tools\voxcpm_runtime_check.py --out RUN_DIR\voxcpm_runtime_check.json
+   ```
+
+3. If `ok_to_execute=false`, stop and report missing runtime/model/dependency
+   evidence. Do not render and do not use legacy TTS unless
+   `fallback_allowed=true` or the contract has an explicit deferral.
+4. If `ok_to_execute=true`, execute VoxCPM:
+
+   ```powershell
+   python tools\voxcpm_voiceover_provider.py `
+     RUN_DIR\script.json `
+     --out-dir RUN_DIR `
+     --voxcpm-python .venv_voxcpm\Scripts\python.exe `
+     --execute
+   ```
+
+5. Verify these files before mix or BUILD:
+
+   ```text
+   voiceover_provider_plan.json
+   narration_manifest.json
+   subtitle_voiceover_build_handoff.json
+   voiceover\*.wav
+   ```
+
+6. Continue only when `subtitle_voiceover_build_handoff.voiceover_ready=true`.
+   BGM under VoxCPM narration must duck. Vocal-heavy music under narration must
+   pass Audio Handoff Review or be moved to a no-voiceover section.
+
+Use the generic provider command only for provider/fallback tests, not for the
+normal Mandarin voiceover path:
+
+```powershell
+python video_tools.py voiceover-provider-plan `
+  RUN_DIR\segment_contract.json `
+  --out-dir RUN_DIR `
+  --provider voxcpm
+```
+
+For an isolated runtime, set `VOXCPM_PYTHON` or pass `--voxcpm-python` so
+VoxCPM dependencies do not pollute the main pipeline Python.
+
+Known Windows setup path used by this project:
+
+```powershell
+python -m venv .venv_voxcpm
+.venv_voxcpm\Scripts\python.exe -m pip install --upgrade pip
+$env:SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VOXCPM='0.0.0+local'
+.venv_voxcpm\Scripts\python.exe -m pip install -e "reference repo\VoxCPM-main"
+.venv_voxcpm\Scripts\python.exe -m pip install --force-reinstall `
+  torch==2.12.1+cu126 torchaudio==2.11.0+cu126 `
+  --index-url https://download.pytorch.org/whl/cu126
+```
+
+Then execute with:
+
+```powershell
+python tools\voxcpm_voiceover_provider.py `
+  RUN_DIR\script.json `
+  --out-dir RUN_DIR `
+  --voxcpm-python .venv_voxcpm\Scripts\python.exe `
+  --execute
+```
+
+The first successful `--execute` may download the selected Hugging Face model.
 
 For selected deliverable music, require `audio_handoff_acceptance.json` to have
 already validated `soundtrack_probe_report.json`. Do not mix a selected BGM/song

@@ -138,7 +138,12 @@ def _audio_mix_report_blocks(audio_mix_report: dict[str, Any]) -> list[dict[str,
     return blocking
 
 
-def _soundtrack_probe_report_blocks(soundtrack_probe_report: dict[str, Any] | None, *, required: bool) -> list[dict[str, Any]]:
+def _soundtrack_probe_report_blocks(
+    soundtrack_probe_report: dict[str, Any] | None,
+    *,
+    required: bool,
+    require_vocal_clearance: bool = False,
+) -> list[dict[str, Any]]:
     blocking: list[dict[str, Any]] = []
     if soundtrack_probe_report is None:
         if required:
@@ -194,6 +199,24 @@ def _soundtrack_probe_report_blocks(soundtrack_probe_report: dict[str, Any] | No
             "message": "soundtrack_probe_report.json must include editing_fit for video placement decisions",
             "next_action": "rerun_soundtrack_probe",
         })
+    if require_vocal_clearance:
+        vocal = features.get("vocal_analysis") if isinstance(features, dict) else None
+        if not isinstance(vocal, dict) or vocal.get("has_vocals") == "unknown" or vocal.get("method") in (None, "", "not_run"):
+            blocking.append({
+                "rule": "soundtrack_probe_missing_vocal_analysis",
+                "tier": 1,
+                "artifact": "soundtrack_probe_report.json",
+                "message": "voiceover/speech delivery requires soundtrack_probe vocal_analysis; rerun with --enable-asr",
+                "next_action": "run_soundtrack_probe_with_asr",
+            })
+        elif vocal.get("has_vocals") is True and str(vocal.get("vocal_density") or "").lower() in {"medium", "high"}:
+            blocking.append({
+                "rule": "vocal_music_conflicts_with_voiceover",
+                "tier": 1,
+                "artifact": "soundtrack_probe_report.json",
+                "message": "selected music has medium/high detected vocals and conflicts with narration or preserved speech",
+                "next_action": "select_instrumental_music_or_use_instrumental_window",
+            })
     return blocking
 
 
@@ -821,6 +844,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
     requires_music = bool(requirements.get("requires_music", True))
     requires_subtitles = bool(requirements.get("requires_subtitles", True))
     requires_soundtrack_probe = bool(requirements.get("requires_soundtrack_probe", False))
+    requires_vocal_conflict_check = bool(requirements.get("requires_vocal_conflict_check", False))
     allow_narration_fallback = bool(requirements.get("allow_narration_fallback", False))
     requires_frame_evidence = bool(requirements.get("requires_frame_evidence", False)) or _is_real_material_route(root)
     requires_effect_render_verification = (
@@ -979,6 +1003,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             _soundtrack_probe_report_blocks(
                 soundtrack_probe_report,
                 required=requires_soundtrack_probe,
+                require_vocal_clearance=requires_vocal_conflict_check,
             )
         )
 
@@ -1395,6 +1420,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             "requires_subtitles": requires_subtitles,
             "requires_frame_evidence": requires_frame_evidence,
             "requires_effect_render_verification": requires_effect_render_verification,
+            "requires_vocal_conflict_check": requires_vocal_conflict_check,
             "allow_narration_fallback": allow_narration_fallback,
             "language": language,
             "video_stream_present": _has_stream(media_probe, "video") if isinstance(media_probe, dict) else False,

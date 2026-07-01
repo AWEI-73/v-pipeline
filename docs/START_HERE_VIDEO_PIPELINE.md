@@ -418,6 +418,24 @@ evidence for later Workbench / ffmpeg adoption. Neither artifact is **final
 delivery** and neither must be treated as `final.mp4` verification; this is
 not final delivery.
 
+Effect Factory route acceptance:
+
+```powershell
+python tools/effect_factory_route_acceptance.py `
+  --out RUN_DIR `
+  --request "electric lightning opening with readable title" `
+  --effect-role opening_title `
+  --duration-sec 4 `
+  --json
+```
+
+Use this before claiming the Effect Factory line is wired. It starts from a
+semantic request, writes `visual_technique_plan.json`, confirms the translated
+parameters, runs `effect_capability_review.json`, builds
+`remotion_prompt_pack.json`, creates dry-run `remotion_worker_outputs.json`,
+validates `remotion_effect_review.json`, and writes `effect_handoff.json` plus
+`effect_factory_route_acceptance_report.json`. It does not write `final.mp4`.
+
 Generated material handoff:
 
 ```powershell

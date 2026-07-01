@@ -73,6 +73,10 @@ Commands:
               compile upstream effect intent into neutral effects contract artifacts
   light-effects-plan <segment_contract.json> --build-profile build_profile.json --out-dir DIR
               write ffmpeg-safe light effects plan and manifest
+  effect-capability-review --request "..." --out effect_capability_review.json
+              decide whether an effect can enter the bounded Remotion worker route
+  effect-dictionary-promote --request promotion_request.json --dictionary effect_dictionary.json --out effect_dictionary.promoted.json
+              promote reviewed GenericRemotionEffect graph into the effect dictionary
 """
 
 import sys
@@ -303,6 +307,38 @@ def cmd_visual_technique_plan(args):
     print(json.dumps({"ok": True, "visual_technique_plan": args.out, **result}, ensure_ascii=False, indent=2))
 
 
+def cmd_effect_capability_review(args):
+    from video_pipeline_core.effect_capability_review import write_effect_capability_review
+    payload = {}
+    if getattr(args, "input", None):
+        with Path(args.input).open(encoding="utf-8-sig") as f:
+            payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ToolError("effect capability input must be a JSON object")
+    payload.update({
+        "request": args.request or payload.get("request", ""),
+        "effect_role": args.effect_role or payload.get("effect_role", ""),
+    })
+    if getattr(args, "duration_sec", None) is not None:
+        payload["duration_sec"] = args.duration_sec
+    try:
+        result = write_effect_capability_review(payload, args.out)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect capability review failed: {exc}") from exc
+    print(json.dumps({"ok": True, "effect_capability_review": args.out, **result}, ensure_ascii=False, indent=2))
+
+
+def cmd_effect_dictionary_promote(args):
+    from video_pipeline_core.effect_dictionary_promotion import promote_effect_dictionary_entry
+    try:
+        with Path(args.request).open(encoding="utf-8-sig") as f:
+            request = json.load(f)
+        result = promote_effect_dictionary_entry(request, args.dictionary, args.out)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect dictionary promotion failed: {exc}") from exc
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_soundtrack_arrange(args):
     from video_pipeline_core.soundtrack_arranger import write_soundtrack_artifacts
     with open(args.input, encoding="utf-8-sig") as f:
@@ -374,6 +410,50 @@ def cmd_soundtrack_audio_handoff_accept(args):
         soundtrack_probe_report_path=args.soundtrack_probe_report,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_voiceover_provider_plan(args):
+    from video_pipeline_core.voiceover_provider import (
+        VoiceoverProviderError,
+        build_voiceover_provider_plan,
+        write_voiceover_provider_artifacts,
+    )
+
+    try:
+        payload = build_voiceover_provider_plan(
+            script_path=args.script,
+            out_dir=args.out_dir,
+            provider=args.provider,
+            voice_style=args.voice_style,
+            model_id=args.model_id,
+            reference_audio=args.reference_audio,
+            device=args.device,
+            local_files_only=args.local_files_only,
+            inference_timesteps=args.inference_timesteps,
+            cfg_value=args.cfg_value,
+            execute=args.execute,
+            allow_fallback=not args.no_fallback,
+            execute_fallback=args.execute_fallback,
+            fallback_voice=args.fallback_voice,
+            voxcpm_bin=args.voxcpm_bin,
+            voxcpm_repo=args.voxcpm_repo,
+            voxcpm_python=args.voxcpm_python,
+            timeout_sec=args.timeout_sec,
+        )
+    except VoiceoverProviderError as exc:
+        raise ToolError(str(exc)) from exc
+    written = write_voiceover_provider_artifacts(payload, args.out_dir)
+    print(json.dumps({
+        "ok": not bool(payload["plan"].get("errors")),
+        "selected_provider": payload["plan"].get("selected_provider"),
+        "provider_available": payload["plan"].get("provider_available"),
+        "provider_entry_type": payload["plan"].get("provider_entry_type"),
+        "provider_repo": payload["plan"].get("provider_repo"),
+        "provider_python": payload["plan"].get("provider_python"),
+        "voiceover_ready": payload["handoff"].get("voiceover_ready"),
+        "artifacts": written,
+        "error_count": len(payload["plan"].get("errors") or []),
+    }, ensure_ascii=False, indent=2))
 
 
 def cmd_visual_technique_review_apply(args):
@@ -868,6 +948,23 @@ def cmd_codex_imagegen_provider_fill(args):
                      ensure_ascii=False, indent=2))
     if not result["ok"]:
         raise ToolError("codex imagegen provider fill failed: "
+                        + "; ".join(result.get("errors") or []))
+
+
+def cmd_image_agent_prompt_handoff(args):
+    """Write a bounded prompt packet for an image-capable agent."""
+    from video_pipeline_core import generated_image_provider_packet
+    result = generated_image_provider_packet.build_image_agent_prompt_handoff(
+        args.packet,
+        out_dir=args.out_dir,
+        max_items=args.max_items,
+    )
+    print(json.dumps({"ok": result["ok"], "errors": result.get("errors", []),
+                      "refs": result.get("refs", {}),
+                      "summary": result.get("summary", {})},
+                     ensure_ascii=False, indent=2))
+    if not result["ok"]:
+        raise ToolError("image agent prompt handoff failed: "
                         + "; ".join(result.get("errors") or []))
 
 
@@ -2527,6 +2624,7 @@ def _build_video_tools_dispatch():
         "contract-run":   cmd_contract_run,
         "generated-manifest": cmd_generated_manifest,
         "generated-image-provider-packet": cmd_generated_image_provider_packet,
+        "image-agent-prompt-handoff": cmd_image_agent_prompt_handoff,
         "codex-imagegen-provider-fill": cmd_codex_imagegen_provider_fill,
         "generated-material-import": cmd_generated_material_import,
         "generated-material-produce": cmd_generated_material_produce,
@@ -2536,8 +2634,11 @@ def _build_video_tools_dispatch():
         "soundtrack-provider-download": cmd_soundtrack_provider_download,
         "soundtrack-import-url": cmd_soundtrack_import_url,
         "soundtrack-audio-handoff-accept": cmd_soundtrack_audio_handoff_accept,
+        "voiceover-provider-plan": cmd_voiceover_provider_plan,
         "visual-technique-plan": cmd_visual_technique_plan,
         "visual-technique-review-apply": cmd_visual_technique_review_apply,
+        "effect-capability-review": cmd_effect_capability_review,
+        "effect-dictionary-promote": cmd_effect_dictionary_promote,
         "effect-intent-plan": cmd_effect_intent_plan,
         "story-soul-blueprint": cmd_story_soul_blueprint,
         "story-soul-to-contract": cmd_story_soul_to_contract,
@@ -2666,6 +2767,33 @@ def main():
     p_tts.add_argument("script", help="劇本 JSON 路徑")
     p_tts.add_argument("--voice", help="預設 zh-TW-HsiaoChenNeural")
     p_tts.add_argument("--outdir", help="輸出目錄，預設 tts_out")
+
+    p_vop = sub.add_parser("voiceover-provider-plan")
+    p_vop.add_argument("script", help="script JSON or segment_contract.json with narration/text")
+    p_vop.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="write voiceover_provider_plan.json and subtitle_voiceover_build_handoff.json here")
+    p_vop.add_argument("--provider", default="voxcpm", choices=["voxcpm", "legacy_edge_tts"],
+                       help="preferred provider; default voxcpm")
+    p_vop.add_argument("--voice-style", default="warm, clear Mandarin narrator",
+                       help="VoxCPM control text, e.g. warm clear Mandarin narrator")
+    p_vop.add_argument("--model-id", help="VoxCPM Hugging Face model id; env VOXCPM_MODEL_ID or openbmb/VoxCPM-0.5B by default")
+    p_vop.add_argument("--reference-audio", help="optional reference audio for VoxCPM clone mode")
+    p_vop.add_argument("--device", default="auto", help="VoxCPM device: auto/cuda/cpu/cuda:0")
+    p_vop.add_argument("--local-files-only", action="store_true",
+                       help="VoxCPM should only use already cached model files")
+    p_vop.add_argument("--inference-timesteps", type=int, default=10)
+    p_vop.add_argument("--cfg-value", type=float, default=2.0)
+    p_vop.add_argument("--execute", action="store_true",
+                       help="execute the selected provider; omitted means plan-only")
+    p_vop.add_argument("--execute-fallback", action="store_true",
+                       help="when VoxCPM is unavailable, execute legacy edge-tts fallback instead of only planning it")
+    p_vop.add_argument("--no-fallback", action="store_true",
+                       help="fail the plan if the preferred provider is unavailable")
+    p_vop.add_argument("--fallback-voice", help="legacy edge-tts fallback voice")
+    p_vop.add_argument("--voxcpm-bin", help="voxcpm executable path; env VOXCPM_BIN also supported")
+    p_vop.add_argument("--voxcpm-repo", help="local VoxCPM repo path; env VOXCPM_REPO or reference repo\\VoxCPM-main by default")
+    p_vop.add_argument("--voxcpm-python", help="Python executable for local VoxCPM repo; env VOXCPM_PYTHON also supported")
+    p_vop.add_argument("--timeout-sec", type=int, default=1200)
 
     p_mix = sub.add_parser("mix-audio")
     p_mix.add_argument("--voice", required=True, help="人聲檔案（mp3/wav）")
@@ -3087,6 +3215,13 @@ def main():
     p_cig.add_argument("--provider", default="codex_imagegen",
                        help="provider label written into generated_provider_outputs.json")
 
+    p_iaph = sub.add_parser("image-agent-prompt-handoff")
+    p_iaph.add_argument("packet", help="generated_provider_packet.json")
+    p_iaph.add_argument("--out-dir", default=None, dest="out_dir",
+                        help="directory for image_agent_prompt_handoff.json and prompt markdown")
+    p_iaph.add_argument("--max-items", type=int, default=None,
+                        help="optional bounded item count for probe runs")
+
     p_gmi = sub.add_parser("generated-material-import")
     p_gmi.add_argument("fallback", help="material_generation_fallback.json")
     p_gmi.add_argument("--needs", required=True, help="material_needs.json")
@@ -3138,6 +3273,26 @@ def main():
                        help="accepted for compatibility; command always prints JSON")
     p_vtp.add_argument("--out", required=True,
                        help="visual_technique_plan.json output")
+
+    p_ecrev = sub.add_parser("effect-capability-review")
+    p_ecrev.add_argument("--input", default=None,
+                         help="optional JSON payload with request/effect_build_spec")
+    p_ecrev.add_argument("--request", default="",
+                         help="fuzzy or confirmed effect request")
+    p_ecrev.add_argument("--effect-role", default="", dest="effect_role",
+                         help="opening_title, transition, lower_third, montage_hit, closing_title, or outro")
+    p_ecrev.add_argument("--duration-sec", type=float, default=None, dest="duration_sec",
+                         help="optional intended duration in seconds")
+    p_ecrev.add_argument("--out", required=True,
+                         help="effect_capability_review.json output")
+
+    p_edprom = sub.add_parser("effect-dictionary-promote")
+    p_edprom.add_argument("--request", required=True,
+                          help="promotion request JSON with accepted review evidence")
+    p_edprom.add_argument("--dictionary", required=True,
+                          help="existing or new effect_factory_dictionary.json")
+    p_edprom.add_argument("--out", required=True,
+                          help="updated effect_factory_dictionary.json output")
 
     p_sta = sub.add_parser("soundtrack-arrange")
     p_sta.add_argument("input", help="brief/video_intent JSON input")

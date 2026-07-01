@@ -319,6 +319,18 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     else:
         handoff_to = "none"
 
+    prefers_voxcpm = bool(
+        voiceover_required
+        and (
+            language.lower().startswith("zh")
+            or _has_any(text, ("mandarin", "chinese", "中文", "國語", "華語", "旁白", "口白", "配音"))
+        )
+    )
+    preferred_provider = "voxcpm" if prefers_voxcpm else ("legacy_tts" if voiceover_required else "none")
+    fallback_provider = "legacy_tts" if prefers_voxcpm else "none"
+    fallback_allowed = bool(brief.get("voiceover_fallback_allowed") or brief.get("tts_fallback_allowed") or False)
+    provider_runtime = "local" if preferred_provider == "voxcpm" else ("generic" if voiceover_required else "none")
+
     requested = (
         language != "unknown"
         or subtitle_required
@@ -332,6 +344,10 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
         "subtitle_required": subtitle_required,
         "voiceover_required": voiceover_required,
         "narration_policy": narration_policy,
+        "preferred_provider": preferred_provider,
+        "fallback_provider": fallback_provider,
+        "fallback_allowed": fallback_allowed,
+        "provider_runtime": provider_runtime,
         "handoff_to": handoff_to,
         "boundary": "Stage 0 records language/subtitle/voiceover intent; execution belongs to Subtitle Director, Audio Director, BUILD, Verify, and Delivery.",
         "required_followup_questions": [

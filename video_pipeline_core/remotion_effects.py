@@ -265,6 +265,9 @@ def _inferred_template_id(effect: Mapping[str, Any]) -> str | None:
 def _effect_with_inferred_template(effect: Mapping[str, Any]) -> tuple[Mapping[str, Any], list[str]]:
     if _template_id(effect):
         return effect, []
+    prompt_parameters = effect.get("prompt_parameters")
+    if isinstance(prompt_parameters, Mapping) and isinstance(prompt_parameters.get("effect_build_spec"), Mapping):
+        return effect, []
     inferred = _inferred_template_id(effect)
     if not inferred:
         return effect, []
@@ -710,6 +713,9 @@ def _dry_run_renderer(job: Mapping[str, Any], preview_file: str | Path,
     return {
         "ok": True,
         "backend": "dry_run",
+        "dry_run": True,
+        "playable_preview": False,
+        "preview_note": "Dry-run placeholder; not a playable video preview.",
         "command": [],
         "evidence_refs": [str(evidence_file)],
     }
@@ -801,6 +807,9 @@ def run_remotion_worker_smoke(remotion_prompt_pack: Mapping[str, Any],
         evidence_refs = result.get("evidence_refs")
         if evidence_refs:
             item["evidence_refs"] = list(evidence_refs)
+        for key in ("dry_run", "playable_preview", "preview_note"):
+            if key in result:
+                item[key] = result[key]
         if result.get("command"):
             item["command"] = result["command"]
         if error:

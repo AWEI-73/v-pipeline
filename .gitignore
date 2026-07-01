@@ -53,6 +53,7 @@ __pycache__/
 *.pyc
 *.pyo
 .graphify_python
+.venv_voxcpm/
 
 # graphify staging / temp
 .graphify_*.json

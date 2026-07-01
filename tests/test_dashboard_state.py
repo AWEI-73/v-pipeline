@@ -1132,6 +1132,68 @@ class DashboardStateSpecTest(unittest.TestCase):
                 "ready_for_human_review",
             )
 
+    def test_effect_factory_route_acceptance_report_surfaces_in_artifacts_and_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "effect_factory_route_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "effect_factory_route_acceptance_report",
+                "ok": False,
+                "failed_stage": "effect_capability_review",
+                "next_action": "revise_effect_capability",
+                "validation_errors": ["unsupported layer type dragon_3d"],
+                "summary": {
+                    "style_family": "unknown",
+                    "capability_decision": "unsupported",
+                },
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            report = state["artifacts"]["effect_factory_route_acceptance_report"]
+            self.assertEqual(report["failed_stage"], "effect_capability_review")
+            self.assertEqual(state["next_action"], "revise_effect_capability")
+            self.assertFalse(state["run"]["pass"])
+            self.assertTrue(any(
+                finding.get("artifact") == "effect_factory_route_acceptance_report"
+                and "unsupported layer" in finding.get("message", "")
+                for finding in state["findings"]
+            ))
+
+    def test_effect_factory_route_acceptance_pass_sets_dashboard_next_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "effect_factory_route_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "effect_factory_route_acceptance_report",
+                "ok": True,
+                "failed_stage": None,
+                "next_action": "ready_for_human_effect_review_or_pipeline_promotion",
+                "summary": {
+                    "style_family": "electric_lightning_energy",
+                    "capability_decision": "supported",
+                    "worker_rendered_count": 1,
+                    "worker_job_count": 1,
+                },
+            }), encoding="utf-8")
+            (workdir / "effect_handoff.json").write_text(json.dumps({
+                "artifact_role": "effect_handoff",
+                "version": 1,
+                "status": "ready_for_human_review",
+                "accepted_assets": [{"job_id": "rm_fx_route_acceptance_01"}],
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertEqual(state["next_action"], "ready_for_human_effect_review_or_pipeline_promotion")
+            self.assertFalse(state["run"]["pass"])
+            self.assertEqual(
+                state["artifacts"]["effect_factory_route_acceptance_report"]["summary"]["style_family"],
+                "electric_lightning_energy",
+            )
+            self.assertEqual(
+                state["artifacts"]["effect_handoff"]["status"],
+                "ready_for_human_review",
+            )
+
     def test_soundtrack_artifacts_surface_and_block_next_action(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

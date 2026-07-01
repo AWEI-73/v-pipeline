@@ -234,6 +234,10 @@ def load_dashboard_state(workdir):
                     manifest["material_first_boundary_acceptance_report"] = f
                 elif f == "remotion_material_first_memory_acceptance_report.json":
                     manifest["remotion_material_first_memory_acceptance_report"] = f
+                elif f == "effect_factory_route_acceptance_report.json":
+                    manifest["effect_factory_route_acceptance_report"] = f
+                elif f == "effect_handoff.json":
+                    manifest["effect_handoff"] = f
                 elif f == "remotion_effect_handoff.json":
                     manifest["remotion_effect_handoff"] = f
                 elif f == "soundtrack_plan.json":
@@ -283,6 +287,11 @@ def load_dashboard_state(workdir):
         or safe_load_json("generated_provider_packet.json")
         or safe_load_json_by_role("generated_image_provider_packet")
     )
+    image_agent_prompt_handoff = (
+        safe_load_json(manifest.get("image_agent_prompt_handoff"))
+        or safe_load_json("image_agent_prompt_handoff.json")
+        or safe_load_json_by_role("image_agent_prompt_handoff")
+    )
     generated_provider_outputs = (
         safe_load_json(manifest.get("generated_provider_outputs"))
         or safe_load_json("generated_provider_outputs.json")
@@ -319,6 +328,14 @@ def load_dashboard_state(workdir):
     remotion_material_first_memory_acceptance_report = (
         safe_load_json(manifest.get("remotion_material_first_memory_acceptance_report"))
         or safe_load_json("remotion_material_first_memory_acceptance_report.json")
+    )
+    effect_factory_route_acceptance_report = (
+        safe_load_json(manifest.get("effect_factory_route_acceptance_report"))
+        or safe_load_json("effect_factory_route_acceptance_report.json")
+    )
+    effect_handoff = (
+        safe_load_json(manifest.get("effect_handoff"))
+        or safe_load_json("effect_handoff.json")
     )
     remotion_effect_handoff = (
         safe_load_json(manifest.get("remotion_effect_handoff"))
@@ -829,6 +846,20 @@ def load_dashboard_state(workdir):
             "artifact": "delta_after_generated_review",
             "message": "Generated material delta is not ready for build",
         })
+    elif (
+        generated_provider_packet
+        and image_agent_prompt_handoff
+        and not generated_provider_outputs
+        and not generated_material_production
+    ):
+        next_action = "call_image_generation_agent"
+        is_pass = False
+        findings.append({
+            "type": "warning",
+            "node": 2,
+            "artifact": "image_agent_prompt_handoff",
+            "message": "Image agent prompt handoff awaits real generated images",
+        })
     elif generated_provider_packet and not generated_provider_outputs and not generated_material_production:
         next_action = "wait_for_generated_provider"
         is_pass = False
@@ -951,6 +982,24 @@ def load_dashboard_state(workdir):
     ):
         next_action = (
             remotion_material_first_memory_acceptance_report.get("next_action")
+            or "ready_for_human_effect_review_or_pipeline_promotion"
+        )
+        is_pass = False
+    elif (
+        effect_factory_route_acceptance_report
+        and effect_factory_route_acceptance_report.get("ok") is False
+    ):
+        next_action = (
+            effect_factory_route_acceptance_report.get("next_action")
+            or "repair:effect_factory_route_acceptance"
+        )
+        is_pass = False
+    elif (
+        effect_factory_route_acceptance_report
+        and effect_factory_route_acceptance_report.get("ok") is True
+    ):
+        next_action = (
+            effect_factory_route_acceptance_report.get("next_action")
             or "ready_for_human_effect_review_or_pipeline_promotion"
         )
         is_pass = False
@@ -1136,6 +1185,22 @@ def load_dashboard_state(workdir):
             "type": "error",
             "node": 14,
             "artifact": "remotion_material_first_memory_acceptance_report",
+            "message": message,
+        })
+
+    if (
+        effect_factory_route_acceptance_report
+        and effect_factory_route_acceptance_report.get("ok") is False
+    ):
+        failed_stage = effect_factory_route_acceptance_report.get("failed_stage")
+        errors = effect_factory_route_acceptance_report.get("validation_errors") or []
+        message = "; ".join(str(item) for item in errors if item) or (
+            f"Effect Factory route acceptance failed at {failed_stage}"
+        )
+        findings.append({
+            "type": "error",
+            "node": 14,
+            "artifact": "effect_factory_route_acceptance_report",
             "message": message,
         })
 
@@ -1380,6 +1445,7 @@ def load_dashboard_state(workdir):
             "generated_material_quality_review": generated_material_quality_review,
             "generated_material_review": generated_material_review,
             "generated_provider_packet": generated_provider_packet,
+            "image_agent_prompt_handoff": image_agent_prompt_handoff,
             "generated_provider_outputs": generated_provider_outputs,
             "generated_material_production": generated_material_production,
             "delta_after_generated_review": delta_after_generated_review,
@@ -1388,6 +1454,8 @@ def load_dashboard_state(workdir):
             "material_wall_handoff_report": material_wall_handoff_report,
             "material_first_boundary_acceptance_report": material_first_boundary_acceptance_report,
             "remotion_material_first_memory_acceptance_report": remotion_material_first_memory_acceptance_report,
+            "effect_factory_route_acceptance_report": effect_factory_route_acceptance_report,
+            "effect_handoff": effect_handoff,
             "remotion_effect_handoff": remotion_effect_handoff,
             "soundtrack_plan": soundtrack_plan,
             "music_source_candidates": music_source_candidates,

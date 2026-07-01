@@ -134,7 +134,36 @@ def _merge_anchors(job_value: Any, style_value: Any) -> list[str]:
     return merged
 
 
-def _prompt(job: Mapping[str, Any], style: Mapping[str, Any]) -> str:
+def _panel_variation(panel_index: int, panel_count: int) -> str:
+    if panel_count <= 1:
+        return ""
+    roles = [
+        (
+            "establishing variation",
+            "wider framing, show the environment and spatial context clearly",
+        ),
+        (
+            "character/emotion variation",
+            "closer framing, emphasize the subject expression and emotional state",
+        ),
+        (
+            "action/detail variation",
+            "show a different moment of the same story function with visible action or guiding detail",
+        ),
+        (
+            "resolution/transition variation",
+            "compose as a bridge to the next beat with changed pose, camera distance, or direction of movement",
+        ),
+    ]
+    role, guidance = roles[(panel_index - 1) % len(roles)]
+    return (
+        f"Panel variation: panel {panel_index} of {panel_count}; {role}; {guidance}. "
+        "Keep the same subject, style anchors, and story function, but do not duplicate the exact same composition."
+    )
+
+
+def _prompt(job: Mapping[str, Any], style: Mapping[str, Any],
+            panel_index: int = 1, panel_count: int = 1) -> str:
     story = _text(job.get("story_function"))
     subject = _text(job.get("subject"))
     angle = _text(job.get("angle_scale"), "medium")
@@ -158,6 +187,9 @@ def _prompt(job: Mapping[str, Any], style: Mapping[str, Any]) -> str:
         f"Composition/framing: {angle} shot; visual family {visual_family}; action family {action}",
         f"Lighting/mood: {emotion}",
     ]
+    variation = _panel_variation(panel_index, panel_count)
+    if variation:
+        lines.append(variation)
     if palette:
         lines.append(f"Color palette: {palette}")
     if style_anchors:
@@ -171,7 +203,7 @@ def _prompt(job: Mapping[str, Any], style: Mapping[str, Any]) -> str:
     return "\n".join(line for line in lines if line.split(":", 1)[-1].strip())
 
 
-def _packet_item(job: Mapping[str, Any], panel_index: int, out: Path,
+def _packet_item(job: Mapping[str, Any], panel_index: int, panel_count: int, out: Path,
                  providers: list[str], style: Mapping[str, Any]) -> dict:
     target = _target_file(out, job, panel_index)
     return {
@@ -183,12 +215,14 @@ def _packet_item(job: Mapping[str, Any], panel_index: int, out: Path,
         "preferred_provider": providers[0],
         "media_type": _text(job.get("media_type"), "generated_image"),
         "story_function": _text(job.get("story_function")),
+        "panel_count": panel_count,
+        "panel_variation": _panel_variation(panel_index, panel_count),
         "emotion": _text(job.get("emotion")),
         "visual_family": _text(job.get("visual_family")),
         "angle_scale": _text(job.get("angle_scale")),
         "action_family": _text(job.get("action_family")),
         "subject": _text(job.get("subject")),
-        "prompt": _prompt(job, style),
+        "prompt": _prompt(job, style, panel_index=panel_index, panel_count=panel_count),
         "negative_prompt": _text(job.get("negative_prompt")),
         "style_anchors": _merge_anchors(job.get("style_anchors"), style.get("style_anchors")),
         "character_anchors": _merge_anchors(
@@ -313,7 +347,8 @@ def fill_provider_outputs_from_codex_images(
     try:
         for item, source, target in zip(items, sources, targets):
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            if source.resolve() != target.resolve():
+                shutil.copy2(source, target)
             if not _readable_image(target):
                 raise ValueError(f"copied image is unreadable: {target}")
             output_items.append(_provider_outputs_item(item, source, target, provider))
@@ -389,6 +424,161 @@ def _prompts_md(packet: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _handoff_item(item: Mapping[str, Any], index: int) -> dict:
+    target_file = _text(item.get("target_file"))
+    prompt = _text(item.get("prompt"))
+    job_id = _text(item.get("job_id"), f"job_{index:03d}")
+    return {
+        "job_id": job_id,
+        "need_id": _text(item.get("need_id")),
+        "panel_index": item.get("panel_index"),
+        "target_file": target_file,
+        "provider": _text(item.get("preferred_provider"), "codex_imagegen"),
+        "tool_mode": "built_in_image_gen",
+        "prompt": prompt,
+        "negative_prompt": _text(item.get("negative_prompt")),
+        "save_policy": (
+            "Generate a real bitmap image with the image generation tool, then "
+            "copy or move the selected output to target_file. Do not create a "
+            "text card, placeholder, SVG stand-in, or test_pil image."
+        ),
+        "quality_check": _as_list(item.get("quality_check")) or [
+            "image file exists at target_file and is readable",
+            "matches story_function and subject",
+            "contains no watermark, fake logo, or accidental text",
+        ],
+    }
+
+
+def _image_agent_handoff_md(handoff: Mapping[str, Any]) -> str:
+    lines = [
+        "# Image Agent Handoff",
+        "",
+        "Use a real image generation tool for each item below.",
+        "Do not make text cards, placeholder graphics, SVG mockups, or test_pil outputs.",
+        "If image generation is unavailable, stop and report `provider_unavailable`; do not fabricate files.",
+        "",
+        "After every target file exists, run:",
+        "",
+        "```powershell",
+        "python video_tools.py codex-imagegen-provider-fill generated_provider_packet.json "
+        "--image-files <generated image files in packet order>",
+        "python video_tools.py generated-material-import material_generation_fallback.json "
+        "--needs material_needs.json --provider-outputs generated_provider_outputs.json "
+        "--style-profile style_profile.json --out-dir generated_materials",
+        "```",
+        "",
+    ]
+    for item in handoff.get("items") or []:
+        lines.extend([
+            f"## {item.get('job_id')} / panel {item.get('panel_index')}",
+            "",
+            f"- Target file: `{item.get('target_file')}`",
+            f"- Provider/tool mode: `{item.get('provider')}` / `{item.get('tool_mode')}`",
+            "- Required behavior: generate a real bitmap image and save it to the target file.",
+            "",
+            "```text",
+            str(item.get("prompt") or ""),
+            "```",
+            "",
+        ])
+    return "\n".join(lines)
+
+
+def build_image_agent_prompt_handoff(
+    packet_path: str | Path,
+    out_dir: str | Path | None = None,
+    *,
+    max_items: int | None = None,
+) -> dict:
+    """Write an agent-executable prompt handoff for real image generation.
+
+    This helper still does not call a model. It makes the provider packet
+    directly actionable for an image-capable agent by preserving exact target
+    filenames, prompts, and fail-closed instructions.
+    """
+    packet_file = Path(packet_path)
+    errors: list[str] = []
+    try:
+        packet = json.loads(packet_file.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        packet = {}
+        errors.append(f"cannot read provider packet: {exc}")
+    if packet and packet.get("artifact_role") != "generated_image_provider_packet":
+        errors.append("packet artifact_role must be generated_image_provider_packet")
+    items = [item for item in _as_list(packet.get("items")) if isinstance(item, Mapping)]
+    if packet and not items:
+        errors.append("provider packet contains no items")
+    if max_items is not None:
+        if max_items < 1:
+            errors.append("max_items must be >= 1")
+        else:
+            items = items[:max_items]
+    for index, item in enumerate(items, start=1):
+        if not _text(item.get("target_file")):
+            errors.append(f"provider packet item #{index} requires target_file")
+        prompt = _text(item.get("prompt"))
+        if not prompt:
+            errors.append(f"provider packet item #{index} requires prompt")
+        lowered = prompt.casefold()
+        forbidden = [
+            token for token in ("test_pil", "placeholder", "text card", "文字卡")
+            if token in lowered
+        ]
+        if forbidden:
+            errors.append(
+                f"provider packet item #{index} prompt contains forbidden placeholder token(s): "
+                + ", ".join(forbidden)
+            )
+    if errors:
+        return {
+            "artifact_role": "image_agent_prompt_handoff_result",
+            "version": 1,
+            "ok": False,
+            "errors": errors,
+            "summary": {"item_count": 0},
+        }
+
+    out = Path(out_dir) if out_dir is not None else packet_file.parent / "image_agent_handoff"
+    handoff_items = [_handoff_item(item, index) for index, item in enumerate(items, start=1)]
+    provider_outputs = out / "generated_provider_outputs.json"
+    handoff = {
+        "artifact_role": "image_agent_prompt_handoff",
+        "version": 1,
+        "source_packet": _path_text(packet_file),
+        "provider_outputs": _path_text(provider_outputs),
+        "next_action": "call_image_generation_agent",
+        "fail_closed": True,
+        "forbidden_outputs": ["text_card", "placeholder", "test_pil", "svg_standin"],
+        "items": handoff_items,
+        "completion_contract": {
+            "required": [
+                "Every target_file exists and is a readable image.",
+                "generated_provider_outputs.json is written or codex-imagegen-provider-fill is run.",
+                "generated-material-import is run only after real images exist.",
+            ],
+            "if_unavailable": "Stop and report provider_unavailable; do not fabricate placeholder assets.",
+        },
+    }
+    out.mkdir(parents=True, exist_ok=True)
+    json_path = out / "image_agent_prompt_handoff.json"
+    md_path = out / "image_agent_prompt.md"
+    json_path.write_text(json.dumps(handoff, ensure_ascii=False, indent=2), encoding="utf-8")
+    md_path.write_text(_image_agent_handoff_md(handoff), encoding="utf-8")
+    return {
+        "artifact_role": "image_agent_prompt_handoff_result",
+        "version": 1,
+        "ok": True,
+        "errors": [],
+        "refs": {
+            "image_agent_handoff": _path_text(json_path),
+            "image_agent_prompt": _path_text(md_path),
+            "provider_outputs": _path_text(provider_outputs),
+        },
+        "summary": {"item_count": len(handoff_items)},
+    }
+
+
 def build_generated_image_provider_packet(
     fallback_artifact: Mapping[str, Any],
     out_dir: str | Path,
@@ -428,8 +618,9 @@ def build_generated_image_provider_packet(
     style = _style_profile(style_profile)
     items = []
     for job in jobs:
-        for panel_index in range(1, _panel_count(job) + 1):
-            items.append(_packet_item(job, panel_index, out, provider_list, style))
+        panel_count = _panel_count(job)
+        for panel_index in range(1, panel_count + 1):
+            items.append(_packet_item(job, panel_index, panel_count, out, provider_list, style))
     packet = {
         "artifact_role": "generated_image_provider_packet",
         "version": 1,

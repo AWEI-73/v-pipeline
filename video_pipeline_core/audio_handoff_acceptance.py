@@ -17,6 +17,13 @@ MUSIC_SOURCE_TYPES = {
     "manual_import",
     "reviewed_manual",
 }
+STRICT_INSTRUMENTAL_POLICIES = {
+    "instrumental_required",
+    "instrumental_preferred",
+    "no_vocal",
+    "preserve_speech",
+}
+VOCAL_CONFLICT_DENSITIES = {"medium", "high"}
 
 
 def _clean(value: Any) -> str:
@@ -220,6 +227,63 @@ def _probe_blocks(
     return []
 
 
+def _requires_vocal_clearance(selected: Mapping[str, Any], section: Mapping[str, Any] | None) -> bool:
+    section = section or {}
+    vocal_policy = _clean(section.get("vocal_policy") or selected.get("vocal_policy")).casefold()
+    ducking_policy = _clean(selected.get("ducking_policy") or section.get("ducking_policy")).casefold()
+    if vocal_policy == "vocal_ok":
+        return False
+    return vocal_policy in STRICT_INSTRUMENTAL_POLICIES or ducking_policy == "duck_under_voice"
+
+
+def _vocal_conflict_blocks(
+    *,
+    soundtrack_probe_report: Mapping[str, Any] | None,
+    candidate_id: str,
+    section_id: str,
+) -> list[dict[str, Any]]:
+    features = soundtrack_probe_report.get("features") if isinstance(soundtrack_probe_report, Mapping) else None
+    vocal = features.get("vocal_analysis") if isinstance(features, Mapping) else None
+    if not isinstance(vocal, Mapping):
+        return [{
+            "rule": "soundtrack_probe_missing_vocal_analysis",
+            "candidate_id": candidate_id,
+            "section_id": section_id,
+            "message": (
+                "instrumental or speech-underlay music requires soundtrack_probe "
+                "with vocal_analysis; rerun with --enable-asr"
+            ),
+        }]
+
+    has_vocals = vocal.get("has_vocals")
+    method = _clean(vocal.get("method"))
+    density = _clean(vocal.get("vocal_density")).casefold()
+    if has_vocals == "unknown" or method in {"", "not_run", "faster_whisper_unavailable", "faster_whisper_error"}:
+        return [{
+            "rule": "soundtrack_probe_missing_vocal_analysis",
+            "candidate_id": candidate_id,
+            "section_id": section_id,
+            "message": (
+                "instrumental or speech-underlay music requires a completed vocal_analysis; "
+                "rerun soundtrack_probe with --enable-asr"
+            ),
+        }]
+    if has_vocals is True and density in VOCAL_CONFLICT_DENSITIES:
+        return [{
+            "rule": "vocal_music_conflicts_with_voiceover",
+            "candidate_id": candidate_id,
+            "section_id": section_id,
+            "vocal_density": density,
+            "vocal_ratio": vocal.get("vocal_ratio"),
+            "instrumental_windows": vocal.get("instrumental_windows") or [],
+            "message": (
+                "selected music has medium/high detected vocals and cannot be used "
+                "under voiceover or preserved speech"
+            ),
+        }]
+    return []
+
+
 def _source_audio_policy(
     soundtrack_plan: Mapping[str, Any] | None,
     tracks: list[dict[str, Any]],
@@ -363,6 +427,14 @@ def accept_audio_handoff(
                     candidate_id=candidate_id,
                 )
             )
+            if _requires_vocal_clearance(item, section):
+                blocking.extend(
+                    _vocal_conflict_blocks(
+                        soundtrack_probe_report=probe_report,
+                        candidate_id=candidate_id,
+                        section_id=section_id,
+                    )
+                )
 
         if audio_path.is_file() and source_type != "reference_only" and item.get("delivery_allowed") is True and license_status not in BAD_LICENSE_STATUSES:
             track = {
@@ -398,6 +470,10 @@ def accept_audio_handoff(
     next_action = "audio_mix_plan_ready" if ok else "repair_audio_handoff"
     if not ok and any(rule.startswith("soundtrack_probe") or rule == "missing_soundtrack_probe_report" for rule in rules):
         next_action = "run_soundtrack_probe"
+    if not ok and "soundtrack_probe_missing_vocal_analysis" in rules:
+        next_action = "run_soundtrack_probe_with_asr"
+    if not ok and "vocal_music_conflicts_with_voiceover" in rules:
+        next_action = "select_instrumental_music_or_use_instrumental_window"
     mix_sections = _mix_sections(soundtrack_plan)
     source_audio_policy = _source_audio_policy(soundtrack_plan, tracks if ok else [], sections)
     acceptance = {

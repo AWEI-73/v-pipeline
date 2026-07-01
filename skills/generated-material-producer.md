@@ -24,8 +24,8 @@ material-map evidence.
       "tool": "tools/story_first_provider_happy_path.py",
       "when": "no-material/story-first request needs the full safe path to real image provider handoff without test_pil or placeholder cards",
       "inputs": ["title/story subject", "visual style", "target duration", "provider list"],
-      "outputs": ["video_intent.json", "story_blueprint/*", "material_generation_fallback.json", "style_profile.json", "provider_packet/generated_provider_packet.json", "provider_packet/generated_provider_prompts.md"],
-      "stop_if": ["pipeline_home does not return wait_for_generated_provider", "generated_material_production.json exists before provider outputs", "final.mp4 exists"]
+      "outputs": ["video_intent.json", "story_blueprint/*", "material_generation_fallback.json", "style_profile.json", "provider_packet/generated_provider_packet.json", "provider_packet/generated_provider_prompts.md", "provider_packet/image_agent_handoff/image_agent_prompt_handoff.json"],
+      "stop_if": ["pipeline_home does not return call_image_generation_agent", "generated_material_production.json exists before provider outputs", "final.mp4 exists"]
     },
     {
       "tool": "tools/generated_material_flow_acceptance.py",
@@ -85,6 +85,7 @@ material_needs.json
   -> material-delta proves missing/thin
   -> material-generation-fallback creates jobs
   -> generated-image-provider-packet creates provider jobs
+  -> image-agent-prompt-handoff creates executable image-agent prompts
   -> real image provider writes generated_provider_outputs.json
   -> generated-material-import validates provider outputs
   -> generated material maps as candidate evidence
@@ -108,8 +109,9 @@ python tools\story_first_provider_happy_path.py `
 ```
 
 Expected `pipeline_home.py` result is `mode=waiting`,
-`cursor=generated_image_provider`, `next=wait_for_generated_provider`. This is
-the correct stop point when no image-capable provider has written files yet.
+`cursor=generated_image_agent`, `next=call_image_generation_agent`. This is the
+correct stop point when no image-capable provider has written files yet, but the
+run now contains a concrete prompt packet an image-capable agent can execute.
 Do not substitute `test_pil` or text-card placeholders for real generated art.
 
 Default route for real work:
@@ -119,11 +121,14 @@ python video_tools.py generated-image-provider-packet material_generation_fallba
   --style-profile style_profile.json `
   --out-dir provider_packet `
   --providers codex_imagegen,gemini,antigravity
+
+python video_tools.py image-agent-prompt-handoff provider_packet/generated_provider_packet.json `
+  --out-dir provider_packet/image_agent_handoff
 ```
 
 Then an image-capable agent/provider must generate every requested image and
 write `generated_provider_outputs.json`. If no provider is available, stop with
-`wait_for_generated_provider`; do not create text-card placeholder images.
+`provider_unavailable`; do not create text-card placeholder images.
 
 Test-only deterministic renderer:
 

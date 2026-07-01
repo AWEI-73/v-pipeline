@@ -50,6 +50,35 @@ def _duration_sec(value: Any) -> float | None:
 
 
 def _detect_style_family(text: str) -> str | None:
+    if _has_any(text, ("ink spread", "ink bloom", "ink wash", "sumi ink", "rice paper reveal")):
+        return "ink_spread_reveal"
+    if _has_any(text, ("prism glass", "glass refraction", "prismatic", "crystalline split", "spectral split")):
+        return "prism_glass_refraction"
+    if _has_any(text, ("黑客", "駭客", "資料流", "數據流", "終端機", "terminal", "data stream", "matrix reveal")):
+        return "terminal_data_reveal"
+    if _has_any(text, ("膠片燒灼", "膠卷燒", "film burn", "burn-through", "light leak burn", "燒灼轉場")):
+        return "vintage_film_burn_transition"
+    if _has_any(text, (
+        "故事轉mv",
+        "故事轉 mv",
+        "故事轉到",
+        "故事到mv",
+        "故事到 mv",
+        "轉到後半段 mv",
+        "story to mv",
+        "story-to-mv",
+    )):
+        return "story_to_mv_transition"
+    if _has_any(text, ("閃電", "雷電", "電光", "動感閃電", "雷擊", "電弧")):
+        return "electric_lightning_energy"
+    if _has_any(text, ("地震", "裂動", "震裂", "衝擊裂", "地面裂痕")):
+        return "earthquake_crack_impact"
+    if _has_any(text, ("母親節", "愛心", "心形", "感謝媽媽", "溫柔感謝")):
+        return "mothers_day_heart_stage"
+    japanese_clear = _has_any(text, ("日式", "日本風", "和風", "日系"))
+    cute_storybook_clear = _has_any(text, ("可愛", "紙本", "繪本", "故事書", "柔和", "手繪"))
+    if japanese_clear and cute_storybook_clear:
+        return "japanese_soft_storybook"
     if _has_any(text, ("lower third", "lower-third", "name title", "speaker label", "下標", "姓名職稱", "職稱")):
         return "clean_lower_third_label"
     if _has_any(text, ("photo wall", "memory wall", "照片牆", "照片墙", "一張一張", "一张一张", "collage")):
@@ -129,6 +158,26 @@ def _candidate_review_questions(style_family: str, effect_role: str) -> list[str
         "golden_particle_title_card": [
             "What title text and subtitle should the ceremony card display?",
             "Should particles feel restrained, celebratory, or award-like?",
+        ],
+        "japanese_soft_storybook": [
+            "Should the Japanese storybook look lean cute, ceremonial, nostalgic, or dreamy?",
+            "Should paper texture, ink lines, character plates, or soft particles be most visible?",
+            "What title text, scene image, or material ref should the opening reveal?",
+        ],
+        "story_to_mv_transition": [
+            "What is the exact story section before the transition and the MV/montage section after it?",
+            "Where should the impact moment land inside the transition?",
+            "Should the acceleration feel subtle, balanced, or aggressive?",
+        ],
+        "terminal_data_reveal": [
+            "Should the data stream feel clean corporate-tech, cyber-thriller, or investigative?",
+            "What exact title text should the terminal stream assemble?",
+            "Should glyphs be mostly readable code, abstract symbols, or mixed bilingual characters?",
+        ],
+        "vintage_film_burn_transition": [
+            "Should the burn start from the left edge, right edge, center, or random film gate edge?",
+            "What are the source memory shot and target truth shot?",
+            "Should the burn feel subtle archival, dramatic reveal, or damaged-footage unstable?",
         ],
     }
     questions = list(role_questions.get(style_family, []))
@@ -428,6 +477,229 @@ def _candidate_parameter_plan(style_family: str, duration: float | None) -> dict
             "controls": {"bpm": "ask_audio_or_user", "pulse_amplitude": "medium", "freeze_frame_target": "ask_user"},
             "negative_rules": ["avoid medical alarm style unless requested"],
         },
+        "japanese_soft_storybook": {
+            "story_function": "soft_story_opening_or_transition",
+            "tone": "gentle_cute_storybook",
+            "render_strategy": [
+                "remotion_layered_paper",
+                "remotion_text_layers",
+                "remotion_soft_particle_overlay",
+            ],
+            "visual_primitives": [
+                "storybook_paper_texture",
+                "soft_character_plate",
+                "rounded_ink_lines",
+                "pastel_wash_background",
+                "quiet_title_space",
+            ],
+            "motion_primitives": [
+                "gentle_parallax",
+                "soft_scale_in",
+                "slow_page_breath",
+                "delayed_title_fade",
+            ],
+            "controls": {
+                "palette": "soft_pastel_warm",
+                "line_style": "rounded_soft_lines",
+                "paper_texture": "subtle",
+                "motion_intensity": "low",
+                "background_density": "clean",
+                "title_readability": "high",
+            },
+            "negative_rules": [
+                "no horror anime tone",
+                "no over-saturated neon",
+                "no cluttered sticker collage",
+                "do not force sakura unless requested",
+            ],
+        },
+        "story_to_mv_transition": {
+            "story_function": "story_to_montage_energy_shift",
+            "tone": "energy_shift_controlled",
+            "render_strategy": ["remotion_timeline_cuts", "remotion_text_layers", "remotion_shape_layers"],
+            "visual_primitives": [
+                "film_rail",
+                "thumbnail_strip",
+                "impact_flash",
+                "phase_labels",
+                "hard_cut_bars",
+            ],
+            "motion_primitives": [
+                "thumbnail_acceleration",
+                "flash_wipe",
+                "beat_pulse",
+                "snap_zoom",
+            ],
+            "controls": {
+                "section_from": "story",
+                "section_to": "montage",
+                "pacing_shift": "slow_to_fast",
+                "impact_moment_sec": 2.2,
+                "thumbnail_acceleration": "medium",
+                "phase_labels": ["STORY", "MONTAGE"],
+            },
+            "negative_rules": [
+                "do not behave like a static chapter card",
+                "do not hide reviewed source imagery",
+                "no unreadable phase labels",
+            ],
+        },
+        "ink_spread_reveal": {
+            "story_function": "organic_title_reveal",
+            "tone": "elegant_organic_mysterious",
+            "render_strategy": [
+                "remotion_mask_reveal",
+                "remotion_noise_displacement",
+                "remotion_texture_overlay",
+                "remotion_text_layers",
+            ],
+            "visual_primitives": [
+                "ink_bloom_mask",
+                "paper_fiber_texture",
+                "soft_edge_bleed",
+                "negative_space_title",
+                "monochrome_wash",
+            ],
+            "motion_primitives": [
+                "fluid_spread",
+                "edge_feather_growth",
+                "title_reveal_through_mask",
+                "slow_absorb",
+            ],
+            "controls": {
+                "ink_spread_radius": "medium",
+                "edge_feather_px": 42,
+                "noise_scale": 0.72,
+                "paper_texture_strength": "medium",
+                "title_reveal_sec": 3.2,
+                "palette": "black_ink_on_warm_paper",
+                "readability_guard": "title_clear_after_ink_settles",
+            },
+            "negative_rules": [
+                "no blood-like red liquid",
+                "no dirty spill feeling",
+                "no unreadable final title",
+                "do not over-darken the frame",
+            ],
+        },
+        "prism_glass_refraction": {
+            "story_function": "crystalline_transition",
+            "tone": "clean_cinematic_luminous",
+            "render_strategy": [
+                "remotion_refraction_layers",
+                "remotion_clip_path_planes",
+                "remotion_chromatic_split",
+                "remotion_mask_reveal",
+            ],
+            "visual_primitives": [
+                "glass_prism_planes",
+                "rgb_spectral_split",
+                "transparent_shard_edges",
+                "luminous_refraction_streak",
+                "next_scene_glimpse",
+            ],
+            "motion_primitives": [
+                "refraction_sweep",
+                "plane_slide",
+                "chromatic_settle",
+                "wipe_reveal",
+            ],
+            "controls": {
+                "prism_plane_count": 5,
+                "chromatic_aberration_px": 14,
+                "refraction_strength": "medium",
+                "plane_angle_deg": 18,
+                "transition_duration_sec": 2.4,
+                "highlight_strength": "soft",
+                "readability_guard": "avoid_text_under_strong_refraction",
+            },
+            "negative_rules": [
+                "no broken-glass injury implication",
+                "no chaotic shard explosion",
+                "do not hide the transition target",
+                "avoid excessive rainbow clutter",
+            ],
+        },
+        "terminal_data_reveal": {
+            "story_function": "cyber_information_reveal",
+            "tone": "tech_tense_readable",
+            "render_strategy": [
+                "remotion_text_layers",
+                "remotion_canvas_glyph_stream",
+                "remotion_scanline_overlay",
+                "remotion_mask_reveal",
+            ],
+            "visual_primitives": [
+                "glyph_stream_layer",
+                "terminal_grid",
+                "scanline_overlay",
+                "monospace_title_plate",
+                "cursor_blink",
+                "green_or_cyan_data_glow",
+            ],
+            "motion_primitives": [
+                "vertical_data_rain",
+                "horizontal_terminal_sweep",
+                "title_assembly",
+                "cursor_lock",
+                "glitch_decay",
+            ],
+            "controls": {
+                "glyph_speed": "medium_fast",
+                "glyph_density": "medium",
+                "scanline_opacity": 0.22,
+                "title_assembly_sec": 3.6,
+                "readability_guard": "title_clear_after_reveal",
+                "palette": "cyan_green_on_dark",
+                "glitch_strength": "low_to_medium",
+            },
+            "negative_rules": [
+                "no unreadable final title",
+                "no excessive strobe",
+                "no horror hacking cliché overload",
+                "do not use random lightning arcs as the primary metaphor",
+            ],
+        },
+        "vintage_film_burn_transition": {
+            "story_function": "memory_to_truth_transition",
+            "tone": "nostalgic_uneasy_not_horror",
+            "render_strategy": [
+                "remotion_mask_reveal",
+                "remotion_light_leak_overlay",
+                "remotion_film_grain",
+                "remotion_gate_weave",
+            ],
+            "visual_primitives": [
+                "burn_mask_edge",
+                "amber_light_leak",
+                "film_grain",
+                "gate_weave",
+                "dust_scratches",
+                "exposed_frame_border",
+            ],
+            "motion_primitives": [
+                "burn_through_wipe",
+                "edge_flicker",
+                "gate_weave_drift",
+                "slow_exposure_bloom",
+                "memory_to_truth_reveal",
+            ],
+            "controls": {
+                "burn_edge_width": "medium",
+                "burn_direction": "edge_to_center",
+                "light_leak_strength": "medium",
+                "grain_amount": 0.24,
+                "gate_weave_strength": "low",
+                "transition_duration_sec": 3.0,
+                "horror_guard": "no_horror_no_gore",
+            },
+            "negative_rules": [
+                "no gore or injury implication",
+                "no horror jump scare",
+                "do not fully obscure the target shot",
+                "avoid modern neon glitch language",
+            ],
+        },
     }
     base = dict(library[style_family])
     controls = dict(base["controls"])
@@ -473,6 +745,546 @@ def _candidate_parameter_plan(style_family: str, duration: float | None) -> dict
         },
     ]
     return base
+
+
+def _semantic_slots(
+    *,
+    style_family: str,
+    effect_role: str,
+    request: str,
+    technique: Mapping[str, Any],
+    duration: float | None,
+) -> dict[str, Any]:
+    controls = technique.get("controls") if isinstance(technique.get("controls"), Mapping) else {}
+    slots: dict[str, Any] = {
+        "effect_role": effect_role,
+        "story_function": technique.get("story_function") or style_family,
+        "tone": technique.get("tone") or "neutral",
+        "duration_sec": duration or controls.get("duration_sec"),
+        "pacing": controls.get("pacing") or ("slow" if "slow" in technique.get("motion_primitives", []) else "medium"),
+        "density": controls.get("density") or controls.get("background_density") or "medium",
+        "reveal_mode": controls.get("reveal_mode") or "ask_or_derive",
+        "camera_motion": controls.get("camera_motion") or controls.get("background_motion") or "derive_from_pacing",
+        "material_relation": "material_refs_optional",
+    }
+    if style_family == "story_to_mv_transition":
+        slots.update({
+            "section_from": controls.get("section_from", "story"),
+            "section_to": controls.get("section_to", "montage"),
+            "pacing_shift": controls.get("pacing_shift", "slow_to_fast"),
+            "material_relation": "source_and_target_segments_required",
+        })
+    elif style_family == "memory_photo_wall_warm":
+        slots.update({
+            "material_relation": "reviewed_photo_or_keyframe_refs_required",
+            "pacing": controls.get("pacing", "slow"),
+            "density": controls.get("density", "low"),
+            "reveal_mode": controls.get("reveal_mode", "one_by_one"),
+            "camera_motion": controls.get("camera_motion", "slow_push_in"),
+        })
+    elif style_family == "japanese_soft_storybook":
+        slots.update({
+            "material_relation": "generated_or_existing_scene_plate",
+            "pacing": "slow",
+            "density": controls.get("background_density", "clean"),
+            "reveal_mode": "soft_story_reveal",
+            "camera_motion": "gentle_parallax",
+        })
+    elif style_family == "terminal_data_reveal":
+        slots.update({
+            "material_relation": "abstract_generated_overlay",
+            "story_function": "cyber_information_reveal",
+            "pacing": "fast_then_hold",
+            "density": controls.get("glyph_density", "medium"),
+            "reveal_mode": "data_stream_to_title_assembly",
+            "camera_motion": "static_or_micro_jitter",
+        })
+    elif style_family == "vintage_film_burn_transition":
+        slots.update({
+            "material_relation": "source_and_target_shots_required",
+            "story_function": "memory_to_truth_transition",
+            "pacing": "medium_slow",
+            "density": "medium_texture",
+            "reveal_mode": "burn_through_wipe",
+            "camera_motion": "gate_weave_drift",
+        })
+    elif style_family == "ink_spread_reveal":
+        slots.update({
+            "material_relation": "abstract_or_scene_plate_optional",
+            "story_function": "organic_title_reveal",
+            "pacing": "slow_to_medium",
+            "density": "medium_texture",
+            "reveal_mode": "ink_mask_growth",
+            "camera_motion": "static_or_slow_push",
+        })
+    elif style_family == "prism_glass_refraction":
+        slots.update({
+            "material_relation": "source_and_target_shots_preferred",
+            "story_function": "crystalline_transition",
+            "pacing": "medium",
+            "density": "medium_geometry",
+            "reveal_mode": "refraction_sweep",
+            "camera_motion": "static_with_plane_motion",
+        })
+    if "結尾" in request or "closing" in request.casefold():
+        slots["placement"] = "ending"
+    return slots
+
+
+def _remotion_capability_plan(
+    *,
+    style_family: str,
+    effect_role: str,
+    technique: Mapping[str, Any],
+) -> dict[str, Any]:
+    capabilities = list(technique.get("render_strategy") or [])
+    primitives = ["sequence_layers", "useCurrentFrame", "interpolate_easing"]
+    controls = technique.get("controls") if isinstance(technique.get("controls"), Mapping) else {}
+    visual = " ".join(str(item) for item in technique.get("visual_primitives") or [])
+    motion = " ".join(str(item) for item in technique.get("motion_primitives") or [])
+    combined = f"{visual} {motion} {style_family} {effect_role}".casefold()
+    layers: list[dict[str, Any]] = []
+    api_refs = ["useCurrentFrame", "interpolate", "Easing.bezier", "Sequence"]
+    timing_controls = {
+        "duration_sec": controls.get("duration_sec", "required_or_derived"),
+        "easing": "bezier_or_spring_by_pacing",
+        "fps_conversion": "seconds_to_frames",
+        "premount_for_frames": "required_for_sequences",
+    }
+    parameter_schema: dict[str, Any] = {
+        "duration_sec": {"type": "number", "required": True, "maps_to": "composition_duration"},
+        "style_family": {"type": "string", "required": True, "maps_to": "review_label"},
+    }
+    if effect_role == "transition" or "transition" in style_family:
+        primitives.append("transition_series")
+        api_refs.append("TransitionSeries.Transition")
+        api_refs.append("TransitionSeries.Overlay")
+        timing_controls["transition_duration_sec"] = controls.get("transition_duration_sec", "derive_from_duration")
+    if any(token in combined for token in ("particle", "petal", "heart", "ember", "gold", "spark", "lightning", "dust")):
+        primitives.append("particle_layer")
+        layers.append({
+            "role": "particle_overlay",
+            "source": "generated_vector_or_canvas_particles",
+            "controlled_by": ["density", "particle_count", "motion_intensity"],
+        })
+        parameter_schema["particle_count"] = {"type": "number|string", "required": False, "maps_to": "particle_layer.count"}
+    if any(token in combined for token in ("lightning", "electric", "arc_strike", "branching_lightning_arcs", "electric_blue_glow")):
+        primitives.append("electric_arc_layer")
+        layers.append({
+            "role": "electric_arc_layer",
+            "source": "generated_svg_arc_paths",
+            "controlled_by": ["strike_count", "arc_branching", "flash_intensity", "glow_strength"],
+        })
+        parameter_schema.update({
+            "strike_count": {"type": "number", "required": False, "maps_to": "electric_arc_layer.count"},
+            "arc_branching": {"type": "string", "required": False, "maps_to": "electric_arc_layer.branching"},
+        })
+    if any(token in combined for token in ("crack", "cracked", "surface_crack_lines", "impact_shake", "dust_rise")):
+        primitives.append("crack_line_layer")
+        layers.append({
+            "role": "crack_line_layer",
+            "source": "generated_svg_crack_paths",
+            "controlled_by": ["crack_count", "crack_spread", "shake_strength", "dust_density"],
+        })
+        parameter_schema.update({
+            "crack_count": {"type": "number", "required": False, "maps_to": "crack_line_layer.count"},
+            "crack_spread": {"type": "string", "required": False, "maps_to": "crack_line_layer.spread"},
+        })
+    if any(token in combined for token in ("text", "title", "label", "caption")):
+        primitives.append("text_layer")
+        layers.append({
+            "role": "text_layer",
+            "source": "display_text_or_phase_labels",
+            "controlled_by": ["title_readability", "safe_area", "text_reveal_speed"],
+        })
+        parameter_schema["display_text"] = {"type": "string", "required": False, "maps_to": "text_layer.content"}
+    if any(token in combined for token in ("photo", "thumbnail", "collage", "grid")):
+        primitives.append("image_layout")
+        layers.append({
+            "role": "image_layout",
+            "source": "reviewed_material_refs",
+            "controlled_by": ["material_refs", "reveal_mode", "crop_policy", "density"],
+        })
+        parameter_schema["material_refs"] = {"type": "array", "required": False, "maps_to": "image_layout.sources"}
+    if any(token in combined for token in ("glow", "bloom", "light", "flash")):
+        primitives.append("light_overlay")
+        layers.append({
+            "role": "light_overlay",
+            "source": "generated_overlay",
+            "controlled_by": ["glow_strength", "flash_intensity", "accent_light"],
+        })
+        parameter_schema["accent_light"] = {"type": "string", "required": False, "maps_to": "light_overlay.palette"}
+    if any(token in combined for token in ("push", "parallax", "shake", "drift", "zoom", "arc_strike", "snap_scale", "impact")):
+        primitives.append("camera_motion")
+        layers.append({
+            "role": "camera_motion",
+            "source": "transform_animation",
+            "controlled_by": ["camera_motion", "motion_intensity", "pacing"],
+        })
+        parameter_schema["camera_motion"] = {"type": "string", "required": False, "maps_to": "transform.animation"}
+    if any(token in combined for token in ("glyph", "terminal", "scanline", "cursor", "data")):
+        primitives.append("scanline_layer")
+        layers.append({
+            "role": "data_stream_layer",
+            "source": "generated_terminal_glyphs",
+            "controlled_by": ["glyph_speed", "glyph_density", "title_assembly_sec", "readability_guard"],
+        })
+        parameter_schema.update({
+            "glyph_speed": {"type": "string", "required": False, "maps_to": "glyph_stream.speed"},
+            "glyph_density": {"type": "string", "required": False, "maps_to": "glyph_stream.density"},
+            "title_assembly_sec": {"type": "number", "required": False, "maps_to": "text_layer.assembly_time"},
+            "readability_guard": {"type": "string", "required": True, "maps_to": "title_final_hold"},
+        })
+        timing_controls["title_assembly_sec"] = controls.get("title_assembly_sec", "derive_from_duration")
+    if style_family == "vintage_film_burn_transition" or any(token in combined for token in ("burn", "gate", "film", "scratch")):
+        primitives.append("mask_wipe_layer")
+        layers.append({
+            "role": "burn_mask_wipe",
+            "source": "generated_mask_and_light_leak",
+            "controlled_by": ["burn_edge_width", "burn_direction", "light_leak_strength", "transition_duration_sec"],
+        })
+        parameter_schema.update({
+            "burn_edge_width": {"type": "string", "required": False, "maps_to": "mask_wipe.edge_width"},
+            "burn_direction": {"type": "string", "required": False, "maps_to": "mask_wipe.direction"},
+            "light_leak_strength": {"type": "string|number", "required": False, "maps_to": "light_overlay.intensity"},
+            "grain_amount": {"type": "number", "required": False, "maps_to": "film_grain.amount"},
+            "horror_guard": {"type": "string", "required": True, "maps_to": "negative_style_guard"},
+        })
+        timing_controls["transition_duration_sec"] = controls.get("transition_duration_sec", "derive_from_duration")
+    if style_family == "ink_spread_reveal" or any(token in combined for token in ("ink_bloom", "ink spread", "paper_fiber")):
+        primitives.extend(["mask_reveal_layer", "noise_displacement_layer", "texture_overlay_layer"])
+        layers.append({
+            "role": "ink_mask_reveal",
+            "source": "generated_noise_mask",
+            "controlled_by": ["ink_spread_radius", "edge_feather_px", "noise_scale", "title_reveal_sec"],
+        })
+        layers.append({
+            "role": "paper_texture_overlay",
+            "source": "generated_texture_overlay",
+            "controlled_by": ["paper_texture_strength", "palette"],
+        })
+        parameter_schema.update({
+            "ink_spread_radius": {"type": "string|number", "required": False, "maps_to": "mask_reveal.radius"},
+            "edge_feather_px": {"type": "number", "required": False, "maps_to": "mask_reveal.edge_feather_px"},
+            "noise_scale": {"type": "number", "required": False, "maps_to": "noise_displacement.scale"},
+            "paper_texture_strength": {"type": "string|number", "required": False, "maps_to": "texture_overlay.opacity"},
+            "title_reveal_sec": {"type": "number", "required": False, "maps_to": "text_layer.mask_reveal_time"},
+            "readability_guard": {"type": "string", "required": True, "maps_to": "title_final_hold"},
+        })
+        timing_controls["title_reveal_sec"] = controls.get("title_reveal_sec", "derive_from_duration")
+    if style_family == "prism_glass_refraction" or any(token in combined for token in ("prism", "refraction", "spectral", "chromatic")):
+        primitives.extend(["refraction_layer", "clip_path_planes", "chromatic_split_layer", "mask_wipe_layer"])
+        layers.append({
+            "role": "prism_refraction",
+            "source": "generated_refraction_planes",
+            "controlled_by": ["prism_plane_count", "refraction_strength", "plane_angle_deg"],
+        })
+        layers.append({
+            "role": "chromatic_split",
+            "source": "rgb_channel_offset",
+            "controlled_by": ["chromatic_aberration_px", "highlight_strength"],
+        })
+        layers.append({
+            "role": "transition_mask_wipe",
+            "source": "clip_path_plane_wipe",
+            "controlled_by": ["transition_duration_sec", "readability_guard"],
+        })
+        parameter_schema.update({
+            "prism_plane_count": {"type": "number", "required": False, "maps_to": "refraction.planes"},
+            "chromatic_aberration_px": {"type": "number", "required": False, "maps_to": "chromatic_split.offset_px"},
+            "refraction_strength": {"type": "string|number", "required": False, "maps_to": "refraction.strength"},
+            "plane_angle_deg": {"type": "number", "required": False, "maps_to": "clip_path_planes.angle"},
+            "highlight_strength": {"type": "string|number", "required": False, "maps_to": "light_overlay.intensity"},
+            "readability_guard": {"type": "string", "required": True, "maps_to": "distortion_safe_area"},
+        })
+        timing_controls["transition_duration_sec"] = controls.get("transition_duration_sec", "derive_from_duration")
+    if style_family == "story_to_mv_transition":
+        layers.insert(0, {
+            "role": "transition_overlay",
+            "source": "source_target_section_boundary",
+            "controlled_by": ["impact_moment_sec", "pacing_shift", "thumbnail_acceleration"],
+        })
+        timing_controls["impact_moment_sec"] = controls.get("impact_moment_sec", 2.2)
+        parameter_schema.update({
+            "section_from": {"type": "string", "required": True, "maps_to": "phase_labels.source"},
+            "section_to": {"type": "string", "required": True, "maps_to": "phase_labels.target"},
+            "impact_moment_sec": {"type": "number", "required": True, "maps_to": "transition_overlay.impact_frame"},
+        })
+    if style_family == "japanese_soft_storybook":
+        parameter_schema["remotion_layered_paper"] = {
+            "type": "object",
+            "required": False,
+            "maps_to": "background_texture_and_scene_plate",
+        }
+    if style_family == "memory_photo_wall_warm":
+        layers = sorted(
+            layers,
+            key=lambda layer: 0 if layer.get("role") == "image_layout" else 1,
+        )
+    if not layers:
+        layers.append({
+            "role": "base_visual_layer",
+            "source": "effect_contract_or_worker_default",
+            "controlled_by": ["duration_sec", "intensity", "tone"],
+        })
+    return {
+        "engine": "remotion",
+        "timing_model": "useCurrentFrame_interpolate",
+        "composition_model": "Sequence_or_TransitionSeries",
+        "capabilities": capabilities,
+        "primitives": list(dict.fromkeys(primitives)),
+        "remotion_api_refs": list(dict.fromkeys(api_refs)),
+        "layers": layers,
+        "timing_controls": timing_controls,
+        "parameter_schema": parameter_schema,
+        "worker_contract_surface": "prompt_parameters.effect_build_spec",
+        "fallback_policy": {
+            "if_component_supported": "emit_effect_build_spec",
+            "if_component_missing": "keep_candidate_parameters_and_require_review",
+            "forbidden": "silent_template_substitution",
+        },
+        "review_evidence_required": ["still", "contact_sheet_or_preview", "parameter_echo"],
+    }
+
+
+def _effect_build_spec(
+    *,
+    style_family: str,
+    technique: Mapping[str, Any],
+    duration: float | None,
+    remotion_capability_plan: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    controls = technique.get("controls") if isinstance(technique.get("controls"), Mapping) else {}
+    duration_sec = float(duration or controls.get("duration_sec") or 5.0)
+    if style_family == "memory_photo_wall_warm":
+        return {
+            "component": "MemoryPhotoWall",
+            "duration_sec": duration_sec,
+            "story_function": str(technique.get("story_function") or "memory_transition_or_emotional_recap"),
+            "pacing": str(controls.get("pacing") or "slow"),
+            "density": str(controls.get("density") or "low"),
+            "reveal_mode": str(controls.get("reveal_mode") or "one_by_one"),
+            "camera_motion": str(controls.get("camera_motion") or "slow_push_in"),
+            "caption_mode": str(controls.get("caption_mode") or "minimal"),
+        }
+    if style_family == "story_to_mv_transition":
+        return {
+            "component": "StoryToMVTransition",
+            "duration_sec": duration_sec,
+            "section_from": str(controls.get("section_from") or "story"),
+            "section_to": str(controls.get("section_to") or "montage"),
+            "pacing_shift": str(controls.get("pacing_shift") or "slow_to_fast"),
+            "impact_moment_sec": float(controls.get("impact_moment_sec") or max(0.5, duration_sec * 0.55)),
+            "thumbnail_acceleration": str(controls.get("thumbnail_acceleration") or "medium"),
+            "motion_grammar": [
+                "film_rail",
+                "thumbnail_acceleration",
+                "flash_wipe",
+                "hard_cut_bars",
+            ],
+            "phase_labels": list(controls.get("phase_labels") or ["STORY", "MONTAGE"]),
+        }
+    if isinstance(remotion_capability_plan, Mapping):
+        layers = _generic_effect_layers(
+            style_family=style_family,
+            technique=technique,
+            remotion_capability_plan=remotion_capability_plan,
+        )
+        if layers:
+            return {
+                "component": "GenericRemotionEffect",
+                "duration_sec": duration_sec,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": layers,
+                "timing": _generic_effect_timing(
+                    duration_sec=duration_sec,
+                    controls=controls,
+                    remotion_capability_plan=remotion_capability_plan,
+                ),
+                "review_required": True,
+            }
+    return None
+
+
+def _generic_effect_layers(
+    *,
+    style_family: str,
+    technique: Mapping[str, Any],
+    remotion_capability_plan: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    controls = technique.get("controls") if isinstance(technique.get("controls"), Mapping) else {}
+    plan_layers = [
+        item for item in remotion_capability_plan.get("layers") or []
+        if isinstance(item, Mapping)
+    ]
+    layers: list[dict[str, Any]] = []
+    if any(item.get("role") == "data_stream_layer" for item in plan_layers):
+        layers.append({
+            "id": "data_stream",
+            "type": "glyph_stream",
+            "params": {
+                "glyph_speed": controls.get("glyph_speed", "medium"),
+                "glyph_density": controls.get("glyph_density", "medium"),
+                "palette": controls.get("palette", "cyan_green_on_dark"),
+                "scanline_opacity": controls.get("scanline_opacity", 0.2),
+            },
+        })
+    if any(item.get("role") == "electric_arc_layer" for item in plan_layers):
+        layers.append({
+            "id": "electric_arcs",
+            "type": "electric_arcs",
+            "params": {
+                "strike_count": controls.get("strike_count", 3),
+                "arc_branching": controls.get("arc_branching", "medium"),
+                "flash_intensity": controls.get("flash_intensity", "high"),
+                "glow_strength": controls.get("glow_strength", "medium"),
+                "palette": controls.get("palette", "electric_blue"),
+            },
+        })
+    if any(item.get("role") == "crack_line_layer" for item in plan_layers):
+        layers.append({
+            "id": "crack_lines",
+            "type": "crack_lines",
+            "params": {
+                "crack_count": controls.get("crack_count", 5),
+                "crack_spread": controls.get("crack_spread", "center_out"),
+                "shake_strength": controls.get("shake_strength", "medium"),
+                "dust_density": controls.get("dust_density", "low"),
+            },
+        })
+    if any(item.get("role") == "burn_mask_wipe" for item in plan_layers):
+        layers.append({
+            "id": "burn_mask",
+            "type": "mask_wipe",
+            "params": {
+                "burn_edge_width": controls.get("burn_edge_width", "medium"),
+                "burn_direction": controls.get("burn_direction", "edge_to_center"),
+                "light_leak_strength": controls.get("light_leak_strength", "medium"),
+            },
+        })
+        layers.append({
+            "id": "film_grain",
+            "type": "film_grain",
+            "params": {
+                "grain_amount": controls.get("grain_amount", 0.2),
+                "gate_weave_strength": controls.get("gate_weave_strength", "low"),
+            },
+        })
+    if any(item.get("role") == "ink_mask_reveal" for item in plan_layers):
+        layers.append({
+            "id": "ink_mask",
+            "type": "mask_reveal",
+            "params": {
+                "mask_family": "ink_bloom",
+                "ink_spread_radius": controls.get("ink_spread_radius", "medium"),
+                "edge_feather_px": controls.get("edge_feather_px", 42),
+                "noise_scale": controls.get("noise_scale", 0.72),
+                "reveal_sec": controls.get("title_reveal_sec", 3.2),
+            },
+        })
+        layers.append({
+            "id": "paper_texture",
+            "type": "texture_overlay",
+            "params": {
+                "texture": "paper_fiber",
+                "strength": controls.get("paper_texture_strength", "medium"),
+                "palette": controls.get("palette", "black_ink_on_warm_paper"),
+            },
+        })
+    if any(item.get("role") == "prism_refraction" for item in plan_layers):
+        layers.append({
+            "id": "prism_refraction",
+            "type": "refraction",
+            "params": {
+                "plane_count": controls.get("prism_plane_count", 5),
+                "refraction_strength": controls.get("refraction_strength", "medium"),
+                "plane_angle_deg": controls.get("plane_angle_deg", 18),
+            },
+        })
+    if any(item.get("role") == "chromatic_split" for item in plan_layers):
+        layers.append({
+            "id": "chromatic_split",
+            "type": "chromatic_split",
+            "params": {
+                "offset_px": controls.get("chromatic_aberration_px", 14),
+                "highlight_strength": controls.get("highlight_strength", "soft"),
+            },
+        })
+    if any(item.get("role") == "transition_mask_wipe" for item in plan_layers):
+        layers.append({
+            "id": "plane_wipe",
+            "type": "mask_wipe",
+            "params": {
+                "wipe_family": "clip_path_planes",
+                "transition_duration_sec": controls.get("transition_duration_sec", "derive_from_duration"),
+                "readability_guard": controls.get("readability_guard", "avoid_text_under_strong_refraction"),
+            },
+        })
+    if any(item.get("role") == "particle_overlay" for item in plan_layers):
+        layers.append({
+            "id": "particles",
+            "type": "particle_overlay",
+            "params": {
+                "density": controls.get("density", controls.get("particle_density", "medium")),
+                "motion_intensity": controls.get("motion_intensity", "medium"),
+            },
+        })
+    if any(item.get("role") == "light_overlay" for item in plan_layers):
+        layers.append({
+            "id": "light_overlay",
+            "type": "light_overlay",
+            "params": {
+                "accent_light": controls.get("accent_light", controls.get("color_mood", "default")),
+                "glow_strength": controls.get("glow_strength", controls.get("flash_intensity", "medium")),
+            },
+        })
+    if any(item.get("role") == "image_layout" for item in plan_layers):
+        layers.append({
+            "id": "image_layout",
+            "type": "image_layout",
+            "params": {
+                "material_refs": controls.get("material_refs", []),
+                "reveal_mode": controls.get("reveal_mode", "ask_or_derive"),
+                "density": controls.get("density", "medium"),
+            },
+        })
+    if any(item.get("role") == "camera_motion" for item in plan_layers):
+        layers.append({
+            "id": "camera_motion",
+            "type": "camera_motion",
+            "params": {
+                "camera_motion": controls.get("camera_motion", "derive_from_pacing"),
+                "pacing": controls.get("pacing", "medium"),
+            },
+        })
+    if any(item.get("role") == "text_layer" for item in plan_layers):
+        layers.append({
+            "id": "title",
+            "type": "text",
+            "params": {
+                "content": controls.get("display_text", "TITLE"),
+                "animation": "assemble" if style_family == "terminal_data_reveal" else "fade",
+                "safe_area": controls.get("title_safe_area", "center"),
+                "readability_guard": controls.get("readability_guard", "safe_area_readable"),
+            },
+        })
+    return layers
+
+
+def _generic_effect_timing(
+    *,
+    duration_sec: float,
+    controls: Mapping[str, Any],
+    remotion_capability_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    timing = dict(remotion_capability_plan.get("timing_controls") or {})
+    return {
+        "duration_sec": duration_sec,
+        "reveal_sec": float(controls.get("title_assembly_sec") or max(0.4, duration_sec * 0.7)),
+        "hold_sec": max(0.2, duration_sec - float(controls.get("title_assembly_sec") or duration_sec * 0.7)),
+        "transition_duration_sec": controls.get("transition_duration_sec", timing.get("transition_duration_sec")),
+        "easing": timing.get("easing", "bezier_or_spring_by_pacing"),
+    }
 
 
 def _warm_legacy_fire_plan(duration: float | None) -> dict[str, Any]:
@@ -644,6 +1456,12 @@ def plan_visual_technique(brief: Mapping[str, Any]) -> dict[str, Any]:
         "portal_reveal_opening",
         "water_reflection_self_reveal",
         "heartbeat_pulse_freeze",
+        "japanese_soft_storybook",
+        "story_to_mv_transition",
+        "ink_spread_reveal",
+        "prism_glass_refraction",
+        "terminal_data_reveal",
+        "vintage_film_burn_transition",
     }:
         technique = _candidate_parameter_plan(style_family, duration)
     elif style_family in {"japanese_sakura", "sakura_poetic"}:
@@ -684,11 +1502,32 @@ def plan_visual_technique(brief: Mapping[str, Any]) -> dict[str, Any]:
             "control_overrides": {},
         }
 
-    return {
+    semantic_slots = _semantic_slots(
+        style_family=str(technique.get("style_family") or style_family),
+        effect_role=effect_role,
+        request=request,
+        technique=technique,
+        duration=duration,
+    )
+    remotion_capability_plan = _remotion_capability_plan(
+        style_family=str(technique.get("style_family") or style_family),
+        effect_role=effect_role,
+        technique=technique,
+    )
+    build_spec = _effect_build_spec(
+        style_family=str(technique.get("style_family") or style_family),
+        technique=technique,
+        duration=duration,
+        remotion_capability_plan=remotion_capability_plan,
+    )
+
+    result = {
         "artifact_role": "visual_technique_plan",
         "version": 1,
         "effect_role": effect_role,
         "material_state": material_state,
+        "semantic_slots": semantic_slots,
+        "remotion_capability_plan": remotion_capability_plan,
         "followup_questions": (
             []
             if confirmed_style or technique.get("parameter_status") != "candidate_parameters"
@@ -701,6 +1540,9 @@ def plan_visual_technique(brief: Mapping[str, Any]) -> dict[str, Any]:
         ),
         **technique,
     }
+    if build_spec:
+        result["effect_build_spec"] = build_spec
+    return result
 
 
 def technique_to_effect(
@@ -728,13 +1570,15 @@ def technique_to_effect(
     style_family = str(technique_plan.get("style_family") or "")
     duration = float((technique_plan.get("controls") or {}).get("duration_sec") or 5.0)
 
-    template_id = None
-    if role == "title_card":
-        template_id = "training_closing_title" if effect_role == "closing_title" else "training_opening_title"
-    elif role == "chapter_transition":
+    explicit_template_id = str(technique_plan.get("template_id") or "").strip()
+    has_generic_build_spec = isinstance(technique_plan.get("effect_build_spec"), Mapping)
+    template_id = explicit_template_id or None
+    if template_id is None and not has_generic_build_spec and role == "title_card":
+        template_id = "clean_white_quote_card" if effect_role == "closing_title" else "training_opening_title"
+    elif template_id is None and not has_generic_build_spec and role == "chapter_transition":
         template_id = "film_strip_transition_card"
 
-    return {
+    result = {
         "effect_id": effect_id,
         "role": role,
         "template_id": template_id,
@@ -757,6 +1601,17 @@ def technique_to_effect(
             "template_policy": technique_plan.get("template_policy") or "templates_are_carriers_not_creative_locks",
         },
     }
+    if isinstance(technique_plan.get("effect_build_spec"), Mapping):
+        build_spec = json.loads(json.dumps(technique_plan["effect_build_spec"], ensure_ascii=False))
+        if build_spec.get("component") == "GenericRemotionEffect":
+            for layer in build_spec.get("layers") or []:
+                if not isinstance(layer, dict) or layer.get("type") != "text":
+                    continue
+                params = layer.setdefault("params", {})
+                if isinstance(params, dict) and str(params.get("content") or "").strip().upper() in {"", "TITLE"}:
+                    params["content"] = display_text or str(technique_plan.get("display_text") or "Opening")
+        result["prompt_parameters"]["effect_build_spec"] = build_spec
+    return result
 
 
 def apply_visual_technique_review(

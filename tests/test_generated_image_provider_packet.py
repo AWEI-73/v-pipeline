@@ -9,6 +9,7 @@ from PIL import Image
 
 from video_pipeline_core.generated_image_provider_packet import (
     build_generated_image_provider_packet,
+    build_image_agent_prompt_handoff,
     fill_provider_outputs_from_codex_images,
 )
 
@@ -79,11 +80,18 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
             self.assertEqual(packet["provider_priority"][0], "codex_imagegen")
             self.assertEqual(len(packet["items"]), 2)
             first = packet["items"][0]
+            second = packet["items"][1]
             self.assertEqual(first["job_id"], "gen_rooftop")
             self.assertEqual(first["panel_index"], 1)
+            self.assertEqual(first["panel_count"], 2)
+            self.assertEqual(second["panel_index"], 2)
             self.assertTrue(first["target_file"].endswith("provider_outputs/nd_rooftop_choice_gen_rooftop_p01.png"))
             self.assertIn("Use case: illustration-story", first["prompt"])
             self.assertIn("show the courier deciding", first["prompt"])
+            self.assertIn("Panel variation: panel 1 of 2", first["prompt"])
+            self.assertIn("Panel variation: panel 2 of 2", second["prompt"])
+            self.assertNotEqual(first["panel_variation"], second["panel_variation"])
+            self.assertNotEqual(first["prompt"], second["prompt"])
             self.assertIn("manga watercolor", first["style_anchors"])
             self.assertIn("young courier", first["character_anchors"])
             self.assertTrue(first["forbidden_as_truth"])
@@ -145,6 +153,112 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
                 (out / "generated_provider_prompts.md").read_text(encoding="utf-8"),
             )
 
+    def test_builds_image_agent_prompt_handoff_from_provider_packet(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            handoff_dir = d / "handoff"
+            build_generated_image_provider_packet(
+                _fallback(),
+                packet_dir,
+                style_profile=_style_profile(),
+                providers=["codex_imagegen"],
+            )
+
+            result = build_image_agent_prompt_handoff(
+                packet_dir / "generated_provider_packet.json",
+                out_dir=handoff_dir,
+                max_items=1,
+            )
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            self.assertEqual(result["summary"]["item_count"], 1)
+            handoff = json.loads(
+                (handoff_dir / "image_agent_prompt_handoff.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(handoff["artifact_role"], "image_agent_prompt_handoff")
+            self.assertEqual(handoff["next_action"], "call_image_generation_agent")
+            self.assertTrue(handoff["fail_closed"])
+            self.assertEqual(len(handoff["items"]), 1)
+            first = handoff["items"][0]
+            self.assertEqual(first["tool_mode"], "built_in_image_gen")
+            self.assertTrue(first["target_file"].endswith(".png"))
+            self.assertIn("Use case: illustration-story", first["prompt"])
+            self.assertIn("Do not create a text card", first["save_policy"])
+            prompt_md = (handoff_dir / "image_agent_prompt.md").read_text(encoding="utf-8")
+            self.assertIn("Use a real image generation tool", prompt_md)
+            self.assertNotIn("test_pil outputs are acceptable", prompt_md)
+
+    def test_image_agent_prompt_handoff_fails_for_placeholder_prompt(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet = {
+                "artifact_role": "generated_image_provider_packet",
+                "items": [
+                    {
+                        "job_id": "bad",
+                        "target_file": str(d / "bad.png"),
+                        "prompt": "make a placeholder text card",
+                    }
+                ],
+            }
+            packet_path = d / "generated_provider_packet.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+            result = build_image_agent_prompt_handoff(packet_path, out_dir=d / "handoff")
+
+            self.assertFalse(result["ok"])
+            self.assertIn("forbidden placeholder", "; ".join(result["errors"]))
+            self.assertFalse((d / "handoff" / "image_agent_prompt_handoff.json").exists())
+
+    def test_cli_writes_image_agent_prompt_handoff(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            fallback = d / "fallback.json"
+            packet_dir = d / "packet"
+            handoff_dir = d / "handoff"
+            fallback.write_text(json.dumps(_fallback(), ensure_ascii=False), encoding="utf-8")
+            subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "generated-image-provider-packet",
+                    str(fallback),
+                    "--out-dir",
+                    str(packet_dir),
+                    "--providers",
+                    "codex_imagegen",
+                ],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "image-agent-prompt-handoff",
+                    str(packet_dir / "generated_provider_packet.json"),
+                    "--out-dir",
+                    str(handoff_dir),
+                    "--max-items",
+                    "1",
+                ],
+                cwd=root,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertTrue((handoff_dir / "image_agent_prompt_handoff.json").exists())
+            self.assertTrue((handoff_dir / "image_agent_prompt.md").exists())
+
     def test_fill_provider_outputs_from_explicit_image_files(self):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
@@ -176,6 +290,37 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
                 self.assertTrue(Path(item["file"]).exists())
                 with Image.open(item["file"]) as im:
                     self.assertEqual(im.size, (640, 360))
+
+    def test_fill_provider_outputs_accepts_files_already_at_target_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            build_generated_image_provider_packet(
+                _fallback(),
+                packet_dir,
+                style_profile=_style_profile(),
+                providers=["codex_imagegen"],
+            )
+            packet = json.loads(
+                (packet_dir / "generated_provider_packet.json").read_text(encoding="utf-8")
+            )
+            target1 = Path(packet["items"][0]["target_file"])
+            target2 = Path(packet["items"][1]["target_file"])
+            _png(target1, (200, 60, 60))
+            _png(target2, (60, 80, 200))
+
+            result = fill_provider_outputs_from_codex_images(
+                packet_dir / "generated_provider_packet.json",
+                image_files=[target1, target2],
+                out_path=packet_dir / "generated_provider_outputs.json",
+            )
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            self.assertEqual(result["summary"]["copied_count"], 2)
+            provider_outputs = json.loads(
+                (packet_dir / "generated_provider_outputs.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(provider_outputs["items"][0]["file"], str(target1.resolve()).replace("\\", "/"))
 
     def test_fill_provider_outputs_from_latest_generated_images_session(self):
         with tempfile.TemporaryDirectory() as td:

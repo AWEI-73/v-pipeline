@@ -399,6 +399,10 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertTrue(contract["voiceover_required"])
         self.assertEqual(contract["narration_policy"], "required")
         self.assertEqual(contract["handoff_to"], "subtitle-director+audio-director")
+        self.assertEqual(contract["preferred_provider"], "voxcpm")
+        self.assertEqual(contract["fallback_provider"], "legacy_tts")
+        self.assertFalse(contract["fallback_allowed"])
+        self.assertEqual(contract["provider_runtime"], "local")
 
     def test_chinese_existing_single_clip_enters_material_first(self):
         intent = plan_video_intent(

@@ -38,11 +38,14 @@ class StoryFirstProviderHappyPathTest(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             result = json.loads(proc.stdout)
             self.assertTrue(result["ok"], result)
-            self.assertEqual(result["next_action"], "wait_for_generated_provider")
+            self.assertEqual(result["next_action"], "call_image_generation_agent")
             self.assertTrue((run_dir / "video_intent.json").is_file())
             self.assertTrue((run_dir / "story_blueprint" / "material_needs.json").is_file())
             self.assertTrue((run_dir / "material_generation_fallback.json").is_file())
             self.assertTrue((run_dir / "provider_packet" / "generated_provider_packet.json").is_file())
+            self.assertTrue((
+                run_dir / "provider_packet" / "image_agent_handoff" / "image_agent_prompt_handoff.json"
+            ).is_file())
             self.assertFalse((run_dir / "generated_material_production.json").exists())
             self.assertFalse((run_dir / "final.mp4").exists())
 
@@ -56,8 +59,8 @@ class StoryFirstProviderHappyPathTest(unittest.TestCase):
 
             summary = summarize_run(run_dir)
             self.assertEqual(summary["mode"], "waiting")
-            self.assertEqual(summary["cursor"], "generated_image_provider")
-            self.assertEqual(summary["next"], "wait_for_generated_provider")
+            self.assertEqual(summary["cursor"], "generated_image_agent")
+            self.assertEqual(summary["next"], "call_image_generation_agent")
 
 
 if __name__ == "__main__":

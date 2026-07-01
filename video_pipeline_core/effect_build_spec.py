@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping
 
+from .effect_layer_manifest import generic_layer_types
+
 
 SUPPORTED_COMPONENTS: dict[str, set[str]] = {
     "MemoryPhotoWall": {
@@ -26,7 +28,17 @@ SUPPORTED_COMPONENTS: dict[str, set[str]] = {
         "motion_grammar",
         "phase_labels",
     },
+    "GenericRemotionEffect": {
+        "duration_sec",
+        "canvas",
+        "layers",
+        "timing",
+        "review_required",
+    },
 }
+
+
+SUPPORTED_GENERIC_LAYER_TYPES = generic_layer_types()
 
 
 def _component(value: Any) -> str:
@@ -58,6 +70,42 @@ def _string_list(value: Any, field: str) -> list[str]:
     return cleaned
 
 
+def _generic_layers(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("layers must be a non-empty layer list")
+    normalized: list[dict[str, Any]] = []
+    for idx, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"layers[{idx}] must be an object")
+        layer_id = item.get("id")
+        layer_type = item.get("type")
+        if not isinstance(layer_id, str) or not layer_id.strip():
+            raise ValueError(f"layers[{idx}].id must be a non-empty string")
+        if not isinstance(layer_type, str) or not layer_type.strip():
+            raise ValueError(f"layers[{idx}].type must be a non-empty string")
+        clean_type = layer_type.strip()
+        if clean_type not in SUPPORTED_GENERIC_LAYER_TYPES:
+            raise ValueError(f"unsupported generic effect layer type: {clean_type}")
+        params = item.get("params", {})
+        if not isinstance(params, Mapping):
+            raise ValueError(f"layers[{idx}].params must be an object")
+        normalized.append({
+            "id": layer_id.strip(),
+            "type": clean_type,
+            "params": dict(params),
+        })
+    return normalized
+
+
+def _generic_canvas(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("canvas must be an object")
+    width = _positive_number(value.get("width"), "canvas.width")
+    height = _positive_number(value.get("height"), "canvas.height")
+    fps = _positive_number(value.get("fps"), "canvas.fps")
+    return {"width": int(width), "height": int(height), "fps": int(fps)}
+
+
 def validate_effect_build_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     """Validate and return a normalized Remotion effect build spec.
 
@@ -81,6 +129,13 @@ def validate_effect_build_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
         normalized["phase_labels"] = _string_list(spec.get("phase_labels"), "phase_labels")
         if len(normalized["phase_labels"]) < 2:
             raise ValueError("phase_labels must include source and target labels")
+    if component == "GenericRemotionEffect":
+        normalized["canvas"] = _generic_canvas(spec.get("canvas"))
+        normalized["layers"] = _generic_layers(spec.get("layers"))
+        if not isinstance(spec.get("timing"), Mapping):
+            raise ValueError("timing must be an object")
+        normalized["timing"] = dict(spec.get("timing") or {})
+        normalized["review_required"] = bool(spec.get("review_required"))
     return normalized
 
 
