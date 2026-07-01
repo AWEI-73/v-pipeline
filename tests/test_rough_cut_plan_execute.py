@@ -40,6 +40,66 @@ class RoughCutPlanExecuteTest(unittest.TestCase):
         self.assertIn("-t", command)
         self.assertEqual(command[command.index("-t") + 1], "6.000")
 
+    def test_ffmpeg_command_pins_preview_frame_rate(self):
+        from tools.rough_cut_plan_execute import build_rough_cut_ffmpeg_command
+
+        command = build_rough_cut_ffmpeg_command(
+            [{
+                "source_path": str(Path("a.mp4")),
+                "start_sec": 0.0,
+                "duration_sec": 2.0,
+            }],
+            out=Path("out.mp4"),
+            audio=None,
+            width=640,
+            height=360,
+            fps=30,
+        )
+
+        filtergraph = command[command.index("-filter_complex") + 1]
+        self.assertIn("fps=30", filtergraph)
+        self.assertIn("setpts=N/(30*TB)", filtergraph)
+        self.assertIn("-r", command)
+        self.assertEqual(command[command.index("-r") + 1], "30")
+
+    def test_execute_clamps_clip_duration_to_source_duration(self):
+        from tools.rough_cut_plan_execute import execute_rough_cut_plan
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            source.write_bytes(b"fake-video")
+            plan = root / "rough_cut_plan.json"
+            plan.write_text(json.dumps({
+                "clips": [{
+                    "source_path": str(source),
+                    "start_sec": 1.0,
+                    "duration_sec": 8.0,
+                }]
+            }), encoding="utf-8")
+            out = root / "preview.mp4"
+            report = root / "rough_cut_preview_report.json"
+
+            def fake_probe(path):
+                if Path(path) == source:
+                    return {"duration_sec": 5.25, "streams": []}
+                return {"duration_sec": 4.25, "streams": [{"codec_type": "video", "codec_name": "h264"}]}
+
+            def fake_run(*_args, **_kwargs):
+                out.write_bytes(b"preview")
+                return subprocess.CompletedProcess(args=["ffmpeg"], returncode=0, stdout="", stderr="")
+
+            with patch("tools.rough_cut_plan_execute.resolve_ffmpeg", return_value="ffmpeg"), \
+                    patch("tools.rough_cut_plan_execute.subprocess.run", side_effect=fake_run), \
+                    patch("tools.rough_cut_plan_execute._probe", side_effect=fake_probe):
+                payload = execute_rough_cut_plan(plan, out, report, timeout_sec=1)
+
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["planned_duration_sec"], 8.0)
+            self.assertEqual(payload["rendered_plan_duration_sec"], 4.25)
+            self.assertEqual(payload["duration_adjustments"][0]["original_duration_sec"], 8.0)
+            self.assertEqual(payload["duration_adjustments"][0]["adjusted_duration_sec"], 4.25)
+
     def test_timeout_writes_fail_closed_report_and_removes_partial_output(self):
         from tools.rough_cut_plan_execute import execute_rough_cut_plan
 
@@ -63,6 +123,7 @@ class RoughCutPlanExecuteTest(unittest.TestCase):
                 raise subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=1)
 
             with patch("tools.rough_cut_plan_execute.resolve_ffmpeg", return_value="ffmpeg"), \
+                    patch("tools.rough_cut_plan_execute._probe", return_value={"duration_sec": 10.0, "streams": []}), \
                     patch("tools.rough_cut_plan_execute.subprocess.run", side_effect=timeout_run):
                 payload = execute_rough_cut_plan(plan, out, report, timeout_sec=1)
 

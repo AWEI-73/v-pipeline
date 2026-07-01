@@ -110,6 +110,74 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             self.assertTrue((root / "delivery_candidate.mp4").exists())
             self.assertFalse((root / "final.mp4").exists())
 
+    def test_packages_final_product_verify_video_before_older_preview_reports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            rough = root / "rough_cut_preview.mp4"
+            storyboard = root / "rough_cut_storyboard_preview.mp4"
+            rough.write_bytes(b"rough")
+            storyboard.write_bytes(b"storyboard")
+            _write(root / "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "pass": True,
+                "blocking": [],
+            })
+            _write(root / "final_product_verify" / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(rough),
+            })
+            _write(root / "rough_cut_storyboard_preview_report.json", {
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(storyboard),
+            })
+            _write(root / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(rough),
+            })
+
+            package = package_verified_preview(root)
+
+            self.assertEqual(package["source_video"], "rough_cut_preview.mp4")
+            self.assertEqual((root / "delivery_candidate.mp4").read_bytes(), b"rough")
+
+    def test_packages_repo_relative_preview_report_path(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo / ".tmp") as temp:
+            root = Path(temp)
+            rough = root / "rough_cut_preview.mp4"
+            storyboard = root / "rough_cut_storyboard_preview.mp4"
+            rough.write_bytes(b"rough")
+            storyboard.write_bytes(b"storyboard")
+            repo_relative_rough = rough.relative_to(repo)
+            _write(root / "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "pass": True,
+                "blocking": [],
+            })
+            _write(root / "final_product_verify" / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(rough),
+            })
+            _write(root / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(repo_relative_rough),
+            })
+            _write(root / "rough_cut_storyboard_preview_report.json", {
+                "artifact_role": "rough_cut_storyboard_preview_report",
+                "ok": True,
+                "output_video": str(storyboard),
+            })
+
+            package = package_verified_preview(root)
+
+            self.assertEqual(package["source_video"], "rough_cut_preview.mp4")
+            self.assertEqual((root / "delivery_candidate.mp4").read_bytes(), b"rough")
+
     def test_requires_passing_delivery_gate(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

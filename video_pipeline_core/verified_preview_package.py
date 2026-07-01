@@ -35,6 +35,17 @@ def _rel(root: Path, path: Path) -> str:
         return str(path.resolve())
 
 
+def _resolve_artifact_path(root: Path, value: Any) -> Path:
+    candidate = Path(str(value))
+    if candidate.is_absolute():
+        return candidate
+    for base in (root, Path.cwd(), Path(__file__).resolve().parents[1]):
+        path = base / candidate
+        if path.exists():
+            return path
+    return root / candidate
+
+
 def _resolve_candidate_from_highlight_report(root: Path) -> Path | None:
     for report_path in sorted(root.rglob("*.json")):
         report = _load_json(report_path)
@@ -52,15 +63,29 @@ def _resolve_candidate_from_highlight_report(root: Path) -> Path | None:
         output = report.get("out") or report.get("output") or report.get("output_video")
         if not output:
             continue
-        output_path = Path(str(output))
-        if not output_path.is_absolute():
-            output_path = root / output_path
+        output_path = _resolve_artifact_path(root, output)
         if output_path.is_file() and output_path.stat().st_size > 0:
             return output_path.resolve()
     return None
 
 
+def _resolve_candidate_from_verify(root: Path) -> Path | None:
+    _verify_path, verify = _find_verify_bundle(root)
+    if not verify or verify.get("pass") is not True:
+        return None
+    video = verify.get("video")
+    if not video:
+        return None
+    video_path = _resolve_artifact_path(root, video)
+    if video_path.is_file() and video_path.stat().st_size > 0:
+        return video_path.resolve()
+    return None
+
+
 def _resolve_preview_candidate(root: Path) -> Path | None:
+    candidate = _resolve_candidate_from_verify(root)
+    if candidate:
+        return candidate
     candidate = _resolve_candidate_from_highlight_report(root)
     if candidate:
         return candidate
@@ -103,9 +128,7 @@ def _find_preview_report(root: Path, source: Path) -> tuple[Path | None, dict[st
         output = payload.get("output_video") or payload.get("out") or payload.get("output")
         if not output:
             continue
-        output_path = Path(str(output))
-        if not output_path.is_absolute():
-            output_path = root / output_path
+        output_path = _resolve_artifact_path(root, output)
         try:
             if output_path.resolve() == source.resolve():
                 return path, payload

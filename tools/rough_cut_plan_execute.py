@@ -86,7 +86,7 @@ def _clips(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return clips
 
 
-def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int) -> str:
+def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int, fps: int) -> str:
     parts = []
     labels = []
     for index, clip in enumerate(clips):
@@ -95,7 +95,8 @@ def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int) -> str
         label = f"v{index}"
         parts.append(
             f"[{index}:v]trim=start={start:.3f}:end={end:.3f},"
-            "setpts=PTS-STARTPTS,"
+            f"fps={fps},"
+            f"setpts=N/({fps}*TB),"
             f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
             "setsar=1,"
@@ -113,6 +114,7 @@ def build_rough_cut_ffmpeg_command(
     audio: Path | None = None,
     width: int = 1280,
     height: int = 720,
+    fps: int = 30,
 ) -> list[str]:
     cmd = [resolve_ffmpeg(), "-y", "-hide_banner"]
     for clip in clips:
@@ -130,7 +132,7 @@ def build_rough_cut_ffmpeg_command(
     total_duration = round(sum(clip["duration_sec"] for clip in clips), 3)
     cmd += [
         "-filter_complex",
-        _filtergraph(clips, width=width, height=height),
+        _filtergraph(clips, width=width, height=height, fps=fps),
         "-map",
         "[v]",
     ]
@@ -144,6 +146,8 @@ def build_rough_cut_ffmpeg_command(
         "veryfast",
         "-crf",
         "20",
+        "-r",
+        str(fps),
         "-pix_fmt",
         "yuv420p",
     ]
@@ -158,6 +162,36 @@ def _remove_partial_output(path: Path) -> bool:
         return False
     path.unlink()
     return True
+
+
+def _adjust_clip_durations_to_source(clips: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    adjusted = []
+    adjustments = []
+    for clip in clips:
+        source = Path(clip["source_path"])
+        source_probe = _probe(source)
+        source_duration = _float(source_probe.get("duration_sec"))
+        available = round(max(0.0, source_duration - clip["start_sec"]), 3)
+        if available <= 0:
+            raise ValueError(
+                f"clip {clip['index']} starts after source duration: "
+                f"start={clip['start_sec']:.3f}, source_duration={source_duration:.3f}"
+            )
+        next_clip = dict(clip)
+        original = clip["duration_sec"]
+        if original > available:
+            next_clip["duration_sec"] = available
+            adjustments.append({
+                "clip_index": clip["index"],
+                "source_path": clip["source_path"],
+                "start_sec": clip["start_sec"],
+                "source_duration_sec": source_duration,
+                "original_duration_sec": original,
+                "adjusted_duration_sec": available,
+                "reason": "requested duration exceeded source remaining duration",
+            })
+        adjusted.append(next_clip)
+    return adjusted, adjustments
 
 
 def _failure_payload(
@@ -202,6 +236,7 @@ def execute_rough_cut_plan(
     width: int = 1280,
     height: int = 720,
     timeout_sec: int = 300,
+    fps: int = 30,
 ) -> dict[str, Any]:
     plan = _load_json(Path(plan_path))
     clips = _clips(plan)
@@ -212,13 +247,16 @@ def execute_rough_cut_plan(
         raise FileNotFoundError(f"audio file does not exist: {audio}")
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    total_duration = round(sum(clip["duration_sec"] for clip in clips), 3)
+    planned_duration = round(sum(clip["duration_sec"] for clip in clips), 3)
+    render_clips, duration_adjustments = _adjust_clip_durations_to_source(clips)
+    total_duration = round(sum(clip["duration_sec"] for clip in render_clips), 3)
     cmd = build_rough_cut_ffmpeg_command(
-        clips,
+        render_clips,
         out=out,
         audio=audio,
         width=width,
         height=height,
+        fps=fps,
     )
 
     try:
@@ -229,8 +267,8 @@ def execute_rough_cut_plan(
             out=out,
             report=report,
             audio=audio,
-            clips=clips,
-            total_duration=total_duration,
+            clips=render_clips,
+            total_duration=planned_duration,
             error_type="timeout",
             message=f"ffmpeg timed out after {timeout_sec} seconds",
             stderr_tail=str(exc.stderr)[-2000:] if exc.stderr else None,
@@ -241,8 +279,8 @@ def execute_rough_cut_plan(
             out=out,
             report=report,
             audio=audio,
-            clips=clips,
-            total_duration=total_duration,
+            clips=render_clips,
+            total_duration=planned_duration,
             error_type="ffmpeg_failed",
             message=f"ffmpeg exited with code {result.returncode}",
             stderr_tail=(result.stderr or "")[-2000:],
@@ -256,10 +294,12 @@ def execute_rough_cut_plan(
         "source_artifact": str(plan_path),
         "output_video": str(out),
         "audio_file": str(audio) if audio else None,
-        "clip_count": len(clips),
+        "clip_count": len(render_clips),
         "duration_sec": output_probe["duration_sec"],
-        "planned_duration_sec": total_duration,
-        "clips": clips,
+        "planned_duration_sec": planned_duration,
+        "rendered_plan_duration_sec": total_duration,
+        "duration_adjustments": duration_adjustments,
+        "clips": render_clips,
         "streams": output_probe["streams"],
         "next_action": "human_review_or_final_product_verify",
     }
@@ -275,6 +315,7 @@ def main(argv=None) -> int:
     parser.add_argument("--report", required=True)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--timeout-sec", type=int, default=300)
     args = parser.parse_args(argv)
 
@@ -285,6 +326,7 @@ def main(argv=None) -> int:
         audio_path=args.audio,
         width=args.width,
         height=args.height,
+        fps=args.fps,
         timeout_sec=args.timeout_sec,
     )
     result = {
