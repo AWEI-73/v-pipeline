@@ -143,6 +143,72 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("verified_preview_review_packet.json", summary["read"])
             self.assertIn("review_report.md", summary["read"])
 
+    def test_verified_preview_review_decision_takes_precedence_over_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "delivery_candidate.mp4").write_bytes(b"fake preview")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+            })
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "version": 1,
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+                "review_packet": "verified_preview_review_packet.json",
+                "review_report_md": "review_report.md",
+                "next_action": "operator_review_or_explicit_final_promotion",
+            })
+            _write(root, "verified_preview_review_decision.json", {
+                "artifact_role": "verified_preview_review_decision",
+                "version": 1,
+                "decision": "revise_workbench",
+                "candidate_video": "delivery_candidate.mp4",
+                "mode": "run",
+                "next_action": "open_workbench_for_preview_revision",
+            })
+            _write(root, "verified_preview_review_packet.json", {
+                "artifact_role": "verified_preview_review_packet",
+            })
+            (root / "review_report.md").write_text("# Review", encoding="utf-8")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "verified_preview_review_decision")
+            self.assertEqual(summary["next"], "open_workbench_for_preview_revision")
+            self.assertEqual(summary["source"], "verified_preview_review_decision.json")
+            self.assertIn("verified_preview_review_decision.json", summary["read"])
+            self.assertIn("delivery_candidate.mp4", summary["read"])
+
+    def test_verified_preview_review_rebuild_decision_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "delivery_candidate.mp4").write_bytes(b"fake preview")
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "version": 1,
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+            _write(root, "verified_preview_review_decision.json", {
+                "artifact_role": "verified_preview_review_decision",
+                "version": 1,
+                "decision": "rebuild_motion_preview",
+                "candidate_video": "delivery_candidate.mp4",
+                "mode": "repair",
+                "next_action": "rebuild_motion_preview_from_preview_plan",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "verified_preview_review_decision")
+            self.assertEqual(summary["next"], "rebuild_motion_preview_from_preview_plan")
+
     def test_failed_delivery_gate_invalidates_existing_verified_preview_package(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

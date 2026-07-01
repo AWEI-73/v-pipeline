@@ -1045,6 +1045,41 @@ def _verified_preview_package_summary(root: Path):
     )
 
 
+def _verified_preview_review_decision_summary(root: Path):
+    decision_path, decision = _find_json(root, "verified_preview_review_decision.json")
+    if not decision:
+        return None
+    if (root / "final.mp4").exists():
+        return None
+    package_path, package = _find_json(root, "verified_preview_package.json")
+    read = [_rel(root, decision_path)]
+    if package_path:
+        read.append(_rel(root, package_path))
+    candidate = decision.get("candidate_video") or (package or {}).get("packaged_video")
+    candidate_ref = _rel(root, candidate)
+    if candidate_ref and candidate_ref not in read:
+        read.append(candidate_ref)
+    if isinstance(package, dict):
+        for ref_key in ("review_packet", "review_report_md"):
+            ref = _rel(root, package.get(ref_key))
+            if ref and ref not in read:
+                read.append(ref)
+
+    mode = decision.get("mode")
+    if mode not in {"run", "repair", "waiting"}:
+        mode = "repair" if decision.get("decision") in {"rebuild_motion_preview", "reject"} else "run"
+    next_action = decision.get("next_action") or "review_verified_preview_decision"
+    return _contract(
+        mode,
+        "verified_preview_review_decision",
+        next_action=next_action,
+        reason=f"verified preview operator decision={decision.get('decision')}: {next_action}",
+        read=read,
+        run_dir=root,
+        source="verified_preview_review_decision.json",
+    )
+
+
 def _build_summary(root: Path):
     timeline_path, timeline = _find_json(root, "timeline_build.json")
     editor_path, editor = _find_json(root, "editor_review.json")
@@ -1471,6 +1506,10 @@ def _intent_summary(root: Path):
 
 def summarize_run(run_dir):
     root = Path(run_dir).resolve()
+
+    summary = _verified_preview_review_decision_summary(root)
+    if summary:
+        return summary
 
     summary = _verified_preview_package_summary(root)
     if summary:

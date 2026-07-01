@@ -4,7 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from video_pipeline_core.verified_preview_package import package_verified_preview, promote_verified_preview_to_final
+from video_pipeline_core.verified_preview_package import (
+    package_verified_preview,
+    promote_verified_preview_to_final,
+    record_verified_preview_review_decision,
+)
 
 
 def _write(path: Path, payload: dict):
@@ -302,6 +306,79 @@ class VerifiedPreviewPackageTest(unittest.TestCase):
             payload = json.loads(proc.stdout)
             self.assertEqual(payload["artifact_role"], "final_promotion_report")
             self.assertTrue((root / "final.mp4").exists())
+
+    def test_records_review_decision_without_promoting_final(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            decision = record_verified_preview_review_decision(
+                root,
+                decision="revise-workbench",
+                reviewer="tester",
+                notes="tighten the ending",
+            )
+
+            self.assertEqual(decision["artifact_role"], "verified_preview_review_decision")
+            self.assertEqual(decision["decision"], "revise_workbench")
+            self.assertEqual(decision["reviewer"], "tester")
+            self.assertEqual(decision["next_action"], "open_workbench_for_preview_revision")
+            self.assertEqual(decision["route_back"][0]["owner"], "brownfield-edit")
+            self.assertFalse((root / "final.mp4").exists())
+            saved = json.loads((root / "verified_preview_review_decision.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["notes"], "tighten the ending")
+
+    def test_review_decision_rejects_unknown_decision(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            with self.assertRaises(ValueError):
+                record_verified_preview_review_decision(root, decision="maybe later")
+
+    def test_review_decision_cli_writes_artifact(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "delivery_candidate.mp4").write_bytes(b"candidate")
+            _write(root / "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+            })
+
+            proc = subprocess.run(
+                [
+                    "python",
+                    "tools/verified_preview_review_decision.py",
+                    "--run",
+                    str(root),
+                    "--decision",
+                    "rebuild_motion_preview",
+                    "--reviewer",
+                    "tester",
+                    "--json",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["artifact_role"], "verified_preview_review_decision")
+            self.assertEqual(payload["decision"], "rebuild_motion_preview")
+            self.assertEqual(payload["mode"], "repair")
+            self.assertTrue((root / "verified_preview_review_decision.json").exists())
 
 
 if __name__ == "__main__":

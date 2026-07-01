@@ -351,3 +351,90 @@ def promote_verified_preview_to_final(
     report_path = root / report_name
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
+
+
+def record_verified_preview_review_decision(
+    run_dir: str | Path,
+    *,
+    decision: str,
+    reviewer: str = "operator",
+    notes: str = "",
+    out_name: str = "verified_preview_review_decision.json",
+) -> dict[str, Any]:
+    """Record the operator decision for a verified preview candidate.
+
+    This intentionally does not promote or mutate video artifacts. Promotion is
+    still handled by ``promote_verified_preview_to_final`` so acceptance remains
+    explicit and auditable.
+    """
+    root = Path(run_dir).resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"run folder not found: {root}")
+
+    package_path = root / "verified_preview_package.json"
+    package = _load_json(package_path)
+    if not package or package.get("artifact_role") != "verified_preview_package":
+        raise FileNotFoundError("verified_preview_package.json is required before review decision")
+    if package.get("status") != "ready_for_operator_delivery_review":
+        raise ValueError("verified preview package is not ready for operator review")
+
+    normalized = decision.strip().casefold().replace("-", "_")
+    allowed = {
+        "accept_promote": {
+            "mode": "run",
+            "next_action": "promote_verified_preview",
+            "route_back": [],
+        },
+        "revise_workbench": {
+            "mode": "run",
+            "next_action": "open_workbench_for_preview_revision",
+            "route_back": [{
+                "owner": "brownfield-edit",
+                "artifact": "verified_preview_review_decision",
+                "reason": "operator requested draft-only edits to the verified preview candidate",
+                "next_action": "open_workbench_for_preview_revision",
+            }],
+        },
+        "rebuild_motion_preview": {
+            "mode": "repair",
+            "next_action": "rebuild_motion_preview_from_preview_plan",
+            "route_back": [{
+                "owner": "material-map",
+                "artifact": "verified_preview_review_decision",
+                "reason": "operator requested a motion preview instead of storyboard/keyframe fallback",
+                "next_action": "rebuild_motion_preview_from_preview_plan",
+            }],
+        },
+        "reject": {
+            "mode": "repair",
+            "next_action": "revise_material_or_story_plan",
+            "route_back": [{
+                "owner": "material-map",
+                "artifact": "verified_preview_review_decision",
+                "reason": "operator rejected the preview candidate",
+                "next_action": "revise_material_or_story_plan",
+            }],
+        },
+    }
+    if normalized not in allowed:
+        raise ValueError(
+            "decision must be one of: " + ", ".join(sorted(allowed))
+        )
+
+    selected = allowed[normalized]
+    payload = {
+        "artifact_role": "verified_preview_review_decision",
+        "version": 1,
+        "decision": normalized,
+        "reviewer": reviewer,
+        "notes": notes,
+        "package": "verified_preview_package.json",
+        "candidate_video": package.get("packaged_video"),
+        "promotes_to_final_mp4": normalized == "accept_promote",
+        "mode": selected["mode"],
+        "next_action": selected["next_action"],
+        "route_back": selected["route_back"],
+    }
+    out_path = root / out_name
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return payload
