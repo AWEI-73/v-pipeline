@@ -858,6 +858,42 @@ def _subtitle_voiceover_handoff_summary(root: Path):
     )
 
 
+def _stage0_subtitle_voiceover_gap_summary(root: Path):
+    intent_path, intent = _find_json(root, "video_intent.json")
+    if not intent:
+        return None
+    contract = intent.get("subtitle_voiceover_contract")
+    if not isinstance(contract, dict):
+        return None
+    subtitle_required = contract.get("subtitle_required") is True
+    voiceover_required = contract.get("voiceover_required") is True
+    if not (subtitle_required or voiceover_required):
+        return None
+
+    _handoff_path, handoff = _find_json(root, "subtitle_voiceover_build_handoff.json")
+    if isinstance(handoff, dict):
+        subtitle_ready = handoff.get("subtitle_ready") is True
+        voiceover_ready = handoff.get("voiceover_ready") is True
+        if (not subtitle_required or subtitle_ready) and (not voiceover_required or voiceover_ready):
+            return None
+
+    required = []
+    if subtitle_required:
+        required.append("subtitles")
+    if voiceover_required:
+        required.append("voiceover")
+    return _contract(
+        "repair",
+        "subtitle_voiceover_handoff",
+        next_action="subtitle-voiceover-handoff-accept",
+        resume="subtitle_voiceover",
+        reason="Stage 0 requires " + " and ".join(required) + " before BUILD handoff",
+        read=[_rel(root, intent_path)],
+        run_dir=root,
+        source="video_intent.json",
+    )
+
+
 def _lifecycle_summary(root: Path, lifecycle: dict[str, Any]):
     stage = lifecycle.get("stage")
     refs = _read_refs(root, lifecycle.get("refs") or {})
@@ -1462,11 +1498,15 @@ def summarize_run(run_dir):
     if acceptance_summary and acceptance_summary.get("mode") == "repair":
         return acceptance_summary
 
-    summary = _audio_build_handoff_summary(root)
+    summary = _subtitle_voiceover_handoff_summary(root)
     if summary:
         return summary
 
-    summary = _subtitle_voiceover_handoff_summary(root)
+    summary = _stage0_subtitle_voiceover_gap_summary(root)
+    if summary:
+        return summary
+
+    summary = _audio_build_handoff_summary(root)
     if summary:
         return summary
 

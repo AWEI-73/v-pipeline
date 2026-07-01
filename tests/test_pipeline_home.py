@@ -849,6 +849,41 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "continue_build_or_material_gate")
             self.assertEqual(summary["source"], "audio_build_handoff.json")
 
+    def test_stage0_required_subtitles_block_audio_build_handoff_until_handoff_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "subtitle_voiceover_contract": {
+                    "artifact_role": "stage0_subtitle_voiceover_intent",
+                    "language": "zh-TW",
+                    "subtitle_required": True,
+                    "voiceover_required": False,
+                    "handoff_to": "subtitle-director",
+                },
+            })
+            _write(root, "final_audio.wav", "audio")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+            })
+            _write(root, "audio_build_handoff.json", {
+                "artifact_role": "audio_build_handoff",
+                "selected_audio": str(root / "final_audio.wav"),
+                "selection_reason": "audio_ready_final_audio",
+                "audio_ready": True,
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "subtitle_voiceover_handoff")
+            self.assertEqual(summary["next"], "subtitle-voiceover-handoff-accept")
+            self.assertEqual(summary["source"], "video_intent.json")
+            self.assertIn("Stage 0 requires subtitles", summary["reason"])
+
     def test_subtitle_voiceover_build_handoff_routes_to_build_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "subtitle_voiceover_handoff_acceptance.json", {
