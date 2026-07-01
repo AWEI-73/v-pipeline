@@ -204,7 +204,8 @@ source_section_map / source_motion_profile / source_material_matrix
   -> write_delivery_gate_report.py
   -> package_verified_preview.py
   -> delivery_candidate.mp4 + verified_preview_package.json
-  -> operator review accepts candidate
+  -> operator review writes verified_preview_review_decision.json
+  -> if decision=accept_promote
   -> promote_verified_preview.py
   -> final.mp4 + final_promotion_report.json
   -> write_delivery_gate_report.py
@@ -214,8 +215,12 @@ source_section_map / source_motion_profile / source_material_matrix
 Rules:
 
 - `delivery_candidate.mp4` is not canonical final output.
-- `promote_verified_preview.py` is the only shortcut allowed to copy a verified
-  candidate to `final.mp4`; it records the operator decision.
+- `verified_preview_review_decision.py` is the explicit stop after operator
+  review. Valid decisions are `accept_promote`, `revise_workbench`,
+  `rebuild_motion_preview`, and `reject`.
+- `promote_verified_preview.py` is only allowed after
+  `verified_preview_review_decision.json` says `decision=accept_promote`; it
+  copies the verified candidate to `final.mp4`.
 - Preserve-original-audio highlights may write minimal delivery requirements:
   audio required, narration/music/subtitles not required.
 - If the complete delivery gate fails after promotion, return to Stage 5/7

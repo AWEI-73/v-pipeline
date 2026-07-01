@@ -329,6 +329,11 @@ python tools\rough_cut_plan_execute.py `
   --timeout-sec 300
 ```
 
+`rough_cut_plan_execute.py` pins the preview to a normal output frame rate and
+clamps each clip to the source's remaining duration. If a source is shorter
+than the proposed clip, the report records `duration_adjustments[]`; review
+those gaps before treating the preview as representative.
+
 Manual steps, when you need to inspect or override each artifact:
 
 ```powershell
@@ -467,7 +472,16 @@ python tools\package_verified_preview.py `
   --run RUN_DIR `
   --json
 
-# Only after operator review accepts delivery_candidate.mp4:
+# Record the operator decision after reviewing delivery_candidate.mp4.
+# Valid decisions: accept_promote, revise_workbench, rebuild_motion_preview, reject.
+python tools\verified_preview_review_decision.py `
+  --run RUN_DIR `
+  --decision accept_promote `
+  --reviewer operator `
+  --notes "accepted after review" `
+  --json
+
+# Only after verified_preview_review_decision.json says decision=accept_promote:
 python tools\promote_verified_preview.py `
   --run RUN_DIR `
   --reviewer operator `
@@ -493,6 +507,9 @@ Single-source delivery closeout:
 - `final-product-verify` must pass before packaging.
 - `package_verified_preview.py` writes `verified_preview_package.json` and
   `delivery_candidate.mp4`; it does not create `final.mp4`.
+- `verified_preview_review_decision.py` records the explicit operator decision:
+  `accept_promote`, `revise_workbench`, `rebuild_motion_preview`, or `reject`.
+  It does not create `final.mp4`.
 - `promote_verified_preview.py` is the explicit operator action that copies the
   accepted delivery candidate to `final.mp4` and writes
   `final_promotion_report.json`.
@@ -837,7 +854,9 @@ python tools\safe_highlight_cut.py `
 python video_tools.py final-product-verify RUN_DIR\final_safe_tool.mp4 --out-dir RUN_DIR\final_product_verify
 python tools\write_delivery_gate_report.py --run RUN_DIR --json
 python tools\package_verified_preview.py --run RUN_DIR --json
-# After operator accepts delivery_candidate.mp4:
+# After operator reviews delivery_candidate.mp4:
+python tools\verified_preview_review_decision.py --run RUN_DIR --decision accept_promote --reviewer operator --json
+# Only after decision=accept_promote:
 python tools\promote_verified_preview.py --run RUN_DIR --reviewer operator --json
 python tools\write_delivery_gate_report.py --run RUN_DIR --json
 ```
@@ -860,6 +879,7 @@ Single-source highlight policy:
   a repeat policy and reason. Unmarked repetition is treated as fatigue or
   material shortage, not design.
 - `delivery_candidate.mp4` is reviewable, not final. Only
+  `verified_preview_review_decision.py --decision accept_promote` followed by
   `promote_verified_preview.py` may turn it into `final.mp4`, and the complete
   delivery gate must pass afterward.
 
