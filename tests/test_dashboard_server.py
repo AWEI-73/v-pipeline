@@ -730,6 +730,17 @@ class DashboardServerTest(unittest.TestCase):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
+        (self.artifact_root / "preview_timeline.json").write_text(
+            json.dumps({"artifact_role": "preview_timeline", "clips": []}),
+            encoding="utf-8",
+        )
+        (self.artifact_root / "workbench_revision_request.json").write_text(
+            json.dumps({
+                "artifact_role": "workbench_revision_request",
+                "issues": [{"description": "ending is weak"}],
+            }),
+            encoding="utf-8",
+        )
         timeline_patch = {"patches": [{"op": "set_duration", "clip_id": "c1", "duration_sec": 2.5}]}
         contract_patch = {"patches": [{"op": "sync_clip", "clip_id": "c1"}]}
         (self.artifact_root / "timeline_patch.json").write_text(
@@ -746,16 +757,20 @@ class DashboardServerTest(unittest.TestCase):
         data = json.loads(api_resp.decode("utf-8"))
 
         drafts = data["workbench"]["draft_artifacts"]
+        self.assertTrue(drafts["preview_timeline"]["exists"])
+        self.assertTrue(drafts["workbench_revision_request"]["exists"])
         self.assertTrue(drafts["timeline_patch"]["exists"])
         self.assertTrue(drafts["workbench_contract_patch"]["exists"])
         self.assertFalse(drafts["patched_draft_timeline"]["exists"])
+        self.assertEqual(drafts["preview_timeline"]["path"], "preview_timeline.json")
+        self.assertEqual(drafts["workbench_revision_request"]["path"], "workbench_revision_request.json")
         self.assertEqual(drafts["timeline_patch"]["path"], "timeline_patch.json")
         self.assertEqual(drafts["workbench_contract_patch"]["path"], "workbench_contract_patch.json")
         self.assertGreater(drafts["timeline_patch"]["size_bytes"], 0)
         self.assertRegex(drafts["timeline_patch"]["sha256"], r"^[0-9a-f]{64}$")
 
         summary = data["workbench"]["draft_summary"]
-        self.assertEqual(summary["present_count"], 2)
+        self.assertEqual(summary["present_count"], 4)
         self.assertEqual(summary["timeline_edits"], 1)
         self.assertEqual(summary["contract_edits"], 1)
         self.assertFalse(summary["has_handoff"])

@@ -262,6 +262,8 @@ def load_json_file(file_path: Path):
 
 
 WORKBENCH_DRAFT_ARTIFACTS = {
+    "preview_timeline": "preview_timeline.json",
+    "workbench_revision_request": "workbench_revision_request.json",
     "timeline_patch": "timeline_patch.json",
     "patched_draft_timeline": "patched_draft_timeline.json",
     "workbench_contract_patch": "workbench_contract_patch.json",
