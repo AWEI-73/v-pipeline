@@ -1408,6 +1408,34 @@ class DashboardStateSpecTest(unittest.TestCase):
                 for finding in state["findings"]
             ))
 
+    def test_workbench_revision_request_surfaces_as_dashboard_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            (workdir / "workbench_revision_request.json").write_text(json.dumps({
+                "artifact_role": "workbench_revision_request",
+                "version": 1,
+                "candidate_video": "delivery_candidate.mp4",
+                "issues": [{
+                    "issue_id": "operator-review-1",
+                    "description": "ending is weak",
+                }],
+                "next_action": "open_workbench_for_preview_revision",
+            }), encoding="utf-8")
+            (workdir / "material_first_boundary_acceptance_report.json").write_text(json.dumps({
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+            }), encoding="utf-8")
+
+            state = load_dashboard_state(str(workdir))
+
+            self.assertIn("workbench_revision_request", state["artifacts"])
+            self.assertEqual(
+                state["artifacts"]["workbench_revision_request"]["issues"][0]["description"],
+                "ending is weak",
+            )
+            self.assertEqual(state["next_action"], "open_workbench_for_preview_revision")
+
     def test_source_highlight_artifacts_surface_without_missing_brief_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

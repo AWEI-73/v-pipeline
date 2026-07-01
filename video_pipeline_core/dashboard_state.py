@@ -260,6 +260,8 @@ def load_dashboard_state(workdir):
                     manifest["subtitle_voiceover_build_handoff"] = f
                 elif f == "workbench_handoff.json":
                     manifest["workbench_handoff"] = f
+                elif f == "workbench_revision_request.json":
+                    manifest["workbench_revision_request"] = f
                 elif f == "delivery_gate.json":
                     manifest["delivery_gate_report"] = f
 
@@ -380,6 +382,10 @@ def load_dashboard_state(workdir):
     workbench_handoff = (
         safe_load_json(manifest.get("workbench_handoff"))
         or safe_load_json("workbench_handoff.json")
+    )
+    workbench_revision_request = (
+        safe_load_json(manifest.get("workbench_revision_request"))
+        or safe_load_json("workbench_revision_request.json")
     )
     delivery_gate_report = (
         safe_load_json(manifest.get("delivery_gate_report"))
@@ -778,6 +784,15 @@ def load_dashboard_state(workdir):
     if timeline_build_invalid:
         next_action = "fix_timeline_or_assembly"
         is_pass = False
+    elif (
+        workbench_revision_request
+        and workbench_revision_request.get("artifact_role") == "workbench_revision_request"
+    ):
+        next_action = (
+            workbench_revision_request.get("next_action")
+            or "open_workbench_for_preview_revision"
+        )
+        is_pass = False
     elif verify_result and verify_result.get("pass") is False:
         next_action = "verify_failed"
     elif (state_data and state_data.get("next_action") and not stale_spec_review_state
@@ -1067,7 +1082,7 @@ def load_dashboard_state(workdir):
     else:
         # Check required missing nodes
         verified_final = bool(final_exists and verify_result and verify_result.get("pass") is True)
-        if not verified_final:
+        if not verified_final and not next_action:
             required_nodes_keys = [0, 3, 2, "4-7", 5, 8, 9, 10, "10.5", 11, 13, 12]
             if effects_required:
                 required_nodes_keys.append(14)
@@ -1110,6 +1125,7 @@ def load_dashboard_state(workdir):
         "repair_generated_material_candidates",
         "wait_for_generated_provider",
         "generated-material-import",
+        "open_workbench_for_preview_revision",
     } and not delivery_gate["pass"]:
         next_action = delivery_gate["next_action"]
         is_pass = False
@@ -1467,6 +1483,7 @@ def load_dashboard_state(workdir):
             "subtitle_voiceover_handoff_acceptance": subtitle_voiceover_handoff_acceptance,
             "subtitle_voiceover_build_handoff": subtitle_voiceover_build_handoff,
             "workbench_handoff": workbench_handoff,
+            "workbench_revision_request": workbench_revision_request,
             "assembly_plan": assembly_plan,
             "timeline_build": timeline_build,
             "rough_cut_plan": rough_cut_plan,
