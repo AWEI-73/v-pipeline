@@ -183,6 +183,27 @@ def _acceptance_summary(root: Path):
             source="material_first_boundary_acceptance_report.json",
         )
 
+    rough_preview_path, rough_preview = _find_json(root, "rough_cut_preview_report.json")
+    if rough_preview and rough_preview.get("ok") is True:
+        output = rough_preview.get("output_video") or rough_preview.get("out")
+        output_path = Path(str(output)) if output else None
+        if output_path and not output_path.is_absolute():
+            output_path = root / output_path
+        output_rel = _rel(root, output_path) if output_path and output_path.is_file() else None
+        if output_rel:
+            return _contract(
+                "run",
+                "stage5_final_review",
+                next_action="review_motion_preview",
+                reason=(
+                    "material-first motion preview ready "
+                    f"({rough_preview.get('clip_count', '?')} clips)"
+                ),
+                read=read + [_rel(root, rough_preview_path), output_rel],
+                run_dir=root,
+                source="rough_cut_preview_report.json",
+            )
+
     storyboard_path, storyboard = _find_json(root, "rough_cut_storyboard_preview_report.json")
     if storyboard and storyboard.get("ok") is True:
         output = storyboard.get("output_video") or storyboard.get("out")
@@ -203,6 +224,21 @@ def _acceptance_summary(root: Path):
                 run_dir=root,
                 source="rough_cut_storyboard_preview_report.json",
             )
+
+    if rough_preview and rough_preview.get("ok") is False:
+        read.append(_rel(root, rough_preview_path))
+        error_type = rough_preview.get("error_type")
+        message = rough_preview.get("message") or "rough cut preview failed"
+        reason = f"{error_type}: {message}" if error_type else message
+        return _contract(
+            "repair",
+            "stage5_preview_build",
+            next_action=rough_preview.get("next_action") or "use_rough_cut_storyboard_preview_or_reduce_clip_count",
+            reason=str(reason),
+            read=read,
+            run_dir=root,
+            source="rough_cut_preview_report.json",
+        )
 
     return _contract(
         "run",

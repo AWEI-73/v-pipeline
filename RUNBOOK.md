@@ -309,6 +309,19 @@ python tools\rough_cut_storyboard_preview.py `
 This is a review aid for material choice and order. It is not `final.mp4` and
 does not verify motion timing.
 
+After the storyboard/material order is accepted, use a bounded motion preview
+only as a candidate. The report filename is canonical; if the command times out
+or ffmpeg fails, it writes `ok=false`, removes the partial output when possible,
+and `pipeline_home.py` routes to preview repair/fallback:
+
+```powershell
+python tools\rough_cut_plan_execute.py `
+  --rough-cut-plan RUN_DIR\preview_rough_cut_plan.json `
+  --out RUN_DIR\material_first_review_candidate.mp4 `
+  --report RUN_DIR\rough_cut_preview_report.json `
+  --timeout-sec 300
+```
+
 Manual steps, when you need to inspect or override each artifact:
 
 ```powershell

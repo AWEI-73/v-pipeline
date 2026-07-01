@@ -153,6 +153,46 @@ def build_rough_cut_ffmpeg_command(
     return cmd
 
 
+def _remove_partial_output(path: Path) -> bool:
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
+def _failure_payload(
+    *,
+    plan_path: str | Path,
+    out: Path,
+    report: Path,
+    audio: Path | None,
+    clips: list[dict[str, Any]],
+    total_duration: float,
+    error_type: str,
+    message: str,
+    stderr_tail: str | None = None,
+) -> dict[str, Any]:
+    partial_removed = _remove_partial_output(out)
+    payload = {
+        "artifact_role": "rough_cut_preview_report",
+        "version": 1,
+        "ok": False,
+        "source_artifact": str(plan_path),
+        "output_video": str(out),
+        "audio_file": str(audio) if audio else None,
+        "clip_count": len(clips),
+        "planned_duration_sec": total_duration,
+        "error_type": error_type,
+        "message": message,
+        "stderr_tail": stderr_tail,
+        "partial_output_removed": partial_removed,
+        "next_action": "use_rough_cut_storyboard_preview_or_reduce_clip_count",
+        "fallback_tool": "tools/rough_cut_storyboard_preview.py",
+    }
+    _write_json(report, payload)
+    return payload
+
+
 def execute_rough_cut_plan(
     plan_path: str | Path,
     out_path: str | Path,
@@ -161,6 +201,7 @@ def execute_rough_cut_plan(
     audio_path: str | Path | None = None,
     width: int = 1280,
     height: int = 720,
+    timeout_sec: int = 300,
 ) -> dict[str, Any]:
     plan = _load_json(Path(plan_path))
     clips = _clips(plan)
@@ -180,9 +221,32 @@ def execute_rough_cut_plan(
         height=height,
     )
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+    except subprocess.TimeoutExpired as exc:
+        return _failure_payload(
+            plan_path=plan_path,
+            out=out,
+            report=report,
+            audio=audio,
+            clips=clips,
+            total_duration=total_duration,
+            error_type="timeout",
+            message=f"ffmpeg timed out after {timeout_sec} seconds",
+            stderr_tail=str(exc.stderr)[-2000:] if exc.stderr else None,
+        )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr)
+        return _failure_payload(
+            plan_path=plan_path,
+            out=out,
+            report=report,
+            audio=audio,
+            clips=clips,
+            total_duration=total_duration,
+            error_type="ffmpeg_failed",
+            message=f"ffmpeg exited with code {result.returncode}",
+            stderr_tail=(result.stderr or "")[-2000:],
+        )
 
     output_probe = _probe(out)
     payload = {
@@ -211,6 +275,7 @@ def main(argv=None) -> int:
     parser.add_argument("--report", required=True)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--timeout-sec", type=int, default=300)
     args = parser.parse_args(argv)
 
     payload = execute_rough_cut_plan(
@@ -220,9 +285,20 @@ def main(argv=None) -> int:
         audio_path=args.audio,
         width=args.width,
         height=args.height,
+        timeout_sec=args.timeout_sec,
     )
-    print(json.dumps({"ok": True, "output_video": payload["output_video"], "duration_sec": payload["duration_sec"]}, ensure_ascii=False, indent=2))
-    return 0
+    result = {
+        "ok": payload["ok"],
+        "output_video": payload["output_video"],
+        "next_action": payload.get("next_action"),
+    }
+    if payload["ok"]:
+        result["duration_sec"] = payload["duration_sec"]
+    else:
+        result["error_type"] = payload.get("error_type")
+        result["message"] = payload.get("message")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if payload["ok"] else 2
 
 
 if __name__ == "__main__":

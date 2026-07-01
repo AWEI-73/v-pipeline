@@ -260,6 +260,7 @@ Material exists or may exist
   |     -> optional tools/material_first_preview_plan.py for 60-90s review proposal
   |        after matrix and wall verdict draft exist
   |     -> optional tools/rough_cut_storyboard_preview.py when source clips are too large for quick motion preview
+  |     -> optional tools/rough_cut_plan_execute.py only after storyboard/material order is accepted
   |     -> material map lifecycle
   |     -> project_material_map.json / per-asset maps
   |     -> material_wall_review_verdict.json when review is needed
@@ -299,6 +300,7 @@ Forbidden actions:
 
 - full render;
 - silent generated-material promotion;
+- treating storyboard or motion preview candidates as canonical delivery;
 - treating file names as visual truth when the route requires review evidence;
 - continuing to BUILD when material delta says missing/thin without a waiver.
 
@@ -311,6 +313,8 @@ Handoff artifacts:
 - `material_wall_review_verdict.draft.json` when matrix-assisted drafting is used
 - `material_first_happy_path_report.json` when the no-render wrapper is used
 - `preview_rough_cut_plan.json` for 60-90 second non-canonical review proposal
+- `rough_cut_storyboard_preview_report.json` for cheap still-frame review
+- `rough_cut_preview_report.json` for bounded motion preview or fail-closed fallback
 - `project_material_map.json`
 - `material_wall_review_verdict.json`
 - `material_delta.json`

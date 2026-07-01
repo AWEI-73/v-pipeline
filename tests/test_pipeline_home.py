@@ -558,6 +558,72 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("storyboard preview ready", summary["reason"])
             self.assertIn("multi_material_storyboard_preview.mp4", summary["read"])
 
+    def test_failed_rough_cut_preview_routes_to_preview_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "material_first_boundary_acceptance_report.json", {
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "failed_stage": None,
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {"stage": "stage4_build", "ok": True},
+                    {"stage": "stage5_final_review", "ok": True},
+                ],
+            })
+            _write(root, "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": False,
+                "error_type": "timeout",
+                "message": "ffmpeg timed out after 1 seconds",
+                "next_action": "use_rough_cut_storyboard_preview_or_reduce_clip_count",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "stage5_preview_build")
+            self.assertEqual(summary["next"], "use_rough_cut_storyboard_preview_or_reduce_clip_count")
+            self.assertEqual(summary["source"], "rough_cut_preview_report.json")
+            self.assertIn("timeout", summary["reason"])
+
+    def test_successful_rough_cut_preview_routes_to_motion_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "material_first_boundary_acceptance_report.json", {
+                "artifact_role": "material_first_boundary_acceptance_report",
+                "route": "material-first",
+                "ok": True,
+                "next_action": "ready_for_render_or_human_review",
+                "failed_stage": None,
+                "stages": [
+                    {"stage": "stage2_3_material_wall_to_review_apply", "ok": True},
+                    {"stage": "stage4_build", "ok": True},
+                    {"stage": "stage5_final_review", "ok": True},
+                ],
+            })
+            preview = root / "material_first_review_candidate.mp4"
+            preview.write_bytes(b"fake")
+            _write(root, "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "clip_count": 10,
+                "duration_sec": 60,
+                "next_action": "human_review_or_final_product_verify",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "review_motion_preview")
+            self.assertEqual(summary["source"], "rough_cut_preview_report.json")
+            self.assertIn("motion preview ready", summary["reason"])
+            self.assertIn("material_first_review_candidate.mp4", summary["read"])
+
     def test_material_inventory_summary_routes_to_review_before_deep_material_map(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
