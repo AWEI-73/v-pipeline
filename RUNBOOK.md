@@ -22,6 +22,7 @@ Document roles:
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Shows which skill owns which Python tools and how to audit ownership. |
 | Worker boundaries | `docs/stage-boundary-matrix.md` | Defines allowed writes, forbidden writes, done gates, and stop gates. |
 | Main route construction plan | `docs/construction-guides/stage0-10-route-alignment-plan.md` | Use when changing how Stage 0-10 child contracts, branches, BUILD, and delivery line up. |
+| Non-UI repo consolidation | `docs/construction-guides/repo-consolidation-non-ui-plan.md` | Use when aligning main route, child-route skills, run-folder artifact classes, and non-UI capability surfaces. |
 | Construction guides | `docs/construction-guides/` | Use only when actively changing implementation in that construction area. |
 | Historical archive | `docs/archive/` | Decision history only; not an operational source unless a current doc links to it. |
 
@@ -38,9 +39,10 @@ Use this table before opening any other document.
 | Story/article/idea without material | `docs/upstream-story-route.md` | `skills/video-pipeline-route.md` | structure-first Stage 0, material needs, generated fallback only after delta | generated assets without explicit review |
 | Opening, transition, title, stylized effect | `docs/effect-factory-route.md` | `skills/video-effect-factory.md` | `visual_technique_plan.json` and parameter review | backend worker/render with unconfirmed parameters |
 | Music, BGM, original speech, ducking | `docs/soundtrack-arranger-route.md` | `skills/soundtrack-arranger.md` / `skills/audio-director.md` | `soundtrack_plan.json`, source/license manifest, probe or Audio Director handoff | final mix when license/source/ducking is unresolved |
-| Subtitle, narration, voiceover | `docs/pipeline-decision-tree.md` | `skills/subtitle-director.md` / `skills/audio-director.md` | subtitle/voiceover handoff acceptance | BUILD/delivery when language/readability evidence is missing |
+| Subtitle, narration, voiceover | `docs/pipeline-decision-tree.md` | `skills/subtitle-director.md` / `skills/audio-director.md` | subtitle/voiceover handoff; for local VoxCPM narration first run `python tools\voxcpm_runtime_check.py ...`, then `python tools\voxcpm_voiceover_provider.py ...`; generic provider route is `python video_tools.py voiceover-provider-plan ...` | BUILD/delivery when language/readability or narration audio evidence is missing |
 | Draft, rough cut, local patch | `docs/workbench-dashboard-integration.md` | `skills/brownfield-edit.md` | validate draft patch and `workbench_handoff.json` | overwriting canonical artifacts |
 | Verify final candidate / delivery | `docs/pipeline-decision-tree.md` | `skills/verify.md` | delivery gate / `write_delivery_gate_report.py` | accepting missing or stale evidence |
+| Repo route/skill/tool consolidation without UI | `docs/construction-guides/repo-consolidation-non-ui-plan.md` | owning route skill for the touched branch | update manifest/docs/tests for the specific branch; classify run noise with `python tools\run_artifact_index.py --run RUN_DIR --json` | dashboard/workbench redesign or unreviewed template promotion |
 
 If a task spans multiple rows, use `docs/pipeline-decision-tree.md` first. It
 defines branch insertion points and the return route.
@@ -81,6 +83,8 @@ Side branch 3: Soundtrack Arranger
 Reserved child branch: Subtitle / Voiceover
   -> whole-video language, subtitle, narration, and voiceover intent
   -> subtitle-director / audio-director execution
+  -> VoxCPM as the default Mandarin/Chinese voiceover provider when real
+     narration is required
   -> readability and narration evidence before delivery
 
 Cross-cutting branch: Review / Verify / Delivery Gate
@@ -453,7 +457,8 @@ brief
   -> material_delta.json
   -> material_generation_fallback.json
   -> provider_packet/generated_provider_packet.json
-  -> wait_for_generated_provider
+  -> provider_packet/image_agent_handoff/image_agent_prompt_handoff.json
+  -> call_image_generation_agent
   -> generated provider outputs
   -> generated-material-import
   -> generated_material_review.json
@@ -476,13 +481,14 @@ Expected `pipeline_home.py` result:
 
 ```text
 mode=waiting
-cursor=generated_image_provider
-next=wait_for_generated_provider
+cursor=generated_image_agent
+next=call_image_generation_agent
 final.mp4 absent
 ```
 
 This is the correct stop point when no image-capable provider has written real
-files yet. Do not substitute `test_pil` or text-card placeholders for final art.
+files yet. The handoff packet contains one prompt and target file per required
+image. Do not substitute `test_pil` or text-card placeholders for final art.
 
 Acceptance harness for shape-only regression:
 
@@ -689,6 +695,28 @@ no-render checks. It can point to `subtitles.srt`, `caption_audit.json`, and
 If `subtitle_voiceover_handoff_acceptance.json.ok=false`, repair this branch
 before continuing to BUILD.
 
+VoxCPM bridge rule: VoxCPM is only a local provider under Audio Director. It is
+not a standalone pipeline route. For Mandarin/Chinese voiceover, Stage 0 should
+write `preferred_provider=voxcpm`, `fallback_provider=legacy_tts`, and
+`fallback_allowed=false` unless the user explicitly accepts fallback. Use it
+when the contract requires real voiceover and the local runtime is available:
+
+```powershell
+python tools\voxcpm_runtime_check.py --out RUN_DIR\voxcpm_runtime_check.json
+
+python tools\voxcpm_voiceover_provider.py `
+  RUN_DIR\script.json `
+  --out-dir RUN_DIR `
+  --voxcpm-python .venv_voxcpm\Scripts\python.exe `
+  --execute
+```
+
+Required evidence before BUILD consumes VoxCPM narration:
+`voiceover_provider_plan.json`, `narration_manifest.json`,
+`subtitle_voiceover_build_handoff.json`, and existing `voiceover\*.wav` files.
+If the runtime check fails or `voiceover_ready=false`, stop or use only an
+explicitly allowed fallback/defer policy.
+
 Stage 7/10 delivery evidence rule: `evaluate_delivery_gate()` reads
 `stage0_child_contracts` from `segment_contract.json`, `generated_mv_script.json`,
 or runtime payload. If Stage 0 required soundtrack, subtitles, voiceover, or a
@@ -772,6 +800,9 @@ Generated candidate branch:
 ```powershell
 python video_tools.py material-generation-fallback RUN_DIR\material_delta.json --needs RUN_DIR\material_needs.json --out RUN_DIR\material_generation_fallback.json
 python video_tools.py generated-image-provider-packet RUN_DIR\material_generation_fallback.json --out-dir RUN_DIR\provider_packet
+python video_tools.py image-agent-prompt-handoff RUN_DIR\provider_packet\generated_provider_packet.json --out-dir RUN_DIR\provider_packet\image_agent_handoff
+# image-capable agent generates real images to provider_packet/provider_outputs/*
+python video_tools.py codex-imagegen-provider-fill RUN_DIR\provider_packet\generated_provider_packet.json --image-files <generated images in packet order>
 python video_tools.py generated-material-import ...
 python video_tools.py generated-material-review ...
 ```
@@ -820,7 +851,54 @@ Remotion is not the main renderer. It produces bounded effect assets for review.
 Final assembly remains ffmpeg / `contract-run` unless a reviewed route promotes
 a draft asset.
 
-Effect Factory semantic contract acceptance:
+Effect Factory route acceptance:
+
+Use this first when validating the complete Effect Factory line from fuzzy
+effect language to worker handoff:
+
+```powershell
+python tools\effect_factory_route_acceptance.py `
+  --out RUN_DIR `
+  --request "electric lightning opening with readable title" `
+  --effect-role opening_title `
+  --duration-sec 4 `
+  --json
+```
+
+Expected artifacts:
+
+```text
+visual_technique_plan.json
+visual_technique_plan.confirmed.json
+effect_capability_review.json
+effect_intent_plan.json
+effect_revision_request.json
+timeline_build.json
+remotion_prompt_pack.json
+remotion_worker_outputs.json
+remotion_effect_review.json
+effect_handoff.json
+effect_factory_route_acceptance_report.json
+```
+
+Expected route surface:
+
+```powershell
+python tools\pipeline_home.py --run RUN_DIR --json
+```
+
+```text
+cursor=effect_factory_route_acceptance
+next=ready_for_human_effect_review_or_pipeline_promotion
+final.mp4 must remain absent
+```
+
+This route acceptance proves translation, capability review, dry-run worker
+outputs, worker review, and bounded handoff. It does not prove final visual
+quality. Use a separate preview/render probe before promoting an effect into a
+real timeline.
+
+Effect Factory semantic diversity / boundary acceptance:
 
 ```powershell
 python video_tools.py visual-technique-plan `
@@ -833,10 +911,10 @@ python video_tools.py visual-technique-plan `
 python tools\effect_factory_boundary_acceptance.py --out RUN_DIR --json
 ```
 
-Use this before a real E2E when changing effect vocabulary, style-family
-translation, prompt parameters, or handoff rules. It checks that different
-semantic families such as lightning, crack, hearts, and legacy fire do not
-collapse into one generic template. `visual-technique-plan` defaults to
+Use the boundary acceptance before a real E2E when changing effect vocabulary,
+style-family translation, prompt parameters, or handoff rules. It checks that
+different semantic families such as lightning, crack, hearts, and legacy fire
+do not collapse into one generic template. `visual-technique-plan` defaults to
 review-only candidate parameters; use `--confirmed` only after user/reviewer
 acceptance. These commands are no-render checks; `final.mp4` must remain absent.
 

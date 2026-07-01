@@ -38,6 +38,22 @@ python video_tools.py remotion-worker-outputs ...
 python video_tools.py remotion-composite-draft ...
 ```
 
+To verify the upper Effect Factory route can reach this worker without final
+render, use the no-render route acceptance smoke:
+
+```powershell
+python tools/effect_factory_route_acceptance.py `
+  --out RUN_DIR `
+  --request "electric lightning opening with readable title" `
+  --effect-role opening_title `
+  --duration-sec 4 `
+  --json
+```
+
+This proves semantic intent, capability review, prompt-pack creation, dry-run
+worker outputs, worker review, and bounded handoff. It still does not prove
+final visual quality and must not write `final.mp4`.
+
 The worker should normally start from `remotion_prompt_pack.json`. It should not invent a parallel route unless explicitly asked to run a standalone probe.
 
 ## Worker Role
@@ -150,14 +166,36 @@ Currently hardened parameter contracts:
 - `MemoryPhotoWall` via `effect_build_spec`: slow material-first memory wall
   driven by reviewed refs, pacing, density, reveal mode, camera motion, and
   accent light.
+- `GenericRemotionEffect` via `effect_build_spec`: a reviewed generic layer
+  graph for effects that are not promoted into named templates yet.
 
 For v1, keep `effect_build_spec` inside existing `prompt_parameters`. Do not add `effect_story_planner.json` or a parallel Remotion planning chain unless the mainline contract has already proven too cramped. The worker role is to consume the current prompt-pack control surface, not to introduce a new upstream route.
+
+For `GenericRemotionEffect`, the worker consumes layer types only after Effect
+Factory has written `effect_capability_review.json`. The worker should render
+supported layers and report evidence; it should not reinterpret a vague family
+name or invent missing layers. Current generic layer types:
+
+```text
+camera_motion, chromatic_split, crack_lines, electric_arcs, film_grain,
+glyph_stream, image_layout, light_overlay, mask_reveal, mask_wipe,
+particle_overlay, radial_current, refraction, text, texture_overlay
+```
+
+Unknown layer types must fail closed before worker handoff through
+`validate_effect_build_spec()` / `effect-capability-review`.
+
+The worker may render `image_layout.layout=center_logo`,
+`image_layout.layout=full_bleed_hero`, and
+`image_layout.layout=hero_background` when refs are provided by the effect
+contract. It may render `radial_current` as a generic outer-ring current or
+energy-flow layer. These are capability primitives, not named templates.
 
 If `prompt_parameters` conflict with material-map or Workbench review, material
 review wins. These parameters shape effect presentation; they do not approve
 material content.
 
-When upstream effects omit `template_id`, `remotion-prompt-pack` applies a
+When upstream effects omit `template_id`, `remotion-prompt-pack` may apply a
 conservative template policy for common training-recap cases:
 
 - speaker lower thirds -> `speaker_subtitle_yellow_bar`
@@ -173,6 +211,13 @@ conservative template policy for common training-recap cases:
 Explicit `template_id` always wins. Inferred templates are recorded in job
 `diagnostics` as `template_inferred:<template_id>` so Workbench review can tell
 whether a choice was specified or policy-derived.
+
+Exception: if `prompt_parameters.effect_build_spec` is present, the effect is
+treated as a generic Remotion translation contract. In that case, do **not**
+infer a template just because the role is `title_card` or
+`chapter_transition`. The prompt pack should preserve `template_id: null` and
+record `effect_build_spec:<component>` in diagnostics. Templates are only used
+when explicitly selected or when no generic build spec exists.
 
 Example effect intent:
 
@@ -355,6 +400,12 @@ For material-first probes that are ready for human review, also write a
 - Do not use CSS transitions or CSS animations.
 - Keep text inside safe areas.
 - Do not obscure proof footage when `must_preserve_proof=true`.
+
+`--dry-run` worker outputs are contract placeholders only. They may write files
+with preview-like names for schema compatibility, but those files are not
+playable videos. Dry-run jobs must mark `dry_run: true`,
+`playable_preview: false`, and include a `preview_note`. A real visual check
+requires a real Remotion/HTML/ffmpeg preview command or rendered evidence.
 
 ## Review And Gate Rules
 

@@ -27,11 +27,32 @@ This is the upper route for designed effects in Hermes.
       "stop_if": ["parameter_status=candidate_parameters and no review is supplied"]
     },
     {
+      "tool": "python video_tools.py effect-capability-review",
+      "when": "before Remotion worker handoff, or when deciding whether an effect request is supported, partial, unsupported, or should be rerouted",
+      "inputs": ["request/effect_role/duration/effect_build_spec"],
+      "outputs": ["effect_capability_review.json"],
+      "stop_if": ["decision is partial/probe_required/reroute_material/reroute_editing/unsupported"]
+    },
+    {
+      "tool": "python video_tools.py effect-dictionary-promote",
+      "when": "after a GenericRemotionEffect preview has accepted review evidence and should become reusable",
+      "inputs": ["promotion request with accepted review evidence", "effect_factory_dictionary.json"],
+      "outputs": ["updated effect_factory_dictionary.json"],
+      "stop_if": ["review evidence is missing or not accepted"]
+    },
+    {
       "tool": "tools/effect_factory_boundary_acceptance.py",
       "when": "驗證 Effect Factory 邊界與 handoff，不接管 final.mp4",
       "inputs": ["effect intent fixture or run folder"],
       "outputs": ["effect_factory_boundary_acceptance_report.json"],
       "stop_if": ["candidate parameters unconfirmed", "required effect lacks review evidence"]
+    },
+    {
+      "tool": "tools/effect_factory_route_acceptance.py",
+      "when": "prove the full semantic request -> visual technique -> capability review -> Remotion prompt pack -> worker review -> bounded handoff line without final render",
+      "inputs": ["effect request", "effect_role", "duration_sec", "display_text"],
+      "outputs": ["effect_factory_route_acceptance_report.json"],
+      "stop_if": ["visual_technique_plan needs follow-up", "effect_capability_review is not supported", "remotion_effect_review evidence is missing"]
     }
   ],
   "supporting_tools": [
@@ -169,11 +190,14 @@ flow is:
 
 ```text
 fuzzy style request
+  -> semantic_slots
+  -> remotion_capability_plan
   -> candidate style family / parameter options
   -> visual_technique_plan.json
   -> visual_technique_review.json
   -> visual_technique_plan.confirmed.json
   -> user or reviewer confirms direction
+  -> effect_build_spec when a supported worker component exists
   -> visible controls enter effect_contract / prompt_parameters
   -> worker preview
   -> review / revise
@@ -182,15 +206,107 @@ fuzzy style request
 Templates are worker carriers or reviewed samples. They are not the creative
 source of truth. If the user says "lightning", "heart", "Japanese", "legacy
 fire", or another style, expose the proposed primitives and controls first:
-`visual_primitives`, `motion_primitives`, `controls`, `negative_rules`, and
-`candidate_options`. Do not send candidate parameters to a worker until the
-route has a confirmation, a task packet explicitly authorizes a probe, or the
-effect is already hardened by prior review evidence.
+`semantic_slots`, `remotion_capability_plan`, `visual_primitives`,
+`motion_primitives`, `controls`, `negative_rules`, and `candidate_options`.
+Do not send candidate parameters to a worker until the route has a confirmation,
+a task packet explicitly authorizes a probe, or the effect is already hardened
+by prior review evidence.
+
+Treat `style_family` as a communication label, not the creative source of
+truth. The practical translation target is Remotion capability language:
+`Sequence`, `TransitionSeries`, particle/text/image/light layers,
+`useCurrentFrame` timing, and worker-supported `effect_build_spec`.
+
+The information density should be close to a capability contract, not a style
+tag. A valid `remotion_capability_plan` should expose:
+
+- backend `capabilities`;
+- Remotion `primitives`;
+- `remotion_api_refs`;
+- ordered `layers` with source ownership and controlling params;
+- `timing_controls`;
+- `parameter_schema`;
+- `fallback_policy`;
+- `review_evidence_required`.
+
+Use OpenMontage only as an architectural reference for capability menus,
+registry-like clarity, and stage/tool boundaries. Do not copy code from it.
+
+For effects that are not hardened components, translate into
+`effect_build_spec.component=GenericRemotionEffect` with a layer graph. This is
+the current generic translator path. Do not create a new named template just
+because a probe looks good. Templates are promoted later from reviewed,
+repeatable layer graphs.
+
+Before handing a confirmed generic graph to `remotion-effect-worker`, write an
+`effect_capability_review.json`:
+
+```powershell
+python video_tools.py effect-capability-review `
+  --input RUN_DIR\effect_request.json `
+  --out RUN_DIR\effect_capability_review.json
+```
+
+Only `decision=supported` may enter worker handoff without another review step.
+`partial` and `probe_required` stop for confirmation/probe evidence.
+`reroute_material` belongs to material generation or story route.
+`reroute_editing` belongs to Workbench/BUILD/audio/subtitle routes.
+`unsupported` must be revised instead of silently mapped to a decorative
+template.
+
+Current generic layer vocabulary:
+
+```text
+camera_motion, chromatic_split, crack_lines, electric_arcs, film_grain,
+glyph_stream, image_layout, light_overlay, mask_reveal, mask_wipe,
+particle_overlay, radial_current, refraction, text, texture_overlay
+```
+
+Common parameterized, non-template uses:
+
+- `image_layout.layout=center_logo` for a reviewed logo or mark.
+- `image_layout.layout=full_bleed_hero` / `hero_background` for a reviewed
+  generated or source hero plate with explicit fade timing.
+- `radial_current` for outer-ring current, orbit, or energy-flow accents around
+  a reviewed focal image.
+
+Do not promote these into a fixed template unless the user explicitly asks to
+solidify a reviewed result into the dictionary.
+
+If a preview is accepted and should become reusable, promote it through:
+
+```powershell
+python video_tools.py effect-dictionary-promote `
+  --request RUN_DIR\effect_dictionary_promotion_request.json `
+  --dictionary RUN_DIR\effect_factory_dictionary.json `
+  --out RUN_DIR\effect_factory_dictionary.updated.json
+```
+
+Promotion requires accepted review evidence and a reviewed
+`GenericRemotionEffect` layer graph.
 
 Use `visual-technique-review-apply` to turn reviewed candidate parameters into
 a confirmed plan. The presence of `visual_technique_review.json` means "apply
 the review", not "send to worker directly". The worker only receives
 `visual_technique_plan.confirmed.json` or an explicitly probe-authorized packet.
+
+For a repeatable no-render route check from natural-language effect intent to
+worker handoff, use:
+
+```powershell
+python tools/effect_factory_route_acceptance.py `
+  --out RUN_DIR `
+  --request "electric lightning opening with readable title" `
+  --effect-role opening_title `
+  --duration-sec 4 `
+  --json
+```
+
+This writes `effect_factory_route_acceptance_report.json` and the intermediate
+artifacts from `visual_technique_plan.json` through `effect_handoff.json`. It is
+the preferred smoke test when verifying that Effect Factory can translate a
+semantic request into supported Remotion worker parameters without producing
+`final.mp4`.
 
 ## Canonical Artifacts
 
@@ -351,9 +467,48 @@ These are starting points. Mark new families as `candidate` until reviewed.
   title settle, low-frequency pulse.
 - `mothers_day_heart_stage`: heart bokeh, pink/gold gradient, ribbon sweep,
   petal drift, gentle glow.
+- `japanese_soft_storybook`: paper texture, rounded ink lines, pastel wash,
+  gentle parallax, soft character/title plate.
 - `japanese_sakura`: sakura petals, soft bloom, parallax drift, slow reveal.
 - `warm_legacy_fire`: soft embers, afterglow, dimmed group photo, long fade,
   restrained emotional closure.
+- `terminal_data_reveal`: generated terminal glyph stream, scanlines, cursor
+  blink, title assembly, readability guard.
+- `vintage_film_burn_transition`: burn mask wipe, light leak edge, film grain,
+  gate weave, memory-to-truth reveal.
+- `ink_spread_reveal`: ink bloom mask, paper fiber texture, feathered organic
+  reveal, readable title after ink settles.
+- `prism_glass_refraction`: prism planes, spectral split, refraction sweep,
+  chromatic settle, clip-path transition wipe.
+
+Readable Chinese semantic cues should route through the same dictionary before
+worker handoff:
+
+- `動感閃電` -> `electric_lightning_energy`
+- `地震裂動` -> `earthquake_crack_impact`
+- `母親節愛心` -> `mothers_day_heart_stage`
+- `日式可愛紙本` -> `japanese_soft_storybook`
+- `回憶照片牆` -> `memory_photo_wall_warm`
+- `故事轉 MV / 故事轉蒙太奇` -> `story_to_mv_transition`
+- `黑客資料流 / 終端機資料揭示` -> `terminal_data_reveal`
+- `復古膠片燒灼 / film burn` -> `vintage_film_burn_transition`
+
+Additional readable English cues:
+
+- `ink spread / ink bloom / rice paper reveal` -> `ink_spread_reveal`
+- `prism glass / glass refraction / crystalline split` -> `prism_glass_refraction`
+
+For `ink_spread_reveal` and `prism_glass_refraction`, do not invent a named
+template. Keep them as `GenericRemotionEffect` layer graphs until visual review
+proves a repeated graph should be promoted:
+
+- ink graph: `mask_reveal`, `texture_overlay`, optional `light_overlay`,
+  readable `text`;
+- prism graph: `refraction`, `chromatic_split`, `mask_wipe`.
+
+These cues only select candidate parameters. They do not authorize a worker run
+until `visual_technique_review.json`, `--confirmed`, or an explicit bounded
+probe packet confirms the direction.
 
 ## Review Checklist
 

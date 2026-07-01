@@ -105,6 +105,8 @@ The current supported build-spec components are:
 
 - `MemoryPhotoWall` for slow reviewed-material photo walls and material-first recap openings.
 - `StoryToMVTransition` for a story-to-MV / montage section shift.
+- `GenericRemotionEffect` for reviewed generic layer graphs when the request
+  does not deserve a named template yet.
 
 Reusable neutral fields are `story_function`, `pacing`, `density`,
 `reveal_mode`, `camera_motion`, and `accent_light`. Component-specific fields
@@ -112,6 +114,49 @@ may extend these only after the neutral story purpose is clear.
 
 Unsupported component names must fail closed instead of becoming generic motion
 templates.
+
+### GenericRemotionEffect Layer API
+
+`GenericRemotionEffect` is a layer graph, not a template name. It is for
+bounded probes and reviewed reusable effects. The worker bridge currently
+understands these layer types:
+
+| Layer type | Purpose |
+| --- | --- |
+| `text` | Main title/subtitle typography. |
+| `image_layout` | Reviewed image/photo placement. |
+| `particle_overlay` | Sparks, dust, petals, embers, or other simple particles. |
+| `light_overlay` | Glow, wash, flare, or accent light plates. |
+| `camera_motion` | Bounded scale/shake/drift applied to the effect layer group. |
+| `mask_reveal` | Ink/organic/simple reveal mask. |
+| `mask_wipe` | Plane wipe, burn edge, or transition mask. |
+| `texture_overlay` | Paper, grain, scanline, or simple material texture. |
+| `refraction` | Prism/glass plane treatment. |
+| `chromatic_split` | RGB/spectral split treatment. |
+| `glyph_stream` | Terminal/data-stream rows. |
+| `film_grain` | Film grain / gate texture. |
+| `electric_arcs` | Stylized lightning/electric arc paths. |
+| `crack_lines` | Stylized impact/crack line paths. |
+| `radial_current` | Outer-ring current, orbit, or energy-flow accents around a reviewed focal image. |
+
+The single source of truth for this vocabulary is
+`video_pipeline_core/effect_layer_manifest.py`. The validator and worker
+alignment tests must stay in sync with that manifest.
+
+For reviewed image refs, `image_layout` can use placement modes such as
+`center_logo`, `full_bleed_hero`, and `hero_background`. These layout modes and
+`radial_current` are generic worker primitives. Do not treat them as fixed
+templates or brand-specific shortcuts.
+
+Any unknown layer type must fail closed in `validate_effect_build_spec()`.
+Before production handoff, run:
+
+```powershell
+python video_tools.py effect-capability-review --input effect_request.json --out effect_capability_review.json
+```
+
+Only `decision=supported` should enter the Remotion worker without an extra
+human/probe review step.
 
 ## Controlled Motion Grammar
 

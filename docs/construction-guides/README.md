@@ -17,6 +17,9 @@ Current subfolders:
 - `video-mainline-review-convergence.md` - active construction guide for
   aligning the main Video Pipeline route, reviewer gates, branch return seams,
   and later Audio/Render/Verify runtime changes.
+- `repo-consolidation-non-ui-plan.md` - current non-UI repo consolidation
+  plan for the main route, Material Map, Soundtrack/Audio, Effect Factory,
+  Verify, and run-folder artifact classification.
 - `effects_spec_build_contract.md` - Effect Factory / Remotion build contract
   construction notes. Use `docs/effect-factory-route.md` as the canonical
   operating reference first.

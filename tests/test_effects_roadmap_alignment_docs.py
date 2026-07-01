@@ -108,6 +108,27 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
 
+    def test_decision_tree_and_runbook_document_effect_factory_route_acceptance(self):
+        decision = read("docs/pipeline-decision-tree.md")
+        runbook = read("RUNBOOK.md")
+        for text in (decision, runbook):
+            for expected in [
+                "tools\\effect_factory_route_acceptance.py",
+                "effect_factory_route_acceptance_report.json",
+                "visual_technique_plan.confirmed.json",
+                "effect_capability_review.json",
+                "remotion_prompt_pack.json",
+                "remotion_worker_outputs.json",
+                "remotion_effect_review.json",
+                "effect_handoff.json",
+                "ready_for_human_effect_review_or_pipeline_promotion",
+                "final.mp4 must remain absent",
+            ]:
+                self.assertIn(expected, text)
+        self.assertIn("pipeline_home.py --run RUN_DIR --json", runbook)
+        self.assertIn("cursor=effect_factory_route_acceptance", runbook)
+        self.assertIn("effect_factory_route_acceptance", decision)
+
     def test_start_here_and_index_link_remotion_material_first_acceptance(self):
         start = read("docs/START_HERE_VIDEO_PIPELINE.md")
         index = read("docs/INDEX.md")
@@ -156,6 +177,44 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
         self.assertNotIn("This contract currently hardens two high-value effect classes only", text)
+
+    def test_effect_factory_docs_track_generic_layer_manifest_additions(self):
+        for rel in [
+            "docs/effect-factory-route.md",
+            "docs/remotion_prompt_parameter_contract.md",
+            "skills/video-effect-factory.md",
+            "skills/remotion-effect-worker.md",
+        ]:
+            text = read(rel)
+            for expected in [
+                "radial_current",
+                "full_bleed_hero",
+                "GenericRemotionEffect",
+            ]:
+                self.assertIn(expected, text, rel)
+            self.assertIn("template", text.lower(), rel)
+
+    def test_runbook_links_non_ui_consolidation_plan(self):
+        runbook = read("RUNBOOK.md")
+        guide = read("docs/construction-guides/repo-consolidation-non-ui-plan.md")
+        index = read("docs/construction-guides/README.md")
+
+        self.assertIn("docs/construction-guides/repo-consolidation-non-ui-plan.md", runbook)
+        self.assertIn("tools\\run_artifact_index.py", runbook)
+        self.assertIn("repo-consolidation-non-ui-plan.md", index)
+        for expected in [
+            "Route Shape",
+            "Stage 0 Contract Expansion",
+            "Run Folder Artifact Policy",
+            "tools\\run_artifact_index.py",
+            "decision",
+            "contract",
+            "handoff",
+            "evidence",
+            "asset",
+            "debug",
+        ]:
+            self.assertIn(expected, guide)
 
 
 if __name__ == "__main__":

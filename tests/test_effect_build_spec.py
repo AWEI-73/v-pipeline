@@ -30,6 +30,121 @@ class EffectBuildSpecTest(unittest.TestCase):
         self.assertEqual(validate_effect_build_spec(memory)["component"], "MemoryPhotoWall")
         self.assertEqual(validate_effect_build_spec(transition)["component"], "StoryToMVTransition")
 
+    def test_accepts_generic_remotion_effect_layer_graph(self):
+        from video_pipeline_core.effect_build_spec import validate_effect_build_spec
+
+        generic = {
+            "component": "GenericRemotionEffect",
+            "duration_sec": 5,
+            "canvas": {"width": 1920, "height": 1080, "fps": 30},
+            "layers": [
+                {
+                    "id": "data_stream",
+                    "type": "glyph_stream",
+                    "params": {"glyph_speed": "medium_fast", "glyph_density": "medium"},
+                },
+                {
+                    "id": "title",
+                    "type": "text",
+                    "params": {"content": "DATA BREACH", "animation": "assemble"},
+                },
+            ],
+            "timing": {"reveal_sec": 3.6, "hold_sec": 1.4},
+            "review_required": True,
+        }
+
+        normalized = validate_effect_build_spec(generic)
+
+        self.assertEqual(normalized["component"], "GenericRemotionEffect")
+        self.assertEqual(normalized["duration_sec"], 5.0)
+        self.assertEqual(normalized["canvas"]["fps"], 30)
+        self.assertEqual(normalized["layers"][0]["type"], "glyph_stream")
+
+    def test_accepts_generic_brand_hero_with_radial_current_layer(self):
+        from video_pipeline_core.effect_build_spec import validate_effect_build_spec
+
+        spec = {
+            "component": "GenericRemotionEffect",
+            "duration_sec": 15,
+            "canvas": {"width": 1920, "height": 1080, "fps": 30},
+            "layers": [
+                {
+                    "id": "hero",
+                    "type": "image_layout",
+                    "params": {
+                        "layout": "full_bleed_hero",
+                        "refs": ["brand_hero.png"],
+                        "fade_in_start_sec": 0,
+                        "fade_in_end_sec": 2,
+                        "fade_out_start_sec": 12,
+                        "fade_out_end_sec": 15,
+                    },
+                },
+                {
+                    "id": "outer_current",
+                    "type": "radial_current",
+                    "params": {
+                        "flow_style": "smooth_outer_ring",
+                        "ring_count": 2,
+                        "pulse": "subtle",
+                        "fade_in_start_sec": 2,
+                        "fade_in_end_sec": 4,
+                        "fade_out_start_sec": 11,
+                        "fade_out_end_sec": 14,
+                    },
+                },
+                {
+                    "id": "camera",
+                    "type": "camera_motion",
+                    "params": {"motion": "slow_push_in"},
+                },
+            ],
+            "timing": {"intro_sec": 2, "hold_sec": 10, "outro_sec": 3},
+            "review_required": True,
+        }
+
+        normalized = validate_effect_build_spec(spec)
+
+        self.assertEqual(normalized["component"], "GenericRemotionEffect")
+        self.assertEqual(normalized["layers"][0]["params"]["layout"], "full_bleed_hero")
+        self.assertEqual(normalized["layers"][1]["type"], "radial_current")
+
+    def test_rejects_unknown_generic_layer_type(self):
+        from video_pipeline_core.effect_build_spec import validate_effect_build_spec
+
+        with self.assertRaisesRegex(ValueError, "unsupported generic effect layer type: dragon_shader"):
+            validate_effect_build_spec({
+                "component": "GenericRemotionEffect",
+                "duration_sec": 5,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [
+                    {"id": "dragon", "type": "dragon_shader", "params": {}},
+                    {"id": "title", "type": "text", "params": {"content": "NOPE"}},
+                ],
+                "timing": {},
+                "review_required": True,
+            })
+
+    def test_supported_generic_layer_types_come_from_manifest(self):
+        from video_pipeline_core.effect_build_spec import SUPPORTED_GENERIC_LAYER_TYPES
+        from video_pipeline_core.effect_layer_manifest import generic_layer_types, generic_worker_supported_layer_types
+
+        self.assertEqual(SUPPORTED_GENERIC_LAYER_TYPES, generic_layer_types())
+        self.assertLessEqual(generic_worker_supported_layer_types(), generic_layer_types())
+
+    def test_rejects_generic_remotion_effect_without_layers(self):
+        from video_pipeline_core.effect_build_spec import validate_effect_build_spec
+
+        with self.assertRaisesRegex(ValueError, "layers must be a non-empty layer list"):
+            validate_effect_build_spec({
+                "component": "GenericRemotionEffect",
+                "duration_sec": 5,
+                "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                "layers": [],
+                "timing": {},
+                "review_required": True,
+            })
+
     def test_rejects_unknown_component_instead_of_silent_template_fallback(self):
         from video_pipeline_core.effect_build_spec import validate_effect_build_spec
 
