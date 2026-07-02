@@ -16,6 +16,7 @@ def main() -> int:
     parser.add_argument("--source", required=True, help="source video file")
     parser.add_argument("--out-dir", required=True, help="run/output directory")
     parser.add_argument("--soundtrack-probe", help="optional soundtrack_probe_report.json for the source audio")
+    parser.add_argument("--source-material-matrix", help="optional reviewed source_material_matrix.json")
     parser.add_argument("--intent", default="", help="brief selection intent, e.g. internship highlights and ending")
     parser.add_argument("--target-sec", type=float, default=90.0)
     parser.add_argument("--window-sec", type=float, default=12.0)
@@ -27,6 +28,7 @@ def main() -> int:
         args.source,
         out_dir=args.out_dir,
         soundtrack_probe_path=args.soundtrack_probe,
+        source_material_matrix_path=args.source_material_matrix,
         intent=args.intent,
         target_sec=args.target_sec,
         window_sec=args.window_sec,

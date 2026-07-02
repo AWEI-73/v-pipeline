@@ -45,6 +45,17 @@ def _energy_lookup(soundtrack_probe: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in curve if isinstance(item, dict)]
 
 
+def _matrix_window_lookup(source_material_matrix: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(source_material_matrix, dict):
+        return {}
+    windows = source_material_matrix.get("windows") or []
+    return {
+        str(item.get("window_id")): item
+        for item in windows
+        if isinstance(item, dict) and item.get("window_id")
+    }
+
+
 def _avg_energy(curve: list[dict[str, Any]], start: float, end: float) -> float:
     values = []
     for item in curve:
@@ -92,6 +103,7 @@ def build_source_timeline_map(
     source: str | Path,
     *,
     soundtrack_probe: dict[str, Any] | None = None,
+    source_material_matrix: dict[str, Any] | None = None,
     window_sec: float = 12.0,
     hop_sec: float | None = None,
     duration_probe: Callable[[str | Path], float] | None = None,
@@ -100,6 +112,7 @@ def build_source_timeline_map(
     duration = float((duration_probe or _probe_duration)(source))
     hop = float(hop_sec or window_sec)
     curve = _energy_lookup(soundtrack_probe or {})
+    matrix_by_window = _matrix_window_lookup(source_material_matrix)
     windows: list[dict[str, Any]] = []
     start = 0.0
     index = 0
@@ -111,9 +124,20 @@ def build_source_timeline_map(
             break
         energy = _avg_energy(curve, start, end)
         role = _role_for_window(start, end, duration, energy)
+        window_id = f"win_{index:03d}"
+        matrix_window = matrix_by_window.get(window_id) or {}
+        visual = matrix_window.get("visual") if isinstance(matrix_window, dict) else {}
+        selection = matrix_window.get("selection") if isinstance(matrix_window, dict) else {}
+        visual = visual if isinstance(visual, dict) else {}
+        selection = selection if isinstance(selection, dict) else {}
+        visual_tags = []
+        visual_tags.extend(str(item) for item in (visual.get("usable_for") or []) if item)
+        if visual.get("content_type"):
+            visual_tags.append(str(visual.get("content_type")))
+        tags = list(dict.fromkeys([*_tags_for_role(role), *visual_tags]))
         windows.append(
             {
-                "window_id": f"win_{index:03d}",
+                "window_id": window_id,
                 "source_path": source,
                 "start_sec": round(start, 3),
                 "end_sec": round(end, 3),
@@ -121,7 +145,12 @@ def build_source_timeline_map(
                 "midpoint_sec": round((start + end) / 2.0, 3),
                 "audio_energy": energy,
                 "timeline_role": role,
-                "selection_tags": _tags_for_role(role),
+                "selection_tags": tags,
+                "visual_review_status": visual.get("review_status"),
+                "visual_content_type": visual.get("content_type"),
+                "visual_usable_for": visual.get("usable_for") or [],
+                "visual_decision": selection.get("decision"),
+                "visual_reject_reason": selection.get("reject_reason"),
             }
         )
         index += 1
@@ -137,11 +166,12 @@ def build_source_timeline_map(
         "hop_sec": hop,
         "analysis_inputs": {
             "soundtrack_probe": bool(soundtrack_probe),
-            "visual_understanding": "not_run",
+            "source_material_matrix": bool(source_material_matrix),
+            "visual_understanding": "reviewed_matrix" if source_material_matrix else "not_run",
         },
         "windows": windows,
         "limitations": [
-            "This map uses deterministic timeline/audio evidence, not VLM scene semantics.",
+            "This map uses deterministic timeline/audio evidence unless a reviewed source material matrix is supplied.",
             "A human or VLM reviewer should refine roles when content accuracy matters.",
         ],
     }
@@ -186,6 +216,10 @@ def _score_window(window: dict[str, Any], tokens: set[str], index: int) -> float
         score += 0.9
     if role == "practice_highlight":
         score += 0.3
+    if str(window.get("visual_decision") or "").lower() == "keep":
+        score += 2.0
+    if set(window.get("visual_usable_for") or []).intersection(tokens):
+        score += 1.4
     return round(score - index * 0.001, 4)
 
 
@@ -197,7 +231,10 @@ def build_highlight_selection_plan(
     clip_sec: float = 10.0,
 ) -> dict[str, Any]:
     tokens = _intent_tokens(intent)
-    windows = [w for w in timeline_map.get("windows") or [] if isinstance(w, dict)]
+    windows = [
+        w for w in timeline_map.get("windows") or []
+        if isinstance(w, dict) and str(w.get("visual_decision") or "").lower() != "reject"
+    ]
     selected: list[dict[str, Any]] = []
 
     def add_best(predicate: Callable[[dict[str, Any]], bool], reason: str) -> None:
@@ -209,6 +246,8 @@ def build_highlight_selection_plan(
         if chosen.get("window_id") not in {item.get("window_id") for item in selected}:
             item = dict(chosen)
             item["selection_reason"] = reason
+            if str(item.get("visual_decision") or "").lower() == "keep":
+                item["selection_reason"] += " from reviewed material matrix"
             selected.append(item)
 
     add_best(lambda w: "opening" in (w.get("selection_tags") or []), "include opening context")
@@ -236,6 +275,8 @@ def build_highlight_selection_plan(
                 continue
         item = dict(window)
         item["selection_reason"] = "fill target duration with best matching remaining window"
+        if str(item.get("visual_decision") or "").lower() == "keep":
+            item["selection_reason"] += " from reviewed material matrix"
         selected.append(item)
 
     selected.sort(key=lambda w: float(w.get("start_sec") or 0.0))
@@ -257,6 +298,8 @@ def build_highlight_selection_plan(
                 "duration_sec": round(duration, 3),
                 "role": window.get("timeline_role"),
                 "window_id": window.get("window_id"),
+                "visual_decision": window.get("visual_decision"),
+                "visual_content_type": window.get("visual_content_type"),
                 "selection_reason": window.get("selection_reason"),
             }
         )
@@ -286,7 +329,7 @@ def build_highlight_selection_plan(
             "gaps": [],
             "review_notes": [
                 "Generated from source_timeline_map, not hand-picked timestamps.",
-                "Timeline map currently uses deterministic audio/timeline evidence; VLM review can refine roles later.",
+                "Reviewed source material matrix labels are used when present; otherwise deterministic audio/timeline evidence is used.",
             ],
         },
     }
@@ -297,6 +340,7 @@ def write_source_highlight_plan(
     *,
     out_dir: str | Path,
     soundtrack_probe_path: str | Path | None = None,
+    source_material_matrix_path: str | Path | None = None,
     intent: str | list[str] = "",
     target_sec: float = 90.0,
     window_sec: float = 12.0,
@@ -306,9 +350,11 @@ def write_source_highlight_plan(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     soundtrack_probe = _load_json(soundtrack_probe_path)
+    source_material_matrix = _load_json(source_material_matrix_path)
     timeline_map = build_source_timeline_map(
         source,
         soundtrack_probe=soundtrack_probe,
+        source_material_matrix=source_material_matrix,
         window_sec=window_sec,
         hop_sec=window_sec,
         duration_probe=duration_probe,

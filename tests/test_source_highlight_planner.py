@@ -69,6 +69,66 @@ class SourceHighlightPlannerTests(unittest.TestCase):
         self.assertLessEqual(sum(1 for clip in plan["clips"] if clip["role"] == "ending"), 2)
         self.assertEqual(plan["rough_cut_plan"]["clips"], plan["clips"])
 
+    def test_selection_plan_uses_reviewed_source_material_matrix(self):
+        timeline = build_source_timeline_map(
+            "source.mp4",
+            soundtrack_probe={
+                "features": {
+                    "energy_curve": [
+                        {"start_sec": 0, "end_sec": 12, "relative_energy": 0.2},
+                        {"start_sec": 12, "end_sec": 24, "relative_energy": 0.9},
+                        {"start_sec": 24, "end_sec": 36, "relative_energy": 0.1},
+                    ]
+                }
+            },
+            window_sec=12,
+            duration_probe=lambda _source: 48,
+        )
+        matrix = {
+            "artifact_role": "source_material_matrix",
+            "windows": [
+                {
+                    "window_id": "win_001",
+                    "visual": {
+                        "review_status": "reviewed",
+                        "content_type": "irrelevant_title_card",
+                        "usable_for": [],
+                    },
+                    "selection": {"decision": "reject", "reject_reason": "not useful"},
+                },
+                {
+                    "window_id": "win_002",
+                    "visual": {
+                        "review_status": "reviewed",
+                        "content_type": "satellite_instrument_explainer",
+                        "usable_for": ["practice_highlight", "technical_detail"],
+                    },
+                    "selection": {"decision": "keep"},
+                },
+            ],
+        }
+
+        timeline = build_source_timeline_map(
+            "source.mp4",
+            soundtrack_probe={},
+            source_material_matrix=matrix,
+            window_sec=12,
+            duration_probe=lambda _source: 48,
+        )
+        plan = build_highlight_selection_plan(
+            timeline,
+            intent="technical detail highlight",
+            target_sec=24,
+            clip_sec=10,
+        )
+
+        selected_ids = plan["selected_window_ids"]
+        self.assertIn("win_002", selected_ids)
+        self.assertNotIn("win_001", selected_ids)
+        reviewed_clip = next(clip for clip in plan["clips"] if clip["window_id"] == "win_002")
+        self.assertEqual(reviewed_clip["visual_decision"], "keep")
+        self.assertIn("reviewed material matrix", reviewed_clip["selection_reason"])
+
     def test_writer_persists_canonical_artifacts(self):
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp)
@@ -104,6 +164,51 @@ class SourceHighlightPlannerTests(unittest.TestCase):
                 self.assertTrue((out / name).is_file())
             rough = json.loads((out / "rough_cut_plan.json").read_text(encoding="utf-8"))
             self.assertEqual(rough["route"], "single_source_highlight")
+
+    def test_writer_accepts_source_material_matrix_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp)
+            source = out / "source.mp4"
+            source.write_bytes(b"placeholder")
+            matrix = out / "source_material_matrix.json"
+            matrix.write_text(json.dumps({
+                "artifact_role": "source_material_matrix",
+                "windows": [
+                    {
+                        "window_id": "win_000",
+                        "visual": {
+                            "review_status": "reviewed",
+                            "content_type": "bad_opening",
+                            "usable_for": [],
+                        },
+                        "selection": {"decision": "reject", "reject_reason": "bad"},
+                    },
+                    {
+                        "window_id": "win_001",
+                        "visual": {
+                            "review_status": "reviewed",
+                            "content_type": "strong_mission_visual",
+                            "usable_for": ["opening", "highlight"],
+                        },
+                        "selection": {"decision": "keep"},
+                    },
+                ],
+            }), encoding="utf-8")
+
+            result = write_source_highlight_plan(
+                source,
+                out_dir=out,
+                source_material_matrix_path=matrix,
+                intent="mission highlight",
+                target_sec=20,
+                window_sec=12,
+                clip_sec=10,
+                duration_probe=lambda _source: 36,
+            )
+
+            self.assertTrue(result["ok"])
+            self.assertIn("win_001", result["selected_window_ids"])
+            self.assertNotIn("win_000", result["selected_window_ids"])
 
 
 if __name__ == "__main__":

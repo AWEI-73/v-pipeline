@@ -22,8 +22,17 @@ def _is_complete_delivery_run(root: Path) -> bool:
 
 def _load_json(path: Path) -> dict | None:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    payload = None
+    for encoding in ("utf-8-sig", "utf-16"):
+        try:
+            payload = json.loads(raw.decode(encoding))
+            break
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+    if payload is None:
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -38,6 +47,7 @@ def _has_video_candidate(root: Path) -> bool:
         "highlight_final_quiet.mp4",
         "highlight_safe.mp4",
         "highlight_final.mp4",
+        "verified_preview.mp4",
     }
     for name in candidate_names:
         path = root / name

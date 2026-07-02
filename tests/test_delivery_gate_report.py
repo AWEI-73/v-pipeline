@@ -284,6 +284,51 @@ class DeliveryGateReportCliTest(unittest.TestCase):
             self.assertTrue(summary["pass"])
             self.assertFalse(summary.get("blocking"))
 
+    def test_utf16_json_sidecar_does_not_break_candidate_scan(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "verified_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+            _write(run / "highlight_cut_report.json", {
+                "artifact_role": "highlight_cut_report",
+                "ok": True,
+                "out": str(preview),
+                "duration_sec": 20.0,
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+            (run / "pipeline_home.json").write_text(
+                json.dumps({"mode": "run"}, ensure_ascii=False),
+                encoding="utf-16",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["pass"])
+
 
 if __name__ == "__main__":
     unittest.main()
