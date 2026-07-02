@@ -30,6 +30,34 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> str:
     return str(path)
 
 
+def _update_artifact_manifest(run_dir: Path) -> None:
+    manifest_path = run_dir / "artifact_manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        manifest = {}
+    if not isinstance(manifest, dict):
+        manifest = {}
+    manifest.setdefault("artifact_role", "artifact_manifest")
+    manifest.setdefault("artifact_manifest_version", 1)
+    for key, filename in {
+        "visual_technique_plan": "visual_technique_plan.json",
+        "visual_technique_plan_confirmed": "visual_technique_plan.confirmed.json",
+        "effect_capability_review": "effect_capability_review.json",
+        "effect_intent_plan": "effect_intent_plan.json",
+        "effect_revision_request": "effect_revision_request.json",
+        "timeline_build": "timeline_build.json",
+        "remotion_prompt_pack": "remotion_prompt_pack.json",
+        "remotion_worker_outputs": "remotion_worker_outputs.json",
+        "remotion_effect_review": "remotion_effect_review.json",
+        "effect_handoff": "effect_handoff.json",
+        "effect_factory_route_acceptance_report": "effect_factory_route_acceptance_report.json",
+    }.items():
+        if (run_dir / filename).is_file():
+            manifest[key] = filename
+    _write_json(manifest_path, manifest)
+
+
 def _copy_json(value: Any) -> Any:
     return json.loads(json.dumps(value, ensure_ascii=False))
 
@@ -55,6 +83,7 @@ def _failed_report(run_dir: Path, artifacts: dict[str, str], stage: str, next_ac
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
+    _update_artifact_manifest(run_dir)
     return report
 
 
@@ -225,4 +254,5 @@ def run_effect_factory_route_acceptance(
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
+    _update_artifact_manifest(run_dir)
     return report

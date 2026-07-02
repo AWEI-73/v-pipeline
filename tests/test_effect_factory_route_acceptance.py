@@ -59,6 +59,11 @@ class EffectFactoryRouteAcceptanceTest(unittest.TestCase):
             handoff = json.loads((root / "effect_handoff.json").read_text(encoding="utf-8"))
             self.assertFalse(handoff["boundary"]["owns_final_delivery"])
             self.assertFalse(handoff["boundary"]["owns_material_truth"])
+            manifest = json.loads((root / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["effect_factory_route_acceptance_report"], "effect_factory_route_acceptance_report.json")
+            self.assertEqual(manifest["effect_handoff"], "effect_handoff.json")
+            self.assertEqual(manifest["remotion_effect_review"], "remotion_effect_review.json")
+            self.assertEqual(manifest["remotion_worker_outputs"], "remotion_worker_outputs.json")
 
     def test_route_acceptance_fails_closed_for_unsupported_request(self):
         with tempfile.TemporaryDirectory() as temp:

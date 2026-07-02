@@ -1220,6 +1220,44 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("1/1 dry-run worker outputs", summary["reason"])
             self.assertIn("effect_handoff.json", summary["read"])
 
+    def test_effect_factory_route_acceptance_can_be_read_from_artifact_manifest_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "artifact_manifest.json", {
+                "artifact_role": "artifact_manifest",
+                "effect_factory_route_acceptance_report": "effects/effect_factory_route_acceptance_report.json",
+                "effect_handoff": "effects/effect_handoff.json",
+            })
+            _write(root / "effects", "effect_factory_route_acceptance_report.json", {
+                "artifact_role": "effect_factory_route_acceptance_report",
+                "ok": True,
+                "failed_stage": None,
+                "next_action": "ready_for_human_effect_review_or_pipeline_promotion",
+                "summary": {
+                    "style_family": "ceremony_light",
+                    "capability_decision": "supported",
+                    "worker_job_count": 1,
+                    "worker_rendered_count": 1,
+                    "worker_review_status": "pending_review",
+                    "handoff_status": "ready_for_human_review",
+                    "canonical_final_exists": False,
+                },
+            })
+            _write(root / "effects", "effect_handoff.json", {
+                "artifact_role": "effect_handoff",
+                "version": 1,
+                "status": "ready_for_human_review",
+                "accepted_assets": [{"job_id": "rm_fx_route_acceptance_01"}],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "effect_factory_route_acceptance")
+            self.assertEqual(summary["source"], "effect_factory_route_acceptance_report.json")
+            self.assertIn("ceremony_light", summary["reason"])
+            self.assertIn("effects/effect_handoff.json", summary["read"])
+
     def test_effect_factory_route_acceptance_failed_routes_to_repair(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "effect_factory_route_acceptance_report.json", {
