@@ -292,6 +292,62 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             self.assertEqual(payload["placements"][0]["duration_sec"], 3.0)
             self.assertGreater(payload["placements"][0]["fade_out_sec"], 0)
 
+    def test_blocks_when_audio_plan_is_shorter_than_video_duration_without_waiver(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            short_bgm = root / "audio" / "sources" / "short.wav"
+            short_bgm.parent.mkdir(parents=True)
+            _sine(short_bgm, 2.0)
+            acceptance = _write_json(root, "audio_handoff_acceptance.json", {
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": True,
+                "accepted_track_count": 1,
+            })
+            plan = _write_json(root, "audio_mix_plan.json", {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "target_duration_sec": 5.0,
+                "sections": [
+                    {"section_id": "intro", "start_sec": 0.0, "duration_sec": 2.0},
+                ],
+                "tracks": [{
+                    "section_id": "intro",
+                    "audio_file": str(short_bgm),
+                    "role": "music_bed",
+                    "source_type": "licensed_library",
+                    "license_status": "accepted",
+                }],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/audio_mix_plan_execute.py",
+                    "--plan",
+                    str(plan),
+                    "--acceptance",
+                    str(acceptance),
+                    "--out-dir",
+                    str(root),
+                    "--json",
+                ],
+                cwd=repo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            self.assertFalse((root / "final_audio.wav").exists())
+            payload = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["duration_alignment"]["decision"], "shorter_than_video_duration")
+            self.assertEqual(payload["duration_alignment"]["missing_duration_sec"], 3.0)
+            rules = {item["rule"] for item in payload["blocking"]}
+            self.assertIn("audio_shorter_than_video_duration", rules)
+
     def test_ducks_music_when_section_preserves_voice(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

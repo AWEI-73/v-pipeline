@@ -271,12 +271,23 @@ def _align_placements_to_duration(
         (placement["start_sec"] + placement["duration_sec"] for placement in placements),
         default=0.0,
     )
+    if planned_duration < target_duration_sec - 0.001:
+        return placements, {
+            "decision": "shorter_than_video_duration",
+            "target_duration_sec": round(target_duration_sec, 3),
+            "planned_duration_sec": round(planned_duration, 3),
+            "output_duration_sec": round(planned_duration, 3),
+            "missing_duration_sec": round(target_duration_sec - planned_duration, 3),
+            "fade_out_applied": False,
+        }
+
     if planned_duration <= target_duration_sec + 0.001:
         return placements, {
             "decision": "matches_video_duration",
             "target_duration_sec": round(target_duration_sec, 3),
             "planned_duration_sec": round(planned_duration, 3),
             "output_duration_sec": round(planned_duration, 3),
+            "missing_duration_sec": 0.0,
             "fade_out_applied": False,
         }
 
@@ -308,6 +319,7 @@ def _align_placements_to_duration(
         "target_duration_sec": round(target_duration_sec, 3),
         "planned_duration_sec": round(planned_duration, 3),
         "output_duration_sec": round(output_duration, 3),
+        "missing_duration_sec": 0.0,
         "fade_out_applied": fade_out_applied,
     }
 
@@ -504,6 +516,12 @@ def execute_audio_mix_plan(
             "rule": "required_section_has_no_audio",
             "section_id": section_id,
             "message": f"section {section_id} is marked audio_required but has no audio placement",
+        })
+    if duration_alignment.get("decision") == "shorter_than_video_duration" and not audio_mix_plan.get("duration_gap_waived"):
+        blocking.append({
+            "rule": "audio_shorter_than_video_duration",
+            "missing_duration_sec": duration_alignment.get("missing_duration_sec"),
+            "message": "audio mix plan is shorter than the target video duration; extend audio, shorten timeline, or add duration_gap_waived",
         })
 
     if blocking:

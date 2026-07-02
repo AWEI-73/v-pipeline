@@ -163,6 +163,12 @@ track that bypassed the probe gate. The probe is not a genre oracle; it is the
 minimum evidence that duration, loudness, sections, and section fit were
 inspected before mixing.
 
+Audio duration is governed by the video/timeline duration. When
+`audio_mix_plan.json` has `target_duration_sec`, `timeline_duration_sec`, or
+`video_duration_sec`, overlong audio is clamped with fade-out. Underlong audio
+is not silently padded with dead air: write `audio_shorter_than_video_duration`
+and stop unless `duration_gap_waived=true` is explicitly present.
+
 `tools/final_av_assemble.py` is a final glue helper only after visual BUILD and
 Audio Director are both complete. It may replace source-video audio with the
 accepted `final_audio.wav` and write `assembly_report.json`. It must not choose

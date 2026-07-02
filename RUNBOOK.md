@@ -1177,6 +1177,12 @@ Audio Director will place each track by `section_id`, trim it to
 actual `placements[]` into `audio_mix_report.json`. Without `sections[]`, the
 tool keeps simple single-track or concat behavior.
 
+Audio duration follows the video/timeline duration. If planned audio is longer
+than the target duration, Audio Director clamps it and applies fade-out. If
+planned audio is shorter than the target duration, it must write
+`audio_shorter_than_video_duration` and stop unless the plan explicitly carries
+`duration_gap_waived=true`.
+
 For speech or preserved original audio, put a voice/original-audio track in the
 same section and set the music track `ducking_policy=duck_under_voice`. The
 report must show `ducking_applied=true` and a lowered `applied_volume` for that
