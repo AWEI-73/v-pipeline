@@ -281,6 +281,7 @@ const genericCameraMotionLayer = genericLayerByType("camera_motion");
 const genericGlyphStreamLayer = genericLayerByType("glyph_stream");
 const genericFilmGrainLayer = genericLayerByType("film_grain");
 const genericImageLayoutLayer = genericLayerByType("image_layout");
+const genericLogo3dMotionLayer = genericLayerByType("logo_3d_motion");
 const genericRadialCurrentLayer = genericLayerByType("radial_current");
 const isGenericRemotionEffect = String(effectBuildSpec.component || "") === "GenericRemotionEffect";
 const isGenericInkSpread = isGenericRemotionEffect
@@ -653,6 +654,59 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
         easing: Easing.out(Easing.cubic),
       })
     : 1;
+  const genericLogo3dMode = String(genericLogo3dMotionLayer?.params?.motion || genericLogo3dMotionLayer?.params?.mode || "fly_in_orbit_out");
+  const genericLogo3dStrength = String(genericLogo3dMotionLayer?.params?.strength || "medium");
+  const genericLogo3dOrbitCount = Math.max(0, Math.min(4, Number(genericLogo3dMotionLayer?.params?.orbit_count ?? genericLogo3dMotionLayer?.params?.orbitCount ?? 1.15)));
+  const genericLogo3dDepth = Math.max(120, Math.min(960, Number(genericLogo3dMotionLayer?.params?.depth_px ?? genericLogo3dMotionLayer?.params?.depthPx ?? (genericLogo3dStrength === "high" ? 620 : 380))));
+  const genericLogo3dTravel = Math.max(240, Math.min(1200, Number(genericLogo3dMotionLayer?.params?.travel_px ?? genericLogo3dMotionLayer?.params?.travelPx ?? (genericLogo3dStrength === "high" ? 900 : 560))));
+  const genericLogo3dEnterEnd = Math.max(2, Math.min(JOB.durationFrames - 2, Math.round(Number(genericLogo3dMotionLayer?.params?.enter_end_sec ?? genericLogo3dMotionLayer?.params?.enterEndSec ?? JOB.durationFrames / JOB.fps * 0.28) * JOB.fps)));
+  const genericLogo3dExitStart = Math.max(genericLogo3dEnterEnd + 1, Math.min(JOB.durationFrames - 2, Math.round(Number(genericLogo3dMotionLayer?.params?.exit_start_sec ?? genericLogo3dMotionLayer?.params?.exitStartSec ?? JOB.durationFrames / JOB.fps * 0.72) * JOB.fps)));
+  const genericLogo3dEntry = genericLogo3dMotionLayer
+    ? interpolate(frame, [0, genericLogo3dEnterEnd], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.out(Easing.cubic),
+      })
+    : 1;
+  const genericLogo3dExit = genericLogo3dMotionLayer
+    ? interpolate(frame, [genericLogo3dExitStart, JOB.durationFrames - 1], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.in(Easing.cubic),
+      })
+    : 0;
+  const genericLogo3dHoldPulse = genericLogo3dMotionLayer
+    ? Math.sin(genericProgress * Math.PI * 2 * genericLogo3dOrbitCount)
+    : 0;
+  const genericLogo3dExitDirection = genericLogo3dMode.includes("left") ? -1 : 1;
+  const genericLogo3dStartDirection = genericLogo3dMode.includes("from_right") ? 1 : -1;
+  const genericLogo3dX = genericLogo3dMotionLayer
+    ? (genericLogo3dStartDirection * genericLogo3dTravel * (1 - genericLogo3dEntry))
+      + (genericLogo3dExitDirection * genericLogo3dTravel * genericLogo3dExit)
+      + (genericLogo3dHoldPulse * 44 * (1 - genericLogo3dExit))
+    : 0;
+  const genericLogo3dY = genericLogo3dMotionLayer
+    ? (150 * (1 - genericLogo3dEntry)) - (90 * genericLogo3dExit) + Math.cos(genericProgress * Math.PI * 2 * genericLogo3dOrbitCount) * 18
+    : 0;
+  const genericLogo3dZ = genericLogo3dMotionLayer
+    ? (-genericLogo3dDepth * (1 - genericLogo3dEntry)) - (genericLogo3dDepth * 0.72 * genericLogo3dExit)
+    : 0;
+  const genericLogo3dRotateY = genericLogo3dMotionLayer
+    ? (genericLogo3dStartDirection * -54 * (1 - genericLogo3dEntry)) + (genericLogo3dExitDirection * 46 * genericLogo3dExit) + genericLogo3dHoldPulse * 7
+    : 0;
+  const genericLogo3dRotateX = genericLogo3dMotionLayer
+    ? (18 * (1 - genericLogo3dEntry)) - (12 * genericLogo3dExit) + Math.cos(genericProgress * Math.PI * 2 * genericLogo3dOrbitCount) * 3
+    : 0;
+  const genericLogo3dScale = genericLogo3dMotionLayer
+    ? 0.72 + genericLogo3dEntry * 0.36 - genericLogo3dExit * 0.18
+    : interpolate(genericProgress, [0, 0.18, 0.82, 1], [0.82, 1, 1.04, 0.98], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.out(Easing.cubic),
+      });
+  const genericLogo3dTransform = genericLogo3dMotionLayer
+    ? "translate(-50%, -50%) perspective(1180px) translate3d(" + genericLogo3dX.toFixed(2) + "px, " + genericLogo3dY.toFixed(2) + "px, " + genericLogo3dZ.toFixed(2) + "px) rotateY(" + genericLogo3dRotateY.toFixed(2) + "deg) rotateX(" + genericLogo3dRotateX.toFixed(2) + "deg) scale(" + genericLogo3dScale.toFixed(4) + ")"
+    : "translate(-50%, -50%) scale(" + genericLogo3dScale.toFixed(4) + ")";
   const slowPushInScale = isMemoryPhotoWall && effectBuildSpec.camera_motion === "slow_push_in"
     ? interpolate(frame, [0, JOB.durationFrames - 1], [1, 1.045], {
         extrapolateLeft: "clamp",
@@ -849,7 +903,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
           />
         </AbsoluteFill>
       ) : null}
-      {isGenericRemotionEffect && (genericElectricArcLayer || genericCrackLineLayer || genericGlyphStreamLayer || genericParticleLayer || genericLightOverlayLayer || genericFilmGrainLayer || genericImageLayoutLayer || genericRadialCurrentLayer) ? (
+      {isGenericRemotionEffect && (genericElectricArcLayer || genericCrackLineLayer || genericGlyphStreamLayer || genericParticleLayer || genericLightOverlayLayer || genericFilmGrainLayer || genericImageLayoutLayer || genericLogo3dMotionLayer || genericRadialCurrentLayer) ? (
         <AbsoluteFill
           className="genericCameraMotionLayer"
           style={{
@@ -958,11 +1012,8 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
                     top: "42%",
                     width: genericCenterLogoSize + 120,
                     height: genericCenterLogoSize + 120,
-                    transform: "translate(-50%, -50%) scale(" + interpolate(genericProgress, [0, 0.18, 0.82, 1], [0.82, 1, 1.04, 0.98], {
-                      extrapolateLeft: "clamp",
-                      extrapolateRight: "clamp",
-                      easing: Easing.out(Easing.cubic),
-                    }).toFixed(4) + ")",
+                    transform: genericLogo3dTransform,
+                    transformStyle: "preserve-3d",
                     borderRadius: 999,
                     display: "flex",
                     alignItems: "center",
@@ -999,6 +1050,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
                       height: genericCenterLogoSize,
                       objectFit: "contain",
                       filter: "drop-shadow(0 16px 28px rgba(0,32,64,.22))",
+                      backfaceVisibility: "hidden",
                     }}
                   />
                 </div>

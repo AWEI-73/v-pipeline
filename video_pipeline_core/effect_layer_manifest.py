@@ -41,6 +41,11 @@ GENERIC_LAYER_MANIFEST: dict[str, dict[str, Any]] = {
         "worker_supported": True,
         "renderer_marker": "genericImageLayoutLayer",
     },
+    "logo_3d_motion": {
+        "purpose": "bounded 3D fly-in, orbit, and exit motion for a reviewed focal logo or emblem",
+        "worker_supported": True,
+        "renderer_marker": "genericLogo3dMotionLayer",
+    },
     "radial_current": {
         "purpose": "outer-ring current, orbit, or energy-flow accents around a reviewed focal image",
         "worker_supported": True,

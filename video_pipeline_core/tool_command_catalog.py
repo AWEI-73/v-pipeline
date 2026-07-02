@@ -80,6 +80,8 @@ COMMAND_GROUPS: Dict[str, str] = {
     "light-effects-plan": "contract",
     "visual-technique-plan": "contract",
     "visual-technique-review-apply": "contract",
+    "effect-design-concept": "contract",
+    "effect-design-review": "verify",
     "soundtrack-arrange": "contract",
     "soundtrack-provider-search": "provider_optional",
     "soundtrack-provider-download": "provider_optional",
@@ -366,10 +368,18 @@ WORKFLOWS = {
                 "requires": ["visual-technique-plan:reviewed"],
             },
             {
+                "id": "effect_design_concept",
+                "command": "effect-design-concept",
+                "purpose": "turn fuzzy effect intent into effect_design_brief, effect_concept_options, and effect_concept_selection before worker parameters are locked",
+                "requires": ["visual-technique-plan:confirmed_or_effect_request"],
+                "optional": True,
+                "when": "required for fuzzy user-facing effect requests; optional for already-authored director shot plans",
+            },
+            {
                 "id": "compile_effect_intent",
                 "command": "effect-intent-plan",
                 "purpose": "compile director-shot-plan effect_intent into neutral effect_intent_plan/effect_asset_spec artifacts",
-                "requires": ["visual-technique-review-apply:confirmed_or_not_needed"],
+                "requires": ["visual-technique-review-apply:confirmed_or_not_needed", "effect-design-concept:selected_or_not_needed"],
             },
             {
                 "id": "light_effects_plan",
@@ -446,6 +456,12 @@ WORKFLOWS = {
                 "command": "effect-render-verification",
                 "purpose": "convert accepted Remotion review evidence into delivery-gate effect_render_verification.json",
                 "requires": ["remotion-worker-outputs:accepted_review"],
+            },
+            {
+                "id": "effect_design_review",
+                "command": "effect-design-review",
+                "purpose": "review rendered effect evidence against the selected design concept, catching default copy, presentation feel, missing material, and duration drift",
+                "requires": ["effect-design-concept:selected", "remotion-worker-outputs:rendered_or_preview_probe"],
             },
             {
                 "id": "remotion_composite_draft",
@@ -608,7 +624,7 @@ def build_workflow_manifest(commands: Iterable[str]) -> dict:
         for step in workflow["steps"]:
             item = dict(step)
             item.setdefault("requires", [])
-            if item["command"] not in available:
+            if item["command"] not in available and item.get("optional") is not True:
                 missing.append({"workflow": name, "step": item["id"], "command": item["command"]})
             steps.append(item)
         workflows[name] = {

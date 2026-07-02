@@ -27,11 +27,25 @@ This is the upper route for designed effects in Hermes.
       "stop_if": ["parameter_status=candidate_parameters and no review is supplied"]
     },
     {
+      "tool": "python video_tools.py effect-design-concept",
+      "when": "after fuzzy user-facing effect intent and before locking worker params; creates a design brief, multiple concepts, and a selected concept",
+      "inputs": ["request", "effect_role", "duration_sec", "material_context"],
+      "outputs": ["effect_design_brief.json", "effect_concept_options.json", "effect_concept_selection.json"],
+      "stop_if": ["selected concept conflicts with material truth or requires unsupported renderer controls"]
+    },
+    {
       "tool": "python video_tools.py effect-capability-review",
       "when": "before Remotion worker handoff, or when deciding whether an effect request is supported, partial, unsupported, or should be rerouted",
       "inputs": ["request/effect_role/duration/effect_build_spec"],
       "outputs": ["effect_capability_review.json"],
       "stop_if": ["decision is partial/probe_required/reroute_material/reroute_editing/unsupported"]
+    },
+    {
+      "tool": "python video_tools.py effect-design-review",
+      "when": "after a playable preview/contact sheet exists; checks the rendered result against the selected concept",
+      "inputs": ["effect_concept_selection.json", "render probe report"],
+      "outputs": ["effect_design_review.json"],
+      "stop_if": ["default/internal copy remains", "duration padding/drift", "missing playable preview", "presentation feel"]
     },
     {
       "tool": "python video_tools.py effect-dictionary-promote",
@@ -98,10 +112,14 @@ choice, review, and handoff.
 ```text
 effect need / segment context
   -> effect intent clarification
+  -> effect_design_brief.json
+  -> effect_concept_options.json
+  -> effect_concept_selection.json
   -> effect_design_map.json
   -> effect_contract.json
   -> backend handoff, often remotion-effect-worker
   -> worker outputs / stills / contact sheets / preview assets
+  -> effect_design_review.json
   -> effect_review.json
   -> effect_handoff.json
 ```

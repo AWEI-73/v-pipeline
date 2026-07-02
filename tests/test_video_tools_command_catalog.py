@@ -121,6 +121,7 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             "remotion-prompt-pack",
             "remotion-worker-outputs",
             "effect-render-verification",
+            "effect-design-review",
             "remotion-composite-draft",
             "effect-revision-apply",
         ])
@@ -132,13 +133,14 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             steps[6]["requires"],
             ["remotion-prompt-pack:ok"],
         )
+        by_command = {step["command"]: step for step in steps}
         self.assertEqual(
-            steps[7]["requires"],
+            by_command["effect-render-verification"]["requires"],
             ["remotion-worker-outputs:accepted_review"],
         )
         self.assertEqual(
-            steps[8]["requires"],
-            ["remotion-worker-outputs:accepted_review"],
+            by_command["effect-design-review"]["requires"],
+            ["effect-design-concept:selected", "remotion-worker-outputs:rendered_or_preview_probe"],
         )
         self.assertIn("second contract-run", steps[-1]["purpose"])
         self.assertIn("story evidence material", workflow["description"])

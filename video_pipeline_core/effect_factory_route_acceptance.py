@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .effect_capability_review import review_effect_capability
+from .effect_design_concept import (
+    apply_effect_concept_to_effect,
+    write_effect_design_concept_chain,
+)
 from .effect_factory_boundary import build_effect_revision_request, build_handoff, build_timeline
 from .remotion_effects import (
     build_remotion_prompt_pack,
@@ -46,6 +50,9 @@ def _update_artifact_manifest(run_dir: Path, *, accepted: bool | None = None) ->
         manifest["artifacts"] = artifacts
     status = "accepted" if accepted is True else "blocked" if accepted is False else "present"
     for key, filename in {
+        "effect_design_brief": "effect_design_brief.json",
+        "effect_concept_options": "effect_concept_options.json",
+        "effect_concept_selection": "effect_concept_selection.json",
         "visual_technique_plan": "visual_technique_plan.json",
         "visual_technique_plan_confirmed": "visual_technique_plan.confirmed.json",
         "effect_capability_review": "effect_capability_review.json",
@@ -154,6 +161,13 @@ def run_effect_factory_route_acceptance(
         run_dir / "visual_technique_plan.confirmed.json",
         confirmed_plan,
     )
+    design_chain = write_effect_design_concept_chain(
+        run_dir,
+        request=request,
+        effect_role=effect_role,
+        duration_sec=duration_sec,
+    )
+    artifacts.update(design_chain.get("artifacts") or {})
 
     effect = technique_to_effect(
         confirmed_plan,
@@ -161,6 +175,7 @@ def run_effect_factory_route_acceptance(
         display_text=display_text,
         subtitle_text=subtitle_text,
     )
+    effect = apply_effect_concept_to_effect(effect, design_chain["concept_selection"])
     capability_payload = {
         "request": request,
         "effect_role": effect_role,

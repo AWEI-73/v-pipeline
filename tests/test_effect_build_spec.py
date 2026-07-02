@@ -109,6 +109,39 @@ class EffectBuildSpecTest(unittest.TestCase):
         self.assertEqual(normalized["layers"][0]["params"]["layout"], "full_bleed_hero")
         self.assertEqual(normalized["layers"][1]["type"], "radial_current")
 
+    def test_accepts_generic_logo_3d_motion_layer(self):
+        from video_pipeline_core.effect_build_spec import validate_effect_build_spec
+
+        spec = {
+            "component": "GenericRemotionEffect",
+            "duration_sec": 15,
+            "canvas": {"width": 1920, "height": 1080, "fps": 30},
+            "layers": [
+                {
+                    "id": "logo",
+                    "type": "image_layout",
+                    "params": {"layout": "center_logo", "refs": [{"path": "logo.png"}]},
+                },
+                {
+                    "id": "logo_motion",
+                    "type": "logo_3d_motion",
+                    "params": {"motion": "fly_in_orbit_out", "strength": "high", "orbit_count": 1.2},
+                },
+                {
+                    "id": "outer_current",
+                    "type": "radial_current",
+                    "params": {"flow_style": "smooth_outer_ring"},
+                },
+            ],
+            "timing": {"intro_sec": 4, "hold_sec": 7, "outro_sec": 4},
+            "review_required": True,
+        }
+
+        normalized = validate_effect_build_spec(spec)
+
+        self.assertEqual(normalized["layers"][1]["type"], "logo_3d_motion")
+        self.assertEqual(normalized["layers"][1]["params"]["motion"], "fly_in_orbit_out")
+
     def test_rejects_unknown_generic_layer_type(self):
         from video_pipeline_core.effect_build_spec import validate_effect_build_spec
 

@@ -307,6 +307,35 @@ def cmd_visual_technique_plan(args):
     print(json.dumps({"ok": True, "visual_technique_plan": args.out, **result}, ensure_ascii=False, indent=2))
 
 
+def cmd_effect_design_concept(args):
+    from video_pipeline_core.effect_design_concept import write_effect_design_concept_chain
+    try:
+        result = write_effect_design_concept_chain(
+            args.out_dir,
+            request=args.request,
+            effect_role=args.effect_role,
+            duration_sec=args.duration_sec,
+            material_context=getattr(args, "material_context", "reviewed_or_local_material_refs"),
+            preferred_concept_id=(getattr(args, "preferred_concept_id", "") or None),
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect design concept failed: {exc}") from exc
+    print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))
+
+
+def cmd_effect_design_review(args):
+    from video_pipeline_core.effect_design_concept import write_effect_design_review
+    try:
+        result = write_effect_design_review(
+            args.selection,
+            args.render_report,
+            args.out,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"effect design review failed: {exc}") from exc
+    print(json.dumps({"ok": True, "effect_design_review": args.out, **result}, ensure_ascii=False, indent=2))
+
+
 def cmd_effect_capability_review(args):
     from video_pipeline_core.effect_capability_review import write_effect_capability_review
     payload = {}
@@ -2637,6 +2666,8 @@ def _build_video_tools_dispatch():
         "voiceover-provider-plan": cmd_voiceover_provider_plan,
         "visual-technique-plan": cmd_visual_technique_plan,
         "visual-technique-review-apply": cmd_visual_technique_review_apply,
+        "effect-design-concept": cmd_effect_design_concept,
+        "effect-design-review": cmd_effect_design_review,
         "effect-capability-review": cmd_effect_capability_review,
         "effect-dictionary-promote": cmd_effect_dictionary_promote,
         "effect-intent-plan": cmd_effect_intent_plan,
@@ -3273,6 +3304,28 @@ def main():
                        help="accepted for compatibility; command always prints JSON")
     p_vtp.add_argument("--out", required=True,
                        help="visual_technique_plan.json output")
+
+    p_edc = sub.add_parser("effect-design-concept")
+    p_edc.add_argument("--request", required=True,
+                       help="fuzzy effect request to turn into design brief/options/selection")
+    p_edc.add_argument("--effect-role", default="opening_title", dest="effect_role",
+                       help="opening_title, transition, lower_third, montage_hit, closing_title, or outro")
+    p_edc.add_argument("--duration-sec", type=float, default=4.0, dest="duration_sec",
+                       help="intended effect duration in seconds")
+    p_edc.add_argument("--material-context", default="reviewed_or_local_material_refs", dest="material_context",
+                       help="material context for design assumptions")
+    p_edc.add_argument("--preferred-concept-id", default="", dest="preferred_concept_id",
+                       help="optional concept_id override such as quiet_memory_wall")
+    p_edc.add_argument("--out-dir", required=True, dest="out_dir",
+                       help="directory for effect_design_brief/options/selection artifacts")
+
+    p_edr = sub.add_parser("effect-design-review")
+    p_edr.add_argument("--selection", required=True,
+                       help="effect_concept_selection.json")
+    p_edr.add_argument("--render-report", required=True, dest="render_report",
+                       help="render probe report JSON with duration/copy/material evidence")
+    p_edr.add_argument("--out", required=True,
+                       help="effect_design_review.json output")
 
     p_ecrev = sub.add_parser("effect-capability-review")
     p_ecrev.add_argument("--input", default=None,

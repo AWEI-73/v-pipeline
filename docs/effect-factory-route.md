@@ -22,7 +22,11 @@ review gap, or user request needs designed effects.
 Effect Factory owns:
 
 - effect intent clarification;
+- design brief and concept selection;
 - design language mapping;
+- `effect_design_brief.json`;
+- `effect_concept_options.json`;
+- `effect_concept_selection.json`;
 - `effect_design_map.json`;
 - `effect_contract.json`;
 - backend choice;
@@ -43,10 +47,14 @@ It does not own:
 ```text
 effect need / segment context
   -> effect intent clarification
+  -> effect_design_brief.json
+  -> effect_concept_options.json
+  -> effect_concept_selection.json
   -> effect_design_map.json
   -> effect_contract.json
   -> backend handoff
       -> remotion-effect-worker, ffmpeg/light effect, or bounded probe
+  -> effect_design_review.json
   -> effect_review.json
   -> effect_handoff.json
   -> Workbench / BUILD / Verify return point
@@ -99,6 +107,9 @@ a fixed template library.
 ```text
 fuzzy effect request
   -> semantic_slots: role / story function / tone / pacing / material relation
+  -> effect_design_brief: emotional core / visual metaphor / negative direction / copy direction
+  -> effect_concept_options: 2-3 renderable concepts with risks and material rules
+  -> effect_concept_selection: scored selected concept and downstream requirements
   -> remotion_capability_plan: layers / timing / transition / particle/text/image capabilities
   -> candidate style family and parameter options
   -> effect_build_spec when a supported worker component exists
@@ -128,6 +139,34 @@ The minimum information density for `remotion_capability_plan` is:
 - `layers`: ordered visual layers, source ownership, and controlling params;
 - `timing_controls`: duration, easing, fps conversion, impact moments, or
   transition overlap controls;
+
+## Design Concept Layer
+
+When the request is fuzzy, Effect Factory must not jump straight from
+`request` to a worker template. It first creates:
+
+- `effect_design_brief.json`: emotion, visual metaphor, audience feeling goal,
+  negative directions, and copy direction;
+- `effect_concept_options.json`: multiple concepts such as `quiet_memory_wall`,
+  `film_table_recall`, or `warm_archive_opening`, each with visual primitives,
+  motion primitives, typography, material usage rules, prompt parameters, fit,
+  and risk;
+- `effect_concept_selection.json`: selected concept, score, reason, risk
+  mitigations, and downstream requirements.
+
+The selected concept is allowed to enrich `effect_intent_plan.effects[].prompt_parameters`
+with `design_concept`, `negative_rules`, `motion_grammar`, presentation
+controls, and compatible `effect_build_spec` controls. It must not overwrite an
+already confirmed worker component with an incompatible concept template.
+
+After a real preview or render exists, write `effect_design_review.json` from
+the selected concept plus render evidence. The review should catch:
+
+- default or internal copy such as `Opening` or `Reviewed material memory wall`;
+- presentation-slide feel;
+- missing reviewed-material presence;
+- duration padding or drift;
+- missing playable preview or contact sheet evidence.
 - `parameter_schema`: human-readable controls that can later become Zod props;
 - `fallback_policy`: explicit behavior when a component is unsupported.
 

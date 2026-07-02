@@ -40,6 +40,9 @@ class EffectFactoryRouteAcceptanceTest(unittest.TestCase):
             self.assertFalse(worker_outputs["jobs"][0]["playable_preview"])
             self.assertIn("not a playable", worker_outputs["jobs"][0]["preview_note"])
             for name in [
+                "effect_design_brief.json",
+                "effect_concept_options.json",
+                "effect_concept_selection.json",
                 "visual_technique_plan.json",
                 "visual_technique_plan.confirmed.json",
                 "effect_capability_review.json",
@@ -56,6 +59,16 @@ class EffectFactoryRouteAcceptanceTest(unittest.TestCase):
 
             capability = json.loads((root / "effect_capability_review.json").read_text(encoding="utf-8"))
             self.assertTrue(capability["production_handoff_allowed"])
+            selection = json.loads((root / "effect_concept_selection.json").read_text(encoding="utf-8"))
+            self.assertEqual(selection["artifact_role"], "effect_concept_selection")
+            self.assertIn("downstream_requirements", selection)
+            intent_with_design = json.loads((root / "effect_intent_plan.json").read_text(encoding="utf-8"))
+            params = intent_with_design["effects"][0]["prompt_parameters"]
+            self.assertIn("design_concept", params)
+            self.assertIn("negative_rules", params)
+            prompt_pack_with_design = json.loads((root / "remotion_prompt_pack.json").read_text(encoding="utf-8"))
+            job_params = prompt_pack_with_design["jobs"][0]["props"]["prompt_parameters"]
+            self.assertIn("design_concept", job_params)
             handoff = json.loads((root / "effect_handoff.json").read_text(encoding="utf-8"))
             self.assertFalse(handoff["boundary"]["owns_final_delivery"])
             self.assertFalse(handoff["boundary"]["owns_material_truth"])
