@@ -999,7 +999,8 @@
         "effect-factory",
         "workbench-brownfield",
         "verify-delivery"
-      ]
+      ],
+      "id": "main-pipeline"
     },
     {
       "branch_id": "material-map",
@@ -1078,7 +1079,8 @@
         "story-structure",
         "workbench-brownfield",
         "verify-delivery"
-      ]
+      ],
+      "id": "material-map"
     },
     {
       "branch_id": "soundtrack-arranger",
@@ -1145,7 +1147,8 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
-      ]
+      ],
+      "id": "soundtrack-arranger"
     },
     {
       "branch_id": "subtitle-voiceover",
@@ -1209,7 +1212,8 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
-      ]
+      ],
+      "id": "subtitle-voiceover"
     },
     {
       "branch_id": "effect-factory",
@@ -1280,7 +1284,8 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
-      ]
+      ],
+      "id": "effect-factory"
     },
     {
       "branch_id": "workbench-brownfield",
@@ -1352,7 +1357,8 @@
         "subtitle-voiceover",
         "effect-factory",
         "verify-delivery"
-      ]
+      ],
+      "id": "workbench-brownfield"
     },
     {
       "branch_id": "verify-delivery",
@@ -1425,7 +1431,8 @@
         "subtitle-voiceover",
         "effect-factory",
         "workbench-brownfield"
-      ]
+      ],
+      "id": "verify-delivery"
     }
   ],
   "run_folder_structure": {

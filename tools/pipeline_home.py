@@ -6,6 +6,57 @@ import json
 from pathlib import Path
 from typing import Any
 
+EXECUTABLE_NEXT_ACTIONS = {
+    "accept_subtitle_voiceover_handoff",
+    "audio_mix_plan_ready",
+    "build",
+    "call_image_generation_agent",
+    "continue_build_or_material_gate",
+    "material-map lifecycle / material acquisition",
+    "material-map lifecycle / material coverage",
+    "material-quick-inventory",
+    "mix_audio_from_audio_mix_plan",
+    "promote_or_package_verified_preview",
+    "run_frame_level_material_recognition",
+    "soundtrack-arrange",
+    "story-soul-blueprint / structure planner",
+    "subtitle-voiceover-handoff-accept",
+    "video-intent-plan",
+}
+
+REVIEW_STOP_ACTIONS = {
+    "await_map_review",
+    "human_review_or_final_product_verify",
+    "human_review_or_motion_preview",
+    "operator_review_or_explicit_final_promotion",
+    "ready_for_human_effect_review_or_pipeline_promotion",
+    "ready_for_render_or_human_review",
+    "review_material_inventory_summary",
+}
+
+REPAIR_PREFIXES = (
+    "repair",
+    "revise",
+    "resolve",
+    "provide_",
+    "use_",
+    "extend_",
+    "rebuild_",
+)
+
+MANIFEST_REQUIRED_KEYS = {
+    "audio_build_handoff",
+    "audio_handoff_acceptance",
+    "audio_mix_plan",
+    "delivery_gate",
+    "effect_factory_route_acceptance_report",
+    "effect_handoff",
+    "sound_license_manifest",
+    "soundtrack_plan",
+    "subtitle_voiceover_build_handoff",
+    "subtitle_voiceover_handoff_acceptance",
+}
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -13,6 +64,20 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def _manifest_ref(manifest: dict[str, Any], key: str) -> Any:
+    ref = manifest.get(key)
+    if ref:
+        return ref
+    artifacts = manifest.get("artifacts")
+    if isinstance(artifacts, dict):
+        entry = artifacts.get(key)
+        if isinstance(entry, dict):
+            return entry.get("path")
+        if entry:
+            return entry
+    return None
 
 
 def _find_json(root: Path, name: str) -> tuple[Path, dict[str, Any]] | tuple[None, None]:
@@ -24,7 +89,7 @@ def _find_json(root: Path, name: str) -> tuple[Path, dict[str, Any]] | tuple[Non
         manifest = _load_json(root / "artifact_manifest.json")
         if manifest:
             key = Path(name).stem
-            ref = manifest.get(key)
+            ref = _manifest_ref(manifest, key)
             if ref:
                 candidate = Path(str(ref))
                 if not candidate.is_absolute():
@@ -77,6 +142,34 @@ def _find_json_name_or_role(root: Path, name: str, role: str) -> tuple[Path, dic
     return _find_json_by_role(root, role)
 
 
+def _manifest_stale_summary(root: Path):
+    manifest_path = root / "artifact_manifest.json"
+    manifest = _load_json(manifest_path)
+    if not manifest:
+        return None
+    stale = []
+    for key in sorted(MANIFEST_REQUIRED_KEYS):
+        ref = _manifest_ref(manifest, key)
+        if not ref:
+            continue
+        candidate = Path(str(ref))
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        if not candidate.exists():
+            stale.append(f"{key}->{_rel(root, candidate)}")
+    if not stale:
+        return None
+    return _contract(
+        "repair",
+        "artifact_manifest",
+        next_action="repair_artifact_manifest_or_regenerate_handoff",
+        reason="artifact_manifest points to missing evidence: " + "; ".join(stale),
+        read=[_rel(root, manifest_path)],
+        run_dir=root,
+        source="artifact_manifest.json",
+    )
+
+
 def _rel(root: Path, path: Any) -> str | None:
     if not path:
         return None
@@ -103,6 +196,46 @@ def _read_refs(root: Path, *values: Any) -> list[str]:
     return refs
 
 
+def _next_action_class(mode: str, next_action: Any) -> str:
+    action = str(next_action or "").strip()
+    if mode == "done":
+        return "complete"
+    if mode == "unknown":
+        return "repair_stop"
+    if mode in {"repair", "waiting"}:
+        return "repair_stop" if mode == "repair" else "review_stop"
+    if not action:
+        return "complete" if mode == "done" else "review_stop"
+    if action in EXECUTABLE_NEXT_ACTIONS:
+        return "executable"
+    if action in REVIEW_STOP_ACTIONS:
+        return "review_stop"
+    if action.startswith(REPAIR_PREFIXES):
+        return "repair_stop"
+    if action in {"complete", "ready_for_delivery_gate"}:
+        return "complete"
+    return "executable" if mode == "run" else "repair_stop"
+
+
+def _owner_for_cursor(cursor: Any) -> str:
+    value = str(cursor or "")
+    if "soundtrack" in value or value.startswith("audio_"):
+        return "soundtrack_arranger"
+    if "subtitle" in value or "voiceover" in value:
+        return "subtitle_voiceover"
+    if "effect" in value or "remotion" in value or "visual_technique" in value:
+        return "effect_factory"
+    if "material" in value or value in {"stage2_material_map", "await_map_review", "build_ready"}:
+        return "material_map"
+    if "workbench" in value or "preview" in value:
+        return "workbench_brownfield"
+    if "verify" in value or "delivery" in value or "final_review" in value:
+        return "verify_delivery"
+    if "stage0" in value or "intent" in value or "story" in value:
+        return "main_pipeline"
+    return "main_pipeline"
+
+
 def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=None,
               run_dir=None, source=None):
     status = {
@@ -112,12 +245,20 @@ def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=
         "waiting": "WAITING",
         "unknown": "UNKNOWN",
     }.get(mode, "UNKNOWN")
+    action_class = _next_action_class(mode, next_action)
+    owner = _owner_for_cursor(cursor)
+    safe_command = next_action if action_class == "executable" else None
+    stop_reason = reason if action_class in {"review_stop", "repair_stop"} else None
     return {
         "mode": mode,
         "cursor": cursor,
         "next": next_action,
+        "next_action_class": action_class,
+        "owner": owner,
         "resume": resume,
         "reason": reason,
+        "safe_command": safe_command,
+        "stop_reason": stop_reason,
         "read": read or [],
         "run": str(run_dir) if run_dir else None,
         "status": status,
@@ -1569,6 +1710,10 @@ def summarize_run(run_dir):
     if summary:
         return summary
 
+    summary = _manifest_stale_summary(root)
+    if summary:
+        return summary
+
     summary = _generated_material_summary(root)
     if summary:
         return summary
@@ -1664,10 +1809,26 @@ def summarize_run(run_dir):
 
     state_path, state = _find_json(root, "state.json")
     if state and state.get("next_action"):
+        action = str(state.get("next_action"))
+        if (
+            not action.startswith("revise:")
+            and action not in EXECUTABLE_NEXT_ACTIONS
+            and action not in REVIEW_STOP_ACTIONS
+            and not action.startswith(REPAIR_PREFIXES)
+        ):
+            return _contract(
+                "repair",
+                "unknown_next_action",
+                next_action="unknown_next_action",
+                reason=f"state.json declares unclassified next_action: {action}",
+                read=[_rel(root, state_path)],
+                run_dir=root,
+                source=_rel(root, state_path),
+            )
         return _contract(
-            "repair" if str(state.get("next_action")).startswith("revise:") else "run",
-            str(state.get("next_action")),
-            next_action=str(state.get("next_action")),
+            "repair" if action.startswith("revise:") else "run",
+            action,
+            next_action=action,
             reason="state.json declares next_action",
             read=[_rel(root, state_path)],
             run_dir=root,

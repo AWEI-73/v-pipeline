@@ -39,6 +39,66 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["mode"], "done")
             self.assertEqual(summary["cursor"], "complete")
             self.assertEqual(summary["source"], "delivery_gate.json")
+            self.assertEqual(summary["next_action_class"], "complete")
+            self.assertEqual(summary["owner"], "main_pipeline")
+
+    def test_summary_exposes_action_class_owner_and_safe_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "material_scan_decision": {
+                    "needed": True,
+                    "scan_depth": "quick_inventory_first",
+                },
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["next"], "material-quick-inventory")
+            self.assertEqual(summary["next_action_class"], "executable")
+            self.assertEqual(summary["owner"], "material_map")
+            self.assertEqual(summary["safe_command"], "material-quick-inventory")
+            self.assertIsNone(summary["stop_reason"])
+
+    def test_stale_manifest_path_fails_closed_before_fallback_search(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            branch = root / "branch"
+            branch.mkdir()
+            _write(root, "artifact_manifest.json", {
+                "artifact_role": "artifact_manifest",
+                "audio_mix_plan": "missing/audio_mix_plan.json",
+            })
+            _write(branch, "audio_mix_plan.json", {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "tracks": [{"section_id": "main", "audio_file": "music.mp3"}],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "artifact_manifest")
+            self.assertEqual(summary["next_action_class"], "repair_stop")
+            self.assertIn("audio_mix_plan", summary["reason"])
+            self.assertIn("missing/audio_mix_plan.json", summary["reason"])
+
+    def test_unclassified_state_next_action_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "state.json", {
+                "next_action": "freeform_agent_should_guess",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "unknown_next_action")
+            self.assertEqual(summary["next"], "unknown_next_action")
+            self.assertEqual(summary["next_action_class"], "repair_stop")
+            self.assertEqual(summary["owner"], "main_pipeline")
+            self.assertIn("freeform_agent_should_guess", summary["reason"])
 
     def test_promoted_preview_with_gate_is_complete(self):
         with tempfile.TemporaryDirectory() as tmp:
