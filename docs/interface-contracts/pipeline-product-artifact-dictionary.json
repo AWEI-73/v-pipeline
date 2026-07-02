@@ -1,0 +1,249 @@
+{
+  "artifact_role": "pipeline_product_artifact_dictionary",
+  "version": 1,
+  "description": "Product-facing artifacts that translate fuzzy user intent into functional parameters consumed by Hermes Video Pipeline branches, BUILD workers, Workbench, and Verify.",
+  "artifacts": [
+    {
+      "artifact_name": "source_media_review.json",
+      "owner_branch": "material-map",
+      "purpose": "Summarize what the provided source media contains before story, rough cut, or highlight decisions are made.",
+      "semantic_inputs": [
+        "user brief",
+        "source folder or source video",
+        "material_scan_decision",
+        "optional ASR/transcript"
+      ],
+      "functional_parameters": [
+        {"name": "source_assets", "description": "Asset ids, paths, durations, media type, and original audio presence."},
+        {"name": "section_candidates", "description": "Coarse time ranges or groups such as opening, training, interview, ceremony, ending."},
+        {"name": "visual_characteristics", "description": "Shot density, motion intensity, face/person visibility, scene changes, and quality notes."},
+        {"name": "audio_characteristics", "description": "Speech/music/original audio presence, loudness notes, and transcript availability."},
+        {"name": "suggested_questions", "description": "Focused questions for Stage 0 when media facts are ambiguous."}
+      ],
+      "downstream_consumers": [
+        "material_matrix.json",
+        "edit_decision_plan.json",
+        "audio_decision_plan.json",
+        "subtitle_voiceover_decision_plan.json"
+      ],
+      "review_focus": [
+        "Does the summary distinguish real footage facts from filename guesses?",
+        "Are long-source sections specific enough to support highlight planning?",
+        "Are audio/speech facts visible before soundtrack or subtitle decisions?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "material_matrix.json",
+      "owner_branch": "material-map",
+      "purpose": "Provide a reviewable matrix mapping scenes/needs to selected, rejected, duplicate, and candidate materials.",
+      "semantic_inputs": [
+        "source_media_review.json",
+        "material_needs.json",
+        "material_wall_review_verdict.json"
+      ],
+      "functional_parameters": [
+        {"name": "needs", "description": "Canonical material needs or story beats that require visual/audio evidence."},
+        {"name": "candidate_assets", "description": "Per-need asset candidates with source refs, usable ranges, status, and notes."},
+        {"name": "coverage", "description": "Covered, partial, missing, generated fallback, reshoot, rewrite, or waiver state."},
+        {"name": "rejection_reasons", "description": "Rejected/duplicate/low-quality reasons preserved for review and Workbench."}
+      ],
+      "downstream_consumers": [
+        "edit_decision_plan.json",
+        "build_handoff.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Can each selected asset be traced to a material need?",
+        "Are rejected and duplicate assets kept out of rough cuts?",
+        "Are gaps surfaced before BUILD?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "edit_decision_plan.json",
+      "owner_branch": "main-pipeline",
+      "purpose": "Translate story and material facts into functional editing parameters before timeline BUILD.",
+      "semantic_inputs": [
+        "video_intent.json",
+        "source_media_review.json",
+        "material_matrix.json",
+        "segment_contract.json",
+        "audio_decision_plan.json",
+        "effect_decision_plan.json",
+        "subtitle_voiceover_decision_plan.json"
+      ],
+      "functional_parameters": [
+        {"name": "cuts", "description": "Source asset id, in/out seconds, target duration, speed, layer, and reason."},
+        {"name": "overlays", "description": "Text/image/graphic overlays, placement, timing, opacity, and animation intent."},
+        {"name": "audio", "description": "Original audio policy, narration refs, music refs, ducking, fade, and section alignment."},
+        {"name": "effects", "description": "Effect refs, story function, visual family, timing, intensity, and source refs."},
+        {"name": "subtitles", "description": "Subtitle source, style, language, readability constraints, and placement."},
+        {"name": "transitions", "description": "Transition type, timing, duration, reason, and target emotional function."},
+        {"name": "review_focus", "description": "What Workbench and Verify should check against the original intent."}
+      ],
+      "downstream_consumers": [
+        "timeline_build.json",
+        "audio_mix_plan.json",
+        "effect_handoff.json",
+        "workbench_handoff.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Are cuts driven by material evidence and not random sampling?",
+        "Does audio/effect/subtitle policy match Stage 0 intent?",
+        "Can each creative choice be traced to source facts or user approval?"
+      ],
+      "canonical_write_policy": "canonical_candidate"
+    },
+    {
+      "artifact_name": "audio_decision_plan.json",
+      "owner_branch": "soundtrack-arranger",
+      "purpose": "Translate music/original-audio intent into section-aware music and mix parameters.",
+      "semantic_inputs": [
+        "video_intent.json",
+        "source_media_review.json",
+        "soundtrack_plan.json",
+        "soundtrack_probe_report.json"
+      ],
+      "functional_parameters": [
+        {"name": "sections", "description": "Music sections with target start/end, mood, energy, vocal policy, and fallback."},
+        {"name": "source_audio_policy", "description": "Preserve, duck, mute, replace, or split original audio by section."},
+        {"name": "selected_tracks", "description": "Track refs, provider, license/source note, usable ranges, and probe summary."},
+        {"name": "mix_parameters", "description": "Volume, fade, ducking threshold/reduction, and clamp-to-video-duration behavior."}
+      ],
+      "downstream_consumers": [
+        "audio_director_handoff.json",
+        "audio_mix_plan.json",
+        "edit_decision_plan.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Are music sections matched to story pacing?",
+        "Is licensed/source evidence present?",
+        "Does the plan avoid vocal music colliding with required speech?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "effect_decision_plan.json",
+      "owner_branch": "effect-factory",
+      "purpose": "Translate effect intent into controllable visual technique parameters without hardcoding templates.",
+      "semantic_inputs": [
+        "video_intent.json",
+        "effect_design_brief.json",
+        "effect_concept_selection.json",
+        "visual_technique_plan.json",
+        "material refs or logo refs"
+      ],
+      "functional_parameters": [
+        {"name": "story_function", "description": "Opening, transition, highlight, title, ending, repair, or finishing function."},
+        {"name": "visual_family", "description": "Technique family such as particles, light trails, kinetic type, collage, data reveal, or cinematic grade."},
+        {"name": "motion_grammar", "description": "Pacing, reveal mode, camera motion, easing, density, and duration."},
+        {"name": "asset_usage", "description": "Source refs, generated refs, logo refs, safe area, and masking/alpha needs."},
+        {"name": "negative_rules", "description": "What must not appear, including template pollution or unsupported renderer claims."}
+      ],
+      "downstream_consumers": [
+        "effect_contract.json",
+        "remotion_prompt_pack.json",
+        "effect_handoff.json",
+        "edit_decision_plan.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Does the effect serve the story function instead of just looking decorative?",
+        "Are required assets and renderer capabilities explicit?",
+        "Does review evidence prove the intended visual grammar?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "subtitle_voiceover_decision_plan.json",
+      "owner_branch": "subtitle-voiceover",
+      "purpose": "Translate communication intent into subtitle, narration, voice provider, and readability parameters.",
+      "semantic_inputs": [
+        "video_intent.json",
+        "source_media_review.json",
+        "source_dialogue_script.json",
+        "subtitle_voiceover_contract.json"
+      ],
+      "functional_parameters": [
+        {"name": "subtitle_policy", "description": "Required/optional/off, language, source, style, position, line length, and safe area."},
+        {"name": "voiceover_policy", "description": "Required/optional/off, provider preference, fallback allowed, voice style, and reference audio."},
+        {"name": "speech_preservation", "description": "Where original speech must be preserved, ducked, subtitled, or replaced."},
+        {"name": "readability_checks", "description": "Caption audit requirements for overflow, contrast, timing, and screen safety."}
+      ],
+      "downstream_consumers": [
+        "subtitle_voiceover_build_handoff.json",
+        "edit_decision_plan.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Does subtitle/voiceover policy match the user's audience and language?",
+        "Are required captions readable on screen?",
+        "Are unavailable providers surfaced instead of silently skipped?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "build_handoff.json",
+      "owner_branch": "main-pipeline",
+      "purpose": "Collect accepted product decisions and branch handoffs into the minimal package BUILD can consume.",
+      "semantic_inputs": [
+        "edit_decision_plan.json",
+        "material_matrix.json",
+        "audio_decision_plan.json",
+        "effect_decision_plan.json",
+        "subtitle_voiceover_decision_plan.json",
+        "artifact_manifest.json.handoffs"
+      ],
+      "functional_parameters": [
+        {"name": "accepted_handoffs", "description": "Manifest refs for material, audio, effect, subtitle/voiceover, and workbench handoffs."},
+        {"name": "build_inputs", "description": "Resolved input files and JSON artifacts required by BUILD."},
+        {"name": "deferred_items", "description": "Deferred child contracts with reason, owner, return point, and gate status."},
+        {"name": "forbidden_writes", "description": "Canonical writes that remain blocked until BUILD/verify gates pass."}
+      ],
+      "downstream_consumers": [
+        "timeline_build.json",
+        "final.mp4",
+        "verify_result.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Are all required side-branch handoffs accepted or explicitly deferred?",
+        "Can BUILD run without guessing paths?",
+        "Are protected canonical writes still controlled?"
+      ],
+      "canonical_write_policy": "canonical_candidate"
+    },
+    {
+      "artifact_name": "final_review_bundle.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Review final or preview output against product decisions, source evidence, audio, effects, subtitles, and delivery gates.",
+      "semantic_inputs": [
+        "final or preview video",
+        "edit_decision_plan.json",
+        "artifact_manifest.json.handoffs",
+        "verify_result.json",
+        "delivery_gate report"
+      ],
+      "functional_parameters": [
+        {"name": "visual_evidence", "description": "Keyframe grid, montage/contact sheet, material alignment findings, and effect evidence."},
+        {"name": "audio_evidence", "description": "Soundtrack probe, speech/original-audio policy checks, loudness/ducking findings."},
+        {"name": "caption_evidence", "description": "Subtitle readability, overflow, contrast, timing, and language findings."},
+        {"name": "repair_routes", "description": "Problem type and target branch for verify_revision_packet.json."}
+      ],
+      "downstream_consumers": [
+        "verify_revision_packet.json",
+        "delivery_gate.json",
+        "workbench_handoff.json"
+      ],
+      "review_focus": [
+        "Does the product match the user's intent and product artifact chain?",
+        "Can each failure route back to the owning branch?",
+        "Is delivery blocked when evidence is missing or contradictory?"
+      ],
+      "canonical_write_policy": "read_only"
+    }
+  ]
+}

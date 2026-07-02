@@ -28,6 +28,11 @@ branches:
   Master registry for branch interfaces, triggers, required inputs, expected
   outputs, success/failure next actions, and protected files each interface must
   not write.
+- `pipeline-product-artifact-dictionary.json`:
+  Product-facing artifact registry that maps fuzzy user intent to functional
+  editing, audio, effect, subtitle/voiceover, build, and verify parameters.
+- `pipeline-product-artifacts.md`:
+  Human-readable explanation of the product artifact layer.
 
 ## Audit Command
 
@@ -41,6 +46,12 @@ JSON output:
 
 ```powershell
 python tools/pipeline_interface_audit.py --json
+```
+
+Product artifact dictionary audit:
+
+```powershell
+python tools/product_artifact_dictionary_audit.py --json
 ```
 
 The audit checks:

@@ -85,6 +85,20 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "stop_if": ["missing candidates detection error"]
     },
     {
+      "tool": "tools/product_artifact_dictionary_audit.py",
+      "when": "審計產品產物字典，確認上游語意能對應到剪輯、音訊、特效、字幕口白與驗證的功能性參數",
+      "inputs": ["optional product artifact dictionary path"],
+      "outputs": ["pipeline_product_artifact_dictionary_audit_report"],
+      "stop_if": ["required product artifacts are missing", "functional parameters are missing"]
+    },
+    {
+      "tool": "tools/compile_edit_decision_plan.py",
+      "when": "從 rough cut 與 audio/effect/subtitle handoff 編譯 edit_decision_plan 與 build_handoff，不 render",
+      "inputs": ["run folder with rough_cut_plan and optional branch handoffs"],
+      "outputs": ["edit_decision_plan.json", "audio_decision_plan.json", "effect_decision_plan.json", "subtitle_voiceover_decision_plan.json", "build_handoff.json"],
+      "stop_if": ["required material rough cut is missing", "deferred branch handoffs must be resolved before BUILD"]
+    },
+    {
       "tool": "tools/route_orchestrator_acceptance.py",
       "when": "驗證 route task packet / runner protocol 不被 worker 越界",
       "inputs": ["route task fixture"],

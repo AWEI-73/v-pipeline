@@ -82,6 +82,62 @@ def _write_build_ready_run(root, *, rough_overrides=None, timeline_overrides=Non
     })
 
 
+def _write_product_handoff(root, *, deferred_items=None, cut_overrides=None):
+    cuts = [
+        {
+            "id": "cut_001",
+            "segment": 1,
+            "source": "opening.mp4",
+            "in_seconds": 1.0,
+            "out_seconds": 5.0,
+            "target_duration_sec": 4.0,
+            "scene_id": "real_0001:0",
+        },
+        {
+            "id": "cut_002",
+            "segment": 2,
+            "source": "training.mp4",
+            "in_seconds": 2.0,
+            "out_seconds": 6.0,
+            "target_duration_sec": 4.0,
+            "scene_id": "real_0002:0",
+        },
+        {
+            "id": "cut_003",
+            "segment": 3,
+            "source": "closing.mp4",
+            "in_seconds": 1.0,
+            "out_seconds": 5.0,
+            "target_duration_sec": 4.0,
+            "scene_id": "real_0003:0",
+        },
+    ]
+    if cut_overrides:
+        cuts[1].update(cut_overrides)
+    deferred = deferred_items or []
+    _write(root / "edit_decision_plan.json", {
+        "artifact_role": "edit_decision_plan",
+        "version": 1,
+        "cuts": cuts,
+        "audio": {"music": {"asset_id": "audio/theme.mp3"}},
+        "effects": [],
+        "subtitles": {"enabled": False},
+    })
+    _write(root / "build_handoff.json", {
+        "artifact_role": "build_handoff",
+        "version": 1,
+        "ready_for_build": not deferred,
+        "accepted_handoffs": {
+            "material": "rough_cut_plan.json",
+            "audio": "audio_director_handoff.json",
+        },
+        "deferred_items": deferred,
+        "product_artifacts": {
+            "edit_decision_plan": "edit_decision_plan.json",
+        },
+    })
+
+
 class Stage4BuildSmokeTest(unittest.TestCase):
     def test_build_ready_timeline_passes_and_writes_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -172,6 +228,48 @@ class Stage4BuildSmokeTest(unittest.TestCase):
             result = json.loads(completed.stdout)
             self.assertTrue(result["ok"], result)
             self.assertEqual(result["report"]["timeline_clip_count"], 3)
+
+    def test_product_handoff_passes_when_cuts_match_timeline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _write_build_ready_run(run_dir)
+            _write_product_handoff(run_dir)
+
+            result = run_stage4_build_smoke(run_dir)
+
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["report"]["product_handoff_status"], "pass")
+            self.assertEqual(result["report"]["edit_decision_cut_count"], 3)
+            self.assertIn("build_handoff.json", result["report"]["read"])
+            self.assertIn("edit_decision_plan.json", result["report"]["read"])
+
+    def test_product_handoff_deferred_items_fail_stage4(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _write_build_ready_run(run_dir)
+            _write_product_handoff(run_dir, deferred_items=[
+                {
+                    "owner": "effect-factory",
+                    "reason": "effect_handoff.json is absent",
+                    "return_point": "compile_edit_decision_plan",
+                }
+            ])
+
+            result = run_stage4_build_smoke(run_dir)
+
+            self.assertFalse(result["ok"], result)
+            self.assertIn("build_handoff_deferred", [issue["rule"] for issue in result["report"]["issues"]])
+
+    def test_edit_decision_mismatch_fails_stage4(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _write_build_ready_run(run_dir)
+            _write_product_handoff(run_dir, cut_overrides={"source": "wrong.mp4"})
+
+            result = run_stage4_build_smoke(run_dir)
+
+            self.assertFalse(result["ok"], result)
+            self.assertIn("edit_decision_mismatch", [issue["rule"] for issue in result["report"]["issues"]])
 
 
 if __name__ == "__main__":

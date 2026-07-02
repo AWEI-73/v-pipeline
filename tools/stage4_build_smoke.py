@@ -44,6 +44,19 @@ def _timeline_identity(clip: dict) -> dict:
     }
 
 
+def _edit_decision_identity(cut: dict) -> dict:
+    duration = _num(cut.get("target_duration_sec"))
+    if not duration:
+        duration = _num(cut.get("out_seconds")) - _num(cut.get("in_seconds"))
+    return {
+        "segment": cut.get("segment"),
+        "source_path": cut.get("source") or cut.get("source_path"),
+        "start_sec": round(_num(cut.get("in_seconds") or cut.get("start_sec")), 3),
+        "duration_sec": round(duration, 3),
+        "scene_id": cut.get("scene_id"),
+    }
+
+
 def _issue(rule: str, message: str, **extra) -> dict:
     out = {"rule": rule, "message": message}
     out.update(extra)
@@ -134,10 +147,63 @@ def _validate_handoff(rough_cut: dict, handoff: dict) -> list[dict]:
     )]
 
 
+def _validate_product_handoff(build_handoff: dict, edit_decision: dict, timeline: dict) -> list[dict]:
+    issues = []
+    if not build_handoff and not edit_decision:
+        return issues
+    if not build_handoff:
+        return [_issue(
+            "missing_product_handoff",
+            "edit_decision_plan.json exists but build_handoff.json is missing",
+            artifact="build_handoff",
+        )]
+    if not edit_decision:
+        return [_issue(
+            "missing_product_artifact",
+            "build_handoff.json exists but edit_decision_plan.json is missing",
+            artifact="edit_decision_plan",
+        )]
+    if build_handoff.get("ready_for_build") is False:
+        issues.append(_issue(
+            "build_handoff_not_ready",
+            "build_handoff.json does not declare ready_for_build",
+        ))
+    for item in build_handoff.get("deferred_items") or []:
+        issues.append(_issue(
+            "build_handoff_deferred",
+            f"{item.get('owner') or 'unknown'} is deferred: {item.get('reason')}",
+            owner=item.get("owner"),
+            return_point=item.get("return_point"),
+        ))
+    cuts = edit_decision.get("cuts") or []
+    timeline_clips = timeline.get("clips") or []
+    if len(cuts) != len(timeline_clips):
+        issues.append(_issue(
+            "edit_decision_cut_count_mismatch",
+            f"edit decision has {len(cuts)} cuts but timeline has {len(timeline_clips)} clips",
+        ))
+    for index, cut in enumerate(cuts):
+        if index >= len(timeline_clips):
+            break
+        decision_id = _edit_decision_identity(cut)
+        timeline_id = _timeline_identity(timeline_clips[index])
+        if decision_id != timeline_id:
+            issues.append(_issue(
+                "edit_decision_mismatch",
+                f"edit decision cut {index} does not match timeline clip",
+                index=index,
+                edit_decision=decision_id,
+                timeline=timeline_id,
+            ))
+    return issues
+
+
 def build_stage4_report(run_dir: Path) -> dict:
     rough_cut = _safe_load(run_dir / "rough_cut_plan.json")
     timeline = _safe_load(run_dir / "timeline_build.json")
     handoff = _safe_load(run_dir / "material_wall_handoff_report.json")
+    build_handoff = _safe_load(run_dir / "build_handoff.json")
+    edit_decision = _safe_load(run_dir / "edit_decision_plan.json")
     clips = rough_cut.get("clips") or []
     timeline_clips = timeline.get("clips") or []
 
@@ -145,6 +211,18 @@ def build_stage4_report(run_dir: Path) -> dict:
     issues.extend(_validate_rough_cut(rough_cut))
     issues.extend(_validate_timeline(rough_cut, timeline))
     issues.extend(_validate_handoff(rough_cut, handoff))
+    product_issues = _validate_product_handoff(build_handoff, edit_decision, timeline)
+    issues.extend(product_issues)
+
+    read = [
+        "rough_cut_plan.json",
+        "timeline_build.json",
+        "material_wall_handoff_report.json",
+    ]
+    if build_handoff:
+        read.append("build_handoff.json")
+    if edit_decision:
+        read.append("edit_decision_plan.json")
 
     return {
         "artifact_role": "stage4_build_smoke_report",
@@ -170,11 +248,14 @@ def build_stage4_report(run_dir: Path) -> dict:
             for clip in clips
         ],
         "issues": issues,
-        "read": [
-            "rough_cut_plan.json",
-            "timeline_build.json",
-            "material_wall_handoff_report.json",
-        ],
+        "product_handoff_status": (
+            "absent" if not build_handoff and not edit_decision
+            else "pass" if not product_issues
+            else "fail"
+        ),
+        "edit_decision_cut_count": len(edit_decision.get("cuts") or []) if edit_decision else 0,
+        "deferred_count": len(build_handoff.get("deferred_items") or []) if build_handoff else 0,
+        "read": read,
     }
 
 
