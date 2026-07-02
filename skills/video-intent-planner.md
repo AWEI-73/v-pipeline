@@ -67,6 +67,7 @@ Required shape:
   "legacy_route": "existing-material-first | story-first | hybrid | null",
   "material_contract": {
     "artifact_role": "stage0_material_intent",
+    "contract_status": "required | optional | deferred | not_applicable",
     "availability": "existing | none | partial | unknown",
     "owner": "material_map_lifecycle | upstream_structure_route | Video Intent Planner",
     "first_action": "material_map_quick_inventory | derive_material_needs_after_structure | ask_material_availability",
@@ -85,6 +86,7 @@ Required shape:
   "soundtrack_contract": {
     "artifact_role": "stage0_soundtrack_intent",
     "status": "requested | unspecified",
+    "contract_status": "required | optional | deferred | not_applicable",
     "music_role": "song | bgm | mixed | none | unsure",
     "vocal_policy": "vocal_ok | instrumental_preferred | section_dependent | none | unknown",
     "energy_intent": "warm_to_high | high | warm | unspecified",
@@ -112,6 +114,7 @@ Required shape:
   "effect_policy": {
     "artifact_role": "stage0_effect_policy",
     "status": "requested | unspecified",
+    "contract_status": "required | optional | deferred | not_applicable",
     "activation": "route_to_effect_factory | defer_to_brownfield_or_segment_review | none",
     "required_now": false,
     "handoff_to": "video-effect-factory | video-effect-factory_when_segment_requires_effect | none"
@@ -119,6 +122,7 @@ Required shape:
   "subtitle_voiceover_contract": {
     "artifact_role": "stage0_subtitle_voiceover_intent",
     "status": "requested | unspecified",
+    "contract_status": "required | optional | deferred | not_applicable",
     "language": "zh-TW | en | mixed | unknown",
     "subtitle_required": true,
     "voiceover_required": false,
@@ -128,6 +132,13 @@ Required shape:
     "fallback_allowed": false,
     "provider_runtime": "local | generic | none",
     "handoff_to": "subtitle-director | audio-director | none"
+  },
+  "stage0_child_contracts": {
+    "material": {},
+    "soundtrack": {},
+    "effect": {},
+    "subtitle_voiceover": {},
+    "communication": {}
   },
   "required_followup_questions": [],
   "assumptions": [],

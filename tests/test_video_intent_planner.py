@@ -46,6 +46,36 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(intent["subtitle_voiceover_contract"]["language"], "unknown")
         self.assertEqual(intent["subtitle_voiceover_contract"]["subtitle_required"], True)
         self.assertEqual(intent["subtitle_voiceover_contract"]["handoff_to"], "subtitle-director")
+        self.assertEqual(intent["material_contract"]["contract_status"], "required")
+        self.assertEqual(intent["soundtrack_contract"]["contract_status"], "optional")
+        self.assertEqual(intent["effect_policy"]["contract_status"], "not_applicable")
+        self.assertEqual(intent["subtitle_voiceover_contract"]["contract_status"], "required")
+        self.assertIs(intent["stage0_child_contracts"]["material"], intent["material_contract"])
+        self.assertIs(intent["stage0_child_contracts"]["soundtrack"], intent["soundtrack_contract"])
+        self.assertIs(intent["stage0_child_contracts"]["effect"], intent["effect_policy"])
+        self.assertIs(intent["stage0_child_contracts"]["subtitle_voiceover"], intent["subtitle_voiceover_contract"])
+
+    def test_stage0_child_contracts_use_gate_status_vocabulary(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a no-material story video with a warm opening effect and voiceover",
+                "video_type": "storybook",
+                "audience": "children",
+                "goal": "tell a gentle story",
+                "target_length": "90 seconds",
+                "material_availability": "none",
+                "text_availability": "brief",
+                "generation_allowed": True,
+                "voiceover_required": True,
+            }
+        )
+
+        allowed = {"required", "optional", "deferred", "not_applicable"}
+        contracts = intent["stage0_child_contracts"]
+        for key in ("material", "soundtrack", "effect", "subtitle_voiceover"):
+            self.assertIn(contracts[key]["contract_status"], allowed, key)
+        self.assertEqual(contracts["material"]["contract_status"], "deferred")
+        self.assertEqual(contracts["subtitle_voiceover"]["contract_status"], "required")
 
     def test_existing_material_defaults_to_all_material_quick_inventory_scan(self):
         intent = plan_video_intent(

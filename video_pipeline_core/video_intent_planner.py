@@ -177,6 +177,7 @@ def _soundtrack_contract(brief: dict[str, Any]) -> dict[str, Any]:
     return {
         "artifact_role": "stage0_soundtrack_intent",
         "status": "requested" if requested else "unspecified",
+        "contract_status": "required" if requested and music_role != "none" else ("not_applicable" if music_role == "none" else "optional"),
         "music_role": music_role,
         "vocal_policy": vocal_policy,
         "energy_intent": _detect_energy_intent(text),
@@ -251,6 +252,7 @@ def _effect_policy(brief: dict[str, Any], semantic_route_hint: str | None) -> di
     return {
         "artifact_role": "stage0_effect_policy",
         "status": "requested" if requested else "unspecified",
+        "contract_status": "required" if required_now else ("deferred" if requested else "not_applicable"),
         "activation": activation,
         "required_now": required_now,
         "handoff_to": handoff_to,
@@ -340,6 +342,7 @@ def _subtitle_voiceover_contract(brief: dict[str, Any]) -> dict[str, Any]:
     return {
         "artifact_role": "stage0_subtitle_voiceover_intent",
         "status": "requested" if requested else "unspecified",
+        "contract_status": "required" if (subtitle_required or voiceover_required) else ("optional" if narration_policy == "optional" else "not_applicable"),
         "language": language,
         "subtitle_required": subtitle_required,
         "voiceover_required": voiceover_required,
@@ -646,14 +649,18 @@ def _material_contract(
     if entry_path == "material-first":
         first_action = "material_map_quick_inventory"
         owner = "material_map_lifecycle"
+        contract_status = "required"
     elif entry_path == "structure-first":
         first_action = "derive_material_needs_after_structure"
         owner = "upstream_structure_route"
+        contract_status = "deferred"
     else:
         first_action = "ask_material_availability"
         owner = "Video Intent Planner"
+        contract_status = "deferred"
     return {
         "artifact_role": "stage0_material_intent",
+        "contract_status": contract_status,
         "availability": material_availability or "unknown",
         "input_state": input_state,
         "owner": owner,
@@ -746,6 +753,13 @@ def plan_video_intent(brief: dict[str, Any]) -> dict[str, Any]:
     material_contract = _material_contract(entry_path, material_availability, input_state, material_scan_decision)
     subtitle_voiceover_contract = _subtitle_voiceover_contract(brief)
     communication_intent = _communication_intent(brief, soundtrack_contract, subtitle_voiceover_contract)
+    stage0_child_contracts = {
+        "material": material_contract,
+        "soundtrack": soundtrack_contract,
+        "effect": effect_policy,
+        "subtitle_voiceover": subtitle_voiceover_contract,
+        "communication": communication_intent,
+    }
 
     return {
         "artifact_role": "video_intent",
@@ -771,6 +785,7 @@ def plan_video_intent(brief: dict[str, Any]) -> dict[str, Any]:
         "communication_intent": communication_intent,
         "effect_policy": effect_policy,
         "subtitle_voiceover_contract": subtitle_voiceover_contract,
+        "stage0_child_contracts": stage0_child_contracts,
         "needs_material_map_first": entry_path == "material-first",
         "needs_generated_material_fallback": needs_generated,
         "generation_allowed": generation_allowed,

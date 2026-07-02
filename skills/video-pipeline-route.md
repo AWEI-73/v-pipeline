@@ -220,6 +220,7 @@ It must include `input_state`, `entry_path`, `video_type`, `audience`, `goal`,
 `material_availability`, `text_availability`, `route`,
 `material_contract`, `material_scan_decision`, `soundtrack_contract`, `effect_policy`,
 `subtitle_voiceover_contract`,
+`stage0_child_contracts`,
 `required_followup_questions`, `assumptions`, and `handoff_to`.
 If route-changing information is missing, ask the follow-up questions instead
 of guessing or entering Story Soul/BUILD.
@@ -249,6 +250,13 @@ Stage 0 artifact ownership:
   subtitle language, narration, and voiceover intent. It usually threads into
   Director Shot Plan, Subtitle Director, Audio Director, Verify, and Delivery
   instead of becoming a separate first route.
+- Every child contract must expose `contract_status` using
+  `required`, `optional`, `deferred`, or `not_applicable`. Keep the legacy
+  `status=requested|unspecified` field for compatibility, but downstream gates
+  should use `contract_status` for stop/go decisions.
+- `stage0_child_contracts` mirrors the material, soundtrack, effect,
+  subtitle/voiceover, and communication contracts so adapters can pass Stage 0
+  intent forward without re-detecting it.
 
 The first upstream role is a Video Intent Planner. It may behave like a
 teacher, personal video editor, event director, brand editor, or storybook

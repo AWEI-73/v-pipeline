@@ -108,9 +108,23 @@ depend on the entry path but should still be recorded before branch work starts.
 4. Fill child intent contracts in parallel with the route, not after BUILD:
    `soundtrack_contract`, `subtitle_voiceover_contract`, `effect_policy`, and
    `communication_intent`.
-5. If any child intent is not needed yet, mark it `unspecified` or deferred with
-   owner/reason/return point; do not erase it.
+5. If any child intent is not needed yet, keep the contract visible and set
+   `contract_status` to `optional`, `deferred`, or `not_applicable`.
+   `deferred` requires owner/reason/return point; do not erase it.
 6. Write `handoff_packet` to the next owner.
+
+Each Stage 0 child contract must carry a gate-facing `contract_status`:
+
+| `contract_status` | Meaning |
+|---|---|
+| `required` | Must resolve before BUILD or Delivery, depending on branch |
+| `optional` | May run later; missing handoff does not block |
+| `deferred` | Known intent, but waits for material/story/segment context |
+| `not_applicable` | Branch is outside this run |
+
+`stage0_child_contracts` mirrors `material_contract`, `soundtrack_contract`,
+`effect_policy`, `subtitle_voiceover_contract`, and `communication_intent` for
+passthrough into story, contract, BUILD, and Verify artifacts.
 
 ### Branch Insertion Points
 
