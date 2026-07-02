@@ -85,6 +85,7 @@ video-autopilot-kit-main/
 Understand-Anything-main/
 
 scratch/
+archive/experiments/
 
 # scratch + AGPL reference material (concepts only, never vendored)
 .tmp/
