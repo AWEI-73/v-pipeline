@@ -1262,6 +1262,8 @@ Before claiming delivery:
 
 - `final.mp4` exists from the current run;
 - duration matches target length or has an explicit waiver;
+- `artifact_manifest.json` entries, whether flat keys or nested
+  `artifacts.<key>.path`, point to files that still exist;
 - required narration/music/subtitle/audio manifests exist when required;
 - subtitles are readable on screen, not merely text-matching;
 - real-material routes have frame evidence;

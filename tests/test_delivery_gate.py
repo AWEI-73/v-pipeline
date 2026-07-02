@@ -1060,7 +1060,39 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertFalse(result["pass"])
         rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("artifact_manifest_stale", rules)
         self.assertIn("missing_audio_mix_report", rules)
+
+    def test_complete_video_gate_reads_nested_artifact_manifest_paths(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            handoff = root / "handoff"
+            handoff.mkdir()
+            (root / "audio_mix_report.json").unlink()
+            (handoff / "audio_mix_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "audio_mix_report",
+                    "version": 1,
+                    "audio_stream_present": True,
+                    "narration_included": True,
+                    "music_included": True,
+                }),
+                encoding="utf-8",
+            )
+            (root / "artifact_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "artifact_manifest",
+                    "artifacts": {
+                        "audio_mix_report": {"path": "handoff/audio_mix_report.json"},
+                    },
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
 
     def _write_complete_delivery_artifacts(self, root, *, language=None, subtitles="第一幕開始"):
         (root / "final.mp4").write_bytes(b"not a real video, probe is injected")

@@ -16,6 +16,25 @@ HARD_AUDITS = (
     "black_frame_audit",
 )
 
+DELIVERY_MANIFEST_EVIDENCE_KEYS = (
+    "audio_build_handoff",
+    "audio_mix_report",
+    "effect_handoff",
+    "effect_render_verification",
+    "frame_evidence",
+    "generated_material_review",
+    "generated_provider_packet",
+    "material_generation_fallback",
+    "music_manifest",
+    "narration_manifest",
+    "project_material_map",
+    "remotion_effect_handoff",
+    "soundtrack_probe_report",
+    "subtitle_voiceover_build_handoff",
+    "timeline_build",
+    "verify_result",
+)
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -25,9 +44,24 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _manifest_artifact_value(manifest: dict[str, Any] | None, key: str) -> Any:
+    if not isinstance(manifest, dict):
+        return None
+    value = manifest.get(key)
+    artifacts = manifest.get("artifacts")
+    if value is None and isinstance(artifacts, dict):
+        value = artifacts.get(key)
+    if isinstance(value, dict):
+        for field in ("path", "file", "ref", "href"):
+            ref = value.get(field)
+            if isinstance(ref, str) and ref.strip():
+                return ref
+    return value
+
+
 def _artifact_ref(root: Path, key: str, fallback_name: str | None = None) -> Path:
     manifest = _load_json(root / "artifact_manifest.json")
-    ref = manifest.get(key) if isinstance(manifest, dict) else None
+    ref = _manifest_artifact_value(manifest, key)
     if isinstance(ref, str) and ref.strip():
         path = Path(ref)
         return path if path.is_absolute() else root / path
@@ -102,6 +136,30 @@ def _resolve_ref(root: Path, ref: Any) -> Path | None:
     if not path.is_absolute():
         path = root / path
     return path
+
+
+def _artifact_manifest_stale_blocks(root: Path, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    manifest = _load_json(root / "artifact_manifest.json")
+    if not isinstance(manifest, dict):
+        return []
+    blocking: list[dict[str, Any]] = []
+    for key in keys:
+        ref = _manifest_artifact_value(manifest, key)
+        if not isinstance(ref, str) or not ref.strip():
+            continue
+        path = _resolve_ref(root, ref)
+        if path is None or path.is_file():
+            continue
+        blocking.append({
+            "rule": "artifact_manifest_stale",
+            "tier": 1,
+            "artifact": "artifact_manifest.json",
+            "manifest_key": key,
+            "path": str(path),
+            "message": f"artifact_manifest.json points {key} to a missing file",
+            "next_action": "repair_artifact_manifest_or_regenerate_evidence",
+        })
+    return blocking
 
 
 def _audio_duration(path: Path) -> float | None:
@@ -870,6 +928,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         "subtitle_voiceover_build_handoff",
         "subtitle_voiceover_build_handoff.json",
     ) or {}
+    blocking.extend(_artifact_manifest_stale_blocks(root, DELIVERY_MANIFEST_EVIDENCE_KEYS))
 
     final_path = root / "final.mp4"
     if not final_path.is_file() or final_path.stat().st_size <= 0:

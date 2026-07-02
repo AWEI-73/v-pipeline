@@ -264,7 +264,8 @@ Required rule:
 
 - `pipeline_home.py`, Dashboard state, BUILD handoff checks, and Delivery Gate must prefer manifest paths before fallback search.
 - Manifest paths may be relative to the run folder or absolute.
-- If manifest points to a missing file, report stale/missing evidence and fail closed.
+- Flat keys and nested `artifacts.<key>.path` entries are both valid during the migration period.
+- If manifest points to a missing file, Delivery Gate must emit `artifact_manifest_stale` and fail closed before claiming delivery.
 
 Manifest ownership rule:
 
