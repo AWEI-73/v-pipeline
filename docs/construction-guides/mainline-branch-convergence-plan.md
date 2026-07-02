@@ -12,6 +12,24 @@
 
 ## 0. Scope
 
+### 0.0 Planning Status
+
+This document is the construction plan. Reading or updating this document does
+not authorize implementation, provider downloads, Remotion previews, ffmpeg
+renders, or happy-path E2E runs.
+
+Before construction begins, the worker must:
+
+1. read this plan end-to-end;
+2. run the Phase 0 baseline audit commands;
+3. confirm the dirty worktree contains no unrelated tracked edits;
+4. choose the next unchecked implementation slice from Section 14;
+5. write or update the focused failing test for that slice before changing
+   production code.
+
+If the user says "施工圖先補全" or "先不要施工", stop after updating this
+document and report the plan delta only.
+
 This plan is for non-UI convergence. It does not redesign Dashboard or Workbench screens.
 
 The work should make the repository easier for an agent to operate by answering:
@@ -141,6 +159,21 @@ branch handoffs only after prerequisites in Section 5 are satisfied.
 
 These are the seams that must be closed for real convergence.
 
+### 4.0 Integration Contract Summary
+
+The convergence pass is considered structurally valid only when these three
+surfaces agree:
+
+| Surface | Source of truth | Why it matters |
+|---|---|---|
+| Route/state | `pipeline_home.py`, `runtime_orchestrator.py`, `node_registry.py` | Prevents a branch from emitting a `next_action` that no runner understands |
+| Contract passthrough | `video_intent.json` -> story/contract/timeline/build/delivery artifacts | Prevents Stage 0 child requirements from disappearing before BUILD/Verify |
+| Artifact evidence | `artifact_manifest.json` plus branch handoff reports | Prevents BUILD/Delivery from guessing by filename or trusting stale evidence |
+
+Any phase that changes a branch artifact must update or verify all three
+surfaces. A branch is not "integrated" when its own CLI passes but
+`pipeline_home.py`, the manifest reader, or Delivery Gate cannot see the result.
+
 ### 4.1 `next_action` Taxonomy
 
 Problem: branch tools currently emit many `next_action` values. Some mean "run a tool"; others mean "stop and ask/review". If they are not classified, an agent can loop, skip a gate, or run BUILD too early.
@@ -158,8 +191,12 @@ Required taxonomy:
 Implementation requirements:
 
 - `pipeline_home.py` and Dashboard state must display class, owner, source artifact, and next safe command/review action.
-- `runtime_orchestrator.py` must not try to execute review/repair states.
+- `runtime_orchestrator.py` and any node runner must not try to execute review/repair states.
+- `node_registry.py` must not report a node as build/delivery ready when its
+  branch contract is required and the owning handoff is absent.
 - Unknown next actions should fail closed with `unknown_next_action`, not continue.
+- New `next_action` strings must be registered in one place and covered by a
+  focused route test before a branch emits them.
 
 Required implementation shape:
 
@@ -190,6 +227,15 @@ it should return:
 The taxonomy source should be central and testable. Prefer a small registry in
 the pipeline state/home layer over duplicated string checks spread across
 branch tools.
+
+State-machine alignment tests must cover:
+
+- a known executable action returns a safe command;
+- a review stop returns no safe command;
+- a repair stop returns owner and stop reason;
+- an unknown action returns `unknown_next_action`;
+- a `state.json` action and a branch report action disagreeing routes to repair
+  instead of continuing silently.
 
 ### 4.2 Contract Passthrough
 
@@ -227,6 +273,17 @@ Minimum passthrough checkpoints:
 Every passthrough test should include at least one required child contract and
 one deferred child contract, so a tool cannot pass by copying only happy-path
 fields.
+
+Required passthrough policy:
+
+- Prefer a whitelist-style copier for known child contracts.
+- The copier must preserve unknown nested fields under each child contract
+  unless the target artifact explicitly documents why the field is not allowed.
+- A transformation may summarize a contract, but the original contract must
+  remain available through `stage0_child_contracts` or
+  `deferred_child_contracts[]`.
+- A missing required child contract is a test failure even when the branch is
+  not used by the current happy path.
 
 ### 4.3 Handoff Artifact Manifest
 
@@ -297,6 +354,50 @@ Manifest entries should include enough metadata for stale detection:
 If the existing manifest format is flat, the first implementation may keep flat
 keys for compatibility and add metadata in a sidecar or nested `artifacts`
 field. Do not break existing readers without a migration test.
+
+Manifest integration tests must cover:
+
+- valid flat manifest key;
+- valid nested `artifacts.<key>.path`;
+- relative and absolute paths;
+- stale path;
+- manifest key exists but status is not `accepted`;
+- fallback filename search still works only when no manifest key exists.
+
+### 4.4 Network / Provider Boundary
+
+Provider integrations are allowed, but tests must not depend on live network.
+
+Rules:
+
+- Jamendo, yt-dlp, Pexels, Pixabay, and other remote providers must be mocked in
+  unit and branch acceptance tests.
+- Real downloads are manual smoke or Phase 8 happy-path actions only.
+- Provider output must always include source, license note or URL, provider
+  name, query, selected track/file id when available, and fallback reason when
+  fallback is used.
+- A provider failure must become a branch repair/needs-context state, not a
+  silent empty result.
+
+### 4.5 Run Artifact Hygiene
+
+Happy-path or smoke runs may create large files. They must write only under:
+
+- `runs/<campaign_or_phase>/...`
+- `.tmp/...`
+- a user-provided output directory explicitly named in the command
+
+Never commit generated media, downloaded provider assets, temporary wav/mp4
+files, contact sheets, or generated run folders unless the user explicitly asks
+for a golden fixture.
+
+Every Phase 8 report must include:
+
+- run folder;
+- generated media size summary;
+- whether `final.mp4` exists;
+- whether any preview was promoted;
+- cleanup recommendation.
 
 ## 5. Phase Plan
 
@@ -930,7 +1031,7 @@ This convergence is done when:
 
 ## 9. First Implementation Slice
 
-When施工 begins, start with the smallest convergent slice:
+When implementation begins, start with the smallest convergent slice:
 
 1. Stage 0 child contract passthrough test.
 2. Audio section requirement contract.
@@ -1020,3 +1121,425 @@ details into `RUNBOOK.md`; link to this construction plan instead.
 | Workbench overwrites canonical truth | Phase 7 route-back guard |
 | `verify_result.pass=true` is mistaken for delivery pass | Phase 4 Delivery Gate evidence report |
 | Full regression is too long for every slice | Focused tests per phase; full regression at end or checkpoint |
+
+## 14. Execution Checklist For The Next Worker
+
+This checklist turns the phase plan into small implementation slices. Each
+slice should be implemented, tested, documented, and committed before moving to
+the next slice.
+
+### Slice 0: Baseline Snapshot
+
+**Purpose:** Prove the worker understands the current repo before touching code.
+
+**Read:**
+
+- `RUNBOOK.md`
+- `docs/pipeline-decision-tree.md`
+- `docs/branch-contract-registry.json`
+- `docs/stage-tool-simplification.md`
+- `docs/video-pipeline-operating-map.md`
+- this construction plan
+
+**Run:**
+
+```powershell
+git status --short
+python tools\skill_tool_contract_audit.py --skills-dir skills --tools-dir tools --json
+python -m unittest tests.test_branch_contract_registry tests.test_skill_tool_contracts -q
+```
+
+**Pass condition:**
+
+- no unrelated tracked edits are mixed into the construction work;
+- tool/skill ownership audit passes or known exceptions are documented;
+- no source code changes in this slice.
+
+### Slice 1: Shared Route State Taxonomy
+
+**Purpose:** Make every route output classifiable before branch work expands.
+
+**Files likely touched:**
+
+- `tools/pipeline_home.py`
+- `video_pipeline_core/dashboard_state.py`
+- `video_pipeline_core/runtime_orchestrator.py`
+- `video_pipeline_core/node_registry.py`
+- `tests/test_pipeline_home.py`
+- `tests/test_dashboard_state.py`
+
+**TDD first:**
+
+- add a fixture with executable action such as `soundtrack-arrange`;
+- add a fixture with review stop such as `await_map_review`;
+- add a fixture with repair stop such as `repair_audio_handoff`;
+- add a fixture with unknown action;
+- add a fixture where `state.json.next_action` conflicts with branch report.
+
+**Pass condition:**
+
+- executable actions include owner and safe command;
+- review/repair actions include owner and stop reason but no unsafe command;
+- unknown or conflicting actions fail closed.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_pipeline_home tests.test_dashboard_state -q
+```
+
+### Slice 2: Manifest Reader And Stale Evidence Gate
+
+**Purpose:** Make branch handoffs discoverable by manifest, not filename guess.
+
+**Files likely touched:**
+
+- a small manifest helper if one exists or is needed;
+- `tools/pipeline_home.py`
+- `video_pipeline_core/dashboard_state.py`
+- `video_pipeline_core/delivery_gate.py`
+- `tests/test_pipeline_home.py`
+- `tests/test_dashboard_state.py`
+- `tests/test_delivery_gate.py`
+
+**TDD first:**
+
+- flat manifest key resolves;
+- nested `artifacts.<key>.path` resolves;
+- relative and absolute paths resolve;
+- stale manifest path fails closed;
+- manifest status not `accepted` does not satisfy required handoff;
+- fallback filename search still works only when no manifest key exists.
+
+**Pass condition:**
+
+- manifest-backed handoffs are the preferred source;
+- stale/missing manifest entries appear as repair blockers in home/dashboard
+  and Delivery Gate.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_pipeline_home tests.test_dashboard_state tests.test_delivery_gate -q
+```
+
+### Slice 3: Stage 0 Child Contract Passthrough
+
+**Purpose:** Prevent Stage 0 decisions from disappearing during route
+conversion.
+
+**Files likely touched:**
+
+- `video_pipeline_core/video_intent_planner.py`
+- contract/story/timeline adapter modules that already transform intent
+- `tests/test_video_intent_planner.py`
+- relevant adapter tests such as `tests/test_blueprint_to_contract.py` or
+  `tests/test_contract_adapter.py`
+- `RUNBOOK.md`
+- `docs/pipeline-decision-tree.md`
+- `skills/video-pipeline-route.md`
+
+**TDD first:**
+
+- fuzzy whole-video request creates all child contracts;
+- required and deferred child contracts survive intent -> contract conversion;
+- adapter dropping `soundtrack_contract`, `subtitle_voiceover_contract`, or
+  `effect_policy` fails.
+
+**Pass condition:**
+
+- every downstream build-facing artifact can expose `stage0_child_contracts`
+  or explicit `deferred_child_contracts[]`;
+- deferred contract includes owner, reason, return point, gate, and whether it
+  is build-deferable.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_video_intent_planner tests.test_contract_adapter tests.test_pipeline_home -q
+```
+
+If a named adapter test does not exist, add the smallest focused test next to
+the adapter being changed.
+
+### Slice 4: Soundtrack Requirement / Source / Probe Contract
+
+**Purpose:** Make music selection section-aware and license/probe-gated.
+
+**Files likely touched:**
+
+- `video_pipeline_core/soundtrack_arranger.py`
+- `video_pipeline_core/soundtrack_providers.py`
+- `video_pipeline_core/soundtrack_probe.py`
+- `video_pipeline_core/audio_handoff_acceptance.py`
+- `tools/soundtrack_flow_acceptance.py`
+- `docs/soundtrack-arranger-route.md`
+- `skills/soundtrack-arranger.md`
+- soundtrack tests
+
+**TDD first:**
+
+- `required_track_count` is derived from sections;
+- selected tracks must satisfy section role/duration/vocal policy;
+- missing license note or URL blocks handoff;
+- missing probe blocks deliverable required audio;
+- Jamendo/provider calls are mocked in tests;
+- provider failure returns repair/needs-context with reason.
+
+**Pass condition:**
+
+- fake/no-render acceptance can complete without network;
+- real download path is isolated to smoke/happy path and writes under `runs/`
+  or `.tmp/`;
+- provider metadata includes provider, query, source id/path, license, fallback.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_soundtrack_arranger tests.test_soundtrack_providers tests.test_soundtrack_probe tests.test_audio_handoff_acceptance tests.test_soundtrack_flow_acceptance -q
+```
+
+### Slice 5: Audio Mix BUILD Handoff
+
+**Purpose:** Convert accepted audio into BUILD-facing evidence without writing
+final video.
+
+**Files likely touched:**
+
+- `video_pipeline_core/audio_mix_plan_executor.py`
+- `tools/audio_mix_plan_execute.py`
+- `tools/pipeline_home.py`
+- `video_pipeline_core/dashboard_state.py`
+- `tests/test_audio_mix_plan_executor.py`
+- `tests/test_pipeline_home.py`
+
+**TDD first:**
+
+- audio longer than video clamps to video duration and fades out;
+- audio shorter than video reports gap and routes to repair/waiver;
+- speech-critical sections require ducking/preservation evidence;
+- `audio_build_handoff.json` is written to manifest only when mix evidence is
+  accepted.
+
+**Pass condition:**
+
+- `final_audio.wav`, `audio_mix_report.json`, and
+  `audio_build_handoff.json` can satisfy BUILD eligibility;
+- no `final.mp4` is written;
+- missing or failed audio mix routes to `repair_audio_handoff`.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_audio_mix_plan_executor tests.test_pipeline_home tests.test_dashboard_state -q
+```
+
+### Slice 6: Subtitle / Voiceover Provider Visibility
+
+**Purpose:** Make narration/subtitle readiness explicit, especially VoxCPM
+runtime and fallback behavior.
+
+**Files likely touched:**
+
+- `video_pipeline_core/subtitle_voiceover_handoff.py`
+- `video_pipeline_core/voiceover_provider.py`
+- `tools/subtitle_voiceover_handoff_accept.py`
+- `tools/voxcpm_runtime_check.py`
+- `tools/voxcpm_voiceover_provider.py`
+- subtitle/voiceover tests
+- `RUNBOOK.md`
+
+**TDD first:**
+
+- `preferred_provider=voxcpm` unavailable with `fallback_allowed=false` blocks;
+- same unavailable provider with `fallback_allowed=true` records selected
+  fallback and reason;
+- no branch claims narration-ready without actual audio or deferred contract;
+- caption audit missing blocks required subtitle delivery.
+
+**Pass condition:**
+
+- handoff report includes provider, selected provider, fallback_used,
+  fallback_reason, runtime check path, caption/narration evidence;
+- manifest includes subtitle/voiceover handoff keys.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_subtitle_voiceover_handoff tests.test_voiceover_provider tests.test_voxcpm_voiceover_provider_cli tests.test_pipeline_home -q
+```
+
+### Slice 7: Effect Factory Evidence And Boundary
+
+**Purpose:** Keep Effect Factory as a semantic-to-capability branch, not a
+template shortcut or final renderer.
+
+**Files likely touched:**
+
+- `tools/visual_technique_plan.py`
+- `tools/effect_factory_route_acceptance.py`
+- `tools/effect_factory_boundary_acceptance.py`
+- `video_pipeline_core/effect_*`
+- `skills/video-effect-factory.md`
+- `skills/remotion-effect-worker.md`
+- `docs/effect-factory-route.md`
+- effect tests
+
+**TDD first:**
+
+- bounded effect request creates reviewable parameter contract;
+- fuzzy whole-video style records `effect_policy` and does not render;
+- unsupported required effect writes blocked report and no handoff;
+- different effect intents do not collapse into one generic output;
+- manifest indexes effect evidence.
+
+**Pass condition:**
+
+- no branch writes `final.mp4`;
+- required effect evidence is visible to Delivery Gate;
+- Workbench/BUILD can consume effect handoff only after review/promotion.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_effect_factory_route_acceptance tests.test_effect_factory_boundary_acceptance tests.test_effect_capability_review tests.test_effect_render_verification tests.test_pipeline_home -q
+```
+
+### Slice 8: BUILD Eligibility Convergence
+
+**Purpose:** BUILD should consume accepted handoffs and report blockers before
+render.
+
+**Files likely touched:**
+
+- `tools/pipeline_home.py`
+- BUILD/dry-build adapter modules
+- `video_pipeline_core/delivery_gate.py`
+- `video_pipeline_core/dashboard_state.py`
+- build/home/delivery tests
+
+**TDD first:**
+
+- missing required material/audio/subtitle/effect handoff blocks BUILD;
+- valid deferred build-deferable branch contract allows BUILD but not Delivery;
+- stale manifest entry blocks BUILD;
+- all accepted handoffs produce `build_eligibility.ready=true`.
+
+**Pass condition:**
+
+- `build_eligibility` reports `ready`, `blocking`, `deferred`, and
+  `consumed_handoffs`;
+- dry-build/handoff validation does not write `final.mp4`.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_pipeline_home tests.test_delivery_gate tests.test_dashboard_state -q
+```
+
+### Slice 9: Delivery Gate Branch Evidence
+
+**Purpose:** A thin `verify_result.pass=true` can never be mistaken for final
+approval.
+
+**Files likely touched:**
+
+- `video_pipeline_core/delivery_gate.py`
+- `tools/write_delivery_gate_report.py`
+- `video_pipeline_core/dashboard_state.py`
+- `tools/pipeline_home.py`
+- delivery tests
+
+**TDD first:**
+
+- `verify_result.json = {"pass": true}` plus missing audio evidence fails;
+- missing material map id / need ref evidence fails;
+- missing subtitle/voiceover evidence fails when required;
+- missing effect evidence fails when required;
+- Workbench preview not promoted fails delivery/promotes to review route.
+
+**Pass condition:**
+
+- delivery report includes technical verify verdict and semantic branch gate
+  verdict;
+- repair route points to the owning branch, not generic failure.
+
+**Run:**
+
+```powershell
+python -m unittest tests.test_delivery_gate tests.test_delivery_gate_report tests.test_pipeline_home tests.test_dashboard_state -q
+```
+
+### Slice 10: Three Happy Path Acceptance Runs
+
+**Purpose:** Prove the converged route is operable end-to-end at bounded scope.
+
+**Run folders:**
+
+- `runs/convergence_happy_path/<timestamp>/single_long_source_highlight`
+- `runs/convergence_happy_path/<timestamp>/multi_material_recap`
+- `runs/convergence_happy_path/<timestamp>/story_first_generated`
+
+**Requirements:**
+
+- run commands and interaction assumptions are written into each run folder;
+- no real provider/network call unless this is explicitly a happy-path smoke;
+- previews are not promoted unless a review decision artifact says so;
+- every run ends with `pipeline_home.py --json` output saved in the folder;
+- every run includes cleanup notes and generated file size summary.
+
+**Pass condition:**
+
+- Single long source: transcript/script logic exists before cut plan, original
+  audio/music policy explicit, no half-sentence cut in accepted preview plan.
+- Multi-material recap: material matrix/contact evidence exists, music/effect/
+  subtitle contracts are resolved or explicitly deferred, Delivery Gate reports
+  evidence truthfully.
+- No-material story: provider handoff exists, placeholder text-card images are
+  not promoted, generated material candidates require review.
+
+**Run:**
+
+```powershell
+python tools\pipeline_home.py --run RUN_DIR --json
+python -m unittest tests.test_material_first_happy_path tests.test_story_first_provider_happy_path tests.test_final_product_verify -q
+```
+
+Use additional focused tests for source-highlight paths when the run exercises
+single-long-source clipping.
+
+## 15. Final Handoff Report Template
+
+At the end of construction, write a concise handoff report under the final run
+or construction folder with this structure:
+
+```markdown
+# Mainline Branch Convergence Handoff
+
+## Scope Completed
+- ...
+
+## Commits
+- ...
+
+## Tests Run
+- command: result
+
+## Branch Status
+| Branch | Status | Evidence |
+|---|---|---|
+| Main pipeline | ... | ... |
+| Material Map | ... | ... |
+| Soundtrack / Audio | ... | ... |
+| Subtitle / Voiceover | ... | ... |
+| Effect Factory | ... | ... |
+| Workbench / Brownfield | ... | ... |
+| Verify / Delivery | ... | ... |
+
+## Happy Path Runs
+| Path | Run folder | Result | Promotion status |
+|---|---|---|---|
+
+## Remaining Risks
+- ...
+```
