@@ -64,6 +64,9 @@ class EffectFactoryRouteAcceptanceTest(unittest.TestCase):
             self.assertEqual(manifest["effect_handoff"], "effect_handoff.json")
             self.assertEqual(manifest["remotion_effect_review"], "remotion_effect_review.json")
             self.assertEqual(manifest["remotion_worker_outputs"], "remotion_worker_outputs.json")
+            self.assertEqual(manifest["artifacts"]["effect_handoff"]["path"], "effect_handoff.json")
+            self.assertEqual(manifest["artifacts"]["effect_handoff"]["owner"], "effect_factory")
+            self.assertEqual(manifest["artifacts"]["effect_handoff"]["status"], "accepted")
 
     def test_route_acceptance_fails_closed_for_unsupported_request(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -79,6 +82,12 @@ class EffectFactoryRouteAcceptanceTest(unittest.TestCase):
             self.assertEqual(report["failed_stage"], "effect_capability_review")
             self.assertFalse((root / "remotion_prompt_pack.json").exists())
             self.assertFalse((root / "final.mp4").exists())
+            manifest = json.loads((root / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertNotIn("effect_handoff", manifest)
+            self.assertEqual(
+                manifest["artifacts"]["effect_factory_route_acceptance_report"]["status"],
+                "blocked",
+            )
 
     def test_cli_runs_route_acceptance(self):
         with tempfile.TemporaryDirectory() as temp:

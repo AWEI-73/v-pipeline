@@ -181,6 +181,10 @@ Effect Factory must not:
    to the worker route.
 6. Review outputs against the contract, not vague taste.
 7. Write `effect_handoff.json` or `remotion_effect_handoff.json`.
+8. Register the handoff and review evidence in `artifact_manifest.json` using
+   flat keys plus nested `artifacts.<key>.path` metadata. Unsupported required
+   effects must leave a blocked route acceptance report, not a generic template
+   handoff.
 
 ## Parameter Dictionary, Not Template Lock-In
 
@@ -307,6 +311,11 @@ artifacts from `visual_technique_plan.json` through `effect_handoff.json`. It is
 the preferred smoke test when verifying that Effect Factory can translate a
 semantic request into supported Remotion worker parameters without producing
 `final.mp4`.
+
+The route proof must also update `artifact_manifest.json`. A supported route
+records `effect_handoff` with `owner=effect_factory` and accepted status. An
+unsupported route records a blocked `effect_factory_route_acceptance_report`
+and must not create `effect_handoff.json`.
 
 ## Canonical Artifacts
 

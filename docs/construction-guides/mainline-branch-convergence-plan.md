@@ -687,6 +687,9 @@ python -m unittest `
 - No-render effect route acceptance passes for multiple semantic families.
 - Different effect intents do not collapse into one generic output contract.
 - Missing required effect evidence fails delivery.
+- Route acceptance writes flat and nested manifest entries for effect evidence.
+- Unsupported required effects write a blocked route acceptance report and no
+  `effect_handoff.json`.
 - Effect branch never writes `final.mp4`.
 
 **Focused smoke:**

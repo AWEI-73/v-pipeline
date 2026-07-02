@@ -30,7 +30,7 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> str:
     return str(path)
 
 
-def _update_artifact_manifest(run_dir: Path) -> None:
+def _update_artifact_manifest(run_dir: Path, *, accepted: bool | None = None) -> None:
     manifest_path = run_dir / "artifact_manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -40,6 +40,11 @@ def _update_artifact_manifest(run_dir: Path) -> None:
         manifest = {}
     manifest.setdefault("artifact_role", "artifact_manifest")
     manifest.setdefault("artifact_manifest_version", 1)
+    artifacts = manifest.setdefault("artifacts", {})
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+        manifest["artifacts"] = artifacts
+    status = "accepted" if accepted is True else "blocked" if accepted is False else "present"
     for key, filename in {
         "visual_technique_plan": "visual_technique_plan.json",
         "visual_technique_plan_confirmed": "visual_technique_plan.confirmed.json",
@@ -55,6 +60,12 @@ def _update_artifact_manifest(run_dir: Path) -> None:
     }.items():
         if (run_dir / filename).is_file():
             manifest[key] = filename
+            artifacts[key] = {
+                "path": filename,
+                "owner": "effect_factory",
+                "status": status if key in {"effect_handoff", "effect_factory_route_acceptance_report"} else "evidence",
+                "updated_by": "tools/effect_factory_route_acceptance.py",
+            }
     _write_json(manifest_path, manifest)
 
 
@@ -83,7 +94,7 @@ def _failed_report(run_dir: Path, artifacts: dict[str, str], stage: str, next_ac
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
-    _update_artifact_manifest(run_dir)
+    _update_artifact_manifest(run_dir, accepted=False)
     return report
 
 
@@ -254,5 +265,5 @@ def run_effect_factory_route_acceptance(
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
-    _update_artifact_manifest(run_dir)
+    _update_artifact_manifest(run_dir, accepted=ok)
     return report

@@ -988,6 +988,12 @@ effect_handoff.json
 effect_factory_route_acceptance_report.json
 ```
 
+`artifact_manifest.json` must index these artifacts. Keep flat keys for
+compatibility and nested `artifacts.<key>.path` metadata for review surfaces.
+Supported route acceptance records `effect_handoff` as `owner=effect_factory`;
+unsupported required effects must record a blocked
+`effect_factory_route_acceptance_report` and must not write an effect handoff.
+
 Expected route surface:
 
 ```powershell
