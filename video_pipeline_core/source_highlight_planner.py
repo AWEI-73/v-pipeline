@@ -42,7 +42,45 @@ def _load_json(path: str | Path | None) -> dict[str, Any]:
 def _energy_lookup(soundtrack_probe: dict[str, Any]) -> list[dict[str, Any]]:
     features = soundtrack_probe.get("features") if isinstance(soundtrack_probe, dict) else {}
     curve = features.get("energy_curve") if isinstance(features, dict) else []
+    if not isinstance(curve, list):
+        return []
     return [item for item in curve if isinstance(item, dict)]
+
+
+def _speech_segments(soundtrack_probe: dict[str, Any]) -> list[dict[str, Any]]:
+    features = soundtrack_probe.get("features") if isinstance(soundtrack_probe, dict) else {}
+    vocal = features.get("vocal_analysis") if isinstance(features, dict) else {}
+    segments = vocal.get("segments") if isinstance(vocal, dict) else []
+    if not isinstance(segments, list):
+        return []
+    normalized = []
+    for item in segments:
+        if not isinstance(item, dict):
+            continue
+        try:
+            start = float(item.get("start_sec"))
+            end = float(item.get("end_sec"))
+        except (TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        normalized.append({
+            "start_sec": round(start, 3),
+            "end_sec": round(end, 3),
+            "text": item.get("text"),
+        })
+    return normalized
+
+
+def _speech_overlap(segments: list[dict[str, Any]], start: float, end: float) -> list[dict[str, Any]]:
+    overlaps = []
+    for item in segments:
+        item_start = float(item["start_sec"])
+        item_end = float(item["end_sec"])
+        if item_end <= start or item_start >= end:
+            continue
+        overlaps.append(item)
+    return overlaps
 
 
 def _matrix_window_lookup(source_material_matrix: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -112,6 +150,7 @@ def build_source_timeline_map(
     duration = float((duration_probe or _probe_duration)(source))
     hop = float(hop_sec or window_sec)
     curve = _energy_lookup(soundtrack_probe or {})
+    speech = _speech_segments(soundtrack_probe or {})
     matrix_by_window = _matrix_window_lookup(source_material_matrix)
     windows: list[dict[str, Any]] = []
     start = 0.0
@@ -151,6 +190,7 @@ def build_source_timeline_map(
                 "visual_usable_for": visual.get("usable_for") or [],
                 "visual_decision": selection.get("decision"),
                 "visual_reject_reason": selection.get("reject_reason"),
+                "speech_segments": _speech_overlap(speech, start, end),
             }
         )
         index += 1
@@ -223,6 +263,47 @@ def _score_window(window: dict[str, Any], tokens: set[str], index: int) -> float
     return round(score - index * 0.001, 4)
 
 
+def _speech_aligned_range(window: dict[str, Any], fallback_start: float, fallback_end: float) -> tuple[float, float, str]:
+    speech = [
+        item for item in (window.get("speech_segments") or [])
+        if isinstance(item, dict)
+    ]
+    if not speech:
+        return fallback_start, fallback_end, "fixed_visual_window"
+
+    substantial = []
+    for item in speech:
+        try:
+            start = float(item.get("start_sec"))
+            end = float(item.get("end_sec"))
+        except (TypeError, ValueError):
+            continue
+        overlap = min(end, fallback_end) - max(start, fallback_start)
+        if overlap >= 0.5 or (fallback_start <= start < fallback_end):
+            substantial.append((start, end))
+    if not substantial:
+        return fallback_start, fallback_end, "fixed_visual_window"
+
+    start = min(item[0] for item in substantial)
+    end = max(item[1] for item in substantial)
+    duration = end - start
+    if 3.0 <= duration <= 12.0:
+        return round(start, 3), round(end, 3), "asr_sentence_boundary"
+    sentence_candidates = []
+    for start, end in substantial:
+        duration = end - start
+        if not 3.0 <= duration <= 12.0:
+            continue
+        overlap = min(end, fallback_end) - max(start, fallback_start)
+        starts_inside = 1.0 if fallback_start <= start < fallback_end else 0.0
+        sentence_candidates.append((starts_inside, overlap, -abs(start - fallback_start), start, end))
+    if sentence_candidates:
+        sentence_candidates.sort(reverse=True)
+        _inside, _overlap, _distance, start, end = sentence_candidates[0]
+        return round(start, 3), round(end, 3), "asr_best_sentence"
+    return fallback_start, fallback_end, "fixed_visual_window"
+
+
 def build_highlight_selection_plan(
     timeline_map: dict[str, Any],
     *,
@@ -286,16 +367,23 @@ def build_highlight_selection_plan(
         start = float(window["start_sec"])
         available = float(window["end_sec"]) - start
         duration = min(float(clip_sec), available)
+        source_in, source_out, cut_alignment = _speech_aligned_range(
+            window,
+            round(start, 3),
+            round(start + duration, 3),
+        )
+        duration = source_out - source_in
         clips.append(
             {
                 "segment_id": f"seg{index:02d}_{window.get('timeline_role')}",
                 "segment": index,
                 "track": "video",
                 "source_path": timeline_map.get("source_path"),
-                "source_in_sec": round(start, 3),
-                "source_out_sec": round(start + duration, 3),
+                "source_in_sec": round(source_in, 3),
+                "source_out_sec": round(source_out, 3),
                 "timeline_in_sec": round(timeline, 3),
                 "duration_sec": round(duration, 3),
+                "cut_alignment": cut_alignment,
                 "role": window.get("timeline_role"),
                 "window_id": window.get("window_id"),
                 "visual_decision": window.get("visual_decision"),

@@ -129,6 +129,152 @@ class SourceHighlightPlannerTests(unittest.TestCase):
         self.assertEqual(reviewed_clip["visual_decision"], "keep")
         self.assertIn("reviewed material matrix", reviewed_clip["selection_reason"])
 
+    def test_selection_plan_snaps_speech_windows_to_sentence_boundaries(self):
+        timeline = build_source_timeline_map(
+            "source.mp4",
+            soundtrack_probe={
+                "features": {
+                    "vocal_analysis": {
+                        "segments": [
+                            {
+                                "start_sec": 17.5,
+                                "end_sec": 24.14,
+                                "text": "previous sentence tail",
+                            },
+                            {
+                                "start_sec": 24.14,
+                                "end_sec": 27.54,
+                                "text": "monitor the Earth in near real time",
+                            },
+                            {
+                                "start_sec": 27.78,
+                                "end_sec": 31.78,
+                                "text": "Advanced Baseline Imager",
+                            },
+                            {
+                                "start_sec": 31.78,
+                                "end_sec": 39.46,
+                                "text": "next sentence should not be pulled into this clip",
+                            },
+                        ]
+                    }
+                }
+            },
+            source_material_matrix={
+                "artifact_role": "source_material_matrix",
+                "windows": [
+                    {
+                        "window_id": "win_002",
+                        "visual": {
+                            "review_status": "reviewed",
+                            "content_type": "abi_instrument_visual",
+                            "usable_for": ["technical_detail"],
+                        },
+                        "selection": {"decision": "keep"},
+                    }
+                ],
+            },
+            window_sec=12,
+            duration_probe=lambda _source: 48,
+        )
+
+        plan = build_highlight_selection_plan(
+            timeline,
+            intent="technical_detail",
+            target_sec=48,
+            clip_sec=7,
+        )
+
+        clip = next(item for item in plan["clips"] if item["window_id"] == "win_002")
+        self.assertEqual(clip["source_in_sec"], 24.14)
+        self.assertEqual(clip["source_out_sec"], 31.78)
+        self.assertEqual(clip["cut_alignment"], "asr_sentence_boundary")
+
+    def test_selection_plan_keeps_fixed_cut_when_no_speech_is_available(self):
+        timeline = build_source_timeline_map(
+            "source.mp4",
+            soundtrack_probe={},
+            source_material_matrix={
+                "artifact_role": "source_material_matrix",
+                "windows": [
+                    {
+                        "window_id": "win_001",
+                        "visual": {
+                            "review_status": "reviewed",
+                            "content_type": "visual_montage",
+                            "usable_for": ["highlight"],
+                        },
+                        "selection": {"decision": "keep"},
+                    }
+                ],
+            },
+            window_sec=12,
+            duration_probe=lambda _source: 36,
+        )
+
+        plan = build_highlight_selection_plan(
+            timeline,
+            intent="highlight",
+            target_sec=12,
+            clip_sec=7,
+        )
+
+        clip = next(item for item in plan["clips"] if item["window_id"] == "win_001")
+        self.assertEqual(clip["source_in_sec"], 12.0)
+        self.assertEqual(clip["source_out_sec"], 19.0)
+        self.assertEqual(clip["cut_alignment"], "fixed_visual_window")
+
+    def test_selection_plan_chooses_best_sentence_when_all_overlaps_are_too_long(self):
+        timeline = build_source_timeline_map(
+            "source.mp4",
+            soundtrack_probe={
+                "features": {
+                    "vocal_analysis": {
+                        "segments": [
+                            {
+                                "start_sec": 31.78,
+                                "end_sec": 39.46,
+                                "text": "long sentence entering the reviewed window",
+                            },
+                            {
+                                "start_sec": 39.46,
+                                "end_sec": 48.46,
+                                "text": "best complete sentence inside the reviewed window",
+                            },
+                        ]
+                    }
+                }
+            },
+            source_material_matrix={
+                "artifact_role": "source_material_matrix",
+                "windows": [
+                    {
+                        "window_id": "win_003",
+                        "visual": {
+                            "review_status": "reviewed",
+                            "content_type": "earth_observation_visual",
+                            "usable_for": ["technical_detail"],
+                        },
+                        "selection": {"decision": "keep"},
+                    }
+                ],
+            },
+            window_sec=12,
+            duration_probe=lambda _source: 60,
+        )
+
+        plan = build_highlight_selection_plan(
+            timeline,
+            intent="technical_detail",
+            target_sec=48,
+            clip_sec=7,
+        )
+
+        clip = next(item for item in plan["clips"] if item["window_id"] == "win_003")
+        self.assertEqual(clip["source_in_sec"], 39.46)
+        self.assertEqual(clip["source_out_sec"], 48.46)
+        self.assertEqual(clip["cut_alignment"], "asr_best_sentence")
+
     def test_writer_persists_canonical_artifacts(self):
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp)
