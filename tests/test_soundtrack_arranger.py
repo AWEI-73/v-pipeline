@@ -96,6 +96,39 @@ class SoundtrackArrangerTest(unittest.TestCase):
             "jamendo_song",
         )
 
+    def test_soundtrack_plan_declares_section_requirement_contract(self):
+        plan = arrange_soundtrack(
+            {
+                "artifact_role": "video_intent",
+                "target_length": "5 minutes",
+                "soundtrack_contract": {
+                    "artifact_role": "stage0_soundtrack_intent",
+                    "music_role": "mixed",
+                    "vocal_policy": "section_dependent",
+                    "speech_preservation": "required",
+                    "handoff_to": "soundtrack-arranger",
+                },
+            }
+        )
+
+        soundtrack_plan = plan["soundtrack_plan"]
+        self.assertEqual(soundtrack_plan["required_track_count"], 2)
+        self.assertEqual(
+            soundtrack_plan["section_music_requirements"][0]["section_id"],
+            "intro",
+        )
+        sections = {item["section_id"]: item for item in soundtrack_plan["sections"]}
+        self.assertEqual(sections["warm_story"]["required_audio"]["role"], "bgm")
+        self.assertTrue(sections["warm_story"]["probe_required"])
+        self.assertTrue(sections["warm_story"]["delivery_allowed_requires_license"])
+        self.assertIn("manual_import", sections["warm_story"]["source_type_priority"])
+        self.assertEqual(sections["mv_climax"]["required_audio"]["role"], "song")
+        self.assertIn("jamendo_song", sections["mv_climax"]["source_type_priority"])
+        self.assertEqual(
+            plan["audio_director_handoff"]["required_track_count"],
+            soundtrack_plan["required_track_count"],
+        )
+
     def test_video_intent_soundtrack_contract_overrides_fuzzy_song_words(self):
         plan = arrange_soundtrack(
             {

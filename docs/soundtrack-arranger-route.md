@@ -27,6 +27,19 @@ Canonical artifacts:
 - `sound_license_manifest.json`
 - `audio_director_handoff.json`
 
+`soundtrack_plan.json` is the section requirement contract. It must expose:
+
+- `required_track_count`: minimum number of distinct deliverable music tracks
+  needed by the current section plan.
+- `section_music_requirements[]`: compact requirements for each section.
+- `sections[].required_audio`: role, duration, vocal policy, energy curve,
+  ducking policy, and speech-preservation requirement.
+- `sections[].source_type_priority`: ordered provider/source fallback list.
+- `sections[].probe_required`: whether a selected deliverable audio file must
+  pass `soundtrack_probe_report.json` before Audio Director handoff.
+- `sections[].delivery_allowed_requires_license`: whether the section needs
+  explicit source/license evidence before delivery.
+
 ## Source Types
 
 | source_type | Use for | Delivery rule |
@@ -72,12 +85,28 @@ For a 10 minute graduation/training recap, a good first split is:
 
 ```json
 {
+  "required_track_count": 2,
   "sections": [
-    {"section_id": "intro", "duration_sec": 30, "music_role": "bgm", "energy_curve": "build"},
-    {"section_id": "warm_story", "duration_sec": 150, "music_role": "bgm", "energy_curve": "low"},
-    {"section_id": "training_drive", "duration_sec": 180, "music_role": "bgm", "energy_curve": "medium"},
-    {"section_id": "mv_climax", "duration_sec": 150, "music_role": "song", "energy_curve": "high"},
-    {"section_id": "ending_reflection", "duration_sec": 60, "music_role": "bgm", "energy_curve": "resolve"}
+    {
+      "section_id": "intro",
+      "duration_sec": 30,
+      "music_role": "bgm",
+      "energy_curve": "build",
+      "required_audio": {"role": "bgm", "vocal_policy": "no_vocal"},
+      "source_type_priority": ["pixabay_music", "licensed_library", "manual_import"],
+      "probe_required": true,
+      "delivery_allowed_requires_license": true
+    },
+    {
+      "section_id": "mv_climax",
+      "duration_sec": 150,
+      "music_role": "song",
+      "energy_curve": "high",
+      "required_audio": {"role": "song", "vocal_policy": "vocal_ok"},
+      "source_type_priority": ["jamendo_song", "manual_import", "reference_only"],
+      "probe_required": true,
+      "delivery_allowed_requires_license": true
+    }
   ]
 }
 ```

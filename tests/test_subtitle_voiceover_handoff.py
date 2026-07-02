@@ -71,6 +71,62 @@ class SubtitleVoiceoverHandoffTest(unittest.TestCase):
             self.assertIn("caption_audit_not_passed", rules)
             self.assertFalse(result["subtitle_voiceover_build_handoff"]["subtitle_ready"])
 
+    def test_blocks_voxcpm_unavailable_without_fallback_with_visible_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            contract = {
+                "artifact_role": "stage0_subtitle_voiceover_intent",
+                "language": "zh-TW",
+                "voiceover_required": True,
+                "preferred_provider": "voxcpm",
+                "fallback_allowed": False,
+            }
+            provider_plan = {
+                "artifact_role": "voiceover_provider_plan",
+                "requested_provider": "voxcpm",
+                "selected_provider": "voxcpm",
+                "provider_available": False,
+                "provider_unavailable_reason": "voxcpm executable not found",
+                "fallback_allowed": False,
+                "errors": [{
+                    "rule": "provider_unavailable",
+                    "message": "VoxCPM provider entry was not found and fallback is disabled",
+                }],
+            }
+            runtime_check = {
+                "artifact_role": "voxcpm_runtime_check",
+                "ok_to_execute": False,
+                "python": "C:/Python/python.exe",
+                "voxcpm_repo": "C:/repo/VoxCPM-main",
+                "missing_modules": ["torch"],
+                "gpu": {"available": False, "summary": "", "stderr": "nvidia-smi missing"},
+            }
+
+            result = accept_subtitle_voiceover_handoff(
+                contract,
+                narration_manifest={
+                    "artifact_role": "narration_manifest",
+                    "segments": [{"id": "n1", "audio_file": "missing.wav", "text": "hello"}],
+                },
+                voiceover_provider_plan=provider_plan,
+                voxcpm_runtime_check=runtime_check,
+                out_dir=root,
+            )
+
+            acceptance = result["subtitle_voiceover_handoff_acceptance"]
+            self.assertFalse(acceptance["ok"])
+            self.assertEqual(acceptance["next_action"], "needs-context")
+            rules = {item["rule"] for item in acceptance["blocking"]}
+            self.assertIn("voiceover_provider_unavailable", rules)
+            self.assertIn("voiceover_audio_missing", rules)
+            provider_block = next(item for item in acceptance["blocking"] if item["rule"] == "voiceover_provider_unavailable")
+            self.assertEqual(provider_block["provider"], "voxcpm")
+            self.assertIn("torch", provider_block["missing_modules"])
+            handoff = result["subtitle_voiceover_build_handoff"]
+            self.assertFalse(handoff["voiceover_ready"])
+            self.assertEqual(handoff["provider_status"]["selected_provider"], "voxcpm")
+            self.assertFalse(handoff["provider_status"]["fallback_allowed"])
+
     def test_cli_writes_acceptance_and_build_handoff(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
@@ -114,6 +170,73 @@ class SubtitleVoiceoverHandoffTest(unittest.TestCase):
             self.assertTrue(payload["subtitle_voiceover_handoff_acceptance"]["ok"])
             self.assertTrue((root / "subtitle_voiceover_handoff_acceptance.json").is_file())
             self.assertTrue((root / "subtitle_voiceover_build_handoff.json").is_file())
+            manifest = json.loads((root / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["subtitle_voiceover_handoff_acceptance"],
+                str(root / "subtitle_voiceover_handoff_acceptance.json"),
+            )
+            self.assertEqual(
+                manifest["subtitle_voiceover_build_handoff"],
+                str(root / "subtitle_voiceover_build_handoff.json"),
+            )
+
+    def test_cli_accepts_provider_plan_and_runtime_check_for_fail_closed_reason(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            contract = _write_json(root, "subtitle_voiceover_contract.json", {
+                "artifact_role": "stage0_subtitle_voiceover_intent",
+                "language": "zh-TW",
+                "voiceover_required": True,
+                "preferred_provider": "voxcpm",
+                "fallback_allowed": False,
+            })
+            provider_plan = _write_json(root, "voiceover_provider_plan.json", {
+                "artifact_role": "voiceover_provider_plan",
+                "selected_provider": "voxcpm",
+                "provider_available": False,
+                "provider_unavailable_reason": "local VoxCPM runtime missing torch",
+                "fallback_allowed": False,
+            })
+            runtime_check = _write_json(root, "voxcpm_runtime_check.json", {
+                "artifact_role": "voxcpm_runtime_check",
+                "ok_to_execute": False,
+                "python": "C:/Python/python.exe",
+                "voxcpm_repo": "C:/repo/VoxCPM-main",
+                "missing_modules": ["torch"],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/subtitle_voiceover_handoff_accept.py",
+                    "--contract",
+                    str(contract),
+                    "--voiceover-provider-plan",
+                    str(provider_plan),
+                    "--voxcpm-runtime-check",
+                    str(runtime_check),
+                    "--out-dir",
+                    str(root),
+                    "--json",
+                ],
+                cwd=repo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            payload = json.loads(proc.stdout)
+            acceptance = payload["subtitle_voiceover_handoff_acceptance"]
+            self.assertFalse(acceptance["ok"])
+            self.assertEqual(acceptance["next_action"], "needs-context")
+            self.assertFalse(payload["subtitle_voiceover_build_handoff"]["voiceover_ready"])
+            self.assertEqual(
+                payload["subtitle_voiceover_build_handoff"]["provider_status"]["provider_unavailable_reason"],
+                "local VoxCPM runtime missing torch",
+            )
 
 
 if __name__ == "__main__":

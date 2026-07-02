@@ -242,6 +242,76 @@ def _apply_ducking_policy(placements: list[dict[str, Any]], ducked_volume: float
         placement["ducking_applied"] = True
 
 
+def _target_duration(audio_mix_plan: Mapping[str, Any]) -> float:
+    for key in ("video_duration_sec", "timeline_duration_sec", "target_duration_sec"):
+        value = _float_value(audio_mix_plan.get(key))
+        if value > 0:
+            return value
+    return 0.0
+
+
+def _align_placements_to_duration(
+    placements: list[dict[str, Any]],
+    target_duration_sec: float,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if target_duration_sec <= 0 or not placements:
+        total_duration = max(
+            (placement["start_sec"] + placement["duration_sec"] for placement in placements),
+            default=0.0,
+        )
+        return placements, {
+            "decision": "source_timeline_duration",
+            "target_duration_sec": None,
+            "planned_duration_sec": round(total_duration, 3),
+            "output_duration_sec": round(total_duration, 3),
+            "fade_out_applied": False,
+        }
+
+    planned_duration = max(
+        (placement["start_sec"] + placement["duration_sec"] for placement in placements),
+        default=0.0,
+    )
+    if planned_duration <= target_duration_sec + 0.001:
+        return placements, {
+            "decision": "matches_video_duration",
+            "target_duration_sec": round(target_duration_sec, 3),
+            "planned_duration_sec": round(planned_duration, 3),
+            "output_duration_sec": round(planned_duration, 3),
+            "fade_out_applied": False,
+        }
+
+    aligned: list[dict[str, Any]] = []
+    fade_out_applied = False
+    for placement in placements:
+        start = _float_value(placement.get("start_sec"))
+        duration = _float_value(placement.get("duration_sec"))
+        if start >= target_duration_sec:
+            continue
+        end = start + duration
+        item = dict(placement)
+        if end > target_duration_sec:
+            item["duration_sec"] = round(max(0.0, target_duration_sec - start), 3)
+            if item["duration_sec"] > 0:
+                item["fade_out_sec"] = round(
+                    max(_float_value(item.get("fade_out_sec")), min(1.0, item["duration_sec"] / 2)),
+                    3,
+                )
+                fade_out_applied = True
+        if item["duration_sec"] > 0:
+            aligned.append(item)
+    output_duration = max(
+        (placement["start_sec"] + placement["duration_sec"] for placement in aligned),
+        default=0.0,
+    )
+    return aligned, {
+        "decision": "clamped_to_video_duration",
+        "target_duration_sec": round(target_duration_sec, 3),
+        "planned_duration_sec": round(planned_duration, 3),
+        "output_duration_sec": round(output_duration, 3),
+        "fade_out_applied": fade_out_applied,
+    }
+
+
 def _section_verification(
     sections: Mapping[str, Mapping[str, Any]],
     placements: list[dict[str, Any]],
@@ -408,7 +478,19 @@ def execute_audio_mix_plan(
                 })
                 continue
             placements.append(placement)
+        placements, duration_alignment = _align_placements_to_duration(
+            placements,
+            _target_duration(audio_mix_plan),
+        )
         _apply_ducking_policy(placements)
+    else:
+        duration_alignment = {
+            "decision": "source_track_duration",
+            "target_duration_sec": None,
+            "planned_duration_sec": None,
+            "output_duration_sec": None,
+            "fade_out_applied": False,
+        }
     section_verification = _section_verification(
         {
             _clean(section.get("section_id")): section
@@ -435,6 +517,7 @@ def execute_audio_mix_plan(
             "rendered_video": False,
             "output_audio": None,
             "source_audio_policy": dict(source_audio_policy),
+            "duration_alignment": duration_alignment,
             "section_verification": section_verification,
             "blocking": blocking,
             "next_action": "repair_audio_mix_plan",
@@ -489,6 +572,7 @@ def execute_audio_mix_plan(
         "rendered_video": False,
         "output_audio": str(output_path),
         "source_audio_policy": dict(source_audio_policy),
+        "duration_alignment": duration_alignment,
         "duration_sec": round(output_duration, 3),
         "mean_dbfs": levels["mean_dbfs"],
         "peak_dbfs": levels["peak_dbfs"],

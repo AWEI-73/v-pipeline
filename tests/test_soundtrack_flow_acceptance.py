@@ -72,6 +72,10 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
             self.assertTrue(mix_plan["ready_for_mix"])
             self.assertFalse(mix_plan["rendered"])
             self.assertEqual(mix_plan["tracks"][0]["section_id"], "mv_climax")
+            manifest = json.loads((run / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["soundtrack_plan"], str(run / "soundtrack_plan.json"))
+            self.assertEqual(manifest["audio_handoff_acceptance"], str(run / "audio_handoff_acceptance.json"))
+            self.assertEqual(manifest["audio_mix_plan"], str(run / "audio_mix_plan.json"))
 
     def test_no_render_flow_accepts_existing_reviewed_audio_file(self):
         repo = Path(__file__).resolve().parents[1]
@@ -84,7 +88,12 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                         "artifact_role": "video_intent",
                         "video_type": "training graduation recap",
                         "target_length": "3 minutes",
-                        "style_direction": "warm opening then montage song",
+                        "style_direction": "warm opening with instrumental BGM",
+                        "soundtrack_contract": {
+                            "music_role": "bgm",
+                            "vocal_policy": "instrumental_preferred",
+                            "handoff_to": "soundtrack-arranger",
+                        },
                     },
                     ensure_ascii=False,
                 ),
@@ -101,7 +110,17 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                         "pass": True,
                         "audio_file": str(reviewed_audio),
                         "duration_sec": 30.0,
-                        "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+                        "features": {
+                            "mean_dbfs": -18.0,
+                            "peak_dbfs": -3.0,
+                            "vocal_analysis": {
+                                "has_vocals": False,
+                                "method": "test_stub",
+                                "vocal_density": "none",
+                                "vocal_ratio": 0.0,
+                                "segments": [],
+                            },
+                        },
                         "sections": [{"start_sec": 0.0, "end_sec": 30.0, "role": "full_track"}],
                         "editing_fit": {"montage": "medium"},
                         "section_fit": [{"video_section": "hotblooded_montage", "fit": "medium"}],
@@ -120,11 +139,11 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                     "--out-dir",
                     str(run),
                     "--selected-section-id",
-                    "mv_climax",
+                    "warm_story",
                     "--source-type",
-                    "jamendo_song",
+                    "licensed_library",
                     "--license-note",
-                    "Jamendo metadata reviewed for this acceptance test",
+                    "Reviewed internal library BGM for this acceptance test",
                     "--selected-audio-file",
                     str(reviewed_audio),
                     "--soundtrack-probe-report",
@@ -144,11 +163,11 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
             self.assertFalse(summary["rendered"])
             mix_plan = json.loads((run / "audio_mix_plan.json").read_text(encoding="utf-8"))
             self.assertEqual(mix_plan["tracks"][0]["audio_file"], str(reviewed_audio))
-            self.assertEqual(mix_plan["tracks"][0]["source_type"], "jamendo_song")
+            self.assertEqual(mix_plan["tracks"][0]["source_type"], "licensed_library")
             self.assertTrue(mix_plan["sections"])
             self.assertEqual(mix_plan["sections"][0]["start_sec"], 0.0)
             self.assertTrue(any(
-                section["section_id"] == "mv_climax" and section["duration_sec"] > 0
+                section["section_id"] == "warm_story" and section["duration_sec"] > 0
                 for section in mix_plan["sections"]
             ))
 

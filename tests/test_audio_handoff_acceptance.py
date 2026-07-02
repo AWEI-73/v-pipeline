@@ -186,6 +186,45 @@ class AudioHandoffAcceptanceTest(unittest.TestCase):
                 {"jamendo_intro", "jamendo_mv_climax"},
             )
 
+    def test_blocks_when_selected_tracks_do_not_meet_required_track_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "audio" / "sources" / "mv.mp3"
+            audio.parent.mkdir(parents=True)
+            audio.write_bytes(b"ID3 fake")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "jamendo_mv_climax",
+                    "section_id": "mv_climax",
+                    "source_type": "jamendo_song",
+                    "audio_file": str(audio),
+                    "license_status": "license_metadata_present",
+                    "delivery_allowed": True,
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "required_track_count": 2,
+                "sections": [
+                    {"section_id": "warm_story", "duration_sec": 12, "music_role": "bgm"},
+                    {"section_id": "mv_climax", "duration_sec": 10, "music_role": "song", "vocal_policy": "vocal_ok"},
+                ],
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=_probe_for(audio),
+                out_dir=root,
+            )
+
+            self.assertFalse(result["audio_handoff_acceptance"]["ok"])
+            rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
+            self.assertIn("required_track_count_not_met", rules)
+            self.assertEqual(result["audio_handoff_acceptance"]["accepted_track_count"], 1)
+
     def test_blocks_reference_only_and_missing_audio(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

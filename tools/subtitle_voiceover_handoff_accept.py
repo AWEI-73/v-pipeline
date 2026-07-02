@@ -19,6 +19,8 @@ def main() -> int:
     parser.add_argument("--contract", required=True, help="subtitle_voiceover_contract.json or equivalent Stage 0 contract")
     parser.add_argument("--caption-audit", default=None, help="caption_audit.json")
     parser.add_argument("--narration-manifest", default=None, help="narration_manifest.json")
+    parser.add_argument("--voiceover-provider-plan", default=None, help="voiceover_provider_plan.json")
+    parser.add_argument("--voxcpm-runtime-check", default=None, help="voxcpm_runtime_check.json")
     parser.add_argument("--subtitles", default=None, help="subtitles.srt")
     parser.add_argument("--out-dir", required=True, help="run folder for handoff artifacts")
     parser.add_argument("--json", action="store_true", help="print result JSON")
@@ -28,6 +30,8 @@ def main() -> int:
         args.contract,
         caption_audit_path=args.caption_audit,
         narration_manifest_path=args.narration_manifest,
+        voiceover_provider_plan_path=args.voiceover_provider_plan,
+        voxcpm_runtime_check_path=args.voxcpm_runtime_check,
         subtitles_path=args.subtitles,
         out_dir=args.out_dir,
     )

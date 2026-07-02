@@ -957,6 +957,40 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next"], "mix_audio_from_audio_mix_plan")
             self.assertIn("1 accepted track", summary["reason"])
 
+    def test_audio_mix_plan_ready_can_be_read_from_artifact_manifest_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "run"
+            root.mkdir()
+            branch = Path(tmp) / "branch_artifacts"
+            branch.mkdir()
+            acceptance = _write(branch, "audio_handoff_acceptance.json", {
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": True,
+                "blocking": [],
+                "accepted_track_count": 2,
+                "next_action": "audio_mix_plan_ready",
+            })
+            plan = _write(branch, "audio_mix_plan.json", {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "tracks": [
+                    {"section_id": "warm_story", "audio_file": "audio/sources/warm.mp3"},
+                    {"section_id": "mv_climax", "audio_file": "audio/sources/mv.mp3"},
+                ],
+            })
+            _write(root, "artifact_manifest.json", {
+                "artifact_role": "artifact_manifest",
+                "audio_handoff_acceptance": str(acceptance),
+                "audio_mix_plan": str(plan),
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "audio_mix")
+            self.assertEqual(summary["next"], "mix_audio_from_audio_mix_plan")
+            self.assertIn("2 accepted track", summary["reason"])
+
     def test_audio_build_handoff_routes_to_build_audio_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "final_audio.wav", "audio")
@@ -1035,6 +1069,36 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "subtitle_voiceover_build_handoff")
             self.assertEqual(summary["next"], "continue_build_or_material_gate")
             self.assertEqual(summary["source"], "subtitle_voiceover_build_handoff.json")
+
+    def test_subtitle_voiceover_build_handoff_can_be_read_from_artifact_manifest_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "run"
+            root.mkdir()
+            branch = Path(tmp) / "subtitle_branch"
+            branch.mkdir()
+            acceptance = _write(branch, "subtitle_voiceover_handoff_acceptance.json", {
+                "artifact_role": "subtitle_voiceover_handoff_acceptance",
+                "ok": True,
+                "next_action": "subtitle_voiceover_build_handoff_ready",
+            })
+            handoff = _write(branch, "subtitle_voiceover_build_handoff.json", {
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": True,
+                "voiceover_ready": True,
+                "subtitles": str(branch / "subtitles.srt"),
+                "narration_manifest": str(branch / "narration_manifest.json"),
+            })
+            _write(root, "artifact_manifest.json", {
+                "artifact_role": "artifact_manifest",
+                "subtitle_voiceover_handoff_acceptance": str(acceptance),
+                "subtitle_voiceover_build_handoff": str(handoff),
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "subtitle_voiceover_build_handoff")
+            self.assertEqual(summary["next"], "continue_build_or_material_gate")
 
     def test_remotion_material_first_memory_acceptance_ready_routes_to_effect_review(self):
         with tempfile.TemporaryDirectory() as tmp:

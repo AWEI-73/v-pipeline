@@ -248,6 +248,85 @@ def _apply_stage0_soundtrack_contract(sections: list[dict[str, Any]], contract: 
     return adjusted
 
 
+def _source_type_priority(section: Mapping[str, Any]) -> list[str]:
+    role = _clean(section.get("music_role")).casefold()
+    source_type = _clean(section.get("source_type"))
+    if role == "song":
+        priority = ["jamendo_song", "manual_import", "reference_only"]
+    elif role == "diegetic":
+        priority = ["user_provided"]
+    elif role == "silence":
+        priority = ["placeholder"]
+    else:
+        priority = ["pixabay_music", "licensed_library", "manual_import"]
+    if source_type and source_type not in priority:
+        priority.insert(0, source_type)
+    return priority
+
+
+def _delivery_allowed_requires_license(section: Mapping[str, Any]) -> bool:
+    source_type = _clean(section.get("source_type")).casefold()
+    license_status = _clean(section.get("license_status")).casefold()
+    role = _clean(section.get("music_role")).casefold()
+    if role in {"silence", "diegetic"}:
+        return False
+    return not (
+        source_type in {"user_provided", "placeholder"}
+        or license_status in {"source_is_original_material", "not_required"}
+    )
+
+
+def _required_audio(section: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "role": section.get("music_role"),
+        "story_function": section.get("story_function"),
+        "duration_sec": section.get("duration_sec"),
+        "vocal_policy": section.get("vocal_policy"),
+        "energy_curve": section.get("energy_curve"),
+        "ducking_policy": section.get("ducking_policy"),
+        "speech_preservation": (
+            "required"
+            if section.get("vocal_policy") == "preserve_speech"
+            or section.get("ducking_policy") in {"duck_under_voice", "preserve_original_audio"}
+            else "not_required"
+        ),
+    }
+
+
+def _enrich_section_requirements(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for section in sections:
+        item = dict(section)
+        item["required_audio"] = _required_audio(item)
+        item["source_type_priority"] = _source_type_priority(item)
+        item["probe_required"] = item.get("music_role") not in {"silence", "diegetic"}
+        item["delivery_allowed_requires_license"] = _delivery_allowed_requires_license(item)
+        enriched.append(item)
+    return enriched
+
+
+def _required_track_count(sections: list[Mapping[str, Any]]) -> int:
+    roles: set[str] = set()
+    for section in sections:
+        role = _clean(section.get("music_role")).casefold()
+        if role in {"bgm", "song"}:
+            roles.add(role)
+    return len(roles)
+
+
+def _section_music_requirements(sections: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "section_id": section.get("section_id"),
+            "required_audio": section.get("required_audio"),
+            "source_type_priority": section.get("source_type_priority"),
+            "probe_required": section.get("probe_required"),
+            "delivery_allowed_requires_license": section.get("delivery_allowed_requires_license"),
+        }
+        for section in sections
+    ]
+
+
 def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     text = _text(payload)
     total_sec = _target_duration_sec(payload.get("target_length") or payload.get("target_duration_sec") or payload.get("duration"))
@@ -257,6 +336,9 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         _base_sections(total_sec, text, speech_markers),
         stage0_contract,
     )
+    sections = _enrich_section_requirements(sections)
+    required_track_count = _required_track_count(sections)
+    section_music_requirements = _section_music_requirements(sections)
     candidates = [_candidate_for_section(section, text) for section in sections if section.get("music_role") != "silence"]
 
     blocks: list[str] = []
@@ -277,8 +359,10 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "artifact_role": "soundtrack_plan",
         "version": 1,
         "target_duration_sec": total_sec,
+        "required_track_count": required_track_count,
         "stage0_soundtrack_contract": stage0_contract,
         "sections": sections,
+        "section_music_requirements": section_music_requirements,
         "assumptions": [
             "provider search is optional; this plan is deterministic and does not require API tokens",
             "commercial/famous songs remain reference_only until license evidence is provided",
@@ -311,6 +395,7 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "version": 1,
         "handoff_to": "audio-director",
         "ready_for_audio_director": not blocks,
+        "required_track_count": required_track_count,
         "blocks": sorted(set(blocks)),
         "speech_preservation": stage0_contract.get("speech_preservation"),
         "fallback_policy": fallback_policy,
@@ -320,6 +405,10 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "music_role": section["music_role"],
                 "vocal_policy": section["vocal_policy"],
                 "ducking_policy": section["ducking_policy"],
+                "required_audio": section.get("required_audio"),
+                "source_type_priority": section.get("source_type_priority"),
+                "probe_required": section.get("probe_required"),
+                "delivery_allowed_requires_license": section.get("delivery_allowed_requires_license"),
                 "source_type": next(
                     (candidate["source_type"] for candidate in candidates if candidate["section_id"] == section["section_id"]),
                     section["source_type"],

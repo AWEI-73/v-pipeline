@@ -946,6 +946,122 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertTrue(result["pass"])
 
+    def test_complete_video_gate_uses_artifact_manifest_branch_handoff_paths(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            handoff = root / "handoff"
+            handoff.mkdir()
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                json.dumps({
+                    "artifact_role": "delivery_requirements",
+                    "version": 1,
+                    "requires_audio": True,
+                    "requires_narration": True,
+                    "requires_music": True,
+                    "requires_subtitles": True,
+                    "requires_soundtrack_probe": True,
+                    "requires_effect_render_verification": True,
+                }),
+                encoding="utf-8",
+            )
+            (root / "artifact_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "artifact_manifest",
+                    "subtitle_voiceover_build_handoff": "handoff/subtitle_voiceover_build_handoff.json",
+                    "narration_manifest": "handoff/narration_manifest.json",
+                    "music_manifest": "handoff/music_manifest.json",
+                    "audio_mix_report": "handoff/audio_mix_report.json",
+                    "soundtrack_probe_report": "handoff/soundtrack_probe_report.json",
+                    "effect_render_verification": "handoff/effect_render_verification.json",
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "subtitle_voiceover_build_handoff.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_voiceover_build_handoff",
+                    "subtitle_ready": True,
+                    "voiceover_ready": True,
+                    "subtitles": "handoff/subtitles.srt",
+                    "narration_manifest": "handoff/narration_manifest.json",
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "subtitles.srt").write_text(
+                "1\n00:00:00,000 --> 00:00:03,000\n完成這段精神傳承\n",
+                encoding="utf-8",
+            )
+            (handoff / "narration_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "narration_manifest",
+                    "segments": [{"id": "n1", "text": "完成這段精神傳承", "audio_ref": "handoff/narration.wav"}],
+                }, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            self._write_silent_wav(handoff / "narration.wav")
+            (handoff / "music_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "music_manifest",
+                    "tracks": [{"id": "bgm", "source": "licensed_library"}],
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "audio_mix_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "audio_mix_report",
+                    "audio_stream_present": True,
+                    "narration_included": True,
+                    "music_included": True,
+                    "peak_dbfs": -3.0,
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "soundtrack_probe_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "soundtrack_probe_report",
+                    "pass": True,
+                    "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+                    "sections": [{"start_sec": 0.0, "end_sec": 10.0}],
+                    "editing_fit": {"speech_underlay": "low"},
+                    "section_fit": [{"section_id": "closing", "fit": "medium"}],
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "effect_render_verification.json").write_text(
+                json.dumps({
+                    "artifact_role": "effect_render_verification",
+                    "pass": True,
+                    "verified_effects": [{
+                        "effect_id": "closing_glow",
+                        "rendered": True,
+                        "evidence_refs": ["handoff/effect_sample.jpg"],
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+
+    def test_complete_video_gate_blocks_stale_manifest_audio_mix_path(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "artifact_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "artifact_manifest",
+                    "audio_mix_report": "handoff/missing_audio_mix_report.json",
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_audio_mix_report", rules)
+
     def _write_complete_delivery_artifacts(self, root, *, language=None, subtitles="第一幕開始"):
         (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
         language_line = f'  "language": "{language}",\n' if language else ""

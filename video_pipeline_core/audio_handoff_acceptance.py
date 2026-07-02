@@ -465,6 +465,23 @@ def accept_audio_handoff(
                 }
             tracks.append(track)
 
+    required_track_count = 0
+    if soundtrack_plan and soundtrack_plan.get("required_track_count") is not None:
+        try:
+            required_track_count = max(0, int(soundtrack_plan.get("required_track_count") or 0))
+        except (TypeError, ValueError):
+            required_track_count = 0
+    if required_track_count and len(tracks) < required_track_count:
+        blocking.append({
+            "rule": "required_track_count_not_met",
+            "required_track_count": required_track_count,
+            "accepted_track_count": len(tracks),
+            "message": (
+                "selected audio does not satisfy soundtrack_plan.required_track_count; "
+                "choose/download/import enough section tracks before Audio Director handoff"
+            ),
+        })
+
     ok = not blocking
     rules = {_clean(item.get("rule")) for item in blocking if isinstance(item, Mapping)}
     next_action = "audio_mix_plan_ready" if ok else "repair_audio_handoff"
@@ -482,7 +499,8 @@ def accept_audio_handoff(
         "ok": ok,
         "blocking": blocking,
         "warnings": warnings,
-        "accepted_track_count": len(tracks) if ok else 0,
+        "accepted_track_count": len(tracks),
+        "required_track_count": required_track_count,
         "next_action": next_action,
     }
     mix_plan = {

@@ -25,6 +25,19 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _artifact_ref(root: Path, key: str, fallback_name: str | None = None) -> Path:
+    manifest = _load_json(root / "artifact_manifest.json")
+    ref = manifest.get(key) if isinstance(manifest, dict) else None
+    if isinstance(ref, str) and ref.strip():
+        path = Path(ref)
+        return path if path.is_absolute() else root / path
+    return root / (fallback_name or f"{key}.json")
+
+
+def _load_artifact_json(root: Path, key: str, fallback_name: str | None = None) -> dict[str, Any] | None:
+    return _load_json(_artifact_ref(root, key, fallback_name))
+
+
 def _manifest_has_items(manifest: dict[str, Any] | None, *keys: str) -> bool:
     if not isinstance(manifest, dict):
         return False
@@ -852,7 +865,11 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         or _effects_required(root)
     )
     language = _expected_language(requirements)
-    subtitle_voiceover_handoff = _load_json(root / "subtitle_voiceover_build_handoff.json") or {}
+    subtitle_voiceover_handoff = _load_artifact_json(
+        root,
+        "subtitle_voiceover_build_handoff",
+        "subtitle_voiceover_build_handoff.json",
+    ) or {}
 
     final_path = root / "final.mp4"
     if not final_path.is_file() or final_path.stat().st_size <= 0:
@@ -903,7 +920,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                     "next_action": "fix_audio_mix_duration",
                 })
 
-    narration_manifest = _load_json(root / "narration_manifest.json")
+    narration_manifest = _load_artifact_json(root, "narration_manifest", "narration_manifest.json")
     if (
         not _manifest_has_items(narration_manifest, "segments", "clips", "lines")
         and isinstance(subtitle_voiceover_handoff, dict)
@@ -987,7 +1004,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                 "next_action": "replace_fallback_with_real_narration",
             })
 
-    music_manifest = _load_json(root / "music_manifest.json")
+    music_manifest = _load_artifact_json(root, "music_manifest", "music_manifest.json")
     if requires_music and not _manifest_has_items(music_manifest, "tracks", "cues"):
         blocking.append({
             "rule": "missing_music_manifest",
@@ -997,7 +1014,11 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             "next_action": "generate_or_attach_music",
         })
 
-    soundtrack_probe_report = _load_json(root / "soundtrack_probe_report.json")
+    soundtrack_probe_report = _load_artifact_json(
+        root,
+        "soundtrack_probe_report",
+        "soundtrack_probe_report.json",
+    )
     if requires_music or soundtrack_probe_report is not None:
         blocking.extend(
             _soundtrack_probe_report_blocks(
@@ -1007,7 +1028,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             )
         )
 
-    audio_mix_report = _load_json(root / "audio_mix_report.json")
+    audio_mix_report = _load_artifact_json(root, "audio_mix_report", "audio_mix_report.json")
     if requires_audio:
         if audio_mix_report is None:
             blocking.append({
@@ -1111,9 +1132,9 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                 "next_action": "rewrite_review_artifact_utf8",
             })
 
-    generated_material_review = _load_json(root / "generated_material_review.json")
-    material_generation_fallback = _load_json(root / "material_generation_fallback.json")
-    generated_provider_packet = _load_json(root / "generated_provider_packet.json")
+    generated_material_review = _load_artifact_json(root, "generated_material_review", "generated_material_review.json")
+    material_generation_fallback = _load_artifact_json(root, "material_generation_fallback", "material_generation_fallback.json")
+    generated_provider_packet = _load_artifact_json(root, "generated_provider_packet", "generated_provider_packet.json")
     generated_route = any((root / rel).exists() for rel in (
         "material_generation_fallback.json",
         "generated_provider_packet.json",
@@ -1354,7 +1375,11 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                         "next_action": "revise_material_selection_or_review",
                     })
 
-    effect_render_verification = _load_json(root / "effect_render_verification.json")
+    effect_render_verification = _load_artifact_json(
+        root,
+        "effect_render_verification",
+        "effect_render_verification.json",
+    )
     if requires_effect_render_verification:
         if effect_render_verification is None:
             blocking.append({

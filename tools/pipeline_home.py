@@ -20,6 +20,18 @@ def _find_json(root: Path, name: str) -> tuple[Path, dict[str, Any]] | tuple[Non
     payload = _load_json(direct)
     if payload is not None:
         return direct, payload
+    if name != "artifact_manifest.json":
+        manifest = _load_json(root / "artifact_manifest.json")
+        if manifest:
+            key = Path(name).stem
+            ref = manifest.get(key)
+            if ref:
+                candidate = Path(str(ref))
+                if not candidate.is_absolute():
+                    candidate = root / candidate
+                payload = _load_json(candidate)
+                if payload is not None:
+                    return candidate, payload
     for path in sorted(root.rglob(name)):
         payload = _load_json(path)
         if payload is not None:

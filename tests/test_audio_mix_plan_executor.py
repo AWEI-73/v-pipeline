@@ -236,6 +236,62 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
                 [("opening", 0.0, 1.5), ("mv_climax", 4.0, 1.0)],
             )
 
+    def test_clamps_section_mix_to_video_duration_and_fades_out(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            long_bgm = root / "audio" / "sources" / "long.wav"
+            long_bgm.parent.mkdir(parents=True)
+            _sine(long_bgm, 6.0)
+            acceptance = _write_json(root, "audio_handoff_acceptance.json", {
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": True,
+                "accepted_track_count": 1,
+            })
+            plan = _write_json(root, "audio_mix_plan.json", {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "target_duration_sec": 3.0,
+                "sections": [
+                    {"section_id": "intro", "start_sec": 0.0, "duration_sec": 5.0},
+                ],
+                "tracks": [{
+                    "section_id": "intro",
+                    "audio_file": str(long_bgm),
+                    "role": "music_bed",
+                    "source_type": "licensed_library",
+                    "license_status": "accepted",
+                }],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/audio_mix_plan_execute.py",
+                    "--plan",
+                    str(plan),
+                    "--acceptance",
+                    str(acceptance),
+                    "--out-dir",
+                    str(root),
+                    "--json",
+                ],
+                cwd=repo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            final_audio = root / "final_audio.wav"
+            self.assertAlmostEqual(_duration(final_audio), 3.0, delta=0.25)
+            payload = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["duration_alignment"]["decision"], "clamped_to_video_duration")
+            self.assertTrue(payload["duration_alignment"]["fade_out_applied"])
+            self.assertEqual(payload["placements"][0]["duration_sec"], 3.0)
+            self.assertGreater(payload["placements"][0]["fade_out_sec"], 0)
+
     def test_ducks_music_when_section_preserves_voice(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
