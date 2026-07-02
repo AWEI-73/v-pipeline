@@ -102,6 +102,27 @@ def build_final_product_verify_bundle(
 
     visual_pass = bool(visual_audit.get("pass") is True)
     audio_pass = bool(probe.get("pass") is True)
+    
+    findings = []
+    suggested_branch = "verify-delivery"
+    if not visual_pass:
+        findings.append({
+            "code": "VISUAL_AUDIT_FAILED",
+            "severity": "blocker",
+            "message": str(visual_audit.get("error") or "Visual verification check failed.")
+        })
+    if not audio_pass:
+        findings.append({
+            "code": "AUDIO_PROBE_FAILED",
+            "severity": "blocker",
+            "message": str(probe.get("error") or "Audio/Soundtrack verification check failed.")
+        })
+
+    if not visual_pass:
+        suggested_branch = "material-map"
+    elif not audio_pass:
+        suggested_branch = "soundtrack-arranger"
+
     bundle = {
         "artifact_role": "final_product_verify_bundle",
         "version": 1,
@@ -123,4 +144,49 @@ def build_final_product_verify_bundle(
         "next_action": None if visual_pass and audio_pass else "repair_final_product_verify_evidence",
     }
     _write_json(out / "final_product_verify_bundle.json", bundle)
+
+    if not bundle["pass"]:
+        from .revision_packet_schema import RevisionPacket
+        revision_targets = []
+        if not visual_pass:
+            revision_targets.append({
+                "artifact": "project_material_map.json",
+                "field": "assets",
+                "issue": str(visual_audit.get("error") or "Visual verification check failed."),
+                "suggested_change": "review material wall",
+                "target_branch": "material-map",
+            })
+        if not audio_pass:
+            revision_targets.append({
+                "artifact": "soundtrack_plan.json",
+                "field": "sections",
+                "issue": str(probe.get("error") or "Audio/Soundtrack verification check failed."),
+                "suggested_change": "adjust audio levels or choose different soundtrack",
+                "target_branch": "soundtrack-arranger",
+            })
+
+        if not visual_pass and not audio_pass:
+            suggested_branch = "verify-delivery"
+            problem_type = "multi_branch"
+        elif not audio_pass:
+            problem_type = "audio"
+        else:
+            problem_type = "material"
+
+        packet = RevisionPacket(
+            source_review="final_product_verify_bundle.json",
+            target_branch=suggested_branch,
+            problem_type=problem_type,
+            severity="blocking",
+            revision_targets=revision_targets,
+            allowed_actions=["patch_contract", "rerun_branch", "ask_user", "route_back", "stop"],
+            forbidden_actions=["overwrite_final_mp4", "mutate_material_truth", "silently_downgrade_required_feature"],
+            rerun_policy={
+                "allowed": True,
+                "max_attempts": 1,
+                "requires_agent_decision": True
+            }
+        )
+        packet.save(out / "verify_revision_packet.json")
+
     return bundle
