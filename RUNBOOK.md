@@ -803,7 +803,13 @@ Required evidence before BUILD consumes VoxCPM narration:
 `voiceover_provider_plan.json`, `narration_manifest.json`,
 `subtitle_voiceover_build_handoff.json`, and existing `voiceover\*.wav` files.
 If the runtime check fails or `voiceover_ready=false`, stop or use only an
-explicitly allowed fallback/defer policy.
+explicitly allowed fallback/defer policy. When fallback is allowed, the branch
+must record `provider_status.fallback_used=true`, `fallback_reason`, and the
+selected provider in `subtitle_voiceover_handoff_acceptance.json` /
+`subtitle_voiceover_build_handoff.json`; this is visible evidence, not a silent
+provider swap. Voiceover provider tools must also register
+`voiceover_provider_plan`, `narration_manifest`, and
+`subtitle_voiceover_build_handoff` in `artifact_manifest.json`.
 
 Stage 7/10 delivery evidence rule: `evaluate_delivery_gate()` reads
 `stage0_child_contracts` from `segment_contract.json`, `generated_mv_script.json`,

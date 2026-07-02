@@ -18,7 +18,7 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _update_artifact_manifest(out_root: Path) -> None:
+def _update_artifact_manifest(out_root: Path, *, accepted: bool | None = None) -> None:
     manifest_path = out_root / "artifact_manifest.json"
     manifest: dict[str, Any] = {}
     if manifest_path.is_file():
@@ -38,10 +38,21 @@ def _update_artifact_manifest(out_root: Path) -> None:
         "voiceover_provider_plan": "voiceover_provider_plan.json",
         "voxcpm_runtime_check": "voxcpm_runtime_check.json",
     }
+    artifacts = manifest.setdefault("artifacts", {})
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+        manifest["artifacts"] = artifacts
+    status = "accepted" if accepted is True else "blocked" if accepted is False else "present"
     for key, filename in names.items():
         path = out_root / filename
         if path.is_file():
             manifest[key] = str(path)
+            artifacts[key] = {
+                "path": str(path),
+                "owner": "subtitle_voiceover",
+                "status": status if key.startswith("subtitle_voiceover_") else "evidence",
+                "updated_by": "tools/subtitle_voiceover_handoff_accept.py",
+            }
     _write_json(manifest_path, manifest)
 
 
@@ -152,6 +163,27 @@ def accept_subtitle_voiceover_handoff(
             if isinstance(voiceover_provider_plan, Mapping)
             else None
         ) or preferred_provider
+        requested_provider = _clean(
+            (voiceover_provider_plan or {}).get("requested_provider")
+            if isinstance(voiceover_provider_plan, Mapping)
+            else None
+        ) or preferred_provider
+        fallback_reason = _clean(
+            (voiceover_provider_plan or {}).get("fallback_reason")
+            if isinstance(voiceover_provider_plan, Mapping)
+            else None
+        ) or _clean(
+            (voiceover_provider_plan or {}).get("provider_unavailable_reason")
+            if isinstance(voiceover_provider_plan, Mapping)
+            else None
+        )
+        fallback_used = bool(
+            provider_unavailable
+            and fallback_allowed
+            and selected_provider
+            and requested_provider
+            and selected_provider != requested_provider
+        )
         if provider_unavailable and (not fallback_allowed or (voiceover_provider_plan or {}).get("fallback_allowed") is False):
             blocking.append({
                 "rule": "voiceover_provider_unavailable",
@@ -163,6 +195,13 @@ def accept_subtitle_voiceover_handoff(
                 "missing_modules": (voxcpm_runtime_check or {}).get("missing_modules") if isinstance(voxcpm_runtime_check, Mapping) else [],
                 "python": (voxcpm_runtime_check or {}).get("python") if isinstance(voxcpm_runtime_check, Mapping) else None,
                 "voxcpm_repo": (voxcpm_runtime_check or {}).get("voxcpm_repo") if isinstance(voxcpm_runtime_check, Mapping) else None,
+            })
+        elif fallback_used:
+            warnings.append({
+                "rule": "voiceover_provider_fallback_selected",
+                "requested_provider": requested_provider,
+                "selected_provider": selected_provider,
+                "message": fallback_reason or "preferred voiceover provider unavailable; fallback provider selected",
             })
         if not isinstance(narration_manifest, Mapping):
             blocking.append({
@@ -200,6 +239,26 @@ def accept_subtitle_voiceover_handoff(
             else None
         ),
         "fallback_allowed": fallback_allowed,
+        "fallback_used": (
+            bool(
+                isinstance(voiceover_provider_plan, Mapping)
+                and voiceover_provider_plan.get("provider_available") is False
+                and fallback_allowed
+                and voiceover_provider_plan.get("selected_provider")
+                and (
+                    voiceover_provider_plan.get("requested_provider")
+                    or preferred_provider
+                )
+                and voiceover_provider_plan.get("selected_provider")
+                != (voiceover_provider_plan.get("requested_provider") or preferred_provider)
+            )
+        ),
+        "fallback_reason": (
+            voiceover_provider_plan.get("fallback_reason")
+            or voiceover_provider_plan.get("provider_unavailable_reason")
+            if isinstance(voiceover_provider_plan, Mapping)
+            else None
+        ),
         "provider_unavailable_reason": (
             voiceover_provider_plan.get("provider_unavailable_reason")
             if isinstance(voiceover_provider_plan, Mapping)
@@ -245,7 +304,7 @@ def accept_subtitle_voiceover_handoff(
         _write_json(out_root / "voiceover_provider_plan.json", voiceover_provider_plan)
     if isinstance(voxcpm_runtime_check, Mapping):
         _write_json(out_root / "voxcpm_runtime_check.json", voxcpm_runtime_check)
-    _update_artifact_manifest(out_root)
+    _update_artifact_manifest(out_root, accepted=ok)
     return {
         "subtitle_voiceover_handoff_acceptance": acceptance,
         "subtitle_voiceover_build_handoff": build_handoff,

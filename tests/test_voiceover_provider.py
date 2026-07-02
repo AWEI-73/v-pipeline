@@ -35,11 +35,20 @@ class VoiceoverProviderTests(unittest.TestCase):
                 voxcpm_repo=root / "missing-voxcpm-repo",
             )
             self.assertEqual(payload["plan"]["selected_provider"], "legacy_edge_tts")
+            self.assertTrue(payload["plan"]["fallback_used"])
+            self.assertIn("voxcpm executable", payload["plan"]["fallback_reason"])
             self.assertFalse(payload["handoff"]["voiceover_ready"])
             self.assertEqual(payload["handoff"]["fallback"]["status"], "planned")
             written = write_voiceover_provider_artifacts(payload, root / "voice")
             self.assertTrue(Path(written["plan"]).exists())
             self.assertTrue(Path(written["handoff"]).exists())
+            manifest = json.loads((root / "voice" / "artifact_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["voiceover_provider_plan"], written["plan"])
+            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], written["handoff"])
+            self.assertEqual(
+                manifest["artifacts"]["subtitle_voiceover_build_handoff"]["status"],
+                "planned_or_blocked",
+            )
 
     def test_no_fallback_fails_closed_when_voxcpm_missing(self):
         with tempfile.TemporaryDirectory() as td:

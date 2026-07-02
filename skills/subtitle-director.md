@@ -20,9 +20,9 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
     {
       "tool": "tools/subtitle_voiceover_handoff_accept.py",
       "when": "accept subtitle/voiceover evidence into subtitle_voiceover_handoff_acceptance.json and subtitle_voiceover_build_handoff.json without rendering video",
-      "inputs": ["subtitle_voiceover_contract", "subtitles.srt", "caption_audit.json", "narration_manifest.json"],
+      "inputs": ["subtitle_voiceover_contract", "subtitles.srt", "caption_audit.json", "narration_manifest.json", "voiceover_provider_plan.json", "voxcpm_runtime_check.json"],
       "outputs": ["subtitle_voiceover_handoff_acceptance.json", "subtitle_voiceover_build_handoff.json"],
-      "stop_if": ["required subtitles missing", "caption audit failed or missing", "required voiceover has no narration manifest", "voiceover audio refs are missing"]
+      "stop_if": ["required subtitles missing", "caption audit failed or missing", "required voiceover has no narration manifest", "voiceover audio refs are missing", "preferred voiceover provider unavailable and fallback is not allowed"]
     }
   ],
   "supporting_tools": [
@@ -64,11 +64,15 @@ Inputs:
 - `subtitles.srt` when subtitles are required
 - `caption_audit.json` with `pass=true` when subtitles are required
 - `narration_manifest.json` with existing voiceover audio refs when voiceover is required
+- `voiceover_provider_plan.json` and `voxcpm_runtime_check.json` when a
+  preferred provider such as VoxCPM is requested
 
 Outputs:
 
 - `subtitle_voiceover_handoff_acceptance.json`
 - `subtitle_voiceover_build_handoff.json`
+- `artifact_manifest.json` flat keys plus nested `artifacts.<key>.path`
+  metadata for accepted or blocked subtitle/voiceover evidence
 
 Stop if:
 
@@ -76,6 +80,12 @@ Stop if:
 - `caption_audit.json` is missing or failed
 - required voiceover has no narration manifest
 - narration manifest does not reference existing audio files
+- preferred voiceover provider is unavailable and fallback is not explicitly
+  allowed
+
+If fallback is explicitly allowed, the handoff must still record
+`provider_status.fallback_used=true`, `fallback_reason`, and the selected
+provider. Do not silently swap VoxCPM or another requested provider.
 
 Do not render `final.mp4`, burn subtitles, or synthesize TTS from this handoff
 step. TTS/audio execution belongs to `audio-director`; final subtitle burn-in

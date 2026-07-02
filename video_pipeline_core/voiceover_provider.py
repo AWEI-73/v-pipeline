@@ -208,6 +208,47 @@ def _run_command(command: Sequence[str], timeout_sec: int) -> subprocess.Complet
     )
 
 
+def _write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _update_artifact_manifest(output_root: Path, written: Mapping[str, str], *, voiceover_ready: bool) -> None:
+    manifest_path = output_root / "artifact_manifest.json"
+    manifest: dict[str, object] = {}
+    if manifest_path.is_file():
+        try:
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            if isinstance(loaded, dict):
+                manifest.update(loaded)
+        except json.JSONDecodeError:
+            manifest = {}
+    manifest.setdefault("artifact_role", "artifact_manifest")
+    manifest.setdefault("artifact_manifest_version", 1)
+    artifacts = manifest.setdefault("artifacts", {})
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+        manifest["artifacts"] = artifacts
+    key_map = {
+        "plan": "voiceover_provider_plan",
+        "handoff": "subtitle_voiceover_build_handoff",
+        "narration_manifest": "narration_manifest",
+    }
+    status = "accepted" if voiceover_ready else "planned_or_blocked"
+    for source_key, manifest_key in key_map.items():
+        path = written.get(source_key)
+        if not path:
+            continue
+        manifest[manifest_key] = path
+        artifacts[manifest_key] = {
+            "path": path,
+            "owner": "subtitle_voiceover",
+            "status": status if source_key == "handoff" else "evidence",
+            "updated_by": "video_pipeline_core.voiceover_provider.write_voiceover_provider_artifacts",
+        }
+    _write_json(manifest_path, manifest)
+
+
 def build_voiceover_provider_plan(
     *,
     script_path: str | Path,
@@ -354,6 +395,8 @@ def build_voiceover_provider_plan(
         }
 
     voiceover_ready = bool(rendered_files) and not errors
+    fallback_used = provider != selected_provider
+    fallback_reason = str(runtime.get("reason") or "") if fallback_used else None
     handoff = {
         "artifact_role": "subtitle_voiceover_build_handoff",
         "version": 1,
@@ -364,6 +407,8 @@ def build_voiceover_provider_plan(
         "narration_manifest": str(output_root / "narration_manifest.json"),
         "voice_files": rendered_files,
         "fallback": fallback_result,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
     }
     narration_manifest = {
         "artifact_role": "narration_manifest",
@@ -387,6 +432,8 @@ def build_voiceover_provider_plan(
         "provider_python": runtime.get("python") if provider == "voxcpm" else None,
         "provider_unavailable_reason": runtime.get("reason") if provider == "voxcpm" else None,
         "fallback_allowed": allow_fallback,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
         "voice_style": voice_style,
         "model_id": model if provider == "voxcpm" else None,
         "reference_audio": reference_audio,
@@ -412,6 +459,12 @@ def write_voiceover_provider_artifacts(payload: Mapping[str, object], out_dir: s
         ("narration_manifest", "narration_manifest.json"),
     ):
         path = output_root / filename
-        path.write_text(json.dumps(payload[key], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _write_json(path, payload[key])
         written[key] = str(path)
+    handoff = payload.get("handoff")
+    _update_artifact_manifest(
+        output_root,
+        written,
+        voiceover_ready=bool(isinstance(handoff, Mapping) and handoff.get("voiceover_ready") is True),
+    )
     return written

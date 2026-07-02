@@ -127,6 +127,49 @@ class SubtitleVoiceoverHandoffTest(unittest.TestCase):
             self.assertEqual(handoff["provider_status"]["selected_provider"], "voxcpm")
             self.assertFalse(handoff["provider_status"]["fallback_allowed"])
 
+    def test_allowed_voiceover_fallback_records_selected_provider_and_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            voice = root / "voiceover.wav"
+            voice.write_bytes(b"RIFF voice")
+            contract = {
+                "artifact_role": "stage0_subtitle_voiceover_intent",
+                "language": "zh-TW",
+                "voiceover_required": True,
+                "preferred_provider": "voxcpm",
+                "fallback_allowed": True,
+            }
+            provider_plan = {
+                "artifact_role": "voiceover_provider_plan",
+                "requested_provider": "voxcpm",
+                "selected_provider": "legacy_edge_tts",
+                "provider_available": False,
+                "provider_unavailable_reason": "local VoxCPM runtime missing torch",
+                "fallback_allowed": True,
+            }
+            narration_manifest = {
+                "artifact_role": "narration_manifest",
+                "segments": [{"id": "n1", "audio_file": str(voice), "text": "下一階段開始"}],
+            }
+
+            result = accept_subtitle_voiceover_handoff(
+                contract,
+                narration_manifest=narration_manifest,
+                voiceover_provider_plan=provider_plan,
+                out_dir=root,
+            )
+
+            acceptance = result["subtitle_voiceover_handoff_acceptance"]
+            self.assertTrue(acceptance["ok"], acceptance)
+            provider_status = acceptance["provider_status"]
+            self.assertEqual(provider_status["selected_provider"], "legacy_edge_tts")
+            self.assertTrue(provider_status["fallback_used"])
+            self.assertEqual(provider_status["fallback_reason"], "local VoxCPM runtime missing torch")
+            warning_rules = {item["rule"] for item in acceptance["warnings"]}
+            self.assertIn("voiceover_provider_fallback_selected", warning_rules)
+            handoff = result["subtitle_voiceover_build_handoff"]
+            self.assertTrue(handoff["voiceover_ready"])
+
     def test_cli_writes_acceptance_and_build_handoff(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

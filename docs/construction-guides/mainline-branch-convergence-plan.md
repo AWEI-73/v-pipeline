@@ -617,6 +617,9 @@ Add dedicated delivery gate tests if an existing delivery gate test module exist
 - If VoxCPM unavailable and `fallback_allowed=false`, route to `needs-context` or `repair_subtitle_voiceover_handoff`.
 - If fallback is allowed, record selected provider and fallback reason.
 - Caption/readability evidence is visible to Delivery Gate.
+- Provider tools and handoff acceptance should register flat and nested manifest
+  entries for `voiceover_provider_plan`, `narration_manifest`, and
+  `subtitle_voiceover_build_handoff`.
 
 **Acceptance:**
 
@@ -624,6 +627,8 @@ Add dedicated delivery gate tests if an existing delivery gate test module exist
 - Missing caption audit blocks required subtitle delivery.
 - Provider unavailable reason includes missing module/model/python/repo details where available.
 - Manifest records subtitle/voiceover handoff artifacts.
+- Allowed provider fallback records `fallback_used`, `fallback_reason`, and
+  `selected_provider`; silent fallback is not accepted.
 - If `preferred_provider=voxcpm` and runtime is unavailable:
   - `fallback_allowed=false` routes to repair/needs-context;
   - `fallback_allowed=true` records selected fallback provider and reason;
