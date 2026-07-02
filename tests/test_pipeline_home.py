@@ -1160,6 +1160,93 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "subtitle_voiceover_build_handoff")
             self.assertEqual(summary["next"], "continue_build_or_material_gate")
 
+    def test_build_eligibility_blocks_missing_required_branch_handoffs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "segment_contract.json", {
+                "artifact_role": "segment_contract",
+                "segments": [],
+                "stage0_child_contracts": {
+                    "soundtrack": {"contract_status": "required", "music_role": "bgm"},
+                    "subtitle_voiceover": {
+                        "contract_status": "required",
+                        "subtitle_required": True,
+                        "voiceover_required": True,
+                    },
+                    "effect": {"contract_status": "required", "required_now": True},
+                },
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "build_eligibility")
+            self.assertEqual(summary["next"], "repair_required_branch_handoff")
+            self.assertFalse(summary["build_eligibility"]["ready"])
+            self.assertEqual(
+                set(summary["build_eligibility"]["blocking"]),
+                {
+                    "missing_audio_build_handoff",
+                    "missing_subtitle_voiceover_build_handoff",
+                    "missing_effect_handoff",
+                },
+            )
+
+    def test_build_eligibility_consumes_manifest_backed_branch_handoffs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            branch = root / "branch"
+            branch.mkdir()
+            _write(root, "segment_contract.json", {
+                "artifact_role": "segment_contract",
+                "segments": [],
+                "stage0_child_contracts": {
+                    "soundtrack": {"contract_status": "required", "music_role": "bgm"},
+                    "subtitle_voiceover": {
+                        "contract_status": "required",
+                        "subtitle_required": True,
+                        "voiceover_required": False,
+                    },
+                    "effect": {"contract_status": "required", "required_now": True},
+                },
+            })
+            audio = _write(branch, "audio_build_handoff.json", {
+                "artifact_role": "audio_build_handoff",
+                "audio_ready": True,
+                "selected_audio": str(branch / "final_audio.wav"),
+            })
+            subtitle = _write(branch, "subtitle_voiceover_build_handoff.json", {
+                "artifact_role": "subtitle_voiceover_build_handoff",
+                "subtitle_ready": True,
+                "voiceover_ready": False,
+                "subtitles": str(branch / "subtitles.srt"),
+            })
+            effect = _write(branch, "effect_handoff.json", {
+                "artifact_role": "effect_handoff",
+                "status": "accepted",
+                "accepted_assets": [{"job_id": "fx1"}],
+            })
+            _write(root, "artifact_manifest.json", {
+                "artifact_role": "artifact_manifest",
+                "artifacts": {
+                    "audio_build_handoff": {"path": str(audio)},
+                    "subtitle_voiceover_build_handoff": {"path": str(subtitle)},
+                    "effect_handoff": {"path": str(effect)},
+                },
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "build_eligibility")
+            self.assertEqual(summary["next"], "continue_build_or_material_gate")
+            eligibility = summary["build_eligibility"]
+            self.assertTrue(eligibility["ready"])
+            self.assertEqual(eligibility["blocking"], [])
+            self.assertIn("audio_build_handoff.json", eligibility["consumed_handoffs"]["audio"])
+            self.assertIn("subtitle_voiceover_build_handoff.json", eligibility["consumed_handoffs"]["subtitle_voiceover"])
+            self.assertIn("effect_handoff.json", eligibility["consumed_handoffs"]["effect"])
+
     def test_remotion_material_first_memory_acceptance_ready_routes_to_effect_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "remotion_material_first_memory_acceptance_report.json", {

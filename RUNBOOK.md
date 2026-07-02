@@ -776,6 +776,14 @@ truth by filename scanning. At minimum this includes
 `rough_cut_plan.json` is not re-authored by BUILD; it is listed so the final
 timeline can be traced back to the material-first clip/window decision.
 
+BUILD eligibility rule: when `segment_contract.json` carries
+`stage0_child_contracts`, run `python tools\pipeline_home.py --run RUN_DIR
+--json` before BUILD. The `build_eligibility` cursor is an AND gate across
+material, audio, subtitle/voiceover, and effect child contracts. Missing
+required handoffs route to `repair_required_branch_handoff`; accepted or
+explicitly build-deferable handoffs appear in
+`build_eligibility.consumed_handoffs`.
+
 Subtitle/voiceover handoff rule: `subtitle_voiceover_build_handoff.json` is the
 BUILD-facing evidence that required subtitles and/or voiceover have passed their
 no-render checks. It can point to `subtitles.srt`, `caption_audit.json`, and

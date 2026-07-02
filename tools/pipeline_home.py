@@ -237,7 +237,7 @@ def _owner_for_cursor(cursor: Any) -> str:
 
 
 def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=None,
-              run_dir=None, source=None):
+              run_dir=None, source=None, extra=None):
     status = {
         "run": "RUN",
         "repair": "REPAIR",
@@ -249,7 +249,7 @@ def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=
     owner = _owner_for_cursor(cursor)
     safe_command = next_action if action_class == "executable" else None
     stop_reason = reason if action_class in {"review_stop", "repair_stop"} else None
-    return {
+    payload = {
         "mode": mode,
         "cursor": cursor,
         "next": next_action,
@@ -265,6 +265,9 @@ def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=
         "command": next_action,
         "source": source,
     }
+    if isinstance(extra, dict):
+        payload.update(extra)
+    return payload
 
 
 def _boundary_summary(root: Path, boundary: dict[str, Any]):
@@ -1075,6 +1078,187 @@ def _stage0_subtitle_voiceover_gap_summary(root: Path):
     )
 
 
+def _stage0_child_contracts_for_build(root: Path) -> tuple[list[str], dict[str, Any]]:
+    read: list[str] = []
+    for name in ("segment_contract.json", "generated_mv_script.json", "video_intent.json"):
+        path, payload = _find_json(root, name)
+        if not isinstance(payload, dict):
+            continue
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+        contracts = payload.get("stage0_child_contracts")
+        if isinstance(contracts, dict):
+            return read, contracts
+        legacy = {
+            "material": payload.get("material_contract"),
+            "soundtrack": payload.get("soundtrack_contract"),
+            "subtitle_voiceover": payload.get("subtitle_voiceover_contract"),
+            "effect": payload.get("effect_policy"),
+        }
+        if any(isinstance(value, dict) for value in legacy.values()):
+            return read, {key: value for key, value in legacy.items() if isinstance(value, dict)}
+    return read, {}
+
+
+def _contract_is_required(contract: Any, *legacy_flags: str) -> bool:
+    if not isinstance(contract, dict):
+        return False
+    if contract.get("contract_status") == "required":
+        return True
+    return any(contract.get(flag) is True for flag in legacy_flags)
+
+
+def _deferred_build_allowed(contract: Any) -> bool:
+    if not isinstance(contract, dict) or contract.get("contract_status") != "deferred":
+        return False
+    if not (contract.get("build_allowed_without_branch") is True or contract.get("build_deferable") is True):
+        return False
+    required = ("owner", "reason", "return_point", "gate")
+    return all(str(contract.get(key) or "").strip() for key in required)
+
+
+def _build_eligibility_summary(root: Path):
+    contract_path, segment_contract = _find_json(root, "segment_contract.json")
+    if not isinstance(segment_contract, dict):
+        return None
+    read, contracts = _stage0_child_contracts_for_build(root)
+    if not contracts:
+        return None
+    rel_contract = _rel(root, contract_path)
+    if rel_contract and rel_contract not in read:
+        read.insert(0, rel_contract)
+
+    blocking: list[str] = []
+    deferred: list[dict[str, Any]] = []
+    consumed: dict[str, str | None] = {
+        "material": None,
+        "audio": None,
+        "subtitle_voiceover": None,
+        "effect": None,
+    }
+
+    material_contract = contracts.get("material") if isinstance(contracts.get("material"), dict) else {}
+    if _contract_is_required(material_contract):
+        map_path, material_map = _find_json(root, "project_material_map.json")
+        delta_path, material_delta = _find_json(root, "material_delta.json")
+        lifecycle_path, lifecycle = _find_json(root, "material_map_lifecycle.json")
+        material_ready = bool(
+            isinstance(material_map, dict)
+            or (isinstance(material_delta, dict) and material_delta.get("ready_for_build") is True)
+            or (isinstance(lifecycle, dict) and lifecycle.get("can_build") is True)
+        )
+        for path in (map_path, delta_path, lifecycle_path):
+            rel = _rel(root, path)
+            if rel and rel not in read:
+                read.append(rel)
+        if material_ready:
+            consumed["material"] = _rel(root, map_path) or _rel(root, delta_path) or _rel(root, lifecycle_path)
+        elif _deferred_build_allowed(material_contract):
+            deferred.append({
+                "contract": "material_contract",
+                "owner": material_contract.get("owner"),
+                "return_point": material_contract.get("return_point"),
+            })
+        else:
+            blocking.append("missing_material_handoff")
+
+    soundtrack = contracts.get("soundtrack") if isinstance(contracts.get("soundtrack"), dict) else {}
+    music_role = str(soundtrack.get("music_role") or "").lower()
+    soundtrack_required = _contract_is_required(soundtrack) or music_role not in {"", "none", "unsure"}
+    if soundtrack_required:
+        audio_path, audio_handoff = _find_json(root, "audio_build_handoff.json")
+        rel = _rel(root, audio_path)
+        if rel and rel not in read:
+            read.append(rel)
+        if isinstance(audio_handoff, dict) and audio_handoff.get("audio_ready") is True and audio_handoff.get("selected_audio"):
+            consumed["audio"] = rel
+        elif _deferred_build_allowed(soundtrack):
+            deferred.append({
+                "contract": "soundtrack_contract",
+                "owner": soundtrack.get("owner"),
+                "return_point": soundtrack.get("return_point"),
+            })
+        else:
+            blocking.append("missing_audio_build_handoff")
+
+    subtitle_voiceover = contracts.get("subtitle_voiceover") if isinstance(contracts.get("subtitle_voiceover"), dict) else {}
+    if _contract_is_required(subtitle_voiceover, "subtitle_required", "voiceover_required"):
+        handoff_path, handoff = _find_json(root, "subtitle_voiceover_build_handoff.json")
+        rel = _rel(root, handoff_path)
+        if rel and rel not in read:
+            read.append(rel)
+        subtitle_ok = not subtitle_voiceover.get("subtitle_required") or (
+            isinstance(handoff, dict) and handoff.get("subtitle_ready") is True
+        )
+        voiceover_ok = not subtitle_voiceover.get("voiceover_required") or (
+            isinstance(handoff, dict) and handoff.get("voiceover_ready") is True
+        )
+        if subtitle_ok and voiceover_ok and isinstance(handoff, dict):
+            consumed["subtitle_voiceover"] = rel
+        elif _deferred_build_allowed(subtitle_voiceover):
+            deferred.append({
+                "contract": "subtitle_voiceover_contract",
+                "owner": subtitle_voiceover.get("owner"),
+                "return_point": subtitle_voiceover.get("return_point"),
+            })
+        else:
+            blocking.append("missing_subtitle_voiceover_build_handoff")
+
+    effect = contracts.get("effect") if isinstance(contracts.get("effect"), dict) else {}
+    if _contract_is_required(effect) or effect.get("required_now") is True:
+        handoff_path, handoff = _find_json(root, "effect_handoff.json")
+        if not isinstance(handoff, dict):
+            handoff_path, handoff = _find_json(root, "remotion_effect_handoff.json")
+        rel = _rel(root, handoff_path)
+        if rel and rel not in read:
+            read.append(rel)
+        status = str((handoff or {}).get("status") or "").lower() if isinstance(handoff, dict) else ""
+        accepted = status in {"accepted", "ready_for_build", "passed"} or (
+            isinstance(handoff, dict) and handoff.get("build_allowed") is True
+        )
+        if accepted:
+            consumed["effect"] = rel
+        elif _deferred_build_allowed(effect):
+            deferred.append({
+                "contract": "effect_policy",
+                "owner": effect.get("owner"),
+                "return_point": effect.get("return_point"),
+            })
+        else:
+            blocking.append("missing_effect_handoff")
+
+    eligibility = {
+        "artifact_role": "build_eligibility",
+        "version": 1,
+        "ready": not blocking,
+        "blocking": blocking,
+        "deferred": deferred,
+        "consumed_handoffs": consumed,
+    }
+    if blocking:
+        return _contract(
+            "repair",
+            "build_eligibility",
+            next_action="repair_required_branch_handoff",
+            reason="BUILD prerequisites blocked: " + ", ".join(blocking),
+            read=read,
+            run_dir=root,
+            source="segment_contract.json",
+            extra={"build_eligibility": eligibility},
+        )
+    return _contract(
+        "run",
+        "build_eligibility",
+        next_action="continue_build_or_material_gate",
+        reason="BUILD prerequisites satisfied by accepted/deferred branch handoffs",
+        read=read,
+        run_dir=root,
+        source="segment_contract.json",
+        extra={"build_eligibility": eligibility},
+    )
+
+
 def _lifecycle_summary(root: Path, lifecycle: dict[str, Any]):
     stage = lifecycle.get("stage")
     refs = _read_refs(root, lifecycle.get("refs") or {})
@@ -1737,6 +1921,15 @@ def summarize_run(run_dir):
     acceptance_summary = _acceptance_summary(root)
     if acceptance_summary and acceptance_summary.get("mode") == "repair":
         return acceptance_summary
+    if acceptance_summary and acceptance_summary.get("cursor") in {
+        "soundtrack_arranger",
+        "subtitle_voiceover_handoff",
+    }:
+        return acceptance_summary
+
+    summary = _build_eligibility_summary(root)
+    if summary:
+        return summary
 
     if not acceptance_summary:
         summary = _subtitle_voiceover_handoff_summary(root)
