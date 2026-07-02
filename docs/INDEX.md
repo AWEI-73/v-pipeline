@@ -1,4 +1,4 @@
-﻿# Docs Index ??canonical map (2026-06-25)
+# Docs Index ??canonical map (2026-06-25)
 
 One page that says what is current and what is historical, so old/new no longer mix.
 
@@ -28,6 +28,8 @@ Current document layers:
 | Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-to-skill/tool/artifact map. |
 | Canonical route | `docs/canonical-video-pipeline-route.md` | Official stage names, route semantics, and delivery requirements. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |
+| API contract | `docs/api-surface-map.md` | API Surface Manifest contract, allowed/forbidden writes, and endpoint audit rules. |
+| Interface contracts | `docs/interface-contracts/README.md` | Pipeline branch interface API dictionary, audit, and soft discovery instructions. |
 | Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
 | Generated maps | `docs/generated/` | Machine-generated route maps and audits. |

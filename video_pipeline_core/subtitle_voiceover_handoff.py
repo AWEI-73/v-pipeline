@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .artifact_manifest import register_handoff
+
 
 def _clean(value: Any) -> str:
     if value is None:
@@ -37,6 +39,7 @@ def _update_artifact_manifest(out_root: Path, *, accepted: bool | None = None) -
         "narration_manifest": "narration_manifest.json",
         "voiceover_provider_plan": "voiceover_provider_plan.json",
         "voxcpm_runtime_check": "voxcpm_runtime_check.json",
+        "subtitle_voiceover_revision_packet": "subtitle_voiceover_revision_packet.json",
     }
     artifacts = manifest.setdefault("artifacts", {})
     if not isinstance(artifacts, dict):
@@ -50,10 +53,21 @@ def _update_artifact_manifest(out_root: Path, *, accepted: bool | None = None) -
             artifacts[key] = {
                 "path": str(path),
                 "owner": "subtitle_voiceover",
-                "status": status if key.startswith("subtitle_voiceover_") else "evidence",
+                "status": status if (key.startswith("subtitle_voiceover_") or key == "subtitle_voiceover_revision_packet") else "evidence",
                 "updated_by": "tools/subtitle_voiceover_handoff_accept.py",
             }
     _write_json(manifest_path, manifest)
+    handoff_path = out_root / "subtitle_voiceover_build_handoff.json"
+    if handoff_path.is_file():
+        register_handoff(
+            out_root,
+            artifact_path=handoff_path,
+            owner_branch="subtitle-voiceover",
+            status=status,
+            updated_by="tools/subtitle_voiceover_handoff_accept.py",
+            interface_id="subtitle_voiceover.to.main.build_handoff",
+            next_action="return_to_build" if accepted is True else "repair_caption_or_voiceover",
+        )
 
 
 def _load_json(path: str | Path | None) -> dict[str, Any] | None:
@@ -304,6 +318,36 @@ def accept_subtitle_voiceover_handoff(
         _write_json(out_root / "voiceover_provider_plan.json", voiceover_provider_plan)
     if isinstance(voxcpm_runtime_check, Mapping):
         _write_json(out_root / "voxcpm_runtime_check.json", voxcpm_runtime_check)
+    if not ok:
+        from .revision_packet_schema import RevisionPacket
+        revision_targets = []
+        for item in blocking:
+            rule = item.get("rule", "")
+            field = "subtitles" if "subtitle" in rule or "caption" in rule else "voiceover"
+            artifact = "subtitles.srt" if field == "subtitles" else "narration_manifest.json"
+            revision_targets.append({
+                "artifact": artifact,
+                "field": field,
+                "issue": item["message"],
+                "suggested_change": "check_subtitles" if field == "subtitles" else "verify_narration_manifest"
+            })
+
+        packet = RevisionPacket(
+            source_review="subtitle_voiceover_handoff_acceptance.json",
+            target_branch="subtitle-voiceover",
+            problem_type="subtitle" if any("subtitle" in item.get("rule", "") or "caption" in item.get("rule", "") for item in blocking) else "audio",
+            severity="blocking",
+            revision_targets=revision_targets,
+            allowed_actions=["patch_contract", "rerun_branch", "ask_user", "route_back", "stop"],
+            forbidden_actions=["overwrite_final_mp4", "mutate_material_truth", "silently_downgrade_required_feature"],
+            rerun_policy={
+                "allowed": True,
+                "max_attempts": 1,
+                "requires_agent_decision": True
+            }
+        )
+        packet.save(out_root / "subtitle_voiceover_revision_packet.json")
+
     _update_artifact_manifest(out_root, accepted=ok)
     return {
         "subtitle_voiceover_handoff_acceptance": acceptance,

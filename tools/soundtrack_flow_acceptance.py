@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.pipeline_home import summarize_run
+from video_pipeline_core.artifact_manifest import register_handoff
 from video_pipeline_core.audio_handoff_acceptance import accept_audio_handoff
 from video_pipeline_core.soundtrack_arranger import write_soundtrack_artifacts
 
@@ -56,6 +57,17 @@ def _update_artifact_manifest(out_dir: Path) -> None:
         if path.is_file():
             manifest[key] = str(path)
     _write_json(manifest_path, manifest)
+    handoff_path = out_dir / "audio_director_handoff.json"
+    if handoff_path.is_file():
+        register_handoff(
+            out_dir,
+            artifact_path=handoff_path,
+            owner_branch="soundtrack-arranger",
+            status="accepted",
+            updated_by="tools/soundtrack_flow_acceptance.py",
+            interface_id="soundtrack_arranger.to.audio_director.handoff",
+            next_action="audio_director_mix_or_build",
+        )
 
 
 def _clean(value: Any) -> str:

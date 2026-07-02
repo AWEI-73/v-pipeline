@@ -1,0 +1,515 @@
+{
+  "artifact_role": "pipeline_api_dictionary",
+  "schema_version": 1,
+  "version": 1,
+  "description": "Machine-readable route interface contracts between Hermes main route and side branches.",
+  "interfaces": [
+    {
+      "api_id": "main.to.material_map.quick_inventory",
+      "from_branch": "main-pipeline",
+      "to_branch": "material-map",
+      "interface_type": "branch_request",
+      "purpose": "Run material quick inventory when Stage 0 material scan is needed.",
+      "trigger": {
+        "artifact": "video_intent.json",
+        "condition": "entry_path=material-first and material_scan_decision.needed=true"
+      },
+      "request": {
+        "tool": "tools/material_quick_inventory.py",
+        "inputs": ["source_dir", "video_intent.json"],
+        "required_fields": [
+          "material_scan_decision.needed",
+          "material_scan_decision.scope"
+        ]
+      },
+      "response": {
+        "outputs": ["material_inventory_summary.json"],
+        "success_next_action": "material_understanding_or_scope_review",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json"
+      ]
+    },
+    {
+      "api_id": "main.to.material_map.understanding_matrix",
+      "from_branch": "main-pipeline",
+      "to_branch": "material-map",
+      "interface_type": "branch_request",
+      "purpose": "Analyze footage features, scene boundaries, and visual family metrics.",
+      "trigger": {
+        "artifact": "material_inventory_summary.json",
+        "condition": "inventory_status=scanned"
+      },
+      "request": {
+        "tool": "tools/material_understanding_matrix.py",
+        "inputs": ["material_inventory_summary.json", "materials_db.json"],
+        "required_fields": [
+          "assets"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "material_understanding_matrix.json",
+          "material_understanding_contact_sheet.jpg"
+        ],
+        "success_next_action": "material_wall_verdict_draft",
+        "failure_next_action": "material_review_required_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json"
+      ]
+    },
+    {
+      "api_id": "material_map.to.main.build_handoff",
+      "from_branch": "material-map",
+      "to_branch": "main-pipeline",
+      "interface_type": "branch_handoff",
+      "purpose": "Deliver verified material mapping and coverage details back to the main route.",
+      "trigger": {
+        "artifact": "material_delta.json",
+        "condition": "ready_for_build=true"
+      },
+      "request": {
+        "tool": "tools/material_first_boundary_acceptance.py",
+        "inputs": ["project_material_map.json", "material_delta.json"],
+        "required_fields": [
+          "ready_for_build",
+          "can_build"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "material_map_lifecycle.json",
+          "material_delta.json"
+        ],
+        "success_next_action": "return_to_build",
+        "failure_next_action": "material_review_required_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "main.to.soundtrack_arranger.plan",
+      "from_branch": "main-pipeline",
+      "to_branch": "soundtrack-arranger",
+      "interface_type": "branch_request",
+      "purpose": "Generate ducking plan, music sourcing intent, and license validation requirements.",
+      "trigger": {
+        "artifact": "video_intent.json",
+        "condition": "soundtrack_contract.contract_status=required"
+      },
+      "request": {
+        "tool": "tools/soundtrack_arranger.py",
+        "inputs": ["video_intent.json"],
+        "required_fields": [
+          "soundtrack_contract.contract_status"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "soundtrack_plan.json",
+          "music_source_candidates.json",
+          "sound_license_manifest.json",
+          "audio_director_handoff.json"
+        ],
+        "success_next_action": "audio_director_handoff",
+        "failure_next_action": "repair_audio_handoff"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json"
+      ]
+    },
+    {
+      "api_id": "soundtrack_arranger.to.audio_director.handoff",
+      "from_branch": "soundtrack-arranger",
+      "to_branch": "main-pipeline",
+      "interface_type": "branch_handoff",
+      "purpose": "Handoff soundtrack arrangements to build audio director.",
+      "trigger": {
+        "artifact": "audio_director_handoff.json",
+        "condition": "ready_for_audio_director=true"
+      },
+      "request": {
+        "tool": "tools/soundtrack_flow_acceptance.py",
+        "inputs": ["audio_director_handoff.json", "soundtrack_plan.json"],
+        "required_fields": [
+          "ready_for_audio_director"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "audio_director_handoff.json"
+        ],
+        "success_next_action": "audio_director_mix_or_build",
+        "failure_next_action": "repair_audio_handoff"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "main.to.effect_factory.plan",
+      "from_branch": "main-pipeline",
+      "to_branch": "effect-factory",
+      "interface_type": "branch_request",
+      "purpose": "Initiate visual technique mapping, design concept, and capabilities review.",
+      "trigger": {
+        "artifact": "video_intent.json",
+        "condition": "effect_policy.contract_status=required"
+      },
+      "request": {
+        "tool": "tools/effect_factory_route_acceptance.py",
+        "inputs": ["video_intent.json"],
+        "required_fields": [
+          "effect_policy.contract_status"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "effect_design_brief.json",
+          "effect_concept_selection.json",
+          "effect_contract.json"
+        ],
+        "success_next_action": "visual_technique_plan",
+        "failure_next_action": "repair_effect_contract_or_worker_output"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json"
+      ]
+    },
+    {
+      "api_id": "effect_factory.to.main.effect_handoff",
+      "from_branch": "effect-factory",
+      "to_branch": "main-pipeline",
+      "interface_type": "branch_handoff",
+      "purpose": "Deliver accepted visual effects handoff metadata back to mainline build.",
+      "trigger": {
+        "artifact": "effect_handoff.json",
+        "condition": "status=accepted"
+      },
+      "request": {
+        "tool": "tools/effect_factory_boundary_acceptance.py",
+        "inputs": ["effect_handoff.json", "effect_contract.json"],
+        "required_fields": [
+          "status"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "effect_handoff.json",
+          "remotion_effect_handoff.json"
+        ],
+        "success_next_action": "return_to_build_or_verify",
+        "failure_next_action": "repair_effect_contract_or_worker_output"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "verify.to.material_map.repair",
+      "from_branch": "verify-delivery",
+      "to_branch": "material-map",
+      "interface_type": "repair_route",
+      "purpose": "Route failed visual/material delivery verification back to material-map for repair.",
+      "trigger": {
+        "artifact": "verify_revision_packet.json",
+        "condition": "problem_type=material"
+      },
+      "request": {
+        "tool": "tools/final_product_verify.py",
+        "inputs": ["verify_revision_packet.json"],
+        "required_fields": [
+          "problem_type",
+          "target_branch"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "reviewed_project_material_map.json"
+        ],
+        "success_next_action": "material_wall_verdict_draft",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "verify.to.soundtrack_arranger.repair",
+      "from_branch": "verify-delivery",
+      "to_branch": "soundtrack-arranger",
+      "interface_type": "repair_route",
+      "purpose": "Route failed BGM/audio verification back to soundtrack arranger for repair.",
+      "trigger": {
+        "artifact": "verify_revision_packet.json",
+        "condition": "problem_type=audio"
+      },
+      "request": {
+        "tool": "tools/final_product_verify.py",
+        "inputs": ["verify_revision_packet.json"],
+        "required_fields": [
+          "problem_type",
+          "target_branch"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "soundtrack_revision_packet.json"
+        ],
+        "success_next_action": "search_or_import_soundtrack",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "verify.to.effect_factory.repair",
+      "from_branch": "verify-delivery",
+      "to_branch": "effect-factory",
+      "interface_type": "repair_route",
+      "purpose": "Route failed visual effects verification back to effect factory for repair.",
+      "trigger": {
+        "artifact": "verify_revision_packet.json",
+        "condition": "problem_type=effect"
+      },
+      "request": {
+        "tool": "tools/final_product_verify.py",
+        "inputs": ["verify_revision_packet.json"],
+        "required_fields": [
+          "problem_type",
+          "target_branch"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "effect_revision_packet.json"
+        ],
+        "success_next_action": "visual_technique_plan",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "main.to.subtitle_voiceover.acceptance",
+      "from_branch": "main-pipeline",
+      "to_branch": "subtitle-voiceover",
+      "interface_type": "branch_request",
+      "purpose": "Accept subtitle, caption, narration, and voiceover evidence before BUILD.",
+      "trigger": {
+        "artifact": "video_intent.json",
+        "condition": "subtitle_voiceover_contract.contract_status=required"
+      },
+      "request": {
+        "tool": "tools/subtitle_voiceover_handoff_accept.py",
+        "inputs": [
+          "subtitle_voiceover_contract.json",
+          "caption_audit.json",
+          "narration_manifest.json",
+          "voiceover_provider_plan.json",
+          "subtitles.srt"
+        ],
+        "required_fields": [
+          "subtitle_voiceover_contract.contract_status"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "subtitle_voiceover_handoff_acceptance.json",
+          "subtitle_voiceover_build_handoff.json"
+        ],
+        "success_next_action": "return_to_build",
+        "failure_next_action": "repair_caption_or_voiceover"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json"
+      ]
+    },
+    {
+      "api_id": "subtitle_voiceover.to.main.build_handoff",
+      "from_branch": "subtitle-voiceover",
+      "to_branch": "main-pipeline",
+      "interface_type": "branch_handoff",
+      "purpose": "Return accepted subtitle/voiceover readiness to the main BUILD route.",
+      "trigger": {
+        "artifact": "subtitle_voiceover_build_handoff.json",
+        "condition": "voiceover_ready=true or subtitles_ready=true or no_voiceover_required=true"
+      },
+      "request": {
+        "tool": "tools/subtitle_voiceover_handoff_accept.py",
+        "inputs": [
+          "subtitle_voiceover_build_handoff.json",
+          "subtitle_voiceover_handoff_acceptance.json"
+        ],
+        "required_fields": [
+          "subtitle_voiceover_handoff_acceptance.ok"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "subtitle_voiceover_build_handoff.json"
+        ],
+        "success_next_action": "return_to_build",
+        "failure_next_action": "repair_caption_or_voiceover"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "verify.to.subtitle_voiceover.repair",
+      "from_branch": "verify-delivery",
+      "to_branch": "subtitle-voiceover",
+      "interface_type": "repair_route",
+      "purpose": "Route failed subtitle, caption readability, narration, or voiceover verification back to the subtitle/voiceover branch.",
+      "trigger": {
+        "artifact": "verify_revision_packet.json",
+        "condition": "problem_type=subtitle or problem_type=voiceover"
+      },
+      "request": {
+        "tool": "tools/final_product_verify.py",
+        "inputs": ["verify_revision_packet.json"],
+        "required_fields": [
+          "problem_type",
+          "target_branch"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "verify_revision_packet.json",
+          "caption_audit.json"
+        ],
+        "success_next_action": "repair_caption_or_voiceover",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4"
+      ]
+    },
+    {
+      "api_id": "main.to.workbench_brownfield.review",
+      "from_branch": "main-pipeline",
+      "to_branch": "workbench-brownfield",
+      "interface_type": "branch_request",
+      "purpose": "Send a draft, rough cut, or verified preview candidate into Workbench for bounded review/patching.",
+      "trigger": {
+        "artifact": "preview_timeline.json",
+        "condition": "user requests local draft edit or verify requests revise_workbench"
+      },
+      "request": {
+        "tool": "tools/workbench_review_report.py",
+        "inputs": [
+          "preview_timeline.json",
+          "workbench_revision_request.json",
+          "timeline_patch.json",
+          "subtitle_patch.json",
+          "audio_cue_patch.json",
+          "effect_patch.json"
+        ],
+        "required_fields": [
+          "preview_timeline.json or workbench_revision_request.json"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "workbench_review_report.json",
+          "workbench_review_report.md"
+        ],
+        "success_next_action": "workbench_draft_review",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json",
+        "timeline_build.json"
+      ]
+    },
+    {
+      "api_id": "workbench_brownfield.to.main.route_back_handoff",
+      "from_branch": "workbench-brownfield",
+      "to_branch": "main-pipeline",
+      "interface_type": "branch_handoff",
+      "purpose": "Return draft-only Workbench patch metadata so the owning branch or BUILD can review it.",
+      "trigger": {
+        "artifact": "workbench_handoff.json",
+        "condition": "next_action=review_workbench_route_back or agent_review_and_render_preview"
+      },
+      "request": {
+        "tool": "tools/workbench_handoff.py",
+        "inputs": [
+          "timeline_patch.json",
+          "subtitle_patch.json",
+          "audio_cue_patch.json",
+          "effect_patch.json",
+          "workbench_review_report.json"
+        ],
+        "required_fields": [
+          "workbench_handoff.next_action"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "workbench_handoff.json"
+        ],
+        "success_next_action": "review_workbench_route_back",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json",
+        "timeline_build.json"
+      ]
+    },
+    {
+      "api_id": "verify.to.workbench_brownfield.repair",
+      "from_branch": "verify-delivery",
+      "to_branch": "workbench-brownfield",
+      "interface_type": "repair_route",
+      "purpose": "Route final or preview review findings into Workbench as a draft-only revision request.",
+      "trigger": {
+        "artifact": "workbench_revision_request.json",
+        "condition": "verified_preview_review_decision=revise_workbench or target_branch=workbench-brownfield"
+      },
+      "request": {
+        "tool": "tools/final_product_verify.py",
+        "inputs": [
+          "verify_revision_packet.json",
+          "workbench_revision_request.json"
+        ],
+        "required_fields": [
+          "target_branch"
+        ]
+      },
+      "response": {
+        "outputs": [
+          "workbench_revision_request.json"
+        ],
+        "success_next_action": "review_workbench_route_back",
+        "failure_next_action": "ask_user_or_blocked"
+      },
+      "forbidden_writes": [
+        "final.mp4",
+        "segment_contract.json",
+        "project_material_map.json",
+        "timeline_build.json"
+      ]
+    }
+  ]
+}

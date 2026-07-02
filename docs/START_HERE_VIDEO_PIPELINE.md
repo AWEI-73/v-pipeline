@@ -116,7 +116,9 @@ official pipeline changes.
 15. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
    human worker should consume `route_subagent_task.json`.
 16. `RUNBOOK.md` -- current local command examples and Windows execution notes.
-17. `docs/INDEX.md` -- broader documentation index and historical links.
+17. `docs/api-surface-map.md` -- API Surface Manifest contract and endpoint audit rulebook.
+18. `docs/interface-contracts/README.md` -- Pipeline branch interface API dictionary, audit, and soft discovery instructions.
+19. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 

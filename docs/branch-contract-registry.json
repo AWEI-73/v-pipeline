@@ -206,7 +206,8 @@
         "audio_director_handoff",
         "execute_audio_mix_plan",
         "return_to_build_with_final_audio",
-        "repair_license_or_ducking"
+        "repair_license_or_ducking",
+        "repair_audio_handoff"
       ],
       "stop_gates": [
         "license/source note missing",

@@ -15,13 +15,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
   "skill": "video-pipeline-route",
   "stage_owner": "route_stage0_orchestrator",
   "triggers": [
-    "使用者要求剪片、製作影片、重跑 pipeline、判斷下一步",
-    "需要讀取 run folder 狀態、建立入口 brief、或分派支線"
+    "User requests video editing, creation, pipeline reruns, or next action determination",
+    "Needs to read run folder state, create entry brief, or dispatch side branches"
   ],
   "canonical_tools": [
     {
       "tool": "tools/pipeline_home.py",
-      "when": "讀取 run folder 的目前 cursor、mode、next action，避免 agent 自己猜路線",
+      "when": "Read the current cursor, mode, and next action of the run folder to prevent agents from guessing the route",
       "inputs": ["run folder"],
       "outputs": ["pipeline_home state JSON"],
       "stop_if": ["mode=waiting", "next action asks for repair or review"]
@@ -69,6 +69,20 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "inputs": ["skills directory", "tools directory"],
       "outputs": ["skill_tool_contract_audit_report"],
       "stop_if": ["unowned tool exists", "contract block is malformed"]
+    },
+    {
+      "tool": "tools/pipeline_interface_audit.py",
+      "when": "審計主線與支線的 pipeline API/interface 字典，確認各支線 request、handoff、repair 接口都有對齊",
+      "inputs": ["optional dictionary path", "optional branch registry path"],
+      "outputs": ["pipeline_interface_audit_report"],
+      "stop_if": ["major side branch lacks request/handoff/repair coverage", "referenced tool is missing", "protected canonical output can be written by a side branch interface"]
+    },
+    {
+      "tool": "tools/pipeline_interface_discovery.py",
+      "when": "自動探查主線與支線可能漏登的 pipeline API/interface 候選者並與字典對照",
+      "inputs": ["optional dictionary path", "optional branch registry path", "optional skills-dir", "optional tools-dir"],
+      "outputs": ["pipeline_interface_discovery_report"],
+      "stop_if": ["missing candidates detection error"]
     },
     {
       "tool": "tools/route_orchestrator_acceptance.py",

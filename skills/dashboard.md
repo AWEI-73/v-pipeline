@@ -34,6 +34,13 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
   ],
   "supporting_tools": [
     {
+      "tool": "tools/api_surface_manifest.py",
+      "when": "審計與盤點 API Surface Manifest 限制與健康度",
+      "inputs": ["registry json path"],
+      "outputs": ["manifest JSON or audit report"],
+      "stop_if": ["audit fails rules or branch not match"]
+    },
+    {
       "tool": "tools/workbench_frontend_smoke.py",
       "when": "用瀏覽器或前端 smoke 檢查 Workbench UI",
       "inputs": ["workbench URL or local server"],

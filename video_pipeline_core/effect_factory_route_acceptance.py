@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .artifact_manifest import register_handoff
 from .effect_capability_review import review_effect_capability
 from .effect_design_concept import (
     apply_effect_concept_to_effect,
@@ -58,6 +59,7 @@ def _update_artifact_manifest(run_dir: Path, *, accepted: bool | None = None) ->
         "effect_capability_review": "effect_capability_review.json",
         "effect_intent_plan": "effect_intent_plan.json",
         "effect_revision_request": "effect_revision_request.json",
+        "effect_revision_packet": "effect_revision_packet.json",
         "timeline_build": "timeline_build.json",
         "remotion_prompt_pack": "remotion_prompt_pack.json",
         "remotion_worker_outputs": "remotion_worker_outputs.json",
@@ -70,10 +72,21 @@ def _update_artifact_manifest(run_dir: Path, *, accepted: bool | None = None) ->
             artifacts[key] = {
                 "path": filename,
                 "owner": "effect_factory",
-                "status": status if key in {"effect_handoff", "effect_factory_route_acceptance_report"} else "evidence",
+                "status": status if key in {"effect_handoff", "effect_factory_route_acceptance_report", "effect_revision_packet"} else "evidence",
                 "updated_by": "tools/effect_factory_route_acceptance.py",
             }
     _write_json(manifest_path, manifest)
+    handoff_path = run_dir / "effect_handoff.json"
+    if handoff_path.is_file():
+        register_handoff(
+            run_dir,
+            artifact_path=handoff_path,
+            owner_branch="effect-factory",
+            status=status,
+            updated_by="tools/effect_factory_route_acceptance.py",
+            interface_id="effect_factory.to.main.effect_handoff",
+            next_action="return_to_build_or_verify" if accepted is True else "repair_effect_contract_or_worker_output",
+        )
 
 
 def _copy_json(value: Any) -> Any:
@@ -101,6 +114,29 @@ def _failed_report(run_dir: Path, artifacts: dict[str, str], stage: str, next_ac
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
+
+    from .revision_packet_schema import RevisionPacket
+    packet = RevisionPacket(
+        source_review="effect_factory_route_acceptance_report.json",
+        target_branch="effect-factory",
+        problem_type="contract" if stage == "visual_technique_plan" else "parameter",
+        severity="blocking",
+        revision_targets=[{
+            "artifact": f"{stage}.json",
+            "field": "prompt_parameters" if stage == "effect_capability_review" else "style_family",
+            "issue": f"Effect factory failed at stage {stage}.",
+            "suggested_change": next_action
+        }],
+        allowed_actions=["patch_contract", "rerun_branch", "ask_user", "route_back", "stop"],
+        forbidden_actions=["overwrite_final_mp4", "mutate_material_truth", "silently_downgrade_required_feature"],
+        rerun_policy={
+            "allowed": True,
+            "max_attempts": 1,
+            "requires_agent_decision": True
+        }
+    )
+    packet.save(run_dir / "effect_revision_packet.json")
+
     _update_artifact_manifest(run_dir, accepted=False)
     return report
 
@@ -280,5 +316,29 @@ def run_effect_factory_route_acceptance(
     )
     report["artifacts"] = _copy_json(artifacts)
     _write_json(run_dir / "effect_factory_route_acceptance_report.json", report)
+
+    if not ok:
+        from .revision_packet_schema import RevisionPacket
+        packet = RevisionPacket(
+            source_review="effect_factory_route_acceptance_report.json",
+            target_branch="effect-factory",
+            problem_type="effect",
+            severity="blocking",
+            revision_targets=[{
+                "artifact": "effect_handoff.json",
+                "field": "status",
+                "issue": "Effect factory route acceptance checks failed.",
+                "suggested_change": "revise_effect_factory_route"
+            }],
+            allowed_actions=["patch_contract", "rerun_branch", "ask_user", "route_back", "stop"],
+            forbidden_actions=["overwrite_final_mp4", "mutate_material_truth", "silently_downgrade_required_feature"],
+            rerun_policy={
+                "allowed": True,
+                "max_attempts": 1,
+                "requires_agent_decision": True
+            }
+        )
+        packet.save(run_dir / "effect_revision_packet.json")
+
     _update_artifact_manifest(run_dir, accepted=ok)
     return report
