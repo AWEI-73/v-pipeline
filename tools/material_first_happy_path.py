@@ -68,6 +68,12 @@ def run_material_first_happy_path(
 ) -> dict:
     root = Path(run_dir).resolve()
     source = Path(source_dir).resolve()
+    try:
+        source.relative_to(root)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("source_dir must not be inside output run folder")
     video_intent_payload = None
     if video_intent:
         intent_path = Path(video_intent).resolve()

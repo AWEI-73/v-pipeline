@@ -205,6 +205,40 @@ class MaterialFirstHappyPathTest(unittest.TestCase):
             summary = summarize_run(run_dir)
             self.assertEqual(summary["next"], "soundtrack-arrange")
 
+    def test_wrapper_rejects_source_dir_inside_output_folder_without_deleting_it(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            source = self._source_dir(run_dir)
+            sentinel = source / "opening drone" / "MAX_0169.mp4"
+            self.assertTrue(sentinel.is_file())
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/material_first_happy_path.py",
+                    "--out",
+                    str(run_dir),
+                    "--source-dir",
+                    str(source),
+                    "--max-assets",
+                    "12",
+                    "--frame-budget",
+                    "1",
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("source_dir must not be inside output run folder", proc.stderr)
+            self.assertTrue(sentinel.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
