@@ -56,6 +56,10 @@ def _audio_codec(probe: dict[str, Any]) -> str | None:
     return None
 
 
+def _has_audio_stream(probe: dict[str, Any]) -> bool:
+    return _audio_codec(probe) is not None
+
+
 def _volume_features(audio_path: Path, ffmpeg: str) -> dict[str, float | None]:
     _stdout, stderr = _run_text([
         ffmpeg,
@@ -326,7 +330,47 @@ def build_soundtrack_probe(
         raise FileNotFoundError(path)
     probe = _load_media_probe(path, ffprobe)
     duration = round(_duration_seconds(probe), 3)
+    if not _has_audio_stream(probe):
+        sections = _sections(duration)
+        return {
+            "artifact_role": "soundtrack_probe_report",
+            "version": 1,
+            "pass": duration > 0,
+            "audio_file": str(path),
+            "duration_sec": duration,
+            "analysis_depth": "no_audio_stream",
+            "features": {
+                "has_audio": False,
+                "codec": None,
+                "mean_dbfs": None,
+                "peak_dbfs": None,
+                "silence_event_count": 0,
+                "silence_total_sec": 0,
+                "silence_ratio": None,
+                "tempo_bpm": None,
+                "beat_times": [],
+                "energy_curve": [],
+                "vocal_analysis": {
+                    "has_vocals": False,
+                    "method": "no_audio_stream",
+                },
+                "semantic_tags": ["no_audio_stream"],
+            },
+            "sections": sections,
+            "editing_fit": {
+                "montage": "visual_only",
+                "speech_underlay": "not_applicable",
+                "ending_reflection": "visual_only",
+            },
+            "section_fit": [],
+            "recommended_usage": [],
+            "limitations": [
+                "Input media has no audio stream; audio/music decisions must be supplied by the Soundtrack branch or left silent intentionally.",
+                "Visual source analysis may continue, but this report cannot judge music, speech, or vocal content.",
+            ],
+        }
     features: dict[str, Any] = {
+        "has_audio": True,
         "codec": _audio_codec(probe),
         **_volume_features(path, ffmpeg),
         **_silence_features(path, ffmpeg, duration),

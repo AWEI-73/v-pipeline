@@ -130,6 +130,58 @@ class SourceMaterialMatrixTests(unittest.TestCase):
                 "important answer",
             )
 
+    def test_source_without_audio_still_builds_visual_matrix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source.mp4"
+            source.write_bytes(b"placeholder")
+
+            def no_audio_extractor(_source, _out):
+                raise RuntimeError("Output file #0 does not contain any stream")
+
+            matrix = build_source_material_matrix(
+                source,
+                out_dir=root,
+                window_sec=10,
+                duration_probe=lambda _source: 21,
+                frame_extractor=lambda _source, _ts, out: Path(out).write_bytes(b"jpg") or str(out),
+                audio_extractor=no_audio_extractor,
+            )
+
+            self.assertEqual(len(matrix["windows"]), 3)
+            self.assertIsNone(matrix["audio"]["source_audio"])
+            self.assertEqual(matrix["audio"]["audio_status"], "no_audio_stream")
+            self.assertFalse((root / "source_audio.wav").exists())
+            self.assertTrue((root / "source_soundtrack_probe_report.json").is_file())
+            self.assertIsNone(matrix["windows"][0]["audio"]["relative_energy"])
+            self.assertFalse(matrix["windows"][0]["audio"]["has_speech"])
+            saved_probe = json.loads((root / "source_soundtrack_probe_report.json").read_text(encoding="utf-8"))
+            self.assertFalse(saved_probe["features"]["has_audio"])
+
+    def test_precomputed_no_audio_probe_does_not_claim_source_audio_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source.mp4"
+            source.write_bytes(b"placeholder")
+            precomputed = root / "probe.json"
+            precomputed.write_text(json.dumps({
+                "artifact_role": "soundtrack_probe_report",
+                "analysis_depth": "no_audio_stream",
+                "features": {"has_audio": False, "energy_curve": []},
+            }), encoding="utf-8")
+
+            matrix = build_source_material_matrix(
+                source,
+                out_dir=root,
+                window_sec=10,
+                duration_probe=lambda _source: 10,
+                frame_extractor=lambda _source, _ts, out: Path(out).write_bytes(b"jpg") or str(out),
+                soundtrack_probe_path=precomputed,
+            )
+
+            self.assertIsNone(matrix["audio"]["source_audio"])
+            self.assertEqual(matrix["audio"]["audio_status"], "no_audio_stream")
+
 
 if __name__ == "__main__":
     unittest.main()

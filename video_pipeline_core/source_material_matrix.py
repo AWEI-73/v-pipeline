@@ -64,6 +64,54 @@ def _extract_audio(source: str | Path, out_path: str | Path) -> str:
     return str(out)
 
 
+def _is_no_audio_error(error: Exception) -> bool:
+    text = str(error).lower()
+    return (
+        "does not contain any stream" in text
+        or "output file #0 does not contain any stream" in text
+        or "stream map" in text and "matches no streams" in text
+    )
+
+
+def _no_audio_probe(source_path: str, duration_sec: float) -> dict[str, Any]:
+    return {
+        "artifact_role": "soundtrack_probe_report",
+        "version": 1,
+        "pass": duration_sec > 0,
+        "audio_file": source_path,
+        "duration_sec": round(float(duration_sec), 3),
+        "analysis_depth": "no_audio_stream",
+        "features": {
+            "has_audio": False,
+            "codec": None,
+            "mean_dbfs": None,
+            "peak_dbfs": None,
+            "silence_event_count": 0,
+            "silence_total_sec": 0,
+            "silence_ratio": None,
+            "tempo_bpm": None,
+            "beat_times": [],
+            "energy_curve": [],
+            "vocal_analysis": {
+                "has_vocals": False,
+                "method": "no_audio_stream",
+            },
+            "semantic_tags": ["no_audio_stream"],
+        },
+        "sections": [],
+        "editing_fit": {
+            "montage": "visual_only",
+            "speech_underlay": "not_applicable",
+            "ending_reflection": "visual_only",
+        },
+        "section_fit": [],
+        "recommended_usage": [],
+        "limitations": [
+            "Input media has no audio stream; matrix audio fields are visual-only placeholders.",
+        ],
+    }
+
+
 def _energy_at(probe: dict[str, Any], start: float, end: float) -> float | None:
     curve = ((probe.get("features") or {}) if isinstance(probe, dict) else {}).get("energy_curve") or []
     values = []
@@ -168,11 +216,26 @@ def build_source_material_matrix(
     duration = float((duration_probe or probe_duration)(source_path))
 
     audio_path = out / "source_audio.wav"
-    (audio_extractor or _extract_audio)(source_path, audio_path)
     if soundtrack_probe_path:
         soundtrack_probe = json.loads(Path(soundtrack_probe_path).read_text(encoding="utf-8-sig"))
+        has_audio = ((soundtrack_probe.get("features") or {}) if isinstance(soundtrack_probe, dict) else {}).get("has_audio")
+        if has_audio is False or soundtrack_probe.get("analysis_depth") == "no_audio_stream":
+            audio_path = None
+            audio_status = "no_audio_stream"
+        else:
+            audio_status = "precomputed_probe"
     else:
-        soundtrack_probe = (soundtrack_probe_builder or build_soundtrack_probe)(audio_path)
+        try:
+            (audio_extractor or _extract_audio)(source_path, audio_path)
+        except RuntimeError as exc:
+            if not _is_no_audio_error(exc):
+                raise
+            audio_path = None
+            soundtrack_probe = _no_audio_probe(source_path, duration)
+            audio_status = "no_audio_stream"
+        else:
+            soundtrack_probe = (soundtrack_probe_builder or build_soundtrack_probe)(audio_path)
+            audio_status = "extracted"
     (out / "source_soundtrack_probe_report.json").write_text(
         json.dumps(soundtrack_probe, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -236,7 +299,8 @@ def build_source_material_matrix(
             "frames_dir": "source_matrix_frames",
         },
         "audio": {
-            "source_audio": str(audio_path),
+            "source_audio": str(audio_path) if audio_path else None,
+            "audio_status": audio_status,
             "soundtrack_probe_report": "source_soundtrack_probe_report.json",
         },
         "windows": windows,

@@ -49,6 +49,48 @@ class FinalProductVerifyTests(unittest.TestCase):
             saved = json.loads((root / "final_product_verify_bundle.json").read_text(encoding="utf-8"))
             self.assertEqual(saved["audio"]["soundtrack_probe_report"], "soundtrack_probe_report.json")
 
+    def test_video_without_audio_stream_still_gets_verify_bundle(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "silent.mp4"
+            video.write_bytes(b"placeholder")
+
+            def no_audio_extractor(_video, _out):
+                raise RuntimeError("Output file #0 does not contain any stream")
+
+            bundle = build_final_product_verify_bundle(
+                video,
+                out_dir=root,
+                keyframe_grid_builder=lambda _video, out: {
+                    "grid": Path(out).name,
+                    "grid_path": str(out),
+                    "sample_count": 1,
+                    "samples": [{"timestamp_sec": 1.0}],
+                },
+                visual_audit_builder=lambda grid_meta, out: {
+                    "artifact_role": "visual_audit",
+                    "pass": True,
+                    "grid_path": grid_meta["grid_path"],
+                    "samples": grid_meta["samples"],
+                },
+                audio_extractor=no_audio_extractor,
+                soundtrack_probe_builder=lambda audio: {
+                    "artifact_role": "soundtrack_probe_report",
+                    "pass": True,
+                    "audio_file": str(audio),
+                    "analysis_depth": "no_audio_stream",
+                    "features": {"has_audio": False},
+                    "limitations": ["Input media has no audio stream."],
+                },
+            )
+
+            self.assertTrue(bundle["pass"])
+            self.assertIsNone(bundle["audio"]["final_audio"])
+            self.assertEqual(bundle["audio"]["audio_status"], "no_audio_stream")
+            self.assertFalse((root / "final_audio.wav").exists())
+            saved_probe = json.loads((root / "soundtrack_probe_report.json").read_text(encoding="utf-8"))
+            self.assertFalse(saved_probe["features"]["has_audio"])
+
 
 if __name__ == "__main__":
     unittest.main()

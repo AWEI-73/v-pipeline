@@ -37,6 +37,15 @@ def _extract_audio(video: str | Path, out_path: str | Path) -> str:
     return str(out)
 
 
+def _is_no_audio_error(error: Exception) -> bool:
+    text = str(error).lower()
+    return (
+        "does not contain any stream" in text
+        or "output file #0 does not contain any stream" in text
+        or ("stream map" in text and "matches no streams" in text)
+    )
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -77,8 +86,17 @@ def build_final_product_verify_bundle(
     _write_json(visual_path, visual_audit)
 
     audio_path = out / "final_audio.wav"
-    (audio_extractor or _extract_audio)(video_path, audio_path)
-    probe = (soundtrack_probe_builder or build_soundtrack_probe)(audio_path)
+    try:
+        (audio_extractor or _extract_audio)(video_path, audio_path)
+    except RuntimeError as exc:
+        if not _is_no_audio_error(exc):
+            raise
+        audio_path = None
+        audio_status = "no_audio_stream"
+        probe = (soundtrack_probe_builder or build_soundtrack_probe)(video_path)
+    else:
+        audio_status = "extracted"
+        probe = (soundtrack_probe_builder or build_soundtrack_probe)(audio_path)
     probe_path = out / "soundtrack_probe_report.json"
     _write_json(probe_path, probe)
 
@@ -96,7 +114,8 @@ def build_final_product_verify_bundle(
             "sample_count": grid_meta.get("sample_count"),
         },
         "audio": {
-            "final_audio": "final_audio.wav",
+            "final_audio": "final_audio.wav" if audio_path else None,
+            "audio_status": audio_status,
             "soundtrack_probe_report": "soundtrack_probe_report.json",
             "pass": audio_pass,
             "analysis_depth": probe.get("analysis_depth"),

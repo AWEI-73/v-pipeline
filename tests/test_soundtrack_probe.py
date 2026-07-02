@@ -84,6 +84,39 @@ class SoundtrackProbeTest(unittest.TestCase):
         self.assertEqual(report["features"]["beat_times"], [0.5, 1.0, 1.5])
         self.assertIn("energetic_candidate", report["features"]["semantic_tags"])
 
+    def test_video_without_audio_stream_returns_no_audio_probe_instead_of_crashing(self):
+        from video_pipeline_core.soundtrack_probe import build_soundtrack_probe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            video = root / "silent.mp4"
+            video.write_bytes(b"fake")
+
+            def fake_run(cmd, **kwargs):
+                class Result:
+                    returncode = 0
+                    stdout = json.dumps({
+                        "format": {"duration": "133.28"},
+                        "streams": [{"codec_type": "video", "codec_name": "h264", "duration": "133.28"}],
+                    })
+                    stderr = ""
+                return Result()
+
+            with (
+                patch("video_pipeline_core.soundtrack_probe.subprocess.run", side_effect=fake_run),
+                patch("video_pipeline_core.soundtrack_probe._music_features", return_value={}) as music_features,
+            ):
+                report = build_soundtrack_probe(video)
+
+        self.assertTrue(report["pass"])
+        self.assertEqual(report["analysis_depth"], "no_audio_stream")
+        self.assertFalse(report["features"]["has_audio"])
+        self.assertEqual(report["features"]["codec"], None)
+        self.assertEqual(report["duration_sec"], 133.28)
+        self.assertEqual(report["editing_fit"]["speech_underlay"], "not_applicable")
+        self.assertIn("no audio stream", " ".join(report["limitations"]).lower())
+        music_features.assert_not_called()
+
     def test_enable_asr_adds_vocal_analysis_and_section_fit(self):
         from video_pipeline_core.soundtrack_probe import build_soundtrack_probe
 
