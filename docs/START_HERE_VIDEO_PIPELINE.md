@@ -118,7 +118,9 @@ official pipeline changes.
 16. `RUNBOOK.md` -- current local command examples and Windows execution notes.
 17. `docs/api-surface-map.md` -- API Surface Manifest contract and endpoint audit rulebook.
 18. `docs/interface-contracts/README.md` -- Pipeline branch interface API dictionary, audit, and soft discovery instructions.
-19. `docs/INDEX.md` -- broader documentation index and historical links.
+19. `docs/codebase-memory-mcp-handoff.md` -- optional low-token local code
+   graph helper for review and new-session handoff. It is not route truth.
+20. `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
