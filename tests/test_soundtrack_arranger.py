@@ -154,6 +154,31 @@ class SoundtrackArrangerTest(unittest.TestCase):
         )
         self.assertNotEqual(candidate["source_type"], "jamendo_song")
 
+    def test_not_applicable_stage0_soundtrack_contract_suppresses_music_requirements(self):
+        plan = arrange_soundtrack(
+            {
+                "artifact_role": "video_intent",
+                "request": "make a silent compliance review cut with no music",
+                "target_length": "90 seconds",
+                "soundtrack_contract": {
+                    "artifact_role": "stage0_soundtrack_intent",
+                    "status": "unspecified",
+                    "contract_status": "not_applicable",
+                    "music_role": "unsure",
+                    "handoff_to": "none",
+                },
+            }
+        )
+
+        self.assertEqual(plan["soundtrack_plan"]["required_track_count"], 0)
+        self.assertTrue(all(
+            section["music_role"] == "silence"
+            for section in plan["soundtrack_plan"]["sections"]
+        ))
+        self.assertEqual(plan["music_source_candidates"]["candidates"], [])
+        self.assertTrue(plan["sound_license_manifest"]["delivery_allowed"])
+        self.assertTrue(plan["audio_director_handoff"]["ready_for_audio_director"])
+
     def test_speech_preservation_policy_applies_ducking_to_music_sections(self):
         plan = arrange_soundtrack(
             {

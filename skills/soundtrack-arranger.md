@@ -102,6 +102,11 @@ whether source footage audio is preserved, replaced by music, or mixed by
 section. Carry its `fallback_policy` into `sound_license_manifest.json` and
 `audio_director_handoff.json`.
 
+If Stage 0 says `soundtrack_contract.contract_status=not_applicable` or
+`music_role=none`, return a no-audio/silence plan with
+`required_track_count=0`. Do not ask providers for music, do not require a
+probe, and do not block on music license evidence.
+
 Fallback policy:
 
 - Provider fallback is allowed: try the configured song/BGM provider, then

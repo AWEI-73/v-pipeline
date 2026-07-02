@@ -212,9 +212,12 @@ def _stage0_soundtrack_contract(payload: Mapping[str, Any]) -> Mapping[str, Any]
 
 def _apply_stage0_soundtrack_contract(sections: list[dict[str, Any]], contract: Mapping[str, Any]) -> list[dict[str, Any]]:
     music_role = _clean(contract.get("music_role")).casefold()
+    contract_status = _clean(contract.get("contract_status")).casefold()
     vocal_policy = _clean(contract.get("vocal_policy")).casefold()
     speech_preservation = _clean(contract.get("speech_preservation")).casefold()
     ducking_policy = _clean(contract.get("ducking_policy")) or "duck_under_voice"
+    if contract_status == "not_applicable":
+        music_role = "none"
     if music_role not in {"song", "bgm", "mixed", "none"}:
         return sections
     adjusted: list[dict[str, Any]] = []

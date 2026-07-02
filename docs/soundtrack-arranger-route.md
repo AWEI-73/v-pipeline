@@ -20,6 +20,11 @@ Stage 0 Video Intent Planner
 Soundtrack Arranger does not replace `skills/audio-director.md`. It prepares
 the audio plan and license evidence. Audio Director executes.
 
+If Stage 0 sets `soundtrack_contract.contract_status=not_applicable` or
+`music_role=none`, Soundtrack Arranger must produce a no-audio/silence plan with
+`required_track_count=0`. Do not create provider/license/probe requirements for
+music the route explicitly does not need.
+
 Canonical artifacts:
 
 - `soundtrack_plan.json`
