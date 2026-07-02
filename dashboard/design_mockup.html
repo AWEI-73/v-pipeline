@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes 影片製作工作台 Mockup</title>
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: #dfe6f0;
+      --text: #172033;
+      --muted: #66758a;
+      --accent: #635bff;
+      --accent-soft: #eeecff;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+      --video: #7c3aed;
+      --subtitle: #d97706;
+      --audio: #4f46e5;
+      --effect: #db2777;
+      --shadow: 0 10px 30px rgba(23, 32, 51, .08), 0 1px 4px rgba(23, 32, 51, .04);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      height: 58px;
+      flex: 0 0 auto;
+      background: rgba(255,255,255,.96);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 1px 8px rgba(23,32,51,.05);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 16px;
+      z-index: 20;
+    }
+
+    .top-left, .top-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .brand {
+      font-size: 15px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .project-select {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .project-select select {
+      max-width: 230px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      color: var(--text);
+      padding: 6px 8px;
+      font-weight: 700;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: #eef2f7;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .tab {
+      border: 0;
+      background: transparent;
+      color: #52627a;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: var(--panel);
+      color: var(--accent);
+      box-shadow: 0 3px 10px rgba(23,32,51,.08);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .page {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: none;
+    }
+
+    .page.active { display: flex; }
+
+    .kicker {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* Dashboard */
+    .dashboard {
+      width: 100%;
+      padding: 24px;
+      gap: 24px;
+      overflow: hidden;
+    }
+
+    .node-list {
+      width: 300px;
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .node {
+      width: 100%;
+      border: 1px solid transparent;
+      background: var(--panel-soft);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: left;
+      margin-bottom: 8px;
+    }
+
+    .node.active {
+      color: var(--accent);
+      border-color: #cfc8ff;
+      background: var(--accent-soft);
+    }
+
+    .node strong { display: block; font-size: 14px; margin-bottom: 3px; }
+    .node span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .contract-paper {
+      flex: 1 1 auto;
+      max-width: 980px;
+      align-self: flex-start;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 34px 42px;
+      overflow: auto;
+    }
+
+    .contract-paper h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: .02em;
+    }
+
+    .contract-paper p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .contract-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      border-top: 1px solid var(--line);
+    }
+
+    .contract-grid div {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 0;
+      line-height: 1.65;
+    }
+
+    .contract-grid div:nth-child(odd) {
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .next-step {
+      margin-top: 18px;
+      padding: 14px 16px;
+      background: #eef4ff;
+      border: 1px solid #d4e4ff;
+      border-radius: 10px;
+      color: #24518f;
+      line-height: 1.65;
+    }
+
+    /* Material map */
+    .material-map {
+      width: 100%;
+      padding: 18px;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    .scene-rail {
+      width: 290px;
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .scene-card {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 12px;
+      margin-bottom: 10px;
+      text-align: left;
+    }
+
+    .scene-card.active {
+      border-color: #bbb5ff;
+      background: var(--accent-soft);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .scene-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+
+    .scene-card p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 12px;
+    }
+
+    .scene-metrics {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .metric {
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 3px 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .map-canvas {
+      flex: 1 1 auto;
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .map-head {
+      flex: 0 0 auto;
+      min-height: 68px;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .map-head h2 {
+      margin: 0 0 5px;
+      font-size: 18px;
+    }
+
+    .map-head p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .map-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .map-tool {
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      color: #40516a;
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-weight: 800;
+    }
+
+    .graph-area {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 18px;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: minmax(170px, .9fr) minmax(240px, 1.2fr) minmax(280px, 1.6fr) minmax(180px, .9fr);
+      gap: 16px;
+      align-items: stretch;
+      background:
+        linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #edf1f7 calc(25% - 1px), #edf1f7 25%, transparent 25%),
+        linear-gradient(90deg, transparent 0, transparent calc(50% - 1px), #edf1f7 calc(50% - 1px), #edf1f7 50%, transparent 50%),
+        linear-gradient(90deg, transparent 0, transparent calc(75% - 1px), #edf1f7 calc(75% - 1px), #edf1f7 75%, transparent 75%);
+    }
+
+    .graph-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .col-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .graph-node {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 12px;
+      min-height: 70px;
+      box-shadow: 0 3px 10px rgba(23,32,51,.04);
+    }
+
+    .graph-node::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -17px;
+      width: 17px;
+      border-top: 2px solid #ccd6e5;
+    }
+
+    .graph-col:last-child .graph-node::after { display: none; }
+
+    .graph-node.active {
+      border-color: #a99fff;
+      background: #fbfaff;
+      box-shadow: 0 8px 22px rgba(99,91,255,.12);
+    }
+
+    .graph-node.good { border-left: 4px solid var(--green); }
+    .graph-node.maybe { border-left: 4px solid var(--amber); }
+    .graph-node.bad { border-left: 4px solid var(--red); }
+    .graph-node.cut { border-left: 4px solid var(--blue); }
+
+    .graph-node strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .graph-node span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .thumb-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .asset-chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      text-align: left;
+      min-width: 0;
+    }
+
+    .asset-thumb {
+      height: 54px;
+      background:
+        linear-gradient(140deg, rgba(12,18,32,.35), rgba(12,18,32,.1)),
+        linear-gradient(135deg, #d8e5f7, #b9c8dd 55%, #7f8fa8);
+      display: flex;
+      align-items: flex-end;
+      padding: 6px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .asset-thumb.training { background: linear-gradient(135deg, #c8ddf5, #7d93b0 60%, #43566d); }
+    .asset-thumb.close { background: linear-gradient(135deg, #f5d7bf, #c88b58 60%, #5a3b26); }
+    .asset-thumb.reject { background: linear-gradient(135deg, #e5e7eb, #a1a1aa); }
+
+    .asset-chip div:last-child {
+      padding: 7px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .map-detail {
+      width: 330px;
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .detail-title {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+
+    .detail-section {
+      border-top: 1px solid var(--line);
+      padding: 12px 0;
+    }
+
+    .detail-section:first-of-type { border-top: 0; }
+
+    .detail-section h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .detail-section p {
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .decision-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 8px;
+      align-items: start;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .decision b {
+      color: var(--muted);
+    }
+
+    /* Workbench */
+    .workbench {
+      flex-direction: column;
+      background: var(--bg);
+      overflow: hidden;
+      --timeline-height: clamp(248px, 25vh, 300px);
+    }
+
+    .wb-main {
+      flex: 1 1 calc(100vh - 58px - var(--timeline-height));
+      min-height: 0;
+      display: flex;
+      gap: 10px;
+      padding: 8px 12px 0;
+      overflow: hidden;
+    }
+
+    .left-source {
+      width: clamp(260px, 15vw, 320px);
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(23,32,51,.05);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .source-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .source-head h2,
+    .shot-panel h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .source-context {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-soft);
+      padding: 9px 10px;
+      line-height: 1.5;
+    }
+
+    .source-context strong { display: block; margin-bottom: 4px; }
+    .source-context span { color: var(--muted); }
+
+    .source-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      background: #eef2f7;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .source-tab {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 7px 4px;
+      font-weight: 800;
+    }
+
+    .source-tab.active {
+      background: #fff;
+      color: var(--accent);
+    }
+
+    .source-list {
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .group-title {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .material-card {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 7px;
+      text-align: left;
+      min-width: 0;
+    }
+
+    .material-card > span:last-child { min-width: 0; }
+
+    .material-card.active {
+      border-color: #b8b0ff;
+      background: #fbfaff;
+    }
+
+    .mat-thumb {
+      height: 48px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #a7b4c8, #4b5c73);
+      color: #fff;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      padding: 5px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .mat-thumb.photo {
+      background: linear-gradient(135deg, #eacda3, #b56b46);
+    }
+
+    .mat-name {
+      font-weight: 900;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mat-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .stage {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 10px;
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(23,32,51,.05);
+    }
+
+    .monitor-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .monitor-box {
+      width: min(100%, 1080px, max(520px, calc((100vh - 444px) * 16 / 9)));
+      max-height: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 12px;
+      background:
+        linear-gradient(rgba(10,14,24,.42), rgba(10,14,24,.48)),
+        linear-gradient(135deg, #c6d5e8, #7486a0 55%, #273244);
+      box-shadow: 0 20px 45px rgba(23,32,51,.22);
+      position: relative;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .monitor-box::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.22), transparent 34%);
+      pointer-events: none;
+    }
+
+    .effect-pill {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 999px;
+      background: rgba(15,23,42,.35);
+      padding: 6px 10px;
+      font-weight: 800;
+      z-index: 2;
+    }
+
+    .monitor-content {
+      position: absolute;
+      left: clamp(24px, 4vw, 42px);
+      bottom: clamp(48px, 7vh, 68px);
+      z-index: 2;
+    }
+
+    .monitor-label {
+      margin-bottom: 8px;
+      opacity: .82;
+      font-weight: 800;
+    }
+
+    .monitor-title {
+      font-size: clamp(22px, 2vw, 30px);
+      font-weight: 900;
+      letter-spacing: .04em;
+    }
+
+    .subtitle {
+      position: absolute;
+      left: 50%;
+      bottom: clamp(16px, 3vh, 22px);
+      transform: translateX(-50%);
+      width: 78%;
+      text-align: center;
+      z-index: 2;
+      font-size: clamp(13px, 1.1vw, 16px);
+      font-weight: 800;
+      text-shadow: 0 2px 8px rgba(0,0,0,.55);
+    }
+
+    .transport {
+      flex: 0 0 auto;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .transport button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 7px 10px;
+      font-weight: 800;
+    }
+
+    .scrubber {
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: #dbe3ef;
+      overflow: hidden;
+    }
+
+    .scrubber div {
+      width: 28%;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .timecode {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+
+    .shot-panel {
+      width: clamp(280px, 17vw, 340px);
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(23,32,51,.05);
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .hint {
+      margin: 8px 0 14px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .contract-box {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .contract-box h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 8px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+      line-height: 1.45;
+    }
+
+    .pair:first-of-type { border-top: 0; padding-top: 0; }
+    .pair span { color: var(--muted); font-weight: 800; }
+    .pair b { font-weight: 800; }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .quick-actions button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      font-weight: 800;
+    }
+
+    .quick-actions .primary {
+      grid-column: 1 / -1;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .timeline-wrap {
+      flex: 0 0 var(--timeline-height);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(23,32,51,.05);
+      margin: 8px 12px 10px;
+      padding: 8px 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .timeline-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      min-height: 28px;
+    }
+
+    .timeline-toolbar button {
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-weight: 800;
+    }
+
+    .timeline-scroll {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 7px 8px;
+    }
+
+    .timeline {
+      position: relative;
+      min-width: 1180px;
+      padding-left: 84px;
+      padding-top: 18px;
+    }
+
+    .ruler {
+      position: absolute;
+      left: 84px;
+      right: 0;
+      top: 0;
+      height: 18px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .tick {
+      position: absolute;
+      transform: translateX(-50%);
+    }
+
+    .track {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      position: relative;
+    }
+
+    .track-label {
+      position: absolute;
+      left: -76px;
+      width: 62px;
+      color: #506179;
+      font-weight: 900;
+    }
+
+    .lane {
+      position: relative;
+      height: 32px;
+      width: 1120px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+
+    .clip {
+      position: absolute;
+      top: 4px;
+      height: 24px;
+      border: 0;
+      border-radius: 7px;
+      color: #fff;
+      padding: 0 10px;
+      font-weight: 900;
+      text-align: left;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      isolation: isolate;
+    }
+
+    .clip::after {
+      content: attr(data-label);
+      position: relative;
+      z-index: 2;
+    }
+
+    .clip.active {
+      outline: 2px solid #111827;
+      outline-offset: 1px;
+    }
+
+    .clip-video {
+      padding-left: 46px;
+    }
+
+    .clip-video::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      width: 30px;
+      height: 17px;
+      border-radius: 5px;
+      background:
+        linear-gradient(rgba(255,255,255,.16), rgba(0,0,0,.2)),
+        linear-gradient(135deg, #d6e0ef 0 28%, #8ea1b7 29% 58%, #43536a 59%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
+      z-index: 1;
+    }
+
+    .clip-video {
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.34), transparent),
+        linear-gradient(135deg, #afbdd0, #56677d);
+    }
+
+    .clip-video.training {
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.34), transparent),
+        linear-gradient(135deg, #9eb9d8, #3f536a);
+    }
+
+    .clip-video.interaction {
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.34), transparent),
+        linear-gradient(135deg, #d3b38c, #684a34);
+    }
+
+    .clip-subtitle { background: rgba(217,119,6,.82); }
+    .clip-audio { background: rgba(79,70,229,.72); }
+    .clip-effect { background: rgba(219,39,119,.72); }
+
+    .playhead {
+      position: absolute;
+      top: 20px;
+      bottom: 0;
+      left: 384px;
+      width: 2px;
+      background: var(--accent);
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .playhead::after {
+      content: "";
+      position: absolute;
+      top: -8px;
+      left: -6px;
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      box-shadow: 0 1px 4px rgba(0,0,0,.22);
+    }
+
+    .footer {
+      flex: 0 0 auto;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 16px 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer-actions { display: flex; gap: 8px; }
+
+    .footer-actions button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-weight: 800;
+    }
+
+    .footer-actions .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    @media (max-width: 1260px) {
+      .map-detail, .shot-panel { width: 290px; }
+      .scene-rail, .left-source { width: 270px; }
+      .graph-area { grid-template-columns: 1fr 1fr; }
+      .graph-node::after { display: none; }
+      .wb-main { gap: 10px; }
+      .monitor-box { width: min(900px, 96%); }
+    }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100vh; }
+      .topbar { flex-wrap: wrap; height: auto; padding: 12px; }
+      .dashboard, .material-map, .wb-main { flex-direction: column; overflow: visible; }
+      .node-list, .scene-rail, .map-detail, .left-source, .shot-panel { width: 100%; }
+      .page.active { min-height: auto; }
+      .timeline-wrap { min-height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="top-left">
+        <span class="brand-dot"></span>
+        <strong class="brand">Hermes 影片製作工作台</strong>
+        <label class="project-select">
+          專案
+          <select>
+            <option>第 67 期養成班結訓影片</option>
+            <option>格林童話短篇測試</option>
+          </select>
+        </label>
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-page="dashboard" onclick="switchPage('dashboard')">Dashboard 白盒</button>
+        <button class="tab" data-page="material-map" onclick="switchPage('material-map')">Material Map 素材地圖</button>
+        <button class="tab" data-page="workbench" onclick="switchPage('workbench')">Workbench 黑盒</button>
+      </nav>
+      <div class="top-right">
+        <span class="badge">素材優先模式</span>
+        <span class="badge">粗剪審稿中</span>
+      </div>
+    </header>
+
+    <main class="page active dashboard" id="dashboard">
+      <aside class="node-list">
+        <div class="kicker">Human-facing stages</div>
+        <button class="node active" onclick="selectContract('intent', this)"><strong>影片需求</strong><span>目的、觀眾、片長、素材狀態</span></button>
+        <button class="node" onclick="selectContract('story', this)"><strong>故事結構</strong><span>段落、情緒、敘事節奏</span></button>
+        <button class="node" onclick="selectContract('material', this)"><strong>素材狀態</strong><span>採用、候選、缺口</span></button>
+        <button class="node" onclick="selectContract('roughcut', this)"><strong>粗剪結果</strong><span>目前成片架構與可修改點</span></button>
+        <button class="node" onclick="selectContract('style', this)"><strong>風格包裝</strong><span>字幕、音樂、轉場、特效</span></button>
+        <button class="node" onclick="selectContract('review', this)"><strong>審核輸出</strong><span>是否可輸出與阻擋點</span></button>
+      </aside>
+      <section class="contract-paper">
+        <h1 id="contract-title">影片需求契約</h1>
+        <p id="contract-summary">把底層 JSON 翻成人能讀的中文契約紙。</p>
+        <div class="contract-grid" id="contract-grid"></div>
+        <div class="next-step" id="next-step">下一步：先確認素材能否支撐故事段落，再進入 Workbench。</div>
+      </section>
+    </main>
+
+    <main class="page material-map" id="material-map">
+      <aside class="scene-rail">
+        <div class="kicker">Story-centered material map</div>
+        <button class="scene-card active" onclick="selectScene('opening', this)">
+          <div class="scene-title"><span>第 1 幕 開場集合</span><span>82%</span></div>
+          <p>建立正式但溫暖的開場，讓觀眾知道這是一段共同訓練旅程。</p>
+          <div class="scene-metrics"><span class="metric">採用 2</span><span class="metric">候選 5</span><span class="metric">缺口 1</span></div>
+        </button>
+        <button class="scene-card" onclick="selectScene('training', this)">
+          <div class="scene-title"><span>第 2 幕 訓練過程</span><span>91%</span></div>
+          <p>呈現練習、修正、逐漸熟練，是整支影片的主要內容支撐。</p>
+          <div class="scene-metrics"><span class="metric">採用 3</span><span class="metric">候選 7</span><span class="metric">缺口 0</span></div>
+        </button>
+        <button class="scene-card" onclick="selectScene('bonding', this)">
+          <div class="scene-title"><span>第 3 幕 互動成長</span><span>74%</span></div>
+          <p>把人物關係拉出來，讓影片不只是紀錄事件，而是有情緒。</p>
+          <div class="scene-metrics"><span class="metric">採用 1</span><span class="metric">候選 4</span><span class="metric">缺口 1</span></div>
+        </button>
+        <button class="scene-card" onclick="selectScene('ending', this)">
+          <div class="scene-title"><span>第 4 幕 結尾傳承</span><span>68%</span></div>
+          <p>落在合照與精神延續，不做過度煽情，保留含蓄的感人。</p>
+          <div class="scene-metrics"><span class="metric">採用 1</span><span class="metric">候選 3</span><span class="metric">缺口 2</span></div>
+        </button>
+      </aside>
+
+      <section class="map-canvas">
+        <div class="map-head">
+          <div>
+            <h2 id="map-title">第 1 幕：開場集合</h2>
+            <p id="map-summary">素材地圖以劇本段落為中心，只展開當前段落的需求、素材、判斷與粗剪位置。</p>
+          </div>
+          <div class="map-tools">
+            <button class="map-tool">只看缺口</button>
+            <button class="map-tool">顯示排除</button>
+            <button class="map-tool">送到 Workbench</button>
+          </div>
+        </div>
+        <div class="graph-area">
+          <div class="graph-col">
+            <div class="col-label">段落</div>
+            <div class="graph-node active">
+              <strong id="node-scene">開場集合</strong>
+              <span id="node-scene-desc">需要正式、清楚、有共同開始感。</span>
+            </div>
+          </div>
+          <div class="graph-col">
+            <div class="col-label">鏡頭需求</div>
+            <div class="graph-node good"><strong id="need-a">集合全景</strong><span>建立人數、地點、共同感。</span></div>
+            <div class="graph-node good"><strong id="need-b">人物近景</strong><span>讓開場不要只有紀錄感。</span></div>
+            <div class="graph-node maybe"><strong id="need-c">場地建立</strong><span>目前素材有，但辨識度偏弱。</span></div>
+          </div>
+          <div class="graph-col">
+            <div class="col-label">素材候選</div>
+            <div class="thumb-strip" id="asset-strip">
+              <button class="asset-chip" onclick="selectMapAsset('集合報到畫面', '採用', '畫面穩、人物多、符合開場共同感。')">
+                <div class="asset-thumb">A001</div><div>集合報到畫面</div>
+              </button>
+              <button class="asset-chip" onclick="selectMapAsset('學員進場近景', '採用', '補足人物情緒，但不宜放太長。')">
+                <div class="asset-thumb close">A014</div><div>學員進場近景</div>
+              </button>
+              <button class="asset-chip" onclick="selectMapAsset('場地入口空景', '備選', '可做環境建立，但辨識度不如集合畫面。')">
+                <div class="asset-thumb training">B006</div><div>場地入口空景</div>
+              </button>
+              <button class="asset-chip" onclick="selectMapAsset('重複集合遠景', '排除', '內容與 A001 重複，畫面穩定度較差。')">
+                <div class="asset-thumb reject">R002</div><div>重複集合遠景</div>
+              </button>
+            </div>
+          </div>
+          <div class="graph-col">
+            <div class="col-label">粗剪位置</div>
+            <div class="graph-node cut"><strong id="rough-a">00:00 - 00:12</strong><span>作為第一段開場主畫面。</span></div>
+            <div class="graph-node cut"><strong id="rough-b">00:12 - 00:18</strong><span>接人物近景，讓敘事進入訓練旅程。</span></div>
+            <div class="graph-node maybe"><strong id="rough-c">缺口</strong><span>需要更有辨識度的地點或招牌畫面。</span></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="map-detail">
+        <h2 class="detail-title">素材判斷契約紙</h2>
+        <div class="detail-section">
+          <h3>目前選取</h3>
+          <p id="map-selected">集合報到畫面</p>
+        </div>
+        <div class="detail-section">
+          <h3>判斷結果</h3>
+          <p id="map-verdict">採用</p>
+        </div>
+        <div class="detail-section">
+          <h3>採用 / 排除理由</h3>
+          <p id="map-reason">畫面穩、人物多、符合開場共同感。</p>
+        </div>
+        <div class="detail-section">
+          <h3>這一幕的素材覆蓋</h3>
+          <div class="decision-list">
+            <div class="decision"><b>已滿足</b><span>集合全景、人物近景</span></div>
+            <div class="decision"><b>待確認</b><span>場地建立是否足夠清楚</span></div>
+            <div class="decision"><b>缺口</b><span>更好的地點建立鏡頭</span></div>
+            <div class="decision"><b>下一步</b><span>若接受缺口，直接送 Workbench；否則回素材池找補件。</span></div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <main class="page workbench" id="workbench">
+      <div class="wb-main">
+        <aside class="left-source">
+          <div class="source-head">
+            <h2 id="source-title">影片可選素材</h2>
+            <span class="badge">依目前軌道</span>
+          </div>
+          <div class="source-context">
+            <strong id="source-context-title">目前鏡頭：開場集合</strong>
+            <span id="source-context-text">左側只顯示目前點選軌道可替換的素材，避免全專案素材一次灌滿。</span>
+          </div>
+          <div class="source-tabs">
+            <button class="source-tab active">推薦</button>
+            <button class="source-tab">本段</button>
+            <button class="source-tab">全部</button>
+          </div>
+          <div class="source-list">
+            <div class="group-title"><span>目前鏡頭候選素材</span><span>3</span></div>
+            <button class="material-card active" onclick="selectMaterial(this, '集合報到畫面')">
+              <span class="mat-thumb">影片</span>
+              <span><div class="mat-name">集合報到畫面</div><div class="mat-meta">推薦｜10.2 秒｜畫面穩定</div></span>
+            </button>
+            <button class="material-card" onclick="selectMaterial(this, '學員進場近景')">
+              <span class="mat-thumb">影片</span>
+              <span><div class="mat-name">學員進場近景</div><div class="mat-meta">可用｜6.4 秒｜補情緒</div></span>
+            </button>
+            <button class="material-card" onclick="selectMaterial(this, '場地入口空景')">
+              <span class="mat-thumb photo">照片</span>
+              <span><div class="mat-name">場地入口空景</div><div class="mat-meta">可用｜建立地點但偏弱</div></span>
+            </button>
+            <div class="group-title"><span>備選素材</span><span>2</span></div>
+            <button class="material-card" onclick="selectMaterial(this, '教官開場說明')">
+              <span class="mat-thumb">備選</span>
+              <span><div class="mat-name">教官開場說明</div><div class="mat-meta">語意可用但節奏較正式</div></span>
+            </button>
+            <button class="material-card" onclick="selectMaterial(this, '全體集合畫面')">
+              <span class="mat-thumb">影片</span>
+              <span><div class="mat-name">全體集合畫面</div><div class="mat-meta">候選｜內容與主素材相近</div></span>
+            </button>
+          </div>
+        </aside>
+
+        <section class="stage">
+          <div class="monitor-wrap">
+            <div class="monitor-box">
+              <div class="effect-pill" id="screen-effect">特效：柔和推近</div>
+              <div class="monitor-content">
+                <div class="monitor-label" id="screen-label">第 1 段｜開場集合</div>
+                <div class="monitor-title" id="screen-main">集合報到畫面</div>
+              </div>
+              <div class="subtitle" id="screen-subtitle">這一天，他們從不同位置走進同一段訓練旅程。</div>
+            </div>
+          </div>
+          <div class="transport">
+            <button>播放</button>
+            <button>回到段落</button>
+            <div class="scrubber"><div></div></div>
+            <span class="timecode">00:12 / 04:38</span>
+          </div>
+        </section>
+
+        <aside class="shot-panel">
+          <h2 id="shot-title">第 1 段：開場集合</h2>
+          <div class="hint" id="shot-sub">點選下方影片、字幕、音訊或特效軌，左側會切成對應可替換素材，右側維持這個鏡頭的契約紙。</div>
+          <div class="contract-box">
+            <h3>鏡頭契約</h3>
+            <div class="pair"><span>設計目的</span><b id="shot-purpose">建立正式但溫暖的開場</b></div>
+            <div class="pair"><span>實際素材</span><b id="shot-material">集合報到畫面</b></div>
+            <div class="pair"><span>字幕意圖</span><b id="shot-caption">從開始、集合、進入訓練旅程</b></div>
+            <div class="pair"><span>節奏</span><b id="shot-pace">中慢速，留一點呼吸感</b></div>
+            <div class="pair"><span>特效</span><b id="shot-effect">柔和推近，不搶畫面</b></div>
+          </div>
+          <div class="contract-box">
+            <h3>待修正提醒</h3>
+            <div id="shot-issues">畫面可用，開場辨識度足夠；可補一個更有情緒的近景。</div>
+          </div>
+          <div class="contract-box">
+            <h3>快速操作</h3>
+            <div class="quick-actions">
+              <button>換素材</button>
+              <button>換節奏</button>
+              <button>重選特效</button>
+              <button>改字幕</button>
+              <button class="primary">接受這個修改</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="timeline-wrap">
+        <div class="timeline-toolbar">
+          <div>
+            <button>新增鏡頭</button>
+            <button>插入字幕</button>
+            <button>套用特效</button>
+          </div>
+          <span>點選不同軌道，左側會切換成該軌道可替換內容。</span>
+        </div>
+        <div class="timeline-scroll">
+          <div class="timeline">
+            <div class="ruler">
+              <span class="tick" style="left:72px;">0s</span>
+              <span class="tick" style="left:360px;">4s</span>
+              <span class="tick" style="left:648px;">8s</span>
+              <span class="tick" style="left:936px;">12s</span>
+            </div>
+            <div class="track"><span class="track-label">影片</span><div class="lane">
+              <button class="clip clip-video active" id="clip-shot1" style="left:0;width:360px;" onclick="selectTimelineClip(event,'shot1','video')">集合報到畫面</button>
+              <button class="clip clip-video training" id="clip-shot2" style="left:370px;width:420px;" onclick="selectTimelineClip(event,'shot2','video')">訓練操作特寫</button>
+              <button class="clip clip-video interaction" id="clip-shot3" style="left:800px;width:330px;" onclick="selectTimelineClip(event,'shot3','video')">互動討論畫面</button>
+            </div></div>
+            <div class="track"><span class="track-label">字幕</span><div class="lane">
+              <button class="clip clip-subtitle" style="left:0;width:340px;" onclick="selectTimelineClip(event,'shot1','subtitle')">走進同一段旅程</button>
+              <button class="clip clip-subtitle" style="left:380px;width:380px;" onclick="selectTimelineClip(event,'shot2','subtitle')">一次一次練習</button>
+              <button class="clip clip-subtitle" style="left:810px;width:300px;" onclick="selectTimelineClip(event,'shot3','subtitle')">彼此支撐</button>
+            </div></div>
+            <div class="track"><span class="track-label">音訊</span><div class="lane">
+              <button class="clip clip-audio" style="left:0;width:720px;" onclick="selectTimelineClip(event,'shot1','audio')">溫暖鋼琴背景</button>
+              <button class="clip clip-audio" style="left:760px;width:80px;" onclick="selectTimelineClip(event,'shot3','audio')">環境聲</button>
+            </div></div>
+            <div class="track"><span class="track-label">特效</span><div class="lane">
+              <button class="clip clip-effect" style="left:0;width:360px;" onclick="selectTimelineClip(event,'shot1','effect')">柔和推近</button>
+              <button class="clip clip-effect" style="left:370px;width:420px;" onclick="selectTimelineClip(event,'shot2','effect')">節奏切換</button>
+              <button class="clip clip-effect" style="left:1130px;width:260px;" onclick="selectTimelineClip(event,'shot5','effect')">合照微光</button>
+            </div></div>
+            <div class="playhead"></div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>這裡是黑盒工作檯：主要用來看、換、剪，不展示工程 JSON。</span>
+        <div class="footer-actions">
+          <button>取消修改</button>
+          <button class="primary">保存修改草稿</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const contracts = {
+      intent: [["影片目的","養成班結訓回顧"],["主要觀眾","學員、教官、家人、同事"],["目標片長","約 5 分鐘"],["素材狀態","已有素材，走 material-first"],["風格方向","前半故事，後半 MV / 蒙太奇"]],
+      story: [["第 1 段","開始與集合"],["第 2 段","訓練過程"],["第 3 段","互動與成長"],["第 4 段","情緒高點"],["第 5 段","結尾與傳承"]],
+      material: [["已採用","集合報到、訓練操作、互動畫面"],["候選","教官致詞、走廊互動"],["缺口","傳承段落素材語意待確認"],["呈現方式","高匹配 / 可用 / 候選 / 不建議"]],
+      roughcut: [["目前版本","初版粗剪"],["總長度","約 4 分 38 秒"],["主要問題","第二段節奏偏快，第四段語意略弱"],["安全性","Workbench 只建立修改草稿"]],
+      style: [["字幕語氣","溫暖、克制、有記憶感"],["音樂方向","前半鋼琴，後半節奏推進"],["轉場","柔和淡入、少量節奏切換"],["特效","合照微光、照片慢推"]],
+      review: [["目前狀態","粗剪可審稿"],["阻擋點","第四段素材語意需確認"],["下一步","完成 Workbench 鏡頭審稿"]]
+    };
+
+    const titles = {
+      intent:"影片需求契約",
+      story:"故事結構契約",
+      material:"素材狀態契約",
+      roughcut:"粗剪結果契約",
+      style:"風格包裝契約",
+      review:"審核輸出契約"
+    };
+
+    const summaries = {
+      intent:"把使用者模糊需求收斂成可執行路線。",
+      story:"把影片拆成可對應素材與粗剪的段落。",
+      material:"用故事需求看素材是否支撐影片。",
+      roughcut:"讓使用者看到目前成片骨架是否符合原本設計。",
+      style:"字幕、音樂、轉場與特效只顯示會影響決策的內容。",
+      review:"輸出前只顯示阻擋點與下一步。"
+    };
+
+    const scenes = {
+      opening: {
+        title:"第 1 幕：開場集合",
+        summary:"建立正式但溫暖的開場，讓觀眾知道這是一段共同訓練旅程。",
+        scene:"開場集合",
+        desc:"需要正式、清楚、有共同開始感。",
+        needs:["集合全景","人物近景","場地建立"],
+        assets:[
+          ["A001","集合報到畫面","採用","畫面穩、人物多、符合開場共同感。"],
+          ["A014","學員進場近景","採用","補足人物情緒，但不宜放太長。"],
+          ["B006","場地入口空景","備選","可做環境建立，但辨識度不如集合畫面。"],
+          ["R002","重複集合遠景","排除","內容與 A001 重複，畫面穩定度較差。"]
+        ],
+        coverage:["集合全景、人物近景","場地建立是否足夠清楚","更好的地點建立鏡頭"]
+      },
+      training: {
+        title:"第 2 幕：訓練過程",
+        summary:"呈現練習、修正、逐漸熟練，是整支影片的主要內容支撐。",
+        scene:"訓練過程",
+        desc:"需要動作清楚、節奏可剪、能看出學習過程。",
+        needs:["操作特寫","教官指導","連續練習"],
+        assets:[
+          ["T011","訓練操作特寫","採用","動作清楚，最適合支撐主段落。"],
+          ["T018","教官指導畫面","採用","補足教學與修正感。"],
+          ["T024","多人練習遠景","備選","可做節奏銜接，但主體較分散。"],
+          ["R031","模糊訓練片段","排除","晃動明顯，作為主畫面風險高。"]
+        ],
+        coverage:["操作特寫、教官指導、連續練習","多人遠景是否需要保留","暫無硬缺口"]
+      },
+      bonding: {
+        title:"第 3 幕：互動成長",
+        summary:"把人物關係拉出來，讓影片不只是紀錄事件，而是有情緒。",
+        scene:"互動成長",
+        desc:"需要笑容、討論、互相幫忙，支撐人與人的關係。",
+        needs:["自然互動","表情近景","團隊支持"],
+        assets:[
+          ["B021","課堂討論畫面","採用","有明確互動，但畫面略正式。"],
+          ["B033","走廊互動畫面","備選","情緒自然，可能適合做短切。"],
+          ["B041","學員笑容近景","採用","補足溫度與人物感。"],
+          ["R044","無關空景","排除","無法支撐互動主題。"]
+        ],
+        coverage:["自然互動、表情近景","團隊支持畫面仍需確認","更明確的互相幫忙鏡頭"]
+      },
+      ending: {
+        title:"第 4 幕：結尾傳承",
+        summary:"落在合照與精神延續，不做過度煽情，保留含蓄的感人。",
+        scene:"結尾傳承",
+        desc:"需要收束、傳承、往下一階段走的感覺。",
+        needs:["結尾合照","精神傳遞","下一階段"],
+        assets:[
+          ["E001","結尾合照","採用","最適合作為情緒落點。"],
+          ["E007","背影離場","備選","可支撐往下一階段，但畫面普通。"],
+          ["E013","頒獎片段","備選","正式感足，但未必有傳承語意。"],
+          ["R019","重複合照","排除","與主合照重複且構圖較弱。"]
+        ],
+        coverage:["結尾合照","精神傳遞與下一階段語意偏弱","需要更明確的傳承或離場鏡頭"]
+      }
+    };
+
+    const shots = {
+      shot1: { title:"第 1 段：開場集合", main:"集合報到畫面", label:"第 1 段｜開場集合", subtitle:"這一天，他們從不同位置走進同一段訓練旅程。", purpose:"建立正式但溫暖的開場", material:"集合報到畫面", caption:"從開始、集合、進入訓練旅程", pace:"中慢速，留一點呼吸感", effect:"柔和推近，不搶畫面", issue:"畫面可用，開場辨識度足夠；可補一個更有情緒的近景。" },
+      shot2: { title:"第 2 段：訓練過程", main:"訓練操作特寫", label:"第 2 段｜訓練過程", subtitle:"一次一次練習，讓動作慢慢變成能力。", purpose:"呈現從陌生到熟練", material:"訓練操作特寫", caption:"練習、修正、逐漸穩定", pace:"中速，可保留幾個快速切點", effect:"節奏切換，不使用過強特效", issue:"畫面內容對題；節奏略快，建議保留一個較長特寫。" },
+      shot3: { title:"第 3 段：互動成長", main:"互動討論畫面", label:"第 3 段｜互動成長", subtitle:"真正留下來的，是彼此支撐的那幾個瞬間。", purpose:"呈現團隊互動與支持", material:"走廊互動、課堂討論", caption:"彼此支撐、互相提醒", pace:"中慢速", effect:"自然淡入淡出", issue:"素材語氣正確；可多放一張表情特寫。" },
+      shot5: { title:"第 5 段：結尾合照", main:"結尾合照", label:"第 5 段｜結尾合照", subtitle:"這不是結束，是把這段精神帶到下一個地方。", purpose:"情緒落點與記憶保存", material:"結尾合照", caption:"不是結束，是下一個階段", pace:"慢速", effect:"合照慢推、暖色微光", issue:"合照適合作為收尾；字幕應克制。" }
+    };
+
+    const sourceLabels = {
+      video:"影片可選素材",
+      subtitle:"字幕可改內容",
+      audio:"音樂 / 音效素材",
+      effect:"特效 / 轉場選項"
+    };
+
+    function switchPage(id) {
+      document.querySelectorAll(".page").forEach(x => x.classList.remove("active"));
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+      document.querySelector(`[data-page="${id}"]`).classList.add("active");
+    }
+
+    function selectContract(key, btn) {
+      document.querySelectorAll(".node").forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("contract-title").textContent = titles[key];
+      document.getElementById("contract-summary").textContent = summaries[key];
+      document.getElementById("contract-grid").innerHTML = contracts[key].map(([k,v]) => `<div>${k}</div><div>${v}</div>`).join("");
+    }
+
+    function selectScene(key, btn) {
+      const scene = scenes[key] || scenes.opening;
+      document.querySelectorAll(".scene-card").forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("map-title").textContent = scene.title;
+      document.getElementById("map-summary").textContent = scene.summary;
+      document.getElementById("node-scene").textContent = scene.scene;
+      document.getElementById("node-scene-desc").textContent = scene.desc;
+      document.getElementById("need-a").textContent = scene.needs[0];
+      document.getElementById("need-b").textContent = scene.needs[1];
+      document.getElementById("need-c").textContent = scene.needs[2];
+      document.getElementById("asset-strip").innerHTML = scene.assets.map((asset, index) => {
+        const [id, name, verdict, reason] = asset;
+        const thumbClass = verdict === "排除" ? "reject" : (index % 2 ? "close" : "training");
+        return `<button class="asset-chip" onclick="selectMapAsset('${name}', '${verdict}', '${reason}')"><div class="asset-thumb ${thumbClass}">${id}</div><div>${name}</div></button>`;
+      }).join("");
+      document.querySelector(".decision-list").innerHTML = `
+        <div class="decision"><b>已滿足</b><span>${scene.coverage[0]}</span></div>
+        <div class="decision"><b>待確認</b><span>${scene.coverage[1]}</span></div>
+        <div class="decision"><b>缺口</b><span>${scene.coverage[2]}</span></div>
+        <div class="decision"><b>下一步</b><span>若接受缺口，直接送 Workbench；否則回素材池找補件。</span></div>
+      `;
+      const first = scene.assets[0];
+      selectMapAsset(first[1], first[2], first[3]);
+    }
+
+    function selectMapAsset(name, verdict, reason) {
+      document.getElementById("map-selected").textContent = name;
+      document.getElementById("map-verdict").textContent = verdict;
+      document.getElementById("map-reason").textContent = reason;
+    }
+
+    function renderShot(key) {
+      const s = shots[key] || shots.shot1;
+      document.getElementById("shot-title").textContent = s.title;
+      document.getElementById("screen-label").textContent = s.label;
+      document.getElementById("screen-main").textContent = s.main;
+      document.getElementById("screen-subtitle").textContent = s.subtitle;
+      document.getElementById("shot-purpose").textContent = s.purpose;
+      document.getElementById("shot-material").textContent = s.material;
+      document.getElementById("shot-caption").textContent = s.caption;
+      document.getElementById("shot-pace").textContent = s.pace;
+      document.getElementById("shot-effect").textContent = s.effect;
+      document.getElementById("shot-issues").textContent = s.issue;
+      document.getElementById("screen-effect").textContent = "特效：" + s.effect;
+    }
+
+    function selectTimelineClip(ev, key, type) {
+      ev.stopPropagation();
+      document.querySelectorAll(".clip").forEach(x => x.classList.remove("active"));
+      ev.currentTarget.classList.add("active");
+      document.getElementById("source-title").textContent = sourceLabels[type] || "可選素材";
+      renderShot(key);
+    }
+
+    function selectMaterial(btn, name) {
+      document.querySelectorAll(".material-card").forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("shot-material").textContent = name;
+    }
+
+    selectContract("intent", document.querySelector(".node.active"));
+  </script>
+</body>
+</html>

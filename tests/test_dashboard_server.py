@@ -1042,6 +1042,47 @@ Second subtitle
         self.assertFalse((self.artifact_root / "review_settings.json").exists())
         self.assertFalse((self.artifact_root / "bgm.mp3").exists())
 
+    def test_control_promote_records_request_without_mutating_canonical_artifacts(self):
+        self.start_test_server()
+        base_url = f"http://localhost:{self.port}"
+
+        timeline_path = self.artifact_root / "timeline.json"
+        contract_path = self.artifact_root / "segment_contract.json"
+        packet_path = self.artifact_root / "effect_revision_packet.json"
+        timeline_data = {"artifact_role": "timeline", "plan": [{"segment": 1, "duration_sec": 3.0}]}
+        contract_data = {"segments": [{"segment_id": "seg1", "duration_sec": 3.0}]}
+        patched_timeline = {"artifact_role": "patched_draft_timeline", "plan": [{"segment": 1, "duration_sec": 5.0}]}
+        contract_patch = {
+            "artifact_role": "workbench_contract_patch",
+            "base_contract_ref": "segment_contract.json",
+            "changes": [{"op": "segment_duration_suggestion", "segment": "seg1", "to": {"requested_duration_sec": 5.0}}],
+        }
+        timeline_path.write_text(json.dumps(timeline_data), encoding="utf-8")
+        contract_path.write_text(json.dumps(contract_data), encoding="utf-8")
+        packet_path.write_text(json.dumps({"artifact_role": "revision_packet"}), encoding="utf-8")
+        (self.artifact_root / "patched_draft_timeline.json").write_text(json.dumps(patched_timeline), encoding="utf-8")
+        (self.artifact_root / "workbench_contract_patch.json").write_text(json.dumps(contract_patch), encoding="utf-8")
+
+        req = urllib.request.Request(
+            f"{base_url}/api/control/promote?root={urllib.parse.quote(str(self.artifact_root))}",
+            data=b"{}",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        payload = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "pending_agent_review")
+        self.assertEqual(payload["outputs"]["promotion_request"], "workbench_promotion_request.json")
+        self.assertEqual(json.loads(timeline_path.read_text(encoding="utf-8")), timeline_data)
+        self.assertEqual(json.loads(contract_path.read_text(encoding="utf-8")), contract_data)
+        self.assertTrue(packet_path.is_file())
+        request_payload = json.loads((self.artifact_root / "workbench_promotion_request.json").read_text(encoding="utf-8"))
+        self.assertEqual(request_payload["artifact_role"], "workbench_promotion_request")
+        self.assertEqual(request_payload["status"], "pending_agent_review")
+        self.assertIn("patched_draft_timeline.json", request_payload["requested_artifacts"])
+        self.assertIn("workbench_contract_patch.json", request_payload["requested_artifacts"])
+
     def test_merged_workbench_patch_writes_only_draft_artifacts(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"

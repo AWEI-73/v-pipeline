@@ -861,14 +861,18 @@ class DashboardHandler(WorkbenchHandler):
         self.end_headers()
         self.wfile.write(message.encode("utf-8"))
 
-
-
-
-
-
-
-
-
+    def send_error_response_rfc7807(self, status, title, detail, instance=None):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/problem+json; charset=utf-8")
+        self.end_headers()
+        payload = {
+            "type": f"https://httpstatuses.com/{status}",
+            "title": title,
+            "status": status,
+            "detail": detail,
+            "instance": instance or self.path
+        }
+        self.wfile.write(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"))
 
     def get_validated_root(self, query_params) -> Path:
         """Extract and validate the root path from query parameters, fallback to Referer, and then default."""
@@ -1543,17 +1547,75 @@ class DashboardHandler(WorkbenchHandler):
             return
 
         self.send_error_response(404, "Not Found")
+    def promote_workbench_drafts(self, active_root: Path) -> None:
+        try:
+            patched_timeline = active_root / "patched_draft_timeline.json"
+            contract_patch = active_root / "workbench_contract_patch.json"
+            requested_artifacts = []
+            if patched_timeline.is_file():
+                requested_artifacts.append("patched_draft_timeline.json")
+            if contract_patch.is_file():
+                requested_artifacts.append("workbench_contract_patch.json")
+
+            request_payload = {
+                "artifact_role": "workbench_promotion_request",
+                "version": 1,
+                "status": "pending_agent_review",
+                "requested_artifacts": requested_artifacts,
+                "next_action": "review_workbench_route_back",
+                "forbidden_actions": [
+                    "overwrite_canonical_timeline_from_dashboard",
+                    "mutate_segment_contract_without_backend_review",
+                    "delete_revision_packets",
+                ],
+                "notes": [
+                    "Dashboard records the promotion request only.",
+                    "A backend/agent route must decide whether the draft is material, effect, audio, subtitle, or finishing-only before canonical promotion.",
+                ],
+            }
+            (active_root / "workbench_promotion_request.json").write_text(
+                json.dumps(request_payload, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+            payload = {
+                "ok": True,
+                "status": "pending_agent_review",
+                "message": "Workbench promotion request recorded. Canonical artifacts were not mutated.",
+                "outputs": {
+                    "promotion_request": "workbench_promotion_request.json"
+                },
+                "requested_artifacts": requested_artifacts,
+                "next_action": "review_workbench_route_back"
+            }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+        except Exception as exc:
+            self.send_error_response_rfc7807(
+                status=500,
+                title="Promotion Failed",
+                detail=str(exc),
+                instance=self.path
+            )
+
     def do_POST(self):
         parsed_url = urllib.parse.urlparse(self.path)
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        if parsed_url.path == "/api/control/promote":
+            active_root = self.get_validated_root(query_params)
+            self.promote_workbench_drafts(active_root)
+            return
         if parsed_url.path.startswith("/api/workbench/"):
-            query_params = urllib.parse.parse_qs(parsed_url.query)
             active_root = self.get_validated_root(query_params)
             self.sync_workbench_context(active_root)
             WorkbenchHandler.do_POST(self)
             return
-        self.send_error_response(
-            405,
-            "Review Dashboard is read-only. Write-back endpoints are disabled."
+        self.send_error_response_rfc7807(
+            status=405,
+            title="Method Not Allowed",
+            detail="Review Dashboard is read-only for general requests. Write-back endpoints are disabled."
         )
 
 def run_server(artifact_root: str, port: int):
