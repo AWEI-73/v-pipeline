@@ -1259,6 +1259,84 @@ def _build_eligibility_summary(root: Path):
     )
 
 
+def _product_build_handoff_summary(root: Path):
+    handoff_path, handoff = _find_json(root, "build_handoff.json")
+    edit_path, edit_decision = _find_json(root, "edit_decision_plan.json")
+    if not (handoff or edit_decision):
+        return None
+
+    read = []
+    for path in (handoff_path, edit_path):
+        rel = _rel(root, path)
+        if rel and rel not in read:
+            read.append(rel)
+
+    cuts = edit_decision.get("cuts") or [] if isinstance(edit_decision, dict) else []
+    deferred = handoff.get("deferred_items") or [] if isinstance(handoff, dict) else []
+    accepted = handoff.get("accepted_handoffs") or {} if isinstance(handoff, dict) else {}
+    status = {
+        "artifact_role": "product_build_handoff_status",
+        "version": 1,
+        "ready_for_build": bool(isinstance(handoff, dict) and handoff.get("ready_for_build") is True),
+        "accepted_handoffs": accepted,
+        "deferred_items": deferred,
+        "edit_decision_cut_count": len(cuts),
+    }
+
+    if not isinstance(handoff, dict):
+        return _contract(
+            "repair",
+            "product_build_handoff",
+            next_action="compile-edit-decision-plan",
+            reason="edit_decision_plan.json exists but build_handoff.json is missing",
+            read=read,
+            run_dir=root,
+            source="edit_decision_plan.json",
+            extra={"product_build_handoff": status},
+        )
+    if not isinstance(edit_decision, dict):
+        return _contract(
+            "repair",
+            "product_build_handoff",
+            next_action="compile-edit-decision-plan",
+            reason="build_handoff.json exists but edit_decision_plan.json is missing",
+            read=read,
+            run_dir=root,
+            source="build_handoff.json",
+            extra={"product_build_handoff": status},
+        )
+    if deferred or handoff.get("ready_for_build") is False:
+        reason_parts = [
+            f"{item.get('owner') or 'unknown'}: {item.get('reason') or 'deferred'}"
+            for item in deferred
+            if isinstance(item, dict)
+        ]
+        reason = "; ".join(reason_parts) or "build_handoff.json is not ready_for_build"
+        return _contract(
+            "repair",
+            "product_build_handoff",
+            next_action="repair_deferred_product_handoffs",
+            reason=reason,
+            read=read,
+            run_dir=root,
+            source="build_handoff.json",
+            extra={"product_build_handoff": status},
+        )
+    return _contract(
+        "run",
+        "product_build_handoff",
+        next_action="stage4-build-smoke",
+        reason=(
+            "product build handoff ready: "
+            f"{len(cuts)} edit cut(s), {len(accepted)} accepted branch handoff(s)"
+        ),
+        read=read,
+        run_dir=root,
+        source="build_handoff.json",
+        extra={"product_build_handoff": status},
+    )
+
+
 def _lifecycle_summary(root: Path, lifecycle: dict[str, Any]):
     stage = lifecycle.get("stage")
     refs = _read_refs(root, lifecycle.get("refs") or {})
@@ -1926,6 +2004,10 @@ def summarize_run(run_dir):
         "subtitle_voiceover_handoff",
     }:
         return acceptance_summary
+
+    summary = _product_build_handoff_summary(root)
+    if summary:
+        return summary
 
     summary = _build_eligibility_summary(root)
     if summary:

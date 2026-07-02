@@ -1247,6 +1247,63 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("subtitle_voiceover_build_handoff.json", eligibility["consumed_handoffs"]["subtitle_voiceover"])
             self.assertIn("effect_handoff.json", eligibility["consumed_handoffs"]["effect"])
 
+    def test_product_build_handoff_ready_routes_to_stage4_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "build_handoff.json", {
+                "artifact_role": "build_handoff",
+                "ready_for_build": True,
+                "accepted_handoffs": {
+                    "material": "rough_cut_plan.json",
+                    "audio": "audio_director_handoff.json",
+                },
+                "deferred_items": [],
+                "product_artifacts": {
+                    "edit_decision_plan": "edit_decision_plan.json",
+                },
+            })
+            _write(root, "edit_decision_plan.json", {
+                "artifact_role": "edit_decision_plan",
+                "cuts": [{"id": "cut_001"}, {"id": "cut_002"}],
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "product_build_handoff")
+            self.assertEqual(summary["next"], "stage4-build-smoke")
+            self.assertEqual(summary["source"], "build_handoff.json")
+            self.assertTrue(summary["product_build_handoff"]["ready_for_build"])
+            self.assertEqual(summary["product_build_handoff"]["edit_decision_cut_count"], 2)
+
+    def test_product_build_handoff_deferred_routes_to_branch_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "build_handoff.json", {
+                "artifact_role": "build_handoff",
+                "ready_for_build": False,
+                "accepted_handoffs": {"material": "rough_cut_plan.json"},
+                "deferred_items": [
+                    {
+                        "owner": "effect-factory",
+                        "reason": "effect_handoff.json is absent",
+                        "return_point": "compile_edit_decision_plan",
+                    }
+                ],
+            })
+            _write(root, "edit_decision_plan.json", {
+                "artifact_role": "edit_decision_plan",
+                "cuts": [{"id": "cut_001"}],
+            })
+
+            summary = summarize_run(root)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "product_build_handoff")
+            self.assertEqual(summary["next"], "repair_deferred_product_handoffs")
+            self.assertEqual(summary["owner"], "main_pipeline")
+            self.assertIn("effect-factory", summary["reason"])
+
     def test_remotion_material_first_memory_acceptance_ready_routes_to_effect_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "remotion_material_first_memory_acceptance_report.json", {
