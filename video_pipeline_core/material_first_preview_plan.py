@@ -40,6 +40,12 @@ def _asset_index(matrix: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     }
 
 
+def _json_safe_path(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value).replace("\\", "/")
+
+
 def _ordered_candidates(matrix: Mapping[str, Any], draft: Mapping[str, Any], roles: list[str]) -> list[dict[str, Any]]:
     assets = _asset_index(matrix)
     primaries = draft.get("primary_selection") or {}
@@ -111,7 +117,7 @@ def build_preview_plan(
             "segment": len(clips) + 1,
             "role": candidate["role"],
             "asset_id": asset_id,
-            "source_path": asset.get("source_path"),
+            "source_path": _json_safe_path(asset.get("source_path")),
             "selection_status": candidate["selection_status"],
             "selection_note": candidate.get("selection_note"),
             "start_sec": round(start, 3),

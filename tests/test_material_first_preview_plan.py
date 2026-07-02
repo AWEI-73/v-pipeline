@@ -151,6 +151,46 @@ class MaterialFirstPreviewPlanTest(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertTrue(out.exists())
 
+    def test_writes_json_safe_windows_paths_with_chinese_and_numeric_folder(self):
+        from video_pipeline_core.material_first_preview_plan import build_preview_plan
+
+        matrix = {
+            "artifact_role": "material_understanding_matrix",
+            "version": 1,
+            "assets": [
+                {
+                    "asset_id": "closing_a",
+                    "source_path": r"C:\素材\運動會\66期配四班隊呼.mp4",
+                    "media_type": "video",
+                    "duration_sec": 20.0,
+                    "role_hints": ["closing"],
+                    "visual_evidence": {"caption_hint": "closing"},
+                }
+            ],
+        }
+        draft = {
+            "artifact_role": "material_wall_review_verdict",
+            "version": 1,
+            "primary_selection": {"closing": "closing_a"},
+        }
+
+        plan = build_preview_plan(
+            matrix,
+            draft,
+            target_duration_sec=8,
+            min_duration_sec=1,
+            max_duration_sec=10,
+            clip_duration_sec=8,
+            roles=["closing"],
+        )
+        encoded = json.dumps(plan, ensure_ascii=False)
+        parsed = json.loads(encoded)
+
+        self.assertEqual(
+            parsed["clips"][0]["source_path"],
+            "C:/素材/運動會/66期配四班隊呼.mp4",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
