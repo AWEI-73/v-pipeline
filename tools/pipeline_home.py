@@ -195,6 +195,34 @@ def _acceptance_summary(root: Path):
             source="material_first_boundary_acceptance_report.json",
         )
 
+    subtitle_voiceover_contract = ((report.get("stage0_contracts") or {}).get("subtitle_voiceover") or {})
+    subtitle_required = subtitle_voiceover_contract.get("subtitle_required") is True
+    voiceover_required = subtitle_voiceover_contract.get("voiceover_required") is True
+    if subtitle_required or voiceover_required:
+        _handoff_path, handoff = _find_json(root, "subtitle_voiceover_build_handoff.json")
+        subtitle_ready = isinstance(handoff, dict) and handoff.get("subtitle_ready") is True
+        voiceover_ready = isinstance(handoff, dict) and handoff.get("voiceover_ready") is True
+        if (subtitle_required and not subtitle_ready) or (voiceover_required and not voiceover_ready):
+            required = []
+            if subtitle_required:
+                required.append("subtitles")
+            if voiceover_required:
+                required.append("voiceover")
+            return _contract(
+                "repair",
+                "subtitle_voiceover_handoff",
+                next_action="subtitle-voiceover-handoff-accept",
+                resume="subtitle_voiceover",
+                reason=(
+                    "material-first acceptance passed; Stage 0 requires "
+                    + " and ".join(required)
+                    + " before BUILD handoff"
+                ),
+                read=read,
+                run_dir=root,
+                source="material_first_boundary_acceptance_report.json",
+            )
+
     rough_preview_path, rough_preview = _find_json(root, "rough_cut_preview_report.json")
     if rough_preview and rough_preview.get("ok") is True:
         output = rough_preview.get("output_video") or rough_preview.get("out")
@@ -1565,13 +1593,14 @@ def summarize_run(run_dir):
     if acceptance_summary and acceptance_summary.get("mode") == "repair":
         return acceptance_summary
 
-    summary = _subtitle_voiceover_handoff_summary(root)
-    if summary:
-        return summary
+    if not acceptance_summary:
+        summary = _subtitle_voiceover_handoff_summary(root)
+        if summary:
+            return summary
 
-    summary = _stage0_subtitle_voiceover_gap_summary(root)
-    if summary:
-        return summary
+        summary = _stage0_subtitle_voiceover_gap_summary(root)
+        if summary:
+            return summary
 
     summary = _audio_build_handoff_summary(root)
     if summary:
@@ -1591,6 +1620,14 @@ def summarize_run(run_dir):
 
     if acceptance_summary:
         return acceptance_summary
+
+    summary = _subtitle_voiceover_handoff_summary(root)
+    if summary:
+        return summary
+
+    summary = _stage0_subtitle_voiceover_gap_summary(root)
+    if summary:
+        return summary
 
     _boundary_path, boundary = _find_json(root, "boundary_report.json")
     if boundary:

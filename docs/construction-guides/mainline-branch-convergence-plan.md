@@ -94,6 +94,39 @@ Stage 0 should not make the finished video. It decides:
 - effect policy;
 - which branch owns the next concrete action.
 
+Stage 0 decision order must be deterministic:
+
+1. **Resume check:** if a run folder exists or the user points to an existing
+   run, inspect `pipeline_home.py` first. Do not write new Stage 0 artifacts
+   until the cursor is known.
+2. **Whole-video vs bounded branch:** decide whether the request is a whole
+   film/video route or a bounded branch request such as "make this opening
+   effect" or "find one BGM track". Whole-video requests always start at
+   Stage 0, even when they mention music, effects, subtitles, or style.
+3. **Input state:** classify available inputs as material available, one long
+   source, text/story/article available, idea only, or unknown.
+4. **Entry path:** choose `material-first`, `structure-first`, or
+   `needs-context`.
+5. **Child contracts:** write material, soundtrack, subtitle/voiceover, effect,
+   and communication contracts. A child contract may be `required`,
+   `optional`, `deferred`, or `not_applicable`, but it must be explicit.
+6. **First owner:** choose one executable owner for the next action. Other
+   branches remain recorded as child contracts until their insertion point.
+
+Child branch insertion points:
+
+| Branch | When it may run | Required input | Returns to |
+|---|---|---|---|
+| Material Map | Immediately after Stage 0 for `material-first`, after story needs for `structure-first`, or during Brownfield material replacement | `material_contract`, source folder or generated candidates, material needs when available | Stage 1/contract if story shape changes; otherwise BUILD eligibility |
+| Soundtrack Arranger | After Stage 0 when music/song/BGM/source-audio is required, or after rough structure exposes sections | `soundtrack_contract`, target sections/durations, vocal/speech policy | Audio Director / BUILD handoff |
+| Subtitle/Voiceover | After Stage 0 when narration/subtitle is required, or after script/segment text exists | `subtitle_voiceover_contract`, language/script/provider policy | BUILD handoff / Delivery evidence |
+| Effect Factory | After Stage 0 when effect policy is required, after structure when effect role/duration is known, or from Brownfield finishing request | `effect_policy`, section/role/duration/source refs when bounded | BUILD/Workbench bounded asset handoff |
+| Workbench/Brownfield | After a draft, rough cut, preview, final candidate, or local patch exists | draft timeline/preview and intended patch | owning branch route-back, never direct canonical overwrite |
+| Verify/Delivery | After any candidate final/preview package or when asked to review current output | current artifacts plus manifest evidence | repair route, review stop, or delivery/promotion |
+
+BUILD is not a branch. It is the convergence point that may consume accepted
+branch handoffs only after prerequisites in Section 5 are satisfied.
+
 ## 3. Convergence Principles
 
 1. **Contract first:** Every branch must expose a small, stable JSON handoff contract before downstream tools consume it.
@@ -128,6 +161,36 @@ Implementation requirements:
 - `runtime_orchestrator.py` must not try to execute review/repair states.
 - Unknown next actions should fail closed with `unknown_next_action`, not continue.
 
+Required implementation shape:
+
+```json
+{
+  "next_action": "soundtrack-arrange",
+  "next_action_class": "executable",
+  "owner": "soundtrack_arranger",
+  "source": "video_intent.json",
+  "safe_command": "python video_tools.py soundtrack-arrange RUN_DIR\\video_intent.json --out-dir RUN_DIR",
+  "stop_reason": null
+}
+```
+
+`safe_command` is optional for review/repair stops and must not be emitted when
+the action requires user judgment. If a branch cannot classify its next action,
+it should return:
+
+```json
+{
+  "next_action": "unknown_next_action",
+  "next_action_class": "repair_stop",
+  "owner": "main_pipeline",
+  "stop_reason": "unclassified_next_action"
+}
+```
+
+The taxonomy source should be central and testable. Prefer a small registry in
+the pipeline state/home layer over duplicated string checks spread across
+branch tools.
+
 ### 4.2 Contract Passthrough
 
 Problem: Stage 0 child contracts can be lost when artifacts are transformed from intent to story, segment contract, timeline, and delivery reports.
@@ -150,6 +213,20 @@ Required rule:
   - write an explicit `deferred_child_contracts[]` entry with owner, reason, return point, and non-blocking gate evidence.
 
 Tests must prove child contracts are not silently dropped.
+
+Minimum passthrough checkpoints:
+
+| From | To | Required behavior |
+|---|---|---|
+| `video_intent.json` | story / structure artifacts | copy `stage0_child_contracts` or write `deferred_child_contracts[]` |
+| story / structure artifacts | `segment_contract.json` | preserve child contracts and material/audio/effect/subtitle requirements |
+| `segment_contract.json` | `timeline_build.json` | preserve branch requirements and link timeline clips to accepted material/audio/effect/subtitle evidence |
+| `timeline_build.json` | render/build payload | preserve final audio, subtitle, effect, material trace refs |
+| render/build payload | Verify / Delivery | report consumed branch evidence and any deferred or missing contract |
+
+Every passthrough test should include at least one required child contract and
+one deferred child contract, so a tool cannot pass by copying only happy-path
+fields.
 
 ### 4.3 Handoff Artifact Manifest
 
@@ -189,6 +266,37 @@ Required rule:
 - Manifest paths may be relative to the run folder or absolute.
 - If manifest points to a missing file, report stale/missing evidence and fail closed.
 
+Manifest ownership rule:
+
+| Branch | Writes manifest keys | Does not write |
+|---|---|---|
+| Material Map | material matrix/map/delta/review/handoff keys | audio/effect/subtitle handoff keys |
+| Soundtrack / Audio Director | soundtrack/source/license/probe/audio handoff/mix keys | material map, effect output, final video |
+| Subtitle/Voiceover | subtitle/voiceover provider/readiness/caption/narration keys | music mix or material truth |
+| Effect Factory | effect plan/review/worker/handoff/evidence keys | canonical timeline or final video |
+| Workbench/Brownfield | draft preview/patch/route-back keys | canonical truth and `final.mp4` |
+| Verify/Delivery | delivery report, final evidence index, repair route keys | branch-internal repair artifacts |
+
+Manifest entries should include enough metadata for stale detection:
+
+```json
+{
+  "artifact_manifest_version": 1,
+  "artifacts": {
+    "audio_build_handoff": {
+      "path": "audio_build_handoff.json",
+      "owner": "soundtrack_arranger",
+      "status": "accepted",
+      "updated_by": "tools/audio_mix_plan_execute.py"
+    }
+  }
+}
+```
+
+If the existing manifest format is flat, the first implementation may keep flat
+keys for compatibility and add metadata in a sidecar or nested `artifacts`
+field. Do not break existing readers without a migration test.
+
 ## 5. Phase Plan
 
 ### Phase 0: Baseline Audit
@@ -217,6 +325,55 @@ python -m unittest tests.test_branch_contract_registry tests.test_skill_tool_con
 - Branch registry tests pass.
 - Generated map reflects all active branches.
 - Any known orphan/noise file is listed, not silently deleted.
+
+### Phase 0.5: State / Manifest / Passthrough Contract Skeleton
+
+**Goal:** Before improving any branch, make the shared convergence surface
+explicit. This prevents Audio, Effect, Subtitle, Material, and Workbench from
+each inventing their own state and handoff conventions.
+
+**Likely files:**
+
+- `tools/pipeline_home.py`
+- `tools/pipeline_map.py`
+- `video_pipeline_core/dashboard_state.py`
+- `video_pipeline_core/delivery_gate.py`
+- any existing artifact manifest helper module, or a new focused helper if no
+  central helper exists
+- `tests/test_pipeline_home.py`
+- `tests/test_pipeline_map.py`
+- `tests/test_dashboard_state.py`
+- delivery gate tests
+
+**Required behaviors:**
+
+- `pipeline_home.py` returns `next_action_class`, `owner`, `source`, and either
+  `safe_command` or `stop_reason`.
+- Unknown/unclassified actions fail closed.
+- Manifest lookup is preferred over filename guessing, while fallback search
+  remains for backward compatibility.
+- Stale manifest path means repair/blocked state, not success.
+- Child contracts can be read from `video_intent.json`,
+  `stage0_child_contracts`, or a documented deferred contract list.
+- Existing dashboard state can show manifest-backed handoff artifacts without
+  requiring UI redesign.
+
+**Acceptance:**
+
+- A fixture with a valid manifest handoff routes to the branch return state.
+- A fixture with a stale manifest path fails closed.
+- A fixture with an unknown `next_action` returns `unknown_next_action`.
+- A fixture where an adapter drops `soundtrack_contract` or `effect_policy`
+  fails the passthrough test.
+
+**Focused tests:**
+
+```powershell
+python -m unittest `
+  tests.test_pipeline_home `
+  tests.test_pipeline_map `
+  tests.test_dashboard_state -q
+```
 
 ### Phase 1: Stage 0 Child Contract Alignment
 
@@ -252,6 +409,32 @@ python -m unittest tests.test_branch_contract_registry tests.test_skill_tool_con
 - Subtitle/voiceover intent records provider/fallback policy.
 - Effect style intent records bounded/deferred effect policy.
 - `needs-context` asks at most two rounds, then stops with required questions.
+
+**Stage 0 output semantics:**
+
+| Contract status | Meaning | Downstream behavior |
+|---|---|---|
+| `required` | The branch must resolve before delivery and usually before BUILD | missing handoff blocks |
+| `optional` | Branch may run if evidence exists or user requests it later | missing handoff does not block |
+| `deferred` | Branch is known but cannot run yet | must include reason, owner, return point, and review/gate condition |
+| `not_applicable` | Branch is not part of this run | no branch gate required |
+
+`deferred` is valid only when all fields below exist:
+
+```json
+{
+  "status": "deferred",
+  "owner": "effect_factory",
+  "reason": "effect duration depends on final segment structure",
+  "return_point": "after_segment_contract",
+  "gate": "effect_policy_recheck"
+}
+```
+
+If a contract is ambiguous and affects route choice, keep the run in
+`needs-context` for at most two focused question rounds. After two rounds,
+write the remaining questions to `required_followup_questions` and stop; do not
+guess and continue.
 
 **Focused tests:**
 
@@ -345,6 +528,12 @@ python -m unittest `
 - Missing or failed audio handoff routes to `repair_audio_handoff`.
 - Ready audio mix routes to `return_to_build_with_final_audio`.
 - No `final.mp4` is written during audio mix.
+- If timeline duration is shorter than planned audio, default behavior is
+  clamp-to-video-duration with fade-out.
+- If timeline duration is longer than planned audio, report the gap and route
+  to audio repair or explicit waiver; do not silently leave dead air.
+- If source material has important original speech, music placement must show
+  ducking/preservation evidence before returning to BUILD.
 
 **Focused tests:**
 
@@ -384,6 +573,9 @@ python -m unittest `
 - Missing subtitle/voiceover evidence returns subtitle/voiceover repair route.
 - Missing effect evidence returns effect repair route.
 - Workbench preview returns review/promotion route, not complete.
+- Delivery report must include both the thin technical verify result and the
+  semantic/branch gate verdict so reviewers cannot mistake `verify_result`
+  alone for final delivery approval.
 
 **Focused tests:**
 
@@ -431,6 +623,11 @@ Add dedicated delivery gate tests if an existing delivery gate test module exist
 - Missing caption audit blocks required subtitle delivery.
 - Provider unavailable reason includes missing module/model/python/repo details where available.
 - Manifest records subtitle/voiceover handoff artifacts.
+- If `preferred_provider=voxcpm` and runtime is unavailable:
+  - `fallback_allowed=false` routes to repair/needs-context;
+  - `fallback_allowed=true` records selected fallback provider and reason;
+  - no branch may claim narration-ready without actual audio or an explicit
+    deferred contract.
 
 **Focused tests:**
 
@@ -527,6 +724,71 @@ Expected: `final.mp4` absent, route stops at human effect review or promotion ha
 - `workbench_handoff.json` with route-back is visible in `pipeline_home.py`.
 - Draft rerender does not mark run complete.
 - Any patch that changes canonical truth fails until owner branch accepts it.
+
+### Phase 7.5: BUILD Convergence Surface
+
+**Goal:** Make BUILD eligibility explicit after branch handoffs. BUILD should
+not infer readiness from the existence of random files.
+
+**Likely files:**
+
+- BUILD/dry-build CLI adapters such as `video_tools.py contract-dry-build`
+- `tools/pipeline_home.py`
+- `video_pipeline_core/delivery_gate.py`
+- `video_pipeline_core/dashboard_state.py`
+- tests that cover BUILD eligibility and branch handoff consumption
+
+**BUILD prerequisites are AND conditions:**
+
+1. `segment_contract.json` exists and passes contract/spec review.
+2. Material requirements are either accepted, waived with reason, or explicitly
+   marked not applicable.
+3. Required audio has an accepted audio handoff and, if mixed, a valid
+   `audio_build_handoff.json`.
+4. Required subtitles/voiceover have accepted handoff and readability/narration
+   evidence, or a valid deferred contract with return point.
+5. Required effects have accepted capability/review/handoff evidence, or a
+   valid deferred contract with return point.
+6. Workbench patches are either absent, draft-only, or routed back and accepted
+   by the owning branch.
+
+Deferred contracts count as satisfying a BUILD prerequisite only when they
+include owner, reason, return point, gate, and a statement that BUILD is allowed
+to proceed without that branch. Deferred contracts do not satisfy Delivery
+unless the Delivery Gate has an explicit waiver rule for that contract.
+
+**Required BUILD handoff summary:**
+
+```json
+{
+  "build_eligibility": {
+    "ready": false,
+    "blocking": ["missing_audio_build_handoff"],
+    "deferred": [
+      {
+        "contract": "effect_policy",
+        "owner": "effect_factory",
+        "return_point": "after_preview_review"
+      }
+    ],
+    "consumed_handoffs": {
+      "material": "project_material_map.json",
+      "audio": null,
+      "subtitle_voiceover": "subtitle_voiceover_build_handoff.json",
+      "effect": null
+    }
+  }
+}
+```
+
+**Acceptance:**
+
+- Missing required branch handoff blocks BUILD.
+- Valid deferred branch contract allows BUILD only when explicitly marked
+  build-deferable.
+- BUILD consumes manifest-backed handoffs and reports stale/missing manifest
+  entries.
+- BUILD does not write `final.mp4` during dry-build or handoff validation.
 
 ### Phase 8: Happy Path Acceptance Set
 
@@ -670,3 +932,82 @@ When施工 begins, start with the smallest convergent slice:
 7. Delivery Gate branch-evidence fail-closed tests.
 
 Commit after each coherent slice. Do not mix UI redesign with this convergence pass.
+
+## 10. Corrected Implementation Slice
+
+The older Section 9 list is superseded by this corrected order. Use this order
+when implementation begins:
+
+1. Baseline audit and focused test snapshot.
+2. Shared state/manifest/passthrough skeleton.
+3. Stage 0 child contract alignment.
+4. Audio section requirement contract.
+5. Audio handoff `required_track_count` and probe/license gate.
+6. Audio mix duration clamp/fade handoff.
+7. Subtitle/Voiceover provider readiness visibility.
+8. Effect Factory manifest and required-evidence alignment.
+9. BUILD convergence surface.
+10. Delivery Gate branch-evidence fail-closed tests.
+11. Three happy path acceptance runs.
+
+Commit after each coherent slice. Do not mix UI redesign with this convergence
+pass.
+
+## 11. Execution Guardrails
+
+This plan should be executed as a sequence of bounded changes, not as one large
+rewrite.
+
+Recommended loop per slice:
+
+```text
+read owning docs
+write or update failing focused tests
+implement the smallest behavior
+run focused tests
+update route docs/skill contract if behavior changed
+commit
+continue
+```
+
+Do not start provider downloads, Remotion previews, ffmpeg final renders, or
+long E2E runs while implementing contract/gate slices. Those belong to Phase 8
+or explicit manual smoke tests.
+
+If a slice requires changing current behavior and current tests disagree with
+the construction plan, prefer adding an explicit migration note in the test or
+plan over silently changing the route semantics.
+
+## 12. Documentation Updates Required During Execution
+
+Whenever implementation changes behavior, update the matching operator-facing
+document in the same commit:
+
+| Code behavior changed | Update |
+|---|---|
+| Stage 0 entry/path/child contract | `RUNBOOK.md`, `docs/pipeline-decision-tree.md`, `skills/video-pipeline-route.md` |
+| Branch ownership or tool ownership | `docs/branch-contract-registry.json`, `docs/branch-contract-registry.md`, `docs/stage-tool-simplification.md` |
+| Pipeline stage map or generated route map | `docs/video-pipeline-operating-map.md`, generated map if applicable |
+| Soundtrack/audio branch | `docs/soundtrack-arranger-route.md`, soundtrack/audio skill docs |
+| Subtitle/voiceover branch | `RUNBOOK.md`, subtitle/voiceover skill docs if present |
+| Effect Factory branch | `docs/effect-factory-route.md`, `skills/video-effect-factory.md`, `skills/remotion-effect-worker.md` |
+| Workbench route-back | `docs/workbench-dashboard-integration.md` |
+| Verify/Delivery gate | `RUNBOOK.md`, `docs/pipeline-decision-tree.md` |
+
+Docs should remain concise and operational. Do not move construction-only
+details into `RUNBOOK.md`; link to this construction plan instead.
+
+## 13. Open Risks To Track During Execution
+
+| Risk | Mitigation in this plan |
+|---|---|
+| Stage 0 child contracts are silently dropped by adapters | Phase 0.5 and Phase 1 passthrough tests |
+| Branch tools emit unclassified next actions | Section 4.1 taxonomy and Phase 0.5 tests |
+| Manifest and fallback search disagree | Section 4.3 manifest stale/missing fail-closed behavior |
+| Network/API tests become flaky | Phase 2 mock-first provider tests; real downloads only in smoke/happy path |
+| Audio length and video length drift | Phase 3 clamp/fade and gap reporting |
+| VoxCPM unavailable but narration is marked ready | Phase 5 provider readiness fail-closed rule |
+| Effect Factory returns generic assets for required effects | Phase 6 capability/review/evidence gate |
+| Workbench overwrites canonical truth | Phase 7 route-back guard |
+| `verify_result.pass=true` is mistaken for delivery pass | Phase 4 Delivery Gate evidence report |
+| Full regression is too long for every slice | Focused tests per phase; full regression at end or checkpoint |

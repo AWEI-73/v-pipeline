@@ -440,8 +440,22 @@ def _load_branch_contract_registry() -> dict[str, Any]:
     return json.loads(BRANCH_CONTRACT_REGISTRY_PATH.read_text(encoding="utf-8"))
 
 
+def _normalized_branches(branch_registry: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_branches = branch_registry.get("branches") or BRANCHES
+    branches: list[dict[str, Any]] = []
+    for branch in raw_branches:
+        if not isinstance(branch, dict):
+            continue
+        normalized = dict(branch)
+        if "id" not in normalized and normalized.get("branch_id"):
+            normalized["id"] = normalized["branch_id"]
+        branches.append(normalized)
+    return branches
+
+
 def build_map() -> dict[str, Any]:
     branch_registry = _load_branch_contract_registry()
+    branches = _normalized_branches(branch_registry)
     return {
         "artifact_role": "pipeline_architecture_map",
         "version": 1,
@@ -454,7 +468,7 @@ def build_map() -> dict[str, Any]:
         "support_tools": SUPPORT_TOOLS,
         "stages": STAGES,
         "branch_contract_registry": branch_registry,
-        "branches": branch_registry.get("branches") or BRANCHES,
+        "branches": branches,
         "run_folder_structure": RUN_FOLDERS,
         "graphify_profile": {
             "name": "mvp",
