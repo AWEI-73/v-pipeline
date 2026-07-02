@@ -48,8 +48,16 @@ def _tokens_for_request(request: str) -> set[str]:
         tokens.add("avoid_presentation")
     if any(token in text for token in ("訓練", "训练", "training", "class", "team", "團隊", "团队")):
         tokens.add("training_context")
+    if any(token in text for token in ("科技", "tech", "technology", "cyber", "data", "數據", "数据", "電流", "电流", "grid")):
+        tokens.add("technology")
+    if any(token in text for token in ("logo", "品牌", "brand", "emblem", "mark", "識別", "识别")):
+        tokens.add("logo_focus")
+    if any(token in text for token in ("飛", "飞", "fly", "飛入", "飞入", "飛進", "飞进", "3d", "位移", "orbit")):
+        tokens.add("fast_logo_motion")
+    if any(token in text for token in ("不要太廉價", "不要太廉价", "高級", "高级", "premium", "精緻", "精致", "質感", "质感")):
+        tokens.add("premium_finish")
     if not tokens:
-        tokens.update({"warmth", "memory", "restrained"})
+        tokens.update({"controlled_design", "restrained"})
     return tokens
 
 
@@ -76,6 +84,14 @@ def build_effect_design_brief(
         emotional_core.append("restraint")
     if "slow_reveal" in tokens:
         emotional_core.append("slow_emergence")
+    if "technology" in tokens:
+        emotional_core.append("technical_precision")
+    if "logo_focus" in tokens:
+        emotional_core.append("brand_identity")
+    if "fast_logo_motion" in tokens:
+        emotional_core.append("kinetic_energy")
+    if "premium_finish" in tokens:
+        emotional_core.append("premium_finish")
     if not emotional_core:
         emotional_core = ["clarity", "controlled_emotion"]
 
@@ -87,6 +103,22 @@ def build_effect_design_brief(
     ]
     if "restrained" in tokens:
         negative_direction.append("avoid_party_energy")
+    if "premium_finish" in tokens:
+        negative_direction.append("avoid_cheap_cyber_template")
+    if "technology" in tokens or "logo_focus" in tokens:
+        negative_direction.append("avoid_memory_wall_when_brand_motion_is_requested")
+
+    visual_metaphors = [
+        "memory_surfaces_over_time",
+        "reviewed_moments_gather_into_context",
+        "warm_light_as_emotional_thread",
+    ]
+    if "technology" in tokens or "logo_focus" in tokens:
+        visual_metaphors = [
+            "logo_as_energy_core",
+            "data_current_orbits_brand_mark",
+            "controlled_depth_motion_reveals_identity",
+        ]
 
     return {
         "artifact_role": "effect_design_brief",
@@ -96,11 +128,8 @@ def build_effect_design_brief(
         "duration_sec": duration,
         "material_context": material_context,
         "emotional_core": emotional_core,
-        "visual_metaphors": [
-            "memory_surfaces_over_time",
-            "reviewed_moments_gather_into_context",
-            "warm_light_as_emotional_thread",
-        ],
+        "semantic_tokens": sorted(tokens),
+        "visual_metaphors": visual_metaphors,
         "audience_feeling_goal": [
             "this_is_a_real_recap",
             "quiet_curiosity_to_keep_watching",
@@ -165,12 +194,124 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
         raise ValueError("design_brief must have artifact_role effect_design_brief")
     emotional = set(design_brief.get("emotional_core") or [])
     negative = set(design_brief.get("negative_direction") or [])
+    semantic_tokens = set(design_brief.get("semantic_tokens") or [])
     duration = float(design_brief.get("duration_sec") or 4.0)
     memory_score = 2 if "memory" in emotional else 0
     slow_score = 1 if "slow_emergence" in emotional else 0
     avoid_deck_score = 1 if "avoid_presentation_deck" in negative else 0
+    tech_score = 2 if "technical_precision" in emotional or "technology" in semantic_tokens else 0
+    logo_score = 2 if "brand_identity" in emotional or "logo_focus" in semantic_tokens else 0
+    kinetic_score = 2 if "kinetic_energy" in emotional or "fast_logo_motion" in semantic_tokens else 0
+    premium_score = 1 if "premium_finish" in emotional or "premium_finish" in semantic_tokens else 0
 
     concepts = [
+        _concept(
+            "tech_logo_fly_in",
+            "Tech Logo Fly-In",
+            visual_primitives=[
+                "dark_technology_field",
+                "center_logo_energy_core",
+                "data_current_outer_ring",
+                "controlled_cyan_electric_accents",
+                "premium_low_clutter_finish",
+            ],
+            motion_primitives=[
+                "logo_3d_fly_in",
+                "short_orbit_hold",
+                "depth_exit_or_resolve",
+                "fast_then_controlled_pacing",
+            ],
+            typography={
+                "position": "none_or_minimal",
+                "scale": "brand_safe",
+                "weight": "not_applicable_when_logo_only",
+                "subtitle": "avoid_unless_user_requests",
+                "avoid_copy": design_brief.get("copy_direction", {}).get("avoid_copy", []),
+            },
+            material_usage={
+                "source": "reviewed_logo_or_brand_mark",
+                "priority": "logo_readability_and_silhouette",
+                "max_refs": 1,
+                "preserve_faces": False,
+                "do_not_claim_material_truth": True,
+            },
+            prompt_parameters={
+                "template_id": None,
+                "presentation": {
+                    "background_style": "transparent",
+                    "text_position": "none",
+                    "text_scale": "none",
+                    "effect_strength": "high",
+                    "motion_energy": "fast",
+                    "safe_area": "brand_safe",
+                    "accent_color": "#42d8ff",
+                    "secondary_accent": "#ff4b55",
+                    "text_color": "#f4fbff",
+                    "theme": "premium_technology_brand_intro",
+                },
+                "effect_build_spec": {
+                    "component": "GenericRemotionEffect",
+                    "duration_sec": duration,
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                    "story_function": "premium_technology_brand_identity_reveal",
+                    "pacing": "fast_then_hold",
+                    "density": "medium_high",
+                    "reveal_mode": "logo_3d_fly_in_orbit_out",
+                    "camera_motion": "snap_scale",
+                    "accent_light": "cyan_electric_with_red_trace",
+                    "layers": [
+                        {
+                            "id": "data_field",
+                            "type": "glyph_stream",
+                            "params": {"density": "medium", "speed": "fast", "palette": "cyan_blue", "opacity": 0.24},
+                        },
+                        {
+                            "id": "logo",
+                            "type": "image_layout",
+                            "params": {"layout": "center_logo", "logo_size_px": 520, "refs": []},
+                        },
+                        {
+                            "id": "logo_motion",
+                            "type": "logo_3d_motion",
+                            "params": {
+                                "motion": "fly_in_orbit_out",
+                                "strength": "high",
+                                "orbit_count": 1.35,
+                                "depth_px": 720,
+                                "travel_px": 980,
+                            },
+                        },
+                        {
+                            "id": "outer_current",
+                            "type": "radial_current",
+                            "params": {"position": "outer_ring", "arc_count": 28, "flow_speed": "fast"},
+                        },
+                        {
+                            "id": "electric_accents",
+                            "type": "electric_arcs",
+                            "params": {"arc_count": 10, "intensity": "medium_high", "around": "logo_outer_ring"},
+                        },
+                        {
+                            "id": "glow",
+                            "type": "light_overlay",
+                            "params": {"glow_color": "#42d8ff", "intensity": "medium_high", "vignette": "soft_dark"},
+                        },
+                    ],
+                    "timing": {"intro_sec": min(3.2, duration * 0.35), "hold_sec": max(1.0, duration * 0.45), "outro_sec": min(3.0, duration * 0.2)},
+                    "review_required": True,
+                },
+            },
+            fits=[
+                "matches explicit logo, technology, and fly-in language",
+                "keeps brand mark as the focal object instead of using memory/photo metaphors",
+                "uses supported GenericRemotionEffect layers rather than a fixed one-off template",
+            ],
+            risks=[
+                "can look cheap if glow, particles, and glyph density are too high",
+                "requires a clean logo asset or background removal before render",
+            ],
+            base_score=3 + tech_score + logo_score + kinetic_score + premium_score,
+        ),
         _concept(
             "quiet_memory_wall",
             "Quiet Memory Wall",
@@ -420,10 +561,7 @@ def select_effect_concept(
         "selected_concept_id": selected["concept_id"],
         "selected_concept": _copy_json(selected),
         "score": int(selected.get("score") or 0),
-        "reason": (
-            "Selected because it best balances emotional warmth, reviewed material "
-            "presence, restrained motion, and low presentation-deck risk."
-        ),
+        "reason": _selection_reason(selected),
         "risk_register": [
             {"risk": risk, "mitigation": _risk_mitigation(risk)}
             for risk in risks
@@ -434,6 +572,21 @@ def select_effect_concept(
             "render review must check presentation feel, material presence, and duration drift",
         ],
     }
+
+
+def _selection_reason(selected: Mapping[str, Any]) -> str:
+    concept_id = str(selected.get("concept_id") or "")
+    if concept_id == "tech_logo_fly_in":
+        return (
+            "Selected because the request explicitly asks for technology, logo focus, "
+            "and fly-in motion; memory/photo-wall metaphors are intentionally avoided."
+        )
+    if concept_id == "quiet_memory_wall":
+        return (
+            "Selected because the request emphasizes warmth, recap memory, reviewed "
+            "material presence, restrained motion, and low presentation-deck risk."
+        )
+    return "Selected because it has the strongest score for the visible design brief and renderer constraints."
 
 
 def _risk_mitigation(risk: str) -> str:

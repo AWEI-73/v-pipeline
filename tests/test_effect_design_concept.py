@@ -31,6 +31,35 @@ class EffectDesignConceptTest(unittest.TestCase):
         self.assertEqual(chain["concept_selection"]["decision"], "selected")
         self.assertGreaterEqual(chain["concept_selection"]["score"], 8)
 
+    def test_technology_logo_fly_in_does_not_fall_back_to_memory_wall(self):
+        from video_pipeline_core.effect_design_concept import build_effect_design_concept_chain
+
+        chain = build_effect_design_concept_chain(
+            request="做一個科技感很強、logo 飛進來的開場，但不要太廉價",
+            effect_role="opening_title",
+            duration_sec=15.0,
+        )
+
+        self.assertIn("technology", chain["design_brief"]["semantic_tokens"])
+        self.assertIn("logo_focus", chain["design_brief"]["semantic_tokens"])
+        self.assertIn("fast_logo_motion", chain["design_brief"]["semantic_tokens"])
+        concept_ids = {item["concept_id"] for item in chain["concept_options"]["concepts"]}
+        self.assertIn("tech_logo_fly_in", concept_ids)
+        self.assertEqual(chain["concept_selection"]["selected_concept_id"], "tech_logo_fly_in")
+        self.assertIn("technology", chain["concept_selection"]["reason"])
+        self.assertIn("memory/photo-wall metaphors are intentionally avoided", chain["concept_selection"]["reason"])
+        selected = chain["concept_selection"]["selected_concept"]
+        self.assertEqual(
+            selected["prompt_parameters"]["effect_build_spec"]["component"],
+            "GenericRemotionEffect",
+        )
+        layer_types = {
+            layer["type"]
+            for layer in selected["prompt_parameters"]["effect_build_spec"]["layers"]
+        }
+        self.assertIn("logo_3d_motion", layer_types)
+        self.assertNotEqual(chain["concept_selection"]["selected_concept_id"], "quiet_memory_wall")
+
     def test_selection_enriches_effect_with_design_params_that_reach_prompt_pack(self):
         from video_pipeline_core.effect_design_concept import (
             build_effect_design_concept_chain,
