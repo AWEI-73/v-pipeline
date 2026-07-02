@@ -60,6 +60,28 @@ class EffectDesignConceptTest(unittest.TestCase):
         self.assertIn("logo_3d_motion", layer_types)
         self.assertNotEqual(chain["concept_selection"]["selected_concept_id"], "quiet_memory_wall")
 
+    def test_non_memory_effect_families_do_not_default_to_memory_wall(self):
+        from video_pipeline_core.effect_design_concept import build_effect_design_concept_chain
+
+        cases = [
+            ("日式櫻花飄落的童話段落轉場，柔和夢幻", "transition", "symbolic_motion_effect"),
+            ("閃電劈下來的震撼開場，但不要廉價", "opening_title", "symbolic_motion_effect"),
+            ("母親節活動開場，溫暖愛心布景", "opening_title", "symbolic_motion_effect"),
+            ("講者下標，乾淨、中文清楚、不要花", "lower_third", "clean_information_overlay"),
+            ("故事切到熱血 MV，速度感很強的轉場", "transition", "kinetic_mv_transition"),
+            ("產品發表開場，高級黑金質感，物件慢慢亮出來", "opening_title", "premium_product_reveal"),
+        ]
+
+        for request, role, expected in cases:
+            with self.subTest(request=request):
+                chain = build_effect_design_concept_chain(
+                    request=request,
+                    effect_role=role,
+                    duration_sec=8.0,
+                )
+                self.assertEqual(chain["concept_selection"]["selected_concept_id"], expected)
+                self.assertNotEqual(chain["concept_selection"]["selected_concept_id"], "quiet_memory_wall")
+
     def test_selection_enriches_effect_with_design_params_that_reach_prompt_pack(self):
         from video_pipeline_core.effect_design_concept import (
             build_effect_design_concept_chain,
@@ -191,6 +213,30 @@ class EffectDesignConceptTest(unittest.TestCase):
                 self.assertTrue((root / name).is_file(), name)
             selection = json.loads((root / "effect_concept_selection.json").read_text(encoding="utf-8"))
             self.assertEqual(selection["selected_concept_id"], "quiet_memory_wall")
+
+    def test_cli_accepts_utf8_request_file_for_chinese_text(self):
+        import video_tools
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            request_file = root / "request.txt"
+            request_file.write_text("做一個科技感很強、logo 飛進來的開場，但不要太廉價", encoding="utf-8")
+            out_dir = root / "out"
+            with redirect_stdout(StringIO()):
+                video_tools.cmd_effect_design_concept(SimpleNamespace(
+                    request="",
+                    request_file=str(request_file),
+                    effect_role="opening_title",
+                    duration_sec=15.0,
+                    material_context="reviewed_or_local_material_refs",
+                    preferred_concept_id="",
+                    out_dir=str(out_dir),
+                ))
+
+            brief = json.loads((out_dir / "effect_design_brief.json").read_text(encoding="utf-8"))
+            selection = json.loads((out_dir / "effect_concept_selection.json").read_text(encoding="utf-8"))
+            self.assertIn("technology", brief["semantic_tokens"])
+            self.assertEqual(selection["selected_concept_id"], "tech_logo_fly_in")
 
 
 if __name__ == "__main__":

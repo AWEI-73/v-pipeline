@@ -56,6 +56,26 @@ def _tokens_for_request(request: str) -> set[str]:
         tokens.add("fast_logo_motion")
     if any(token in text for token in ("不要太廉價", "不要太廉价", "高級", "高级", "premium", "精緻", "精致", "質感", "质感")):
         tokens.add("premium_finish")
+    if any(token in text for token in ("櫻花", "樱花", "sakura", "花瓣", "petal", "日式", "japanese")):
+        tokens.add("sakura_poetic")
+    if any(token in text for token in ("閃電", "闪电", "雷電", "雷电", "lightning", "thunder", "劈", "震撼")):
+        tokens.add("lightning_impact")
+    if any(token in text for token in ("地震", "裂", "裂痕", "crack", "impact", "震動", "震动")):
+        tokens.add("crack_impact")
+    if any(token in text for token in ("母親節", "母亲节", "愛心", "爱心", "heart", "柔和")):
+        tokens.add("soft_heart")
+    if any(token in text for token in ("紀錄片", "纪录片", "歷史", "历史", "檔案", "档案", "archive", "documentary", "莊重", "庄重")):
+        tokens.add("documentary_archive")
+    if any(token in text for token in ("mv", "節奏", "节奏", "速度感", "speed", "熱血", "热血", "拉起來", "拉起来")):
+        tokens.add("kinetic_mv")
+    if any(token in text for token in ("下標", "下标", "lower third", "講者", "讲者", "字幕條", "字幕条")):
+        tokens.add("clean_lower_third")
+    if any(token in text for token in ("產品", "产品", "product", "發表", "发布", "黑金", "物件", "物体")):
+        tokens.add("premium_product")
+    if any(token in text for token in ("兒童", "儿童", "童話", "童话", "繪本", "绘本", "可愛", "可爱", "星星")):
+        tokens.add("cute_storybook")
+    if any(token in text for token in ("薪火", "傳承", "传承", "火光", "fire", "legacy", "含蓄")):
+        tokens.add("legacy_fire")
     if not tokens:
         tokens.update({"controlled_design", "restrained"})
     return tokens
@@ -92,6 +112,24 @@ def build_effect_design_brief(
         emotional_core.append("kinetic_energy")
     if "premium_finish" in tokens:
         emotional_core.append("premium_finish")
+    if "sakura_poetic" in tokens:
+        emotional_core.append("poetic_softness")
+    if "lightning_impact" in tokens or "crack_impact" in tokens:
+        emotional_core.append("impact_energy")
+    if "soft_heart" in tokens:
+        emotional_core.append("soft_affection")
+    if "documentary_archive" in tokens:
+        emotional_core.append("documentary_gravity")
+    if "kinetic_mv" in tokens:
+        emotional_core.append("rhythmic_acceleration")
+    if "clean_lower_third" in tokens:
+        emotional_core.append("information_clarity")
+    if "premium_product" in tokens:
+        emotional_core.append("premium_reveal")
+    if "cute_storybook" in tokens:
+        emotional_core.append("gentle_wonder")
+    if "legacy_fire" in tokens:
+        emotional_core.append("quiet_legacy")
     if not emotional_core:
         emotional_core = ["clarity", "controlled_emotion"]
 
@@ -119,6 +157,24 @@ def build_effect_design_brief(
             "data_current_orbits_brand_mark",
             "controlled_depth_motion_reveals_identity",
         ]
+    elif "sakura_poetic" in tokens:
+        visual_metaphors = ["petals_as_transition_breath", "soft_depth_layers", "gentle_story_state_change"]
+    elif "lightning_impact" in tokens or "crack_impact" in tokens:
+        visual_metaphors = ["impact_as_scene_boundary", "energy_fracture_reveal", "controlled_shock_without_chaos"]
+    elif "soft_heart" in tokens:
+        visual_metaphors = ["heart_light_as_warm_frame", "soft_affection_background", "event_care_without_template"]
+    elif "documentary_archive" in tokens:
+        visual_metaphors = ["archive_surface_reveal", "document_light_scan", "history_context_opens"]
+    elif "kinetic_mv" in tokens:
+        visual_metaphors = ["rhythm_accelerates_story", "motion_bridge_to_montage", "beat_locked_transition"]
+    elif "clean_lower_third" in tokens:
+        visual_metaphors = ["clear_information_layer", "speaker_identity_without_decoration", "readability_first"]
+    elif "premium_product" in tokens:
+        visual_metaphors = ["object_revealed_by_controlled_light", "premium_material_surface", "dark_space_product_focus"]
+    elif "cute_storybook" in tokens:
+        visual_metaphors = ["storybook_light_wonder", "soft_stars_as_childlike_cue", "gentle_page_opening"]
+    elif "legacy_fire" in tokens:
+        visual_metaphors = ["small_flame_as_continuity", "warm_light_carries_forward", "legacy_without_danger"]
 
     return {
         "artifact_role": "effect_design_brief",
@@ -197,12 +253,27 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
     semantic_tokens = set(design_brief.get("semantic_tokens") or [])
     duration = float(design_brief.get("duration_sec") or 4.0)
     memory_score = 2 if "memory" in emotional else 0
+    warmth_score = 2 if "warmth" in emotional else 0
+    training_score = 1 if "training_context" in semantic_tokens else 0
     slow_score = 1 if "slow_emergence" in emotional else 0
     avoid_deck_score = 1 if "avoid_presentation_deck" in negative else 0
     tech_score = 2 if "technical_precision" in emotional or "technology" in semantic_tokens else 0
     logo_score = 2 if "brand_identity" in emotional or "logo_focus" in semantic_tokens else 0
     kinetic_score = 2 if "kinetic_energy" in emotional or "fast_logo_motion" in semantic_tokens else 0
     premium_score = 1 if "premium_finish" in emotional or "premium_finish" in semantic_tokens else 0
+    symbolic_style_score = sum(1 for token in {
+        "sakura_poetic",
+        "lightning_impact",
+        "crack_impact",
+        "soft_heart",
+        "cute_storybook",
+        "legacy_fire",
+    } if token in semantic_tokens)
+    documentary_score = 3 if "documentary_archive" in semantic_tokens else 0
+    mv_score = 3 if "kinetic_mv" in semantic_tokens else 0
+    lower_third_score = 5 if "clean_lower_third" in semantic_tokens else 0
+    product_score = 4 if "premium_product" in semantic_tokens else 0
+    controlled_score = 2 if "controlled_design" in semantic_tokens else 0
 
     concepts = [
         _concept(
@@ -313,6 +384,187 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
             base_score=3 + tech_score + logo_score + kinetic_score + premium_score,
         ),
         _concept(
+            "symbolic_motion_effect",
+            "Symbolic Motion Effect",
+            visual_primitives=list(design_brief.get("visual_metaphors") or []) + [
+                "style_specific_particles_or_light",
+                "controlled_density_background",
+                "negative_rules_drive_intensity",
+            ],
+            motion_primitives=[
+                "style_cue_reveal",
+                "depth_layer_motion",
+                "controlled_hold",
+                "soft_exit_or_cut_ready_tail",
+            ],
+            typography={
+                "position": "none_or_minimal",
+                "scale": "context_safe",
+                "weight": "plain_readable_if_needed",
+                "subtitle": "avoid_unless_story_requires",
+                "avoid_copy": design_brief.get("copy_direction", {}).get("avoid_copy", []),
+            },
+            material_usage={
+                "source": "abstract_or_reviewed_material_refs",
+                "priority": "effect_as_story_cue_not_material_truth",
+                "max_refs": 3,
+                "preserve_faces": True,
+                "do_not_claim_material_truth": True,
+            },
+            prompt_parameters={
+                "template_id": None,
+                "presentation": {
+                    "background_style": "abstract_symbolic_motion",
+                    "text_position": "none",
+                    "text_scale": "none",
+                    "effect_strength": "medium",
+                    "safe_area": "title_safe",
+                    "accent_color": "#ffd36a",
+                    "text_color": "#ffffff",
+                    "theme": "style_specific_symbolic_effect",
+                },
+                "effect_build_spec": {
+                    "component": "GenericRemotionEffect",
+                    "duration_sec": duration,
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30},
+                    "story_function": "symbolic_style_cue_or_transition",
+                    "pacing": "medium",
+                    "density": "medium",
+                    "reveal_mode": "style_specific_reveal",
+                    "layers": [
+                        {"id": "particles", "type": "particle_overlay", "params": {"density": "medium", "motion_intensity": "medium"}},
+                        {"id": "glow", "type": "light_overlay", "params": {"intensity": "medium", "vignette": "soft_dark"}},
+                        {"id": "camera", "type": "camera_motion", "params": {"camera_motion": "controlled_push", "pacing": "medium"}},
+                    ],
+                    "timing": {"intro_sec": min(2.0, duration * 0.25), "hold_sec": max(1.0, duration * 0.55), "outro_sec": min(2.0, duration * 0.2)},
+                    "review_required": True,
+                },
+            },
+            fits=[
+                "keeps non-memory symbolic requests out of memory wall",
+                "lets the contract carry style primitives before a specific renderer carrier is hardened",
+            ],
+            risks=[
+                "requires reviewer or worker to map symbolic primitives to concrete visuals",
+                "can become generic if visual primitives are not preserved into prompt parameters",
+            ],
+            base_score=4 + symbolic_style_score * 3 + controlled_score,
+        ),
+        _concept(
+            "clean_information_overlay",
+            "Clean Information Overlay",
+            visual_primitives=["plain_readable_type", "safe_area_bar", "low_decoration", "speaker_or_label_focus"],
+            motion_primitives=["short_slide_or_fade_in", "stable_read_hold", "clean_fade_out"],
+            typography={
+                "position": "lower_third",
+                "scale": "readable",
+                "weight": "plain_bold",
+                "subtitle": "speaker_or_context_line",
+                "avoid_copy": design_brief.get("copy_direction", {}).get("avoid_copy", []),
+            },
+            material_usage={
+                "source": "timeline_speaker_or_segment_context",
+                "priority": "readability_over_decoration",
+                "max_refs": 0,
+                "preserve_faces": True,
+                "do_not_claim_material_truth": True,
+            },
+            prompt_parameters={
+                "template_id": "speaker_subtitle_yellow_bar",
+                "presentation": {
+                    "background_style": "yellow_subtitle_bar",
+                    "text_position": "lower_third",
+                    "text_scale": "readable",
+                    "effect_strength": "low",
+                    "safe_area": "lower_third_safe",
+                    "theme": "clean_information_overlay",
+                },
+            },
+            fits=["matches lower-third and clear Chinese readability requests"],
+            risks=["copy and speaker labels must come from upstream context"],
+            base_score=2 + lower_third_score,
+        ),
+        _concept(
+            "premium_product_reveal",
+            "Premium Product Reveal",
+            visual_primitives=["dark_premium_stage", "object_light_sweep", "black_gold_accent", "low_clutter_surface"],
+            motion_primitives=["slow_object_reveal", "controlled_light_pass", "premium_hold"],
+            typography={
+                "position": "minimal_corner_or_none",
+                "scale": "small_premium",
+                "weight": "plain_bold",
+                "subtitle": "avoid_unless_needed",
+                "avoid_copy": design_brief.get("copy_direction", {}).get("avoid_copy", []),
+            },
+            material_usage={
+                "source": "reviewed_product_or_object_ref",
+                "priority": "object_silhouette_and_material_quality",
+                "max_refs": 1,
+                "preserve_faces": False,
+                "do_not_claim_material_truth": True,
+            },
+            prompt_parameters={
+                "template_id": None,
+                "presentation": {
+                    "background_style": "premium_dark_product",
+                    "text_position": "none",
+                    "text_scale": "none",
+                    "effect_strength": "medium_high",
+                    "safe_area": "object_safe",
+                    "accent_color": "#d5a84f",
+                    "theme": "premium_product_reveal",
+                },
+            },
+            fits=["matches premium product/object reveal requests"],
+            risks=["requires real product/object ref; abstract fallback should be explicit"],
+            base_score=3 + product_score + premium_score,
+        ),
+        _concept(
+            "kinetic_mv_transition",
+            "Kinetic MV Transition",
+            visual_primitives=["beat_locked_motion_lines", "thumbnail_acceleration", "contrast_shift", "impact_midpoint"],
+            motion_primitives=["fast_ramp", "snap_cut_ready_tail", "motion_bridge_from_story_to_mv"],
+            typography={
+                "position": "none_or_brief_section_label",
+                "scale": "small",
+                "weight": "bold",
+                "subtitle": "avoid",
+                "avoid_copy": design_brief.get("copy_direction", {}).get("avoid_copy", []),
+            },
+            material_usage={
+                "source": "reviewed_story_and_mv_boundary_refs",
+                "priority": "section_transition_not_material_truth",
+                "max_refs": 4,
+                "preserve_faces": True,
+                "do_not_claim_material_truth": True,
+            },
+            prompt_parameters={
+                "template_id": "film_strip_transition_card",
+                "presentation": {
+                    "background_style": "film_strip",
+                    "text_position": "none",
+                    "effect_strength": "high",
+                    "motion_energy": "fast",
+                    "safe_area": "title_safe",
+                    "theme": "story_to_mv_transition",
+                },
+                "effect_build_spec": {
+                    "component": "StoryToMVTransition",
+                    "duration_sec": duration,
+                    "section_from": "story",
+                    "section_to": "mv",
+                    "pacing_shift": "slow_to_fast",
+                    "impact_moment_sec": max(0.5, duration * 0.52),
+                    "thumbnail_acceleration": "high",
+                    "motion_grammar": ["fast_ramp", "snap", "film_strip"],
+                    "phase_labels": ["story", "mv"],
+                },
+            },
+            fits=["matches story-to-MV and rhythm acceleration requests"],
+            risks=["requires timeline section boundary; otherwise it becomes decorative"],
+            base_score=3 + mv_score + kinetic_score,
+        ),
+        _concept(
             "quiet_memory_wall",
             "Quiet Memory Wall",
             visual_primitives=[
@@ -377,7 +629,7 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
                 "can look sparse if material refs are weak",
                 "title copy must be authored or it will feel internal",
             ],
-            base_score=5 + memory_score + slow_score + avoid_deck_score,
+            base_score=2 + memory_score + warmth_score + training_score + slow_score + avoid_deck_score,
         ),
         _concept(
             "film_table_recall",
@@ -441,7 +693,7 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
                 "requires renderer support for table layout or it may collapse to wall",
                 "can feel staged if source stills are low quality",
             ],
-            base_score=4 + memory_score + avoid_deck_score,
+            base_score=2 + memory_score + warmth_score + training_score + avoid_deck_score,
         ),
         _concept(
             "warm_archive_opening",
@@ -505,7 +757,7 @@ def build_effect_concept_options(design_brief: Mapping[str, Any]) -> dict[str, A
                 "metadata labels can look administrative",
                 "less emotionally direct than memory wall",
             ],
-            base_score=4 + slow_score + avoid_deck_score,
+            base_score=2 + documentary_score + memory_score + slow_score + avoid_deck_score,
         ),
     ]
     return {

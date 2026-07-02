@@ -309,10 +309,14 @@ def cmd_visual_technique_plan(args):
 
 def cmd_effect_design_concept(args):
     from video_pipeline_core.effect_design_concept import write_effect_design_concept_chain
+    request = getattr(args, "request", None) or ""
+    request_file = getattr(args, "request_file", None) or ""
+    if request_file:
+        request = Path(request_file).read_text(encoding="utf-8-sig")
     try:
         result = write_effect_design_concept_chain(
             args.out_dir,
-            request=args.request,
+            request=request,
             effect_role=args.effect_role,
             duration_sec=args.duration_sec,
             material_context=getattr(args, "material_context", "reviewed_or_local_material_refs"),
@@ -3306,8 +3310,10 @@ def main():
                        help="visual_technique_plan.json output")
 
     p_edc = sub.add_parser("effect-design-concept")
-    p_edc.add_argument("--request", required=True,
+    p_edc.add_argument("--request", default="",
                        help="fuzzy effect request to turn into design brief/options/selection")
+    p_edc.add_argument("--request-file", default="", dest="request_file",
+                       help="UTF-8 text file containing the fuzzy effect request; preferred on Windows for Chinese text")
     p_edc.add_argument("--effect-role", default="opening_title", dest="effect_role",
                        help="opening_title, transition, lower_third, montage_hit, closing_title, or outro")
     p_edc.add_argument("--duration-sec", type=float, default=4.0, dest="duration_sec",
