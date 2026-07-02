@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from video_pipeline_core.soundtrack_arranger import arrange_soundtrack
+from video_pipeline_core.soundtrack_arranger import arrange_soundtrack, write_soundtrack_artifacts
 
 
 class SoundtrackArrangerTest(unittest.TestCase):
@@ -201,6 +201,38 @@ class SoundtrackArrangerTest(unittest.TestCase):
             if section["music_role"] == "bgm"
         ))
         self.assertEqual(plan["audio_director_handoff"]["speech_preservation"], "required")
+
+    def test_vocal_song_conflict_blocks_preserved_speech_and_writes_revision_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+
+            artifacts = write_soundtrack_artifacts(
+                {
+                    "artifact_role": "video_intent",
+                    "target_length": "4 minutes",
+                    "soundtrack_contract": {
+                        "artifact_role": "stage0_soundtrack_intent",
+                        "music_role": "song",
+                        "vocal_policy": "vocal_required",
+                        "speech_preservation": "required",
+                        "handoff_to": "soundtrack-arranger",
+                    },
+                },
+                run,
+            )
+
+            blocks = artifacts["audio_director_handoff"]["blocks"]
+            self.assertIn("vocal_conflict_detected", blocks)
+            packet_path = run / "soundtrack_revision_packet.json"
+            self.assertTrue(packet_path.is_file())
+            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+            self.assertEqual(packet["artifact_role"], "revision_packet")
+            self.assertEqual(packet["target_branch"], "soundtrack-arranger")
+            self.assertEqual(packet["problem_type"], "audio")
+            self.assertTrue(any(
+                target.get("suggested_change") == "choose_instrumental_bgm"
+                for target in packet["revision_targets"]
+            ))
 
     def test_cli_writes_all_artifacts(self):
         root = Path(__file__).resolve().parents[1]

@@ -354,6 +354,22 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         for section in sections
     ):
         blocks.append("speech_policy_missing")
+
+    # Vocal Conflict Gate
+    preserve_speech_globally = _clean(stage0_contract.get("speech_preservation")).casefold() == "required"
+    for section in sections:
+        role = _clean(section.get("music_role")).casefold()
+        policy = _clean(section.get("vocal_policy")).casefold()
+        required_audio = section.get("required_audio")
+        required_vocal_policy = ""
+        if isinstance(required_audio, Mapping):
+            required_vocal_policy = _clean(required_audio.get("vocal_policy")).casefold()
+        speech_sensitive = preserve_speech_globally or policy == "preserve_speech"
+        uses_vocal_music = role == "song" or policy in {"vocal_ok", "vocal_required"} or required_vocal_policy in {"vocal_ok", "vocal_required"}
+        if speech_sensitive and uses_vocal_music:
+            blocks.append("vocal_conflict_detected")
+            break
+
     fallback_policy = stage0_contract.get("fallback_policy") if isinstance(stage0_contract.get("fallback_policy"), Mapping) else {}
     if fallback_policy.get("role_fallback"):
         blocks.append("role_fallback_requires_review")
@@ -437,4 +453,33 @@ def write_soundtrack_artifacts(payload: Mapping[str, Any], out_dir: str | Path) 
             json.dumps(artifact, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    blocks = artifacts.get("audio_director_handoff", {}).get("blocks", [])
+    if blocks:
+        from .revision_packet_schema import RevisionPacket
+        revision_targets = []
+        for block in blocks:
+            revision_targets.append({
+                "artifact": "soundtrack_plan.json",
+                "field": "sections",
+                "issue": f"Soundtrack arranger blocked on: {block}",
+                "suggested_change": "adjust_ducking" if block == "speech_policy_missing" else "choose_instrumental_bgm" if block == "vocal_conflict_detected" else "provide_license"
+            })
+
+        packet = RevisionPacket(
+            source_review="soundtrack_plan.json",
+            target_branch="soundtrack-arranger",
+            problem_type="audio",
+            severity="blocking",
+            revision_targets=revision_targets,
+            allowed_actions=["patch_contract", "rerun_branch", "ask_user", "route_back", "stop"],
+            forbidden_actions=["overwrite_final_mp4", "mutate_material_truth", "silently_downgrade_required_feature"],
+            rerun_policy={
+                "allowed": True,
+                "max_attempts": 1,
+                "requires_agent_decision": True
+            }
+        )
+        packet.save(out_root / "soundtrack_revision_packet.json")
+
     return artifacts
