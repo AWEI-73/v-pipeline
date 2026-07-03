@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 POSIX_ABSOLUTE_RE = re.compile(r"^/[^/]")
-STRICT_FAMILIES: set[str] = set()
+STRICT_FAMILIES: set[str] = {"material"}
 
 
 @dataclass(frozen=True)

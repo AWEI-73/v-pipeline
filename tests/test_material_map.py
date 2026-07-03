@@ -1,9 +1,11 @@
 import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
 
 from video_pipeline_core import material_map
+from video_pipeline_core.curator import cmd_ingest_meta
 
 
 def _slow_material_map_builder(entry):
@@ -34,6 +36,19 @@ def _fast_material_map_builder(entry):
 
 
 class MaterialMapTest(unittest.TestCase):
+    def test_ingest_meta_persists_run_relative_asset_refs(self):
+        root = Path(tempfile.mkdtemp())
+        assets = root / "assets"
+        assets.mkdir()
+        (assets / "a.jpg").write_bytes(b"not-a-real-jpeg")
+        out_db = root / "materials_db.json"
+
+        cmd_ingest_meta(types.SimpleNamespace(src=str(assets), out=str(out_db), work_dir=None))
+
+        written = material_map.json.loads(out_db.read_text(encoding="utf-8"))
+        self.assertEqual(written["source_dir"], "assets")
+        self.assertEqual(written["files"][0]["path"], "assets/a.jpg")
+
     def test_video_map_combines_scene_motion_and_speech_evidence(self):
         entry = {
             "id": "clip-a",
@@ -272,7 +287,7 @@ class MaterialMapTest(unittest.TestCase):
         self.assertIn("material_map", written["files"][0])
         self.assertEqual(written["files"][1]["material_map_status"], "skipped")
 
-    def test_write_material_maps_records_absolute_map_paths_for_handoff(self):
+    def test_write_material_maps_records_run_relative_refs_for_persisted_handoff(self):
         root = Path(tempfile.mkdtemp())
         update_db = root / "materials_db.mapped.json"
         db = {"files": [
@@ -291,9 +306,9 @@ class MaterialMapTest(unittest.TestCase):
             material_map.os.chdir(old_cwd)
 
         written = material_map.json.loads(update_db.read_text(encoding="utf-8"))
-        path = Path(written["files"][0]["material_map"])
-        self.assertTrue(path.is_absolute())
-        self.assertTrue(path.exists())
+        self.assertEqual(written["files"][0]["material_map"], "relative_maps/a.map.json")
+        persisted_map = material_map.json.loads((root / "relative_maps" / "a.map.json").read_text(encoding="utf-8"))
+        self.assertEqual(persisted_map["source"], "a.jpg")
 
 
 if __name__ == "__main__":

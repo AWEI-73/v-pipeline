@@ -64,7 +64,22 @@ class RelativePathTest(unittest.TestCase):
             self.assertIsNone(err)
             seg = {"segment": 1, "material_fit": {"visual_desc": "主任對學員的期勉講話"}}
             slots = plan_ranked_windows(seg, maps, limit=1, clip_dur=3.0)
-            self.assertTrue(slots and slots[0]["source"] == "real.mp4")   # not a silent GAP
+            self.assertTrue(slots and slots[0]["source"] == str(Path(d) / "real.mp4"))   # not a silent GAP
+
+    def test_B2_run_relative_asset_ref_resolves_for_build_projection(self):
+        with tempfile.TemporaryDirectory() as d:
+            db = _project(
+                d,
+                map_obj=_map_obj(
+                    source="assets/real.mp4",
+                    caption="銝颱遙撠飛?∠???雓店",
+                ),
+            )
+            maps, err = pmm.material_maps_from_db(db)
+            self.assertIsNone(err)
+            seg = {"segment": 1, "material_fit": {"visual_desc": "銝颱遙撠飛?∠???雓店"}}
+            slots = plan_ranked_windows(seg, maps, limit=1, clip_dur=3.0)
+            self.assertEqual(slots[0]["source"], str(Path(d) / "assets" / "real.mp4"))
 
     def test_C_missing_corrupt_or_dir_map_is_fail_closed(self):
         with tempfile.TemporaryDirectory() as d:

@@ -5,10 +5,57 @@ import os
 import sys
 import json
 import subprocess
+from .asset_paths import resolve_asset_ref, to_asset_ref
 from .vt_core import FFMPEG, FFPROBE, run, ToolError  # noqa: F401
 
 PHOTO_EXTS = {'.jpg', '.jpeg', '.png', '.heic', '.heif'}
 VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv'}
+
+
+def _relativize_material_db_refs(db, run_dir):
+    for key in ("source_dir",):
+        value = db.get(key)
+        if isinstance(value, str) and value.strip():
+            db[key] = to_asset_ref(run_dir, value).ref
+    for item in db.get("skipped") or []:
+        value = item.get("path") if isinstance(item, dict) else None
+        if isinstance(value, str) and value.strip():
+            item["path"] = to_asset_ref(run_dir, value).ref
+    for entry in db.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("path", "display_path", "converted_to", "material_map"):
+            value = entry.get(key)
+            if isinstance(value, str) and value.strip():
+                entry[key] = to_asset_ref(run_dir, value).ref
+        for frame in entry.get("keyframes") or []:
+            value = frame.get("image_path") if isinstance(frame, dict) else None
+            if isinstance(value, str) and value.strip():
+                frame["image_path"] = to_asset_ref(run_dir, value).ref
+    return db
+
+
+def _resolve_material_db_refs(db, run_dir):
+    for key in ("source_dir",):
+        value = db.get(key)
+        if isinstance(value, str) and value.strip():
+            db[key] = str(resolve_asset_ref(run_dir, value))
+    for item in db.get("skipped") or []:
+        value = item.get("path") if isinstance(item, dict) else None
+        if isinstance(value, str) and value.strip():
+            item["path"] = str(resolve_asset_ref(run_dir, value))
+    for entry in db.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("path", "display_path", "converted_to", "material_map"):
+            value = entry.get(key)
+            if isinstance(value, str) and value.strip():
+                entry[key] = str(resolve_asset_ref(run_dir, value))
+        for frame in entry.get("keyframes") or []:
+            value = frame.get("image_path") if isinstance(frame, dict) else None
+            if isinstance(value, str) and value.strip():
+                frame["image_path"] = str(resolve_asset_ref(run_dir, value))
+    return db
 
 
 def classify_asset(width, height, duration_sec=None, is_photo=False,
@@ -286,6 +333,7 @@ def cmd_ingest_meta(args):
         "skipped": skipped,
         "files": files,
     }
+    _relativize_material_db_refs(db, os.path.dirname(os.path.abspath(out_db)))
 
     with open(out_db, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=2)
@@ -400,6 +448,8 @@ def cmd_match_mv(args):
         script = json.load(f)
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
+    run_dir = os.path.dirname(os.path.abspath(args.db))
+    _resolve_material_db_refs(db, run_dir)
     segs = script.get("segments", []) if isinstance(script, dict) else script
     res = match_script_to_material(segs, db.get("files", []))
     if args.out:
@@ -421,6 +471,8 @@ def cmd_caption_meta(args):
     分離的慢步驟(ingest 機械快、caption 慢),只跑沒 caption 的。"""
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
+    run_dir = os.path.dirname(os.path.abspath(args.db))
+    _resolve_material_db_refs(db, run_dir)
     review_dir = getattr(args, "visual_review_dir", None)
     if not review_dir and not getattr(args, "local_vlm", False):
         review_dir = os.path.join(os.path.dirname(os.path.abspath(args.db)), "material_visual_review")
@@ -440,6 +492,7 @@ def cmd_caption_meta(args):
             before = sum(bool(entry.get("vlm_caption")) for entry in db.get("files", []))
             apply_material_review_verdict(db, verdict)
             after = sum(bool(entry.get("vlm_caption")) for entry in db.get("files", []))
+            _relativize_material_db_refs(db, run_dir)
             with open(args.db, "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
             print(json.dumps({
@@ -478,6 +531,7 @@ def cmd_caption_meta(args):
         if limit and done >= limit:
             break
     with open(args.db, "w", encoding="utf-8") as f:
+        _relativize_material_db_refs(db, run_dir)
         json.dump(db, f, ensure_ascii=False, indent=2)
     print(json.dumps({"status": "ok", "db": args.db, "captioned": done}, ensure_ascii=False))
 
@@ -548,6 +602,7 @@ def cmd_material_map(args):
     """讀 materials_db → 人看得懂的素材地圖(依資料夾分群 + 可用/caption)。"""
     with open(args.db, encoding="utf-8") as f:
         db = json.load(f)
+    _resolve_material_db_refs(db, os.path.dirname(os.path.abspath(args.db)))
     if getattr(args, "maps_dir", None):
         from .material_map import write_material_maps
         maps = write_material_maps(
@@ -561,6 +616,7 @@ def cmd_material_map(args):
         )
         update_db = getattr(args, "update_db", None)
         if update_db:
+            _relativize_material_db_refs(db, os.path.dirname(os.path.abspath(update_db)))
             with open(update_db, "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
         skipped = [

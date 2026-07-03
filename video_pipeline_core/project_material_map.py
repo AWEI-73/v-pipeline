@@ -21,6 +21,7 @@ from .material_needs import (
     summarize_satisfaction,
     validate_material_needs,
 )
+from .asset_paths import resolve_asset_ref
 
 
 _VD0_LABELS = ("visual_family", "angle_scale", "action_family", "subject")
@@ -235,6 +236,14 @@ def _resolve_map_path(map_path, db_dir):
     return path if path.is_absolute() else Path(db_dir) / path
 
 
+def _resolve_loaded_asset_sources(maps, run_dir):
+    for material_map in maps or []:
+        source = material_map.get("source")
+        if isinstance(source, str) and source.strip():
+            material_map["source"] = str(resolve_asset_ref(run_dir, source))
+    return maps
+
+
 def material_maps_from_db_payload(payload, db_dir):
     """Load the per-asset maps a (validated) db payload references, resolving a
     RELATIVE `material_map` against ``db_dir`` (NEVER the process cwd), then
@@ -259,7 +268,7 @@ def material_maps_from_db_payload(payload, db_dir):
         except (OSError, ValueError) as exc:
             return None, f"material_map could not be read/parsed ({map_path}): {exc}"
     try:
-        return expand_project_material_map(raw), None
+        return _resolve_loaded_asset_sources(expand_project_material_map(raw), db_dir), None
     except (TypeError, ValueError) as exc:
         return None, f"material map malformed: {exc}"
 

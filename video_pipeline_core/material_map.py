@@ -9,6 +9,8 @@ import subprocess
 import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
+from .asset_paths import to_asset_ref
+
 
 _SILENCE_START = re.compile(r"silence_start:\s*([0-9.]+)")
 _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
@@ -239,6 +241,20 @@ def _write_update_db(path, materials_db):
         json.dump(materials_db, handle, ensure_ascii=False, indent=2)
 
 
+def _run_dir_for_persisted_refs(maps_dir, update_db_path=None):
+    if update_db_path:
+        return os.path.dirname(os.path.abspath(os.fspath(update_db_path)))
+    return os.path.dirname(os.path.abspath(os.fspath(maps_dir)))
+
+
+def _material_map_for_persist(material_map, run_dir):
+    payload = json.loads(json.dumps(material_map))
+    source = payload.get("source")
+    if isinstance(source, str) and source.strip():
+        payload["source"] = to_asset_ref(run_dir, source).ref
+    return payload
+
+
 def _mark_material_map_error(entry, reason, message):
     entry.pop("material_map", None)
     entry["material_map_status"] = "skipped"
@@ -253,6 +269,7 @@ def write_material_maps(materials_db, maps_dir, *, limit=None, selected_only=Fal
                         fast=False):
     """Write maps and record their paths on materials_db entries."""
     maps_dir = os.path.abspath(os.fspath(maps_dir))
+    run_dir = _run_dir_for_persisted_refs(maps_dir, update_db_path)
     os.makedirs(maps_dir, exist_ok=True)
     maps = []
     entries = list(materials_db.get("files") or [])
@@ -278,8 +295,8 @@ def write_material_maps(materials_db, maps_dir, *, limit=None, selected_only=Fal
             continue
         path = os.path.join(maps_dir, f"{material_map['asset_id']}.map.json")
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(material_map, handle, ensure_ascii=False, indent=2)
-        entry["material_map"] = path
+            json.dump(_material_map_for_persist(material_map, run_dir), handle, ensure_ascii=False, indent=2)
+        entry["material_map"] = to_asset_ref(run_dir, path).ref
         entry["material_map_status"] = "mapped"
         entry.pop("material_map_error", None)
         maps.append(material_map)

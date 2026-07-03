@@ -114,7 +114,7 @@ class MaterialVisualReviewTest(unittest.TestCase):
 
             db = json.loads(db_path.read_text(encoding="utf-8"))
             self.assertEqual(db["total"], 1)
-            self.assertEqual(db["files"][0]["path"], str(video))
+            self.assertEqual(db["files"][0]["path"], "root-clip.mp4")
 
     def test_caption_meta_agent_review_finishes_when_nothing_is_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
