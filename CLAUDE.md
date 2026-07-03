@@ -20,3 +20,4 @@ commands, or manual material stitching.
 - ffmpeg is the canonical render backend; CapCut is an optional human/GUI gate.
 - Full suite command is `python -m unittest discover -s tests`.
 - Use miniconda Python for local runs.
+- Bootstrap and first-run setup: `docs/setup/setup-and-first-run.md`.

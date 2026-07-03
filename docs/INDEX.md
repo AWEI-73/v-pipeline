@@ -30,6 +30,8 @@ Current document layers:
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |
 | API contract | `docs/api-surface-map.md` | API Surface Manifest contract, allowed/forbidden writes, and endpoint audit rules. |
 | Interface contracts | `docs/interface-contracts/README.md` | Pipeline branch interface API dictionary, product artifact dictionary, audit, and soft discovery instructions. |
+| Bootstrap setup | `docs/setup/setup-and-first-run.md` | Windows-first install, env setup, verification, and first agent-run walkthrough. |
+| Distribution | `docs/setup/distribution-manifest.md` | Release include/exclude manifest plus pending packaging and license decisions. |
 | Code memory helper | `docs/codebase-memory-mcp-handoff.md` | Optional low-token local code graph for new-session handoff and code review; not a route truth source. |
 | Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
