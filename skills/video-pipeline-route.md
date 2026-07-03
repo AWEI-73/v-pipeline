@@ -43,6 +43,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
   ],
   "supporting_tools": [
     {
+      "tool": "tools/preflight.py",
+      "when": "開工前檢查環境:python/ffmpeg/node/依賴模組/API key 是否就緒",
+      "inputs": ["repo root", ".env.example key names"],
+      "outputs": ["capability summary JSON + human report"],
+      "stop_if": ["--strict 模式下缺硬性依賴"]
+    },
+    {
       "tool": "tools/canonical_route_acceptance.py",
       "when": "回歸 canonical route artifacts 與 route surface",
       "inputs": ["route fixture or run folder"],
