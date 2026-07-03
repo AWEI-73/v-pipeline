@@ -814,3 +814,37 @@ body {
   margin: 6px 0;
   font-weight: 600;
 }
+
+/* --- PIPELINE STATUS STRIP --- */
+.pipestrip {
+  display: none;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.pipestrip.show {
+  display: flex;
+}
+.pstep {
+  flex: 1;
+  text-align: center;
+  border-radius: 6px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.20s;
+}
+.st-done {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.st-now {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.st-todo {
+  background: var(--gray-bg);
+  color: var(--muted);
+}

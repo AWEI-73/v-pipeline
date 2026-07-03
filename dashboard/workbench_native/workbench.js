@@ -68,6 +68,7 @@
       "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer", "fit-only",
       "dico-material", "dico-music", "dico-subtitle", "dico-effect",
       "dot-material", "dot-music", "dot-subtitle", "dot-effect", "domain-inspector",
+      "btn-pipestrip", "pipestrip",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -918,6 +919,7 @@
     if (els.dot_effect) {
       els.dot_effect.className = "dot " + getDotClass(effectActive, effectChanged, "effect_patch");
     }
+    updatePipelineStrip();
   }
 
   function fetchArtifactsAndUpdateDots() {
@@ -929,6 +931,7 @@
         if (state.currentDomain) {
           renderDomainInspector();
         }
+        return fetchControlStatus();
       })
       .catch(function (err) {
         console.error("Failed to fetch artifacts:", err);
@@ -1073,6 +1076,76 @@
         els.track_inspector.hidden = true;
       }
     }
+  function updatePipelineStrip() {
+    if (!els.pipestrip) return;
+
+    var artifacts = state.artifacts || {};
+    var control = state.control || {};
+    var draftArtifacts = (artifacts.workbench && artifacts.workbench.draft_artifacts) || {};
+    var draftSummary = (artifacts.workbench && artifacts.workbench.draft_summary) || {};
+
+    var intentStatus = "st-done";
+
+    var specStatus = "st-done";
+    if (draftSummary.contract_edits > 0 || (draftArtifacts.workbench_contract_patch && draftArtifacts.workbench_contract_patch.exists)) {
+      specStatus = "st-now";
+    }
+
+    var materialStatus = "st-done";
+
+    var buildStatus = "st-todo";
+    if (state.dirty || draftSummary.timeline_edits > 0) {
+      buildStatus = "st-now";
+    } else if (control.final_video && control.final_video.exists) {
+      buildStatus = "st-done";
+    } else if (draftSummary.has_handoff) {
+      buildStatus = "st-done";
+    }
+
+    var verifyStatus = "st-todo";
+    var hasVerify = (artifacts.verify_evidence_bundle && artifacts.verify_evidence_bundle.exists) ||
+                    (artifacts.delivery_gate && artifacts.delivery_gate.exists);
+    if (hasVerify) {
+      verifyStatus = "st-done";
+    } else if (control.recommended_next_action === "verify" || buildStatus === "st-done") {
+      verifyStatus = "st-now";
+    }
+
+    var deliveryStatus = "st-todo";
+    var isDelivered = (artifacts.delivery_gate && artifacts.delivery_gate.exists);
+    if (isDelivered) {
+      deliveryStatus = "st-done";
+    } else if (control.recommended_next_action === "deliver" || control.recommended_next_action === "publish") {
+      deliveryStatus = "st-now";
+    }
+
+    var stages = [
+      { id: "pstep-intent", status: intentStatus },
+      { id: "pstep-spec", status: specStatus },
+      { id: "pstep-material", status: materialStatus },
+      { id: "pstep-build", status: buildStatus },
+      { id: "pstep-verify", status: verifyStatus },
+      { id: "pstep-delivery", status: deliveryStatus }
+    ];
+
+    stages.forEach(function (stage) {
+      var el = document.getElementById(stage.id);
+      if (el) {
+        el.className = "pstep " + stage.status;
+      }
+    });
+  }
+
+  function fetchControlStatus() {
+    var rootParam = window.location.search || "";
+    return Api._fetchJson("/api/control/status" + rootParam)
+      .then(function (res) {
+        state.control = res;
+        updatePipelineStrip();
+      })
+      .catch(function (err) {
+        console.error("Failed to fetch control status:", err);
+      });
   }
 
   // -- inspector / edits ------------------------------------------------ //
@@ -1381,6 +1454,16 @@
       };
       if (localStorage.getItem("drawer_collapsed") === "true") {
         els.drawer_media.classList.add("collapsed");
+      }
+    }
+    if (els.btn_pipestrip && els.pipestrip) {
+      els.btn_pipestrip.onclick = function () {
+        var visible = els.pipestrip.classList.toggle("show");
+        localStorage.setItem("pipestrip_visible", visible ? "true" : "false");
+        window.dispatchEvent(new Event("resize"));
+      };
+      if (localStorage.getItem("pipestrip_visible") === "true") {
+        els.pipestrip.classList.add("show");
       }
     }
     PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
