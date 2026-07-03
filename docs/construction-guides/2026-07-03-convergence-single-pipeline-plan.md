@@ -147,26 +147,30 @@ registry integrity test is what makes skill-file moves safe.
    audit command exits non-zero on a deliberately seeded drift.
 6. Detailed work order: `work-orders/2026-07-03-phase2-registry-manifest.md`.
 
-### Phase 3 - Skills reorganization and retirement (~1 day)
+### Phase 3 - Skill index and ownership closure (~0.5 day)
 
-1. Namespace the tree:
-   - `skills/main/` - video-pipeline, video-pipeline-route,
-     video-intent-planner, spec-contract, director, writer, curator, editor,
-     verify, dashboard.
-   - `skills/branches/<branch>/` - soundtrack-arranger, audio-director,
-     effects-director, video-effect-factory, remotion-effect-worker,
-     material-map, brownfield-edit, subtitle-director, etc., grouped by the
-     `branch_id` that owns them in the registry.
-   - `skills/meta/` - pipeline-boundary, gap-analyzer, blueprint-interview,
-     story-soul-blueprint, shooting-brief.
-2. Retire dead skills to `skills/archive/`: `route.md` (retired `route.py`
-   dispatcher). Evaluate merging `video-workflow.md` into `spec-contract.md` /
-   `video-intent-planner.md`; archive whichever loses.
-3. Create `skills/INDEX.md`: one line per skill - owning branch, stage,
-   triggering `next_action` values.
-4. Update registry skill paths; the Phase 2 integrity test catches any miss.
-5. Acceptance: integrity test green; `git grep -l "skills/route.md"` returns
-   only archive/changelog references; CLAUDE.md skill list updated.
+Revised 2026-07-03 after Phase 2 review: physical namespacing is dropped.
+Tests hardcode 78 skill-path references across 10 files and docs add dozens
+more; the ownership clarity a directory tree would buy is already
+machine-readable in the registry. An index plus a closure test delivers the
+navigability without the churn.
+
+1. Create `skills/INDEX.md`: one line per skill - owning branch (from the
+   registry), route segment, role. Skills the registry does not claim get an
+   explicit owner assignment in the work order, not a guess.
+2. Add a closure test: every `skills/*.md` file appears in INDEX.md and in
+   exactly the ownership stated; every registry-claimed skill exists. New
+   skill files without an INDEX row fail the suite.
+3. Archive `route.md` (retired `route.py` dispatcher era) to
+   `skills/archive/`, updating all live references. Its unique content
+   (Node 14 revision-loop contract, two-axis layering) must be verified as
+   preserved elsewhere before archiving; if not, flag and stop that item.
+4. Merge/retire evaluation for `video-workflow.md` vs
+   `video-intent-planner.md` is explicitly deferred - both stay live; the
+   INDEX records the overlap as a known tension.
+5. Acceptance: closure test green; `git grep -l "skills/route.md"` returns
+   only archive/changelog references; full suite green.
+6. Detailed work order: `work-orders/2026-07-03-phase3-skill-index.md`.
 
 ### Phase 4 - Golden-path convergence smoke (~1-2 days, can start after Phase 2)
 
