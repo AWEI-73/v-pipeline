@@ -13,8 +13,7 @@ Single operator entry:
 Top-level project references:
 
 - `README.md` -- what this project is.
-- `roadmap.md` -- product and engineering roadmap. Long history lives in
-  `docs/archive/roadmap-history/`.
+- `roadmap.md` -- product and engineering roadmap.
 - `HANDOFF_CURRENT.md` -- clean resume anchor for the next agent.
 
 Current document layers:
@@ -36,14 +35,13 @@ Current document layers:
 | Agent ops | `docs/agent-ops/work-order-sop.md`, `docs/agent-ops/orchestrator-system-prompt.md` | Work-order operating system for multi-agent construction, and the orchestrator system prompt that drives it. |
 | Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
-| Archived generated maps | `archive/local-artifacts-2026-07/docs-generated/` | Last machine-generated route maps and audits. Regenerate into `docs/generated/` locally when needed. |
+| Generated maps | `docs/generated/` | Local machine-generated route maps and audits. Ignored by Git; regenerate when needed. |
 | Historical archive | `docs/archive/` | Decision history and old roadmap evidence; not a current source unless linked by a current doc. |
 
 ## Legacy Entry Notes
 
 1. `README.md` ??what this project is.
-2. `roadmap.md` ??canonical current roadmap and navigation index. Long history
-   now lives in `docs/archive/roadmap-history/`.
+2. `roadmap.md` ??canonical current roadmap and navigation index.
 3. `HANDOFF_CURRENT.md` ??clean resume anchor for the next agent.
 4. `RUNBOOK.md` ??how to run the pipeline on Windows.
 
@@ -245,8 +243,8 @@ explicitly points to that construction area.
   plan for route-map, material gap, curator/rough-cut, effect-factory, and E2E
   boundary convergence. Effect Factory boundary checks use
   `tools/effect_factory_boundary_acceptance.py`.
-- `archive/local-artifacts-2026-07/docs-generated/pipeline_map.md` -- archived generated MVP route map for human review.
-  Regenerate with `python tools/pipeline_map.py --build-corpus`.
+- `docs/generated/pipeline_map.md` -- local generated MVP route map for human review.
+  Regenerate with `python tools/pipeline_map.py --build-corpus`; do not commit generated output.
 
 ## Working conventions (read before contributing)
 
@@ -277,8 +275,8 @@ explicitly points to that construction area.
 `2026-06-14-m6a-review-response.md`,
 `2026-06-13-m5-real-render-sensory-acceptance.md`,
 `2026-06-13-spec-field-census.md`.
-Material-map current summary lives in `docs/material-map-lifecycle.md`; full
-pre-split roadmap evidence lives in `docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`.
+Material-map current summary lives in `docs/material-map-lifecycle.md`.
+Pre-split roadmap snapshots are local history only and are not part of the public MVP tree.
 
 ## Design notes (still referenced by skills ??keep)
 

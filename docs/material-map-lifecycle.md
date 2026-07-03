@@ -4,8 +4,8 @@ Status: complete as a backend lifecycle, with real-case automated acceptance.
 Last consolidated: 2026-06-18
 
 This document is the short, current reference for the material-map work that used
-to be spread through the long roadmap. The full historical evidence remains in
-`docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`.
+to be spread through the long roadmap. Full pre-split evidence is local history
+only and is not part of the public MVP tree.
 
 ## Purpose
 
@@ -200,7 +200,7 @@ Relationship boundaries:
 
 ## Useful Links
 
-- Full pre-split evidence: `docs/archive/roadmap-history/2026-06-18-roadmap-pre-split.md`
+- Full pre-split evidence: local archive notes, not part of the public MVP tree.
 - Real-case M6e decision: `docs/archive/decisions/2026-06-15-m6e-real-case-acceptance.md`
 - Material-map blackbox observation: `docs/archive/decisions/2026-06-18-node13-material-map-blackbox-observation.md`
 - Skill: `skills/material-map.md`

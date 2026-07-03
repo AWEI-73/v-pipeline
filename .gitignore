@@ -11,6 +11,7 @@
 *.webp
 *.heic
 *.log
+!assets/sfx/*.wav
 
 nightmarket/audio/
 nightmarket/materials/
@@ -57,7 +58,7 @@ __pycache__/
 graphify-out/
 docs/generated/
 state_validate/
-archive/local-artifacts-2026-07/graphify-out/cache/
+archive/local-artifacts-2026-07/
 
 # Local agent/session scratch
 .agents/
@@ -83,3 +84,7 @@ reference repo/
 
 # Archived local experiments that should not return to active repo roots
 archive/experiments/
+docs/archive/pruned-2026-07/
+docs/archive/roadmap-history/
+*.bak
+*.tmp

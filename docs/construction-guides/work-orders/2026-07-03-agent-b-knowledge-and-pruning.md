@@ -81,7 +81,7 @@ Pins the gate-order fix (commit e7189cc0) at smoke level.
    `video_pipeline_core/**`, `video_tools.py`, `runtime.py`, `tools/**`.
    A file referenced by ANY test or code file is live by definition.
 2. Everything else under `docs/` moves (git mv, no deletion, no content
-   edits) to `docs/archive/pruned-2026-07/`, EXCEPT:
+   edits) to a local-only pruned archive, EXCEPT:
    - the collision fence paths above;
    - `docs/generated/**` (machine-owned);
    - `docs/archive/**` (already archived);
@@ -233,7 +233,7 @@ Moved docs:
 - `docs/superpowers/plans/2026-06-27-graduation-recap-run.md`
 - `docs/superpowers/plans/2026-06-30-material-understanding-matrix-mvp.md`
 
-All moved docs were moved under `docs/archive/pruned-2026-07/` with their
+All moved docs were moved under a local-only pruned archive with their
 relative subpaths preserved.
 
 Not-moved candidates left in place because they are current work-order context

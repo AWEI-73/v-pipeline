@@ -409,7 +409,7 @@ ROADMAP.md
 docs/build-tool-runner-spec.md
 docs/video-autopilot-tool-integration-spec.md
 docs/construction-guides/superpowers/plans/2026-06-07-video-autopilot-tool-integration.md
-archive/local-artifacts-2026-07/graphify-out/GRAPH_REPORT.md
+Graphify report: local generated analysis artifact, not tracked in the public MVP tree
 video_pipeline_core/node_registry.py
 video_pipeline_core/runtime_orchestrator.py
 video_pipeline_core/dashboard_state.py
