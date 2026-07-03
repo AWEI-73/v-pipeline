@@ -256,6 +256,79 @@ What to ADD to the native page:
 - Editing contract JSON from the UI (black box is read-only in v1).
 - Collapsible panels and draggable splitter (v2).
 
+## Fix Round + Declutter Pass (v1.1, added 2026-07-03 after review)
+
+Review verdict: structure and mechanics landed, but the page keeps too much
+legacy chrome for a non-professional user, plus one bug and two placement
+gaps. This section is the complete v1.1 work list. Guard safety: the
+frontend smoke asserts only these markers — page title, `wb-monitor`/
+`monitor`, `wb-transport`, `btn-play`, `btn-rewind`, `scrubber`,
+`time-label`, `btn-save-all`, the four `lane-*` ids and four
+`track-label` spans. Everything listed for removal below is OUTSIDE that
+set. All four `Fix` items from the review and every Declutter item must
+keep both smoke guards green.
+
+### Bug fix
+
+1. `#pipestrip` in index.html carries inline `style="display: none;"`,
+   which beats the `.show` class toggle. Remove the inline style (the CSS
+   already defaults `.pipestrip` to `display:none`). Verify visually that
+   the strip opens and closes.
+
+### Placement fixes
+
+2. Top bar gains the primary save button 「儲存並交給 agent」 (blue,
+   right of 管線現況), wired to the SAME save-all handler as the footer
+   button — do not duplicate logic. The `btn-save-all` id must remain in
+   the page (guard marker); keep it on the footer button or move the id
+   with the primary button, either way exactly one element keeps it.
+3. Rename 「輸出 ffmpeg 草稿」 to 「輸出審閱影片」.
+
+### Declutter: REMOVE (pure noise for the target user)
+
+4. Header subtitle 「素材替換 / 段落微調 / ffmpeg 草稿輸出」.
+5. Header badges 「草稿編輯」「正式輸出 = ffmpeg BUILD」 — their message
+   already lives in the save feedback line.
+6. The left vertical tab rail (素材/字幕/音訊 tab-bar) — 字幕/音訊 are
+   disabled placeholders; the drawer has its own header and collapse
+   toggle. Update any JS references so nothing errors.
+7. Transport frame label 「f0」 and the 「音訊：關閉/未載入」 status text.
+8. The monitor overlay meta 「VID #0 · src 0.00s ...」 (`stage-meta`) —
+   that information belongs to the inspector.
+9. Asset card meta line 「video · 未分類 · 未標角度 · scene 0 · 瀏覽素材」
+   — a card shows name + duration + fit badge only.
+10. The hint line 「BGM、字幕、音效與特效會寫成草稿 patch...」.
+
+### Declutter: DEMOTE into one collapsible 「進階」 area (keep function)
+
+11. The track-tools row (+ 音效提示 @ 播放點 / 特效素材選擇 /
+    + 特效意圖到片段) collapses into a single 「進階工具」 toggle,
+    closed by default.
+12. Footer buttons 「下載 patch」「儲存 patch 到資料夾」「同步草稿合約」
+    move into the same 進階 area. Footer keeps only: save feedback text,
+    「輸出審閱影片」, and the save-all button (if it stays in the footer).
+
+### Declutter: KEEP as-is
+
+Undo/redo, aspect-ratio select, scrubber + time label, drawer header
+with count/search/type filter, domain icons + strip, inspector.
+
+### Global styling
+
+13. Align workbench.css global tokens (background, panel, border, radius,
+    button styling) with `workbench_first_template.html`'s clean white
+    look. No layout-structure changes, no protected-element size behavior
+    changes.
+
+### Acceptance for v1.1
+
+- Both smoke guards green; miniconda full suite green.
+- Browser console shows no errors after the tab-rail removal.
+- Visual check: strip opens/closes; top-bar save works; 進階 area opens
+  and every demoted control still functions.
+- Append a `### Fix Round Report` under the Implementation Report with
+  commits and guard tails.
+
 ## Implementation Report
 
 ### Git Commits
