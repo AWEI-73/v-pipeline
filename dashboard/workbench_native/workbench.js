@@ -871,10 +871,8 @@
     Api.saveAll(payload)
       .then(function (res) {
         if (res.ok && res.j.ok) {
-          var s = res.j.summary || {};
-          els.diagnostics.textContent = "已儲存全部 -> " + (res.j.written || []).join(", ") +
-            " [時間軸 " + (s.timeline_edits || 0) + ", 字幕 " + (s.subtitle_edits || 0) +
-            ", 音效提示 " + (s.audio_cues || 0) + ", 特效 " + (s.effect_intents || 0) + "]";
+          var numPatches = (res.j.written || []).filter(function (x) { return x.indexOf("_patch.json") >= 0; }).length;
+          els.diagnostics.textContent = "已儲存 " + numPatches + " 個 patch + workbench_handoff.json,agent 將依你調整後的契約執行";
           state.dirty = false; updateDirty();
           fetchArtifactsAndUpdateDots();
         } else {
