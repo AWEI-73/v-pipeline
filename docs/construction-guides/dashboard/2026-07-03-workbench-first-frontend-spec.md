@@ -329,6 +329,68 @@ with count/search/type filter, domain icons + strip, inspector.
 - Append a `### Fix Round Report` under the Implementation Report with
   commits and guard tails.
 
+## V2: Single-Document Architecture (approved direction 2026-07-03)
+
+Decision: the native workbench page becomes THE app; the dashboard's
+white-box views become modules mounted into it. The SPA shell and its
+iframe boundary are retired. Root cause being solved: every SPA route
+switch destroys and recreates the workbench iframe (full editor reload,
+lost playback/selection state) — removing the iframe removes the jank
+class entirely.
+
+Sequencing is add-first, remove-later, because `tests/test_dashboard_server.py`
+asserts the SPA shell today. Three pieces, two implementers:
+
+### Piece V2-1 (Gemini, additive only — SPA untouched, guards must stay green)
+
+1. Add a slide-over panel host to the native page: a right-side full-height
+   panel (~640px, above the page with a scrim on the remaining area is NOT
+   allowed over the monitor/lanes — instead the panel pushes content or
+   overlays ONLY when opened from strip/white-box links, and closes with X
+   or ESC, returning exactly to prior editor state; the editor is never
+   unmounted).
+2. Port the four SPA views (RouteOverview, Artifacts, Verify, MaterialMap)
+   into native-page modules rendered inside the slide-over. Reuse the
+   existing view code and api wrappers from `dashboard/src/` — import them,
+   do not rewrite logic. Views receive the current `?root=` context.
+3. Wire entries: pipeline-strip stage pills and every black-box
+   「展開完整數據」 link open the slide-over to the matching module
+   (no more navigation to SPA routes from within the workbench).
+4. Drawer one-row compaction: search box (flex) + type select + collapse
+   toggle merge into a single row; asset count folds into the header; the
+   fit-only checkbox becomes a compact chip; asset cards become a two-column
+   thumbnail grid (name overlaid, badge and duration in corners).
+5. Run selector in the native top bar: list from `/api/projects`, selected
+   root drives `?root=` on subsequent API calls (same validation rules as
+   before).
+6. Acceptance: both smoke guards green; full suite green; opening/closing
+   every slide-over module three times leaves playback position, clip
+   selection, and drawer state intact (verify in a real browser).
+
+### Piece V2-2 (Codex, the switchover — server + tests + docs)
+
+1. `tools/dashboard_server.py`: serve the native workbench page as the home
+   route; keep legacy SPA shell reachable at an explicit legacy path or
+   remove per test updates.
+2. Update `tests/test_dashboard_server.py` and, if needed, the SPA-host
+   branch of `tools/workbench_browser_layout_smoke.mjs` to assert the new
+   single-document home (native markers remain the source of truth).
+3. Update `dashboard/workbench_native/API_CONTRACT.md` (Protected Zone
+   wording about the SPA shell) and
+   `docs/construction-guides/dashboard/dashboard-spa-workbench-migration-spec.md`
+   (mark the shell retired).
+4. Acceptance: full suite green; both guards green against the new home.
+
+### Piece V2-3 (Gemini, cleanup after V2-2)
+
+1. Remove SPA-shell-only wiring that piece V2-1 kept alive (router shell,
+   shell header), keeping the `dashboard/src` modules that the native page
+   now imports.
+2. Acceptance: guards + full suite green; no dead nav entries.
+
+Out of scope for V2: rewriting editor interactions, new endpoints, physical
+archival of legacy pages (own order, can ride with V2-2).
+
 ## Implementation Report
 
 ### Git Commits
