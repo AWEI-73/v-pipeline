@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 
 from .vt_core import GAP, FIX_TARGET, ToolError  # 統一錯誤/缺口分類(對齊)
 from .platform_tools import resolve_ffmpeg, resolve_font, resolve_temp_dir
@@ -470,9 +471,10 @@ def render_mv(plan, music_path, out_path, mat_dir=None):
     """(I/O) increment ④：依 plan 從各原片抽段 → 統一 1920x1080 → 硬切拼接(對拍)
     → 鋪音樂(trim 到視覺長度)→ out_path。回傳 out_path。"""
     mat_dir = mat_dir or resolve_temp_dir()
+    work_dir = tempfile.mkdtemp(prefix="mv_render_", dir=mat_dir)
     segs = []
     for p in plan:
-        seg = os.path.join(mat_dir, f"mvseg_{p['slot_index']:03d}.mp4")
+        seg = os.path.join(work_dir, f"mvseg_{p['slot_index']:03d}.mp4")
         r = subprocess.run([FFMPEG, "-y", "-ss", f"{p['extract_start']:.3f}",
                             "-i", p["source"], "-t", f"{p['extract_dur']:.3f}",
                             "-vf", _MV_VF, "-an", "-c:v", "libx264", "-preset", "medium",
@@ -482,12 +484,12 @@ def render_mv(plan, music_path, out_path, mat_dir=None):
             segs.append(seg)
     if not segs:
         raise ToolError("render_mv: no segments rendered")
-    listf = os.path.normpath(os.path.join(mat_dir, "mv_concat.txt"))
+    listf = os.path.normpath(os.path.join(work_dir, "mv_concat.txt"))
     with open(listf, "w") as f:
         for s in segs:
             clean_path = os.path.abspath(s).replace('\\', '/')
             f.write(f"file '{clean_path}'\n")   # 絕對路徑:避免 concat 相對路徑雙重前綴
-    visual = os.path.join(mat_dir, "mv_visual.mp4")
+    visual = os.path.join(work_dir, "mv_visual.mp4")
     subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
                     "-c:v", "libx264", "-preset", "medium", "-crf", "20",
                     "-pix_fmt", "yuv420p", visual], capture_output=True, timeout=600)
@@ -1998,12 +2000,16 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
     keep_audio 段(duck/diegetic)保留原音、其餘補靜音;末段用 sidechain ducking
     讓音樂在原音(致詞/隊呼)時讓位(見 `_mv_music_mix`)。"""
     mat_dir = mat_dir or resolve_temp_dir()
+    work_dir = tempfile.mkdtemp(prefix="mv_audio_", dir=mat_dir)
     segs = []
     for p in plan:
-        seg = os.path.join(mat_dir, f"mvseg_{p['slot_index']:03d}.mp4")
+        seg = os.path.join(work_dir, f"mvseg_{p['slot_index']:03d}.mp4")
         if os.path.exists(seg):
-            os.remove(seg)
-        text_filter = _drawtext_chain(p.get("text"), mat_dir, p["slot_index"]) if burn_text else ""
+            try:
+                os.remove(seg)
+            except PermissionError:
+                seg = os.path.join(work_dir, f"mvseg_{p['slot_index']:03d}_{os.getpid()}_{id(plan)}.mp4")
+        text_filter = _drawtext_chain(p.get("text"), work_dir, p["slot_index"]) if burn_text else ""
         vf = _video_vf(p.get("crop_center")) + text_filter
         if p.get("is_photo"):
             # 照片→still 影片片段:loop 1 張 + kenburns 緩推 + 靜音(照片無原音)。
@@ -2081,20 +2087,20 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
         if r.returncode == 0 and os.path.exists(seg):
             # 講話段(subtitle:"auto")→ ASR 轉錄原音 + 燒演講字幕
             if (p.get("text") or {}).get("subtitle") == "auto" and p.get("keep_audio"):
-                subbed = _burn_asr_subtitle(seg, mat_dir, p["slot_index"])
+                subbed = _burn_asr_subtitle(seg, work_dir, p["slot_index"])
                 if subbed:
                     seg = subbed
             segs.append(seg)
     if not segs:
         raise ToolError("render_mv_audio: no segments rendered")
-    listf = os.path.normpath(os.path.join(mat_dir, "mv_concat.txt"))
+    listf = os.path.normpath(os.path.join(work_dir, "mv_concat.txt"))
     with open(listf, "w") as f:
         for s in segs:
             # ⚠️ 用絕對路徑:ffmpeg concat 把相對 entry 解析成「相對 list 檔所在目錄」,
             # mat_dir 是相對路徑時會變成 mat_dir/mat_dir/... 雙重前綴而開不了檔。
             clean_path = os.path.abspath(s).replace('\\', '/')
             f.write(f"file '{clean_path}'\n")
-    av = os.path.join(mat_dir, "mv_av.mp4")
+    av = os.path.join(work_dir, "mv_av.mp4")
     if not _render_segment_sequence(segs, plan, av):
         subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", listf,
                         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
