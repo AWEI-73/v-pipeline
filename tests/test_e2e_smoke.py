@@ -60,7 +60,6 @@ class E2ESmokeTest(unittest.TestCase):
             finally:
                 external.unlink(missing_ok=True)
 
-    @unittest.expectedFailure
     def test_revise_director_routes_to_supply_revision(self):
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)

@@ -29,6 +29,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "create_bounded_probe_preview",
         "curator",
         "define_delivery_requirements",
+        "director_supply_revision",
         "director_or_curator",
         "effect-factory-contract",
         "effect_factory_contract",

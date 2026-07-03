@@ -184,6 +184,8 @@ def load_dashboard_state(workdir):
                     manifest["source_timeline_map"] = f
                 elif f == "source_material_matrix.json":
                     manifest["source_material_matrix"] = f
+                elif f == "supply_review.json":
+                    manifest["supply_review"] = f
                 elif f == "highlight_selection_plan.json":
                     manifest["highlight_selection_plan"] = f
                 elif f == "highlight_cut_report.json":
@@ -447,6 +449,7 @@ def load_dashboard_state(workdir):
     visual_review_request = safe_load_json(manifest.get("visual_review_request")) or safe_load_json("visual_review_request.json")
     visual_review_verdict = safe_load_json(manifest.get("visual_review_verdict")) or safe_load_json("visual_review_verdict.json")
     state_data = safe_load_json(manifest.get("state")) or safe_load_json("state.json")
+    supply_review = safe_load_json(manifest.get("supply_review")) or safe_load_json("supply_review.json")
     verify_result = safe_load_json(manifest.get("verify_result")) or safe_load_json("qa_report.json") or safe_load_json("verify_result.json")
     final_product_verify_bundle = (
         safe_load_json(manifest.get("final_product_verify_bundle"))
@@ -743,6 +746,16 @@ def load_dashboard_state(workdir):
         and spec_review_data.get("ready_for_build", True) is True
         and not (spec_review_data.get("blocking") or [])
     )
+    script_overreach_with_supply = (
+        state_next_action == "revise:director(spec_review)"
+        and isinstance(spec_review_data, dict)
+        and any(
+            item.get("rule") == "script_overreach"
+            for item in (spec_review_data.get("blocking") or [])
+        )
+        and isinstance(supply_review, dict)
+        and bool(supply_review.get("segments"))
+    )
     if spec_review_data and not spec_review_data.get("ready_for_build", True):
         for b in (spec_review_data.get("blocking") or [])[:6]:
             findings.append({
@@ -814,7 +827,7 @@ def load_dashboard_state(workdir):
               and audio_build_handoff.get("audio_ready") is True
           )
           and not (final_exists and verify_result and verify_result.get("pass") is True)):
-        next_action = state_data.get("next_action")
+        next_action = "director_supply_revision" if script_overreach_with_supply else state_data.get("next_action")
     elif storyboard_preview_ready:
         output_exists = bool(storyboard_preview_output and os.path.exists(storyboard_preview_output))
         next_action = "review_storyboard_preview"
