@@ -1,5 +1,8 @@
 """edit_artifacts — Node 9 assembly_plan and Node 10 timeline_build."""
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from video_pipeline_core import edit_artifacts as ea
 
@@ -65,6 +68,27 @@ class EditArtifactsTest(unittest.TestCase):
         self.assertEqual(clip["target_duration_sec"], 3.0)
         self.assertEqual(clip["audio_policy"], "duck")
         self.assertEqual(clip["trace"]["segment_contract_segment"], 1)
+
+    def test_write_edit_artifacts_persists_timeline_sources_as_run_relative_refs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            source = run_dir / "assets" / "clip.mp4"
+            source.parent.mkdir()
+            source.write_bytes(b"clip")
+
+            result = ea.write_edit_artifacts(
+                {"segments": [{"segment": 1, "weight": 1.0}], "_contract_hash": "sha256:test"},
+                out_dir=run_dir,
+                render_plan=[{
+                    "segment": 1,
+                    "source": str(source),
+                    "extract_start": 0,
+                    "extract_dur": 1.5,
+                }],
+            )
+
+            timeline = json.loads(Path(result["timeline_build"]).read_text(encoding="utf-8"))
+            self.assertEqual(timeline["clips"][0]["source_path"], "assets/clip.mp4")
 
     def test_creative_exception_survives_assembly_and_timeline_artifacts(self):
         exception = {

@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 
 from . import spec_contract
+from .asset_paths import relativize_payload_refs
 
 
 def _seg_weight(core, eg):
@@ -265,6 +266,11 @@ def _write_json(path, data):
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return path
+
+
+def _write_portable_json(path, data):
+    path = Path(path)
+    return _write_json(path, relativize_payload_refs(path.parent, data))
 
 
 def _apply_stock_first_if_enabled(contract):
@@ -999,7 +1005,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
     if not mvv.get("can_run", True):
         return {"ok": False, "errors": mvv.get("issues"), "stage": "validate_mv_script",
                 "contract_hash": contract_hash, "generated_script": payload}
-    _write_json(generated_payload_path, payload)
+    _write_portable_json(generated_payload_path, payload)
     from . import model_routing  # noqa: PLC0415
     model_routes = model_routing.load_model_routes(model_routes_config_path)
     model_routing.write_model_routes(model_routes_path, model_routes)
@@ -1266,7 +1272,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         music_structure=(music_struct or {}).get("structure"),
         editing_policy=(build_profile_payload or {}).get("editing_policy"),
     )
-    _write_json(generated_payload_path, payload)
+    _write_portable_json(generated_payload_path, payload)
     broll_policy = build_profile_payload.get("broll_policy") or {}
     max_source_repeats = broll_policy.get("max_source_repeats")
     if max_source_repeats is None:
@@ -1578,7 +1584,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                          editorial_design=str(editorial_design_path) if editorial_design_path else None,
                          editorial_qa=editorial_qa_path,
                          spec_review=spec_review_path)
-    _write_json(manifest_path, manifest)
+    _write_portable_json(manifest_path, manifest)
 
     # Return structured results
     render_ok = out_path.exists()
@@ -1688,7 +1694,7 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
                 "stage": "validate_mv_script", "contract_hash": contract_hash,
                 "generated_script": payload}
     generated_payload_path = out_dir / "generated_mv_script.json"
-    _write_json(generated_payload_path, payload)
+    _write_portable_json(generated_payload_path, payload)
 
     # Node 8: build_profile (+ editing_policy when an editorial_design is present).
     from . import build_profile  # noqa: PLC0415
@@ -1816,7 +1822,7 @@ def dry_build(contract, out_dir, *, categories_path=None, build_profile_config_p
         editorial_design=editorial_design_path,
         editorial_qa=edit_paths.get("editorial_qa"),
         spec_review=spec_review_path)
-    _write_json(manifest_path, manifest)
+    _write_portable_json(manifest_path, manifest)
 
     # Compute the chain walk (next_action/pass) and persist state.json.
     from . import dashboard_state  # noqa: PLC0415

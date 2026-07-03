@@ -233,16 +233,16 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertTrue(result["render_ok"])
             self.assertEqual(payload["_artifact_role"], "legacy_runtime_payload")
             self.assertEqual(manifest["canonical_contract"], str(EXAMPLES / "segment_contract_graduation_mv.json"))
-            self.assertEqual(manifest["generated_payload"], str(outdir / "generated_mv_script.json"))
-            self.assertEqual(manifest["final"], str(outdir / "final.mp4"))
-            self.assertEqual(manifest["state"], str(outdir / "state.json"))
+            self.assertEqual(manifest["generated_payload"], "generated_mv_script.json")
+            self.assertEqual(manifest["final"], "final.mp4")
+            self.assertEqual(manifest["state"], "state.json")
             self.assertEqual(manifest["material_db"], str(material_db))
             self.assertEqual(manifest["music"], str(music))
-            self.assertEqual(manifest["music_structure"], str(outdir / "music_structure.json"))
-            self.assertEqual(manifest["model_routes"], str(outdir / "model_routes.json"))
-            self.assertEqual(manifest["assembly_plan"], str(outdir / "assembly_plan.json"))
-            self.assertEqual(manifest["timeline_build"], str(outdir / "timeline_build.json"))
-            self.assertEqual(manifest["editor_review"], str(outdir / "editor_review.json"))
+            self.assertEqual(manifest["music_structure"], "music_structure.json")
+            self.assertEqual(manifest["model_routes"], "model_routes.json")
+            self.assertEqual(manifest["assembly_plan"], "assembly_plan.json")
+            self.assertEqual(manifest["timeline_build"], "timeline_build.json")
+            self.assertEqual(manifest["editor_review"], "editor_review.json")
             self.assertEqual(manifest["contract_hash"], payload["_contract_hash"])
             for optional_key in (
                 "generated_asset_manifest",
@@ -317,9 +317,9 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(handoff["selected_audio"], str(final_audio))
             self.assertEqual(handoff["selection_reason"], "audio_ready_final_audio")
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
-            self.assertEqual(manifest["final_audio"], str(final_audio))
-            self.assertEqual(manifest["audio_mix_report"], str(outdir / "audio_mix_report.json"))
+            self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
+            self.assertEqual(manifest["final_audio"], "final_audio.wav")
+            self.assertEqual(manifest["audio_mix_report"], "audio_mix_report.json")
 
     def test_run_contract_records_existing_branch_handoffs_in_manifest(self):
         with tempfile.TemporaryDirectory() as d:
@@ -376,9 +376,9 @@ class ContractToMvScriptTest(unittest.TestCase):
 
             self.assertTrue(result["render_ok"])
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
-            self.assertEqual(manifest["effect_handoff"], str(effect_handoff))
-            self.assertEqual(manifest["rough_cut_plan"], str(rough_cut))
+            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], "subtitle_voiceover_build_handoff.json")
+            self.assertEqual(manifest["effect_handoff"], "effect_handoff.json")
+            self.assertEqual(manifest["rough_cut_plan"], "rough_cut_plan.json")
 
     def test_dry_build_records_audio_ready_handoff_without_rendering(self):
         with tempfile.TemporaryDirectory() as d:
@@ -408,8 +408,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(handoff["selected_audio"], str(final_audio))
             self.assertFalse(handoff["rendered_video"])
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
-            self.assertEqual(manifest["final_audio"], str(final_audio))
+            self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
+            self.assertEqual(manifest["final_audio"], "final_audio.wav")
 
     def test_dry_build_records_existing_branch_handoffs_in_manifest(self):
         with tempfile.TemporaryDirectory() as d:
@@ -443,8 +443,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertIn("effect_handoff", manifest)
             self.assertIn("subtitle_voiceover_build_handoff", result["artifacts"])
             self.assertIn("effect_handoff", result["artifacts"])
-            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
-            self.assertEqual(manifest["effect_handoff"], str(effect_handoff))
+            self.assertEqual(manifest["subtitle_voiceover_build_handoff"], "subtitle_voiceover_build_handoff.json")
+            self.assertEqual(manifest["effect_handoff"], "effect_handoff.json")
             self.assertEqual(result["artifacts"]["subtitle_voiceover_build_handoff"], str(subtitle_handoff))
             self.assertEqual(result["artifacts"]["effect_handoff"], str(effect_handoff))
 
@@ -475,7 +475,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             )
 
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["rough_cut_plan"], str(rough_cut))
+            self.assertEqual(manifest["rough_cut_plan"], "rough_cut_plan.json")
             self.assertEqual(result["artifacts"]["rough_cut_plan"], str(rough_cut))
 
     def test_contract_dry_build_cli_records_audio_ready_handoff_without_rendering(self):
@@ -517,8 +517,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
             self.assertEqual(handoff["selected_audio"], str(final_audio))
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["final_audio"], str(final_audio))
-            self.assertEqual(manifest["audio_build_handoff"], str(outdir / "audio_build_handoff.json"))
+            self.assertEqual(manifest["final_audio"], "final_audio.wav")
+            self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
 
     def test_run_contract_emits_capcut_draft_when_backend_selected(self):
         with tempfile.TemporaryDirectory() as d:
@@ -567,9 +567,9 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(draft["audio_track"][0]["source_path"], str(music))
             self.assertEqual(draft["audio_track"][0]["role"], "bgm")
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["capcut_draft_manifest"], str(outdir / "capcut_draft_manifest.json"))
+            self.assertEqual(manifest["capcut_draft_manifest"], "capcut_draft_manifest.json")
             # ffmpeg final.mp4 is still the canonical render
-            self.assertEqual(manifest["final"], str(outdir / "final.mp4"))
+            self.assertEqual(manifest["final"], "final.mp4")
 
     def test_run_contract_applies_creator_profile_defaults(self):
         with tempfile.TemporaryDirectory() as d:
@@ -622,8 +622,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             applied = json.loads((outdir / "creator_profile_applied.json").read_text(encoding="utf-8"))
             self.assertIn("broll_ratio_target", applied["applied"])
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["creator_profile"], str(outdir / "creator_profile.json"))
-            self.assertEqual(manifest["creator_profile_applied"], str(outdir / "creator_profile_applied.json"))
+            self.assertEqual(manifest["creator_profile"], "creator_profile.json")
+            self.assertEqual(manifest["creator_profile_applied"], "creator_profile_applied.json")
 
     def test_run_contract_blocks_on_spec_review(self):
         """A SPEC that will silently fail downstream (subtitle:auto on a no-speech
@@ -762,7 +762,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             for role in ("timeline_invariants", "broll_audit", "caption_audit",
                          "presentation_feel_audit"):
                 self.assertTrue((outdir / f"{role}.json").exists(), f"{role}.json missing")
-                self.assertEqual(manifest[role], str(outdir / f"{role}.json"))
+                self.assertEqual(manifest[role], f"{role}.json")
             # ffmpeg-dependent tools were left disabled -> still null
             self.assertIsNone(manifest["keyframe_grid"])
             self.assertIsNone(manifest["visual_audit"])
@@ -842,11 +842,11 @@ class ContractToMvScriptTest(unittest.TestCase):
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             plan = json.loads((outdir / "light_effects_plan.json").read_text(encoding="utf-8"))
             self.assertTrue(result["render_ok"])
-            self.assertEqual(manifest["light_effects_plan"], str(outdir / "light_effects_plan.json"))
-            self.assertEqual(manifest["light_effects_manifest"], str(outdir / "light_effects_manifest.json"))
+            self.assertEqual(manifest["light_effects_plan"], "light_effects_plan.json")
+            self.assertEqual(manifest["light_effects_manifest"], "light_effects_manifest.json")
             self.assertEqual(
                 manifest["light_effects_baseline_review"],
-                str(outdir / "light_effects_baseline_review.json"),
+                "light_effects_baseline_review.json",
             )
             baseline = json.loads(
                 (outdir / "light_effects_baseline_review.json").read_text(encoding="utf-8")
@@ -1022,9 +1022,9 @@ class ContractToMvScriptTest(unittest.TestCase):
 
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             mg_manifest = json.loads((outdir / "motion_graphics_manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["motion_graphics_contract"], str(outdir / "motion_graphics_contract.json"))
-            self.assertEqual(manifest["motion_graphics_render_plan"], str(outdir / "motion_graphics_render_plan.json"))
-            self.assertEqual(manifest["motion_graphics_manifest"], str(outdir / "motion_graphics_manifest.json"))
+            self.assertEqual(manifest["motion_graphics_contract"], "motion_graphics_contract.json")
+            self.assertEqual(manifest["motion_graphics_render_plan"], "motion_graphics_render_plan.json")
+            self.assertEqual(manifest["motion_graphics_manifest"], "motion_graphics_manifest.json")
             self.assertEqual(mg_manifest["render_outputs"][0]["status"], "asset_ready")
             self.assertEqual(mg_manifest["composite_result"]["status"], "failed")
             self.assertTrue(Path(mg_manifest["render_outputs"][0]["path"]).exists())
@@ -1072,7 +1072,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             payload = json.loads((outdir / "generated_mv_script.json").read_text(encoding="utf-8"))
             route = json.loads((outdir / "stock_first_route.json").read_text(encoding="utf-8"))
             self.assertTrue(result["render_ok"])
-            self.assertEqual(manifest["stock_first_route"], str(outdir / "stock_first_route.json"))
+            self.assertEqual(manifest["stock_first_route"], "stock_first_route.json")
             self.assertEqual(payload["segments"][0]["source"], "stock")
             self.assertEqual(payload["segments"][0]["search_query"], "city morning work truck")
             self.assertEqual(route["segments"][0]["selected_route"], "stock_bridge")
@@ -1124,8 +1124,8 @@ class ContractToMvScriptTest(unittest.TestCase):
             build_profile = json.loads((outdir / "build_profile.json").read_text(encoding="utf-8"))
             requests = json.loads((outdir / "generated_asset_requests.json").read_text(encoding="utf-8"))
             self.assertTrue(result["render_ok"])
-            self.assertEqual(manifest["build_profile"], str(outdir / "build_profile.json"))
-            self.assertEqual(manifest["generated_asset_requests"], str(outdir / "generated_asset_requests.json"))
+            self.assertEqual(manifest["build_profile"], "build_profile.json")
+            self.assertEqual(manifest["generated_asset_requests"], "generated_asset_requests.json")
             self.assertEqual(build_profile["fallback_visual_provider"], "antigravity")
             self.assertEqual(requests["provider_priority"][0], "antigravity")
             self.assertEqual(requests["items"][0]["segment"], 1)

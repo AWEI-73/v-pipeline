@@ -9,6 +9,8 @@ import math
 import os
 from pathlib import Path
 
+from .asset_paths import to_asset_ref
+
 
 _STILL_TREATMENT_MODES = ("slow_push", "pan_right", "detail_push", "pan_left")
 
@@ -442,6 +444,15 @@ def _video_duration(source):
         return None
 
 
+def _timeline_for_persist(timeline, run_dir):
+    persisted = json.loads(json.dumps(timeline, ensure_ascii=False))
+    for clip in persisted.get("clips") or []:
+        source_path = clip.get("source_path")
+        if source_path:
+            clip["source_path"] = to_asset_ref(run_dir, source_path).ref
+    return persisted
+
+
 def snap_to_edit_point(start, duration, scene_cuts=None, motion_peaks=None, tolerance=0.5):
     """Snap a source window to a scene boundary first, then to a motion peak."""
     for reason, points in (
@@ -769,7 +780,7 @@ def write_edit_artifacts(script, *, out_dir, music_structure=None, render_plan=N
         timeline = build_timeline_build(render_plan, contract_hash=script.get("_contract_hash"))
         timeline_path = out_dir / "timeline_build.json"
         with timeline_path.open("w", encoding="utf-8") as f:
-            json.dump(timeline, f, ensure_ascii=False, indent=2)
+            json.dump(_timeline_for_persist(timeline, out_dir), f, ensure_ascii=False, indent=2)
         result["timeline_build"] = str(timeline_path)
 
         # Node 11 treatment-fit audit (opt-in: only when a segment declared a treatment)

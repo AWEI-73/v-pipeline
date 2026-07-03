@@ -105,6 +105,23 @@ class AssetPathAuditCliTest(unittest.TestCase):
         report = json.loads(proc.stdout)
         self.assertEqual(report["strict_finding_count"], 1)
 
+    def test_strict_mode_fails_for_build_family_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "timeline_build.json").write_text(
+                json.dumps({
+                    "artifact_role": "timeline_build",
+                    "clips": [{"source_path": "/tmp/source/clip.mp4"}],
+                }),
+                encoding="utf-8",
+            )
+
+            proc = self.run_cli(str(run_dir), "--strict", "--json")
+
+        self.assertEqual(proc.returncode, 1)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["strict_finding_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 POSIX_ABSOLUTE_RE = re.compile(r"^/[^/]")
-STRICT_FAMILIES: set[str] = {"material"}
+STRICT_FAMILIES: set[str] = {"build", "material"}
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,18 @@ def is_absolute_path_string(value: str) -> bool:
     return bool(WINDOWS_ABSOLUTE_RE.match(value) or POSIX_ABSOLUTE_RE.match(value))
 
 
+def relativize_payload_refs(run_dir: str | PurePath, payload: Any) -> Any:
+    """Return a JSON-compatible copy with run-local absolute paths as asset refs."""
+
+    if isinstance(payload, dict):
+        return {key: relativize_payload_refs(run_dir, value) for key, value in payload.items()}
+    if isinstance(payload, list):
+        return [relativize_payload_refs(run_dir, item) for item in payload]
+    if isinstance(payload, str) and is_absolute_path_string(payload):
+        return to_asset_ref(run_dir, payload).ref
+    return payload
+
+
 def _iter_json_strings(value: Any, path: str = "$") -> Iterable[tuple[str, str]]:
     if isinstance(value, str):
         yield path, value
@@ -123,6 +135,8 @@ def classify_artifact_family(path: Path, payload: Any, dictionary_names: set[str
     key = f"{stem} {role}".lower()
     if dictionary_names and stem in dictionary_names:
         key = f"{key} {stem.lower()}"
+    if stem == "artifact_manifest.json":
+        return "build"
     if any(token in key for token in ("material", "source_media", "source_asset", "inventory")):
         return "material"
     if any(token in key for token in ("audio", "soundtrack", "music", "voiceover", "narration", "subtitle")):
