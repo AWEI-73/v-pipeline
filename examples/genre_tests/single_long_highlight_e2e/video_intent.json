@@ -1,0 +1,20 @@
+{
+  "artifact_role": "video_intent",
+  "entry_path": "material-first",
+  "route": "material-first",
+  "video_type": "single_long_highlight",
+  "material_contract": {
+    "first_action": "material_map_quick_inventory",
+    "scan_decision": {
+      "needed": true,
+      "scan_depth": "quick_inventory_first"
+    }
+  },
+  "subtitle_voiceover_contract": {
+    "artifact_role": "stage0_subtitle_voiceover_intent",
+    "language": "zh-TW",
+    "subtitle_required": true,
+    "voiceover_required": false,
+    "handoff_to": "subtitle-director"
+  }
+}

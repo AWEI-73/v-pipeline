@@ -25,6 +25,24 @@ class E2ESmokeTest(unittest.TestCase):
         )
         self.assertIsNone(result["stalled_action"])
 
+    def test_single_long_highlight_stage0_routes_to_material_inventory_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_e2e_smoke("single_long_highlight", base_dir=tmp)
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["final_next_action"], "material-quick-inventory")
+        self.assertEqual(
+            result["trace"],
+            [{
+                "step": "stage0_profile",
+                "mode": "run",
+                "cursor": "stage2_material_inventory",
+                "next": "material-quick-inventory",
+                "source": "video_intent.json",
+            }],
+        )
+        self.assertIsNone(result["stalled_action"])
+
     def test_target_length_enforced(self):
         brief = {"target_length": "30 seconds", "enforce_target_length": True}
         contract = {

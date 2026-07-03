@@ -9,12 +9,15 @@ from pathlib import Path
 
 from . import contract_adapter, dashboard_state, spec_review
 from .next_action_vocabulary import NEXT_ACTION_VOCABULARY
+from tools.pipeline_home import summarize_run
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = {
     "stock_story": ROOT / "examples" / "genre_tests" / "stock_story_e2e",
+    "single_long_highlight": ROOT / "examples" / "genre_tests" / "single_long_highlight_e2e",
 }
+STAGE0_PROFILE_CASES = {"single_long_highlight"}
 
 
 def _read_json(path: Path) -> dict:
@@ -32,6 +35,13 @@ def _copy_fixture(case: str, run_dir: Path) -> Path:
     for name in ("brief.json", "blueprint.json", "segment_contract.json", "material_categories.json"):
         shutil.copy2(fixture / name, run_dir / name)
     return run_dir / "segment_contract.json"
+
+
+def _copy_stage0_profile_fixture(case: str, run_dir: Path) -> None:
+    fixture = FIXTURES.get(case)
+    if not fixture or not fixture.exists():
+        raise ValueError(f"unknown e2e smoke case: {case}")
+    shutil.copy2(fixture / "video_intent.json", run_dir / "video_intent.json")
 
 
 def _verify_result_payload() -> dict:
@@ -84,6 +94,34 @@ def run_e2e_smoke(case: str = "stock_story", *, keep_dir: bool = False, base_dir
         run_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        if case in STAGE0_PROFILE_CASES:
+            _copy_stage0_profile_fixture(case, run_dir)
+            summary = summarize_run(run_dir)
+            trace = [{
+                "step": "stage0_profile",
+                "mode": summary.get("mode"),
+                "cursor": summary.get("cursor"),
+                "next": summary.get("next"),
+                "source": summary.get("source"),
+            }]
+            expected = {
+                "mode": "run",
+                "cursor": "stage2_material_inventory",
+                "next": "material-quick-inventory",
+                "source": "video_intent.json",
+            }
+            ok = all(summary.get(key) == value for key, value in expected.items())
+            stalled_action = None if ok else f"stage0_profile:{summary.get('cursor')}:{summary.get('next')}"
+            return {
+                "ok": ok,
+                "case": case,
+                "run_dir": str(run_dir) if keep_dir or base_dir else None,
+                "trace": trace,
+                "final_next_action": summary.get("next"),
+                "stalled_action": stalled_action,
+                "summary": summary,
+            }
+
         contract_path = _copy_fixture(case, run_dir)
         contract = _read_json(contract_path)
         brief = _read_json(run_dir / "brief.json")

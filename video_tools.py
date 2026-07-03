@@ -3194,7 +3194,7 @@ def main():
     p_raudit.add_argument("--json", action="store_true", help="print JSON report")
 
     p_e2e = sub.add_parser("e2e-smoke")
-    p_e2e.add_argument("--case", default="stock_story", choices=["stock_story"])
+    p_e2e.add_argument("--case", default="stock_story", choices=["stock_story", "single_long_highlight"])
     p_e2e.add_argument("--keep-dir", action="store_true")
     p_e2e.add_argument("--out-dir", help="optional temp/run directory for smoke artifacts")
 
