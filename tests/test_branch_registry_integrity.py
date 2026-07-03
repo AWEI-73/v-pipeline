@@ -88,9 +88,17 @@ class BranchRegistryIntegrityTest(unittest.TestCase):
         )
         self.assertEqual(missing, [])
 
-    def test_dashboard_state_literals_in_vocabulary(self):
-        source = (ROOT / "video_pipeline_core" / "dashboard_state.py").read_text(encoding="utf-8")
-        literals = sorted(set(re.findall(r'next_action\s*=\s*"([^"]+)"', source)))
+    def test_core_next_action_literals_in_vocabulary(self):
+        patterns = [
+            re.compile(r'next_action\s*=\s*"([^"]+)"'),
+            re.compile(r'"next_action"\s*:\s*"([^"]+)"'),
+        ]
+        literals = set()
+        for source_path in (ROOT / "video_pipeline_core").glob("*.py"):
+            source = source_path.read_text(encoding="utf-8")
+            for pattern in patterns:
+                literals.update(pattern.findall(source))
+        literals = sorted(literals)
         missing = [literal for literal in literals if literal not in NEXT_ACTION_VOCABULARY]
         self.assertEqual(missing, [])
 
