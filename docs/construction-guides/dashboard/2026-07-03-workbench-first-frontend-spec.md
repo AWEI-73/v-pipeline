@@ -255,3 +255,27 @@ What to ADD to the native page:
 - Deleting or archiving legacy dashboard files.
 - Editing contract JSON from the UI (black box is read-only in v1).
 - Collapsible panels and draggable splitter (v2).
+
+## Implementation Report
+
+### Git Commits
+- **Step 2 (Collapsible material drawer)**: `d39f3c33`
+- **Step 3 (Fit badges & contract filter)**: `ba1d517b`
+- **Step 4 (Swap safety & draft markers)**: `9514acca`
+- **Step 5 (Domain contract inspector views)**: `e4abb0d0`
+- **Step 6 (Collapsible pipeline status strip)**: `0badccca`
+- **Step 7 (Humanize inspector labels & save feedback)**: `81554ef8`
+- **Step 8 (Material gap request helper)**: `852dfa87`
+- **Step 9 (Make workbench default home route)**: `2509a3df`
+
+### Mismatches & Contradictions (Rule G)
+1. **Material Drawer Replacement Candidates**: In `workbench_materials.js`, `replacementCandidates()` automatically filtered out the currently selected scene/clip, causing search logic to fail if we wanted to match status on it. We solved this by falling back to `Materials.matchStatusForNeed` for the selected clip.
+2. **Template CSS vs. HTML Class Names**: `workbench_first_template.html` used status styles like `.st-done`, `.st-now`, and `.st-todo` but its HTML elements used classes like `pstep ok`. We aligned this by using the CSS-defined classes `.st-done`, `.st-now`, `.st-todo` on the status elements.
+3. **Friendly Labels Scope**: The specification only asked to humanize labels for `duration_sec` and `source_start_sec`. To prevent unintended side effects, we only modified these two and kept `source_duration_sec` aligned.
+4. **Header Layout and Icons Placement**: The top bar of the SPA and native index.html have separate structures. To satisfy the layout smoke ratio test (which checks viewport ratios inside the native iframe), we placed the domain icons inside the native header's `.wb-badges` flex container and fixed the header height to exactly `48px`.
+5. **SPA Home Route configuration**: Making `/workbench` the home route was done by mapping `routes["/"] = "workbench"` and `pathForView("workbench") = "/"` to maintain clean navigation and allow fallback routes.
+
+### Test Verification
+- **Layout Smoke Test**: Passed with `"ok": true`.
+- **Frontend Smoke Test**: Passed with `"ok": true`.
+- **Unit Test Suite**: Ran successfully and matches baseline.
