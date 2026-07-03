@@ -84,6 +84,7 @@ import json
 import subprocess
 import argparse
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -2374,6 +2375,132 @@ def cmd_test_tiers(args):
         raise ToolError(f"test tier failed: {payload.get('tier')} command {payload.get('failed_command_index')}")
 
 
+def _registry_audit_normalize(text):
+    return re.sub(r"[^a-z0-9]+", " ", str(text).lower()).strip()
+
+
+def _registry_audit_branch_labels(branch):
+    branch_id = branch.get("branch_id") or ""
+    labels = {
+        branch_id,
+        branch_id.replace("-", " "),
+        branch.get("name") or "",
+    }
+    labels.update({
+        "main-pipeline": {"main pipeline", "main video pipeline"},
+        "material-map": {"material map"},
+        "soundtrack-arranger": {"soundtrack arranger", "audio communication"},
+        "subtitle-voiceover": {"subtitle voiceover", "subtitle / voiceover", "audio communication"},
+        "effect-factory": {"effect factory"},
+        "workbench-brownfield": {"workbench brownfield", "workbench / brownfield"},
+        "verify-delivery": {"verify delivery", "verify / delivery gate", "review verify delivery"},
+    }.get(branch_id, set()))
+    return {_registry_audit_normalize(label) for label in labels if label}
+
+
+def _registry_audit_gate_in_tree(gate, tree_norm):
+    gate_norm = _registry_audit_normalize(gate)
+    if gate_norm and gate_norm in tree_norm:
+        return True
+    if "audio handoff acceptance" in gate_norm:
+        return "audio director" in tree_norm and "handoff" in tree_norm
+    return False
+
+
+def _load_registry_audit(registry_path, tree_path):
+    registry = json.loads(Path(registry_path).read_text(encoding="utf-8-sig"))
+    tree_text = Path(tree_path).read_text(encoding="utf-8-sig")
+    tree_norm = _registry_audit_normalize(tree_text)
+    headings = []
+    for line in tree_text.splitlines():
+        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if match:
+            headings.append(match.group(2).strip())
+    return registry, tree_text, tree_norm, headings
+
+
+def build_registry_audit(registry_path="docs/branch-contract-registry.json",
+                         tree_path="docs/pipeline-decision-tree.md"):
+    registry, _tree_text, tree_norm, headings = _load_registry_audit(registry_path, tree_path)
+    findings = []
+    branches = registry.get("branches") or []
+    branch_labels = {
+        branch.get("branch_id"): _registry_audit_branch_labels(branch)
+        for branch in branches
+    }
+
+    for branch in branches:
+        branch_id = branch.get("branch_id")
+        labels = branch_labels.get(branch_id) or set()
+        if not any(label and label in tree_norm for label in labels):
+            findings.append(f"missing_branch_label: {branch_id}")
+        for stage in branch.get("stages") or []:
+            gate = stage.get("gate")
+            if gate and not _registry_audit_gate_in_tree(gate, tree_norm):
+                findings.append(f"missing_stage_gate: {branch_id}.{stage.get('stage')}: {gate}")
+
+    for heading in headings:
+        heading_norm = _registry_audit_normalize(heading)
+        names_branch = (
+            "branch decision tree" in heading_norm
+            or heading_norm.startswith("main pipeline decision tree")
+            or "delivery gate cross cutting decision tree" in heading_norm
+        )
+        if not names_branch:
+            continue
+        if not any(any(label and label in heading_norm for label in labels)
+                   for labels in branch_labels.values()):
+            findings.append(f"unmapped_tree_heading: {heading}")
+
+    return {
+        "ok": not findings,
+        "registry": str(registry_path),
+        "decision_tree": str(tree_path),
+        "branch_count": len(branches),
+        "stage_count": sum(len(branch.get("stages") or []) for branch in branches),
+        "finding_count": len(findings),
+        "findings": findings,
+    }
+
+
+def cmd_registry_audit(args):
+    report = build_registry_audit(
+        registry_path=getattr(args, "registry", "docs/branch-contract-registry.json"),
+        tree_path=getattr(args, "decision_tree", "docs/pipeline-decision-tree.md"),
+    )
+    if getattr(args, "write_report", None):
+        out_path = Path(args.write_report)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [
+            "# Registry Audit Report",
+            "",
+            f"- ok: {str(report['ok']).lower()}",
+            f"- registry: `{report['registry']}`",
+            f"- decision_tree: `{report['decision_tree']}`",
+            f"- branch_count: {report['branch_count']}",
+            f"- stage_count: {report['stage_count']}",
+            f"- finding_count: {report['finding_count']}",
+            "",
+        ]
+        if report["findings"]:
+            lines.append("## Findings")
+            lines.extend(f"- {finding}" for finding in report["findings"])
+        else:
+            lines.append("No findings.")
+        out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        report["written_report"] = str(out_path)
+    if getattr(args, "json", False):
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    elif report["ok"]:
+        print(f"Registry Audit: OK ({report['branch_count']} branches, {report['stage_count']} stages)")
+    else:
+        print("Registry Audit: FAIL")
+        for finding in report["findings"]:
+            print(f"- {finding}")
+    if not report["ok"]:
+        raise ToolError(f"registry audit failed: {report['finding_count']} finding(s)")
+
+
 def cmd_run_layout_validate(args):
     from video_pipeline_core.project_workspace import validate_run_layout
     report = validate_run_layout(args.run_dir)
@@ -2636,6 +2763,7 @@ def _build_video_tools_dispatch():
         "commands-manifest": cmd_commands_manifest,
         "workflow-manifest": cmd_workflow_manifest,
         "test-tiers": cmd_test_tiers,
+        "registry-audit": cmd_registry_audit,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
@@ -3043,6 +3171,14 @@ def main():
     p_tt.add_argument("--tier", help="test tier to run; omit to print tier manifest")
     p_tt.add_argument("--dry-run", action="store_true", help="print commands without executing")
     p_tt.add_argument("--out", help="write test tier JSON")
+
+    p_raudit = sub.add_parser("registry-audit")
+    p_raudit.add_argument("--registry", default="docs/branch-contract-registry.json",
+                          help="branch contract registry JSON")
+    p_raudit.add_argument("--decision-tree", default="docs/pipeline-decision-tree.md",
+                          help="pipeline decision tree markdown")
+    p_raudit.add_argument("--write-report", help="optional markdown report path")
+    p_raudit.add_argument("--json", action="store_true", help="print JSON report")
 
     p_rlv = sub.add_parser("run-layout-validate")
     p_rlv.add_argument("run_dir", help="project run directory containing run_layout.json")
