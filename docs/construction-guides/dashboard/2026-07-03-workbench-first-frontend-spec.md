@@ -104,7 +104,27 @@ Rules:
 4. Items are draggable onto lanes using the native editor's existing
    drag/replace mechanics. Replacement resolution stays
    `project_material_map.json`-based (server-enforced; do not bypass).
-5. No material-map review features here. The material domain's white-box
+5. Fit-first ordering (make the EXISTING behavior visible):
+   `workbench_materials.js` already sorts assets by match against the
+   selected clip's `need_id` (`matchStatusForNeed` / `sort_score`). Surface
+   it in the UI:
+   - when a clip is selected, the drawer header shows 「適合這段的素材」 and
+     each asset gets a fit badge — 符合需求 (green) / 候選 (amber) /
+     其他 (gray) — mapped from the existing match status;
+   - when nothing is selected, plain browse order with search + family
+     filter (this is the flexibility mode; keep it).
+   Do not modify the sorting logic itself (workbench_core /
+   workbench_materials are read-only).
+6. Material gap request (v1, frontend-only): a button at the drawer bottom
+   「素材不夠?請 agent 補」 opens a small inline form (這段需要什麼畫面,
+   free text + the selected clip/segment id) and produces a structured
+   request text the user copies to the agent. Do NOT implement file upload
+   and do NOT write new artifact types — `project_material_map.json` and
+   source media are canonical read-only per API_CONTRACT, and material
+   sourcing belongs to the agent's material-map branch (gap → reshoot /
+   generate / stock). A `material_request` field in `workbench_handoff.json`
+   is a future small backend order, not yours.
+7. No material-map review features here. The material domain's white-box
    link covers that.
 
 ## Save semantics (unchanged from API_CONTRACT)

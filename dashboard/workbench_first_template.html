@@ -58,6 +58,10 @@
   .asset .thumb{height:56px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;}
   .asset p{margin:5px 0 0;font-size:12px;}
   .asset .len{color:var(--hint);}
+  .fit{font-size:10px;padding:1px 6px;border-radius:99px;float:right;}
+  .fit-ok{background:var(--green-bg);color:var(--green);}
+  .fit-mid{background:var(--amber-bg);color:var(--amber);}
+  .fit-low{background:var(--gray-bg);color:var(--muted);}
 
   .stagearea{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
   .wb-monitor{background:#191918;border-radius:var(--r);aspect-ratio:16/9;max-height:46vh;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#b4b2a9;}
@@ -126,11 +130,19 @@
     </div>
     <input type="search" placeholder="搜尋素材 / 分類" />
     <select><option>全部分類</option><option>影像</option><option>音訊</option><option>特效</option></select>
-    <div class="asset" draggable="true"><div class="thumb c-video">典禮開場.mov</div><p>典禮開場 <span class="len">0:42</span></p></div>
-    <div class="asset" draggable="true"><div class="thumb c-video">頒獎特寫.mov</div><p>頒獎特寫 <span class="len">1:18</span></p></div>
-    <div class="asset" draggable="true"><div class="thumb c-video">合唱.mp4</div><p>合唱 <span class="len">2:05</span></p></div>
-    <div class="asset" draggable="true"><div class="thumb c-audio">bgm_warm.mp3</div><p>暖調鋼琴 BGM <span class="len">3:00</span></p></div>
-    <div class="asset" draggable="true"><div class="thumb c-fx">開場光暈</div><p>開場光暈(已驗證)</p></div>
+    <!-- 選取片段時:標題變「適合這段的素材」,依既有 matchStatusForNeed 排序,徽章 = 符合需求/候選/其他 -->
+    <p style="font-size:12px;color:var(--muted);margin:0;">適合「頒獎特寫」這段的素材:</p>
+    <div class="asset" draggable="true"><div class="thumb c-video">頒獎全景.mov</div><p>頒獎全景 <span class="len">0:58</span> <span class="fit fit-ok">符合需求</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-video">觀眾鼓掌.mov</div><p>觀眾鼓掌 <span class="len">0:31</span> <span class="fit fit-mid">候選</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-video">典禮開場.mov</div><p>典禮開場 <span class="len">0:42</span> <span class="fit fit-low">其他</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-audio">bgm_warm.mp3</div><p>暖調鋼琴 BGM <span class="len">3:00</span> <span class="fit fit-low">其他</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-fx">開場光暈</div><p>開場光暈(已驗證) <span class="fit fit-low">其他</span></p></div>
+    <!-- 素材缺口:不上傳檔案,產生結構化請求交給 agent 走 material-map branch -->
+    <button id="btn-gap" style="margin-top:4px;font-size:12px;">素材不夠?請 agent 補</button>
+    <div id="gap-form" style="display:none;">
+      <div class="field"><label>這段需要什麼畫面</label><input type="text" placeholder="例:得獎者上台的側面特寫" /></div>
+      <button style="width:100%;font-size:12px;">產生補素材請求(複製給 agent)</button>
+    </div>
   </aside>
 
   <!-- 中:保護區 monitor + transport,結構不動,只調外框風格 -->
@@ -212,6 +224,7 @@ document.querySelectorAll('.dico').forEach(function(el){el.onclick=function(){va
  document.querySelectorAll('.dico').forEach(function(x){x.classList.remove('on');});el.classList.add('on');contractView(d);};});
 document.getElementById('btn-pipestrip').onclick=function(){document.getElementById('pipestrip').classList.toggle('show');};
 document.getElementById('btn-drawer').onclick=function(){document.getElementById('drawer').classList.toggle('collapsed');};
+document.getElementById('btn-gap').onclick=function(){var f=document.getElementById('gap-form');f.style.display=(f.style.display==='none')?'block':'none';};
 document.getElementById('btn-saveall').onclick=function(){var f=document.getElementById('dirty');
  f.textContent='已儲存 3 個 patch + workbench_handoff.json · agent 將依此執行';f.style.color='var(--green)';};
 document.querySelectorAll('.clip').forEach(function(el){el.onclick=function(){
