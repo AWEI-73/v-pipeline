@@ -21,7 +21,7 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/material-map.md` | material-map | material truth | Builds material maps, deltas, review apply, and material-first truth. |
 | `skills/pipeline-boundary.md` | shared | boundary charter (all skills) | Defines cross-skill boundaries and fail-closed ownership rules. |
 | `skills/remotion-effect-worker.md` | effect-factory | effect worker | Builds bounded Remotion effect assets from approved effect specs. |
-| `skills/route.md` | archive | retired route.py dispatcher | Retired state/route dispatcher contract from the route.py era. |
+| `skills/archive/route.md` | archive | retired route.py dispatcher | Retired state/route dispatcher contract from the route.py era. |
 | `skills/shooting-brief.md` | main-pipeline | upstream story | Converts gaps into reshoot or missing-material briefs. |
 | `skills/soundtrack-arranger.md` | soundtrack-arranger | soundtrack branch | Plans, sources, probes, and hands off music/BGM choices. |
 | `skills/spec-contract.md` | main-pipeline | contract compile | Compiles Stage 0/story/material intent into `segment_contract.json`. |

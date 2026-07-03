@@ -50,7 +50,8 @@ class SkillIndexTest(unittest.TestCase):
             if path.name != "INDEX.md"
         }
 
-        self.assertEqual(set(rows), skills)
+        live_rows = {rel for rel in rows if not rel.startswith("skills/archive/")}
+        self.assertEqual(live_rows, skills)
         for rel in rows:
             self.assertTrue((ROOT / rel).is_file(), rel)
 

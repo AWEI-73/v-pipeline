@@ -620,7 +620,7 @@ python video_tools.py operator-flow-acceptance ...
 | `video-intent-planner.md` | Stage 0 route decision and `video_intent.json` | `video-intent-plan`, `video-intent-acceptance` |
 | `video-workflow.md` | route selection and operator flow | `project-init`, `project-new-run`, `workflow-manifest` |
 | `video-pipeline.md` | overall pipeline guidance | `commands-manifest`, `workflow-manifest`, `operator-flow-acceptance` |
-| `route.md` | canonical route and delivery decisions | `state`, `run-layout-validate`, `operator-flow-acceptance`, `route-task-next`, `route-task-accept`, `route-orchestrator-acceptance` |
+| `video-pipeline-route.md` | canonical route and delivery decisions | `state`, `run-layout-validate`, `operator-flow-acceptance`, `route-task-next`, `route-task-accept`, `route-orchestrator-acceptance` |
 | `story-soul-blueprint.md` | creative soul / narrative device / shot plan | `story-soul-blueprint` |
 | `blueprint-interview.md` | interactive story intake | `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` |
 | `writer.md` | screenplay/voiceover wording | `story-soul-blueprint`, `blueprint-to-contract` |

@@ -324,7 +324,7 @@ def _bgm_plan(script_bgm):
     return ("local", script_bgm)
 
 
-# fix_class → 該回哪一功能層修（VERIFY 發類別、route 依此回層；見 skills/route.md）。
+# fix_class → 該回哪一功能層修（VERIFY 發類別、route 依此回層；見 skills/video-pipeline-route.md）。
 # 單一真相在 vt_core，這裡保留舊名 alias，避免既有 tests/agent prompt 斷掉。
 _FIX_TARGET = FIX_TARGET
 
@@ -1173,7 +1173,7 @@ def build_state(script, outdir, style, bgm, qa, unfixable, attempt, final,
     script=純 segments list；unfixable={seg:reason}；qa=qa_report dict。
     build_blocks={seg:{reason,fix_class}}=可恢復 BUILD 失敗（出 placeholder 的段）；
     gate_review=整片級 precompose gate 失敗原因（→ review）。
-    每段帶 `fix_class` ∈ material|spec|human，讓 route 知道回哪一層（見 skills/route.md）。"""
+    每段帶 `fix_class` ∈ material|spec|human，讓 route 知道回哪一層（見 skills/video-pipeline-route.md）。"""
     build_blocks = build_blocks or {}
     final_exists = os.path.exists(final)
     # 逐段對題分數從 content_qa.json 撈（已寫出）

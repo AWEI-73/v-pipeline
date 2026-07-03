@@ -41,7 +41,7 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
             self.assertIn(expected, text)
 
     def test_route_uses_current_next_action_vocabulary(self):
-        text = read("skills/route.md")
+        text = read("skills/archive/route.md")
         for expected in [
             "wait_for_generated_provider",
             "await_visual_review",

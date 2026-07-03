@@ -25,7 +25,7 @@ The project coordinates video creation through three aligned surfaces:
 - **Tools:** root CLI entrypoints plus `video_pipeline_core/*` implementation modules
 - **Skills:** `skills/*.md` role contracts for writer, director, curator, editor,
   effects, audio, subtitle, verify, route, dashboard, and related roles
-- **Route:** the `route` skill (`skills/route.md`) reads `state.json.next_action`
+- **Route:** the route skill (`skills/video-pipeline-route.md`) reads `state.json.next_action`
   and decides the next step; its executor is `runtime.py` (resume/status/rerun).
   The legacy standalone `route.py` dispatcher was retired — `runtime.py` is the
   unified successor with the full `next_action` vocabulary.
@@ -59,7 +59,8 @@ SPEC ──► BUILD ──► VERIFY ──► (state.json / decision_log.json)
  └──────────┴── route reads next_action, decides which layer to re-run ◄┘
 ```
 
-See `skills/route.md` for the full boundary write-up (including the known gap:
+See `skills/video-pipeline-route.md` for the current route boundary write-up.
+The retired `skills/archive/route.md` preserves the legacy boundary notes, including the known gap:
 route currently re-enters only BUILD or escalates to human — it does not yet
 auto-route back to SPEC for writer/director rewrites).
 
@@ -81,7 +82,7 @@ pipeline only as `source=generated` material files plus metadata.
 2. `roadmap.md` - current state and next project phases
 3. `docs/editorial-layer.md` - editorial "soul" layer (blueprint → contract → render)
 4. `docs/dashboard-node-skill-output-spec.md` - dashboard/node/skill/output contract
-5. `skills/route.md` - route dispatcher contract
+5. `skills/video-pipeline-route.md` - canonical route coordinator
 6. `RUNBOOK.md` - local execution details
 
 ## Requirements
