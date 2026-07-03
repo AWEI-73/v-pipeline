@@ -111,15 +111,50 @@ Rules:
 3. If the existing payload has no quality knob, ship with the server default
    and note it; adding quality presets is a future backend order, not yours.
 
+## Implementation route (revised 2026-07-03)
+
+Survey result: `dashboard/workbench_native/index.html` ALREADY implements most
+of the target — left material drawer with search/filter, center monitor +
+transport, right clip inspector, full-width four-lane timeline, and footer
+save/handoff/export actions. Therefore the implementation is an EVOLUTION of
+the native page, not a new shell page.
+
+Visual reference template (static, self-contained, demo data only):
+`dashboard/workbench_first_template.html`. It shows the target layout, the
+four domain-contract black-box views, the pipeline strip, and the friendly
+copy tone. Each action button carries a `data-api` attribute naming its real
+endpoint. Copy the intent, not the file — real work happens in
+workbench_native.
+
+What to ADD to the native page:
+
+1. Top-bar domain icons (素材/音樂/字幕口白/特效) with status dots.
+2. Right inspector second mode: read-only domain contract black-box (swap on
+   icon click, X to return). Default mode stays the clip inspector.
+3. Collapsible pipeline-status strip (global black box) fed by
+   `/api/control/status` + `/api/artifacts`.
+4. Friendlier copy for non-professional users (see template): plain-language
+   field labels (從素材的哪裡開始/用多長), and save feedback that says the
+   agent will execute the adjusted contract.
+
 ## Files you may modify
 
+- `dashboard/workbench_native/index.html`, `workbench.css`, `workbench.js`
+  under these hard rules:
+  - protected ids/classes stay present and functional (`monitor`,
+    `wb-monitor`, `wb-timeline`, `track-lane`, `lane-video`, `lane-subtitle`,
+    `lane-audio`, `lane-effect`, `timeline-ruler`, `playhead`, transport
+    controls, `.wb-materials`) — both smoke guards enforce this;
+  - deterministic edit math stays in `workbench_core.js` (read-only for you);
+  - `workbench_api.js` may gain wrappers ONLY for endpoints already listed in
+    API_CONTRACT.md.
 - `dashboard/index.html`, `dashboard/index.css`, `dashboard/index.js`
-- `dashboard/src/**` (views, components, styles, router, state, api wrappers)
+- `dashboard/src/**` (make /workbench the home route; keep white-box views)
 
 ## Files you must NOT modify
 
-- `dashboard/workbench_native/**` — protected zone. The shell embeds it and
-  passes `root`; it is not rebuilt, restyled, or duplicated.
+- `dashboard/workbench_native/workbench_core.js` and
+  `workbench_materials.js` — pure logic modules, read-only.
 - `tools/**`, `video_pipeline_core/**`, `video_tools.py`, `runtime.py`,
   `tests/**`, `docs/**` other than this spec's checklist notes.
 - No new server endpoints. No server file edits. Consume only endpoints

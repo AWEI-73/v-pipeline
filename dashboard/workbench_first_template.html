@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workbench-First 版面樣板(靜態參考,非執行版)</title>
+<!--
+  這是給實作者的靜態視覺樣板。規格正文:
+  docs/construction-guides/dashboard/2026-07-03-workbench-first-frontend-spec.md
+  對應真實實作 = 演進 dashboard/workbench_native/index.html,不是新建頁面。
+
+  絕對保留的保護區 id/class(guard 會驗):
+    #monitor .wb-monitor / .wb-timeline / .track-lane / #lane-video
+    #lane-subtitle #lane-audio #lane-effect / .timeline-ruler / #playhead
+    transport 控制列與 .wb-materials 素材抽屜
+  按鈕 → endpoint 對映寫在每顆按鈕的 data-api 屬性。
+-->
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --line:#e3e1dc; --line2:#cfcdc6;
+    --txt:#2c2c2a; --muted:#807e77; --hint:#a3a19a;
+    --blue:#185fa5; --blue-bg:#e6f1fb; --green:#3b6d11; --green-bg:#eaf3de;
+    --amber:#854f0b; --amber-bg:#faeeda; --gray-bg:#f1efe8;
+    --r:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI","Noto Sans TC",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;display:flex;flex-direction:column;height:100vh;}
+  button{font:inherit;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--txt);}
+  button:hover{background:var(--gray-bg);}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  input,select{font:inherit;border:1px solid var(--line2);border-radius:8px;padding:6px 8px;background:var(--panel);color:var(--txt);}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex:none;}
+  .topbar .title{font-weight:600;}
+  .topbar .run{color:var(--muted);font-size:12px;}
+  .dico{width:40px;height:34px;display:flex;align-items:center;justify-content:center;position:relative;border-radius:8px;}
+  .dico.on{border:2px solid var(--blue);}
+  .dico .dot{position:absolute;top:-4px;right:-4px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--panel);}
+  .dot-ok{background:#639922;} .dot-draft{background:#ef9f27;} .dot-off{background:#b4b2a9;}
+
+  .pipestrip{display:none;gap:8px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex:none;}
+  .pipestrip.show{display:flex;}
+  .stage{flex:1;text-align:center;border-radius:8px;padding:7px 4px;font-size:12px;cursor:pointer;}
+  .st-done{background:var(--green-bg);color:var(--green);}
+  .st-now{background:var(--amber-bg);color:var(--amber);}
+  .st-todo{background:var(--gray-bg);color:var(--muted);}
+
+  .mainrow{flex:1;display:flex;gap:10px;padding:10px 14px 0;min-height:0;}
+  .drawer{width:236px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+  .drawer h2,.inspector h2{font-size:13px;margin:0;color:var(--muted);font-weight:600;}
+  .asset{border:1px solid var(--line);border-radius:8px;padding:6px;cursor:grab;}
+  .asset .thumb{height:56px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  .asset p{margin:5px 0 0;font-size:12px;}
+  .asset .len{color:var(--hint);}
+
+  .stagearea{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+  .wb-monitor{background:#191918;border-radius:var(--r);aspect-ratio:16/9;max-height:46vh;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#b4b2a9;}
+  .transport{display:flex;align-items:center;gap:8px;justify-content:center;}
+  .transport input[type=range]{flex:1;max-width:420px;}
+
+  .inspector{width:300px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;overflow-y:auto;font-size:13px;}
+  .pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:99px;margin:6px 0;}
+  .row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);}
+  .row span:first-child{color:var(--muted);flex:none;}
+  .field{margin:8px 0;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px;}
+  .field input{width:100%;}
+  .jsonbox{background:var(--gray-bg);border-radius:8px;padding:8px;font-family:Consolas,monospace;font-size:11px;white-space:pre;overflow-x:auto;color:var(--muted);}
+
+  .wb-timeline{flex:none;margin:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:8px;}
+  .timeline-ruler{height:20px;border-bottom:1px solid var(--line);color:var(--hint);font-size:10px;display:flex;}
+  .timeline-ruler span{flex:1;border-left:1px solid var(--line);padding-left:3px;}
+  .track{display:flex;align-items:center;gap:8px;margin-top:5px;}
+  .track-label{width:32px;font-size:11px;color:var(--muted);flex:none;}
+  .track-lane{flex:1;height:38px;background:var(--bg);border-radius:6px;display:flex;gap:3px;padding:3px;position:relative;}
+  .clip{position:relative;border-radius:5px;font-size:11px;display:flex;align-items:center;padding:0 8px;cursor:pointer;overflow:hidden;white-space:nowrap;}
+  .clip.sel{outline:2px solid var(--blue);}
+  .clip .hdl{position:absolute;top:3px;bottom:3px;width:6px;background:var(--blue);border-radius:3px;cursor:ew-resize;}
+  .c-video{background:#b5d4f4;color:#0c447c;} .c-sub{background:#f4c0d1;color:#72243e;}
+  .c-audio{background:#cecbf6;color:#3c3489;} .c-fx{background:#fac775;color:#633806;}
+  .playhead{position:absolute;top:0;bottom:0;left:38%;width:2px;background:#d85a30;}
+
+  .footer{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-top:1px solid var(--line);flex:none;}
+  .footer .dirty{color:var(--amber);font-size:12px;flex:1;}
+  svg{display:block;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="title">Hermes 剪輯工作檯</span>
+  <span class="run">run: 20260703-grad-mv</span>
+  <span style="flex:1"></span>
+  <!-- 四個域契約入口:點擊 → 右欄切成該域黑盒;再點或按 X 返回 -->
+  <button class="dico" data-domain="material" title="素材契約"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z" fill="currentColor"/></svg><span class="dot dot-ok"></span></button>
+  <button class="dico" data-domain="music" title="音樂契約"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" fill="currentColor"/></svg><span class="dot dot-ok"></span></button>
+  <button class="dico" data-domain="subtitle" title="字幕口白契約"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4zm7 10a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V23h2v-3.06A9 9 0 0 0 21 11h-2z" fill="currentColor"/></svg><span class="dot dot-draft"></span></button>
+  <button class="dico" data-domain="effect" title="特效契約"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.8L23 18l-3.1 1.2L19 22l-.9-2.8L15 18l3.1-1.2L19 14z" fill="currentColor"/></svg><span class="dot dot-off"></span></button>
+  <span style="width:6px"></span>
+  <button id="btn-pipestrip">管線現況</button>
+  <button class="primary" id="btn-saveall" data-api="POST /api/workbench/save-all">儲存並交給 agent</button>
+</header>
+
+<!-- 全局黑盒:每 stage 一顆,資料源 /api/control/status + /api/artifacts;點 stage → 白盒(既有 SPA view) -->
+<nav class="pipestrip" id="pipestrip">
+  <div class="stage st-done">意圖 ✓</div>
+  <div class="stage st-done">SPEC 契約 ✓</div>
+  <div class="stage st-done">素材圖 ✓</div>
+  <div class="stage st-now">BUILD 草稿中</div>
+  <div class="stage st-todo">VERIFY</div>
+  <div class="stage st-todo">交付</div>
+</nav>
+
+<main class="mainrow">
+  <!-- 左:素材抽屜 = 既有 .wb-materials,呈現方式沿用(搜尋+分類+清單),資料源 preview-timeline 投影 + /media allow-list -->
+  <aside class="drawer wb-materials">
+    <h2>可用素材</h2>
+    <input type="search" placeholder="搜尋素材 / 分類" />
+    <select><option>全部分類</option><option>影像</option><option>音訊</option><option>特效</option></select>
+    <div class="asset" draggable="true"><div class="thumb c-video">典禮開場.mov</div><p>典禮開場 <span class="len">0:42</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-video">頒獎特寫.mov</div><p>頒獎特寫 <span class="len">1:18</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-video">合唱.mp4</div><p>合唱 <span class="len">2:05</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-audio">bgm_warm.mp3</div><p>暖調鋼琴 BGM <span class="len">3:00</span></p></div>
+    <div class="asset" draggable="true"><div class="thumb c-fx">開場光暈</div><p>開場光暈(已驗證)</p></div>
+  </aside>
+
+  <!-- 中:保護區 monitor + transport,結構不動,只調外框風格 -->
+  <section class="stagearea">
+    <div class="wb-monitor" id="monitor">
+      <svg viewBox="0 0 24 24" width="40" height="40"><path d="M8 5v14l11-7L8 5z" fill="#d3d1c7"/></svg>
+      <span style="font-size:12px;margin-top:6px;">00:12.4 / 02:30.0</span>
+    </div>
+    <div class="transport">
+      <button>⏮</button><button>播放</button>
+      <input type="range" min="0" max="150" value="57" />
+      <span style="font-size:12px;color:var(--muted);">f372</span>
+    </div>
+  </section>
+
+  <!-- 右:雙態檢視器。預設 = 片段簡易裁剪(友善文案);點上方域 icon = 該域契約黑盒(只讀) -->
+  <aside class="inspector" id="inspector"></aside>
+</main>
+
+<!-- 下:保護區四軌時間軸,全寬、高度鎖內容。拖兩側把手 = 裁剪;素材可直接拖入 -->
+<section class="wb-timeline">
+  <div class="timeline-ruler"><span>0:00</span><span>0:30</span><span>1:00</span><span>1:30</span><span>2:00</span></div>
+  <div class="track"><span class="track-label">影片</span><div class="track-lane" id="lane-video">
+    <div class="clip c-video" style="width:26%;">典禮開場</div>
+    <div class="clip c-video sel" style="width:38%;"><span class="hdl" style="left:2px;"></span>頒獎特寫<span class="hdl" style="right:2px;"></span></div>
+    <div class="clip c-video" style="width:30%;">合唱</div>
+  </div></div>
+  <div class="track"><span class="track-label">字幕</span><div class="track-lane" id="lane-subtitle">
+    <div class="clip c-sub" style="width:16%;margin-left:5%;">開場字卡</div>
+    <div class="clip c-sub" style="width:28%;margin-left:16%;">口白 1</div>
+  </div></div>
+  <div class="track"><span class="track-label">音訊</span><div class="track-lane" id="lane-audio">
+    <div class="clip c-audio" style="width:93%;">bgm_warm · 口白段自動壓低</div>
+  </div></div>
+  <div class="track"><span class="track-label">特效</span><div class="track-lane" id="lane-effect" style="position:relative;">
+    <div class="clip c-fx" style="width:13%;">開場光暈</div>
+    <div class="playhead"></div>
+  </div></div>
+</section>
+
+<footer class="footer">
+  <span class="dirty" id="dirty">尚未儲存 · 3 項修改待打包</span>
+  <button data-api="POST /api/workbench/export">輸出審閱影片</button>
+  <button class="primary" data-api="POST /api/workbench/save-all">儲存並交給 agent</button>
+</footer>
+
+<script>
+// 樣板互動示意(實作時對接 workbench.js 既有邏輯,不重寫核心)
+var CONTRACTS = {
+  material:{t:"素材契約",pc:"dot-ok",pill:["已同步","var(--green-bg)","var(--green)"],patch:"timeline_patch.json",
+    rows:[["涵蓋","9/10 段有素材"],["人工調整","2 段裁剪範圍"],["待補","seg_07 缺素材"]]},
+  music:{t:"音樂契約",pc:"dot-ok",pill:["已同步","var(--green-bg)","var(--green)"],patch:"audio_cue_patch.json",
+    rows:[["主軌","bgm_warm.mp3"],["授權","royalty-free ✓"],["壓低","口白段 -12dB"]]},
+  subtitle:{t:"字幕口白契約",pc:"dot-draft",pill:["草稿修改中","var(--amber-bg)","var(--amber)"],patch:"subtitle_patch.json",
+    rows:[["口白","2 段(voxcpm)"],["字幕","14 條,2 條逾長"],["對齊","口白 1 未對時"]]},
+  effect:{t:"特效契約",pc:"dot-off",pill:["未啟用","var(--gray-bg)","var(--muted)"],patch:"effect_patch.json",
+    rows:[["資產","1 個已驗證"],["渲染","Remotion worker"],["回接","待產 patch"]]}
+};
+var insp=document.getElementById('inspector'),cur=null;
+function clipView(){insp.innerHTML=
+ '<h2>選取片段</h2><p style="font-weight:600;margin:6px 0;">頒獎特寫.mov</p>'+
+ '<div class="field"><label>從素材的哪裡開始(秒)</label><input type="number" value="14.2" step="0.1"></div>'+
+ '<div class="field"><label>用多長(秒)</label><input type="number" value="16.8" step="0.1"></div>'+
+ '<p style="font-size:12px;color:var(--hint);margin:4px 0 10px;">也可以直接拖時間軸上片段兩側的藍色把手。</p>'+
+ '<button style="width:100%;">套用修改</button>'+
+ '<button style="width:100%;margin-top:6px;">用左側選取的素材替換</button>'+
+ '<p style="font-size:12px;color:var(--hint);margin-top:10px;">你的修改會先存成草稿;按「儲存並交給 agent」後,agent 依你調整後的契約執行,不會用舊契約。</p>';}
+function contractView(d){var c=CONTRACTS[d];insp.innerHTML=
+ '<div style="display:flex;align-items:center;"><h2 style="flex:1;">'+c.t+'</h2><button id="cx" style="padding:2px 8px;">✕</button></div>'+
+ '<span class="pill" style="background:'+c.pill[1]+';color:'+c.pill[2]+';">'+c.pill[0]+'</span>'+
+ c.rows.map(function(r){return '<div class="row"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>';}).join('')+
+ '<p style="font-size:12px;color:var(--hint);margin:10px 0 6px;">人工修改寫入:<code>'+c.patch+'</code></p>'+
+ '<details><summary style="font-size:12px;color:var(--muted);cursor:pointer;">檢視原始 JSON</summary><div class="jsonbox">{\n  "artifact_role": "'+c.patch.replace('.json','')+'",\n  "version": 1,\n  ...\n}</div></details>'+
+ '<button style="width:100%;margin-top:10px;" data-api="SPA route">展開完整數據(白盒)</button>';
+ document.getElementById('cx').onclick=reset;}
+function reset(){cur=null;document.querySelectorAll('.dico').forEach(function(x){x.classList.remove('on');});clipView();}
+document.querySelectorAll('.dico').forEach(function(el){el.onclick=function(){var d=el.getAttribute('data-domain');
+ if(cur===d){reset();return;} cur=d;
+ document.querySelectorAll('.dico').forEach(function(x){x.classList.remove('on');});el.classList.add('on');contractView(d);};});
+document.getElementById('btn-pipestrip').onclick=function(){document.getElementById('pipestrip').classList.toggle('show');};
+document.getElementById('btn-saveall').onclick=function(){var f=document.getElementById('dirty');
+ f.textContent='已儲存 3 個 patch + workbench_handoff.json · agent 將依此執行';f.style.color='var(--green)';};
+document.querySelectorAll('.clip').forEach(function(el){el.onclick=function(){
+ document.querySelectorAll('.clip').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');if(!cur)clipView();};});
+reset();
+</script>
+</body>
+</html>
