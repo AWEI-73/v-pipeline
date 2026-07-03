@@ -9,6 +9,7 @@ from video_pipeline_core.next_action_vocabulary import NEXT_ACTION_VOCABULARY
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "docs" / "branch-contract-registry.json"
 ARTIFACT_DICTIONARY_PATH = ROOT / "docs" / "interface-contracts" / "pipeline-product-artifact-dictionary.json"
+API_DICTIONARY_PATH = ROOT / "docs" / "interface-contracts" / "pipeline-api-dictionary.json"
 STAGE_KEYS = {
     "stage",
     "skill",
@@ -26,11 +27,27 @@ class BranchRegistryIntegrityTest(unittest.TestCase):
 
     def _artifact_names(self):
         dictionary = json.loads(ARTIFACT_DICTIONARY_PATH.read_text(encoding="utf-8"))
-        return {
+        artifact_names = {
             artifact.get("artifact_name")
             for artifact in dictionary.get("artifacts", [])
             if artifact.get("artifact_name")
         }
+        api_dictionary = json.loads(API_DICTIONARY_PATH.read_text(encoding="utf-8"))
+        for interface in api_dictionary.get("interfaces", []):
+            for section in ("request", "response"):
+                payload = interface.get(section) or {}
+                for key in ("inputs", "outputs"):
+                    artifact_names.update(
+                        name
+                        for name in payload.get(key, [])
+                        if isinstance(name, str) and "." in name
+                    )
+            artifact_names.update(
+                name
+                for name in interface.get("forbidden_writes", [])
+                if isinstance(name, str) and "." in name
+            )
+        return artifact_names
 
     def test_registry_parses(self):
         registry = self._registry()
@@ -91,7 +108,8 @@ class BranchRegistryIntegrityTest(unittest.TestCase):
                 artifact
                 for branch in self._registry()["branches"]
                 for stage in branch.get("stages", [])
-                for artifact in stage.get("artifacts_out", [])
+                for key in ("artifacts_in", "artifacts_out")
+                for artifact in stage.get(key, [])
                 if artifact not in artifact_names
             }
         )
