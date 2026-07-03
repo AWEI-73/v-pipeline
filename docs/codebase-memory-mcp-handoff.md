@@ -42,9 +42,9 @@ Recommended operating rule:
 - Use Graphify only for larger semantic refreshes, route/design understanding,
   or documentation-heavy analysis.
 
-## Local Pilot Result
+## Latest Local Refresh
 
-The first local pilot used the release binary without installing hooks or
+The latest local refresh used the release binary without installing hooks or
 changing agent settings.
 
 Binary path used:
@@ -65,19 +65,20 @@ Project name returned by the MCP server:
 C-Users-user-Desktop-video_pipeline
 ```
 
-Fast index result:
+Fast index result after public-archive pruning:
 
 ```json
 {
   "status": "indexed",
-  "nodes": 9219,
-  "edges": 28171
+  "nodes": 8466,
+  "edges": 24390
 }
 ```
 
 The index excluded large or noisy folders such as `.tmp`, `runs`, `docs`,
-`reference repo`, and `archive/experiments`. That makes it useful for code
-navigation, but it means it does not replace the current documentation map.
+`reference repo`, `archive/experiments`, and
+`archive/local-artifacts-2026-07`. That makes it useful for code navigation,
+but it means it does not replace the current documentation map.
 
 ## Safe Usage Policy
 
