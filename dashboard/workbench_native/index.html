@@ -97,6 +97,15 @@
         </select>
         <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" checked id="fit-only" style="margin:0;">只看符合契約的素材</label>
         <div id="material-assets-list" class="material-assets-list"></div>
+        <!-- 素材缺口:不上傳檔案,產生結構化請求交給 agent 走 material-map branch -->
+        <button id="btn-gap" type="button" style="margin-top: 10px; font-size: 12px; width: 100%; cursor: pointer; padding: 6px; border: 1px dashed var(--border); background: none; border-radius: 6px; color: inherit;">素材不夠?請 agent 補</button>
+        <div id="gap-form" style="display: none; margin-top: 8px; border: 1px solid var(--border); padding: 8px; border-radius: 6px; background: var(--panel-2);">
+          <div class="field" style="margin-bottom: 8px;">
+            <label style="display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px;">這段需要什麼畫面</label>
+            <input type="text" id="in-gap-desc" placeholder="例: 得獎者上台的側面特寫" style="width: 100%; font-size: 12px;" />
+          </div>
+          <button id="btn-copy-gap-req" type="button" style="width: 100%; font-size: 12px; padding: 6px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">產生補素材請求(複製給 agent)</button>
+        </div>
       </aside>
 
       <section class="wb-stage">

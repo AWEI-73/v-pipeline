@@ -68,7 +68,7 @@
       "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer", "fit-only",
       "dico-material", "dico-music", "dico-subtitle", "dico-effect",
       "dot-material", "dot-music", "dot-subtitle", "dot-effect", "domain-inspector",
-      "btn-pipestrip", "pipestrip",
+      "btn-pipestrip", "pipestrip", "btn-gap", "gap-form", "in-gap-desc", "btn-copy-gap-req",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -820,6 +820,36 @@
     selectEffect(id);
   }
 
+  function copyGapRequest() {
+    var rootPath = (state.artifacts && state.artifacts.artifact_root) || new URLSearchParams(window.location.search).get("root") || "";
+    var clipId = "N/A";
+    if (state.selectedSlot != null) {
+      var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
+      if (clip) clipId = clip.id || clip.slot_index;
+    }
+    var desc = els.in_gap_desc.value.trim();
+    if (!desc) {
+      alert("請輸入需要什麼畫面的描述！");
+      return;
+    }
+
+    var text = "--- HERMES MATERIAL GAP REQUEST ---\n" +
+               "Project Root: " + rootPath + "\n" +
+               "Clip ID: " + clipId + "\n" +
+               "Description: " + desc + "\n" +
+               "----------------------------------";
+
+    navigator.clipboard.writeText(text)
+      .then(function () {
+        els.diagnostics.textContent = "已複製補素材請求到剪貼簿！";
+        alert("已複製補素材請求到剪貼簿！請將它貼給 agent 以進行補素材任務。");
+      })
+      .catch(function (err) {
+        console.error("Failed to copy text: ", err);
+        els.diagnostics.textContent = "複製失敗，請手動複製：" + text;
+      });
+  }
+
   function applyTrack() {
     if (!state.trackSel) return;
     var t = state.trackSel;
@@ -1463,6 +1493,15 @@
       if (localStorage.getItem("pipestrip_visible") === "true") {
         els.pipestrip.classList.add("show");
       }
+    }
+    if (els.btn_gap && els.gap_form) {
+      els.btn_gap.onclick = function () {
+        var hidden = els.gap_form.style.display === "none";
+        els.gap_form.style.display = hidden ? "block" : "none";
+      };
+    }
+    if (els.btn_copy_gap_req) {
+      els.btn_copy_gap_req.onclick = copyGapRequest;
     }
     PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
     CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
