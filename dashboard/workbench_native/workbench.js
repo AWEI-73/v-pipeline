@@ -364,8 +364,14 @@
         b.classList.add("has-thumb");
         b.style.backgroundImage = "url('" + thumb + "')";
       }
-      b.textContent = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
-      b.title = c.type + " " + c.duration_sec.toFixed(2) + "s";
+      var label = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
+      var orig = state.raw && state.raw.clips ? state.raw.clips.find(function (rc) { return rc.slot_index === c.slot_index; }) : null;
+      var isReplaced = orig && (orig.asset_id !== c.asset_id || orig.scene_id !== c.scene_id);
+      if (isReplaced) {
+        label += "「已替換・草稿」";
+      }
+      b.textContent = label;
+      b.title = c.type + " " + c.duration_sec.toFixed(2) + "s" + (isReplaced ? " (已替換・草稿)" : "");
       b.onclick = function () { selectClip(c.slot_index); };
       b.ondragover = function (ev) {
         if (!ev.dataTransfer.types || Array.prototype.indexOf.call(ev.dataTransfer.types, "application/x-hermes-asset-id") < 0) return;
@@ -926,6 +932,50 @@
       els.diagnostics.textContent = "替換失敗：找不到素材。";
       return;
     }
+    var clip = state.work.clips.find(function (c) { return c.slot_index === slotIndex; });
+    if (!clip) return;
+
+    var candidates = Materials.replacementCandidates(state.materialAssets, clip);
+    var cand = candidates.find(function (c) {
+      return c.asset_id === assetId && (c.scene_index || 0) === (Number.isInteger(sceneIndex) ? sceneIndex : 0);
+    });
+    if (!cand) {
+      var scenes = asset.scenes || [];
+      var sIdx = Number.isInteger(sceneIndex) ? sceneIndex : 0;
+      var scene = scenes[sIdx] || (scenes.length > 0 ? scenes[0] : null);
+      var matchStatus = "other";
+      if (scene) {
+        matchStatus = Materials.matchStatusForNeed ? Materials.matchStatusForNeed(scene, clip.need_id) : "other";
+      }
+      cand = Object.assign({}, asset, {
+        scene_index: sIdx,
+        scene: scene,
+        match_status: matchStatus,
+      });
+    }
+
+    var assetType = String(cand.asset_type || "").toLowerCase();
+    var isImage = assetType === "photo" || assetType === "image";
+    if (!isImage) {
+      var sceneObj = cand.scene || {};
+      var start = parseFloat(sceneObj.start_sec) || 0;
+      var end = parseFloat(sceneObj.end_sec) || 0;
+      var sourceDur = Math.max(0.1, end - start);
+      var clipDur = parseFloat(clip.duration_sec) || 0;
+      if (sourceDur < clipDur) {
+        var diff = (clipDur - sourceDur).toFixed(2);
+        var msg = "素材長度不足(還差 " + diff + " 秒)";
+        els.diagnostics.textContent = "替換失敗：" + msg;
+        alert(msg);
+        return;
+      }
+    }
+
+    if (cand.match_status === "other" || cand.match_status === "browse") {
+      var ok = confirm("這個素材不符合這段的契約需求,仍要替換?");
+      if (!ok) return;
+    }
+
     var before = state.work;
     var next = Core.replaceClipWithAsset(before, {
       slot_index: slotIndex,
