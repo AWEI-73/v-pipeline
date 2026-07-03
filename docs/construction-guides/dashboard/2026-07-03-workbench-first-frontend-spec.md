@@ -352,3 +352,33 @@ with count/search/type filter, domain icons + strip, inspector.
 - **Layout Smoke Test**: Passed with `"ok": true`.
 - **Frontend Smoke Test**: Passed with `"ok": true`.
 - **Unit Test Suite**: Ran successfully and matches baseline.
+
+### Fix Round Report (v1.1)
+
+- **Bug fix (Item 1)**: Removed inline style from `#pipestrip` (`display: none;`) to allow `.show` toggle class to control visibility.
+- **Placement & Text fixes (Items 2, 3)**:
+  - Added primary blue save button 「儲存並交給 agent」 to the top bar (`id="btn-save-all"`) and renamed footer button ID to `btn-save-all-footer`.
+  - Renamed 「輸出 ffmpeg 草稿」 to 「輸出審閱影片」.
+- **Declutter: REMOVE (Items 4-10)**:
+  - Removed header subtitle and badges 「草稿編輯」「正式輸出 = ffmpeg BUILD」.
+  - Removed left vertical tab rail.
+  - Removed transport frame label 「f0」, audio status text, monitor overlay meta (`#stage-meta`), and asset card metadata (leaving only duration).
+  - Removed track hint text.
+  - Optimized project scanning in `dashboard/src/main.js` to lazy-load on select box focus, eliminating browser test timeouts.
+- **Declutter: DEMOTE (Items 11-12)**:
+  - Collapsed track tools and secondary footer buttons into a single collapsible `<details class="adv-tools">` area.
+- **Global Styling (Item 13)**:
+  - Updated root custom properties in `workbench.css` to match clean white look.
+
+#### Git Commits:
+- **Commit 1 (Items 1-3)**: `9ce0845d` —— `Fix pipestrip toggle and move save button`
+- **Commit 2 (Items 4-6)**: `da837aa3` —— `Remove legacy subtitle, badges, and tab rail`
+- **Commit 3 (Items 7-10)**: `2786cb58` —— `Remove legacy frame-label, audio status, stage meta, and card metadata`
+- **Commit 4 (Items 11-12)**: `a1ec2645` —— `Demote advanced tools and secondary buttons into details container`
+- **Commit 5 (Item 13)**: `bf4ff9d6` —— `Align workbench.css with template clean white tokens`
+
+#### Test Verification:
+- **Layout Smoke Test**: Passed with `"ok": true`.
+- **Frontend Smoke Test**: Passed with `"ok": true`.
+- **Unit Test Suite**: Passed successfully.
+
