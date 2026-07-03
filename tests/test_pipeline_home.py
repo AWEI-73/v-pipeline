@@ -1108,6 +1108,35 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "video_intent.json")
             self.assertIn("Stage 0 requires subtitles", summary["reason"])
 
+    def test_material_first_intent_with_required_subtitles_routes_to_quick_inventory_before_subtitle_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "route": "material-first",
+                "material_contract": {
+                    "first_action": "material_map_quick_inventory",
+                    "scan_decision": {
+                        "needed": True,
+                        "scan_depth": "quick_inventory_first",
+                    },
+                },
+                "subtitle_voiceover_contract": {
+                    "artifact_role": "stage0_subtitle_voiceover_intent",
+                    "language": "zh-TW",
+                    "subtitle_required": True,
+                    "voiceover_required": False,
+                    "handoff_to": "subtitle-director",
+                },
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage2_material_inventory")
+            self.assertEqual(summary["next"], "material-quick-inventory")
+            self.assertEqual(summary["source"], "video_intent.json")
+
     def test_subtitle_voiceover_build_handoff_routes_to_build_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "subtitle_voiceover_handoff_acceptance.json", {

@@ -1054,6 +1054,18 @@ def _stage0_subtitle_voiceover_gap_summary(root: Path):
     if not (subtitle_required or voiceover_required):
         return None
 
+    entry_path = str(intent.get("entry_path") or intent.get("route") or "").strip()
+    if entry_path in {"material-first", "existing-material-first", "hybrid"}:
+        build_phase_artifacts = (
+            "segment_contract.json",
+            "timeline_build.json",
+            "editor_review.json",
+            "audio_build_handoff.json",
+            "material_first_boundary_acceptance_report.json",
+        )
+        if not any(_find_json(root, name)[1] for name in build_phase_artifacts):
+            return None
+
     _handoff_path, handoff = _find_json(root, "subtitle_voiceover_build_handoff.json")
     if isinstance(handoff, dict):
         subtitle_ready = handoff.get("subtitle_ready") is True
@@ -1917,6 +1929,9 @@ def _intent_summary(root: Path):
     structure_first = {"structure-first", "story-first"}
     if entry_path in material_first:
         scan = intent.get("material_scan_decision") if isinstance(intent.get("material_scan_decision"), dict) else {}
+        if not scan:
+            material_contract = intent.get("material_contract") if isinstance(intent.get("material_contract"), dict) else {}
+            scan = material_contract.get("scan_decision") if isinstance(material_contract.get("scan_decision"), dict) else {}
         if scan.get("needed") is True and scan.get("scan_depth") == "quick_inventory_first":
             return _contract(
                 "run",
