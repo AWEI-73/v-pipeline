@@ -57,7 +57,14 @@ Relationship to existing docs:
 
 ## Top bar
 
-1. Run/project selector (existing projectsApi source).
+1. Run/project selector:
+   - list runs from the existing `/api/projects` (see
+     `dashboard/src/api/projectsApi.js`);
+   - pass the selected root as the `?root=` query param on every subsequent
+     API call — the server validates it via `get_validated_root()`
+     (tools/dashboard_server.py). Do NOT add a free-form "add path" input and
+     do NOT try to bypass root validation; scanning additional folders is a
+     server startup concern, out of scope.
 2. Four domain icons with status dots:
    - 素材 (photo icon) — material lane / timeline_patch
    - 音樂 (music icon) — audio lane / audio_cue_patch
