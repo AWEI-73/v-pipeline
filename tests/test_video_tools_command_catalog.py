@@ -41,6 +41,7 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         self.assertEqual(manifest["commands"]["source-section-map"]["group"], "material")
         self.assertEqual(manifest["commands"]["source-motion-profile"]["group"], "material")
         self.assertEqual(manifest["commands"]["source-dialogue-script"]["group"], "material")
+        self.assertEqual(manifest["commands"]["asset-path-audit"]["group"], "verify")
         self.assertEqual(manifest["commands"]["verify-evidence"]["group"], "verify")
         self.assertEqual(manifest["commands"]["dashboard"]["group"], "frontend")
         self.assertEqual(manifest["commands"]["replay-acceptance"]["group"], "acceptance")

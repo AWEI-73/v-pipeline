@@ -2501,6 +2501,23 @@ def cmd_registry_audit(args):
         raise ToolError(f"registry audit failed: {report['finding_count']} finding(s)")
 
 
+def cmd_asset_path_audit(args):
+    from video_pipeline_core.asset_paths import build_asset_path_audit
+    report = build_asset_path_audit(args.run_dir, strict=bool(getattr(args, "strict", False)))
+    if getattr(args, "json", False):
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        mode = "STRICT" if report["strict"] else "WARN"
+        print(
+            f"Asset Path Audit ({mode}): {report['finding_count']} absolute path finding(s); "
+            f"{report['strict_finding_count']} strict finding(s)"
+        )
+        for family, bucket in sorted(report["families"].items()):
+            print(f"- {family}: {bucket['finding_count']}")
+    if not report.get("ok"):
+        raise ToolError(f"asset path audit failed: {report['strict_finding_count']} strict finding(s)")
+
+
 def cmd_e2e_smoke(args):
     from video_pipeline_core.e2e_smoke import run_e2e_smoke
     result = run_e2e_smoke(
@@ -2776,6 +2793,7 @@ def _build_video_tools_dispatch():
         "workflow-manifest": cmd_workflow_manifest,
         "test-tiers": cmd_test_tiers,
         "registry-audit": cmd_registry_audit,
+        "asset-path-audit": cmd_asset_path_audit,
         "e2e-smoke": cmd_e2e_smoke,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
@@ -3192,6 +3210,11 @@ def main():
                           help="pipeline decision tree markdown")
     p_raudit.add_argument("--write-report", help="optional markdown report path")
     p_raudit.add_argument("--json", action="store_true", help="print JSON report")
+
+    p_apath = sub.add_parser("asset-path-audit")
+    p_apath.add_argument("run_dir", help="run directory containing artifact JSON files")
+    p_apath.add_argument("--strict", action="store_true", help="exit non-zero for strict-family findings")
+    p_apath.add_argument("--json", action="store_true", help="print JSON report")
 
     p_e2e = sub.add_parser("e2e-smoke")
     p_e2e.add_argument("--case", default="stock_story", choices=["stock_story", "single_long_highlight"])
