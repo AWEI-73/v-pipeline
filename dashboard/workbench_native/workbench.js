@@ -1104,6 +1104,8 @@
         els.track_inspector.hidden = true;
       }
     }
+  }
+
   function updatePipelineStrip() {
     if (!els.pipestrip) return;
 
