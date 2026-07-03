@@ -1,14 +1,14 @@
 :root {
-  /* Clipchamp Light Theme variables */
-  --bg: #f3f5f8;
+  /* Clean White Style variables aligned with workbench_first_template.html */
+  --bg: #f7f7f5;
   --panel: #ffffff;
-  --panel-2: #f8f9fa;
-  --border: #e2e8f0;
-  --text: #1a202c;
-  --muted: #718096;
-  --accent: #6c5ce7;
-  --accent-hover: #5b4bcf;
-  --accent-light: #ece9fc;
+  --panel-2: #f1efe8;
+  --border: #e3e1dc;
+  --text: #2c2c2a;
+  --muted: #807e77;
+  --accent: #185fa5;
+  --accent-hover: #124c85;
+  --accent-light: #e6f1fb;
   --video-block: #7f56da;
   --image-block: #2f8f6b;
   --subtitle-block: #d97706;
@@ -23,6 +23,7 @@
   --amber: #854f0b;
   --amber-bg: #faeeda;
   --gray-bg: #f1efe8;
+  --r: 10px;
 }
 
 * { box-sizing: border-box; }
