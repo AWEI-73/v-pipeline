@@ -1,7 +1,7 @@
-# ── secrets (never commit) ───────────────────────────────────────────────────
+# Secrets
 .env
 
-# ── run outputs (media / per-run artifacts) ──────────────────────────────────
+# Run outputs: media and per-run artifacts
 *.mp4
 *.wav
 *.mp3
@@ -10,11 +10,8 @@
 *.png
 *.webp
 *.heic
-
-# run logs
 *.log
 
-# per-run JSON artifacts (regenerated each run)
 nightmarket/audio/
 nightmarket/materials/
 nightmarket/prepick_thumbs/
@@ -29,20 +26,18 @@ nightmarket/polished_visual.mp4
 nightmarket/subtitles.srt
 
 coffee_v2/
-
-# per-run output dirs (regenerated; only the source script.json matters)
 *_out/
 runs/
 tmp_runs/
 video_pipeline_projects/
 
-# local project pointer; real project data lives outside the repo
+# Local project pointer; real project data lives outside the repo
 .project/
 
-# NTFS alternate-data-stream marker (Windows download artifact)
+# Windows download artifact
 *Zone.Identifier
 
-# local ComfyUI side-project WIP (kept out of this repo's commits)
+# Local ComfyUI side-project WIP
 comfy_client.py
 test_comfy.py
 install_comfy.ps1
@@ -52,41 +47,39 @@ txt2img_workflow.json
 __pycache__/
 *.pyc
 *.pyo
-.graphify_python
 .venv_voxcpm/
 
-# graphify staging / temp
+# Graphify and generated analysis output
+.graphify_python
 .graphify_*.json
 .graphify_*.txt
 .graphify-corpus/
-graphify-out/cache/
+graphify-out/
+docs/generated/
+state_validate/
+archive/local-artifacts-2026-07/graphify-out/cache/
 
-# local agent/session scratch
+# Local agent/session scratch
+.agents/
 .claude/
+.codex-remote-attachments/
 .gf_chunk_*.txt
+output/
+scratch/
+.tmp/
+workbench_proxy/
+workbench_thumbs/
 
-# boundary smoke generated actuals
+# Boundary smoke generated actuals
 examples/boundary_fixtures/**/actual/
 examples/boundary_fixtures/boundary_fixture_report.json
 
-# ── keep in git (design + knowledge graph outputs) ───────────────────────────
-# roadmap.md, HANDOFF.md, skills/*.md, design/*.md — tracked by default
-# nightmarket/script.json, nightmarket/decision_log.example.json — tracked
-# graphify-out/GRAPH_REPORT.md, graph.json, graph.html — tracked (handoff value)
+# External/reference material
 _fullpool/
-
-# external MIT reference clone — technique reference only, never a runtime dep
 video-autopilot-kit-main/
-
-# Local Understand Anything graph cache
 .understand-anything/
-
-# vendored understand-anything tool (external repo, has node_modules)
 Understand-Anything-main/
-
-scratch/
-archive/experiments/
-
-# scratch + AGPL reference material (concepts only, never vendored)
-.tmp/
 reference repo/
+
+# Archived local experiments that should not return to active repo roots
+archive/experiments/

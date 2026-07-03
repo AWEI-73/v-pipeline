@@ -36,7 +36,7 @@ Current document layers:
 | Agent ops | `docs/agent-ops/work-order-sop.md`, `docs/agent-ops/orchestrator-system-prompt.md` | Work-order operating system for multi-agent construction, and the orchestrator system prompt that drives it. |
 | Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
-| Generated maps | `docs/generated/` | Machine-generated route maps and audits. |
+| Archived generated maps | `archive/local-artifacts-2026-07/docs-generated/` | Last machine-generated route maps and audits. Regenerate into `docs/generated/` locally when needed. |
 | Historical archive | `docs/archive/` | Decision history and old roadmap evidence; not a current source unless linked by a current doc. |
 
 ## Legacy Entry Notes
@@ -245,7 +245,7 @@ explicitly points to that construction area.
   plan for route-map, material gap, curator/rough-cut, effect-factory, and E2E
   boundary convergence. Effect Factory boundary checks use
   `tools/effect_factory_boundary_acceptance.py`.
-- `docs/generated/pipeline_map.md` -- generated MVP route map for human review.
+- `archive/local-artifacts-2026-07/docs-generated/pipeline_map.md` -- archived generated MVP route map for human review.
   Regenerate with `python tools/pipeline_map.py --build-corpus`.
 
 ## Working conventions (read before contributing)

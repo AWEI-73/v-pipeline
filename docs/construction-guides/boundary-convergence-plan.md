@@ -9,8 +9,9 @@ feature expansion or full E2E reruns.
 ## Order
 
 1. Route map and orphan audit
-   - Keep `tools/pipeline_map.py`, `tools/orphan_audit.py`, and
-     `docs/generated/pipeline_map.*` current.
+   - Keep `tools/pipeline_map.py` and `tools/orphan_audit.py` current.
+     Regenerate `docs/generated/pipeline_map.*` locally when reviewing maps;
+     generated output is not a canonical tracked source.
    - Regenerate after route/skill/tool changes.
    - Treat Graphify as advisory; `graph.html` is optional.
 

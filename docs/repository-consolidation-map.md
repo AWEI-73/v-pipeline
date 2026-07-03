@@ -10,7 +10,8 @@ change is made.
 Inputs used for this map:
 
 - current code scan at commit `ec05a1b`;
-- existing Graphify output in `graphify-out/`, built from commit `ce2add48`;
+- archived Graphify output in `archive/local-artifacts-2026-07/graphify-out/`,
+  built from commit `ce2add48`;
 - current frontend boundary docs:
   `docs/workbench-dashboard-integration.md`,
   `dashboard/workbench_native/API_CONTRACT.md`, and

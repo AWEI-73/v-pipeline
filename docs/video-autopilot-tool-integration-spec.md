@@ -409,7 +409,7 @@ ROADMAP.md
 docs/build-tool-runner-spec.md
 docs/video-autopilot-tool-integration-spec.md
 docs/construction-guides/superpowers/plans/2026-06-07-video-autopilot-tool-integration.md
-graphify-out/GRAPH_REPORT.md
+archive/local-artifacts-2026-07/graphify-out/GRAPH_REPORT.md
 video_pipeline_core/node_registry.py
 video_pipeline_core/runtime_orchestrator.py
 video_pipeline_core/dashboard_state.py
@@ -434,4 +434,3 @@ expand segment_contract.json with provider/backend details
 change existing Runtime behavior when verification tools are disabled
 claim completion without a real keyframe-grid smoke test
 ```
-
