@@ -157,13 +157,20 @@
     </div>
   </main>
 
-  <div class="track-tools">
-    <button id="btn-add-cue" type="button" title="在目前播放時間新增音效提示。">+ 音效提示 @ 播放點</button>
-    <select id="effect-asset-select" title="選擇素材地圖中的特效素材">
-      <option value="">選擇特效素材</option>
-    </select>
-    <button id="btn-add-fx" type="button" title="在目前播放片段新增特效意圖。">+ 特效意圖到片段</button>
-  </div>
+  <details class="adv-tools" style="margin: 10px 16px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);">
+    <summary style="font-size: 12px; padding: 6px 12px; cursor: pointer; user-select: none; color: var(--muted); font-weight: 600;">進階工具</summary>
+    <div style="padding: 10px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px solid var(--border);">
+      <button id="btn-add-cue" type="button" title="在目前播放時間新增音效提示。">+ 音效提示 @ 播放點</button>
+      <select id="effect-asset-select" title="選擇素材地圖中的特效素材">
+        <option value="">選擇特效素材</option>
+      </select>
+      <button id="btn-add-fx" type="button" title="在目前播放片段新增特效意圖。">+ 特效意圖到片段</button>
+      <span style="color: var(--border); font-size: 14px;">|</span>
+      <button id="btn-download-patch" type="button">下載 patch</button>
+      <button id="btn-save-patch" type="button">儲存 patch 到資料夾</button>
+      <button id="btn-sync-contract" type="button" title="把時間軸 patch 轉成草稿合約，仍需後續 gate 驗證。">同步草稿合約</button>
+    </div>
+  </details>
 
   <section class="wb-timeline">
     <div class="timeline-scroll" id="timeline-scroll">
@@ -194,9 +201,6 @@
     <div id="diagnostics" class="diagnostics"></div>
     <div class="footer-actions">
       <span id="dirty-flag" class="muted">尚未儲存草稿</span>
-      <button id="btn-download-patch" type="button">下載 patch</button>
-      <button id="btn-save-patch" type="button">儲存 patch 到資料夾</button>
-      <button id="btn-sync-contract" type="button" title="把時間軸 patch 轉成草稿合約，仍需後續 gate 驗證。">同步草稿合約</button>
       <button id="btn-save-all-footer" type="button" title="一次儲存時間軸、字幕、音訊與特效 patch，並產生 workbench_handoff.json。">儲存全部並交接</button>
       <button id="btn-export" type="button" title="可選：輸出 workbench_export.mp4，不會覆蓋 final.mp4。">輸出審閱影片</button>
     </div>
