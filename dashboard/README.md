@@ -5,10 +5,11 @@ have the same responsibility.
 
 ## Surfaces
 
-### Dashboard Shell
+### Workbench Home
 
-The Dashboard server root (`/`) serves the Hermes SPA. It links the read/review
-surfaces and the Workbench host without merging their responsibilities:
+The Dashboard server root (`/`) serves the native Workbench as the
+single-document app home. It links the live read/review surfaces and the
+Workbench editor without merging their responsibilities:
 
 - Dashboard for read-only run/node/status review;
 - Material Map / Timeline / Verify / Artifacts for white-box inspection;
@@ -50,8 +51,8 @@ Workbench is for interactive draft edits:
 
 Official rendering still belongs to the backend ffmpeg pipeline.
 
-The `/workbench` SPA route is only a thin host around the native editor at
-`/workbench/index.html?root=...`. During frontend migration, keep these native
+The `/workbench` route is the same native editor home as `/`, and static native
+assets are served under `/workbench/...`. During frontend migration, keep these native
 regions protected unless a dedicated Workbench task and equivalent smoke tests
 say otherwise:
 
@@ -105,6 +106,16 @@ Workbench:
 ```text
 http://localhost:8765/workbench
 ```
+
+Legacy prototypes:
+
+```text
+http://localhost:8765/archive/dashboard_v1.html
+```
+
+Archived prototypes under `dashboard/archive/` are historical references only.
+The old root-level compatibility routes such as `/dashboard_v1.html`,
+`/dashboard/legacy`, `/3d`, and `/physics` intentionally return 404.
 
 Focused checks:
 

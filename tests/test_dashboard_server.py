@@ -35,9 +35,11 @@ class DashboardServerTest(unittest.TestCase):
         src_dir.mkdir()
         (src_dir / "main.js").write_text("// SPA MAIN", encoding="utf-8")
         (src_dir / "base.css").write_text("/* SPA CSS */", encoding="utf-8")
-        (self.dashboard_dir / "dashboard_v1.html").write_text("<html>Dashboard HTML</html>", encoding="utf-8")
-        (self.dashboard_dir / "dashboard_v1.css").write_text("/* CSS */", encoding="utf-8")
-        (self.dashboard_dir / "dashboard_v1.js").write_text("// JS", encoding="utf-8")
+        archive_dir = self.dashboard_dir / "archive"
+        archive_dir.mkdir()
+        (archive_dir / "dashboard_v1.html").write_text("<html>Dashboard HTML</html>", encoding="utf-8")
+        (archive_dir / "dashboard_v1.css").write_text("/* CSS */", encoding="utf-8")
+        (archive_dir / "dashboard_v1.js").write_text("// JS", encoding="utf-8")
         (self.dashboard_dir / "material_map_review.html").write_text("<html><div id=\"material-map-root\"></div></html>", encoding="utf-8")
         (self.dashboard_dir / "material_map_review.css").write_text("/* MM CSS */", encoding="utf-8")
         (self.dashboard_dir / "material_map_review.js").write_text("// MM JS", encoding="utf-8")
@@ -175,9 +177,10 @@ class DashboardServerTest(unittest.TestCase):
         self.assertTrue(project["usable"])
         self.assertGreater(project["last_modified"], 0)
 
-    def test_dashboard_html_has_workbench_entrypoint(self):
-        html = (Path(__file__).resolve().parent.parent / "dashboard" /
-                "dashboard_v1.html").read_text(encoding="utf-8")
+    def test_legacy_dashboard_page_is_archived(self):
+        root = Path(__file__).resolve().parent.parent / "dashboard"
+        self.assertFalse((root / "dashboard_v1.html").exists())
+        html = (root / "archive" / "dashboard_v1.html").read_text(encoding="utf-8")
         self.assertIn('id="btn-open-workbench"', html)
         self.assertIn("Workbench", html)
 
@@ -320,7 +323,7 @@ class DashboardServerTest(unittest.TestCase):
 
     def test_workbench_mockup_keeps_native_editor_shape(self):
         mockup = (Path(__file__).resolve().parent.parent / "dashboard" /
-                  "design_mockup.html").read_text(encoding="utf-8")
+                  "archive" / "design_mockup.html").read_text(encoding="utf-8")
 
         self.assertIn("--timeline-height: clamp(248px, 25vh, 300px);", mockup)
         self.assertIn("flex: 1 1 calc(100vh - 58px - var(--timeline-height));", mockup)
@@ -458,24 +461,20 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn(b"wb-monitor", workbench_resp)
         self.assertIn(b"wb-timeline", workbench_resp)
 
-        legacy_resp = urllib.request.urlopen(f"{base_url}/dashboard/legacy").read()
-        self.assertEqual(legacy_resp, b"<html>Dashboard HTML</html>")
-
         main_resp = urllib.request.urlopen(f"{base_url}/src/main.js").read()
         self.assertEqual(main_resp, b"// SPA MAIN")
 
         css_resp = urllib.request.urlopen(f"{base_url}/src/base.css").read()
         self.assertEqual(css_resp, b"/* SPA CSS */")
 
-        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.html").read()
-        # Existing compatibility route may still serve the old file while callers migrate.
-        self.assertEqual(old_dash_resp, b"<html>Dashboard HTML</html>")
+        for route in ("/dashboard/legacy", "/dashboard_v1.html", "/dashboard_v1.css", "/dashboard_v1.js"):
+            with self.subTest(route=route):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    urllib.request.urlopen(f"{base_url}{route}")
+                self.assertEqual(cm.exception.code, 404)
 
-        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.css").read()
-        self.assertEqual(old_dash_resp, b"/* CSS */")
-
-        old_dash_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.js").read()
-        self.assertEqual(old_dash_resp, b"// JS")
+        archived_dash_resp = urllib.request.urlopen(f"{base_url}/archive/dashboard_v1.html").read()
+        self.assertEqual(archived_dash_resp, b"<html>Dashboard HTML</html>")
 
         # /dashboard is no longer the legacy page.
         self.assertNotEqual(dash_resp, b"<html>Dashboard HTML</html>")
@@ -498,14 +497,14 @@ class DashboardServerTest(unittest.TestCase):
                 self.assertNotIn("MODE_MOCKS", html)
                 self.assertNotIn("material_map_canvas", html)
 
-    def test_legacy_dashboard_compatibility_routes(self):
+    def test_legacy_dashboard_archive_route_and_static_security(self):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        dash_resp = urllib.request.urlopen(f"{base_url}/dashboard/legacy").read()
+        dash_resp = urllib.request.urlopen(f"{base_url}/archive/dashboard_v1.html").read()
         self.assertEqual(dash_resp, b"<html>Dashboard HTML</html>")
 
-        css_resp = urllib.request.urlopen(f"{base_url}/dashboard_v1.css").read()
+        css_resp = urllib.request.urlopen(f"{base_url}/archive/dashboard_v1.css").read()
         self.assertEqual(css_resp, b"/* CSS */")
 
         # Write a dummy file to artifact root and fetch it via /static/

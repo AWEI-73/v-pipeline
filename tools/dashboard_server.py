@@ -1013,20 +1013,19 @@ class DashboardHandler(WorkbenchHandler):
                 html_path = self.dashboard_dir / "dashboard_v1.html"
             self.serve_file(html_path, "text/html; charset=utf-8")
             return
-        # Serve 3D whiteboard dashboard
-        if path_str in ("/3d", "/3d/", "/dashboard3d"):
-            html_path = self.dashboard_dir / "material_map_canvas_3d.html"
-            self.serve_file(html_path, "text/html; charset=utf-8")
-            return
-        # Serve Physics whiteboard dashboard
-        if path_str in ("/physics", "/physics/", "/dashboard-physics"):
-            html_path = self.dashboard_dir / "material_map_canvas_physics.html"
-            self.serve_file(html_path, "text/html; charset=utf-8")
-            return
-
-        if path_str in ("/dashboard/legacy", "/dashboard/legacy/"):
-            html_path = self.dashboard_dir / "dashboard_v1.html"
-            self.serve_file(html_path, "text/html; charset=utf-8")
+        if path_str.startswith("/archive/"):
+            rel = path_str[len("/archive/"):]
+            if not rel or "/" in rel or "\\" in rel or rel.startswith(".") or ".." in rel.split("/"):
+                self.send_error_response(403, "Access Denied")
+                return
+            file_path = self.dashboard_dir / "archive" / rel
+            suffix = file_path.suffix.lower()
+            content_type = {
+                ".html": "text/html; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".js": "application/javascript; charset=utf-8",
+            }.get(suffix, "application/octet-stream")
+            self.serve_file(file_path, content_type)
             return
 
         if path_str.startswith("/src/"):
@@ -1087,21 +1086,6 @@ class DashboardHandler(WorkbenchHandler):
         if path_str == "/index.js":
             js_path = self.dashboard_dir / "index.js"
             self.serve_file(js_path, "application/javascript; charset=utf-8")
-            return
-
-        if path_str == "/dashboard_v1.css":
-            css_path = self.dashboard_dir / "dashboard_v1.css"
-            self.serve_file(css_path, "text/css; charset=utf-8")
-            return
-
-        if path_str == "/dashboard_v1.js":
-            js_path = self.dashboard_dir / "dashboard_v1.js"
-            self.serve_file(js_path, "application/javascript; charset=utf-8")
-            return
-
-        if path_str == "/dashboard_v1.html":
-            html_path = self.dashboard_dir / "dashboard_v1.html"
-            self.serve_file(html_path, "text/html; charset=utf-8")
             return
 
         if path_str == "/material_map_review.css":
