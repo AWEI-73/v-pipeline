@@ -27,6 +27,9 @@
     materialAssets: [], // project material browser; can replace selected timeline clips
     selectedAssetId: null,
     selectedSceneIndex: 0,
+    currentDomain: null,
+    whiteboxView: null,
+    projects: [],
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     trimDrag: null,
     seq: 0,
@@ -43,6 +46,16 @@
   var lastTick = 0;
   var TRACK_LABEL_WIDTH = 72;
   var TIMELINE_PX_PER_SEC = 72;
+
+  // Keep native Workbench APIs on the selected run without modifying the shared
+  // endpoint wrapper; dashboard modules already append root via their state.
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    if (typeof input === "string" && input.indexOf("/api/") === 0 && input.indexOf("?") < 0 && window.location.search) {
+      return nativeFetch(input + window.location.search, init);
+    }
+    return nativeFetch(input, init);
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -69,6 +82,7 @@
       "dico-material", "dico-music", "dico-subtitle", "dico-effect",
       "dot-material", "dot-music", "dot-subtitle", "dot-effect", "domain-inspector",
       "btn-pipestrip", "pipestrip", "btn-gap", "gap-form", "in-gap-desc", "btn-copy-gap-req",
+      "run-selector", "whitebox-panel", "whitebox-title", "whitebox-body", "btn-whitebox-close",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -1039,10 +1053,6 @@
       pillFg = "var(--amber)";
     }
 
-    var spaRoute = d === "material" ? "/material-map" :
-                   d === "music" ? "/verify" :
-                   d === "subtitle" ? "/verify" : "/verify";
-
     var html =
       '<div style="display:flex;align-items:center;margin-bottom:12px;"><h2 style="flex:1;margin:0;font-size:15px;">' + title + '</h2>' +
       '<button id="btn-close-domain-inspector" style="padding:2px 8px;cursor:pointer;background:none;border:1px solid var(--border);border-radius:4px;color:inherit;" type="button">✕</button></div>' +
@@ -1059,7 +1069,7 @@
 
     document.getElementById("btn-close-domain-inspector").onclick = resetDomainInspector;
     document.getElementById("btn-expand-whitebox").onclick = function () {
-      window.location.hash = "#" + spaRoute;
+      openWhitebox(whiteboxViewForDomain(d));
     };
   }
 
@@ -1167,6 +1177,90 @@
       })
       .catch(function (err) {
         console.error("Failed to fetch control status:", err);
+      });
+  }
+
+  function currentRoot() {
+    return new URLSearchParams(window.location.search).get("root") || "";
+  }
+
+  function whiteboxViewForPipelineStep(stepId) {
+    if (stepId === "pstep-material") return "material-map";
+    if (stepId === "pstep-verify" || stepId === "pstep-delivery") return "verify";
+    if (stepId === "pstep-build") return "artifacts";
+    return "route";
+  }
+
+  function whiteboxViewForDomain(domain) {
+    if (domain === "material") return "material-map";
+    if (domain === "music" || domain === "subtitle" || domain === "effect") return "verify";
+    return "route";
+  }
+
+  function setWhiteboxTab(view) {
+    var buttons = document.querySelectorAll("[data-whitebox-view]");
+    buttons.forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-whitebox-view") === view);
+    });
+  }
+
+  function openWhitebox(view) {
+    view = view || "route";
+    state.whiteboxView = view;
+    if (!els.whitebox_panel || !els.whitebox_body) return;
+    els.whitebox_panel.hidden = false;
+    els.whitebox_panel.setAttribute("aria-hidden", "false");
+    if (els.whitebox_title && window.WorkbenchWhiteBoxModules) {
+      els.whitebox_title.textContent = window.WorkbenchWhiteBoxModules.title(view);
+    }
+    els.whitebox_body.innerHTML = '<div class="muted">讀取白盒資料...</div>';
+    setWhiteboxTab(view);
+    if (!window.WorkbenchWhiteBoxModules) {
+      els.whitebox_body.innerHTML = '<div class="muted">白盒模組尚未載入。</div>';
+      return;
+    }
+    window.WorkbenchWhiteBoxModules.render(view, {
+      root: currentRoot(),
+      activeStage: state.currentDomain || "Material Map",
+    }).then(function (html) {
+      if (state.whiteboxView === view) {
+        els.whitebox_body.innerHTML = html;
+      }
+    }).catch(function (err) {
+      els.whitebox_body.innerHTML = '<pre class="jsonbox">白盒資料載入失敗: ' + String(err) + '</pre>';
+    });
+  }
+
+  function closeWhitebox() {
+    state.whiteboxView = null;
+    if (!els.whitebox_panel) return;
+    els.whitebox_panel.hidden = true;
+    els.whitebox_panel.setAttribute("aria-hidden", "true");
+    setWhiteboxTab("");
+  }
+
+  function loadRunSelector() {
+    if (!els.run_selector) return;
+    var selectedRoot = currentRoot();
+    Api._fetchJson("/api/projects")
+      .then(function (res) {
+        var projects = (res && res.projects) || [];
+        state.projects = projects;
+        els.run_selector.innerHTML = "";
+        var fallback = document.createElement("option");
+        fallback.value = "";
+        fallback.textContent = selectedRoot ? "目前專案" : "伺服器預設專案";
+        els.run_selector.appendChild(fallback);
+        projects.forEach(function (project) {
+          var opt = document.createElement("option");
+          opt.value = project.path || project.root || "";
+          opt.textContent = project.name || project.label || opt.value;
+          if (selectedRoot && opt.value === selectedRoot) opt.selected = true;
+          els.run_selector.appendChild(opt);
+        });
+      })
+      .catch(function () {
+        els.run_selector.innerHTML = '<option value="">專案清單讀取失敗</option>';
       });
   }
 
@@ -1497,6 +1591,43 @@
     if (els.btn_copy_gap_req) {
       els.btn_copy_gap_req.onclick = copyGapRequest;
     }
+    if (els.run_selector) {
+      els.run_selector.onchange = function () {
+        var root = els.run_selector.value;
+        if (!root) return;
+        var next = new URL(window.location.href);
+        next.searchParams.set("root", root);
+        window.location.href = next.toString();
+      };
+    }
+    if (els.btn_whitebox_close) {
+      els.btn_whitebox_close.onclick = closeWhitebox;
+    }
+    document.querySelectorAll("[data-whitebox-view]").forEach(function (btn) {
+      btn.onclick = function () {
+        openWhitebox(btn.getAttribute("data-whitebox-view"));
+      };
+    });
+    ["pstep-intent", "pstep-spec", "pstep-material", "pstep-build", "pstep-verify", "pstep-delivery"].forEach(function (id) {
+      var step = document.getElementById(id);
+      if (step) {
+        step.setAttribute("role", "button");
+        step.tabIndex = 0;
+        step.onclick = function () { openWhitebox(whiteboxViewForPipelineStep(id)); };
+        step.onkeydown = function (ev) {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            openWhitebox(whiteboxViewForPipelineStep(id));
+          }
+        };
+      }
+    });
+    window.addEventListener("workbench-whitebox-ready", function () {
+      if (state.whiteboxView) openWhitebox(state.whiteboxView);
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && state.whiteboxView) closeWhitebox();
+    });
     PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
     CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
@@ -1505,6 +1636,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     cacheEls();
     wire();
+    loadRunSelector();
     loadPreview();
   });
 })();

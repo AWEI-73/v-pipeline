@@ -23,6 +23,12 @@
     </div>
 
     <div class="header-mid">
+      <label class="run-picker" for="run-selector">
+        <span>專案</span>
+        <select id="run-selector" class="run-selector" title="選擇 run folder">
+          <option value="">目前專案</option>
+        </select>
+      </label>
       <select id="aspect-ratio" class="aspect-ratio-select" title="畫面比例">
         <option value="16:9">16:9 橫式</option>
         <option value="9:16">9:16 直式</option>
@@ -154,6 +160,23 @@
         </div>
         <div id="domain-inspector" hidden></div>
       </section>
+
+      <aside class="wb-whitebox-panel" id="whitebox-panel" hidden aria-hidden="true">
+        <div class="whitebox-head">
+          <div>
+            <p class="whitebox-kicker">白盒檢視</p>
+            <h2 id="whitebox-title">管線資料</h2>
+          </div>
+          <button id="btn-whitebox-close" class="btn-icon" type="button" title="關閉白盒面板">×</button>
+        </div>
+        <div class="whitebox-tabs" aria-label="白盒模組">
+          <button type="button" data-whitebox-view="route">路線</button>
+          <button type="button" data-whitebox-view="material-map">素材地圖</button>
+          <button type="button" data-whitebox-view="artifacts">產物</button>
+          <button type="button" data-whitebox-view="verify">驗證</button>
+        </div>
+        <div id="whitebox-body" class="whitebox-body">選擇節點後顯示資料。</div>
+      </aside>
     </div>
   </main>
 
@@ -210,5 +233,61 @@
   <script src="/workbench/workbench_api.js"></script>
   <script src="/workbench/workbench_materials.js"></script>
   <script src="/workbench/workbench.js"></script>
+  <script type="module">
+    import { state as dashboardState } from "/src/state.js";
+    import { fetchControlStatus } from "/src/api/controlApi.js";
+    import { fetchArtifacts } from "/src/api/artifactsApi.js";
+    import { fetchMaterialMapView } from "/src/api/materialMapApi.js";
+    import { RouteOverviewView } from "/src/views/RouteOverviewView.js";
+    import { ArtifactsView } from "/src/views/ArtifactsView.js";
+    import { VerifyView } from "/src/views/VerifyView.js";
+    import { MaterialMapView } from "/src/views/MaterialMapView.js";
+
+    const titles = {
+      route: "路線與契約",
+      "material-map": "素材地圖",
+      artifacts: "產物清單",
+      verify: "驗證與交付",
+    };
+
+    async function loadData(root) {
+      dashboardState.root = root || new URLSearchParams(window.location.search).get("root") || "";
+      const [control, artifacts, materialMap] = await Promise.all([
+        fetchControlStatus().catch((error) => ({ error: String(error) })),
+        fetchArtifacts().catch((error) => ({ error: String(error) })),
+        fetchMaterialMapView().catch((error) => ({ error: String(error), assets: [], needs: [] })),
+      ]);
+      dashboardState.control = control;
+      dashboardState.artifacts = artifacts;
+      dashboardState.materialMap = materialMap;
+      return { control, artifacts, materialMap };
+    }
+
+    window.WorkbenchWhiteBoxModules = {
+      title(view) {
+        return titles[view] || titles.route;
+      },
+      async render(view, options = {}) {
+        const data = await loadData(options.root);
+        const activeStage = options.activeStage || data.control?.pipeline?.active_stage || "Material Map";
+        if (view === "material-map") {
+          return MaterialMapView({ materialMap: data.materialMap, selectedEvidence: options.selectedEvidence || null });
+        }
+        if (view === "artifacts") {
+          return ArtifactsView({ control: data.control, materialMap: data.materialMap, artifacts: data.artifacts });
+        }
+        if (view === "verify") {
+          return VerifyView({ artifacts: data.artifacts });
+        }
+        return RouteOverviewView({
+          control: data.control,
+          materialMap: data.materialMap,
+          artifacts: data.artifacts,
+          activeStage,
+        });
+      },
+    };
+    window.dispatchEvent(new Event("workbench-whitebox-ready"));
+  </script>
 </body>
 </html>
