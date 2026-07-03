@@ -8,11 +8,29 @@ from video_pipeline_core.next_action_vocabulary import NEXT_ACTION_VOCABULARY
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "docs" / "branch-contract-registry.json"
+ARTIFACT_DICTIONARY_PATH = ROOT / "docs" / "interface-contracts" / "pipeline-product-artifact-dictionary.json"
+STAGE_KEYS = {
+    "stage",
+    "skill",
+    "artifacts_in",
+    "artifacts_out",
+    "gate",
+    "next_actions_on_pass",
+    "next_actions_on_fail",
+}
 
 
 class BranchRegistryIntegrityTest(unittest.TestCase):
     def _registry(self):
         return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+
+    def _artifact_names(self):
+        dictionary = json.loads(ARTIFACT_DICTIONARY_PATH.read_text(encoding="utf-8"))
+        return {
+            artifact.get("artifact_name")
+            for artifact in dictionary.get("artifacts", [])
+            if artifact.get("artifact_name")
+        }
 
     def test_registry_parses(self):
         registry = self._registry()
@@ -57,6 +75,39 @@ class BranchRegistryIntegrityTest(unittest.TestCase):
         source = (ROOT / "video_pipeline_core" / "dashboard_state.py").read_text(encoding="utf-8")
         literals = sorted(set(re.findall(r'next_action\s*=\s*"([^"]+)"', source)))
         missing = [literal for literal in literals if literal not in NEXT_ACTION_VOCABULARY]
+        self.assertEqual(missing, [])
+
+    def test_stage_skills_exist(self):
+        for branch in self._registry()["branches"]:
+            for stage in branch.get("stages", []):
+                self.assertEqual(set(stage), STAGE_KEYS, f"{branch.get('branch_id')} stage schema")
+                rel = stage["skill"]
+                self.assertTrue((ROOT / rel).exists(), f"{branch.get('branch_id')} stage skill missing: {rel}")
+
+    def test_stage_artifacts_in_dictionary(self):
+        artifact_names = self._artifact_names()
+        missing = sorted(
+            {
+                artifact
+                for branch in self._registry()["branches"]
+                for stage in branch.get("stages", [])
+                for artifact in stage.get("artifacts_out", [])
+                if artifact not in artifact_names
+            }
+        )
+        self.assertEqual(missing, [])
+
+    def test_stage_next_actions_in_vocabulary(self):
+        missing = sorted(
+            {
+                action
+                for branch in self._registry()["branches"]
+                for stage in branch.get("stages", [])
+                for key in ("next_actions_on_pass", "next_actions_on_fail")
+                for action in stage.get(key, [])
+                if action not in NEXT_ACTION_VOCABULARY
+            }
+        )
         self.assertEqual(missing, [])
 
 

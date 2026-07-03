@@ -1,6 +1,6 @@
 {
   "artifact_role": "branch_contract_registry",
-  "version": 1,
+  "version": 2,
   "status": "mvp_current",
   "purpose": "Machine-readable ownership contracts for Hermes main route and side branches. This registry defines entry conditions, canonical artifacts, stop gates, forbidden writes, and return routes so agents can route work without guessing.",
   "global_rules": [
@@ -79,6 +79,49 @@
         "effect-factory",
         "workbench-brownfield",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "stage0-intent-contract",
+          "skill": "skills/video-intent-planner.md",
+          "artifacts_in": [],
+          "artifacts_out": [
+            "edit_decision_plan.json"
+          ],
+          "gate": "Stage 0",
+          "next_actions_on_pass": [
+            "material-first",
+            "structure-first",
+            "needs-context"
+          ],
+          "next_actions_on_fail": [
+            "needs-context"
+          ]
+        },
+        {
+          "stage": "build-eligibility",
+          "skill": "skills/video-pipeline-route.md",
+          "artifacts_in": [
+            "edit_decision_plan.json",
+            "material_matrix.json",
+            "audio_decision_plan.json",
+            "effect_decision_plan.json",
+            "subtitle_voiceover_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "build_handoff.json"
+          ],
+          "gate": "BUILD",
+          "next_actions_on_pass": [
+            "ready_for_delivery_gate"
+          ],
+          "next_actions_on_fail": [
+            "return_to_material_map",
+            "return_to_soundtrack_arranger",
+            "return_to_effect_factory",
+            "return_to_subtitle_voiceover"
+          ]
+        }
       ]
     },
     {
@@ -158,6 +201,41 @@
         "story-structure",
         "workbench-brownfield",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "source-review",
+          "skill": "skills/material-map.md",
+          "artifacts_in": [],
+          "artifacts_out": [
+            "source_media_review.json"
+          ],
+          "gate": "material_scan_decision",
+          "next_actions_on_pass": [
+            "await_material_review"
+          ],
+          "next_actions_on_fail": [
+            "needs-context"
+          ]
+        },
+        {
+          "stage": "material-matrix",
+          "skill": "skills/curator.md",
+          "artifacts_in": [
+            "source_media_review.json"
+          ],
+          "artifacts_out": [
+            "material_matrix.json"
+          ],
+          "gate": "material delta",
+          "next_actions_on_pass": [
+            "return_to_build"
+          ],
+          "next_actions_on_fail": [
+            "rewrite_or_reshoot_or_waiver",
+            "generated_material_fallback"
+          ]
+        }
       ]
     },
     {
@@ -226,6 +304,41 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "soundtrack-plan",
+          "skill": "skills/soundtrack-arranger.md",
+          "artifacts_in": [],
+          "artifacts_out": [
+            "audio_decision_plan.json"
+          ],
+          "gate": "license/source",
+          "next_actions_on_pass": [
+            "audio_director_handoff"
+          ],
+          "next_actions_on_fail": [
+            "repair_license_or_ducking"
+          ]
+        },
+        {
+          "stage": "audio-build-handoff",
+          "skill": "skills/audio-director.md",
+          "artifacts_in": [
+            "audio_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "build_handoff.json"
+          ],
+          "gate": "audio_handoff_acceptance.ok is false",
+          "next_actions_on_pass": [
+            "return_to_build_with_final_audio"
+          ],
+          "next_actions_on_fail": [
+            "repair_audio_handoff",
+            "fix_audio_mix"
+          ]
+        }
       ]
     },
     {
@@ -290,6 +403,41 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "subtitle-voiceover-plan",
+          "skill": "skills/subtitle-director.md",
+          "artifacts_in": [],
+          "artifacts_out": [
+            "subtitle_voiceover_decision_plan.json"
+          ],
+          "gate": "subtitle_voiceover_contract",
+          "next_actions_on_pass": [
+            "accept_subtitle_voiceover_handoff"
+          ],
+          "next_actions_on_fail": [
+            "repair_caption_or_voiceover",
+            "fix_subtitles"
+          ]
+        },
+        {
+          "stage": "voiceover-provider-handoff",
+          "skill": "skills/audio-director.md",
+          "artifacts_in": [
+            "subtitle_voiceover_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "build_handoff.json"
+          ],
+          "gate": "voiceover_ready=false",
+          "next_actions_on_pass": [
+            "return_to_build"
+          ],
+          "next_actions_on_fail": [
+            "repair_caption_or_voiceover"
+          ]
+        }
       ]
     },
     {
@@ -361,6 +509,41 @@
         "main-pipeline",
         "workbench-brownfield",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "effect-design",
+          "skill": "skills/video-effect-factory.md",
+          "artifacts_in": [],
+          "artifacts_out": [
+            "effect_decision_plan.json"
+          ],
+          "gate": "effect parameters",
+          "next_actions_on_pass": [
+            "run_remotion_worker_and_review"
+          ],
+          "next_actions_on_fail": [
+            "review_candidate_parameters",
+            "revise_effect_intent"
+          ]
+        },
+        {
+          "stage": "effect-handoff",
+          "skill": "skills/remotion-effect-worker.md",
+          "artifacts_in": [
+            "effect_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "build_handoff.json"
+          ],
+          "gate": "effect_handoff.json",
+          "next_actions_on_pass": [
+            "human_review_or_promote_effect_assets_to_timeline"
+          ],
+          "next_actions_on_fail": [
+            "repair_effect_contract_or_worker_output"
+          ]
+        }
       ]
     },
     {
@@ -433,6 +616,45 @@
         "subtitle-voiceover",
         "effect-factory",
         "verify-delivery"
+      ],
+      "stages": [
+        {
+          "stage": "draft-patch",
+          "skill": "skills/brownfield-edit.md",
+          "artifacts_in": [
+            "edit_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "edit_decision_plan.json"
+          ],
+          "gate": "Draft patch reviewed",
+          "next_actions_on_pass": [
+            "rerender_draft_preview",
+            "review_workbench_route_back"
+          ],
+          "next_actions_on_fail": [
+            "return_to_material_map",
+            "return_to_effect_factory",
+            "return_to_subtitle_voiceover"
+          ]
+        },
+        {
+          "stage": "workbench-build-handoff",
+          "skill": "skills/dashboard.md",
+          "artifacts_in": [
+            "edit_decision_plan.json"
+          ],
+          "artifacts_out": [
+            "build_handoff.json"
+          ],
+          "gate": "verify evidence is missing",
+          "next_actions_on_pass": [
+            "return_to_build"
+          ],
+          "next_actions_on_fail": [
+            "workbench_draft_review"
+          ]
+        }
       ]
     },
     {
@@ -506,6 +728,28 @@
         "subtitle-voiceover",
         "effect-factory",
         "workbench-brownfield"
+      ],
+      "stages": [
+        {
+          "stage": "final-review",
+          "skill": "skills/verify.md",
+          "artifacts_in": [
+            "build_handoff.json"
+          ],
+          "artifacts_out": [
+            "final_review_bundle.json"
+          ],
+          "gate": "delivery gate",
+          "next_actions_on_pass": [
+            "complete"
+          ],
+          "next_actions_on_fail": [
+            "revise_material_selection_or_review",
+            "repair_audio_handoff",
+            "repair_effect_contract_or_worker_output",
+            "repair_caption_or_voiceover"
+          ]
+        }
       ]
     }
   ]
