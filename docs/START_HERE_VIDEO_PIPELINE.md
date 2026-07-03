@@ -5,6 +5,17 @@ Status: canonical entrypoint for agents and operators
 
 Read this first when you need to run, debug, or extend the video pipeline.
 
+## Rule Zero
+
+Every video production request enters through `skills/video-pipeline.md`, which
+drives `runtime.py` (`resume` / `status` / `rerun`) and the
+`state.json.next_action` state machine.
+
+Never hand-run ffmpeg, `video_tools.py` subcommands, or manual material
+stitching as a substitute for the pipeline.
+
+Existing run state wins: inspect the run folder before writing.
+
 ## What This Project Is
 
 Hermes is a contract-first video pipeline:
@@ -82,45 +93,30 @@ official pipeline changes.
 
 ## Read Order
 
+### Tier 1 - Required Reading
+
 1. `docs/START_HERE_VIDEO_PIPELINE.md` -- this file.
-2. `docs/pipeline-decision-tree.md` -- operator decision tree for the main
-   Stage 0-10 route, Material Map, Effect Factory, Audio Communication, and
-   cross-cutting Review / Verify / Delivery Gate branch.
-3. `docs/video-pipeline-end-to-end-line.md` -- one-page line from intent to
-   delivery, including input state, entry path, and return loops.
-4. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual:
-   skills, tools, artifacts, gates, return routes.
-5. `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and
-   legacy alias mapping.
-6. `docs/upstream-story-route.md` -- full upstream line from role/literary lens
-   through blueprint, Story Soul, Director Shot Plan, contract compile, and
-   material-ready handoff.
-7. `docs/artifact-reviewer-map.md` -- lightweight reviewer policy:
-   `light / normal / deep` and reviewer roles.
-8. `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision,
-   lifecycle stages, and build handoff.
-9. `docs/effect-factory-route.md` -- designed-effects side branch: design map,
-   contract, worker handoff, review, and bounded effect asset handoff.
-10. `docs/soundtrack-arranger-route.md` -- music/song/BGM/voice intent branch:
-   `soundtrack_plan.json`, `music_source_candidates.json`,
-   `sound_license_manifest.json`, and `audio_director_handoff.json`.
-11. `docs/stage-boundary-matrix.md` -- worker/maintainer boundary matrix for
-   Main Pipeline, Material Map branch, Effect Factory branch, Soundtrack /
-   Audio branch, and Subtitle / Voiceover branch.
-12. `docs/construction-guides/stage0-10-route-alignment-plan.md` -- current
-   construction guide for keeping Stage 0-10 and child contracts aligned.
-13. `docs/build-capability-alignment.md` -- which capabilities truly affect
-   BUILD/render today.
-14. `docs/route-orchestrator-harness.md` -- optional multi-agent task packet
-   and fail-closed acceptance harness.
-15. `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a
-   human worker should consume `route_subagent_task.json`.
-16. `RUNBOOK.md` -- current local command examples and Windows execution notes.
-17. `docs/api-surface-map.md` -- API Surface Manifest contract and endpoint audit rulebook.
-18. `docs/interface-contracts/README.md` -- Pipeline branch interface API dictionary, audit, and soft discovery instructions.
-19. `docs/codebase-memory-mcp-handoff.md` -- optional low-token local code
-   graph helper for review and new-session handoff. It is not route truth.
-20. `docs/INDEX.md` -- broader documentation index and historical links.
+2. `RUNBOOK.md` -- current local command examples and Windows execution notes.
+3. `docs/pipeline-decision-tree.md` -- operator decision tree for the main route, branches, stop gates, and return loops.
+4. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual: skills, tools, artifacts, gates, return routes.
+5. `docs/branch-contract-registry.json` -- machine-readable branch ownership contracts; route truth alongside the decision tree.
+6. `docs/interface-contracts/README.md` -- Pipeline branch interface API dictionary, audit, and soft discovery instructions.
+
+### Tier 2 - Read On Demand
+
+**Route detail:** `docs/video-pipeline-end-to-end-line.md` -- one-page line from intent to delivery; `docs/canonical-video-pipeline-route.md` -- canonical stage definitions and legacy alias mapping; `docs/upstream-story-route.md` -- upstream line from role/literary lens through material-ready handoff.
+
+**Branch routes:** `docs/material-map-lifecycle.md` -- material needs, maps, delta, revision, lifecycle stages, and build handoff; `docs/effect-factory-route.md` -- designed-effects side branch and bounded effect asset handoff; `docs/soundtrack-arranger-route.md` -- music/song/BGM/voice intent branch artifacts; `docs/stage-boundary-matrix.md` -- Main Pipeline, Material Map branch, Effect Factory branch, Soundtrack Arranger branch, and worker/maintainer boundary matrix.
+
+**Review/gates:** `docs/artifact-reviewer-map.md` -- lightweight reviewer policy and reviewer roles; `docs/build-capability-alignment.md` -- which capabilities truly affect BUILD/render today; `docs/api-surface-map.md` -- API Surface Manifest contract and endpoint audit rulebook.
+
+**Multi-agent:** `docs/route-orchestrator-harness.md` -- optional multi-agent task packet and fail-closed acceptance harness; `docs/route-agent-runner-protocol.md` -- how Codex/Claude/Gemini or a human worker should consume route task packets.
+
+**Construction:** `docs/construction-guides/stage0-10-route-alignment-plan.md` -- current construction guide for keeping Stage 0-10 and child contracts aligned.
+
+**Helpers:** `docs/codebase-memory-mcp-handoff.md` -- optional low-token local code graph helper for review and new-session handoff; not route truth.
+
+**Index:** `docs/INDEX.md` -- broader documentation index and historical links.
 
 ## Main Skill Entry
 
