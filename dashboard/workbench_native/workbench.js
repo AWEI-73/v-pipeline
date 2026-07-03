@@ -247,17 +247,7 @@
 
       var meta = document.createElement("div");
       meta.className = "material-meta";
-      var scene = a.scene || {};
-      var matchLabel = a.match_status === "accepted" ? "符合需求"
-        : a.match_status === "candidate" ? "候選需求"
-        : selectedClip ? "其他素材" : "瀏覽素材";
-      meta.textContent = [
-        a.asset_type || "素材",
-        scene.visual_family || a.visual_family || "未分類",
-        scene.angle_scale || a.angle_scale || "未標角度",
-        "scene " + a.scene_index,
-        matchLabel,
-      ].join(" · ");
+      meta.textContent = (a.duration_sec ? a.duration_sec.toFixed(1) + "s" : "0.0s");
       body.appendChild(title);
       body.appendChild(meta);
       card.appendChild(thumb);
@@ -543,7 +533,7 @@
 
     if (!clip) {
       img.hidden = true; vid.hidden = true; empty.hidden = false;
-      els.stage_meta.textContent = "";
+      if (els.stage_meta) els.stage_meta.textContent = "";
     } else if (clip.type === "image") {
       vid.hidden = true; vid.pause && vid.pause();
       empty.hidden = true;
@@ -552,7 +542,7 @@
         img.src = clip.src_url || "";
         img.setAttribute("data-slot", String(clip.slot_index));
       }
-      els.stage_meta.textContent = "圖片 #" + clip.slot_index + " / 靜態 " + clip.duration_sec.toFixed(2) + "s";
+      if (els.stage_meta) els.stage_meta.textContent = "圖片 #" + clip.slot_index + " / 靜態 " + clip.duration_sec.toFixed(2) + "s";
     } else {
       img.hidden = true;
       empty.hidden = true;
@@ -596,9 +586,11 @@
           try { vid.currentTime = wantTime; } catch (e) {}
         }
       }
-      els.stage_meta.textContent =
-        "VID #" + clip.slot_index + " · src " + wantTime.toFixed(2) + "s (start " +
-        clip.source_start_sec.toFixed(2) + ")";
+      if (els.stage_meta) {
+        els.stage_meta.textContent =
+          "VID #" + clip.slot_index + " · src " + wantTime.toFixed(2) + "s (start " +
+          clip.source_start_sec.toFixed(2) + ")";
+      }
     }
 
     var sub = Core.getActiveSubtitle(state.work.subtitles, state.currentTime);
@@ -611,7 +603,7 @@
 
     els.time_label.textContent =
       state.currentTime.toFixed(2) + " / " + (state.work.duration_sec || 0).toFixed(2) + "s";
-    els.frame_label.textContent = "f" + Core.secondsToFrame(state.currentTime, state.fps);
+    if (els.frame_label) els.frame_label.textContent = "f" + Core.secondsToFrame(state.currentTime, state.fps);
     els.scrubber.value = String(state.currentTime);
     syncAudioPreview(!state.playing);
     renderEffectPreview();
