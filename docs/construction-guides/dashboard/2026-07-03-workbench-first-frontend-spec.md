@@ -115,6 +115,34 @@ Rules:
      filter (this is the flexibility mode; keep it).
    Do not modify the sorting logic itself (workbench_core /
    workbench_materials are read-only).
+
+### Swap safety: three defense layers (v1 scope marked per item)
+
+Replacing a clip's material is the riskiest human action. The design relies
+on three layers; the frontend implements the first two and VISUALIZES the
+third — it never re-implements gate logic in the browser.
+
+1. Pre-constraint (v1, frontend): when a clip is selected, the drawer
+   defaults to 「只看符合契約」ON — only 符合需求 + 候選 assets are shown
+   (scoped by the segment's need via the existing match status); a toggle
+   reveals the full library. This is how "materials don't all need to be
+   displayed" works: the segment contract scopes the choices.
+2. Drop-time checks (v1, frontend): before writing a replace patch,
+   check locally and warn inline:
+   - duration: replacement source shorter than the slot's duration →
+     block with 「素材長度不足(還差 X 秒)」;
+   - fit: dropping an 其他-badged asset → allow but require one extra
+     confirm (「這個素材不符合這段的契約需求,仍要替換?」).
+   Server-side validation stays authoritative: the patch endpoint is
+   fail-closed and resolves replacement through `project_material_map.json`;
+   never bypass or duplicate it, the frontend checks exist only to fail
+   earlier with friendlier messages.
+3. Post-swap evaluation (existing pipeline, frontend only shows state):
+   a swap is a DRAFT until gates accept it. After a replace, the clip gets a
+   「已替換・草稿」 marker and the 素材 domain dot turns amber; the save
+   feedback says the agent will re-verify the affected segment (review
+   report → route re-entry → BUILD → verify gate). The frontend must never
+   present a swapped draft as final.
 6. Material gap request (v1, frontend-only): a button at the drawer bottom
    「素材不夠?請 agent 補」 opens a small inline form (這段需要什麼畫面,
    free text + the selected clip/segment id) and produces a structured

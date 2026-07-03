@@ -132,6 +132,7 @@
     <select><option>全部分類</option><option>影像</option><option>音訊</option><option>特效</option></select>
     <!-- 選取片段時:標題變「適合這段的素材」,依既有 matchStatusForNeed 排序,徽章 = 符合需求/候選/其他 -->
     <p style="font-size:12px;color:var(--muted);margin:0;">適合「頒獎特寫」這段的素材:</p>
+    <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;"><input type="checkbox" checked id="fit-only" style="margin:0;">只看符合契約的素材</label>
     <div class="asset" draggable="true"><div class="thumb c-video">頒獎全景.mov</div><p>頒獎全景 <span class="len">0:58</span> <span class="fit fit-ok">符合需求</span></p></div>
     <div class="asset" draggable="true"><div class="thumb c-video">觀眾鼓掌.mov</div><p>觀眾鼓掌 <span class="len">0:31</span> <span class="fit fit-mid">候選</span></p></div>
     <div class="asset" draggable="true"><div class="thumb c-video">典禮開場.mov</div><p>典禮開場 <span class="len">0:42</span> <span class="fit fit-low">其他</span></p></div>
@@ -225,6 +226,9 @@ document.querySelectorAll('.dico').forEach(function(el){el.onclick=function(){va
 document.getElementById('btn-pipestrip').onclick=function(){document.getElementById('pipestrip').classList.toggle('show');};
 document.getElementById('btn-drawer').onclick=function(){document.getElementById('drawer').classList.toggle('collapsed');};
 document.getElementById('btn-gap').onclick=function(){var f=document.getElementById('gap-form');f.style.display=(f.style.display==='none')?'block':'none';};
+function applyFitOnly(){var on=document.getElementById('fit-only').checked;
+ document.querySelectorAll('.asset').forEach(function(a){var low=a.querySelector('.fit-low');a.style.display=(on&&low)?'none':'block';});}
+document.getElementById('fit-only').onchange=applyFitOnly;applyFitOnly();
 document.getElementById('btn-saveall').onclick=function(){var f=document.getElementById('dirty');
  f.textContent='已儲存 3 個 patch + workbench_handoff.json · agent 將依此執行';f.style.color='var(--green)';};
 document.querySelectorAll('.clip').forEach(function(el){el.onclick=function(){
