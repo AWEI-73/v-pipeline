@@ -33,6 +33,7 @@ Current document layers:
 | Bootstrap setup | `docs/setup/setup-and-first-run.md` | Windows-first install, env setup, verification, and first agent-run walkthrough. |
 | Distribution | `docs/setup/distribution-manifest.md` | Release include/exclude manifest plus pending packaging and license decisions. |
 | Code memory helper | `docs/codebase-memory-mcp-handoff.md` | Optional low-token local code graph for new-session handoff and code review; not a route truth source. |
+| Agent ops | `docs/agent-ops/work-order-sop.md`, `docs/agent-ops/orchestrator-system-prompt.md` | Work-order operating system for multi-agent construction, and the orchestrator system prompt that drives it. |
 | Branch routes | `docs/material-map-lifecycle.md`, `docs/effect-factory-route.md`, `docs/soundtrack-arranger-route.md`, `docs/upstream-story-route.md`, `docs/workbench-dashboard-integration.md` | Detailed branch-specific behavior. |
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
 | Generated maps | `docs/generated/` | Machine-generated route maps and audits. |
