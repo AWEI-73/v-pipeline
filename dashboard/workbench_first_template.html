@@ -46,7 +46,13 @@
   .st-todo{background:var(--gray-bg);color:var(--muted);}
 
   .mainrow{flex:1;display:flex;gap:10px;padding:10px 14px 0;min-height:0;}
-  .drawer{width:236px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+  .drawer{width:236px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;transition:width .15s;}
+  .drawer.collapsed{width:44px;padding:10px 6px;overflow:hidden;}
+  .drawer.collapsed > *:not(.drawer-head){display:none;}
+  .drawer.collapsed .drawer-head h2{display:none;}
+  .drawer-head{display:flex;align-items:center;gap:6px;}
+  .drawer-head h2{flex:1;}
+  .drawer-head button{padding:4px 7px;line-height:1;}
   .drawer h2,.inspector h2{font-size:13px;margin:0;color:var(--muted);font-weight:600;}
   .asset{border:1px solid var(--line);border-radius:8px;padding:6px;cursor:grab;}
   .asset .thumb{height:56px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;}
@@ -113,8 +119,11 @@
 
 <main class="mainrow">
   <!-- 左:素材抽屜 = 既有 .wb-materials,呈現方式沿用(搜尋+分類+清單),資料源 preview-timeline 投影 + /media allow-list -->
-  <aside class="drawer wb-materials">
-    <h2>可用素材</h2>
+  <aside class="drawer wb-materials" id="drawer">
+    <div class="drawer-head">
+      <h2>可用素材</h2>
+      <button id="btn-drawer" title="收合/展開素材區"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12l4.6-4.6z" fill="currentColor"/></svg></button>
+    </div>
     <input type="search" placeholder="搜尋素材 / 分類" />
     <select><option>全部分類</option><option>影像</option><option>音訊</option><option>特效</option></select>
     <div class="asset" draggable="true"><div class="thumb c-video">典禮開場.mov</div><p>典禮開場 <span class="len">0:42</span></p></div>
@@ -202,6 +211,7 @@ document.querySelectorAll('.dico').forEach(function(el){el.onclick=function(){va
  if(cur===d){reset();return;} cur=d;
  document.querySelectorAll('.dico').forEach(function(x){x.classList.remove('on');});el.classList.add('on');contractView(d);};});
 document.getElementById('btn-pipestrip').onclick=function(){document.getElementById('pipestrip').classList.toggle('show');};
+document.getElementById('btn-drawer').onclick=function(){document.getElementById('drawer').classList.toggle('collapsed');};
 document.getElementById('btn-saveall').onclick=function(){var f=document.getElementById('dirty');
  f.textContent='已儲存 3 個 patch + workbench_handoff.json · agent 將依此執行';f.style.color='var(--green)';};
 document.querySelectorAll('.clip').forEach(function(el){el.onclick=function(){

@@ -44,8 +44,16 @@ Relationship to existing docs:
 
 - Upper-row height is driven by the 16:9 monitor width; left/right panels
   scroll internally. Never let left/right panels extend beside the timeline.
-- v2 (do NOT build now): collapsible side panels, draggable
-  upper/lower splitter.
+- Panel roles (design rationale — do not merge them into tabs):
+  - RIGHT panel is the always-on surface: clip inspector + domain contract
+    black-box. It is never collapsed or covered.
+  - LEFT drawer is the occasional surface (replace/add material only).
+    v1 REQUIREMENT: collapsible to a ~44px icon rail with one toggle
+    (see template `#btn-drawer`). Default expanded on first load; remember
+    state in localStorage. The replace flow needs materials and the selected
+    clip visible AT THE SAME TIME — that is why left and right are separate
+    panels and must not become tabs of one panel.
+- v2 (do NOT build now): draggable upper/lower splitter.
 
 ## Top bar
 
