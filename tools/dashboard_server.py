@@ -982,16 +982,25 @@ class DashboardHandler(WorkbenchHandler):
         path_str = parsed_url.path
         query_params = urllib.parse.parse_qs(parsed_url.query)
 
-        # Formal SPA routes. The SPA router chooses the active view from path.
+        # Native Workbench is the single-document app home. The SPA white-box
+        # views remain reachable as compatibility routes and as importable
+        # modules mounted inside the native Workbench slide-over.
         if path_str in (
             "/",
             "/index.html",
+            "/workbench",
+            "/workbench/",
+        ):
+            self.serve_file(WORKBENCH_DIR / "index.html", "text/html; charset=utf-8")
+            return
+
+        # Formal SPA white-box routes. The SPA router chooses the active view
+        # from path, but it is no longer the Workbench host.
+        if path_str in (
             "/dashboard",
             "/dashboard/",
             "/material-map",
             "/material-map/",
-            "/workbench",
-            "/workbench/",
             "/timeline",
             "/timeline/",
             "/verify",

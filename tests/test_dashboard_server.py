@@ -269,22 +269,19 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("video monitor / playback preview", workbench_contract)
         self.assertIn("four lower timeline lanes", workbench_contract)
         self.assertIn("playback controls", workbench_contract)
-        self.assertIn("Dashboard/SPA migration may wrap this surface in a shell", workbench_contract)
+        self.assertIn("Dashboard white-box modules may mount beside this surface", workbench_contract)
         self.assertIn("must not duplicate", workbench_contract)
         self.assertIn("node tools\\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench", workbench_contract)
         self.assertIn("python tools\\workbench_frontend_smoke.py --artifact-root .tmp\\workbench_frontend_smoke_fixture --init-fixture", workbench_contract)
         self.assertIn("--force-init-fixture", workbench_contract)
         self.assertIn("replace_clip", workbench_contract)
-        self.assertIn("duplicates protected editor selectors", workbench_contract)
-        self.assertIn("monitor-box", workbench_contract)
+        self.assertIn("loses protected editor selectors", workbench_contract)
         self.assertIn("lane-video", workbench_contract)
         self.assertIn("hostMode", workbench_layout_smoke)
         self.assertIn("spa_shell", workbench_layout_smoke)
         self.assertIn("native_direct", workbench_layout_smoke)
-        self.assertIn("app-workbench class", workbench_layout_smoke)
-        self.assertIn("/workbench/index.html", workbench_layout_smoke)
         self.assertIn("forbiddenShellSelectors", workbench_layout_smoke)
-        self.assertIn("SPA shell must not duplicate native monitor/timeline selectors", workbench_layout_smoke)
+        self.assertIn("SPA compatibility view must not duplicate native monitor/timeline selectors", workbench_layout_smoke)
         self.assertIn(".wb-transport", workbench_layout_smoke)
         self.assertIn("#btn-play", workbench_layout_smoke)
         self.assertIn("#scrubber", workbench_layout_smoke)
@@ -365,19 +362,16 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("Native Editor Protected Zone", spec)
         self.assertIn("video monitor / playback preview area", spec)
         self.assertIn("four lower timeline tracks", spec)
-        self.assertIn("app-workbench", spec)
-        self.assertIn("Do not render the Dashboard `pause-banner` on the Workbench route", spec)
-        self.assertIn("Phase 0: iframe containment", spec)
-        self.assertIn("Phase 1: shell-native status panels", spec)
-        self.assertIn("Phase 2: extract Workbench modules", spec)
-        self.assertIn("Phase 3: replace iframe with SPA-native composition", spec)
+        self.assertIn("native Workbench route", spec)
+        self.assertIn("Dashboard white-box views are imported into the native Workbench slide-over", spec)
+        self.assertIn("Mount Dashboard white-box views only in the slide-over module host", spec)
         self.assertIn("Draft Artifact Contract", spec)
         self.assertIn("timeline_patch.json", spec)
         self.assertIn("patched_draft_timeline.json", spec)
         self.assertIn("workbench_handoff.json", spec)
         self.assertIn("Do not migrate by copying mock behavior from material_map_canvas.html", spec)
         self.assertIn("node tools\\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>", spec)
-        self.assertIn("shell contains protected editor selectors", spec)
+        self.assertIn("native document directly", spec)
         self.assertIn("monitor-box", spec)
         self.assertIn("lane-video", spec)
 
@@ -453,9 +447,10 @@ class DashboardServerTest(unittest.TestCase):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        # Try fetching SPA shell and legacy dashboard pages
+        # Try fetching native Workbench home, SPA white-box routes, and legacy dashboard pages.
         html_resp = urllib.request.urlopen(f"{base_url}/").read()
-        self.assertIn(b"hermes-spa-dashboard", html_resp)
+        self.assertIn(b"wb-monitor", html_resp)
+        self.assertIn(b"wb-timeline", html_resp)
 
         dash_resp = urllib.request.urlopen(f"{base_url}/dashboard").read()
         self.assertIn(b"hermes-spa-dashboard", dash_resp)
@@ -464,7 +459,8 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn(b"hermes-spa-dashboard", material_resp)
 
         workbench_resp = urllib.request.urlopen(f"{base_url}/workbench").read()
-        self.assertIn(b"hermes-spa-dashboard", workbench_resp)
+        self.assertIn(b"wb-monitor", workbench_resp)
+        self.assertIn(b"wb-timeline", workbench_resp)
 
         legacy_resp = urllib.request.urlopen(f"{base_url}/dashboard/legacy").read()
         self.assertEqual(legacy_resp, b"<html>Dashboard HTML</html>")
@@ -492,10 +488,17 @@ class DashboardServerTest(unittest.TestCase):
         self.start_test_server()
         base_url = f"http://localhost:{self.port}"
 
-        for route in ("/", "/dashboard", "/material-map", "/workbench"):
+        for route in ("/dashboard", "/material-map"):
             with self.subTest(route=route):
                 html = urllib.request.urlopen(f"{base_url}{route}").read().decode("utf-8")
                 self.assertIn("hermes-spa-dashboard", html)
+                self.assertNotIn("MODE_MOCKS", html)
+                self.assertNotIn("material_map_canvas", html)
+        for route in ("/", "/workbench"):
+            with self.subTest(route=route):
+                html = urllib.request.urlopen(f"{base_url}{route}").read().decode("utf-8")
+                self.assertIn("wb-monitor", html)
+                self.assertIn("wb-timeline", html)
                 self.assertNotIn("MODE_MOCKS", html)
                 self.assertNotIn("material_map_canvas", html)
 

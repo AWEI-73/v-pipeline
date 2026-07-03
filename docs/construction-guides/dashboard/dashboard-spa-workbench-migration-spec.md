@@ -1,27 +1,28 @@
 # Dashboard SPA and Workbench Server Merge Spec
 
-Status: implementation contract / 2026-06-21
+Status: archived migration contract, superseded by native single-document Workbench / 2026-07-03
 
 ## Goal
 
-Replace the legacy Dashboard entry with a single Hermes SPA Dashboard. The SPA
-is the main product surface for route review, material-map review, artifacts,
-verification, and Workbench editing. The old Control Index is removed from the
-formal route. Workbench is moved into the same dashboard project and served by
-the same Dashboard server under a bounded `/api/workbench/*` namespace.
+Record the completed migration from the old SPA-hosted Workbench iframe to the
+native single-document Workbench. The old Control Index is removed from the
+formal route. Workbench is served by the same Dashboard server under a bounded
+`/api/workbench/*` namespace. Dashboard SPA views remain as white-box modules
+and compatibility routes, but they are no longer the Workbench host.
 
 ## Formal Routes
 
 | Route | Behavior |
 | --- | --- |
-| `/` | SPA Dashboard shell, default Route view |
-| `/dashboard` | SPA Dashboard shell, default Route view |
+| `/` | Native Workbench single-document app |
+| `/dashboard` | SPA Dashboard white-box compatibility route |
 | `/material-map` | SPA Dashboard shell with Material Map active |
-| `/workbench` | SPA Dashboard shell with Workbench active |
+| `/workbench` | Native Workbench single-document app |
 | `/dashboard/legacy` | Legacy `dashboard_v1` fallback |
 
 The formal routes must not serve `material_map_canvas.html` directly and must
-not contain `MODE_MOCKS`.
+not contain `MODE_MOCKS`. `/` and `/workbench` must expose native Workbench
+markers such as `wb-monitor`, `wb-timeline`, and the four `track-lane` lanes.
 
 ## SPA Layout
 
@@ -82,8 +83,10 @@ dashboard/
     route_review_mockup.html
 ```
 
-During migration, existing files may remain in place for compatibility, but the
-formal routes must load from `dashboard/index.html` and `dashboard/src/*`.
+During migration, existing files may remain in place for compatibility.
+White-box routes load from `dashboard/index.html` and `dashboard/src/*`; the
+formal Workbench app loads from `dashboard/workbench_native/index.html` and
+imports `dashboard/src` views into its slide-over panel.
 
 ## Data Sources
 
@@ -130,12 +133,12 @@ owned by the backend BUILD/render route.
 
 Current state:
 
-- `/workbench` is a SPA Dashboard route.
-- The active editor is still loaded inside `WorkbenchView` through an iframe to
-  `/workbench/index.html`.
-- `WorkbenchView` is a thin host. It may show run context, health status, and
-  draft summaries, but it must not re-layout or reimplement the native editor's
-  monitor/timeline interaction.
+- `/workbench` is the native Workbench route.
+- The active editor is no longer loaded through an iframe.
+- Dashboard white-box views are imported into the native Workbench slide-over
+  panel. They may show run context, health status, draft summaries, route,
+  material-map, artifacts, and verify views, but they must not re-layout or
+  reimplement the native editor's monitor/timeline interaction.
 - `/workbench/index.html` and related files are served from
   `dashboard/workbench_native/`.
 - `/api/workbench/*` is already hosted by the merged Dashboard server.
@@ -145,6 +148,9 @@ Current state:
 Do not migrate by copying mock behavior from material_map_canvas.html. That file
 is a visual reference only; it contains prototype routing, mock state, and
 iframe control code that must not become the formal runtime contract.
+Prototype selectors such as `monitor-box` and `lane-video` are references for
+guarding against accidental mock imports; native truth remains the Workbench
+`wb-monitor`, `wb-timeline`, and `track-lane` markers.
 
 ### Native Editor Protected Zone
 
@@ -172,22 +178,14 @@ It starts a temporary Workbench server and checks the native editor directly at
 1366x900 and 1920x1080: no horizontal page overflow, a 16:9 monitor, and the
 playback controls plus four video/subtitle/audio/effect lanes still present.
 Use `--url http://localhost:8765/workbench` when the merged Dashboard server is
-already running; that route also verifies the `/workbench` SPA host still uses
-`app-workbench`, keeps the native iframe visible in the first viewport, and
-points the iframe at `/workbench/index.html` before entering the iframe for the
-native editor checks. The merged-route guard must also fail if the outer SPA
-shell contains protected editor selectors such as `monitor-box`,
-`timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or
-`lane-video`; those selectors belong to mockups or the native iframe, not to the
-SPA shell.
+already running; that route now verifies the same native document directly.
 
-The current `/workbench` SPA route must therefore optimize the outside shell
-instead of the native editor:
+The current `/workbench` route must therefore optimize the native document
+instead of an outside shell:
 
-- Use `app-workbench` dense/wide layout for the SPA shell.
-- Do not render the Dashboard `pause-banner` on the Workbench route.
-- Keep the iframe visible early in the first viewport.
-- Keep the iframe source as `/workbench/index.html?root=...`.
+- Keep the native monitor, transport, material drawer, inspector, and four-lane
+  timeline mounted.
+- Mount Dashboard white-box views only in the slide-over module host.
 - Do not mirror native Workbench state into duplicate Dashboard controls.
 
 ### Draft Artifact Contract
@@ -304,7 +302,9 @@ removed.
 
 Focused tests must prove:
 
-- `/`, `/dashboard`, `/material-map`, and `/workbench` serve the SPA shell.
+- `/` and `/workbench` serve the native Workbench single-document app.
+- `/dashboard`, `/material-map`, `/verify`, and `/artifacts` serve SPA
+  white-box compatibility views.
 - `/dashboard/legacy` serves legacy dashboard.
 - Formal route HTML does not contain `MODE_MOCKS`.
 - SPA assets are served from `dashboard/src/*`.
@@ -315,7 +315,9 @@ Focused tests must prove:
 
 Browser verification must include:
 
-- Open `/` and wait for SPA header/nav.
+- Open `/` or `/workbench` and wait for the native monitor, transport, and four
+  lanes.
 - Open `/material-map` and wait for a real asset id from the run folder.
-- Open `/workbench` and wait for Workbench view/health.
+- Open the native Workbench slide-over and switch route/material/artifacts/verify
+  modules without losing playback position or clip selection.
 - Save screenshots for all three.

@@ -55,11 +55,11 @@ The native Workbench owns the editing-critical surface:
 - clip selection, drag/replace, trim/source-window interaction, playback
   controls, and patch/handoff actions tied to those lanes.
 
-Dashboard/SPA migration may wrap this surface in a shell, show health and draft
-summaries around it, and pass a `root` parameter into it. It must not duplicate,
-mirror, or reimplement the native monitor or four-lane editor unless a dedicated
-Workbench migration task proves parity for playback, lane interaction, source
-window mapping, and draft artifact writes.
+Dashboard white-box modules may mount beside this surface in the slide-over
+panel and pass a `root` parameter into it. They must not duplicate, mirror, or
+reimplement the native monitor or four-lane editor unless a dedicated Workbench
+migration task proves parity for playback, lane interaction, source-window
+mapping, and draft artifact writes.
 
 The browser guard for this boundary is:
 
@@ -67,13 +67,12 @@ The browser guard for this boundary is:
 node tools\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench
 ```
 
-The guard verifies the SPA host still embeds `/workbench/index.html`, then
-enters the native iframe and checks the 16:9 monitor, playback controls, and
-four timeline lanes. On the SPA host side, it also fails if the outer shell
-duplicates protected editor selectors such as `monitor-box`, `timeline-wrap`,
-`clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or `lane-video`. Run it
-before and after any change touching the iframe shell, native monitor, playback
-controls, timeline lanes, or their responsive layout.
+The guard verifies `/workbench` directly serves the native runtime and checks
+the 16:9 monitor, playback controls, and four timeline lanes. It also fails if
+the host document loses protected editor selectors such as `wb-monitor`,
+`wb-timeline`, `track-lane`, or `lane-video`. Run it before and after any change
+touching the native monitor, playback controls, timeline lanes, slide-over
+panel, or their responsive layout.
 
 The fast HTML/API guard is:
 

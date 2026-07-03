@@ -242,23 +242,10 @@ function assertLayout(result, viewport) {
 
 function assertHostLayout(result, viewport) {
   if (!result.isSpaShell) return;
-  assert.equal(result.appWorkbench, true, `${viewport.width}x${viewport.height}: SPA shell is missing app-workbench class`);
-  assert.ok(result.shell, `${viewport.width}x${viewport.height}: SPA shell missing .workbench-shell`);
-  assert.ok(result.iframe, `${viewport.width}x${viewport.height}: SPA shell missing .workbench-shell iframe`);
-  assert.ok(
-    result.iframeSrc.includes("/workbench/index.html"),
-    `${viewport.width}x${viewport.height}: iframe src is not the native Workbench runtime: ${result.iframeSrc}`,
-  );
-  assert.ok(
-    result.shell.visibleInFirstViewport,
-    `${viewport.width}x${viewport.height}: Workbench iframe shell is not visible in the first viewport`,
-  );
-  assert.ok(result.iframe.width >= 480, `${viewport.width}x${viewport.height}: iframe is too narrow (${result.iframe.width}px)`);
-  assert.ok(result.iframe.height >= 520, `${viewport.width}x${viewport.height}: iframe is too short (${result.iframe.height}px)`);
   assert.deepEqual(
     result.forbiddenShellSelectors,
     [],
-    `${viewport.width}x${viewport.height}: SPA shell must not duplicate native monitor/timeline selectors`,
+    `${viewport.width}x${viewport.height}: SPA compatibility view must not duplicate native monitor/timeline selectors`,
   );
 }
 
