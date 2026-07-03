@@ -51,6 +51,8 @@ COMMAND_GROUPS: Dict[str, str] = {
     "test-tiers": "verify",
     "registry-audit": "verify",
     "asset-path-audit": "verify",
+    "ingest-assets": "material",
+    "gc-assets": "material",
     "e2e-smoke": "acceptance",
     "reviewer-policy": "verify",
     "reviewer-role-review": "verify",

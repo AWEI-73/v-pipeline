@@ -2518,6 +2518,24 @@ def cmd_asset_path_audit(args):
         raise ToolError(f"asset path audit failed: {report['strict_finding_count']} strict finding(s)")
 
 
+def cmd_ingest_assets(args):
+    from video_pipeline_core.asset_store import ingest_assets
+    try:
+        result = ingest_assets(args.run_dir, args.from_dir)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"ingest-assets failed: {exc}") from exc
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_gc_assets(args):
+    from video_pipeline_core.asset_store import gc_assets
+    try:
+        result = gc_assets(args.run_dir, delete=bool(getattr(args, "delete", False)))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ToolError(f"gc-assets failed: {exc}") from exc
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_e2e_smoke(args):
     from video_pipeline_core.e2e_smoke import run_e2e_smoke
     result = run_e2e_smoke(
@@ -2794,6 +2812,8 @@ def _build_video_tools_dispatch():
         "test-tiers": cmd_test_tiers,
         "registry-audit": cmd_registry_audit,
         "asset-path-audit": cmd_asset_path_audit,
+        "ingest-assets": cmd_ingest_assets,
+        "gc-assets": cmd_gc_assets,
         "e2e-smoke": cmd_e2e_smoke,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
@@ -3215,6 +3235,14 @@ def main():
     p_apath.add_argument("run_dir", help="run directory containing artifact JSON files")
     p_apath.add_argument("--strict", action="store_true", help="exit non-zero for strict-family findings")
     p_apath.add_argument("--json", action="store_true", help="print JSON report")
+
+    p_ingest_assets = sub.add_parser("ingest-assets")
+    p_ingest_assets.add_argument("run_dir", help="run directory whose assets/ store will receive files")
+    p_ingest_assets.add_argument("--from", dest="from_dir", required=True, help="directory of external assets")
+
+    p_gc_assets = sub.add_parser("gc-assets")
+    p_gc_assets.add_argument("run_dir", help="run directory whose assets/ store will be scanned")
+    p_gc_assets.add_argument("--delete", action="store_true", help="delete unreferenced assets after reporting")
 
     p_e2e = sub.add_parser("e2e-smoke")
     p_e2e.add_argument("--case", default="stock_story", choices=["stock_story", "single_long_highlight"])
