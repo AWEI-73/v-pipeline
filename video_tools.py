@@ -2501,6 +2501,18 @@ def cmd_registry_audit(args):
         raise ToolError(f"registry audit failed: {report['finding_count']} finding(s)")
 
 
+def cmd_e2e_smoke(args):
+    from video_pipeline_core.e2e_smoke import run_e2e_smoke
+    result = run_e2e_smoke(
+        getattr(args, "case", "stock_story"),
+        keep_dir=bool(getattr(args, "keep_dir", False)),
+        base_dir=getattr(args, "out_dir", None),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise ToolError(f"e2e smoke stalled: {result.get('stalled_action')}")
+
+
 def cmd_run_layout_validate(args):
     from video_pipeline_core.project_workspace import validate_run_layout
     report = validate_run_layout(args.run_dir)
@@ -2764,6 +2776,7 @@ def _build_video_tools_dispatch():
         "workflow-manifest": cmd_workflow_manifest,
         "test-tiers": cmd_test_tiers,
         "registry-audit": cmd_registry_audit,
+        "e2e-smoke": cmd_e2e_smoke,
         "run-layout-validate": cmd_run_layout_validate,
         "workbench-handoff-validate": cmd_workbench_handoff_validate,
         "workbench-draft-rerender": cmd_workbench_draft_rerender,
@@ -3179,6 +3192,11 @@ def main():
                           help="pipeline decision tree markdown")
     p_raudit.add_argument("--write-report", help="optional markdown report path")
     p_raudit.add_argument("--json", action="store_true", help="print JSON report")
+
+    p_e2e = sub.add_parser("e2e-smoke")
+    p_e2e.add_argument("--case", default="stock_story", choices=["stock_story"])
+    p_e2e.add_argument("--keep-dir", action="store_true")
+    p_e2e.add_argument("--out-dir", help="optional temp/run directory for smoke artifacts")
 
     p_rlv = sub.add_parser("run-layout-validate")
     p_rlv.add_argument("run_dir", help="project run directory containing run_layout.json")
