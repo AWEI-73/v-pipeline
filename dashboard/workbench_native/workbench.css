@@ -171,6 +171,23 @@ body {
   padding: 16px;
   z-index: 4;
 }
+.wb-materials.collapsed {
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  padding: 10px 4px !important;
+  overflow: hidden !important;
+}
+.wb-materials.collapsed > *:not(.materials-head) {
+  display: none !important;
+}
+.wb-materials.collapsed .materials-head {
+  justify-content: center !important;
+  margin-bottom: 0 !important;
+}
+.wb-materials.collapsed .materials-head h2,
+.wb-materials.collapsed .materials-head span {
+  display: none !important;
+}
 .materials-head {
   display: flex;
   justify-content: space-between;

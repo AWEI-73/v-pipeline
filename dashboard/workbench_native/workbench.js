@@ -65,7 +65,7 @@
       "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
       "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
       "tf-start", "tf-duration", "tf-time", "tf-strength",
-      "btn-apply-track", "btn-delete-track",
+      "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -1058,6 +1058,16 @@
     els.btn_delete_track.onclick = deleteTrack;
     if (els.asset_search) els.asset_search.oninput = renderMaterialBrowser;
     if (els.asset_family_filter) els.asset_family_filter.onchange = renderMaterialBrowser;
+    if (els.btn_drawer && els.drawer_media) {
+      els.btn_drawer.onclick = function () {
+        var collapsed = els.drawer_media.classList.toggle("collapsed");
+        localStorage.setItem("drawer_collapsed", collapsed ? "true" : "false");
+        window.dispatchEvent(new Event("resize"));
+      };
+      if (localStorage.getItem("drawer_collapsed") === "true") {
+        els.drawer_media.classList.add("collapsed");
+      }
+    }
     PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
     CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
