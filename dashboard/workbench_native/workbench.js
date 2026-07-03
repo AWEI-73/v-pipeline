@@ -66,6 +66,8 @@
       "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
       "tf-start", "tf-duration", "tf-time", "tf-strength",
       "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer", "fit-only",
+      "dico-material", "dico-music", "dico-subtitle", "dico-effect",
+      "dot-material", "dot-music", "dot-subtitle", "dot-effect", "domain-inspector",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -101,6 +103,7 @@
         renderAll();
         loadThumbnails();
         loadProxies();
+        return fetchArtifactsAndUpdateDots();
       })
       .catch(function (err) {
         els.diagnostics.textContent = "載入 preview_timeline 失敗：" + err;
@@ -747,6 +750,7 @@
     showTrackFields(["text", "start", "duration"]);
     seekTo(s.start_sec + 0.001);
     renderTimelineLanes();
+    renderInspector();
   }
 
   function selectCue(id) {
@@ -761,6 +765,7 @@
     showTrackFields(["cuetype", "time", "strength"]);
     seekTo(c.time_sec);
     renderTimelineLanes();
+    renderInspector();
   }
 
   function selectEffect(id) {
@@ -776,6 +781,7 @@
     showTrackFields(["preset", "start", "duration", "strength"]);
     seekTo(e.start_sec + 0.001);
     renderTimelineLanes();
+    renderInspector();
   }
 
   function addCue() {
@@ -786,6 +792,8 @@
       strength: 3, anchor_clip_slot_index: active ? active.slot_index : null,
     });
     state.dirty = true; updateDirty();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
     selectCue(id);
   }
 
@@ -806,6 +814,8 @@
     if (assetId) fx.asset_id = assetId;
     state.effects.push(fx);
     state.dirty = true; updateDirty();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
     selectEffect(id);
   }
 
@@ -827,6 +837,8 @@
     state.dirty = true; updateDirty();
     renderTimelineLanes();
     renderMonitor();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
   }
 
   function deleteTrack() {
@@ -839,6 +851,8 @@
     els.track_inspector.hidden = true;
     state.dirty = true; updateDirty();
     renderTimelineLanes();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
   }
 
   function saveAll() {
@@ -861,11 +875,204 @@
             " [時間軸 " + (s.timeline_edits || 0) + ", 字幕 " + (s.subtitle_edits || 0) +
             ", 音效提示 " + (s.audio_cues || 0) + ", 特效 " + (s.effect_intents || 0) + "]";
           state.dirty = false; updateDirty();
+          fetchArtifactsAndUpdateDots();
         } else {
           els.diagnostics.textContent = "儲存全部被拒絕，未寫入任何檔案：" + JSON.stringify(res.j.errors || res.j);
         }
       })
       .catch(function (err) { els.diagnostics.textContent = "儲存全部失敗：" + err; });
+  }
+
+  // -- domain contract inspector views ---------------------------------- //
+  function updateDomainDots() {
+    var materialActive = true;
+    var musicActive = state.raw && state.raw.audio && state.raw.audio.length > 0;
+    var subtitleActive = state.raw && state.raw.subtitles && state.raw.subtitles.length > 0;
+    var effectActive = (state.raw && state.raw.effects && state.raw.effects.length > 0) || (state.effectAssets && state.effectAssets.length > 0);
+
+    var materialChanged = JSON.stringify(state.work.clips) !== JSON.stringify(state.raw.clips);
+    var musicChanged = state.cues && state.cues.length > 0;
+    var subtitleChanged = JSON.stringify(state.work.subtitles) !== JSON.stringify(state.rawSubs);
+    var effectChanged = JSON.stringify(state.effects) !== JSON.stringify(state.raw.effects || []);
+
+    var artifacts = state.artifacts || {};
+    var draftArtifacts = (artifacts.workbench && artifacts.workbench.draft_artifacts) || {};
+
+    function getDotClass(active, changed, patchKey) {
+      if (!active) return "dot-off";
+      if (changed) return "dot-draft";
+      var patch = draftArtifacts[patchKey] || {};
+      if (patch.exists) return "dot-ok";
+      return "dot-ok";
+    }
+
+    if (els.dot_material) {
+      els.dot_material.className = "dot " + getDotClass(materialActive, materialChanged, "timeline_patch");
+    }
+    if (els.dot_music) {
+      els.dot_music.className = "dot " + getDotClass(musicActive, musicChanged, "audio_cue_patch");
+    }
+    if (els.dot_subtitle) {
+      els.dot_subtitle.className = "dot " + getDotClass(subtitleActive, subtitleChanged, "subtitle_patch");
+    }
+    if (els.dot_effect) {
+      els.dot_effect.className = "dot " + getDotClass(effectActive, effectChanged, "effect_patch");
+    }
+  }
+
+  function fetchArtifactsAndUpdateDots() {
+    var rootParam = window.location.search || "";
+    return Api._fetchJson("/api/artifacts" + rootParam)
+      .then(function (res) {
+        state.artifacts = res;
+        updateDomainDots();
+        if (state.currentDomain) {
+          renderDomainInspector();
+        }
+      })
+      .catch(function (err) {
+        console.error("Failed to fetch artifacts:", err);
+      });
+  }
+
+  function renderDomainInspector() {
+    var d = state.currentDomain;
+    if (!d) return;
+
+    var active = true;
+    var changed = false;
+    var title = "";
+    var patchFile = "";
+    var rows = [];
+    var patchObj = {};
+
+    var summary = (state.artifacts && state.artifacts.workbench && state.artifacts.workbench.draft_summary) || {};
+
+    if (d === "material") {
+      title = "素材契約";
+      patchFile = "timeline_patch.json";
+      active = true;
+      changed = JSON.stringify(state.work.clips) !== JSON.stringify(state.raw.clips);
+      rows = [
+        ["涵蓋", state.work.clips.filter(function (c) { return c.asset_id; }).length + "/" + state.work.clips.length + " 段有素材"],
+        ["人工調整", (summary.timeline_edits || 0) + " 段已修剪"],
+        ["待補", state.work.clips.filter(function (c) { return !c.asset_id; }).length + " 段缺素材"]
+      ];
+      patchObj = buildPatch();
+    } else if (d === "music") {
+      title = "音樂契約";
+      patchFile = "audio_cue_patch.json";
+      active = state.raw && state.raw.audio && state.raw.audio.length > 0;
+      changed = state.cues && state.cues.length > 0;
+      rows = [
+        ["主軌", (state.raw && state.raw.audio && state.raw.audio[0] ? state.raw.audio[0].label : "無")],
+        ["音效提示", (state.cues || []).length + " 個標記"]
+      ];
+      patchObj = {
+        artifact_role: "audio_cue_patch",
+        version: 1,
+        cues: state.cues
+      };
+    } else if (d === "subtitle") {
+      title = "字幕口白契約";
+      patchFile = "subtitle_patch.json";
+      active = state.raw && state.raw.subtitles && state.raw.subtitles.length > 0;
+      changed = JSON.stringify(state.work.subtitles) !== JSON.stringify(state.rawSubs);
+      rows = [
+        ["字幕總數", (state.work.subtitles || []).length + " 條"],
+        ["草稿變更", (summary.subtitle_edits || 0) + " 條已修改"]
+      ];
+      patchObj = {
+        artifact_role: "subtitle_patch",
+        version: 1,
+        subtitles: state.work.subtitles
+      };
+    } else if (d === "effect") {
+      title = "特效契約";
+      patchFile = "effect_patch.json";
+      active = (state.raw && state.raw.effects && state.raw.effects.length > 0) || (state.effectAssets && state.effectAssets.length > 0);
+      changed = JSON.stringify(state.effects) !== JSON.stringify(state.raw.effects || []);
+      rows = [
+        ["特效總數", (state.effects || []).length + " 個意圖"],
+        ["可用特效", (state.effectAssets || []).length + " 種預設"]
+      ];
+      patchObj = {
+        artifact_role: "effect_patch",
+        version: 1,
+        effects: state.effects
+      };
+    }
+
+    var pillText = "已同步";
+    var pillBg = "var(--green-bg)";
+    var pillFg = "var(--green)";
+    if (!active) {
+      pillText = "未啟用";
+      pillBg = "var(--gray-bg)";
+      pillFg = "var(--muted)";
+    } else if (changed) {
+      pillText = "草稿修改中";
+      pillBg = "var(--amber-bg)";
+      pillFg = "var(--amber)";
+    }
+
+    var spaRoute = d === "material" ? "/material-map" :
+                   d === "music" ? "/verify" :
+                   d === "subtitle" ? "/verify" : "/verify";
+
+    var html =
+      '<div style="display:flex;align-items:center;margin-bottom:12px;"><h2 style="flex:1;margin:0;font-size:15px;">' + title + '</h2>' +
+      '<button id="btn-close-domain-inspector" style="padding:2px 8px;cursor:pointer;background:none;border:1px solid var(--border);border-radius:4px;color:inherit;" type="button">✕</button></div>' +
+      '<span class="pill" style="background:' + pillBg + ';color:' + pillFg + ';">' + pillText + '</span>' +
+      rows.map(function(r){
+        return '<div class="row"><span>' + r[0] + '</span><span>' + r[1] + '</span></div>';
+      }).join('') +
+      '<p style="font-size:12px;color:var(--muted);margin:10px 0 6px;">人工修改寫入: <code>' + patchFile + '</code></p>' +
+      '<details style="margin-top:8px;"><summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none;">檢視原始 JSON</summary>' +
+      '<div class="jsonbox" style="margin-top:4px;max-height:220px;overflow-y:auto;background:var(--panel-2);padding:8px;border-radius:6px;font-family:monospace;font-size:11px;white-space:pre;">' + JSON.stringify(patchObj, null, 2) + '</div></details>' +
+      '<button id="btn-expand-whitebox" style="width:100%;margin-top:14px;padding:8px;border-radius:6px;background:none;border:1px solid var(--accent);color:var(--accent);font-weight:600;cursor:pointer;" type="button">展開完整數據 (白盒)</button>';
+
+    els.domain_inspector.innerHTML = html;
+
+    document.getElementById("btn-close-domain-inspector").onclick = resetDomainInspector;
+    document.getElementById("btn-expand-whitebox").onclick = function () {
+      window.location.hash = "#" + spaRoute;
+    };
+  }
+
+  function resetDomainInspector() {
+    state.currentDomain = null;
+    ["material", "music", "subtitle", "effect"].forEach(function (d) {
+      if (els["dico_" + d]) {
+        els["dico_" + d].classList.remove("on");
+      }
+    });
+    renderInspector();
+  }
+
+  function renderInspector() {
+    if (state.currentDomain) {
+      els.inspector_empty.hidden = true;
+      els.inspector_body.hidden = true;
+      els.track_inspector.hidden = true;
+      els.domain_inspector.hidden = false;
+      renderDomainInspector();
+    } else {
+      els.domain_inspector.hidden = true;
+      if (state.selectedSlot != null) {
+        els.inspector_empty.hidden = true;
+        els.inspector_body.hidden = false;
+        els.track_inspector.hidden = true;
+      } else if (state.trackSel != null) {
+        els.inspector_empty.hidden = true;
+        els.inspector_body.hidden = true;
+        els.track_inspector.hidden = false;
+      } else {
+        els.inspector_empty.hidden = false;
+        els.inspector_body.hidden = true;
+        els.track_inspector.hidden = true;
+      }
+    }
   }
 
   // -- inspector / edits ------------------------------------------------ //
@@ -901,6 +1108,7 @@
     }
     renderTimelineLanes();
     renderMaterialBrowser();
+    renderInspector();
   }
 
   function applyOp(op, after) {
@@ -910,6 +1118,8 @@
     renderTimelineLanes();
     renderMonitor();
     updateDirty();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
   }
 
   function applyInspector() {
@@ -997,6 +1207,8 @@
     renderMonitor();
     renderTransport();
     updateDirty();
+    updateDomainDots();
+    if (state.currentDomain) renderDomainInspector();
     selectClip(slotIndex);
   }
 
@@ -1057,6 +1269,7 @@
           els.diagnostics.textContent = note;
           state.dirty = false;
           updateDirty();
+          fetchArtifactsAndUpdateDots();
         } else {
           els.diagnostics.textContent = "Patch 被拒絕：" + JSON.stringify(res.j.errors || res.j);
         }
@@ -1080,6 +1293,7 @@
           els.diagnostics.textContent =
             "契約同步：" + res.j.changes + " 個草稿變更 -> " +
             (res.j.written || []).join(", ") + (codeStr ? " [" + codeStr + "]" : "");
+          fetchArtifactsAndUpdateDots();
         } else {
           // fail-closed: surface the reason (e.g. source window beyond scene bounds)
           var errs = (res.j.errors || [JSON.stringify(res.j)]).join(" | ");
@@ -1137,6 +1351,25 @@
     els.btn_add_fx.onclick = addFx;
     els.btn_apply_track.onclick = applyTrack;
     els.btn_delete_track.onclick = deleteTrack;
+
+    ["material", "music", "subtitle", "effect"].forEach(function (d) {
+      var btn = els["dico_" + d];
+      if (btn) {
+        btn.onclick = function () {
+          if (state.currentDomain === d) {
+            resetDomainInspector();
+          } else {
+            state.currentDomain = d;
+            ["material", "music", "subtitle", "effect"].forEach(function (d2) {
+              if (els["dico_" + d2]) els["dico_" + d2].classList.remove("on");
+            });
+            btn.classList.add("on");
+            renderInspector();
+          }
+        };
+      }
+    });
+
     if (els.asset_search) els.asset_search.oninput = renderMaterialBrowser;
     if (els.asset_family_filter) els.asset_family_filter.onchange = renderMaterialBrowser;
     if (els.fit_only) els.fit_only.onchange = renderMaterialBrowser;
