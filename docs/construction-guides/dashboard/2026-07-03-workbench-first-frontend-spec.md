@@ -446,3 +446,106 @@ archival of legacy pages (own order, can ride with V2-2).
 - **Frontend Smoke Test**: Passed with `"ok": true`.
 - **Unit Test Suite**: Passed successfully.
 
+## V2 Report
+
+### Commits
+
+- **Support fix**: `75ea975a` — `Isolate MV render temp segments on Windows`
+- **V2-1**: `d84940a3` — `Add slide-over module host and port dashboard views`
+- **V2-2**: `196a8e14` — `Serve native workbench as home and retire SPA shell routing`
+- **V2-3**: `a8dcc046` — `Remove retired SPA shell wiring`
+
+### Piece Results
+
+#### V2-1 Additive Module Host
+
+- Added the native Workbench slide-over host.
+- Imported existing Dashboard white-box views from `dashboard/src` into the native page:
+  Route, Material Map, Artifacts, and Verify.
+- Wired pipeline strip steps and "expand full data" actions to the slide-over.
+- Added the run selector to the native top bar.
+- Compact material drawer now uses a tighter one-row / two-column grid shape.
+
+Verification:
+
+- `node tools\workbench_browser_layout_smoke.mjs --artifact-root .tmp\wb_accept_fixture`
+  passed with `"ok": true`.
+- `python tools\workbench_frontend_smoke.py --artifact-root .tmp\wb_accept_fixture --exercise-replace`
+  passed with `"ok": true`.
+- Full suite after the Windows temp-file support fix:
+  `Ran 2354 tests in 744.763s` / `OK`.
+- Browser operation verified on `/workbench/index.html?root=...`:
+  selected a video clip, scrubbed to `1.00 / 2.00s`, opened Material Map
+  white-box, switched to Verify, closed the panel.
+- State preservation verified:
+  playback time remained `1.00 / 2.00s`; selected clip remained selected;
+  material drawer state was unchanged; inspector state was unchanged; four lanes
+  remained mounted.
+
+#### V2-2 Native Workbench Home Route
+
+- `/` and `/workbench` now serve the native Workbench document directly.
+- `/dashboard`, `/material-map`, `/verify`, and `/artifacts` remain SPA
+  white-box compatibility routes.
+- Browser layout guard now treats native direct mode as the source of truth.
+- API contract and migration spec now describe the native single-document route
+  instead of the old SPA-hosted Workbench iframe.
+
+Verification:
+
+- Focused dashboard server tests:
+  `Ran 30 tests in 125.485s` / `OK`.
+- `node tools\workbench_browser_layout_smoke.mjs --artifact-root .tmp\wb_accept_fixture`
+  passed with `"ok": true`.
+- `python tools\workbench_frontend_smoke.py --artifact-root .tmp\wb_accept_fixture --exercise-replace`
+  passed with `"ok": true`.
+- Full suite:
+  `Ran 2355 tests in 747.564s` / `OK`.
+- Browser operation verified on `/workbench?root=...`:
+  selected a clip, scrubbed to `1.00 / 2.00s`, opened Material Map white-box,
+  switched to Artifacts, closed the panel.
+- State preservation verified:
+  playback time remained `1.00 / 2.00s`; selected clip remained selected;
+  drawer/inspector state was unchanged; four lanes remained mounted.
+
+#### V2-3 Retired SPA Shell Cleanup
+
+- Removed the SPA Workbench iframe host from `WorkbenchView`.
+- Replaced it with a lightweight handoff view linking to the native Workbench
+  route and showing draft context.
+- Removed iframe-specific CSS and layout smoke assumptions.
+- Sanitized the SPA render smoke test so it validates structure and contract
+  instead of mojibake text fixtures.
+- Updated the migration and frontend implementation docs to make the native
+  single-document route the current contract.
+
+Verification:
+
+- `node tests/dashboard_spa_render_smoke.mjs` passed.
+- Focused dashboard server tests:
+  `Ran 30 tests in 119.681s` / `OK`.
+- `node tools\workbench_browser_layout_smoke.mjs --artifact-root .tmp\wb_accept_fixture`
+  passed with `"ok": true`.
+- `python tools\workbench_frontend_smoke.py --artifact-root .tmp\wb_accept_fixture --exercise-replace`
+  passed with `"ok": true`.
+- Full suite:
+  `Ran 2355 tests in 675.680s` / `OK`.
+- Browser operation verified on `/workbench?root=...`:
+  selected `.clip-block`, scrubbed to `1.00 / 2.00s`, opened the Material Map
+  white-box through `#pstep-material`, switched to Artifacts, closed via
+  `#btn-whitebox-close`.
+- State preservation verified:
+  before and after both reported `time: "1.00 / 2.00s"`, selected clip count
+  `1`, `laneCount: 4`, and panel hidden after close.
+
+### Recorded Mismatches
+
+1. Full unittest exposed an unrelated Windows temp MP4 lock in `mv_cut.py`.
+   The support commit isolates MV render temp segments into per-run temp folders.
+2. Browser `networkidle` is not a reliable wait condition for the native
+   Workbench because media/proxy requests can keep the page active. Browser
+   verification uses `domcontentloaded` plus `.wb-monitor`.
+3. Existing route/archive cleanup changes were present in the working tree while
+   this V2 task ran. They were not included in the V2 commits.
+4. Running the full suite can regenerate root-level `supply_review.json`; it was
+   removed after verification so the repo root is not polluted by test residue.
