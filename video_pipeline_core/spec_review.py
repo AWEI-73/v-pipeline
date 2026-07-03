@@ -73,7 +73,7 @@ def _seg_id(seg, idx):
 
 def _text_value(value):
     if isinstance(value, str):
-        return value
+        return "" if value.strip().lower() in ("auto", "none") else value
     if isinstance(value, dict):
         parts = []
         for key in ("narrative", "text", "subtitle", "voiceover", "caption"):
@@ -143,6 +143,11 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
 
     target_sec = _parse_target_sec(brief.get("target_length"))
     stock_first = _is_stock_first(contract)
+    enforce_target_length = bool(
+        (brief or {}).get("enforce_target_length")
+        or (brief or {}).get("strict_target_length")
+        or (isinstance(contract, dict) and contract.get("enforce_target_length"))
+    )
 
     # --- B6: requested script duration exceeds evidenced material supply -----
     supply_by_segment = {
@@ -203,17 +208,23 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
         estimated_sec, estimate_source = _estimate_contract_duration_sec(segs)
         if estimated_sec and estimated_sec > 0:
             ratio = estimated_sec / float(target_sec)
-            if ratio < 0.7 or ratio > 1.45:
+            finding = {
+                "rule": "target_length_mismatch",
+                "target_duration_sec": round(float(target_sec), 3),
+                "estimated_duration_sec": round(float(estimated_sec), 3),
+                "duration_ratio": round(ratio, 3),
+                "estimate_source": estimate_source,
+                "message": f"contract estimated duration is {estimated_sec:g}s but "
+                           f"brief.target_length is {float(target_sec):g}s "
+                           f"(ratio {ratio:.2f})",
+                "fix": "revise segment count/narration/durations or add an explicit waiver",
+            }
+            if enforce_target_length and len(segs) > 1 and (ratio < 0.9 or ratio > 1.1):
+                blocking.append(finding)
+            elif ratio < 0.7 or ratio > 1.45:
                 warnings.append({
                     "rule": "target_length_mismatch",
-                    "target_duration_sec": round(float(target_sec), 3),
-                    "estimated_duration_sec": round(float(estimated_sec), 3),
-                    "duration_ratio": round(ratio, 3),
-                    "estimate_source": estimate_source,
-                    "message": f"contract estimated duration is {estimated_sec:g}s but "
-                               f"brief.target_length is {float(target_sec):g}s "
-                               f"(ratio {ratio:.2f})",
-                    "fix": "revise segment count/narration/durations or add an explicit waiver",
+                    **finding,
                 })
 
     # --- W3: implicit mode trap ----------------------------------------------
@@ -448,5 +459,6 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
         "stats": {"segments": len(segs), "blocking": len(blocking),
                   "warnings": len(warnings), "stock_first": stock_first,
                   "target_sec": target_sec, "laziness_signals": laziness_signals,
+                  "enforce_target_length": enforce_target_length,
                   "required_capabilities": sorted(set(requested))},
     }

@@ -25,9 +25,8 @@ class E2ESmokeTest(unittest.TestCase):
         )
         self.assertIsNone(result["stalled_action"])
 
-    @unittest.expectedFailure
     def test_target_length_enforced(self):
-        brief = {"target_length": "30 seconds"}
+        brief = {"target_length": "30 seconds", "enforce_target_length": True}
         contract = {
             "segments": [
                 {"segment": 1, "duration_sec": 30, "source": "local"},

@@ -214,18 +214,23 @@ class WarningRulesTest(unittest.TestCase):
                         has_editorial_design=True)
         self.assertIn("missing_target_length", self._rules(r))
 
-    def test_target_length_mismatch_warns_before_build(self):
+    def test_target_length_mismatch_blocks_when_enforced_before_build(self):
         contract = {"segments": [
             _seg(segment=1, requested_duration_sec=16),
             _seg(segment=2, requested_duration_sec=16),
             _seg(segment=3, requested_duration_sec=16),
         ]}
-        brief = {"video_type": "documentary", "target_length": "3 minutes", "mode": "warm_documentary"}
+        brief = {
+            "video_type": "documentary",
+            "target_length": "3 minutes",
+            "mode": "warm_documentary",
+            "enforce_target_length": True,
+        }
 
         r = review_spec(contract, brief, has_editorial_design=True)
 
-        self.assertTrue(r["ready_for_build"])
-        finding = next(w for w in r["warnings"] if w["rule"] == "target_length_mismatch")
+        self.assertFalse(r["ready_for_build"])
+        finding = next(w for w in r["blocking"] if w["rule"] == "target_length_mismatch")
         self.assertEqual(finding["estimated_duration_sec"], 48.0)
         self.assertEqual(finding["target_duration_sec"], 180.0)
         self.assertLess(finding["duration_ratio"], 0.5)
