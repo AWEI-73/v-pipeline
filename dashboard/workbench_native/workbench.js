@@ -65,7 +65,7 @@
       "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
       "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
       "tf-start", "tf-duration", "tf-time", "tf-strength",
-      "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer",
+      "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer", "fit-only",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -178,6 +178,14 @@
     var selectedClip = state.selectedSlot == null ? null : state.work.clips.find(function (c) {
       return c.slot_index === state.selectedSlot;
     });
+
+    if (els.drawer_media) {
+      var titleH2 = els.drawer_media.querySelector(".materials-head h2");
+      if (titleH2) {
+        titleH2.textContent = selectedClip ? "適合這段的素材" : "可用素材";
+      }
+    }
+
     var cards = selectedClip
       ? Materials.replacementCandidates(assets, selectedClip)
       : assets.map(function (asset) {
@@ -187,6 +195,12 @@
           match_status: "browse",
         });
       });
+
+    if (selectedClip && els.fit_only && els.fit_only.checked) {
+      cards = cards.filter(function (c) {
+        return c.match_status === "accepted" || c.match_status === "candidate";
+      });
+    }
 
     if (els.material_map_summary) {
       els.material_map_summary.textContent = selectedClip
@@ -213,6 +227,20 @@
       var title = document.createElement("div");
       title.className = "material-title";
       title.textContent = a.asset_id;
+
+      var badge = document.createElement("span");
+      if (a.match_status === "accepted") {
+        badge.className = "fit fit-ok";
+        badge.textContent = "符合需求";
+      } else if (a.match_status === "candidate") {
+        badge.className = "fit fit-mid";
+        badge.textContent = "候選";
+      } else {
+        badge.className = "fit fit-low";
+        badge.textContent = "其他";
+      }
+      title.appendChild(badge);
+
       var meta = document.createElement("div");
       meta.className = "material-meta";
       var scene = a.scene || {};
@@ -862,6 +890,9 @@
 
     // seek to clip start for immediate visual feedback
     seekTo(clip.timeline_start_sec + 0.001);
+    if (els.fit_only) {
+      els.fit_only.checked = true;
+    }
     renderTimelineLanes();
     renderMaterialBrowser();
   }
@@ -1058,6 +1089,7 @@
     els.btn_delete_track.onclick = deleteTrack;
     if (els.asset_search) els.asset_search.oninput = renderMaterialBrowser;
     if (els.asset_family_filter) els.asset_family_filter.onchange = renderMaterialBrowser;
+    if (els.fit_only) els.fit_only.onchange = renderMaterialBrowser;
     if (els.btn_drawer && els.drawer_media) {
       els.btn_drawer.onclick = function () {
         var collapsed = els.drawer_media.classList.toggle("collapsed");

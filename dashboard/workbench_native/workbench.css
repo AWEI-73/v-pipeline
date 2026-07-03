@@ -737,3 +737,24 @@ body {
 #btn-save-patch { background: var(--accent); border-color: var(--accent); color: #fff; }
 #btn-save-patch:hover { background: var(--accent-hover); }
 .dirty { color: var(--warn) !important; font-weight: 700; }
+
+/* --- FIT BADGES --- */
+.fit {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  float: right;
+  font-weight: normal;
+}
+.fit-ok {
+  background: #eaf3de;
+  color: #3b6d11;
+}
+.fit-mid {
+  background: #faeeda;
+  color: #854f0b;
+}
+.fit-low {
+  background: #f1efe8;
+  color: #807e77;
+}
