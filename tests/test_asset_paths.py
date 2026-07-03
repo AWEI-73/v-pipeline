@@ -122,6 +122,30 @@ class AssetPathAuditCliTest(unittest.TestCase):
         report = json.loads(proc.stdout)
         self.assertEqual(report["strict_finding_count"], 1)
 
+    def test_strict_mode_fails_for_audio_and_effect_family_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "audio_mix_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "audio_mix_report",
+                    "output_audio": "/tmp/run/final_audio.wav",
+                }),
+                encoding="utf-8",
+            )
+            (run_dir / "motion_graphics_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "motion_graphics_manifest",
+                    "render_outputs": [{"path": "/tmp/run/motion_graphics/title.ass"}],
+                }),
+                encoding="utf-8",
+            )
+
+            proc = self.run_cli(str(run_dir), "--strict", "--json")
+
+        self.assertEqual(proc.returncode, 1)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["strict_finding_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

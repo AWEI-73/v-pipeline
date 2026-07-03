@@ -62,10 +62,11 @@ class MotionGraphicsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             result = motion_graphics.write_motion_graphics_artifacts(self._contract(), d)
             manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
-            self.assertTrue(Path(manifest["render_outputs"][0]["path"]).exists())
+            self.assertEqual(manifest["motion_graphics_contract"], "motion_graphics_contract.json")
+            self.assertEqual(manifest["motion_graphics_render_plan"], "motion_graphics_render_plan.json")
+            self.assertEqual(manifest["render_outputs"][0]["path"], "motion_graphics/title_001.ass")
+            self.assertTrue((Path(d) / manifest["render_outputs"][0]["path"]).exists())
         self.assertTrue(result["ok"])
-        self.assertEqual(manifest["motion_graphics_contract"], result["contract"])
-        self.assertEqual(manifest["motion_graphics_render_plan"], result["render_plan"])
         self.assertEqual(len(manifest["render_outputs"]), 1)
         output = manifest["render_outputs"][0]
         self.assertEqual(output["backend"], "ffmpeg_libass")
@@ -297,7 +298,7 @@ class MotionGraphicsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             result = motion_graphics.write_motion_graphics_artifacts(contract, d)
             manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
-            ass_path = Path(manifest["render_outputs"][0]["path"])
+            ass_path = Path(d) / manifest["render_outputs"][0]["path"]
             content = ass_path.read_text(encoding="utf-8-sig")
 
         self.assertIn(r"\move(", content)

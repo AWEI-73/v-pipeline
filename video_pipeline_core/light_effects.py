@@ -6,6 +6,7 @@ explicit operations. It does not call heavy motion graphics backends.
 import json
 from pathlib import Path
 
+from .asset_paths import relativize_payload_refs
 from .effect_contract import validate_effect_intent_plan
 
 
@@ -192,7 +193,7 @@ def _write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(relativize_payload_refs(path.parent, data), f, ensure_ascii=False, indent=2)
     return str(path)
 
 

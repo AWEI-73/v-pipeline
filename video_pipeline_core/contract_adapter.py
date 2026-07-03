@@ -483,7 +483,7 @@ def _resolve_audio_ready_for_build(out_dir: Path, legacy_music_path=None) -> dic
         "rendered_video": False,
     }
     handoff_path = out_dir / "audio_build_handoff.json"
-    _write_json(handoff_path, handoff)
+    _write_portable_json(handoff_path, handoff)
     return {
         "handoff_path": handoff_path,
         "handoff": handoff,
@@ -1296,7 +1296,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             res.get("plan"),
             final_video=out_path if out_path.exists() else None,
         )
-        _write_json(light_effects_paths["manifest"], light_manifest_payload)
+        _write_portable_json(light_effects_paths["manifest"], light_manifest_payload)
     from . import edit_artifacts  # noqa: PLC0415
     edit_paths = edit_artifacts.write_edit_artifacts(
         payload,
@@ -1343,6 +1343,10 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
             )
             with open(motion_graphics_paths["manifest"], encoding="utf-8") as f:
                 motion_manifest_payload = json.load(f)
+            motion_manifest_payload = motion_graphics.resolve_motion_graphics_refs(
+                motion_manifest_payload,
+                out_path.parent,
+            )
             if out_path.exists():
                 composite_result = motion_graphics.composite_motion_graphics_outputs(
                     out_path,
@@ -1354,7 +1358,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                 }
                 if composite_result.get("stderr"):
                     motion_manifest_payload["composite_result"]["stderr"] = composite_result["stderr"][-2000:]
-                _write_json(motion_graphics_paths["manifest"], motion_manifest_payload)
+                _write_portable_json(motion_graphics_paths["manifest"], motion_manifest_payload)
             if (build_profile_payload.get("render_profile") == "light_effects"
                     and light_effects_paths.get("plan")
                     and light_effects_paths.get("manifest")):
@@ -1368,7 +1372,7 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
                     light_manifest_payload,
                     motion_manifest_payload.get("render_outputs"),
                 )
-                _write_json(light_effects_paths["manifest"], light_manifest_payload)
+                _write_portable_json(light_effects_paths["manifest"], light_manifest_payload)
     state_path = out_path.parent / "state.json"
 
     # Ensure subtitles.srt exists (needed for verify_result)

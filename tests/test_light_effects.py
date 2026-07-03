@@ -122,7 +122,7 @@ class LightEffectsTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(plan["artifact_role"], "light_effects_plan")
         self.assertEqual(manifest["artifact_role"], "light_effects_manifest")
-        self.assertEqual(manifest["light_effects_plan"], result["plan"])
+        self.assertEqual(manifest["light_effects_plan"], "light_effects_plan.json")
 
     def test_baseline_review_exposes_plan_only_effect_gaps(self):
         plan = light_effects.build_light_effects_plan(

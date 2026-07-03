@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
+from .asset_paths import relativize_payload_refs
 from .platform_tools import resolve_ffmpeg, resolve_ffprobe
 
 LOUDNESS_FILTER = "loudnorm=I=-18:TP=-1.5:LRA=11"
@@ -540,7 +541,10 @@ def execute_audio_mix_plan(
             "blocking": blocking,
             "next_action": "repair_audio_mix_plan",
         }
-        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        report_path.write_text(
+            json.dumps(relativize_payload_refs(report_path.parent, report), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         return {"ok": False, "failed_stage": failed_stage, "audio_mix_report": report}
 
     ffmpeg = ffmpeg or resolve_ffmpeg()
@@ -603,7 +607,10 @@ def execute_audio_mix_plan(
         "blocking": [],
         "next_action": "audio_ready_for_build",
     }
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path.write_text(
+        json.dumps(relativize_payload_refs(report_path.parent, report), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return {"ok": True, "final_audio": str(output_path), "audio_mix_report": report}
 
 

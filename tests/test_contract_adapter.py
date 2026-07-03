@@ -314,7 +314,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(captured["music_path"], str(final_audio))
             self.assertEqual(captured["music_structure_audio"], str(final_audio))
             handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
-            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            self.assertEqual(handoff["selected_audio"], "final_audio.wav")
             self.assertEqual(handoff["selection_reason"], "audio_ready_final_audio")
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
@@ -405,7 +405,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertIn("audio_build_handoff", result["artifacts"])
             self.assertFalse((outdir / "final.mp4").exists())
             handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
-            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            self.assertEqual(handoff["selected_audio"], "final_audio.wav")
             self.assertFalse(handoff["rendered_video"])
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
@@ -515,7 +515,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertFalse((outdir / "final.mp4").exists())
             self.assertTrue((outdir / "audio_build_handoff.json").is_file())
             handoff = json.loads((outdir / "audio_build_handoff.json").read_text(encoding="utf-8"))
-            self.assertEqual(handoff["selected_audio"], str(final_audio))
+            self.assertEqual(handoff["selected_audio"], "final_audio.wav")
             manifest = json.loads((outdir / "artifact_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["final_audio"], "final_audio.wav")
             self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
@@ -1027,7 +1027,7 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["motion_graphics_manifest"], "motion_graphics_manifest.json")
             self.assertEqual(mg_manifest["render_outputs"][0]["status"], "asset_ready")
             self.assertEqual(mg_manifest["composite_result"]["status"], "failed")
-            self.assertTrue(Path(mg_manifest["render_outputs"][0]["path"]).exists())
+            self.assertTrue((outdir / mg_manifest["render_outputs"][0]["path"]).exists())
 
     def test_run_contract_stock_first_writes_route_and_stock_payload(self):
         contract = {

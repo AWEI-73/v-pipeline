@@ -11,6 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from .asset_paths import relativize_payload_refs, resolve_asset_ref
 from .effect_contract import validate_effect_intent_plan
 
 
@@ -295,8 +296,33 @@ def _write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(relativize_payload_refs(path.parent, data), f, ensure_ascii=False, indent=2)
     return str(path)
+
+
+_MANIFEST_PATH_KEYS = {
+    "path",
+    "html_path",
+    "frames_dir",
+    "composited_video",
+    "motion_graphics_contract",
+    "motion_graphics_render_plan",
+}
+
+
+def resolve_motion_graphics_refs(payload, run_dir):
+    """Resolve persisted motion-graphics asset refs before backend use."""
+
+    def _resolve(value, key=None):
+        if isinstance(value, dict):
+            return {item_key: _resolve(item_value, item_key) for item_key, item_value in value.items()}
+        if isinstance(value, list):
+            return [_resolve(item) for item in value]
+        if key in _MANIFEST_PATH_KEYS and isinstance(value, str) and value:
+            return str(resolve_asset_ref(run_dir, value))
+        return value
+
+    return _resolve(json.loads(json.dumps(payload, ensure_ascii=False)))
 
 
 def _ass_time(seconds):

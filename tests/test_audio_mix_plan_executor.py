@@ -116,6 +116,8 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             self.assertTrue(payload["music_included"])
             self.assertFalse(payload["narration_included"])
             self.assertFalse(payload["rendered_video"])
+            self.assertEqual(payload["output_audio"], "final_audio.wav")
+            self.assertEqual(payload["tracks"][0]["audio_file"], "audio/sources/mv.wav")
             self.assertIn("peak_dbfs", payload)
             self.assertLessEqual(payload["peak_dbfs"], -0.5)
 

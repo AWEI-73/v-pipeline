@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 POSIX_ABSOLUTE_RE = re.compile(r"^/[^/]")
-STRICT_FAMILIES: set[str] = {"build", "material"}
+STRICT_FAMILIES: set[str] = {"audio", "build", "effect", "material"}
 
 
 @dataclass(frozen=True)
@@ -141,7 +141,7 @@ def classify_artifact_family(path: Path, payload: Any, dictionary_names: set[str
         return "material"
     if any(token in key for token in ("audio", "soundtrack", "music", "voiceover", "narration", "subtitle")):
         return "audio"
-    if any(token in key for token in ("effect", "remotion", "visual_technique")):
+    if any(token in key for token in ("effect", "remotion", "visual_technique", "motion_graphics")):
         return "effect"
     if any(token in key for token in ("timeline", "build", "handoff", "edit_decision")):
         return "build"
