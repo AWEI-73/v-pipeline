@@ -339,9 +339,11 @@ lost playback/selection state) — removing the iframe removes the jank
 class entirely.
 
 Sequencing is add-first, remove-later, because `tests/test_dashboard_server.py`
-asserts the SPA shell today. Three pieces, two implementers:
+asserts the SPA shell today. Three pieces, single implementer (Codex,
+reassigned 2026-07-03 — one owner through the switchover beats a mid-change
+handoff). Pieces stay in this order; each piece fully green before the next.
 
-### Piece V2-1 (Gemini, additive only — SPA untouched, guards must stay green)
+### Piece V2-1 (additive only — SPA untouched, guards must stay green)
 
 1. Add a slide-over panel host to the native page: a right-side full-height
    panel (~640px, above the page with a scrim on the remaining area is NOT
@@ -367,7 +369,7 @@ asserts the SPA shell today. Three pieces, two implementers:
    every slide-over module three times leaves playback position, clip
    selection, and drawer state intact (verify in a real browser).
 
-### Piece V2-2 (Codex, the switchover — server + tests + docs)
+### Piece V2-2 (the switchover — server + tests + docs)
 
 1. `tools/dashboard_server.py`: serve the native workbench page as the home
    route; keep legacy SPA shell reachable at an explicit legacy path or
@@ -381,7 +383,7 @@ asserts the SPA shell today. Three pieces, two implementers:
    (mark the shell retired).
 4. Acceptance: full suite green; both guards green against the new home.
 
-### Piece V2-3 (Gemini, cleanup after V2-2)
+### Piece V2-3 (cleanup after V2-2)
 
 1. Remove SPA-shell-only wiring that piece V2-1 kept alive (router shell,
    shell header), keeping the `dashboard/src` modules that the native page
