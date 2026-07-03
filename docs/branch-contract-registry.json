@@ -756,7 +756,8 @@
           ],
           "artifacts_out": [
             "final_review_bundle.json",
-            "final.mp4"
+            "final.mp4",
+            "final_promotion_report.json"
           ],
           "gate": "delivery gate",
           "next_actions_on_pass": [

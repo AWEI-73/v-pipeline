@@ -244,6 +244,32 @@
         "Is delivery blocked when evidence is missing or contradictory?"
       ],
       "canonical_write_policy": "read_only"
+    },
+    {
+      "artifact_name": "final_promotion_report.json",
+      "owner_branch": "main-pipeline",
+      "purpose": "Record the explicit operator decision that promoted a verified preview package into the canonical final.mp4.",
+      "semantic_inputs": [
+        "verified_preview_package.json",
+        "verified_preview_review_decision.json",
+        "operator delivery approval"
+      ],
+      "functional_parameters": [
+        {"name": "promotion_status", "description": "Promoted status, reviewer identity, and whether an existing final.mp4 was overwritten."},
+        {"name": "source_evidence", "description": "Relative refs to the source package, packaged candidate video, and the written final video."},
+        {"name": "companion_writes", "description": "Whether delivery_requirements.json and audio_mix_report.json were written as promotion companions."},
+        {"name": "follow_up", "description": "The recorded next_action after promotion, currently write_delivery_gate_report."}
+      ],
+      "downstream_consumers": [
+        "delivery_gate.json",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Was the package status ready_for_operator_delivery_review before promotion?",
+        "Does final.mp4 trace back to the packaged candidate video?",
+        "Are the companion delivery artifacts consistent with the promoted output?"
+      ],
+      "canonical_write_policy": "canonical_candidate"
     }
   ]
 }
