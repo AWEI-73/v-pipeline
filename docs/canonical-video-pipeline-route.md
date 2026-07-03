@@ -25,6 +25,42 @@ Generated material, real footage, human-picked footage, and Workbench edits all
 must return to the same artifact route. No surface may silently become the new
 truth.
 
+### Two-Axis Layering
+
+The route has two independent axes that must not be collapsed into each other.
+
+The implementation stack is:
+
+```text
+Tools -> Skills -> Route
+```
+
+- Tools are deterministic command surfaces and implementation modules.
+- Skills are role contracts for agents and operators.
+- Route is the control loop that reads artifacts and decides the next bounded
+  action.
+
+The functional layers are:
+
+```text
+SPEC -> BUILD -> VERIFY -> DECISION LOG -> Route
+```
+
+- SPEC defines what to make: brief, story, contract, material needs, subtitle,
+  voiceover, audio, and effect intent.
+- BUILD makes it: material selection, timeline, render, audio/subtitle/effect
+  execution, and build artifacts.
+- VERIFY checks it: technical delivery, content alignment, material evidence,
+  subtitle readability, audio, effects, and reviewer gates.
+- `state.json` / `decision_log.json` is the DECISION LOG layer. It is the audit
+  spine and the only route-facing interface from VERIFY back to route.
+
+Route is not itself SPEC, BUILD, or VERIFY. It reads the DECISION LOG layer,
+especially `state.json.next_action`, then chooses which functional layer to
+re-enter and whether the rerun is full-route or bounded to specific segments.
+VERIFY must not directly rewrite SPEC or BUILD truth; it records the verdict and
+next action for route to dispatch.
+
 The route has one main spine, plus child contracts that can call bounded side
 branches. The child contracts keep the route extensible without creating a new
 pipeline for every feature:
@@ -52,13 +88,13 @@ Current construction guide:
 | 1 | Story Soul | Create story world, narrative device, emotional spine, and core idea before technical shot planning. | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `blueprint-to-contract` when compiling from blueprint | `story_soul_blueprint.json`, screenplay beats, director shot plan | Stop if story lacks a narrative device or character/emotional spine. |
 | 2 | Director Shot Plan | Convert story into concrete beats, shot purposes, visual families, audio/subtitle intent, material needs, and required effect design contracts. | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `video-effect-factory.md` | `effect-intent-plan`, `validate-needs` | `material_needs.json`, `effect_intent_plan.json`, `effect_design_map.json`, `effect_contract.json`, subtitle plan | Stop if must-have needs are vague or untestable, or if required effects lack reviewable contracts. |
 | 3 | Material Truth | Inventory real material, generate missing material if needed, and attach evidence to needs. | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `material-generation-fallback`, `generated-image-provider-packet`, `generated-material-import`, `generated-material-review` | per-asset `.map.json`, `project_material_map.json`, `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed material map | Stop if material is missing, unreviewed, dangling, or insufficient for must-have needs. |
-| 4 | Coverage / Decision Gate | Compare needs to accepted material evidence; decide build, wait, generate, reshoot, rewrite, drop, or waive. | `gap-analyzer.md`, `shooting-brief.md`, `route.md` | `material-delta`, `lineage-link`, `material-revision`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD is blocked if delta is broken or must-have gaps lack valid fallback/waiver. |
+| 4 | Coverage / Decision Gate | Compare needs to accepted material evidence; decide build, wait, generate, reshoot, rewrite, drop, or waive. | `gap-analyzer.md`, `shooting-brief.md`, `video-pipeline-route.md` | `material-delta`, `lineage-link`, `material-revision`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD is blocked if delta is broken or must-have gaps lack valid fallback/waiver. |
 | 5 | BUILD Planning | Select windows, order material, create sequence/opening/story arc plans, subtitles, audio cues, and effect intents. | `editor.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `contract-adapt`, `contract-dry-build`, `rank-local`, `match-mv`, internal SRP/VD planning in `contract-run` | `generated_mv_script.json`, `timeline_build.json`, `sfx_cues`, story arc/opening/sequence traces | Stop if planning produces GAP, unrenderable windows, or contract/runtime mismatch. |
 | 6 | Official Render | Produce canonical video through backend renderer. | `editor.md` | `contract-run`, `script-run`, `assemble`, `merge-final`, `burnsub`, `mix-audio`, `sfx-mix` | `final.mp4`, `subtitles.srt`, `artifact_manifest.json`, `state.json` | Official output only exists after render + verify path succeeds. |
 | 7 | Verify | Check technical quality, content alignment, subtitles, black frames, visual fatigue, and delivery readiness. | `verify.md` | `verify`, `black-frame-audit`, `caption-audit`, `new-visual-audit`, `visual-audit`, `timeline-audit`, `verify-evidence` | `verify_result.json`, audit reports, contact sheet, review report | If failure is factual/material, return to Material Truth or Coverage Gate. If failure is finishing/editing, route to Brownfield Edit. |
 | 8 | Workbench Draft Review | Let humans/agents inspect composition, adjust draft timing/subtitles/audio/effect markers, and export preview/draft patches. | `dashboard.md`, `brownfield-edit.md` | `workbench_server.py`, `preview_timeline.py`, `timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `workbench_revision_request.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft preview/export | Workbench must not overwrite canonical timeline, material map, or final. |
 | 9 | Brownfield Edit / Finishing | Apply bounded fixes after review: subtitle/audio/effect patch, generated effect assets, Effect Factory route, Remotion adapter route, or small material replacement. | `brownfield-edit.md`, `video-effect-factory.md`, `remotion-effect-worker.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `remotion-prompt-pack`, `remotion-worker-outputs`, `remotion-worker-smoke`, `remotion-composite-draft`, `light-effects-plan` | `workbench_handoff.json`, `workbench_revision_request.json`, `effect_revision_request.json`, `effect_design_map.json`, `effect_contract.json`, `effect_review.json`, `effect_handoff.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If edit changes material truth, return to Material Truth / Delta. If it only changes finishing, review effect handoff, rerender/draft, then verify. |
-| 10 | Delivery | Produce final report, artifacts, and handoff. | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools, `validate_pipeline_run_folder --complete-video` | `final.mp4`, `delivery_requirements.json`, `narration_manifest.json`, `music_manifest.json`, `audio_mix_report.json`, `subtitles.srt`, `frame_evidence.json`, `effect_render_verification.json`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, required media streams, usable narration audio, readable review artifacts, language match, frame-level material evidence when real material is used, rendered-effect verification when effects are planned, generated-material consistency review, delivery manifests, no unresolved reviewer revise/block states, and known limitations. Complete-video validation has no warning channel: warnings are promoted to errors. |
+| 10 | Delivery | Produce final report, artifacts, and handoff. | `video-pipeline-route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, run layout tools, `validate_pipeline_run_folder --complete-video` | `final.mp4`, `delivery_requirements.json`, `narration_manifest.json`, `music_manifest.json`, `audio_mix_report.json`, `subtitles.srt`, `frame_evidence.json`, `effect_render_verification.json`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark delivery complete without final path, verify status, required media streams, usable narration audio, readable review artifacts, language match, frame-level material evidence when real material is used, rendered-effect verification when effects are planned, generated-material consistency review, delivery manifests, no unresolved reviewer revise/block states, and known limitations. Complete-video validation has no warning channel: warnings are promoted to errors. |
 
 ## Skill Design Rules
 

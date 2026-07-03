@@ -50,17 +50,17 @@ Use this with:
 
 | Stage | Stable name | Main decision | Skill(s) | Tool entrypoints | Main artifacts | Pass / stop rule | Return route |
 |---|---|---|---|---|---|---|---|
-| 0 | Video Intent Planner | What are we making, for whom, with what inputs? Decide `input_state` and choose `entry_path`: material-first, structure-first, or needs-context before deeper story/build work. `Intake` is the legacy label. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md`, `route.md` | `video-intent-plan`, `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | `video_intent.json`, project brief, run folder | Stop if audience, goal, input state, material/text availability, generation permission, or handoff changes the plan. | Back to user / brief refinement |
+| 0 | Video Intent Planner | What are we making, for whom, with what inputs? Decide `input_state` and choose `entry_path`: material-first, structure-first, or needs-context before deeper story/build work. `Intake` is the legacy label. | `video-intent-planner.md`, `video-workflow.md`, `video-pipeline.md`, `video-pipeline-route.md` | `video-intent-plan`, `project-init`, `project-new-run`, `commands-manifest`, `workflow-manifest` | `video_intent.json`, project brief, run folder | Stop if audience, goal, input state, material/text availability, generation permission, or handoff changes the plan. | Back to user / brief refinement |
 | 1 | Story Soul | What is the narrative device and emotional spine? | `story-soul-blueprint.md`, `blueprint-interview.md`, `writer.md` | `story-soul-blueprint`, `story-soul-to-contract`, `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` | `story_soul_blueprint.json`, screenplay beats, director shot plan, `segment_contract.json` bridge | Stop if the output is just a parameter sheet with no conflict/turn/feeling. | Intake / writer refinement |
 | 2 | Director Shot Plan | What exact shots, audio, subtitles, effects, and material needs prove the story? | `director.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md`, `video-effect-factory.md`, `spec-contract.md` | `validate-needs`, `effect-intent-plan`, `spec-review`, `capability-manifest`, `supply-review` | `material_needs.json`, `effect_intent_plan.json`, `effect_design_map.json`, `effect_contract.json`, subtitle/audio intent, `segment_contract.json` | Stop if must-have needs are vague, untestable, unsupported, or if required effects lack a reviewable contract. | Story Soul / Director refinement |
 | 3 | Material Truth | What real or generated assets can satisfy each need? | `material-map.md`, `curator.md`, `material-generation-fallback.md`, `generated-material-producer.md` | `project-material-map`, `material-map-lifecycle`, `source-section-map`, `source-motion-profile`, `source-material-matrix`, `material-generation-fallback`, `generated-image-provider-packet`, `codex-imagegen-provider-fill`, `generated-material-import`, `generated-material-review`, `visual-diversity-review`, `visual-family-normalize` | per-asset `.map.json`, `project_material_map.json`, `source_section_map.json`, `source_motion_profile.json`, `source_motion_points.jpg`, `source_material_matrix.json`, `source_material_matrix_contact_sheet.jpg`, `material_generation_fallback.json`, `generated_provider_packet.json`, generated manifests, reviewed map | Stop if maps are dangling, unreviewed, missing must-have evidence, generated candidates are not accepted, or one-long-source highlight windows lack section/motion/matrix evidence. | Material generation / curator review |
-| 4 | Coverage Gate | Are needs covered, thin, missing, or broken? | `gap-analyzer.md`, `shooting-brief.md`, `route.md` | `lineage-link`, `material-delta`, `material-revision`, `contract-dry-build`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD only if `delta.ok == true` and `ready_for_build == true`, or accepted revision/waiver re-gates cleanly. | Material Truth / Story revision |
+| 4 | Coverage Gate | Are needs covered, thin, missing, or broken? | `gap-analyzer.md`, `shooting-brief.md`, `video-pipeline-route.md` | `lineage-link`, `material-delta`, `material-revision`, `contract-dry-build`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD only if `delta.ok == true` and `ready_for_build == true`, or accepted revision/waiver re-gates cleanly. | Material Truth / Story revision |
 | 5 | BUILD Planning | Which accepted windows become timeline clips, sequence beats, opening, arc, audio/subtitle/effect cues? | `editor.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `contract-adapt`, `contract-dry-build`, `rank-local`, `match-mv`, `voiceover-provider-plan`, internal VD/SRP planning in `contract-run` | `generated_mv_script.json`, `rough_cut_plan.json`, `timeline_build.json`, `audio_build_handoff.json`, `subtitle_voiceover_build_handoff.json`, `voiceover_provider_plan.json`, `narration_manifest.json`, `effect_handoff.json`, SRP traces, `sfx_cues`, subtitle plan | Stop if planning creates GAP, unrenderable windows, bad window ranges, required voiceover is not ready/deferred, or contract/runtime mismatch. | Material Truth / Coverage Gate |
 | 6 | Official Render | Produce the canonical video. | `editor.md` | `contract-run`, `script-run`, `assemble`, `merge-final`, `burnsub`, `mix-audio`, `sfx-mix`, `gen-bgm`, `music-fetch` | `final.mp4`, `subtitles.srt`, `artifact_manifest.json`, `state.json` | Pass only if canonical render path succeeds and artifacts are current. | BUILD Planning / runtime fix |
 | 7 | Verify | Does the output match story, material truth, subtitles, audio, and technical constraints? | `verify.md` | `verify`, `verify-evidence`, `final-product-verify`, `timeline-audit`, `broll-audit`, `new-visual-audit`, `black-frame-audit`, `caption-audit`, `keyframe-grid`, `visual-audit`, `semantic-novelty-audit`, `action-progression-audit`, `replay-acceptance` | `verify_result.json`, `final_product_verify_bundle.json`, audit reports, contact sheet, review report | Stop on tier-1 defects; tier-2 findings route to quality/brownfield work. | Material Truth or Brownfield Edit |
 | 8 | Workbench Draft Review | Can a human/agent inspect and patch the material composition without changing truth? | `dashboard.md`, `brownfield-edit.md` | `tools/workbench_server.py`, `tools/preview_timeline.py`, `tools/timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft export | Drafts must not overwrite canonical timeline/map/final. | Brownfield Edit / official rerender |
 | 9 | Brownfield Edit / Finishing | What small reviewed fixes or finishing assets are needed after verify/review? | `brownfield-edit.md`, `video-effect-factory.md`, `remotion-effect-worker.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `light-effects-plan`, `remotion-prompt-pack`, `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `workbench-draft-rerender` | `effect_revision_request.json`, `effect_design_map.json`, `effect_contract.json`, `effect_review.json`, `effect_handoff.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If it changes material truth, return to Stage 3/4. If finishing-only, review the effect handoff, draft/rerender, then verify. | Verify or Material Truth |
-| 10 | Delivery | What can be handed off, with what limitations? | `route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, `run-layout-validate`, `operator-flow-acceptance` | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark complete without output path, verify evidence, and known limitations. | Verify / Brownfield Edit |
+| 10 | Delivery | What can be handed off, with what limitations? | `video-pipeline-route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, `run-layout-validate`, `operator-flow-acceptance` | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark complete without output path, verify evidence, and known limitations. | Verify / Brownfield Edit |
 
 ## Reviewer Policy
 
@@ -370,6 +370,33 @@ If false:
 - shorten/rewrite/drop segment;
 - explicit waiver only when appropriate;
 - never silently substitute wrong material.
+
+#### Node14 Revision Loop / Change Request Contract
+
+Node14 is a compatibility alias for the Brownfield Edit / Finishing route. A
+change request starts as a reviewed revision plan, not as an ad hoc rebuild.
+The route must preserve three deltas:
+
+- `spec_delta`: which segment contract, text layer, shot purpose, material need,
+  subtitle, voiceover, audio, or effect requirement changed.
+- `build_delta`: which rendered or planned build items need replacement,
+  including affected segments, source windows, timeline entries, generated
+  assets, audio/subtitle/effect markers, and draft patch artifacts.
+- `verify_delta`: which verification checks must be rerun after the change,
+  including caption/audio/effect/material evidence and final delivery gates.
+
+The revision plan also records `version` and the rerender route. If a change is
+localized, use a bounded segment route such as `--only-seg` and then rerun the
+required verification from `verify_delta`; do not re-open unrelated brief,
+material-map, or build decisions. If the change alters story, material truth,
+or delivery requirements, return to the owning route stage and recompute fresh
+gates before BUILD.
+
+`state.json.next_action` is the route-facing integration point for this loop.
+Dashboard or Workbench review surfaces may display or write reviewed decisions,
+but they must not overwrite route truth. A dashboard overwrite request must be
+represented as a change request artifact, update `state.json.next_action`, and
+return through the same revision loop before any rerender is considered current.
 
 ### 5. BUILD Planning
 
