@@ -50,12 +50,13 @@
         <span class="dot dot-off" id="dot-effect"></span>
       </button>
       <button class="pipetoggle" id="btn-pipestrip" type="button" style="margin-right: 12px; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: none; color: inherit;">管線現況</button>
+      <button id="btn-save-all" type="button" style="margin-right: 12px; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; background: var(--accent); color: white; border: none; font-weight: 600;">儲存並交給 agent</button>
       <span class="badge badge-warn">草稿編輯</span>
       <span class="badge">正式輸出 = ffmpeg BUILD</span>
     </div>
   </header>
 
-  <div class="pipestrip" id="pipestrip" style="display: none;">
+  <div class="pipestrip" id="pipestrip">
     <div class="pstep st-todo" id="pstep-intent"><span>1. 意圖</span></div>
     <div class="pstep st-todo" id="pstep-spec"><span>2. SPEC契約</span></div>
     <div class="pstep st-todo" id="pstep-material"><span>3. 素材圖</span></div>
@@ -218,8 +219,8 @@
       <button id="btn-download-patch" type="button">下載 patch</button>
       <button id="btn-save-patch" type="button">儲存 patch 到資料夾</button>
       <button id="btn-sync-contract" type="button" title="把時間軸 patch 轉成草稿合約，仍需後續 gate 驗證。">同步草稿合約</button>
-      <button id="btn-save-all" type="button" title="一次儲存時間軸、字幕、音訊與特效 patch，並產生 workbench_handoff.json。">儲存全部並交接</button>
-      <button id="btn-export" type="button" title="可選：輸出 workbench_export.mp4，不會覆蓋 final.mp4。">輸出 ffmpeg 草稿</button>
+      <button id="btn-save-all-footer" type="button" title="一次儲存時間軸、字幕、音訊與特效 patch，並產生 workbench_handoff.json。">儲存全部並交接</button>
+      <button id="btn-export" type="button" title="可選：輸出 workbench_export.mp4，不會覆蓋 final.mp4。">輸出審閱影片</button>
     </div>
   </footer>
 

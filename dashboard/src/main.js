@@ -45,18 +45,17 @@ function render() {
 async function boot() {
   setActiveView(viewFromLocation());
   render();
-  const [control, materialMap, artifacts, workbenchHealth, projects] = await Promise.all([
+  const [control, materialMap, artifacts, workbenchHealth] = await Promise.all([
     fetchControlStatus(),
     fetchMaterialMapView(),
     fetchArtifacts().catch(() => null),
     fetchWorkbenchHealth().catch(() => null),
-    fetchProjects().catch(() => []),
   ]);
   state.control = control;
   state.materialMap = materialMap;
   state.artifacts = artifacts;
   state.workbenchHealth = workbenchHealth;
-  state.projects = projects || [];
+  state.projects = state.projects || [];
   if (!state.root && control?.artifact_root) state.root = control.artifact_root;
   render();
 }
@@ -89,6 +88,22 @@ function bindInteractions() {
   });
   const selector = app.querySelector("#spa-project-select");
   if (selector) {
+    selector.addEventListener("focus", async () => {
+      if (selector.dataset.loaded === "true") return;
+      selector.dataset.loaded = "true";
+      try {
+        const projects = await fetchProjects();
+        state.projects = projects || [];
+        render();
+        const sel = app.querySelector("#spa-project-select");
+        if (sel) {
+          sel.dataset.loaded = "true";
+          sel.focus();
+        }
+      } catch (err) {
+        console.error("fetchProjects failed", err);
+      }
+    });
     selector.addEventListener("change", () => {
       const nextRoot = selector.value;
       if (!nextRoot) return;
