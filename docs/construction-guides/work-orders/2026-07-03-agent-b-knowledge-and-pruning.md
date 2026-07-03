@@ -105,3 +105,170 @@ Pins the gate-order fix (commit e7189cc0) at smoke level.
 Append `## Agent B Report` to this file: per-task commits, focused/full
 test tails, the route.md migration destinations chosen, smoke case 2 trace
 output, moved-docs list + not-moved candidates, all recorded contradictions.
+
+## Agent B Report
+
+Date: 2026-07-03
+
+### Task 1 - route.md knowledge migration + archive
+
+Commits:
+
+- `9e44719c` `Migrate route.md contracts into canonical route docs`
+- `4d237dbc` `Archive retired route dispatcher skill`
+
+Migration destinations:
+
+- Node14 Revision Loop / Change Request Contract moved to
+  `docs/video-pipeline-operating-map.md`, section
+  `Node14 Revision Loop / Change Request Contract` under
+  `4. Coverage / Revision Gate`.
+- Two-axis layering explanation moved to
+  `docs/canonical-video-pipeline-route.md`, section `Two-Axis Layering`.
+- `skills/route.md` archived via `git mv` to `skills/archive/route.md`.
+- Live references were updated to `skills/video-pipeline-route.md`; the legacy
+  route-vocabulary test now reads `skills/archive/route.md`.
+
+Focused test tails:
+
+- `python -m unittest tests.test_skill_index`: `Ran 3 tests ... OK`
+- `python -m unittest tests.test_skill_index tests.test_interactive_skill_flow_docs`: `Ran 8 tests ... OK`
+
+Full-suite tails:
+
+- Before commit `9e44719c`: `Ran 2354 tests in 742.826s` / `OK`
+- Before commit `4d237dbc`: `Ran 2354 tests in 905.101s` / `OK`
+
+Reference check:
+
+- `git grep -n "skills/route.md"` after archive returned only archive,
+  historical, generated audit, and work-order references.
+- `docs/branch-contract-registry.json` did not reference `skills/route.md`.
+
+Contradictions:
+
+- None found between `skills/route.md` and the two target route docs.
+
+### Task 2 - single_long_highlight e2e smoke case
+
+Commit:
+
+- `37b1fb0b` `Add single-long-highlight stage0 case to e2e smoke`
+
+Fixture:
+
+- Added `examples/genre_tests/single_long_highlight_e2e/video_intent.json`
+  with material-first entry, `material_contract.first_action:
+  material_map_quick_inventory`, `scan_depth: quick_inventory_first`, and
+  `subtitle_voiceover_contract.subtitle_required: true`.
+
+Focused test tail:
+
+- `python -m unittest tests.test_e2e_smoke`: `Ran 5 tests ... OK`
+
+CLI smoke trace:
+
+```json
+{
+  "ok": true,
+  "case": "single_long_highlight",
+  "trace": [
+    {
+      "step": "stage0_profile",
+      "mode": "run",
+      "cursor": "stage2_material_inventory",
+      "next": "material-quick-inventory",
+      "source": "video_intent.json"
+    }
+  ],
+  "final_next_action": "material-quick-inventory",
+  "stalled_action": null
+}
+```
+
+Stock story trace check:
+
+```json
+[
+  {"step": "spec_review", "next_action": "missing_artifact:material_coverage_map.json"},
+  {"step": "contract_dry_build", "next_action": "missing_artifact:material_coverage_map.json"},
+  {"step": "simulated_verify", "next_action": "complete_review_final"}
+]
+```
+
+Full-suite tail:
+
+- Before commit `37b1fb0b`: `Ran 2355 tests in 764.062s` / `OK`
+
+Contradictions:
+
+- None.
+
+### Task 3 - Phase 5 document pruning
+
+Commit:
+
+- `8ff064be` `Prune unreachable docs into archive`
+
+Moved docs:
+
+- `docs/construction-guides/agent-orchestration/2026-06-22-claude-pexels-retrieval-feedback.md`
+- `docs/construction-guides/agent-orchestration/2026-06-22-gemini-antigravity-runner-feedback.md`
+- `docs/construction-guides/audio-soundtrack-flow-plan.md`
+- `docs/construction-guides/mainline-branch-convergence-plan.md`
+- `docs/construction-guides/material-wall-coarse-screening.md`
+- `docs/construction-guides/superpowers/plans/2026-06-11-attention-budget-pacing.md`
+- `docs/construction-guides/superpowers/plans/2026-06-11-subtitle-polish.md`
+- `docs/construction-guides/superpowers/plans/2026-06-12-67th-graduation-film.md`
+- `docs/construction-guides/superpowers/plans/2026-06-13-material-phase-m0-enforcement.md`
+- `docs/construction-guides/superpowers/plans/2026-06-13-material-phase-m1-supply.md`
+- `docs/construction-guides/superpowers/plans/2026-06-13-material-phase-m2-retrieval.md`
+- `docs/construction-guides/superpowers/plans/2026-06-13-material-phase-m3-edit-points.md`
+- `docs/construction-guides/superpowers/plans/2026-06-13-material-phase-m4-verify-replay.md`
+- `docs/construction-guides/superpowers/plans/2026-06-17-dashboard-workbench-integration-cleanup.md`
+- `docs/construction-guides/superpowers/plans/2026-06-17-frontend-stability-and-modularization.md`
+- `docs/construction-guides/superpowers/plans/2026-06-19-brownfield-edit-route.md`
+- `docs/construction-guides/superpowers/specs/2026-06-12-67th-graduation-film-design.md`
+- `docs/construction-guides/video-mainline-review-convergence.md`
+- `docs/superpowers/plans/2026-06-27-graduation-recap-run.md`
+- `docs/superpowers/plans/2026-06-30-material-understanding-matrix-mvp.md`
+
+All moved docs were moved under `docs/archive/pruned-2026-07/` with their
+relative subpaths preserved.
+
+Not-moved candidates left in place because they are current work-order context
+or uncertain:
+
+- `docs/construction-guides/2026-07-03-convergence-single-pipeline-plan.md`
+- `docs/construction-guides/work-orders/2026-07-03-agent-b-knowledge-and-pruning.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase1-2-execution-report.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase1-entry-contract.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase2-registry-manifest.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase2p5-manifest-hardening.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase3-skill-index.md`
+- `docs/construction-guides/work-orders/2026-07-03-phase4-golden-path-smoke.md`
+
+Checks:
+
+- `docs/INDEX.md` had no links to moved files.
+- Old moved paths were referenced only by `docs/generated/orphan_audit.*`,
+  which is machine-owned and excluded by the work order.
+- Collision-fence paths were not moved.
+
+Full-suite tail:
+
+- Before commit `8ff064be`: `Ran 2355 tests in 711.992s` / `OK`
+
+Collision / contradiction log:
+
+- During Task 3 verification, one full-suite attempt failed in
+  `tests/test_dashboard_server.py` while another agent was editing dashboard
+  collision-fence files. No fence files were modified by Agent B. A later
+  focused dashboard run passed (`Ran 30 tests ... OK`), then the full suite
+  passed before the pruning commit.
+- No route/document semantic contradictions were found.
+
+### Final workspace hygiene
+
+- Root-level `supply_review.json` test debris was removed after test runs.
+- Agent B did not stage or commit collision-fence files.
