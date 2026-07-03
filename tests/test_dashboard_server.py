@@ -259,12 +259,10 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn(".root-open-row", layout_css)
         self.assertIn("grid-template-columns: minmax(120px, 1fr) auto;", layout_css)
         self.assertIn(".app-workbench .root-open-form", layout_css)
-        self.assertIn("workbench-shell", views_css)
         self.assertIn("workbench-studio-head", views_css)
         self.assertIn("workbench-run-strip", views_css)
-        self.assertIn("height: clamp(680px, calc(100vh - 132px), 1120px);", views_css)
-        self.assertIn("min-height: 680px;", views_css)
-        self.assertIn(".workbench-shell iframe", views_css)
+        self.assertIn("workbench-native-handoff", views_css)
+        self.assertIn(".primary-link", views_css)
         self.assertIn("Native Editor Protected Zone", workbench_contract)
         self.assertIn("video monitor / playback preview", workbench_contract)
         self.assertIn("four lower timeline lanes", workbench_contract)
@@ -285,7 +283,7 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn(".wb-transport", workbench_layout_smoke)
         self.assertIn("#btn-play", workbench_layout_smoke)
         self.assertIn("#scrubber", workbench_layout_smoke)
-        self.assertIn("height: 100%;", views_css)
+        self.assertIn("前往剪輯工作台", workbench_view)
         for forbidden in (
             "monitor-box",
             "timeline-wrap",
@@ -376,13 +374,11 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn("lane-video", spec)
 
         for text in (
-            "production dashboard should move slowly into the SPA shell",
-            "video monitor / playback preview area and the four lower timeline tracks must remain native",
-            "Keep iframe containment as the default implementation",
-            "video, subtitle, audio, and effect tracks",
-            "Any Workbench monitor or four-track rewrite not backed by dedicated parity tests",
-            "node tools\\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>",
-            "outer SPA shell must not contain protected editor selectors",
+            "The production Workbench route is now the native single-document app",
+            "Dashboard SPA routes are white-box compatibility routes",
+            "Keep the native video monitor / playback preview area and the native video/subtitle/audio/effect tracks unchanged",
+            "The SPA Workbench view must remain a handoff/redirect surface",
+            "node tools\\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench",
         ):
             self.assertIn(text, frontend_plan)
 
@@ -422,10 +418,10 @@ class DashboardServerTest(unittest.TestCase):
 
         for text in (
             "影片剪輯工作台",
-            "保留舊版 Workbench 的互動畫面、播放控制與四條時間軸",
+            "原生 Workbench 已是主頁面",
             "Run folder",
-            "素材優先模式",
-            "Hermes Workbench 黑盒剪輯工作檯",
+            "單文件架構",
+            "前往剪輯工作台",
         ):
             self.assertIn(text, workbench_view)
 

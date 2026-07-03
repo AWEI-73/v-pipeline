@@ -234,45 +234,34 @@ Protected canonical/delivery outputs:
 - `reviewed_project_material_map.json`
 - `final.mp4`
 
-### Migration Phases
+### Completed Migration Shape
 
-Phase 0: iframe containment
+Phase V2-1: slide-over module host
 
 - Keep `dashboard/workbench_native/*` as the editor runtime.
-- Keep the iframe in `WorkbenchView` as the compatibility bridge.
-- Strengthen the SPA shell around it with status panels, draft artifact
-  summaries, and handoff readiness.
-- Do not duplicate native Workbench state in the Dashboard shell.
+- Import reusable Dashboard white-box views from `dashboard/src/*` into the
+  native Workbench slide-over.
+- Route pipeline step buttons and full-data actions into the slide-over instead
+  of navigating away from the editor.
+- Keep playback position, selected clip, and drawer state mounted while the
+  slide-over opens, switches modules, or closes.
 
-Phase 1: shell-native status panels
+Phase V2-2: native Workbench as home route
 
-- Render Workbench draft artifact status directly in the SPA shell from
-  `/api/artifacts` and `/api/control/status`.
-- Show `agent_ready`, handoff validation errors, draft counts, and changed layer
-  counts before the iframe.
-- Add direct links from Dashboard Material Map evidence to the Workbench route
-  while preserving `?root=...`.
-- Surface source-window linkage beside the preview: contract segment, need refs,
-  accepted material-map scene, current usable range, and derived rough clip
-  duration.
-
-Phase 2: extract Workbench modules
-
-- Move reusable native Workbench logic into importable modules under
-  `dashboard/src/workbench/` only after tests cover the original behavior.
-- Keep `workbench_native/workbench_core.js`, `workbench_api.js`, and
-  `workbench_materials.js` as the source contracts until the extracted modules
-  pass equivalent smoke tests.
-- Migrate one layer at a time: preview loading, material browser, timeline
-  editing, subtitle/cue/effect patches, save-all/handoff.
-
-Phase 3: replace iframe with SPA-native composition
-
-- Replace the iframe only after the SPA-native editor can load
-  `/api/workbench/preview-timeline`, render material preview, produce the same
-  patch payloads, and pass the Workbench smoke tests.
-- Keep all writes under `/api/workbench/*`.
+- Serve `dashboard/workbench_native/index.html` directly for `/` and
+  `/workbench`.
+- Keep `/dashboard`, `/material-map`, `/verify`, and `/artifacts` as SPA
+  white-box compatibility routes.
+- Keep all Workbench writes under `/api/workbench/*`.
 - Keep draft-only writes and canonical artifact protection unchanged.
+
+Phase V2-3: retired SPA host cleanup
+
+- Remove the old SPA iframe host. `WorkbenchView` is now a light handoff view
+  that links to the native Workbench route and shows draft summary context.
+- Do not duplicate native Workbench state in the Dashboard compatibility shell.
+- Do not reimplement the native monitor, transport, material drawer, or
+  four-lane timeline in `dashboard/src`.
 
 ### Acceptance Checklist
 
@@ -286,7 +275,7 @@ Phase 3: replace iframe with SPA-native composition
   server and that canonical artifacts are not mutated.
 - `node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>`
   passes before and after any change touching the native monitor, timeline
-  lanes, or the Workbench iframe shell.
+  lanes, or slide-over host.
 
 ## Prototype Policy
 

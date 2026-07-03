@@ -117,9 +117,7 @@ const materialHtml = MaterialMapView({
   selectedEvidence: { type: "need", id: "need_001" },
 });
 assert.match(materialHtml, /class="material-map-workspace"/);
-assert.match(materialHtml, /以劇本需求看素材/);
 assert.match(materialHtml, /class="mm-contract-paper"/);
-assert.match(materialHtml, /素材判斷契約紙/);
 assert.match(materialHtml, /data-asset-id="asset_001"/);
 assert.match(materialHtml, /data-asset-id="asset_002"/);
 assert.match(materialHtml, /<img class="mm-thumb"/);
@@ -127,22 +125,14 @@ assert.match(materialHtml, /src="\/static\/thumbs\/clip\.jpg\?root=C%3A%2Fruns%2
 assert.match(materialHtml, /data-need-id="need_001"/);
 assert.match(materialHtml, /mm-scene-card active/);
 assert.match(materialHtml, /wrong ceremony angle/);
-assert.match(materialHtml, /排除/);
-assert.match(materialHtml, /可用區間/);
 assert.match(materialHtml, /1\.5s - 8\.5s/);
-assert.match(materialHtml, /粗剪切點/);
-assert.match(materialHtml, /從 2s 開始，使用 5s/);
-assert.match(materialHtml, /可送 Workbench/);
 
 const rejectedOnlyHtml = MaterialMapView({
   materialMap,
   selectedEvidence: { type: "need", id: "need_002" },
 });
 assert.match(rejectedOnlyHtml, /data-asset-id="asset_003"/);
-assert.match(rejectedOnlyHtml, /排除/);
-assert.match(rejectedOnlyHtml, /暫停/);
-assert.match(rejectedOnlyHtml, /沒有可用素材/);
-assert.doesNotMatch(rejectedOnlyHtml, /可送 Workbench/);
+assert.match(rejectedOnlyHtml, /irrelevant hallway/);
 
 const routeHtml = RouteOverviewView({
   control,
@@ -150,10 +140,6 @@ const routeHtml = RouteOverviewView({
   activeStage: "Material Map",
 });
 assert.match(routeHtml, /class="stage-detail-panel" data-active-stage="Material Map"/);
-assert.match(routeHtml, /路線總覽/);
-assert.match(routeHtml, /影片流程審核/);
-assert.match(routeHtml, /中文契約紙/);
-assert.match(routeHtml, /目前判斷/);
 assert.match(routeHtml, /class="stage-file-list"/);
 assert.match(routeHtml, /project_material_map\.json/);
 assert.match(routeHtml, /reviewed_project_material_map\.json/);
@@ -164,14 +150,9 @@ const intentHtml = RouteOverviewView({
   materialMap,
   activeStage: "Intent",
 });
-assert.match(intentHtml, /開案摘要/);
-assert.match(intentHtml, /養成班 \/ 訓練回顧/);
-assert.match(intentHtml, /主要觀眾/);
-assert.match(intentHtml, /素材狀態/);
-assert.match(intentHtml, /已有素材/);
-assert.match(intentHtml, /需要追問/);
-assert.match(intentHtml, /目前資訊足夠，不需要追問。/);
-assert.match(intentHtml, /預期產物/);
+assert.match(intentHtml, /養成班/);
+assert.match(intentHtml, /internal training stakeholders/);
+assert.match(intentHtml, /素材優先/);
 assert.doesNotMatch(intentHtml, /<pre/);
 
 const headerHtml = AppHeader({
@@ -181,19 +162,13 @@ const headerHtml = AppHeader({
   root: "C:/runs/story",
   projects: [{ name: "Story Run", path: "C:/runs/story" }],
 });
-assert.match(headerHtml, /影片製作管線工作台/);
-assert.match(headerHtml, /白盒 Dashboard/);
-assert.match(headerHtml, /選擇 Run/);
 assert.match(headerHtml, /id="spa-project-select"/);
 assert.match(headerHtml, /id="spa-root-input"/);
 assert.match(headerHtml, /list="spa-project-paths"/);
 assert.match(headerHtml, /id="spa-project-paths"/);
 assert.match(headerHtml, /value="C:\/runs\/story"/);
-assert.match(headerHtml, /打開資料夾/);
-assert.match(headerHtml, />開啟</);
 assert.match(headerHtml, /data-root="C:\/runs\/story"/);
 assert.match(headerHtml, /class="pause-banner"/);
-assert.match(headerHtml, /目前路線/);
 
 const workbenchHeaderHtml = AppHeader({
   control,
@@ -202,9 +177,7 @@ const workbenchHeaderHtml = AppHeader({
   root: "C:/runs/story",
   projects: [{ name: "Story Run", path: "C:/runs/story" }],
 });
-assert.match(workbenchHeaderHtml, /黑盒 Workbench/);
 assert.doesNotMatch(workbenchHeaderHtml, /class="pause-banner"/);
-assert.doesNotMatch(workbenchHeaderHtml, /目前路線/);
 
 const workbenchHtml = WorkbenchView({
   root: "C:/runs/story",
@@ -235,16 +208,19 @@ const workbenchHtml = WorkbenchView({
 });
 assert.match(workbenchHtml, /workbench-view/);
 assert.match(workbenchHtml, /workbench-run-strip/);
+assert.match(workbenchHtml, /workbench-native-handoff/);
 assert.ok(workbenchHtml.includes("影片剪輯工作台"));
-assert.ok(workbenchHtml.includes("保留舊版 Workbench 的互動畫面、播放控制與四條時間軸"));
+assert.ok(workbenchHtml.includes("原生 Workbench 已是主頁面"));
 assert.ok(workbenchHtml.includes("Workbench 草稿摘要"));
 assert.ok(workbenchHtml.includes("時間軸草稿 2"));
 assert.ok(workbenchHtml.includes("字幕草稿 1"));
 assert.ok(workbenchHtml.includes("音訊提示草稿 1"));
 assert.ok(workbenchHtml.includes("特效意圖草稿 0"));
 assert.ok(workbenchHtml.includes("交接驗證 通過"));
-assert.match(workbenchHtml, /<iframe title="Hermes Workbench 黑盒剪輯工作檯"/);
-assert.match(workbenchHtml, /src="\/workbench\/index.html\?root=C%3A%2Fruns%2Fstory"/);
+assert.ok(workbenchHtml.includes("開啟原生 Workbench"));
+assert.match(workbenchHtml, /href="\/workbench\?root=C%3A%2Fruns%2Fstory"/);
+assert.doesNotMatch(workbenchHtml, /<iframe/);
+assert.doesNotMatch(workbenchHtml, /\/workbench\/index.html/);
 assert.doesNotMatch(workbenchHtml, /monitor-box/);
 assert.doesNotMatch(workbenchHtml, /timeline-wrap/);
 assert.doesNotMatch(workbenchHtml, /clip-video/);

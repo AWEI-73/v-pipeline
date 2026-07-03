@@ -153,7 +153,7 @@ async function stopWorkbenchServer(handle) {
 }
 
 function nearestFrame(page) {
-  return page.frames().find((frame) => frame.url().includes("/workbench/index.html")) || page.mainFrame();
+  return page.mainFrame();
 }
 
 async function inspectLayout(frame) {
@@ -188,8 +188,6 @@ async function inspectLayout(frame) {
 async function inspectHostLayout(page) {
   return page.evaluate(() => {
     const app = document.querySelector("#app");
-    const shell = document.querySelector(".workbench-shell");
-    const iframe = document.querySelector(".workbench-shell iframe");
     const forbiddenShellSelectors = [
       "monitor-box",
       "timeline-wrap",
@@ -199,23 +197,10 @@ async function inspectHostLayout(page) {
       "track-lane",
       "lane-video",
     ];
-    const rectFor = (el) => {
-      if (!el) return null;
-      const rect = el.getBoundingClientRect();
-      return {
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
-        visibleInFirstViewport: rect.top < window.innerHeight && rect.bottom > 0,
-      };
-    };
     return {
       hostMode: app ? "spa_shell" : "native_direct",
       isSpaShell: Boolean(app),
       appWorkbench: Boolean(app?.classList.contains("app-workbench")),
-      shell: rectFor(shell),
-      iframe: rectFor(iframe),
-      iframeSrc: iframe?.getAttribute("src") || "",
       forbiddenShellSelectors: forbiddenShellSelectors.filter((selector) => document.querySelector(`.${selector}, #${selector}`)),
     };
   });

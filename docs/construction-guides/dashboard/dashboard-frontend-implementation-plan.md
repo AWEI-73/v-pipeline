@@ -13,7 +13,7 @@ The frontend should help a Chinese-speaking user understand and review the pipel
 
 ## Current Boundary
 
-Prototype-only UI work is no longer the main path. The production dashboard should move slowly into the SPA shell while keeping the editing-critical Workbench native surface protected.
+Prototype-only UI work is no longer the main path. The production Workbench route is now the native single-document app while the Dashboard SPA routes are white-box compatibility routes.
 
 Frontend work may proceed in small verified slices when it uses real pipeline artifacts and keeps the native Workbench editor stable. Mock HTML can be used as a design sketch, but production routes must not depend on mock-only state or prototype behavior.
 
@@ -134,19 +134,19 @@ Core editing model:
 
 Future migration:
 
-- Keep iframe containment until native modules are stable.
-- The SPA route may add only a thin outer shell: route tabs, selected run, health, draft summary, and handoff status.
+- Keep `/` and `/workbench` on the native single-document Workbench.
+- The SPA Workbench view must remain a handoff/redirect surface. It may show selected run, health, draft summary, and handoff status, but it must not mount the editor.
 - Treat the native video monitor / playback preview area as a protected zone.
 - Treat the native four lower timeline tracks as a protected zone: video, subtitle, audio, and effect tracks.
 - Do not rewrite or restyle the protected zones during Dashboard, Material Map, artifact review, route review, or mockup cleanup work.
 - Do not replace the native Workbench layout with mockup-only blocks, mirrored state, or a separate SPA timeline unless there is a dedicated Workbench migration task with equivalent browser and core smoke coverage.
-- The outer SPA shell must not contain protected editor selectors such as `monitor-box`, `timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or `lane-video`; those are mock/native editor selectors, not shell controls.
+- The SPA compatibility shell must not contain protected editor selectors such as `monitor-box`, `timeline-wrap`, `clip-video`, `wb-monitor`, `wb-timeline`, `track-lane`, or `lane-video`; those are mock/native editor selectors, not shell controls.
 - Later extraction must preserve playback smoothness, clip selection, source-window math, drag/replace behavior, trim handles, media proxy playback, and draft patch/handoff payloads.
-- Any change touching the Workbench iframe shell, native monitor, or four lower
-  tracks must run:
+- Any change touching the native monitor, slide-over host, or four lower tracks
+  must run:
 
 ```powershell
-node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>
+node tools\workbench_browser_layout_smoke.mjs --url http://localhost:8765/workbench
 ```
 
 ### 5. Verify / Delivery
@@ -278,11 +278,10 @@ Frontend implementation should wait for this pass/fail report.
 
 ### Phase 4: Workbench Integration
 
-- Keep iframe containment as the default implementation.
 - Keep the native video monitor / playback preview area and the native video/subtitle/audio/effect tracks unchanged.
 - Use `node tools\workbench_browser_layout_smoke.mjs --artifact-root <run-folder>`
   as the browser guard for this protected zone.
-- Move only health/draft/handoff summary into SPA-native panels.
+- Keep health/draft/handoff summary in SPA-native handoff panels and native slide-over modules.
 - Add a read/write-draft view for source windows: show the contract segment,
   `need_refs`, accepted material-map scene, current `usable_range`, derived
   `start_sec`, and derived `duration_sec`.
