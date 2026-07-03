@@ -112,6 +112,34 @@ Per-piece acceptance: focused tests green; full suite green; BOTH e2e-smoke
 cases exit 0; `registry-audit` exit 0. Final acceptance additionally: run
 `asset-path-audit --strict` on a fresh smoke-produced run dir → exit 0.
 
+## Stream S1 closeout report (2026-07-03)
+
+Commits:
+- Piece 1: `61884f67 Add asset path resolver and portability audit`
+- Piece 2: `34f716bb Persist material artifacts with run-relative asset refs`
+- Piece 3: `540257e2 Persist build artifacts with run-relative asset refs`
+- Piece 4: `353a93b5 Persist audio and effect artifacts with run-relative asset refs`
+- Piece 5: `a8274c97 Add asset ingest and garbage collection commands`
+
+Focused test tails:
+- Piece 1 focused resolver/catalog: OK.
+- Piece 2 focused material suites: OK.
+- Piece 3 focused build/preview/workbench suites: OK.
+- Piece 4 focused audio/effect/build suites: OK.
+- Piece 5 focused asset-store/catalog + CLI smoke: `Ran 8 tests / OK`; `ingest-assets` and `gc-assets` CLI exit 0.
+
+Required gates:
+- Latest full suite rerun: `Ran 2373 tests in 536.336s` then `FAILED (failures=1)`.
+- Focused rerun of failing module: `tests.test_skill_tool_contracts` fails only on `unowned python tools: tools/preflight.py`.
+- Both e2e smoke cases exit 0: `stock_story` final action `complete_review_final`; `single_long_highlight` final action `material-quick-inventory`.
+- `registry-audit` exit 0: `Registry Audit: OK (7 branches, 14 stages)`.
+- Final fresh strict audit: `asset-path-audit --strict C:\Users\user\AppData\Local\Temp\s1_final_strict_stock --json` exit 0, `ok=true`, strict families `audio, build, effect, material`, `finding_count=0`, `strict_finding_count=0`.
+
+Contradictions and skipped items:
+- Full suite cannot be made fully green inside S1 because `tools/preflight.py` / `tests/test_preflight.py` are S2-owned and currently make `tests.test_skill_tool_contracts` report an unowned tool. S1 did not modify S2 files to mask this.
+- S3-owned dashboard files and dashboard-server tests were left untouched except read-only observation; unrelated concurrent worktree changes remain outside S1 commits.
+- Serving/projection invariant preserved: preview/workbench `/media` surfaces still receive resolved absolute paths; only persisted artifact JSON refs were changed to run-relative refs.
+
 ---
 
 # Stream S2 — Bootstrap & Packaging
