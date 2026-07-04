@@ -2338,6 +2338,52 @@ def cmd_workflow_manifest(args):
         print(text)
 
 
+def cmd_interface_audit(args):
+    from video_pipeline_core.capability_manifest import build_capability_manifest
+
+    commands = build_video_tools_command_manifest()
+    workflows = build_video_tools_workflow_manifest()
+    capabilities = build_capability_manifest()
+    missing_commands = list(commands.get("unclassified_commands") or [])
+    missing_commands.extend(
+        item.get("command")
+        for item in workflows.get("missing_commands") or []
+        if item.get("command")
+    )
+    missing_commands = sorted(set(missing_commands))
+    payload = {
+        "artifact_role": "video_tools_interface_audit",
+        "version": 1,
+        "ok": not missing_commands,
+        "missing_commands": missing_commands,
+        "checks": {
+            "commands": {
+                "command_count": commands.get("command_count"),
+                "unclassified_commands": commands.get("unclassified_commands") or [],
+                "commands": sorted(commands.get("commands") or {}),
+            },
+            "workflows": {
+                "workflow_count": workflows.get("workflow_count"),
+                "missing_commands": workflows.get("missing_commands") or [],
+            },
+            "capabilities": {
+                "capability_count": sum(
+                    len(items or [])
+                    for items in (capabilities.get("capabilities") or {}).values()
+                ),
+                "unsupported": capabilities.get("unsupported") or [],
+            },
+        },
+    }
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    if not payload["ok"]:
+        raise ToolError("interface audit failed: missing or unclassified commands")
+
+
 def cmd_test_tiers(args):
     from tools.test_tiers import build_test_tier_manifest, run_test_tier
     try:
@@ -2794,6 +2840,7 @@ def _build_video_tools_dispatch():
         "test-tiers": cmd_test_tiers,
         "registry-audit": cmd_registry_audit,
         "asset-path-audit": cmd_asset_path_audit,
+        "interface-audit": cmd_interface_audit,
         "ingest-assets": cmd_ingest_assets,
         "gc-assets": cmd_gc_assets,
         "e2e-smoke": cmd_e2e_smoke,
@@ -3217,6 +3264,9 @@ def main():
     p_apath.add_argument("run_dir", help="run directory containing artifact JSON files")
     p_apath.add_argument("--strict", action="store_true", help="exit non-zero for strict-family findings")
     p_apath.add_argument("--json", action="store_true", help="print JSON report")
+
+    p_iaudit = sub.add_parser("interface-audit")
+    p_iaudit.add_argument("--out", help="write interface audit JSON")
 
     p_ingest_assets = sub.add_parser("ingest-assets")
     p_ingest_assets.add_argument("run_dir", help="run directory whose assets/ store will receive files")

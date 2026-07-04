@@ -255,13 +255,8 @@ acceptance; commits were made only by the supervisor.
   `Registry Audit: OK (7 branches, 14 stages)`.
 - `C:\Users\user\miniconda3\python.exe video_tools.py asset-path-audit --strict .tmp\final_stock_story`:
   `0 absolute path finding(s); 0 strict finding(s)`.
-- The work order names `interface-audit`, but current `video_tools.py` has no
-  such subcommand. The interface surface was checked with the available
-  manifest commands instead:
-  `commands-manifest --out .tmp\final_commands_manifest.json`,
-  `workflow-manifest --out .tmp\final_workflow_manifest.json`, and
-  `capability-manifest --out .tmp\final_capability_manifest.json`; all exited
-  0.
+- `C:\Users\user\miniconda3\python.exe video_tools.py interface-audit --out .tmp\review_interface_audit.json`:
+  `ok: true`, `missing_commands: []`.
 
 ### Skipped / Deferred
 

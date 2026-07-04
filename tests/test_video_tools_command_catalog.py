@@ -162,6 +162,21 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertIn("workbench_review_rerender", payload["workflows"])
 
+    def test_interface_audit_cli_reports_manifest_surface(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "interface_audit.json"
+
+            video_tools.cmd_interface_audit(SimpleNamespace(out=str(out)))
+
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["artifact_role"], "video_tools_interface_audit")
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["missing_commands"], [])
+            self.assertIn("commands", payload["checks"])
+            self.assertIn("workflows", payload["checks"])
+            self.assertIn("capabilities", payload["checks"])
+            self.assertIn("interface-audit", payload["checks"]["commands"]["commands"])
+
 
 if __name__ == "__main__":
     unittest.main()
