@@ -1146,6 +1146,26 @@ def trim_beats_to_target(beats, target_sec):
     return kept
 
 
+def _resolve_music_timing(music_path, target_sec=None, *, beat_detector=None, duration_fn=None):
+    beat_detector = beat_detector or detect_beats
+    tempo, beats = beat_detector(music_path)
+    if duration_fn is None:
+        from .vt_core import _audio_duration  # noqa: PLC0415
+        duration_fn = _audio_duration
+    try:
+        music_dur = float(duration_fn(music_path))
+    except Exception:
+        music_dur = float(beats[-1]) if beats else 0.0
+    total_dur = min(float(music_dur), float(target_sec)) if target_sec else float(music_dur)
+    if beats:
+        beats = trim_beats_to_target(beats, target_sec)
+        if total_dur > 0 and (not beats or beats[-1] < total_dur):
+            beats = list(beats) + [total_dur]
+    elif total_dur > 0:
+        beats = [0.0, total_dur]
+    return tempo, beats, music_dur, total_dur
+
+
 def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
                          visual_verdicts, clip_list, material_root, model, mat_dir,
                          max_clips_per_seg, windows_per_clip, min_score,
@@ -1571,16 +1591,7 @@ def run_mv(script, material_root, out_path, music_path=None,
     # 1) 音樂先(定總長/節奏)。v0:music_path 由呼叫端先用 music-fetch 抓好傳入。
     if not music_path:
         raise ToolError("run_mv v0 需要 music_path(先用 music-fetch 依 brief 抓好再傳入)")
-    _tempo, _beats = detect_beats(music_path)
-    if _beats:
-        music_dur = _beats[-1]
-        _beats = trim_beats_to_target(_beats, target_sec)
-        total_dur = _beats[-1] if _beats else 0
-    else:
-        from .vt_core import _audio_duration  # noqa: PLC0415
-        music_dur = _audio_duration(music_path)
-        total_dur = min(float(music_dur), float(target_sec)) if target_sec else float(music_dur)
-        _beats = [0.0, total_dur] if total_dur > 0 else []
+    _tempo, _beats, music_dur, total_dur = _resolve_music_timing(music_path, target_sec)
     if target_sec and total_dur < music_dur:
         vp(f"[music] {os.path.basename(music_path)} {round(music_dur,1)}s tempo={round(_tempo)} "
            f"→ trimmed to target {round(total_dur,1)}s (brief target_length)")

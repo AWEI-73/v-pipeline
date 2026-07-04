@@ -1555,6 +1555,19 @@ class TrimBeatsToTargetTest(unittest.TestCase):
     def test_empty_beats(self):
         self.assertEqual(mv_cut.trim_beats_to_target([], 45.0), [])
 
+    def test_sparse_beats_use_audio_duration_as_total_runtime(self):
+        tempo, beats, music_dur, total_dur = mv_cut._resolve_music_timing(
+            "bgm.mp3",
+            target_sec=60.0,
+            beat_detector=lambda _path: (117.454, [0.07]),
+            duration_fn=lambda _path: 45.00898,
+        )
+
+        self.assertEqual(round(tempo, 3), 117.454)
+        self.assertEqual(round(music_dur, 3), 45.009)
+        self.assertEqual(round(total_dur, 3), 45.009)
+        self.assertEqual(round(beats[-1], 3), 45.009)
+
 
 class ValidateMvScriptTest(unittest.TestCase):
     def _ok_script(self):

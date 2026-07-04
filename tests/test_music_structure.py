@@ -39,7 +39,7 @@ class MusicStructureTest(unittest.TestCase):
             self.assertEqual(saved["beats"][1], 0.75)
             self.assertEqual(len(saved["sections"]), 2)
 
-    def test_write_music_structure_fails_closed_when_probe_yields_no_sections(self):
+    def test_write_music_structure_builds_coarse_section_when_sparse_probe_has_duration(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "music_structure.json"
 
@@ -48,6 +48,24 @@ class MusicStructureTest(unittest.TestCase):
                 out,
                 detector=lambda _path: (117.454, [0.07]),
                 duration_detector=lambda _path: 60.0,
+                every_n_beats=4,
+            )
+            saved = json.loads(out.read_text(encoding="utf-8"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(saved["sections"]), 1)
+        self.assertEqual(saved["sections"][0]["source"], "duration_fallback")
+        self.assertEqual(saved["sections"][0]["end_sec"], 60.0)
+
+    def test_write_music_structure_fails_closed_when_probe_yields_no_sections_and_no_duration(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "music_structure.json"
+
+            result = ms.write_music_structure(
+                "bgm.mp3",
+                out,
+                detector=lambda _path: (117.454, [0.07]),
+                duration_detector=lambda _path: None,
                 every_n_beats=4,
             )
             saved = json.loads(out.read_text(encoding="utf-8"))
@@ -74,7 +92,7 @@ class MusicStructureTest(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(len(saved["sections"]), 1)
-        self.assertEqual(saved["sections"][0]["source"], "short_audio_fallback")
+        self.assertEqual(saved["sections"][0]["source"], "duration_fallback")
         self.assertEqual(saved["sections"][0]["end_sec"], 5.0)
 
     def test_section_energy_detector_populates_existing_sections(self):

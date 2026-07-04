@@ -638,7 +638,7 @@ class VisualDiversityIntegrationTest(unittest.TestCase):
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0]["scene_id"], "photo-a:0")
         self.assertEqual(plan[1]["scene_id"], "photo-b:0")
-        self.assertEqual(plan[0]["extract_dur"], 2.264) # allocated dynamically
+        self.assertEqual(plan[0]["extract_dur"], 2.5) # allocated from probed audio duration
         self.assertTrue(plan[0]["is_photo"])
         self.assertTrue(plan[0]["kenburns"])
 

@@ -179,12 +179,12 @@ def build_music_structure(tempo_bpm, beat_times, *, source_audio=None, every_n_b
     }
 
 
-def _short_audio_fallback_section(duration):
+def _duration_fallback_section(duration):
     duration = round(float(duration), 3)
     return {
         "index": 1,
         "name": "Full track",
-        "description": "short audio fallback section",
+        "description": "duration-derived fallback section",
         "Start_Time": _fmt_mmss(0.0),
         "End_Time": _fmt_mmss(duration),
         "start_sec": 0.0,
@@ -193,7 +193,7 @@ def _short_audio_fallback_section(duration):
         "beat_count": 0,
         "energy_score": None,
         "cut_density_hint": "low",
-        "source": "short_audio_fallback",
+        "source": "duration_fallback",
         "confidence": 0.3,
     }
 
@@ -215,8 +215,8 @@ def write_music_structure(audio_path, out_path, *, detector=None, every_n_beats=
     )
     if not structure.get("sections"):
         duration = duration_detector(str(audio_path))
-        if isinstance(duration, (int, float)) and 0 < float(duration) <= 10.0:
-            structure["sections"] = [_short_audio_fallback_section(float(duration))]
+        if isinstance(duration, (int, float)) and float(duration) > 0:
+            structure["sections"] = [_duration_fallback_section(float(duration))]
     annotate_section_energy(structure, audio_path)
     ok = bool(structure.get("sections"))
     errors = []
