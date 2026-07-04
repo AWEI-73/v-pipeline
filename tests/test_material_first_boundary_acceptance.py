@@ -126,6 +126,31 @@ class MaterialFirstBoundaryAcceptanceTest(unittest.TestCase):
             self.assertEqual(len(report["stages"]), 1)
             self.assertFalse((run_dir / "stage4_build_smoke_report.json").exists())
 
+    def test_missing_source_folder_returns_needs_context_without_stage_exception(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "missing-source"
+            verdict = root / "material_wall_review_verdict.json"
+            _write_verdict(verdict)
+            run_dir = root / "run"
+
+            result = run_material_first_boundary_acceptance(
+                run_dir,
+                source_dir=source,
+                wall_verdict=verdict,
+                max_assets=5,
+            )
+
+            self.assertFalse(result["ok"], result)
+            report = result["report"]
+            self.assertEqual(report["next_action"], "needs-context")
+            self.assertEqual(report["failed_stage"], "stage2_3_material_wall_to_review_apply")
+            blocking = report["stages"][0]["blocking"]
+            self.assertEqual(blocking[0]["rule"], "material_source_insufficient")
+            self.assertNotEqual(blocking[0]["rule"], "stage_exception")
+            self.assertTrue((run_dir / "material_first_source_refusal.json").exists())
+            self.assertFalse((run_dir / "stage4_build_smoke_report.json").exists())
+
     def test_acceptance_preserves_in_run_wall_verdict_when_out_is_recreated(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

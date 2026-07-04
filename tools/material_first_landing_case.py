@@ -279,6 +279,28 @@ def _filter_wall_verdict_for_known_assets(verdict: dict, known_asset_ids: set[st
     return filtered
 
 
+def _write_source_refusal(run_dir: Path, source_dir: Path, db: dict, message: str) -> dict:
+    refusal = {
+        "artifact_role": "material_first_source_refusal",
+        "version": 1,
+        "status": "needs_context",
+        "next_action": "needs-context",
+        "blocking": [{
+            "rule": "material_source_insufficient",
+            "message": message,
+            "required_min_usable_files": 3,
+            "usable_file_count": len(db.get("files") or []),
+            "rejected_file_count": len(db.get("rejects") or []),
+            "source_dir": str(source_dir),
+        }],
+        "required_followup_questions": [
+            "Please provide at least 3 usable media files, or choose a different material source folder."
+        ],
+    }
+    write_json(run_dir / "material_first_source_refusal.json", refusal)
+    return refusal
+
+
 def _first_usable_range(entry: dict) -> dict | None:
     ranges = (entry.get("material_wall_review") or {}).get("usable_ranges") or []
     if not ranges or not isinstance(ranges[0], dict):
@@ -359,6 +381,7 @@ def _build_wall_handoff_report(reviewed: dict) -> dict:
 
 def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
+    write_json(run_dir / "materials_db.source_candidates.json", db)
     wall_dir = run_dir / "verify" / "material_wall"
     write_material_wall_request(
         db,
@@ -366,16 +389,20 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
         wall_dir / "material_wall_request.json",
         limit=max_assets,
     )
+    if len(db["files"]) < 3:
+        return _write_source_refusal(
+            run_dir,
+            source_dir,
+            db,
+            "source folder dry run requires at least 3 usable media files",
+        )
     if wall_verdict:
-        write_json(run_dir / "materials_db.source_candidates.json", db)
         known_asset_ids = {entry.get("id") for entry in db.get("files") or []}
         verdict = _filter_wall_verdict_for_known_assets(load_json(wall_verdict), known_asset_ids)
         reviewed = apply_material_wall_review(db, verdict)
         write_json(run_dir / "materials_db.wall_reviewed.json", reviewed)
         write_json(run_dir / "material_wall_handoff_report.json", _build_wall_handoff_report(reviewed))
         db = _selected_wall_review_db(reviewed)
-    if len(db["files"]) < 3:
-        raise ValueError("source folder dry run requires at least 3 usable media files")
     maps_dir = run_dir / "maps"
     maps_dir.mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "material_needs.json", {
@@ -465,6 +492,7 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
             for index, (need_id, kind, purpose) in enumerate(NEEDS)
         ],
     })
+    return None
 
 
 def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12, wall_verdict=None) -> dict:
@@ -476,12 +504,20 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12, 
 
     source_mode = bool(source_dir)
     if source_mode:
-        _write_source_case_inputs(
+        refusal = _write_source_case_inputs(
             run_dir,
             Path(source_dir).resolve(),
             max_assets=max_assets,
             wall_verdict=wall_verdict,
         )
+        if refusal:
+            return {
+                "ok": False,
+                "run_dir": str(run_dir),
+                "next_action": "needs-context",
+                "blocking": refusal.get("blocking") or [],
+                "refusal": str(run_dir / "material_first_source_refusal.json"),
+            }
     else:
         repo = Path(__file__).resolve().parents[1]
         fixture_input = repo / "examples" / "boundary_fixtures" / "stage3_review_apply" / "input"

@@ -23,6 +23,20 @@ def _rough_cut_starts(rough_cut: dict) -> dict:
 
 
 def _build_report(run_dir: Path, result: dict) -> dict:
+    if result.get("next_action") == "needs-context":
+        return {
+            "artifact_role": "stage2_3_smoke_report",
+            "version": 1,
+            "stage": "stage2_3_material_wall_to_review_apply",
+            "ok": False,
+            "next_action": "needs-context",
+            "blocking": result.get("blocking") or [],
+            "source_run_result": result,
+            "read": [
+                "material_first_source_refusal.json",
+                "materials_db.source_candidates.json",
+            ],
+        }
     handoff = load_json(run_dir / "material_wall_handoff_report.json")
     rough_cut = load_json(run_dir / "rough_cut_plan.json")
     project_map = load_json(run_dir / "project_material_map.json")
