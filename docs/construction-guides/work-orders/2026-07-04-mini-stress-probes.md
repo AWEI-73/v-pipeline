@@ -43,6 +43,7 @@ Dispatch used the existing mini-agent supervision rule: the supervisor spot-chec
 
 - `10 minutes` and `30 minutes` were accepted with `target_sec=600.0` and `target_sec=1800.0`.
 - `5 hours` failed closed, but for the wrong reason: it was parsed as `target_sec=5.0`, then blocked by a target length mismatch against 18,000 seconds.
+- Enforcement note: Stress-T/Dirac v2 had `stats.enforce_target_length=true`, so the mismatch became blocking; this resolves the apparent contradiction with Mini-F, whose earlier boundary artifact had `enforce_target_length=false` and therefore reported `ready_for_build=true`.
 - The Chinese duration case (`case4_zh_5h`, intended as a five-hour phrase) and invalid `banana` were treated as missing/unparsable target length warnings while `ready_for_build=true`. That is a silent-accept gap.
 - The duration summary artifact itself has encoding damage around Chinese text, which made `ConvertFrom-Json` fail during supervisor spot check.
 

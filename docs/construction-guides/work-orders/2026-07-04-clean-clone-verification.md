@@ -244,6 +244,10 @@ Run root: `runs/mini_f_boundary_probe_20260704_093608`
    - Verdict: FAIL, silently accepted/misparsed.
    - Supervisor spot check: `spec_review.json` confirmed `target_duration_sec:
      5.0` and `ready_for_build: true`.
+   - Enforcement note: this Mini-F artifact had
+     `stats.enforce_target_length=false`, so the mismatch stayed a warning and
+     `ready_for_build` remained true; the later Stress-T/Dirac probe enabled
+     enforcement and therefore blocked the same misparse.
 3. Unsupported output format `32:9`:
    - `creator-profile` accepted `resolved.aspect_ratio=32:9` from the brief.
    - `state.json` proceeded to missing material coverage rather than rejecting
