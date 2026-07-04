@@ -848,6 +848,9 @@ def _plan_stock_segment(s, a, seg_text, mat_dir, _fetch=None, _winfn=None,
         got, provider, _exhausted = _try_fetch(0)
         verdict_action = (visual_verdict or {}).get("action")
         verdict_accepts = (visual_verdict or {}).get("accept") or verdict_action in ("accept", "needs_patch")
+        if not got and visual_verdict and verdict_accepts and os.path.exists(stock):
+            got = stock
+            provider = "cached-stock"
         if got and visual_verdict and verdict_accepts:
             patch = visual_verdict.get("patch") or {}
             for window in visual_verdict.get("picked_windows") or []:

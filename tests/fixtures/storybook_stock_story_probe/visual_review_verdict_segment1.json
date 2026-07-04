@@ -1,0 +1,14 @@
+{
+  "segment": 1,
+  "action": "accept",
+  "accept": true,
+  "picked_windows": [
+    {
+      "start": 1.702,
+      "end": 25.533
+    }
+  ],
+  "patch": null,
+  "reject_reason": null,
+  "notes": "City dawn establishes the tone cleanly."
+}

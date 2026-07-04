@@ -1107,6 +1107,34 @@ class SegmentPlannerTest(unittest.TestCase):
         self.assertEqual(entry["picked_scores"], ["agent", "agent"])
         self.assertFalse(entry.get("pending_visual_review", False))
 
+    def test_plan_stock_agent_mode_uses_cached_reviewed_stock_when_provider_unavailable(self):
+        import json
+
+        fixture = Path("tests/fixtures/storybook_stock_story_probe/visual_review_verdict_segment1.json")
+        verdict = json.loads(fixture.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp:
+            cached = Path(tmp) / "mvstock_1.mp4"
+            cached.write_bytes(b"reviewed stock cache from probe")
+
+            slots, entry, _ = mv_cut._plan_stock_segment(
+                {
+                    "segment": 1,
+                    "visual_desc": "morning city skyline or streets waking up",
+                    "search_query": "morning city skyline or streets waking up",
+                },
+                {"n_clips": 1, "clip_dur": 10.0, "budget": 10.0},
+                {},
+                tmp,
+                _fetch=lambda q, o, min_dur=0: None,
+                visual_judge="agent",
+                visual_verdict=verdict,
+            )
+
+        self.assertEqual(len(slots), 1)
+        self.assertEqual(slots[0]["source"], str(cached))
+        self.assertEqual(entry["picked_scores"], ["agent"])
+        self.assertEqual(entry["clips_found"], 1)
+
     def test_plan_stock_agent_mode_rejected_verdict_is_gap(self):
         slots, entry, _ = mv_cut._plan_stock_segment(
             {"segment": 2, "visual_desc": "wrong scene"},
