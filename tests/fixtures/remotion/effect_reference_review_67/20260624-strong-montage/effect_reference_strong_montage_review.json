@@ -1,0 +1,100 @@
+{
+  "artifact_role": "effect_reference_strong_montage_review",
+  "version": 1,
+  "source_reference": {
+    "label": "67th training graduation recap reference",
+    "run_folder": "C:/Users/user/Desktop/video_pipeline/runs/effect_reference_review_67/20260624-strong-montage"
+  },
+  "verify_evidence": {
+    "keyframe_grid": "keyframe_grid_48.jpg",
+    "montage_wall": "montage_wall_10s_64.jpg",
+    "visual_audit": {
+      "path": "visual_audit.json",
+      "pass": true,
+      "sample_count": 48
+    },
+    "black_frame_audit": {
+      "path": "black_frame_audit.json",
+      "pass": false,
+      "finding_count": 3,
+      "interpretation": "Possible intentional black transition plates, but should still be explained or replaced by formal transition assets in pipeline delivery."
+    }
+  },
+  "effect_templates": [
+    {
+      "template_id": "training_opening_title",
+      "role": "title_card",
+      "observed_use": "Opening black collage plate with large yellow title.",
+      "recommended_use": "Film opening and training class title.",
+      "remotion_fit": "high"
+    },
+    {
+      "template_id": "module_label_white_blue",
+      "role": "lower_third",
+      "observed_use": "Course or module label in clean white/blue style.",
+      "recommended_use": "Training item and chapter labels.",
+      "remotion_fit": "medium_high"
+    },
+    {
+      "template_id": "speaker_subtitle_yellow_bar",
+      "role": "lower_third",
+      "observed_use": "Readable speech subtitle treatment.",
+      "recommended_use": "Instructor remarks, student interviews, and narration emphasis.",
+      "remotion_fit": "medium"
+    },
+    {
+      "template_id": "film_strip_transition_card",
+      "role": "chapter_transition",
+      "observed_use": "Film-strip card between story and montage sections.",
+      "recommended_use": "Story-to-MV or major chapter transition.",
+      "remotion_fit": "high"
+    },
+    {
+      "template_id": "soft_light_transition",
+      "role": "chapter_transition",
+      "observed_use": "Soft light or brief warm visual punctuation.",
+      "recommended_use": "Gentle emotional transitions.",
+      "remotion_fit": "medium_high"
+    },
+    {
+      "template_id": "highlight_warm_glow",
+      "role": "overlay",
+      "observed_use": "Warm emphasis around memory or completion moments.",
+      "recommended_use": "Highlight smiles, handshake, group success, or awards.",
+      "remotion_fit": "medium"
+    },
+    {
+      "template_id": "blurred_side_fill",
+      "role": "panel_frame",
+      "observed_use": "Side fill for vertical or mismatched-ratio footage.",
+      "recommended_use": "Preserve real proof footage while filling 16:9 canvas.",
+      "remotion_fit": "medium"
+    },
+    {
+      "template_id": "profile_memory_card",
+      "role": "title_card",
+      "observed_use": "Student or group memory card.",
+      "recommended_use": "Sparingly introduce people, teams, or class memories.",
+      "remotion_fit": "high"
+    },
+    {
+      "template_id": "clean_white_quote_card",
+      "role": "title_card",
+      "observed_use": "Clean closing or reflection text card.",
+      "recommended_use": "Closing quote, instructor message, or final reflection.",
+      "remotion_fit": "high"
+    }
+  ],
+  "pipeline_recommendation": {
+    "material_map_boundary": "Material map should judge factual content and usable ranges, not own effect style.",
+    "contract_boundary": "Segment contract should expose section_role, layout, audio_role, and story purpose.",
+    "effects_boundary": "Effect intent should map segment roles to template_id and required_for_story.",
+    "remotion_boundary": "Remotion produces bounded effect assets only; ffmpeg/contract-run remains final assembly owner.",
+    "verify_boundary": "Delivery should require effect_render_verification when effects are planned."
+  },
+  "review_verdict": {
+    "sufficient_for_basic_training_recap": true,
+    "main_gap": "black_frame_audit fails on three short black intervals; pipeline should either formalize them as transition assets or fix them.",
+    "next_action": "Use these nine templates as the initial training recap effect dictionary and verify rendered effects with contact sheets/effect_render_verification."
+  }
+}

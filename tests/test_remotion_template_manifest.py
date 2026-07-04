@@ -8,6 +8,16 @@ import video_tools
 
 
 class RemotionTemplateManifestTest(unittest.TestCase):
+    def _reference_review_fixture(self) -> Path:
+        return (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "remotion"
+            / "effect_reference_review_67"
+            / "20260624-strong-montage"
+            / "effect_reference_strong_montage_review.json"
+        )
+
     def test_manifest_covers_training_recap_dictionary_templates_with_support_status(self):
         from video_pipeline_core.effect_template_dictionary import load_effect_template_dictionary
         from video_pipeline_core.remotion_template_manifest import build_remotion_template_manifest
@@ -30,14 +40,7 @@ class RemotionTemplateManifestTest(unittest.TestCase):
     def test_manifest_records_reference_review_and_verify_evidence(self):
         from video_pipeline_core.remotion_template_manifest import write_remotion_template_manifest
 
-        root = Path(__file__).resolve().parents[1]
-        review_path = (
-            root
-            / "runs"
-            / "effect_reference_review_67"
-            / "20260624-strong-montage"
-            / "effect_reference_strong_montage_review.json"
-        )
+        review_path = self._reference_review_fixture()
         self.assertTrue(review_path.is_file())
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -58,14 +61,7 @@ class RemotionTemplateManifestTest(unittest.TestCase):
         )
 
     def test_video_tools_command_writes_manifest(self):
-        root = Path(__file__).resolve().parents[1]
-        review_path = (
-            root
-            / "runs"
-            / "effect_reference_review_67"
-            / "20260624-strong-montage"
-            / "effect_reference_strong_montage_review.json"
-        )
+        review_path = self._reference_review_fixture()
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "remotion_effect_capability_manifest.json"
             video_tools.cmd_remotion_template_manifest(SimpleNamespace(
