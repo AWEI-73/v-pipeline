@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
+from video_pipeline_core.env_loader import load_env_file
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON_OUT = REPO_ROOT / ".tmp" / "preflight.json"
@@ -55,23 +57,6 @@ OPTIONAL_ENV_KEYS = (
 WhichFn = Callable[[str], str | None]
 FindSpecFn = Callable[[str], object | None]
 RunCommandFn = Callable[[Sequence[str]], str]
-
-
-def load_env_file(path: Path, env: Mapping[str, str] | None = None) -> dict[str, str]:
-    merged = dict(os.environ if env is None else env)
-    if not path.exists():
-        return merged
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, raw_value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in merged:
-            continue
-        value = raw_value.strip().strip('"').strip("'")
-        merged[key] = value
-    return merged
 
 
 def _default_run_command(args: Sequence[str]) -> str:

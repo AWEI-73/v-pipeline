@@ -2,13 +2,14 @@
 import os
 import sys
 import json
+from .env_loader import getenv
 from .vt_core import ToolError  # noqa: F401
 
 # ── Pexels API（小編擴充：另一個免費素材來源）────────────────────────────
 
 def _pexels_request(endpoint: str, params: dict) -> dict:
     """呼叫 Pexels API，回 JSON"""
-    api_key = os.environ.get('PEXELS_API_KEY')
+    api_key = getenv("PEXELS_API_KEY")
     if not api_key:
         raise ToolError("環境變數 PEXELS_API_KEY 未設定。註冊免費 key：https://www.pexels.com/api/")
     import urllib.request
@@ -55,7 +56,7 @@ def _pexels_video_candidates(query, limit=10):
 
 def _pixabay_video_candidates(query, limit=10):
     """Return normalized Pixabay video candidates. Missing API key means no candidates."""
-    key = os.environ.get("PIXABAY_API_KEY", "").strip()
+    key = (getenv("PIXABAY_API_KEY", "") or "").strip()
     if not key:
         return []
     import urllib.request

@@ -109,6 +109,32 @@ class SoundtrackProvidersTest(unittest.TestCase):
         self.assertEqual(candidate["status"], "provider_unavailable")
         self.assertIn("JAMENDO_CLIENT_ID", candidate["note"])
 
+    def test_provider_search_reads_repo_dotenv_when_env_not_injected(self):
+        jamendo_payload = {"results": []}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / ".env").write_text(
+                "JAMENDO_CLIENT_ID=jamendo-client\n"
+                "PIXABAY_API_KEY=pixabay-key\n",
+                encoding="utf-8",
+            )
+            with patch.dict("os.environ", {}, clear=True), \
+                 patch("video_pipeline_core.env_loader.REPO_ROOT", repo), \
+                 patch("urllib.request.urlopen", return_value=FakeResponse(jamendo_payload)):
+                result = search_soundtrack_providers(
+                    _plan(),
+                    providers=["jamendo", "pixabay"],
+                    env=None,
+                    limit=1,
+                )
+
+        self.assertEqual(result["provider_status"]["jamendo"], "ok")
+        self.assertEqual(result["provider_status"]["pixabay"], "official_audio_api_unavailable")
+        notes = " ".join(str(item.get("note", "")) for item in result["candidates"])
+        self.assertNotIn("JAMENDO_CLIENT_ID is not configured", notes)
+        self.assertNotIn("PIXABAY_API_KEY is not configured", notes)
+
     def test_download_candidate_writes_audio_manifest_and_handoff(self):
         candidate = {
             "candidate_id": "jamendo_mv_climax_123",

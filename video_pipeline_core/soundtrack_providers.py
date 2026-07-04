@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from .env_loader import load_env_file
 
 
 JAMENDO_TRACKS_URL = "https://api.jamendo.com/v3.0/tracks/"
@@ -110,7 +111,7 @@ def search_soundtrack_providers(
     env: Mapping[str, str] | None = None,
     limit: int = 3,
 ) -> dict[str, Any]:
-    env_map = dict(os.environ if env is None else env)
+    env_map = load_env_file() if env is None else dict(env)
     sections = soundtrack_plan.get("sections") or []
     candidates: list[dict[str, Any]] = []
     provider_status: dict[str, str] = {}

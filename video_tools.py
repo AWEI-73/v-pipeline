@@ -89,11 +89,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-try:
-    import dotenv
-    dotenv.load_dotenv(Path(__file__).resolve().parent / ".env")
-except ImportError:
-    pass
+from video_pipeline_core.env_loader import apply_dotenv
+
+apply_dotenv()
 
 if sys.platform == "win32":
     import io
@@ -104,22 +102,6 @@ if sys.platform == "win32":
         pass
 
 from video_pipeline_core.vt_core import YTDLP, FFMPEG, FFPROBE, run, ToolError, _audio_duration
-
-
-def _load_dotenv(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, _, v = line.partition("=")
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-    except FileNotFoundError:
-        pass
-
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_load_dotenv(os.path.join(_HERE, ".env"))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
