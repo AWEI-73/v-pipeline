@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,9 +15,11 @@ from video_pipeline_core import material_map_lifecycle  # noqa: E402
 from video_pipeline_core.material_wall import apply_material_wall_review, write_material_wall_request  # noqa: E402
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps  # noqa: E402
 from video_pipeline_core.material_rough_cut import build_rough_cut_plan, load_json, write_json  # noqa: E402
+from video_pipeline_core.platform_tools import resolve_ffprobe  # noqa: E402
 
 MEDIA_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 PHOTO_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+VIDEO_EXTS = MEDIA_EXTS - PHOTO_EXTS
 FINAL_MASTER_MARKERS = (
     "最終版",
     "final",
@@ -97,26 +100,91 @@ def _material_caption(source_root: Path, path: Path) -> str:
     return f"folder/file hint: {tokens}"
 
 
+def _probe_video_duration(path: Path) -> tuple[float | None, str | None]:
+    try:
+        proc = subprocess.run(
+            [
+                resolve_ffprobe(),
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            text=True,
+            capture_output=True,
+            timeout=15,
+        )
+    except Exception as exc:
+        return None, str(exc)
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or "ffprobe failed").strip()
+    try:
+        duration = float((proc.stdout or "").strip())
+    except ValueError:
+        return None, "ffprobe did not return a numeric duration"
+    if duration <= 0:
+        return None, "ffprobe returned non-positive duration"
+    return duration, None
+
+
+def _media_probe_reject(path: Path) -> dict | None:
+    if path.suffix.lower() not in VIDEO_EXTS:
+        return None
+    duration, error = _probe_video_duration(path)
+    if duration is None:
+        return {
+            "path": str(path),
+            "reason": "invalid_media",
+            "detail": error,
+        }
+    return None
+
+
 def _scan_source_materials(source_dir: Path, *, max_assets: int) -> dict:
     candidates = []
     skipped = []
+    rejects = []
+    asset_ids = {}
+    counter = 0
     for path in sorted(source_dir.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in MEDIA_EXTS:
             continue
         if _is_final_master_candidate(path):
             skipped.append({"path": str(path), "reason": "looks like final/master export"})
             continue
+        counter += 1
+        asset_ids[path] = f"real_{counter:04d}"
+        reject = _media_probe_reject(path)
+        if reject:
+            reject["asset_id"] = asset_ids[path]
+            rejects.append(reject)
+            skipped.append({"path": str(path), "reason": "invalid_media"})
+            continue
         candidates.append(path)
 
     selected_paths = _select_source_paths(source_dir, candidates, max_assets=max_assets)
+    if not rejects:
+        ordered_for_ids = list(selected_paths) + [
+            path for path in candidates
+            if path not in set(selected_paths)
+        ]
+        asset_ids = {
+            path: f"real_{index:04d}"
+            for index, path in enumerate(ordered_for_ids, start=1)
+        }
     selected_set = {str(path) for path in selected_paths}
     for path in candidates:
         if str(path) not in selected_set:
             skipped.append({"path": str(path), "reason": "not selected for bounded dry run"})
 
     files = []
-    for counter, path in enumerate(selected_paths, start=1):
-        asset_id = f"real_{counter:04d}"
+    for path in selected_paths:
+        asset_id = asset_ids[path]
         is_photo = path.suffix.lower() in PHOTO_EXTS
         files.append({
             "id": asset_id,
@@ -134,6 +202,7 @@ def _scan_source_materials(source_dir: Path, *, max_assets: int) -> dict:
         "source_dir": str(source_dir),
         "total": len(files),
         "files": files,
+        "rejects": rejects,
         "skipped": skipped,
     }
 
@@ -188,6 +257,26 @@ def _selected_wall_review_db(reviewed: dict) -> dict:
     out["files"] = selected
     out["total"] = len(selected)
     return out
+
+
+def _filter_wall_verdict_for_known_assets(verdict: dict, known_asset_ids: set[str]) -> dict:
+    assets = verdict.get("assets")
+    if not isinstance(assets, list):
+        return verdict
+    filtered = dict(verdict)
+    filtered["assets"] = [
+        asset for asset in assets
+        if isinstance(asset, dict) and asset.get("asset_id") in known_asset_ids
+    ]
+    ignored = [
+        asset.get("asset_id")
+        for asset in assets
+        if isinstance(asset, dict) and asset.get("asset_id") not in known_asset_ids
+    ]
+    if ignored:
+        filtered["ignored_asset_ids"] = ignored
+        filtered["ignored_reason"] = "asset rejected by media integrity intake"
+    return filtered
 
 
 def _first_usable_range(entry: dict) -> dict | None:
@@ -279,7 +368,9 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
     )
     if wall_verdict:
         write_json(run_dir / "materials_db.source_candidates.json", db)
-        reviewed = apply_material_wall_review(db, load_json(wall_verdict))
+        known_asset_ids = {entry.get("id") for entry in db.get("files") or []}
+        verdict = _filter_wall_verdict_for_known_assets(load_json(wall_verdict), known_asset_ids)
+        reviewed = apply_material_wall_review(db, verdict)
         write_json(run_dir / "materials_db.wall_reviewed.json", reviewed)
         write_json(run_dir / "material_wall_handoff_report.json", _build_wall_handoff_report(reviewed))
         db = _selected_wall_review_db(reviewed)

@@ -64,9 +64,9 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             (source / "training").mkdir(parents=True)
             (source / "closing").mkdir(parents=True)
             (source / "最終版的最終版.mp4").write_bytes(b"finished master")
-            (source / "opening" / "進場.MOV").write_bytes(b"video")
-            (source / "training" / "實習片段.mp4").write_bytes(b"video")
-            (source / "closing" / "隊呼.mp4").write_bytes(b"video")
+            _jpg(source / "opening" / "進場.jpg", "red")
+            _jpg(source / "training" / "實習片段.jpg", "green")
+            _jpg(source / "closing" / "隊呼.jpg", "blue")
             run_dir = root / "run"
 
             result = run_material_first_landing_case(run_dir, source_dir=source, max_assets=10)
@@ -85,15 +85,14 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             root = Path(tmp)
             source = root / "source"
             for folder, filename in (
-                ("0325素材", "隊呼.mp4"),
-                ("進場", "entry.mov"),
-                ("工安體感", "safety.mp4"),
-                ("主任勉勵", "director.mp4"),
-                ("zz_unused", "other.mp4"),
+                ("0325素材", "隊呼.jpg"),
+                ("進場", "entry.jpg"),
+                ("工安體感", "safety.jpg"),
+                ("主任勉勵", "director.jpg"),
+                ("zz_unused", "other.jpg"),
             ):
                 path = source / folder / filename
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b"video")
+                _jpg(path, "red")
 
             run_dir = root / "run"
             result = run_material_first_landing_case(run_dir, source_dir=source, max_assets=5)
@@ -132,6 +131,30 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
                 [item["asset_id"] for item in request["verdict_template"]["assets"]],
                 asset_ids,
             )
+
+    def test_source_folder_case_rejects_corrupt_mp4_before_material_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "opening" / "opening.jpg", "red")
+            _jpg(source / "training" / "training.jpg", "green")
+            _jpg(source / "closing" / "closing.jpg", "blue")
+            (source / "closing" / "corrupt.mp4").write_bytes(b"not a real mp4")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(run_dir, source_dir=source, max_assets=5)
+
+            self.assertTrue(result["ok"], result)
+            materials = json.loads((run_dir / "materials_db.json").read_text(encoding="utf-8"))
+            rejected = materials.get("rejects") or []
+            self.assertEqual(len(rejected), 1)
+            self.assertIn("corrupt.mp4", rejected[0]["path"])
+            self.assertEqual(rejected[0]["reason"], "invalid_media")
+            self.assertFalse(any("corrupt.mp4" in item["path"] for item in materials["files"]))
+            project_map = json.loads((run_dir / "project_material_map.json").read_text(encoding="utf-8"))
+            self.assertFalse(any("corrupt.mp4" in asset.get("source", "") for asset in project_map["assets"]))
+            rough = json.loads((run_dir / "rough_cut_plan.json").read_text(encoding="utf-8"))
+            self.assertFalse(any("corrupt.mp4" in clip.get("source_path", "") for clip in rough["clips"]))
 
     def test_source_folder_case_applies_material_wall_verdict_before_mapping(self):
         with tempfile.TemporaryDirectory() as tmp:
