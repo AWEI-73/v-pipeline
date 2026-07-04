@@ -46,6 +46,23 @@ Use this with:
    `route-task-next` / `route-task-accept`; the harness validates artifacts,
    freshness, and `must_not_touch` hashes instead of trusting status prose.
 
+### Rerun Authority Order
+
+`pipeline_home.py re-derives route state from current intent and artifacts`
+whenever it summarizes or resumes a run. A stale `state.json` cursor is not completion authority and must not force a run to complete when newer inputs or
+missing evidence say otherwise.
+
+Use this authority order when deciding whether to rerun, resume, or report
+completion:
+
+1. current `video_intent.json` and other Stage 0 route inputs;
+2. current gate artifacts, including material delta, revision, build, verify,
+   and delivery gates;
+3. current delivery evidence, including `final.mp4`, manifests, audio/subtitle
+   evidence, and review artifacts;
+4. `state.json.next_action` as the route-facing cursor after the current
+   artifacts have been checked.
+
 ## Full Route Map
 
 | Stage | Stable name | Main decision | Skill(s) | Tool entrypoints | Main artifacts | Pass / stop rule | Return route |

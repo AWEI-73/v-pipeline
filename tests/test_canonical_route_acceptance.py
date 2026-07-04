@@ -108,6 +108,17 @@ class CanonicalRouteDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, combined)
 
+    def test_operating_map_declares_pipeline_home_rerun_authority_order(self):
+        text = read("docs/video-pipeline-operating-map.md")
+        for expected in [
+            "pipeline_home.py re-derives route state from current intent and artifacts",
+            "A stale `state.json` cursor is not completion authority",
+            "current `video_intent.json`",
+            "current gate artifacts",
+            "current delivery evidence",
+        ]:
+            self.assertIn(expected, text)
+
     def test_end_to_end_line_strings_whole_pipeline(self):
         text = read("docs/video-pipeline-end-to-end-line.md")
         expected = [
