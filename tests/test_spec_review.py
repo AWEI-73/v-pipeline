@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from video_pipeline_core.spec_review import review_spec
+from video_pipeline_core.spec_review import _parse_target_sec, review_spec
 
 
 def _seg(**over):
@@ -234,6 +234,54 @@ class WarningRulesTest(unittest.TestCase):
         self.assertEqual(finding["estimated_duration_sec"], 48.0)
         self.assertEqual(finding["target_duration_sec"], 180.0)
         self.assertLess(finding["duration_ratio"], 0.5)
+        self.assertEqual(finding["enforcement"]["enforce_target_length"], True)
+
+    def test_probe_target_length_parser_handles_hours_and_chinese_forms(self):
+        cases = {
+            "10 minutes": 600.0,
+            "30 minutes": 1800.0,
+            "5 hours": 18000.0,
+            "2h": 7200.0,
+            "1.5 hr": 5400.0,
+            "5\u5c0f\u6642": 18000.0,
+            "\u7247\u9577\u4e94\u5c0f\u6642": 18000.0,
+            "3\u5206\u9418": 180.0,
+            "90\u79d2": 90.0,
+        }
+
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(_parse_target_sec(raw), expected)
+
+    def test_probe_five_hours_no_longer_misparses_as_five_seconds(self):
+        contract = {"segments": [
+            _seg(segment=1, requested_duration_sec=9000),
+            _seg(segment=2, requested_duration_sec=9000),
+        ]}
+        brief = {
+            "video_type": "documentary",
+            "target_length": "5 hours",
+            "mode": "warm_documentary",
+            "enforce_target_length": True,
+        }
+
+        r = review_spec(contract, brief, has_editorial_design=True)
+
+        self.assertTrue(r["ready_for_build"])
+        self.assertNotIn("target_length_mismatch", self._rules(r))
+        self.assertEqual(r["stats"]["target_sec"], 18000.0)
+
+    def test_probe_unparseable_target_length_blocks_spec_review(self):
+        r = review_spec(
+            {"segments": [_seg()]},
+            {"video_type": "mv", "target_length": "banana", "mode": "warm_documentary"},
+            has_editorial_design=True,
+        )
+
+        self.assertFalse(r["ready_for_build"])
+        finding = next(w for w in r["blocking"] if w["rule"] == "target_length_unparseable")
+        self.assertEqual(finding["target_length"], "banana")
+        self.assertEqual(finding["enforcement"]["enforce_target_length"], False)
 
     def test_w3_implicit_mode_trap_warns(self):
         brief = {"video_type": "mv", "target_length": "45 seconds"}  # no explicit mode

@@ -18,13 +18,39 @@ def _parse_target_sec(v) -> float | None:
         return None
     if isinstance(v, (int, float)):
         return float(v)
-    s = str(v).lower()
-    m = re.search(r"([\d.]+)", s)
-    if not m:
+    s = str(v).strip().lower()
+    if not s:
         return None
-    n = float(m.group(1))
-    return n * 60 if ("min" in s or "分" in s) else n
-
+    m = re.search(r"([\d]+(?:\.\d+)?)", s)
+    n: float | None = float(m.group(1)) if m else None
+    if n is None:
+        chinese_digits = {
+            "\u96f6": 0,
+            "\u4e00": 1,
+            "\u4e8c": 2,
+            "\u5169": 2,
+            "\u4e09": 3,
+            "\u56db": 4,
+            "\u4e94": 5,
+            "\u516d": 6,
+            "\u4e03": 7,
+            "\u516b": 8,
+            "\u4e5d": 9,
+            "\u5341": 10,
+        }
+        for char, value in chinese_digits.items():
+            if char in s:
+                n = float(value)
+                break
+    if n is None:
+        return None
+    if re.search(r"\b(hours?|hrs?)\b|\d\s*h\b|\u5c0f\u6642", s):
+        return n * 3600
+    if re.search(r"\b(mins?|minutes?)\b|\u5206\u9418|\u5206", s):
+        return n * 60
+    if re.search(r"\b(secs?|seconds?)\b|\u79d2", s):
+        return n
+    return n
 
 def _infer_mode(brief: dict) -> str | None:
     vt = f"{brief.get('video_type','')} {brief.get('mode','')}".lower()

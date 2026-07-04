@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .editorial_qa import _parse_target_sec
+
 
 ENTRY_PATHS = {"material-first", "structure-first", "needs-context"}
 
@@ -562,7 +564,8 @@ def _input_state(material_availability: str | None, text_availability: str) -> s
 
 
 def _entry_path_for(input_state: str, questions: list[str]) -> str:
-    if questions and input_state in {"unknown", "idea_only"}:
+    has_blocking_target_question = any("target length" in str(question).lower() for question in questions)
+    if has_blocking_target_question or (questions and input_state in {"unknown", "idea_only"}):
         return "needs-context"
     if input_state == "material_available":
         return "material-first"
@@ -704,8 +707,11 @@ def _questions(
         and not brief.get("generation_allowed")
     ):
         questions.append("Do you have an article, outline, script, story, or only a loose idea?")
-    if not _clean(brief.get("target_length")):
+    target_length = _clean(brief.get("target_length"))
+    if not target_length:
         questions.append("Roughly how long should the final video be?")
+    elif _parse_target_sec(target_length) is None:
+        questions.append("What exact target length should the final video be, for example 45 seconds or 5 minutes?")
     if not _clean(brief.get("tone") or brief.get("style")):
         questions.append("Should the style feel documentary, energetic, warm, story-driven, MV-like, or clearly instructional?")
     return questions

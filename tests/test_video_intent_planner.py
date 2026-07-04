@@ -506,6 +506,25 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertEqual(intent["entry_path"], "needs-context")
         self.assertGreaterEqual(len(intent["required_followup_questions"]), 4)
 
+    def test_unparseable_target_length_requires_followup_at_stage0(self):
+        intent = plan_video_intent(
+            {
+                "request": "make a warm documentary recap from existing material",
+                "video_type": "event recap",
+                "audience": "family",
+                "goal": "summarize the day",
+                "target_length": "banana",
+                "material_availability": "existing",
+                "tone": "warm documentary",
+            }
+        )
+
+        self.assertEqual(intent["entry_path"], "needs-context")
+        self.assertEqual(intent["route"], "needs-context")
+        questions = " ".join(intent["required_followup_questions"]).lower()
+        self.assertIn("target", questions)
+        self.assertIn("length", questions)
+
 
 class VideoIntentPlannerCliTest(unittest.TestCase):
     def test_cli_writes_video_intent_json(self):

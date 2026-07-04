@@ -141,7 +141,9 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
     blocking: list[dict] = []
     warnings: list[dict] = []
 
-    target_sec = _parse_target_sec(brief.get("target_length"))
+    target_length_raw = brief.get("target_length")
+    target_length_text = str(target_length_raw).strip() if target_length_raw is not None else ""
+    target_sec = _parse_target_sec(target_length_raw)
     stock_first = _is_stock_first(contract)
     enforce_target_length = bool(
         (brief or {}).get("enforce_target_length")
@@ -195,13 +197,25 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
                 "fix": "remove/downgrade the requirement or implement and expose it in capability_manifest",
             })
 
-    # --- W2: no target_length → music length becomes the runtime -------------
-    if not target_sec:
+    target_length_enforcement = {"enforce_target_length": enforce_target_length}
+
+    # --- W2: no target_length -> music length becomes the runtime -------------
+    if not target_length_text:
         warnings.append({
             "rule": "missing_target_length",
-            "message": "brief.target_length missing/unparsable — the timeline will "
+            "enforcement": target_length_enforcement,
+            "message": "brief.target_length missing/unparsable; the timeline will "
                        "be as long as the music (soul-v5: 45s film became 123s)",
             "fix": "set brief.target_length (e.g. '45 seconds')",
+        })
+
+    elif target_sec is None:
+        blocking.append({
+            "rule": "target_length_unparseable",
+            "target_length": target_length_raw,
+            "enforcement": target_length_enforcement,
+            "message": "brief.target_length is present but cannot be parsed into seconds",
+            "fix": "ask for a concrete target length such as '45 seconds' or '5 minutes'",
         })
 
     else:
@@ -214,6 +228,7 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
                 "estimated_duration_sec": round(float(estimated_sec), 3),
                 "duration_ratio": round(ratio, 3),
                 "estimate_source": estimate_source,
+                "enforcement": target_length_enforcement,
                 "message": f"contract estimated duration is {estimated_sec:g}s but "
                            f"brief.target_length is {float(target_sec):g}s "
                            f"(ratio {ratio:.2f})",
@@ -226,7 +241,6 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
                     "rule": "target_length_mismatch",
                     **finding,
                 })
-
     # --- W3: implicit mode trap ----------------------------------------------
     vt = str(brief.get("video_type") or "").lower()
     if brief and not brief.get("mode") and "mv" in vt:
@@ -443,6 +457,7 @@ def review_spec(contract, brief=None, *, has_editorial_design=False, supply_revi
         "pacing_conflict": 2,
         "perfunctory_spec": 2,
         "missing_target_length": 3,
+        "target_length_unparseable": 2,
         "target_length_mismatch": 2,
     }
     for finding in blocking + warnings:
