@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import video_pipeline_core.route_orchestrator as route_orchestrator
 from video_pipeline_core.route_orchestrator import accept_task_result, write_next_task
 from video_pipeline_core.video_intent_planner import plan_video_intent
 
@@ -198,10 +199,21 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
             self.assertFalse((root / "state.json").exists())
 
     def test_accept_rejects_repo_doc_change_by_bounded_worker(self):
-        repo_doc = Path(__file__).resolve().parents[1] / "docs" / "_route_orchestrator_forbidden_probe.tmp"
-        try:
-            with tempfile.TemporaryDirectory() as td:
-                root = Path(td)
+        with tempfile.TemporaryDirectory() as repo_td, tempfile.TemporaryDirectory() as run_td:
+            repo_root = Path(repo_td)
+            (repo_root / "docs").mkdir()
+            (repo_root / ".gitignore").write_text("*.tmp\n", encoding="utf-8")
+            (repo_root / "docs" / "keep.md").write_text("tracked\n", encoding="utf-8")
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo_root, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_root, check=True)
+            subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+            subprocess.run(["git", "commit", "-m", "fixture"], cwd=repo_root, check=True, stdout=subprocess.DEVNULL)
+            original_repo_root = route_orchestrator.REPO_ROOT
+            route_orchestrator.REPO_ROOT = repo_root
+            repo_doc = repo_root / "docs" / "_route_orchestrator_forbidden_probe.tmp"
+            try:
+                root = Path(run_td)
                 task = write_next_task(root, root / "task.json", now_epoch=1000.0)
                 output = root / "video_intent.json"
                 output.write_text(
@@ -241,9 +253,8 @@ class RouteOrchestratorTaskPacketTest(unittest.TestCase):
                 self.assertFalse(verdict["ok"])
                 self.assertTrue(any("repository guard changed" in err for err in verdict["errors"]))
                 self.assertFalse((root / "state.json").exists())
-        finally:
-            if repo_doc.exists():
-                repo_doc.unlink()
+            finally:
+                route_orchestrator.REPO_ROOT = original_repo_root
 
     def test_accept_rejects_stale_allowed_output(self):
         with tempfile.TemporaryDirectory() as td:

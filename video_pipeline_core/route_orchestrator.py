@@ -176,7 +176,8 @@ def _snapshot_path(path: Path) -> dict[str, Any]:
     return item
 
 
-def _git_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+def _git_snapshot(repo_root: Path | None = None, paths: Iterable[str] | None = None) -> dict[str, Any]:
+    repo_root = repo_root or REPO_ROOT
     try:
         head = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
@@ -184,21 +185,37 @@ def _git_snapshot(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
+        status_cmd = ["git", "status", "--porcelain=v1"]
+        if paths:
+            status_cmd.extend(["--untracked-files=all", "--ignored=matching", "--"])
+            status_cmd.extend(paths)
         status = subprocess.check_output(
-            ["git", "status", "--porcelain=v1"],
+            status_cmd,
             cwd=repo_root,
             text=True,
             stderr=subprocess.DEVNULL,
         )
-        return {"available": True, "repo_root": str(repo_root), "head": head, "status": status}
+        return {
+            "available": True,
+            "repo_root": str(repo_root),
+            "head": head,
+            "status": status,
+            "paths": list(paths or []),
+        }
     except (OSError, subprocess.CalledProcessError):
-        return {"available": False, "repo_root": str(repo_root), "head": None, "status": None}
+        return {
+            "available": False,
+            "repo_root": str(repo_root),
+            "head": None,
+            "status": None,
+            "paths": list(paths or []),
+        }
 
 
 def _compare_git_snapshot(expected: dict[str, Any]) -> str | None:
     if not expected.get("available"):
         return None
-    actual = _git_snapshot(Path(expected.get("repo_root") or REPO_ROOT))
+    actual = _git_snapshot(Path(expected.get("repo_root") or REPO_ROOT), expected.get("paths"))
     if not actual.get("available"):
         return "repository guard changed: git snapshot unavailable at accept time"
     if actual.get("head") != expected.get("head"):
@@ -254,6 +271,17 @@ def write_next_task(
                     raise ValueError(f"allowed output points to directory and cannot be cleared: {path}")
                 path.unlink()
     protected_paths = _resolve_many(run_dir, stage["must_not_touch"])
+    forbidden_writes = [
+        ".git",
+        "skills",
+        "docs",
+        "video_pipeline_core",
+        "tools",
+        "tests",
+        "dashboard",
+        "RUNBOOK.md",
+        "roadmap.md",
+    ]
     packet = {
         "artifact_role": "route_subagent_task",
         "version": 1,
@@ -267,17 +295,7 @@ def write_next_task(
         "allowed_outputs": [str(p) for p in allowed_paths],
         "must_not_touch": [str(p) for p in protected_paths],
         "mode": "worker",
-        "forbidden_writes": [
-            ".git",
-            "skills",
-            "docs",
-            "video_pipeline_core",
-            "tools",
-            "tests",
-            "dashboard",
-            "RUNBOOK.md",
-            "roadmap.md",
-        ],
+        "forbidden_writes": forbidden_writes,
         "maintainer_mode_note": (
             "If framework docs/skills/source/tests/tools must change, return blocked or "
             "needs_context; do not edit them in worker mode."
@@ -286,7 +304,7 @@ def write_next_task(
         "state_ref": str(state_path) if state_path else None,
         "snapshot": {
             "must_not_touch": {str(p): _snapshot_path(p) for p in protected_paths},
-            "repository_guard": _git_snapshot(),
+            "repository_guard": _git_snapshot(paths=forbidden_writes),
         },
     }
     _write_json(out, packet)
