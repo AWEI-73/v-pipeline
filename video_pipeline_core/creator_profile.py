@@ -19,6 +19,8 @@ import copy
 import json
 from pathlib import Path
 
+from .aspect_ratio import aspect_ratio_followup, is_supported_aspect_ratio
+
 
 DEFAULT_CREATOR_PROFILE = {
     "artifact_role": "creator_profile",
@@ -103,14 +105,28 @@ def resolve_defaults(creator_profile, brief=None):
     cp = creator_profile or {}
     brief = brief or {}
     resolved, sources, applied = {}, {}, []
+    required_followup_questions = []
     for key, (section, field) in _DEFAULT_MAP.items():
         brief_val = brief.get(key)
         cp_val = (cp.get(section) or {}).get(field)
         if brief_val is not None:
+            if key == "aspect_ratio" and not is_supported_aspect_ratio(brief_val):
+                sources[key] = "invalid"
+                required_followup_questions.append(aspect_ratio_followup(brief_val))
+                continue
             resolved[key] = brief_val
             sources[key] = "brief"
         elif cp_val is not None:
+            if key == "aspect_ratio" and not is_supported_aspect_ratio(cp_val):
+                sources[key] = "invalid"
+                required_followup_questions.append(aspect_ratio_followup(cp_val))
+                continue
             resolved[key] = cp_val
             sources[key] = "creator_profile"
             applied.append(key)
-    return {"resolved": resolved, "sources": sources, "applied": applied}
+    return {
+        "resolved": resolved,
+        "sources": sources,
+        "applied": applied,
+        "required_followup_questions": required_followup_questions,
+    }

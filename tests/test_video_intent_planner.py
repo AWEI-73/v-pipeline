@@ -525,6 +525,27 @@ class VideoIntentPlannerTest(unittest.TestCase):
         self.assertIn("target", questions)
         self.assertIn("length", questions)
 
+    def test_unsupported_aspect_ratio_requires_followup_at_stage0(self):
+        for aspect_ratio in ("32:9", "abc:def", "cinemascope but vertical"):
+            with self.subTest(aspect_ratio=aspect_ratio):
+                intent = plan_video_intent(
+                    {
+                        "request": "product demo",
+                        "video_type": "brand-product",
+                        "audience": "customers",
+                        "goal": "present the product",
+                        "target_length": "3 minutes",
+                        "material_availability": "existing",
+                        "tone": "clean",
+                        "aspect_ratio": aspect_ratio,
+                    }
+                )
+
+                self.assertEqual(intent["entry_path"], "needs-context")
+                questions = " ".join(intent["required_followup_questions"]).lower()
+                self.assertIn("aspect ratio", questions)
+                self.assertIn("16:9", questions)
+
 
 class VideoIntentPlannerCliTest(unittest.TestCase):
     def test_cli_writes_video_intent_json(self):

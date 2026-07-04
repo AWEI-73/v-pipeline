@@ -81,6 +81,15 @@ class ResolveDefaultsTest(unittest.TestCase):
         self.assertEqual(out["resolved"], {})
         self.assertEqual(out["applied"], [])
 
+    def test_unsupported_aspect_ratio_reports_required_followup(self):
+        out = cp.resolve_defaults(self._profile(), brief={"aspect_ratio": "32:9"})
+
+        self.assertNotIn("aspect_ratio", out["resolved"])
+        self.assertEqual(out["sources"]["aspect_ratio"], "invalid")
+        questions = " ".join(out["required_followup_questions"]).lower()
+        self.assertIn("aspect ratio", questions)
+        self.assertIn("16:9", questions)
+
 
 class CreatorProfileCliTest(unittest.TestCase):
     def test_init_writes_default_profile(self):

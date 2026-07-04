@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .aspect_ratio import aspect_ratio_followup, is_supported_aspect_ratio
 from .editorial_qa import _parse_target_sec
 
 
@@ -565,7 +566,8 @@ def _input_state(material_availability: str | None, text_availability: str) -> s
 
 def _entry_path_for(input_state: str, questions: list[str]) -> str:
     has_blocking_target_question = any("target length" in str(question).lower() for question in questions)
-    if has_blocking_target_question or (questions and input_state in {"unknown", "idea_only"}):
+    has_blocking_aspect_question = any("aspect ratio" in str(question).lower() for question in questions)
+    if has_blocking_target_question or has_blocking_aspect_question or (questions and input_state in {"unknown", "idea_only"}):
         return "needs-context"
     if input_state == "material_available":
         return "material-first"
@@ -712,6 +714,9 @@ def _questions(
         questions.append("Roughly how long should the final video be?")
     elif _parse_target_sec(target_length) is None:
         questions.append("What exact target length should the final video be, for example 45 seconds or 5 minutes?")
+    aspect_ratio = _clean(brief.get("aspect_ratio"))
+    if aspect_ratio and not is_supported_aspect_ratio(aspect_ratio):
+        questions.append(aspect_ratio_followup(aspect_ratio))
     if not _clean(brief.get("tone") or brief.get("style")):
         questions.append("Should the style feel documentary, energetic, warm, story-driven, MV-like, or clearly instructional?")
     return questions
