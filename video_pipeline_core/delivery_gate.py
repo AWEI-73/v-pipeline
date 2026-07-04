@@ -943,11 +943,13 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
     else:
         media_probe = probe if probe is not None else _probe_media(final_path)
         if media_probe.get("ok") is False:
+            probe_error = media_probe.get("error") or "ffprobe failed"
             blocking.append({
                 "rule": "media_probe_failed",
                 "tier": 1,
                 "artifact": "final.mp4",
-                "message": media_probe.get("error") or "ffprobe failed",
+                "message": f"final.mp4 is not a valid playable media file: {probe_error}",
+                "probe_error": probe_error,
                 "next_action": "fix_or_rerender_video",
             })
         elif not _has_stream(media_probe, "video"):

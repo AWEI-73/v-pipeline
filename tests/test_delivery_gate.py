@@ -467,6 +467,21 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertTrue(result["pass"])
         self.assertEqual(result["blocking"], [])
 
+    def test_complete_video_gate_blocks_placeholder_final_with_clear_finding(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+
+            result = evaluate_complete_video_delivery(root)
+
+        self.assertFalse(result["pass"])
+        media_blocks = [
+            item for item in result["blocking"]
+            if item.get("artifact") == "final.mp4" and item.get("rule") == "media_probe_failed"
+        ]
+        self.assertTrue(media_blocks, result)
+        self.assertIn("not a valid playable media file", media_blocks[0]["message"])
+
     def test_complete_video_gate_uses_subtitle_voiceover_build_handoff_refs(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
