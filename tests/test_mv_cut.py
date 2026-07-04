@@ -765,6 +765,27 @@ class XfadeRenderTest(unittest.TestCase):
 
             self.assertFalse(out.exists() and out.stat().st_size == 0)
 
+    def test_concat_segment_guard_names_audio_only_probe_segment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio_only = root / "mvseg_000.mp4"
+            subprocess.run([
+                mv_cut.FFMPEG, "-y", "-f", "lavfi", "-i",
+                "sine=frequency=440:duration=1", "-c:a", "aac", "-vn", str(audio_only),
+            ], capture_output=True, check=True)
+
+            with self.assertRaises(Exception) as cm:
+                mv_cut._validate_concat_segments([str(audio_only)], [{
+                    "slot_index": 0,
+                    "segment": 1,
+                    "source": "probe-source.mp4",
+                }])
+
+        message = str(cm.exception)
+        self.assertIn("mvseg_000.mp4", message)
+        self.assertIn("missing video stream", message)
+        self.assertIn("slot_index=0", message)
+
 
 class StaticPrefilterTest(unittest.TestCase):
     def test_parse_freeze_ratio_pair(self):

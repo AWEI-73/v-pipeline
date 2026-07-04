@@ -1998,6 +1998,40 @@ def _has_audio_stream(path):
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
+def _probe_stream_types(path):
+    from .vt_core import FFPROBE
+
+    result = subprocess.run([
+        FFPROBE, "-v", "error",
+        "-show_entries", "stream=codec_type",
+        "-of", "csv=p=0", path,
+    ], capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise ToolError(f"render_mv_audio: cannot probe segment {os.path.basename(path)} before concat: {stderr[-400:]}")
+    return {line.strip() for line in (result.stdout or "").splitlines() if line.strip()}
+
+
+def _validate_concat_segments(segs, plan):
+    for index, seg in enumerate(segs):
+        streams = _probe_stream_types(seg)
+        slot = plan[index] if index < len(plan) else {}
+        slot_index = slot.get("slot_index", index)
+        segment = slot.get("segment")
+        source = slot.get("source")
+        missing = []
+        if "video" not in streams:
+            missing.append("video")
+        if "audio" not in streams:
+            missing.append("audio")
+        if missing:
+            missing_text = " and ".join(f"{kind} stream" for kind in missing)
+            raise ToolError(
+                f"render_mv_audio: concat segment {os.path.basename(seg)} missing {missing_text} "
+                f"before concat (slot_index={slot_index}, segment={segment}, source={source})"
+            )
+
+
 def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, burn_text=True):
     """(I/O) render plan → 對拍/長段拼接 + audio_role 真混音。
     keep_audio 段(duck/diegetic)保留原音、其餘補靜音;末段用 sidechain ducking
@@ -2096,6 +2130,7 @@ def render_mv_audio(plan, music_path, out_path, mat_dir=None, music_vol=0.7, bur
             segs.append(seg)
     if not segs:
         raise ToolError("render_mv_audio: no segments rendered")
+    _validate_concat_segments(segs, plan)
     listf = os.path.normpath(os.path.join(work_dir, "mv_concat.txt"))
     with open(listf, "w") as f:
         for s in segs:
