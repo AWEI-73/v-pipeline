@@ -88,6 +88,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "render_final_video",
         "render_or_remove_unrendered_effect",
         "repair_artifact_manifest_or_regenerate_evidence",
+        "repair_audio_build_handoff",
         "repair_audio_handoff",
         "repair_audio_mix_plan",
         "repair_audio_mix_plan_ducking",

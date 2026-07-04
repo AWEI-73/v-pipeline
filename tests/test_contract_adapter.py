@@ -464,6 +464,36 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["audio_build_handoff"], "audio_build_handoff.json")
             self.assertEqual(manifest["final_audio"], "final_audio.wav")
 
+    def test_manifest_waives_missing_audio_build_handoff_instead_of_dangling_ref(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d)
+            manifest = ca._manifest(
+                canonical_contract=outdir / "segment_contract.json",
+                contract_hash="abc123",
+                generated_payload=outdir / "generated_mv_script.json",
+                material_db=None,
+                music=None,
+                music_structure=None,
+                model_routes=None,
+                build_profile=None,
+                stock_first_route=None,
+                generated_asset_requests=None,
+                final_audio=None,
+                audio_mix_report=None,
+                audio_build_handoff=outdir / "audio_build_handoff.json",
+                assembly_plan=outdir / "assembly_plan.json",
+                timeline_build=outdir / "timeline_build.json",
+                editor_review=None,
+                final=outdir / "final.mp4",
+                state=outdir / "state.json",
+            )
+
+        self.assertIsNone(manifest["audio_build_handoff"])
+        waiver = manifest["artifact_waivers"]["audio_build_handoff"]
+        self.assertEqual(waiver["reason"], "missing_handoff_evidence")
+        self.assertEqual(waiver["path"], "audio_build_handoff.json")
+        self.assertEqual(waiver["next_action"], "repair_audio_build_handoff")
+
     def test_dry_build_records_existing_branch_handoffs_in_manifest(self):
         with tempfile.TemporaryDirectory() as d:
             outdir = Path(d) / "dry"

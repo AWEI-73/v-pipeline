@@ -350,6 +350,28 @@ def _verify_payload(path):
         return None
 
 
+def _manifest_ref_path(value, root: Path) -> Path | None:
+    if not value:
+        return None
+    path = Path(value)
+    return path if path.is_absolute() else root / path
+
+
+def _missing_handoff_waiver(value, root: Path, *, next_action: str) -> dict | None:
+    path = _manifest_ref_path(value, root)
+    if path is None or path.is_file():
+        return None
+    try:
+        rel_path = path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel_path = str(path)
+    return {
+        "reason": "missing_handoff_evidence",
+        "path": rel_path,
+        "next_action": next_action,
+    }
+
+
 def _final_state_payload(state_json_data, dash_state, out_path, verify_report_path):
     payload = dict(state_json_data or {})
     run_state = (dash_state or {}).get("run") or {}
@@ -388,7 +410,18 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
               creator_profile=None, creator_profile_applied=None,
               capcut_draft_manifest=None, capcut_export_manifest=None,
               editorial_design=None, editorial_qa=None, spec_review=None):
-    return {
+    root = Path(final).parent
+    artifact_waivers = {}
+    audio_build_handoff_waiver = _missing_handoff_waiver(
+        audio_build_handoff,
+        root,
+        next_action="repair_audio_build_handoff",
+    )
+    if audio_build_handoff_waiver:
+        artifact_waivers["audio_build_handoff"] = audio_build_handoff_waiver
+        audio_build_handoff = None
+
+    manifest = {
         "artifact_role": "artifact_manifest",
         "artifact_manifest_version": 1,
         "canonical_contract": canonical_contract,
@@ -439,6 +472,9 @@ def _manifest(*, canonical_contract, contract_hash, generated_payload, material_
         "editorial_qa": str(editorial_qa) if editorial_qa else None,
         "spec_review": str(spec_review) if spec_review else None,
     }
+    if artifact_waivers:
+        manifest["artifact_waivers"] = artifact_waivers
+    return manifest
 
 
 def _load_audio_mix_report_for_build(out_dir: Path) -> tuple[Path | None, dict | None]:
