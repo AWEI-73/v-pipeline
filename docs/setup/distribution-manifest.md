@@ -40,3 +40,11 @@ format.
 - Packaging mechanism.
 - License selection. Do not create or choose a `LICENSE` file until the owner
   decides.
+
+## Known Local Tooling Requirements
+
+- Browser verification that uses Node scripts requires Node-side Playwright to
+  be resolvable from the clean clone environment. Python Playwright is installed
+  through `requirements.txt`, but Node Playwright is a separate runtime
+  dependency for `node` / `node_repl` browser probes and should be installed or
+  otherwise provided by the operator environment.
