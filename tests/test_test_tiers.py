@@ -1,4 +1,5 @@
 import json
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -7,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import video_tools
+from tools import test_tiers
 from tools.test_tiers import _default_runner, build_test_tier_manifest, run_test_tier
 
 
@@ -16,13 +18,28 @@ class TestTierRunnerTest(unittest.TestCase):
 
         self.assertEqual(manifest["artifact_role"], "test_tier_manifest")
         self.assertEqual(manifest["version"], 1)
-        for tier in ["backend-smoke", "workbench", "material-map", "render-e2e", "full"]:
+        for tier in ["dev", "backend-smoke", "workbench", "material-map", "render-e2e", "work-order-acceptance", "full"]:
             self.assertIn(tier, manifest["tiers"])
             self.assertGreater(len(manifest["tiers"][tier]["commands"]), 0)
             self.assertIn("optional_checks", manifest["tiers"][tier])
+            self.assertIn("intended_use", manifest["tiers"][tier])
             for command in manifest["tiers"][tier]["commands"]:
                 self.assertIsInstance(command, list)
                 self.assertGreater(len(command), 0)
+
+        dev_commands = [" ".join(command) for command in manifest["tiers"]["dev"]["commands"]]
+        self.assertIn("routine inner-loop development", manifest["tiers"]["dev"]["intended_use"])
+        self.assertTrue(any("tests.test_video_tools_command_catalog" in command for command in dev_commands))
+        self.assertTrue(any("interface-audit" in command for command in dev_commands))
+
+        acceptance_commands = [" ".join(command) for command in manifest["tiers"]["work-order-acceptance"]["commands"]]
+        self.assertIn("before work-order handoff", manifest["tiers"]["work-order-acceptance"]["intended_use"])
+        self.assertTrue(any("e2e-smoke --case stock_story" in command for command in acceptance_commands))
+        self.assertTrue(any("e2e-smoke --case single_long_highlight" in command for command in acceptance_commands))
+        self.assertTrue(any("registry-audit" in command for command in acceptance_commands))
+        self.assertTrue(any("interface-audit" in command for command in acceptance_commands))
+
+        self.assertIn("final pre-commit or CI gate", manifest["tiers"]["full"]["intended_use"])
 
         workbench_optional = manifest["tiers"]["workbench"]["optional_checks"]
         workbench_commands = [" ".join(command) for command in manifest["tiers"]["workbench"]["commands"]]
@@ -74,7 +91,7 @@ class TestTierRunnerTest(unittest.TestCase):
             out = Path(tmp) / "env.json"
             probe.write_text(
                 "import json, os, sys\n"
-                "payload = {'TMP': os.environ.get('TMP'), 'TEMP': os.environ.get('TEMP')}\n"
+                "payload = {'TMP': os.environ.get('TMP'), 'TEMP': os.environ.get('TEMP'), 'executable': sys.executable}\n"
                 "open(sys.argv[1], 'w', encoding='utf-8').write(json.dumps(payload))\n",
                 encoding="utf-8",
             )
@@ -86,7 +103,14 @@ class TestTierRunnerTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(payload["TMP"], expected)
         self.assertEqual(payload["TEMP"], expected)
+        self.assertEqual(Path(payload["executable"]).resolve(), Path(sys.executable).resolve())
         self.assertTrue(Path(expected).is_dir())
+
+    def test_runner_normalizes_python_to_current_executable(self):
+        command = test_tiers._normalize_command(["python", "-m", "unittest"])
+
+        self.assertEqual(command[0], sys.executable)
+        self.assertEqual(command[1:], ["-m", "unittest"])
 
     def test_unknown_tier_fails_closed(self):
         with self.assertRaises(ValueError):

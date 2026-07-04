@@ -19,8 +19,17 @@ ARTIFACT_ROLE = "test_tier_manifest"
 SCHEMA_VERSION = 1
 
 TEST_TIERS: Dict[str, Dict[str, object]] = {
+    "dev": {
+        "description": "Routine inner-loop checks for command-surface and route contract edits.",
+        "intended_use": "routine inner-loop development before escalating to focused owner tests",
+        "commands": [
+            ["python", "-m", "unittest", "tests.test_video_tools_command_catalog", "tests.test_test_tiers", "-q"],
+            ["python", "video_tools.py", "interface-audit"],
+        ],
+    },
     "backend-smoke": {
         "description": "Fast backend contract/workspace command-surface smoke tests.",
+        "intended_use": "backend command-surface edits before broader route or branch tests",
         "commands": [
             ["python", "-m", "unittest", "tests.test_video_tools_command_catalog", "-q"],
             ["python", "-m", "unittest", "tests.test_project_workspace", "tests.test_workbench_handoff", "-q"],
@@ -28,6 +37,7 @@ TEST_TIERS: Dict[str, Dict[str, object]] = {
     },
     "workbench": {
         "description": "Workbench Python, native JS, and SPA-shell boundary smoke tests.",
+        "intended_use": "Workbench or Dashboard frontend/backend boundary edits",
         "commands": [
             ["python", "-m", "unittest", "tests.test_preview_timeline", "tests.test_timeline_patch", "tests.test_workbench_server", "-q"],
             ["python", "-m", "unittest", "tests.test_workbench_frontend_smoke", "tests.test_workbench_review_report", "-q"],
@@ -62,6 +72,7 @@ TEST_TIERS: Dict[str, Dict[str, object]] = {
     },
     "material-map": {
         "description": "Material-map lifecycle, delta, lineage, and retrieval tests.",
+        "intended_use": "Material Map branch edits before render or full acceptance",
         "commands": [
             ["python", "-m", "unittest", "tests.test_material_needs", "tests.test_material_lineage", "-q"],
             ["python", "-m", "unittest", "tests.test_material_delta", "tests.test_material_delta_gate", "-q"],
@@ -70,13 +81,37 @@ TEST_TIERS: Dict[str, Dict[str, object]] = {
     },
     "render-e2e": {
         "description": "Heavier render and replay acceptance tests.",
+        "intended_use": "render, replay, or Workbench rerender changes before full regression",
         "commands": [
             ["python", "-m", "unittest", "tests.test_workbench_export", "tests.test_workbench_draft_rerender", "-q"],
             ["python", "-m", "unittest", "tests.test_srp_acceptance_replay", "tests.test_srp_real67_fuller_replay", "-q"],
         ],
     },
+    "work-order-acceptance": {
+        "description": "Standard supervisor handoff gate for work-order completion.",
+        "intended_use": "before work-order handoff or reviewer transfer, after focused owner tests pass",
+        "commands": [
+            ["python", "video_tools.py", "e2e-smoke", "--case", "stock_story"],
+            ["python", "video_tools.py", "e2e-smoke", "--case", "single_long_highlight"],
+            ["python", "video_tools.py", "registry-audit"],
+            ["python", "video_tools.py", "interface-audit"],
+        ],
+        "optional_checks": [
+            {
+                "name": "strict-asset-path-audit",
+                "description": "Run on a fresh smoke-produced run dir when a work order touches artifact manifests or run outputs.",
+                "command": ["python", "video_tools.py", "asset-path-audit", "--strict", "<run-folder>"],
+            },
+            {
+                "name": "full-regression",
+                "description": "Required before commit for broad/shared behavior changes and final supervisor reports.",
+                "command": ["python", "-m", "unittest", "discover", "-s", "tests"],
+            },
+        ],
+    },
     "full": {
         "description": "Complete regression suite.",
+        "intended_use": "final pre-commit or CI gate, not the routine inner loop for every edit",
         "commands": [
             ["python", "-m", "unittest", "discover", "-s", "tests", "-q"],
         ],
@@ -92,12 +127,19 @@ def build_test_tier_manifest() -> dict:
         "tiers": {
             name: {
                 "description": spec["description"],
+                "intended_use": spec["intended_use"],
                 "commands": spec["commands"],
                 "optional_checks": spec.get("optional_checks", []),
             }
             for name, spec in sorted(TEST_TIERS.items())
         },
     }
+
+
+def _normalize_command(command: List[str]) -> List[str]:
+    if command and Path(command[0]).name.lower() in {"python", "python.exe"}:
+        return [sys.executable, *command[1:]]
+    return list(command)
 
 
 def _default_runner(command: List[str]) -> int:
@@ -107,7 +149,7 @@ def _default_runner(command: List[str]) -> int:
     env = os.environ.copy()
     env["TMP"] = str(stable_temp)
     env["TEMP"] = str(stable_temp)
-    return subprocess.run(command, cwd=root, env=env).returncode
+    return subprocess.run(_normalize_command(command), cwd=root, env=env).returncode
 
 
 def run_test_tier(

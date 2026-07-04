@@ -135,6 +135,31 @@ http://localhost:8765/workbench
 The home page should show the native Workbench monitor, playback controls, and
 four timeline lanes. Browser console errors should be zero.
 
+## Test Tiers
+
+The large unittest suite stays as the final regression gate. Do not collapse it
+into the development loop. Use tiered checks instead:
+
+```powershell
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py test-tiers
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py test-tiers --tier dev
+```
+
+Use `dev` for routine command-surface and route-contract edits, then run the
+owner-specific focused module for the code you touched. Use
+`work-order-acceptance` before reviewer handoff after focused tests pass:
+
+```powershell
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py test-tiers --tier work-order-acceptance
+```
+
+Run `full` before broad/shared behavior commits, final supervisor reports, and
+CI-style signoff:
+
+```powershell
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py test-tiers --tier full
+```
+
 ## Workbench Tier
 
 Use the focused Workbench tier before and after Dashboard/Workbench frontend

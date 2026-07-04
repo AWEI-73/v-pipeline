@@ -93,19 +93,19 @@ def _image_files(root: Path) -> list[Path]:
     )
 
 
-def _latest_generated_session(generated_root: Path) -> tuple[Path | None, list[Path]]:
+def _latest_generated_session(generated_root: Path, *, min_count: int = 1) -> tuple[Path | None, list[Path]]:
     if not generated_root.exists() or not generated_root.is_dir():
         return None, []
     sessions = [path for path in generated_root.iterdir() if path.is_dir()]
     candidates: list[tuple[float, Path, list[Path]]] = []
     for session in sessions:
         images = _image_files(session)
-        if images:
+        if len(images) >= min_count:
             newest = max(path.stat().st_mtime for path in images)
             candidates.append((newest, session, images))
     if not candidates:
         return None, []
-    _, session, images = max(candidates, key=lambda item: (item[0], item[1].name))
+    _, session, images = max(candidates, key=lambda item: (item[0], len(item[2]), item[1].name))
     return session, images
 
 
@@ -313,7 +313,7 @@ def fill_provider_outputs_from_codex_images(
         sources = [Path(path) for path in image_files]
     else:
         root = Path(generated_root) if generated_root is not None else Path.home() / ".codex" / "generated_images"
-        source_session, sources = _latest_generated_session(root)
+        source_session, sources = _latest_generated_session(root, min_count=len(items) or 1)
 
     if len(sources) < len(items):
         errors.append(f"not enough image files: need {len(items)}, got {len(sources)}")

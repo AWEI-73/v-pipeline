@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -348,6 +349,35 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
             target_files = [Path(item["file"]) for item in result["provider_outputs"]["items"]]
             self.assertEqual(len(target_files), 2)
             self.assertTrue(all(path.exists() for path in target_files))
+
+    def test_fill_provider_outputs_prefers_latest_session_with_enough_images_on_mtime_tie(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            packet_dir = d / "packet"
+            build_generated_image_provider_packet(
+                _fallback(),
+                packet_dir,
+                style_profile=_style_profile(),
+                providers=["codex_imagegen"],
+            )
+            old_session = d / "generated_images" / "old"
+            new_session = d / "generated_images" / "new"
+            paths = [
+                old_session / "old.png",
+                new_session / "one.png",
+                new_session / "two.png",
+            ]
+            for path, color in zip(paths, [(10, 10, 10), (120, 10, 10), (10, 120, 10)]):
+                _png(path, color)
+                os.utime(path, (1000, 1000))
+
+            result = fill_provider_outputs_from_codex_images(
+                packet_dir / "generated_provider_packet.json",
+                generated_root=d / "generated_images",
+            )
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            self.assertEqual(result["refs"]["source_session"].replace("\\", "/").split("/")[-1], "new")
 
     def test_fill_provider_outputs_fails_when_images_are_insufficient(self):
         with tempfile.TemporaryDirectory() as td:
