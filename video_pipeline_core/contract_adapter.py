@@ -1254,6 +1254,28 @@ def run_contract(contract, material_db, out_path, music_path=None, mat_dir=None,
         from . import music_structure  # noqa: PLC0415
         music_struct = music_structure.write_music_structure(
             effective_music_path, music_structure_path, every_n_beats=every_n_beats)
+        if music_struct and music_struct.get("ok") is False:
+            errors = music_struct.get("errors") or [{
+                "rule": "music_structure_failed",
+                "message": "music structure analysis failed before BUILD",
+            }]
+            next_action = music_struct.get("next_action") or "repair_or_rerun_soundtrack_probe"
+            state_path = out_path.parent / "state.json"
+            _write_json(state_path, {
+                "pass": False,
+                "final": None,
+                "next_action": next_action,
+                "blocking": errors,
+                "music_structure": str(music_structure_path),
+            })
+            return {
+                "ok": False,
+                "stage": "music_structure",
+                "errors": errors,
+                "next_action": next_action,
+                "music_structure": str(music_structure_path),
+                "contract_hash": contract_hash,
+            }
 
     # brief.target_length caps the timeline: music length sets the rhythm, the
     # brief sets the runtime. Without this a 123s track stretches a 45s film to

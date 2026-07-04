@@ -321,6 +321,59 @@ class ContractToMvScriptTest(unittest.TestCase):
             self.assertEqual(manifest["final_audio"], "final_audio.wav")
             self.assertEqual(manifest["audio_mix_report"], "audio_mix_report.json")
 
+    def test_run_contract_blocks_empty_music_structure_before_render(self):
+        with tempfile.TemporaryDirectory() as d:
+            outdir = Path(d) / "out"
+            material_db = Path(d) / "material_db.json"
+            music = Path(d) / "bgm.mp3"
+            material_db.write_text(json.dumps({"files": []}), encoding="utf-8")
+            music.write_bytes(b"fake")
+
+            def fake_music_structure(audio_path, out_path, **_kwargs):
+                payload = {
+                    "music_structure_version": 1,
+                    "source_audio": str(audio_path),
+                    "source": "librosa",
+                    "tempo_bpm": 117.454,
+                    "beat_count": 1,
+                    "beats": [0.07],
+                    "every_n_beats": 4,
+                    "sections": [],
+                    "status": "blocked",
+                    "errors": [{"rule": "music_structure_empty_sections"}],
+                    "next_action": "repair_or_rerun_soundtrack_probe",
+                }
+                Path(out_path).write_text(json.dumps(payload), encoding="utf-8")
+                return {
+                    "ok": False,
+                    "stage": "music_structure",
+                    "errors": payload["errors"],
+                    "next_action": payload["next_action"],
+                    "music_structure": str(out_path),
+                    "structure": payload,
+                }
+
+            with patch("video_pipeline_core.mv_cut.mv_chain") as mv_chain, \
+                 patch("video_pipeline_core.music_structure.write_music_structure", fake_music_structure):
+                result = ca.run_contract(
+                    EXAMPLES / "segment_contract_graduation_mv.json",
+                    material_db=material_db,
+                    out_path=outdir / "final.mp4",
+                    music_path=music,
+                    categories_path=EXAMPLES / "material_categories.json",
+                    mat_dir=outdir,
+                    verbose=False,
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["stage"], "music_structure")
+            self.assertEqual(result["next_action"], "repair_or_rerun_soundtrack_probe")
+            self.assertFalse((outdir / "final.mp4").exists())
+            self.assertFalse(mv_chain.called)
+            state = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["next_action"], "repair_or_rerun_soundtrack_probe")
+            self.assertEqual(state["blocking"][0]["rule"], "music_structure_empty_sections")
+
     def test_run_contract_records_existing_branch_handoffs_in_manifest(self):
         with tempfile.TemporaryDirectory() as d:
             outdir = Path(d) / "out"

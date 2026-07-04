@@ -81,6 +81,25 @@ def _detect_section_mean_volume(audio_path, start_sec, duration_sec):
     return float(match.group(1)) if result.returncode == 0 and match else None
 
 
+def _probe_audio_duration(audio_path):
+    from .vt_core import FFPROBE  # noqa: PLC0415
+
+    result = subprocess.run([
+        FFPROBE,
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(audio_path),
+    ], capture_output=True, text=True)
+    if result.returncode != 0:
+        return None
+    try:
+        duration = float((result.stdout or "").strip())
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
 def annotate_section_energy(structure, audio_path, detector=None):
     """Populate existing sections with deterministic mean-volume energy scores."""
     if detector is None:
@@ -160,11 +179,33 @@ def build_music_structure(tempo_bpm, beat_times, *, source_audio=None, every_n_b
     }
 
 
-def write_music_structure(audio_path, out_path, *, detector=None, every_n_beats=4):
+def _short_audio_fallback_section(duration):
+    duration = round(float(duration), 3)
+    return {
+        "index": 1,
+        "name": "Full track",
+        "description": "short audio fallback section",
+        "Start_Time": _fmt_mmss(0.0),
+        "End_Time": _fmt_mmss(duration),
+        "start_sec": 0.0,
+        "end_sec": duration,
+        "duration_sec": duration,
+        "beat_count": 0,
+        "energy_score": None,
+        "cut_density_hint": "low",
+        "source": "short_audio_fallback",
+        "confidence": 0.3,
+    }
+
+
+def write_music_structure(audio_path, out_path, *, detector=None, every_n_beats=4,
+                          duration_detector=None):
     """Detect beats and write music_structure.json. Detector is injectable for tests."""
     if detector is None:
         from .mv_cut import detect_beats  # noqa: PLC0415
         detector = detect_beats
+    if duration_detector is None:
+        duration_detector = _probe_audio_duration
     tempo, beats = detector(str(audio_path))
     structure = build_music_structure(
         tempo,
@@ -172,9 +213,34 @@ def write_music_structure(audio_path, out_path, *, detector=None, every_n_beats=
         source_audio=str(audio_path),
         every_n_beats=every_n_beats,
     )
+    if not structure.get("sections"):
+        duration = duration_detector(str(audio_path))
+        if isinstance(duration, (int, float)) and 0 < float(duration) <= 10.0:
+            structure["sections"] = [_short_audio_fallback_section(float(duration))]
     annotate_section_energy(structure, audio_path)
+    ok = bool(structure.get("sections"))
+    errors = []
+    next_action = None
+    if not ok:
+        errors = [{
+            "rule": "music_structure_empty_sections",
+            "message": "music_structure.json has no sections; rerun soundtrack probe or replace the selected music before BUILD",
+            "beat_count": structure.get("beat_count"),
+            "source_audio": structure.get("source_audio"),
+        }]
+        next_action = "repair_or_rerun_soundtrack_probe"
+        structure["status"] = "blocked"
+        structure["errors"] = errors
+        structure["next_action"] = next_action
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(structure, f, ensure_ascii=False, indent=2)
-    return {"ok": True, "music_structure": str(out_path), "structure": structure}
+    result = {"ok": ok, "music_structure": str(out_path), "structure": structure}
+    if not ok:
+        result.update({
+            "stage": "music_structure",
+            "errors": errors,
+            "next_action": next_action,
+        })
+    return result
