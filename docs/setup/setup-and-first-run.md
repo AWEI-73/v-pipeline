@@ -48,8 +48,21 @@ are not pinned in `requirements.txt`.
 Create `.env` from `.env.example` and fill local values. Do not commit `.env`.
 
 `PEXELS_API_KEY` is the required stock-search key for strict preflight on this
-machine. Other keys in `.env.example` are optional capabilities or local path
-overrides.
+machine. A clean clone will fail `tools/preflight.py --strict` until this key is
+present. Use a real Pexels API key for strict local verification:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+At minimum, set:
+
+```text
+PEXELS_API_KEY=<your pexels api key>
+```
+
+Other keys in `.env.example` are optional capabilities or local path overrides.
 
 ## Verification
 
@@ -94,6 +107,38 @@ skill/tool ownership audit only accepts tools registered in frozen `skills/**`.
 The S2 report in
 `docs/construction-guides/2026-07-03-endgame-three-stream-spec.md` records the
 exact blocker.
+
+Run a strict asset path audit against a fresh smoke output:
+
+```powershell
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py e2e-smoke --case stock_story --out-dir .tmp\setup_stock_story
+& "$env:USERPROFILE\miniconda3\python.exe" video_tools.py asset-path-audit --strict .tmp\setup_stock_story
+```
+
+Expected strict audit result:
+
+```text
+Asset Path Audit (STRICT): 0 absolute path finding(s); 0 strict finding(s)
+```
+
+For the browser first-run check, start the dashboard server against a disposable
+artifact root:
+
+```powershell
+New-Item -ItemType Directory -Force .tmp\dashboard_empty
+& "$env:USERPROFILE\miniconda3\python.exe" tools\dashboard_server.py --artifact-root .tmp\dashboard_empty --port 8765
+```
+
+Open:
+
+```text
+http://127.0.0.1:8765/
+http://127.0.0.1:8765/workbench
+```
+
+Both pages should load without browser console errors. A fresh disposable
+artifact root may still show the built-in Workbench sample project rather than
+a blank empty state; record that as first-run UX, not as a setup failure.
 
 ## First Run
 
