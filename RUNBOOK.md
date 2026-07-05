@@ -26,6 +26,7 @@ Document roles:
 | Decision tree | `docs/pipeline-decision-tree.md` | Branch owner, stop gate, and return route. |
 | Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-level tools and artifacts. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Tool ownership and entry precedence. |
+| Route-specific operator runbooks | `docs/runbooks/` | Focused happy-path commands and current route state. |
 | Non-UI consolidation | `docs/construction-guides/repo-consolidation-non-ui-plan.md` | Non-UI route consolidation. |
 | Historical archive | `docs/archive/` | History only, unless linked from a current doc. |
 
@@ -106,6 +107,12 @@ Material-first verified preview vocabulary:
 `package_verified_preview.py`, `verified_preview_review_decision.py`,
 `promote_verified_preview.py`, and `workbench_revision_request.json`.
 `tools\run_artifact_index.py` remains part of the non-UI consolidation map.
+
+Material-first happy path operator runbook:
+`docs/runbooks/material-first-happy-path.md`. Use it for the current
+self-contained golden path replay and route state. Today that path is verified
+through `render_handoff.json` and `ready_for_render`; it does not claim
+`final.mp4` or complete-video delivery.
 
 ## Miniconda Rule
 
