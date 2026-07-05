@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from .asset_paths import build_asset_path_audit
 from .material_rough_cut import write_json
 
 
@@ -215,4 +216,139 @@ def accept_material_first_review_verdict(
         "blocking": [],
     }
     write_json(root / "material_first_review_verdict_acceptance.json", report)
+    return report
+
+
+def _block(rule: str, message: str, **extra) -> dict[str, Any]:
+    out = {"rule": rule, "message": message}
+    out.update(extra)
+    return out
+
+
+def _timeline_refs(timeline: dict[str, Any]) -> list[dict[str, Any]]:
+    refs = []
+    for clip in timeline.get("clips") or []:
+        refs.append({
+            "segment": clip.get("segment"),
+            "asset_id": clip.get("asset_id"),
+            "source_path": clip.get("source_path"),
+            "start_sec": clip.get("start_sec"),
+            "duration_sec": clip.get("duration_sec"),
+            "scene_id": clip.get("scene_id"),
+        })
+    return refs
+
+
+def _asset_ref_blocks(root: Path, materials_db: dict[str, Any], timeline: dict[str, Any]) -> list[dict[str, Any]]:
+    blocks = []
+    refs = [
+        entry.get("asset_store_ref") or entry.get("path")
+        for entry in materials_db.get("files") or []
+    ]
+    refs.extend(clip.get("source_path") for clip in timeline.get("clips") or [])
+    for ref in sorted({str(value or "") for value in refs if value}):
+        if not ref.startswith("assets/materials/"):
+            blocks.append(_block(
+                "non_asset_store_ref",
+                "material-first render promotion requires run-local asset store refs",
+                asset_ref=ref,
+            ))
+            continue
+        if not (root / ref).is_file():
+            blocks.append(_block(
+                "missing_asset_store_file",
+                "material-first render promotion requires copied asset store files",
+                asset_ref=ref,
+            ))
+    return blocks
+
+
+def build_material_first_render_promotion(run_dir: str | Path) -> dict[str, Any]:
+    """Write render readiness and handoff artifacts for a reviewed material run."""
+
+    root = Path(run_dir).resolve()
+    materials_db = _load_json(root / "materials_db.json") if (root / "materials_db.json").exists() else {}
+    material_delta = _load_json(root / "material_delta.json") if (root / "material_delta.json").exists() else {}
+    timeline = _load_json(root / "timeline_build.json") if (root / "timeline_build.json").exists() else {}
+    rough_cut = _load_json(root / "rough_cut_plan.json") if (root / "rough_cut_plan.json").exists() else {}
+    verdict_acceptance = (
+        _load_json(root / "material_first_review_verdict_acceptance.json")
+        if (root / "material_first_review_verdict_acceptance.json").exists()
+        else {}
+    )
+    asset_audit = build_asset_path_audit(root, strict=True)
+
+    blocking: list[dict[str, Any]] = []
+    if not material_delta.get("ok") or not material_delta.get("ready_for_build"):
+        blocking.append(_block(
+            "material_delta_not_ready",
+            "material_delta.json must be ok and ready_for_build before render promotion",
+        ))
+    if not timeline.get("clips"):
+        blocking.append(_block("missing_timeline_build", "timeline_build.json must contain clips"))
+    if rough_cut.get("ok") is False or rough_cut.get("gaps"):
+        blocking.append(_block("rough_cut_not_ready", "rough_cut_plan.json still has gaps"))
+    if verdict_acceptance.get("ok") is not True:
+        blocking.append(_block(
+            "review_verdict_not_accepted",
+            "material_first_review_verdict_acceptance.json must pass before render promotion",
+        ))
+    if not asset_audit.get("ok"):
+        blocking.append(_block(
+            "asset_path_audit_failed",
+            "strict asset path audit must pass before render promotion",
+            strict_finding_count=asset_audit.get("strict_finding_count"),
+        ))
+    blocking.extend(_asset_ref_blocks(root, materials_db, timeline))
+
+    ready = not blocking
+    report = {
+        "artifact_role": "render_readiness_report",
+        "version": 1,
+        "route": "material-first",
+        "ok": ready,
+        "next_action": "ready_for_render" if ready else "blocked",
+        "final_delivery_claimed": False,
+        "checks": {
+            "material_delta_ready": bool(material_delta.get("ok") and material_delta.get("ready_for_build")),
+            "timeline_clip_count": len(timeline.get("clips") or []),
+            "review_verdict_accepted": verdict_acceptance.get("ok") is True,
+            "asset_path_audit_strict_ok": bool(asset_audit.get("ok")),
+            "asset_path_audit_strict_finding_count": asset_audit.get("strict_finding_count"),
+        },
+        "blocking": blocking,
+        "read": [
+            "materials_db.json",
+            "material_delta.json",
+            "timeline_build.json",
+            "rough_cut_plan.json",
+            "material_first_review_verdict_acceptance.json",
+        ],
+    }
+    write_json(root / "render_readiness_report.json", report)
+    if not ready:
+        handoff = root / "render_handoff.json"
+        if handoff.exists():
+            handoff.unlink()
+        return report
+
+    handoff = {
+        "artifact_role": "render_handoff",
+        "version": 1,
+        "route": "material-first",
+        "ok": True,
+        "next_action": "ready_for_render",
+        "final_delivery_claimed": False,
+        "render_inputs": {
+            "timeline_build": "timeline_build.json",
+            "rough_cut_plan": "rough_cut_plan.json",
+            "project_material_map": "project_material_map.json",
+            "material_delta": "material_delta.json",
+        },
+        "timeline_refs": _timeline_refs(timeline),
+        "notes": [
+            "Render handoff is not final delivery; final.mp4 promotion still requires delivery validation.",
+        ],
+    }
+    write_json(root / "render_handoff.json", handoff)
     return report

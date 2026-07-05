@@ -136,6 +136,54 @@ class MaterialFirstReviewPromotionTest(unittest.TestCase):
             self.assertEqual(result["next_action"], "blocked")
             self.assertEqual(result["blocking"][0]["rule"], "missing_review_decision")
 
+    def test_render_promotion_gate_writes_ready_report_and_handoff(self):
+        from video_pipeline_core.material_first_review_promotion import (
+            accept_material_first_review_verdict,
+            build_material_first_render_promotion,
+            build_material_first_review_packet,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _source, verdict, run_dir = _source_fixture(root)
+            build_material_first_review_packet(run_dir)
+            accept_material_first_review_verdict(run_dir, verdict)
+
+            report = build_material_first_render_promotion(run_dir)
+
+            self.assertTrue(report["ok"], report)
+            self.assertEqual(report["next_action"], "ready_for_render")
+            self.assertFalse(report["final_delivery_claimed"])
+            self.assertTrue((run_dir / "render_readiness_report.json").exists())
+            self.assertTrue((run_dir / "render_handoff.json").exists())
+            handoff = json.loads((run_dir / "render_handoff.json").read_text(encoding="utf-8"))
+            self.assertEqual(handoff["artifact_role"], "render_handoff")
+            self.assertEqual(handoff["next_action"], "ready_for_render")
+            self.assertFalse(handoff["final_delivery_claimed"])
+            self.assertEqual(len(handoff["timeline_refs"]), 3)
+            self.assertTrue(all(ref["source_path"].startswith("assets/materials/") for ref in handoff["timeline_refs"]))
+
+    def test_render_promotion_gate_blocks_when_asset_store_file_is_missing(self):
+        from video_pipeline_core.material_first_review_promotion import (
+            accept_material_first_review_verdict,
+            build_material_first_render_promotion,
+            build_material_first_review_packet,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _source, verdict, run_dir = _source_fixture(root)
+            build_material_first_review_packet(run_dir)
+            accept_material_first_review_verdict(run_dir, verdict)
+            (run_dir / "assets" / "materials" / "real_0002.jpg").unlink()
+
+            report = build_material_first_render_promotion(run_dir)
+
+            self.assertFalse(report["ok"], report)
+            self.assertEqual(report["next_action"], "blocked")
+            self.assertFalse((run_dir / "render_handoff.json").exists())
+            self.assertEqual(report["blocking"][0]["rule"], "missing_asset_store_file")
+
 
 if __name__ == "__main__":
     unittest.main()
