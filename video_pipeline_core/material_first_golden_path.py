@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from tools.material_first_boundary_acceptance import run_material_first_boundary_acceptance
+from video_pipeline_core.asset_paths import build_asset_path_audit
 from video_pipeline_core.material_rough_cut import write_json
 
 
@@ -92,17 +93,34 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
     run_dir = Path(result["run_dir"])
     boundary = result.get("report") or {}
     project_map = _read_json(run_dir / "project_material_map.json") if (run_dir / "project_material_map.json").exists() else {}
+    materials_db = _read_json(run_dir / "materials_db.json") if (run_dir / "materials_db.json").exists() else {}
     material_delta = _read_json(run_dir / "material_delta.json") if (run_dir / "material_delta.json").exists() else {}
     rough_cut = _read_json(run_dir / "rough_cut_plan.json") if (run_dir / "rough_cut_plan.json").exists() else {}
     stage4 = _read_json(run_dir / "stage4_build_smoke_report.json") if (run_dir / "stage4_build_smoke_report.json").exists() else {}
     stage5 = _read_json(run_dir / "stage5_final_review_smoke_report.json") if (run_dir / "stage5_final_review_smoke_report.json").exists() else {}
+    asset_path_audit = build_asset_path_audit(run_dir, strict=True, repo_root=repo)
     delta_ready = bool(material_delta.get("ok") and material_delta.get("ready_for_build"))
     final_absent = not (run_dir / "final.mp4").exists()
+    material_refs = [
+        str(entry.get("path") or "")
+        for entry in materials_db.get("files") or []
+    ]
+    project_refs = [
+        str(asset.get("source") or "")
+        for asset in project_map.get("assets") or []
+    ]
+    asset_store_refs = material_refs + project_refs
+    asset_store_imported = bool(
+        len(material_refs) == 3
+        and all(ref.startswith("assets/materials/") for ref in asset_store_refs)
+        and all((run_dir / ref).exists() for ref in material_refs)
+    )
 
     artifacts = [
         fixture["brief_path"],
         fixture["source_dir"],
         fixture["verdict_path"],
+        *(run_dir / ref for ref in material_refs),
         run_dir / "material_first_boundary_acceptance_report.json",
         run_dir / "project_material_map.json",
         run_dir / "material_delta.json",
@@ -127,6 +145,28 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
             "existing material-first boundary acceptance reached Stage 5 review",
             artifacts=[_rel(repo, run_dir / "material_first_boundary_acceptance_report.json")],
             metrics={"next_action": boundary.get("next_action"), "failed_stage": boundary.get("failed_stage")},
+        ),
+        _check(
+            "asset_store_import",
+            asset_store_imported,
+            "accepted source assets were copied into the run-local material asset store",
+            artifacts=[_rel(repo, run_dir / ref) for ref in material_refs if (run_dir / ref).exists()],
+            metrics={
+                "asset_store": "assets/materials",
+                "imported_ref_count": len(material_refs),
+                "all_material_refs_run_relative": all(ref.startswith("assets/materials/") for ref in asset_store_refs),
+            },
+        ),
+        _check(
+            "asset_path_audit_strict",
+            bool(asset_path_audit.get("ok")),
+            "material-first golden run has no strict material/build/effect/audio absolute path findings",
+            artifacts=[],
+            metrics={
+                "strict": True,
+                "finding_count": asset_path_audit.get("finding_count"),
+                "strict_finding_count": asset_path_audit.get("strict_finding_count"),
+            },
         ),
         _check(
             "project_material_map",
@@ -186,6 +226,9 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         "metrics": {
             "fixture_source": "tracked_manifest_runtime_generated_media",
             "material_asset_count": len(project_map.get("assets") or []),
+            "asset_store_imported": asset_store_imported,
+            "asset_path_audit_strict_ok": bool(asset_path_audit.get("ok")),
+            "asset_path_audit_strict_finding_count": asset_path_audit.get("strict_finding_count"),
             "rough_clip_count": rough_cut.get("clip_count") or len(rough_cut.get("clips") or []),
             "delta_ready_for_build": delta_ready,
             "boundary_ok": bool(boundary.get("ok")),
