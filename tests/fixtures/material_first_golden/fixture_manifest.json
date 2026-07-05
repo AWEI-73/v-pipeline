@@ -1,0 +1,64 @@
+{
+  "artifact_role": "material_first_golden_fixture_manifest",
+  "version": 1,
+  "description": "Tracked recipe for deterministic material-first golden path media. Runtime generates tiny JPEGs under .tmp; no old runs or provider outputs are required.",
+  "brief": {
+    "video_type": "training-event",
+    "goal": "prove existing user material can pass material-first boundary acceptance",
+    "entry_path": "material-first"
+  },
+  "media": [
+    {
+      "relative_path": "opening/opening.jpg",
+      "color": [220, 40, 40],
+      "asset_id": "real_0001",
+      "visual_role": "opening",
+      "evidence": "red opening still marks the event start"
+    },
+    {
+      "relative_path": "training/training.jpg",
+      "color": [40, 160, 70],
+      "asset_id": "real_0002",
+      "visual_role": "training",
+      "evidence": "green training still marks the practice section"
+    },
+    {
+      "relative_path": "closing/closing.jpg",
+      "color": [40, 90, 200],
+      "asset_id": "real_0003",
+      "visual_role": "closing",
+      "evidence": "blue closing still marks the ending beat"
+    }
+  ],
+  "wall_verdict": {
+    "artifact_role": "material_wall_review_verdict",
+    "version": 1,
+    "reviewer": "fixture:material_first_golden",
+    "assets": [
+      {
+        "asset_id": "real_0001",
+        "coarse_status": "keep",
+        "visual_role": ["opening"],
+        "quality": "good",
+        "usable_ranges": [{"start": 0.0, "end": 4.0}],
+        "visual_evidence": ["red opening still marks the event start"]
+      },
+      {
+        "asset_id": "real_0002",
+        "coarse_status": "keep",
+        "visual_role": ["training"],
+        "quality": "good",
+        "usable_ranges": [{"start": 0.0, "end": 4.0}],
+        "visual_evidence": ["green training still marks the practice section"]
+      },
+      {
+        "asset_id": "real_0003",
+        "coarse_status": "keep",
+        "visual_role": ["closing"],
+        "quality": "good",
+        "usable_ranges": [{"start": 0.0, "end": 4.0}],
+        "visual_evidence": ["blue closing still marks the ending beat"]
+      }
+    ]
+  }
+}
