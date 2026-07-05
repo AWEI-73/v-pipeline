@@ -12,9 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.boundary_smoke import run_boundary  # noqa: E402
 from video_pipeline_core import material_map_lifecycle  # noqa: E402
+from video_pipeline_core.asset_paths import relativize_payload_refs  # noqa: E402
 from video_pipeline_core.material_wall import apply_material_wall_review, write_material_wall_request  # noqa: E402
 from video_pipeline_core.material_map_review_apply import apply_review_to_maps  # noqa: E402
 from video_pipeline_core.material_rough_cut import build_rough_cut_plan, load_json, write_json  # noqa: E402
+from video_pipeline_core.material_source_intake import import_material_first_assets, sanitize_source_candidate_db  # noqa: E402
 from video_pipeline_core.platform_tools import resolve_ffprobe  # noqa: E402
 
 MEDIA_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
@@ -168,15 +170,14 @@ def _scan_source_materials(source_dir: Path, *, max_assets: int) -> dict:
         candidates.append(path)
 
     selected_paths = _select_source_paths(source_dir, candidates, max_assets=max_assets)
-    if not rejects:
-        ordered_for_ids = list(selected_paths) + [
-            path for path in candidates
-            if path not in set(selected_paths)
-        ]
-        asset_ids = {
-            path: f"real_{index:04d}"
-            for index, path in enumerate(ordered_for_ids, start=1)
-        }
+    ordered_for_ids = list(selected_paths) + [
+        path for path in candidates
+        if path not in set(selected_paths)
+    ]
+    asset_ids = {
+        path: f"real_{index:04d}"
+        for index, path in enumerate(ordered_for_ids, start=1)
+    }
     selected_set = {str(path) for path in selected_paths}
     for path in candidates:
         if str(path) not in selected_set:
@@ -291,7 +292,7 @@ def _write_source_refusal(run_dir: Path, source_dir: Path, db: dict, message: st
             "required_min_usable_files": 3,
             "usable_file_count": len(db.get("files") or []),
             "rejected_file_count": len(db.get("rejects") or []),
-            "source_dir": str(source_dir),
+            "source_kind": "external_path",
         }],
         "required_followup_questions": [
             "Please provide at least 3 usable media files, or choose a different material source folder."
@@ -379,9 +380,31 @@ def _build_wall_handoff_report(reviewed: dict) -> dict:
     }
 
 
+def _rewrite_wall_request_refs(run_dir: Path, imported_db: dict):
+    request_path = run_dir / "verify" / "material_wall" / "material_wall_request.json"
+    if not request_path.exists():
+        return
+    request = load_json(request_path)
+    refs = {
+        entry.get("id"): entry.get("path")
+        for entry in imported_db.get("files") or []
+        if entry.get("id") and entry.get("path")
+    }
+    for batch in request.get("batches") or []:
+        for asset in batch.get("assets") or []:
+            ref = refs.get(asset.get("asset_id"))
+            if not ref:
+                continue
+            asset["source"] = ref
+            if "image" in asset:
+                asset["image"] = ref
+    request = relativize_payload_refs(run_dir, request)
+    write_json(request_path, request)
+
+
 def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: int, wall_verdict=None):
     db = _scan_source_materials(source_dir, max_assets=max_assets)
-    write_json(run_dir / "materials_db.source_candidates.json", db)
+    write_json(run_dir / "materials_db.source_candidates.json", sanitize_source_candidate_db(db))
     wall_dir = run_dir / "verify" / "material_wall"
     write_material_wall_request(
         db,
@@ -400,9 +423,11 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
         known_asset_ids = {entry.get("id") for entry in db.get("files") or []}
         verdict = _filter_wall_verdict_for_known_assets(load_json(wall_verdict), known_asset_ids)
         reviewed = apply_material_wall_review(db, verdict)
-        write_json(run_dir / "materials_db.wall_reviewed.json", reviewed)
         write_json(run_dir / "material_wall_handoff_report.json", _build_wall_handoff_report(reviewed))
-        db = _selected_wall_review_db(reviewed)
+        db = import_material_first_assets(run_dir, _selected_wall_review_db(reviewed))
+        write_json(run_dir / "materials_db.wall_reviewed.json", db)
+        write_json(run_dir / "material_first_source_intake_report.json", db["import_report"])
+        _rewrite_wall_request_refs(run_dir, db)
     maps_dir = run_dir / "maps"
     maps_dir.mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "material_needs.json", {
@@ -447,7 +472,7 @@ def _write_source_case_inputs(run_dir: Path, source_dir: Path, *, max_assets: in
         }
         map_path = maps_dir / f"{entry['id']}.map.json"
         write_json(map_path, material_map)
-        entry["material_map"] = str(map_path)
+        entry["material_map"] = f"maps/{entry['id']}.map.json"
         entry["material_map_status"] = "mapped"
         decision = {
             "asset_id": entry["id"],
@@ -537,18 +562,26 @@ def run_material_first_landing_case(run_dir, *, source_dir=None, max_assets=12, 
         run_dir / "project_material_map.json",
         material_db_path=run_dir / "materials_db.json",
     )
+    project_map = relativize_payload_refs(run_dir, load_json(run_dir / "project_material_map.json"))
+    write_json(run_dir / "project_material_map.json", project_map)
     lifecycle = material_map_lifecycle.run_lifecycle(
         out_dir=run_dir,
         needs_ref=run_dir / "material_needs.json",
         material_db_ref=run_dir / "materials_db.json",
         contract_ref=run_dir / "segment_contract.json",
     )
+    lifecycle = relativize_payload_refs(run_dir, lifecycle)
     write_json(run_dir / "material_map_lifecycle.json", lifecycle)
+    for name in ("project_material_map.json", "material_delta.json"):
+        path = run_dir / name
+        if path.exists():
+            write_json(path, relativize_payload_refs(run_dir, load_json(path)))
 
     rough = build_rough_cut_plan(
         load_json(run_dir / "segment_contract.json"),
         load_json(run_dir / "project_material_map.json"),
     )
+    rough = relativize_payload_refs(run_dir, rough)
     write_json(run_dir / "rough_cut_plan.json", rough)
     write_json(run_dir / "timeline_build.json", rough["timeline_build"])
     write_json(run_dir / "editor_review.json", {

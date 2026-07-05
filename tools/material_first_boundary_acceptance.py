@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tempfile
@@ -128,6 +129,17 @@ def _load_inventory_summary(run_dir: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _source_metadata(source_dir) -> dict | None:
+    if not source_dir:
+        return None
+    path = Path(source_dir).resolve()
+    return {
+        "source_kind": "external_path",
+        "basename": path.name,
+        "source_path_hash": hashlib.sha256(str(path).encode("utf-8", errors="surrogateescape")).hexdigest(),
+    }
+
+
 def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None, stage0_contracts=None, inventory_summary=None) -> dict:
     failed = next((stage for stage in stages if not stage.get("ok")), None)
     if failed:
@@ -155,14 +167,14 @@ def _build_report(run_dir: Path, stages: list[dict], *, source_dir=None, stage0_
             "scope": inventory_summary.get("scope") or {},
             "scan_depth": inventory_summary.get("scan_depth"),
         } if inventory_summary else None,
-        "source_dir": str(Path(source_dir).resolve()) if source_dir else None,
+        "source": _source_metadata(source_dir),
         "stages": stages,
         "stage_reports": {
             stage["stage"]: stage["report"]
             for stage in stages
             if stage.get("stage") and stage.get("report")
         },
-        "run_dir": str(run_dir),
+        "run_dir": ".",
         "read": [
             "stage2_3_smoke_report.json",
             "stage4_build_smoke_report.json",
