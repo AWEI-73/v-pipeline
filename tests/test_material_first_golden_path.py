@@ -19,12 +19,15 @@ class MaterialFirstGoldenPathTest(unittest.TestCase):
 
             self.assertTrue(report["ok"], report)
             self.assertEqual(report["scenario"], "material-first-golden-path")
-            self.assertEqual(report["next_action"], "ready_for_render")
+            self.assertEqual(report["next_action"], "ready_for_delivery_gate")
             self.assertEqual(report["metrics"]["fixture_source"], "tracked_manifest_runtime_generated_media")
             self.assertEqual(report["metrics"]["material_asset_count"], 3)
             self.assertEqual(report["metrics"]["rough_clip_count"], 3)
             self.assertTrue(report["metrics"]["delta_ready_for_build"])
-            self.assertTrue(report["metrics"]["final_mp4_absent"])
+            self.assertFalse(report["metrics"]["final_mp4_absent"])
+            self.assertEqual(report["metrics"]["final_mp4_ref"], "final.mp4")
+            self.assertTrue(report["metrics"]["final_artifact_acceptance_ok"])
+            self.assertGreaterEqual(report["metrics"]["ffprobe_video_stream_count"], 1)
             self.assertTrue(report["metrics"]["asset_store_imported"])
             self.assertTrue(report["metrics"]["asset_path_audit_strict_ok"])
             self.assertEqual(report["metrics"]["asset_path_audit_strict_finding_count"], 0)
@@ -48,6 +51,8 @@ class MaterialFirstGoldenPathTest(unittest.TestCase):
             self.assertIn("material_first_review_verdict_acceptance.json", artifacts)
             self.assertIn("render_readiness_report.json", artifacts)
             self.assertIn("render_handoff.json", artifacts)
+            self.assertIn("material_first_final_artifact_acceptance.json", artifacts)
+            self.assertIn("final.mp4", artifacts)
             self.assertIn("project_material_map.json", artifacts)
             self.assertIn("material_delta.json", artifacts)
             self.assertIn("material_first_boundary_acceptance_report.json", artifacts)
@@ -76,7 +81,8 @@ class MaterialFirstGoldenPathTest(unittest.TestCase):
             report = json.loads(out.read_text(encoding="utf-8"))
             self.assertTrue(report["ok"], report)
             self.assertEqual(report["scenario"], "material-first-golden-path")
-            self.assertEqual(report["next_action"], "ready_for_render")
+            self.assertEqual(report["next_action"], "ready_for_delivery_gate")
+            self.assertFalse(report["metrics"]["final_mp4_absent"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from video_pipeline_core.material_first_review_promotion import (
     build_material_first_render_promotion,
     build_material_first_review_packet,
 )
+from video_pipeline_core.material_first_render import render_material_first_handoff
 from video_pipeline_core.material_rough_cut import write_json
 
 
@@ -107,6 +108,7 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
     verdict_acceptance = accept_material_first_review_verdict(run_dir, fixture["verdict_path"])
     render_readiness = build_material_first_render_promotion(run_dir)
     render_handoff = _read_json(run_dir / "render_handoff.json") if (run_dir / "render_handoff.json").exists() else {}
+    final_acceptance = render_material_first_handoff(run_dir) if render_handoff.get("ok") else {}
     asset_path_audit = build_asset_path_audit(run_dir, strict=True, repo_root=repo)
     delta_ready = bool(material_delta.get("ok") and material_delta.get("ready_for_build"))
     final_absent = not (run_dir / "final.mp4").exists()
@@ -142,6 +144,8 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         run_dir / "material_first_review_verdict_acceptance.json",
         run_dir / "render_readiness_report.json",
         run_dir / "render_handoff.json",
+        run_dir / "final.mp4",
+        run_dir / "material_first_final_artifact_acceptance.json",
     ]
     rel_artifacts = [_rel(repo, path) for path in artifacts if path.exists()]
     checks = [
@@ -215,6 +219,21 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
             },
         ),
         _check(
+            "actual_render",
+            bool(final_acceptance.get("ok") and not final_absent),
+            "render_handoff was executed into run-local final.mp4 with ffprobe video evidence",
+            artifacts=[
+                _rel(repo, run_dir / "final.mp4"),
+                _rel(repo, run_dir / "material_first_final_artifact_acceptance.json"),
+            ],
+            metrics={
+                "next_action": final_acceptance.get("next_action"),
+                "final_mp4_ref": final_acceptance.get("final_mp4_ref"),
+                "ffprobe_video_stream_count": (final_acceptance.get("ffprobe") or {}).get("video_stream_count"),
+                "final_delivery_claimed": bool(final_acceptance.get("final_delivery_claimed")),
+            },
+        ),
+        _check(
             "project_material_map",
             len(project_map.get("assets") or []) == 3,
             "project material map contains one accepted asset for opening, training, and closing",
@@ -244,10 +263,13 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         ),
         _check(
             "final_delivery_not_claimed",
-            final_absent,
-            "golden path acceptance is boundary/build-ready only and does not create final.mp4",
+            final_acceptance.get("final_delivery_claimed") is False,
+            "golden path actual render creates final.mp4 but does not claim complete-video delivery",
             artifacts=[],
-            metrics={"final_mp4_absent": final_absent},
+            metrics={
+                "final_mp4_absent": final_absent,
+                "final_delivery_claimed": bool(final_acceptance.get("final_delivery_claimed")),
+            },
         ),
     ]
     failures = [
@@ -261,7 +283,7 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         "scenario": SCENARIO_ID,
         "ok": not failures,
         "blocked": bool(failures),
-        "next_action": render_readiness.get("next_action") or boundary.get("next_action") or "needs-context",
+        "next_action": final_acceptance.get("next_action") or render_readiness.get("next_action") or boundary.get("next_action") or "needs-context",
         "fixture_manifest": FIXTURE_REL.as_posix(),
         "fixture_source": "tracked_manifest_runtime_generated_media",
         "source_dir": _rel(repo, fixture["source_dir"]),
@@ -279,10 +301,14 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
             "review_verdict_accepted": bool(verdict_acceptance.get("ok")),
             "render_readiness_ok": bool(render_readiness.get("ok")),
             "render_handoff_written": bool(render_handoff.get("ok")),
+            "final_artifact_acceptance_ok": bool(final_acceptance.get("ok")),
+            "final_mp4_ref": final_acceptance.get("final_mp4_ref"),
+            "ffprobe_video_stream_count": (final_acceptance.get("ffprobe") or {}).get("video_stream_count", 0),
             "rough_clip_count": rough_cut.get("clip_count") or len(rough_cut.get("clips") or []),
             "delta_ready_for_build": delta_ready,
             "boundary_ok": bool(boundary.get("ok")),
             "final_mp4_absent": final_absent,
+            "final_delivery_claimed": bool(final_acceptance.get("final_delivery_claimed")),
         },
     }
     write_json(run_dir / "material_first_golden_path_acceptance_report.json", report)

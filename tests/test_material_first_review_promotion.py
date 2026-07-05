@@ -184,6 +184,32 @@ class MaterialFirstReviewPromotionTest(unittest.TestCase):
             self.assertFalse((run_dir / "render_handoff.json").exists())
             self.assertEqual(report["blocking"][0]["rule"], "missing_asset_store_file")
 
+    def test_render_handoff_execution_writes_final_mp4_from_run_local_refs(self):
+        from video_pipeline_core.material_first_render import render_material_first_handoff
+        from video_pipeline_core.material_first_review_promotion import (
+            accept_material_first_review_verdict,
+            build_material_first_render_promotion,
+            build_material_first_review_packet,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, verdict, run_dir = _source_fixture(root)
+            build_material_first_review_packet(run_dir)
+            accept_material_first_review_verdict(run_dir, verdict)
+            build_material_first_render_promotion(run_dir)
+
+            result = render_material_first_handoff(run_dir)
+
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["next_action"], "ready_for_delivery_gate")
+            self.assertEqual(result["final_mp4_ref"], "final.mp4")
+            self.assertTrue((run_dir / "final.mp4").is_file())
+            self.assertTrue((run_dir / "material_first_final_artifact_acceptance.json").is_file())
+            self.assertGreaterEqual(result["ffprobe"]["video_stream_count"], 1)
+            self.assertFalse(result["final_delivery_claimed"])
+            self.assertNotIn(str(source), json.dumps(result, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     unittest.main()

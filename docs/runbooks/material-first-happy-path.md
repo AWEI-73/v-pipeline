@@ -1,11 +1,12 @@
 # Material-First Happy Path Runbook
 
 Date: 2026-07-05
-Status: verified through render handoff; not final delivery
+Status: verified through actual render; not complete-video delivery
 
 Use this runbook when a user provides a material folder and the route should
-stabilize material truth before any render work. This is the current
-operator-level happy path for the deterministic material-first golden fixture.
+stabilize material truth before complete-video delivery work. This is the
+current operator-level happy path for the deterministic material-first golden
+fixture.
 
 ## Current Verified Path
 
@@ -19,20 +20,26 @@ source intake
   -> review packet
   -> verdict acceptance
   -> render_handoff.json
-  -> ready_for_render
+  -> actual render
+  -> run-local final.mp4
+  -> ffprobe-backed final artifact acceptance
+  -> ready_for_delivery_gate
 ```
 
 This means the route has accepted source material into the run-local asset
 store, produced a material map and delta, created a review packet, accepted the
-review verdict, and written `render_handoff.json` for the next owner.
+review verdict, written `render_handoff.json`, rendered a run-local
+`final.mp4`, and captured ffprobe-backed video-stream evidence.
 
-It does not mean a final video exists. The current expected replay state is:
+It does not mean complete-video delivery has passed. The current expected replay
+state is:
 
 ```text
 ok=true
 blocked=false
-next_action=ready_for_render
-final_mp4_absent=true
+next_action=ready_for_delivery_gate
+final_mp4_absent=false
+final_mp4_ref=final.mp4
 ```
 
 ## Official Replay Command
@@ -56,28 +63,29 @@ Expected key artifacts are written under the generated run directory, including:
 - `material_first_review_verdict_acceptance.json`
 - `render_readiness_report.json`
 - `render_handoff.json`
+- `final.mp4`
+- `material_first_final_artifact_acceptance.json`
 
 ## Next Construction Path
 
 The next construction topic is:
 
 ```text
-Material-First Actual Render Execution Round 1
+Material-First Delivery Gate Completion Round 1
 ```
 
-That round should start from the current handoff and build this path:
+That round should start from the current final artifact acceptance and build
+this path:
 
 ```text
-render_handoff.json
-  -> actual render
-  -> run-local final.mp4
-  -> ffprobe-backed final artifact acceptance
-  -> ready_for_delivery_gate
+ready_for_delivery_gate
+  -> complete-video delivery gate inputs
+  -> audio / narration / music / subtitle requirements verified
+  -> delivery accepted or blocked
 ```
 
-The render round must prove `final.mp4` exists in the run folder and is a
-playable media artifact with the expected streams before it can move to
-`ready_for_delivery_gate`.
+The delivery round must provide the complete-video requirements that this actual
+render round intentionally did not claim.
 
 ## Later Delivery Gate Path
 
@@ -101,7 +109,7 @@ subtitles, and media-stream evidence.
   replay fixture. Do not substitute a neighboring folder.
 - If source material is missing, stop with `blocked` or `needs-context` instead
   of selecting replacement media.
-- If the replay reports `next_action=ready_for_render`, hand off to the actual
-  render construction path. Do not claim final delivery.
-- If `final_mp4_absent=false` appears before the actual render round owns it,
-  inspect why a render artifact exists and verify it before promotion.
+- If the replay reports `next_action=ready_for_delivery_gate`, hand off to the
+  complete-video delivery gate path. Do not claim final delivery.
+- If `final_mp4_absent=true`, the actual render path regressed; inspect
+  `render_handoff.json` and `material_first_final_artifact_acceptance.json`.
