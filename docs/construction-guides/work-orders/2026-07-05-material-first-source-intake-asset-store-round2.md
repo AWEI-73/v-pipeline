@@ -61,25 +61,31 @@ Expected replay result:
 
 Source probed:
 
-`C:\Users\user\Downloads\微電影素材`
+`C:\Users\user\Downloads\微電影素材\_整理後`
 
 Probe output:
 
-`.tmp/material_first_real_source_probe/intake_report.json`
+`.tmp/material_first_real_source_probe_organized/intake_report.json`
 
 Probe summary:
 
 - `ok=true`
 - `blocked=false`
 - `next_action=ready_for_render_or_human_review`
-- scanned files: 614
-- supported media files: 604
+- scanned files: 306
+- supported media files: 302
 - selected for bounded probe: 12
 - accepted/copied to asset store: 3
 - probe-rejected: 9
 - corrupt or unreadable: 0
-- edited-video-like files detected by name/path heuristic: 88
+- edited-video-like files detected by name/path heuristic: 0
 - strict asset path audit: `ok=true`, strict findings `0`
+
+Supervisor review correction: after the source folder was narrowed from the
+parent material directory to the organized subfolder, the probe was rerun
+against `C:\Users\user\Downloads\微電影素材\_整理後` and passed with the
+metrics above. The earlier parent-folder counts are superseded by this
+organized-source result.
 
 The probe wall verdict is deterministic and marked probe-only. It validates
 source-intake mechanics, asset-store copying, artifact handoff, and path
