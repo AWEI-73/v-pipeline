@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -393,11 +394,23 @@ def _rewrite_wall_request_refs(run_dir: Path, imported_db: dict):
     for batch in request.get("batches") or []:
         for asset in batch.get("assets") or []:
             ref = refs.get(asset.get("asset_id"))
-            if not ref:
+            if ref:
+                asset["source"] = ref
+                if "image" in asset:
+                    asset["image"] = ref
                 continue
-            asset["source"] = ref
-            if "image" in asset:
-                asset["image"] = ref
+            source = Path(asset.get("source") or asset.get("image") or "")
+            if source:
+                asset["original_source"] = {
+                    "basename": source.name,
+                    "source_kind": "external_path",
+                    "source_path_hash": hashlib.sha256(
+                        str(source).encode("utf-8", errors="surrogateescape")
+                    ).hexdigest(),
+                }
+                asset["source"] = source.name
+                if "image" in asset:
+                    asset["image"] = source.name
     request = relativize_payload_refs(run_dir, request)
     write_json(request_path, request)
 

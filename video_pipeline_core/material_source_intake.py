@@ -75,11 +75,14 @@ def import_material_first_assets(run_dir: str | Path, materials_db: dict[str, An
             "source_path_hash": updated["original_source"]["source_path_hash"],
         })
 
+    sanitized = sanitize_source_candidate_db(materials_db)
     imported = dict(materials_db)
     imported["source_kind"] = "external_path"
     imported.pop("source_dir", None)
     imported["asset_store"] = "assets/materials"
     imported["files"] = imported_files
+    imported["rejects"] = sanitized.get("rejects") or []
+    imported["skipped"] = sanitized.get("skipped") or []
     imported["import_report"] = {
         "artifact_role": "material_first_source_intake_report",
         "version": 1,
