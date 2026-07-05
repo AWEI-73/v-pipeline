@@ -120,7 +120,8 @@ set PY=%USERPROFILE%\miniconda3\python.exe
 %PY% video_tools.py e2e-smoke --case stock_story
 %PY% video_tools.py e2e-smoke --case single_long_highlight
 %PY% video_tools.py registry-audit
-%PY% tools\pipeline_interface_audit.py
+%PY% video_tools.py interface-audit
+%PY% video_tools.py acceptance-contract
 %PY% video_tools.py asset-path-audit <run_dir> --strict
 %PY% tools\preflight.py --strict
 set PYTHON=%PY%

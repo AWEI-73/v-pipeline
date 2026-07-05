@@ -2316,6 +2316,7 @@ from video_pipeline_core.tool_command_catalog import (  # noqa: E402
     build_command_manifest,
     build_workflow_manifest,
 )
+from video_pipeline_core.acceptance_contract import build_acceptance_contract  # noqa: E402
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -2338,23 +2339,38 @@ def cmd_workflow_manifest(args):
         print(text)
 
 
+def cmd_acceptance_contract(args):
+    payload = build_acceptance_contract(VIDEO_TOOLS_DISPATCH.keys())
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if getattr(args, "out", None):
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    if not payload["ok"]:
+        raise ToolError("acceptance contract failed: invalid command references")
+
+
 def cmd_interface_audit(args):
     from video_pipeline_core.capability_manifest import build_capability_manifest
 
     commands = build_video_tools_command_manifest()
     workflows = build_video_tools_workflow_manifest()
     capabilities = build_capability_manifest()
+    acceptance = build_acceptance_contract(VIDEO_TOOLS_DISPATCH.keys())
     missing_commands = list(commands.get("unclassified_commands") or [])
     missing_commands.extend(
         item.get("command")
         for item in workflows.get("missing_commands") or []
         if item.get("command")
     )
+    missing_commands.extend(acceptance.get("missing_dispatch_commands") or [])
     missing_commands = sorted(set(missing_commands))
     payload = {
         "artifact_role": "video_tools_interface_audit",
         "version": 1,
-        "ok": not missing_commands,
+        "ok": not missing_commands and acceptance.get("ok", False),
         "missing_commands": missing_commands,
         "checks": {
             "commands": {
@@ -2372,6 +2388,12 @@ def cmd_interface_audit(args):
                     for items in (capabilities.get("capabilities") or {}).values()
                 ),
                 "unsupported": capabilities.get("unsupported") or [],
+            },
+            "acceptance_contract": {
+                "command_count": len(acceptance.get("commands") or []),
+                "missing_dispatch_commands": acceptance.get("missing_dispatch_commands") or [],
+                "missing_test_tiers": acceptance.get("missing_test_tiers") or [],
+                "invalid_command_refs": acceptance.get("invalid_command_refs") or [],
             },
         },
     }
@@ -2837,6 +2859,7 @@ def _build_video_tools_dispatch():
         "video-intent-acceptance": cmd_video_intent_acceptance,
         "commands-manifest": cmd_commands_manifest,
         "workflow-manifest": cmd_workflow_manifest,
+        "acceptance-contract": cmd_acceptance_contract,
         "test-tiers": cmd_test_tiers,
         "registry-audit": cmd_registry_audit,
         "asset-path-audit": cmd_asset_path_audit,
@@ -3246,6 +3269,9 @@ def main():
 
     p_wfm = sub.add_parser("workflow-manifest")
     p_wfm.add_argument("--out", help="write video_tools workflow manifest JSON")
+
+    p_acc = sub.add_parser("acceptance-contract")
+    p_acc.add_argument("--out", help="write acceptance command contract JSON")
 
     p_tt = sub.add_parser("test-tiers")
     p_tt.add_argument("--tier", help="test tier to run; omit to print tier manifest")

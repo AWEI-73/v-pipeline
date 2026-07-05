@@ -175,7 +175,9 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
             self.assertIn("commands", payload["checks"])
             self.assertIn("workflows", payload["checks"])
             self.assertIn("capabilities", payload["checks"])
+            self.assertIn("acceptance_contract", payload["checks"])
             self.assertIn("interface-audit", payload["checks"]["commands"]["commands"])
+            self.assertEqual(payload["checks"]["acceptance_contract"]["invalid_command_refs"], [])
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "commands-manifest": "workspace",
     "workflow-manifest": "workspace",
     "test-tiers": "verify",
+    "acceptance-contract": "verify",
     "registry-audit": "verify",
     "asset-path-audit": "verify",
     "interface-audit": "verify",

@@ -64,4 +64,6 @@ Two deliverables per run: (1) a finished video + its storybook entry,
 
 - Blocker/rough findings → repair work orders.
 - Proven new route → e2e-smoke case order.
+- Acceptance command names must match `python video_tools.py acceptance-contract`;
+  use `python video_tools.py interface-audit` for command-surface validation.
 - Storybook entry → README.

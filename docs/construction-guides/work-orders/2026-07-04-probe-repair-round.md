@@ -133,7 +133,7 @@ Deferred (recorded, NOT this round): stock semantic-fit honesty layer
 ## Acceptance for the whole round
 
 - Full suite green; both e2e-smoke cases green; registry-audit,
-  interface-audit, asset-path-audit --strict all exit 0.
+  acceptance-contract, interface-audit, asset-path-audit --strict all exit 0.
 - R2 and R3 mini re-probes pass as specified.
 - Report appended below: per-piece red evidence quotes, commits, re-probe
   traces, and anything skipped with reasons.
