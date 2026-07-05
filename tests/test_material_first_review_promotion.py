@@ -91,6 +91,51 @@ class MaterialFirstReviewPromotionTest(unittest.TestCase):
             self.assertIn("material_wall_review_verdict", packet["verdict_instructions"]["write_artifact"])
             self.assertNotIn(str(source), json.dumps(packet, ensure_ascii=False))
 
+    def test_accept_review_verdict_writes_promotion_report(self):
+        from video_pipeline_core.material_first_review_promotion import (
+            accept_material_first_review_verdict,
+            build_material_first_review_packet,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _source, verdict, run_dir = _source_fixture(root)
+            build_material_first_review_packet(run_dir)
+
+            result = accept_material_first_review_verdict(run_dir, verdict)
+
+            self.assertTrue(result["ok"], result)
+            report_path = run_dir / "material_first_review_verdict_acceptance.json"
+            self.assertTrue(report_path.exists())
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["artifact_role"], "material_first_review_verdict_acceptance")
+            self.assertEqual(report["accepted_asset_count"], 3)
+            self.assertEqual(report["rejected_asset_count"], 1)
+            self.assertEqual(report["decision_source"], "human_or_agent_review")
+            accepted_verdict = json.loads((run_dir / "material_wall_review_verdict.json").read_text(encoding="utf-8"))
+            self.assertEqual(accepted_verdict["reviewer"], "test:review-promotion")
+
+    def test_accept_review_verdict_fails_closed_when_packet_asset_is_missing(self):
+        from video_pipeline_core.material_first_review_promotion import (
+            accept_material_first_review_verdict,
+            build_material_first_review_packet,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _source, verdict, run_dir = _source_fixture(root)
+            build_material_first_review_packet(run_dir)
+            payload = json.loads(verdict.read_text(encoding="utf-8"))
+            payload["assets"] = [asset for asset in payload["assets"] if asset["asset_id"] != "real_0002"]
+            bad_verdict = root / "bad_verdict.json"
+            bad_verdict.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = accept_material_first_review_verdict(run_dir, bad_verdict)
+
+            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["next_action"], "blocked")
+            self.assertEqual(result["blocking"][0]["rule"], "missing_review_decision")
+
 
 if __name__ == "__main__":
     unittest.main()
