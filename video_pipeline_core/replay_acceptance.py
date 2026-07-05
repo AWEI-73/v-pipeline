@@ -443,3 +443,15 @@ def write_probe_repair_replay_report(out_path: str | Path, root: str | Path | No
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
+
+
+def build_material_first_golden_path_report(root: str | Path | None = None) -> dict:
+    from .material_first_golden_path import build_material_first_golden_path_report as build_report
+
+    return build_report(root)
+
+
+def write_material_first_golden_path_report(out_path: str | Path, root: str | Path | None = None) -> dict:
+    from .material_first_golden_path import write_material_first_golden_path_report as write_report
+
+    return write_report(out_path, root)

@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +36,29 @@ class MaterialFirstGoldenPathTest(unittest.TestCase):
             self.assertIn("material_first_boundary_acceptance_report.json", artifacts)
             self.assertNotIn("runs/storybook-stock-story", artifacts)
             self.assertNotIn(".tmp/r3_acceptance_probe", artifacts)
+
+    def test_replay_cli_material_first_golden_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "material_first_golden_replay.json"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "replay-acceptance",
+                    "--scenario",
+                    "material-first-golden-path",
+                    "--out",
+                    str(out),
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+            report = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(report["ok"], report)
+            self.assertEqual(report["scenario"], "material-first-golden-path")
 
 
 if __name__ == "__main__":

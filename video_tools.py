@@ -1485,11 +1485,18 @@ def cmd_final_product_verify(args):
 
 
 def cmd_replay_acceptance(args):
-    from video_pipeline_core.replay_acceptance import write_probe_repair_replay_report, write_replay_report
+    from video_pipeline_core.replay_acceptance import (
+        write_material_first_golden_path_report,
+        write_probe_repair_replay_report,
+        write_replay_report,
+    )
     if getattr(args, "scenario", None):
-        if args.scenario != "probe-repair-20260704":
+        if args.scenario == "probe-repair-20260704":
+            result = write_probe_repair_replay_report(args.out)
+        elif args.scenario == "material-first-golden-path":
+            result = write_material_first_golden_path_report(args.out)
+        else:
             raise ToolError(f"unknown replay acceptance scenario: {args.scenario}")
-        result = write_probe_repair_replay_report(args.out)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if not result.get("ok"):
             raise ToolError(f"replay acceptance scenario failed: {args.scenario}")
