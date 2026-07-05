@@ -9,6 +9,11 @@ from PIL import Image
 
 from tools.material_first_boundary_acceptance import run_material_first_boundary_acceptance
 from video_pipeline_core.asset_paths import build_asset_path_audit
+from video_pipeline_core.material_first_review_promotion import (
+    accept_material_first_review_verdict,
+    build_material_first_render_promotion,
+    build_material_first_review_packet,
+)
 from video_pipeline_core.material_rough_cut import write_json
 
 
@@ -98,6 +103,10 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
     rough_cut = _read_json(run_dir / "rough_cut_plan.json") if (run_dir / "rough_cut_plan.json").exists() else {}
     stage4 = _read_json(run_dir / "stage4_build_smoke_report.json") if (run_dir / "stage4_build_smoke_report.json").exists() else {}
     stage5 = _read_json(run_dir / "stage5_final_review_smoke_report.json") if (run_dir / "stage5_final_review_smoke_report.json").exists() else {}
+    review_packet = build_material_first_review_packet(run_dir)
+    verdict_acceptance = accept_material_first_review_verdict(run_dir, fixture["verdict_path"])
+    render_readiness = build_material_first_render_promotion(run_dir)
+    render_handoff = _read_json(run_dir / "render_handoff.json") if (run_dir / "render_handoff.json").exists() else {}
     asset_path_audit = build_asset_path_audit(run_dir, strict=True, repo_root=repo)
     delta_ready = bool(material_delta.get("ok") and material_delta.get("ready_for_build"))
     final_absent = not (run_dir / "final.mp4").exists()
@@ -129,6 +138,10 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         run_dir / "timeline_build.json",
         run_dir / "stage4_build_smoke_report.json",
         run_dir / "stage5_final_review_smoke_report.json",
+        run_dir / "material_review_packet.json",
+        run_dir / "material_first_review_verdict_acceptance.json",
+        run_dir / "render_readiness_report.json",
+        run_dir / "render_handoff.json",
     ]
     rel_artifacts = [_rel(repo, path) for path in artifacts if path.exists()]
     checks = [
@@ -166,6 +179,39 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
                 "strict": True,
                 "finding_count": asset_path_audit.get("finding_count"),
                 "strict_finding_count": asset_path_audit.get("strict_finding_count"),
+            },
+        ),
+        _check(
+            "material_review_packet",
+            bool(review_packet.get("accepted_candidate_assets")),
+            "review packet lists accepted material refs and verdict instructions",
+            artifacts=[_rel(repo, run_dir / "material_review_packet.json")],
+            metrics={
+                "accepted_candidate_count": len(review_packet.get("accepted_candidate_assets") or []),
+                "rejected_or_skipped_count": len(review_packet.get("rejected_corrupt_or_skipped") or []),
+            },
+        ),
+        _check(
+            "review_verdict_acceptance",
+            bool(verdict_acceptance.get("ok")),
+            "explicit material wall verdict was accepted for render promotion",
+            artifacts=[_rel(repo, run_dir / "material_first_review_verdict_acceptance.json")],
+            metrics={
+                "accepted_asset_count": verdict_acceptance.get("accepted_asset_count"),
+                "rejected_asset_count": verdict_acceptance.get("rejected_asset_count"),
+            },
+        ),
+        _check(
+            "render_promotion_gate",
+            bool(render_readiness.get("ok") and render_handoff.get("ok")),
+            "render readiness gate wrote render_handoff without claiming final delivery",
+            artifacts=[
+                _rel(repo, run_dir / "render_readiness_report.json"),
+                _rel(repo, run_dir / "render_handoff.json"),
+            ],
+            metrics={
+                "next_action": render_readiness.get("next_action"),
+                "final_delivery_claimed": bool(render_readiness.get("final_delivery_claimed")),
             },
         ),
         _check(
@@ -215,7 +261,7 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
         "scenario": SCENARIO_ID,
         "ok": not failures,
         "blocked": bool(failures),
-        "next_action": boundary.get("next_action") or "needs-context",
+        "next_action": render_readiness.get("next_action") or boundary.get("next_action") or "needs-context",
         "fixture_manifest": FIXTURE_REL.as_posix(),
         "fixture_source": "tracked_manifest_runtime_generated_media",
         "source_dir": _rel(repo, fixture["source_dir"]),
@@ -229,6 +275,10 @@ def build_material_first_golden_path_report(root: str | Path | None = None) -> d
             "asset_store_imported": asset_store_imported,
             "asset_path_audit_strict_ok": bool(asset_path_audit.get("ok")),
             "asset_path_audit_strict_finding_count": asset_path_audit.get("strict_finding_count"),
+            "review_packet_written": bool(review_packet.get("accepted_candidate_assets")),
+            "review_verdict_accepted": bool(verdict_acceptance.get("ok")),
+            "render_readiness_ok": bool(render_readiness.get("ok")),
+            "render_handoff_written": bool(render_handoff.get("ok")),
             "rough_clip_count": rough_cut.get("clip_count") or len(rough_cut.get("clips") or []),
             "delta_ready_for_build": delta_ready,
             "boundary_ok": bool(boundary.get("ok")),
