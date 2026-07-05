@@ -1485,7 +1485,17 @@ def cmd_final_product_verify(args):
 
 
 def cmd_replay_acceptance(args):
-    from video_pipeline_core.replay_acceptance import write_replay_report
+    from video_pipeline_core.replay_acceptance import write_probe_repair_replay_report, write_replay_report
+    if getattr(args, "scenario", None):
+        if args.scenario != "probe-repair-20260704":
+            raise ToolError(f"unknown replay acceptance scenario: {args.scenario}")
+        result = write_probe_repair_replay_report(args.out)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise ToolError(f"replay acceptance scenario failed: {args.scenario}")
+        return
+    if not (getattr(args, "timeline", None) and getattr(args, "gates", None) and getattr(args, "verdicts", None)):
+        raise ToolError("replay-acceptance requires timeline, --gates, and --verdicts unless --scenario is used")
     kwargs = {
         "gate_artifacts": _load_json(args.gates),
         "judge_verdicts": _load_json(args.verdicts),
@@ -4050,9 +4060,10 @@ def main():
     p_fpv.add_argument("--samples", type=int, default=12, help="number of keyframes")
 
     p_ra = sub.add_parser("replay-acceptance")
-    p_ra.add_argument("timeline", help="timeline_build.json")
-    p_ra.add_argument("--gates", required=True, help="JSON object of tier-1 gate artifacts")
-    p_ra.add_argument("--verdicts", required=True, help="JSON list of judge verdicts")
+    p_ra.add_argument("timeline", nargs="?", help="timeline_build.json")
+    p_ra.add_argument("--scenario", default=None, help="deterministic replay scenario id")
+    p_ra.add_argument("--gates", help="JSON object of tier-1 gate artifacts")
+    p_ra.add_argument("--verdicts", help="JSON list of judge verdicts")
     p_ra.add_argument("--jumpcut-plan", default=None)
     p_ra.add_argument("--new-visual-audit", default=None)
     p_ra.add_argument("--adaptation", default=None,
