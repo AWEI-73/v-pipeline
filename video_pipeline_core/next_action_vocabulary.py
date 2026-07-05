@@ -77,6 +77,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "provide_material_wall_keyframes_or_reviewed_stills",
         "ready_for_build",
         "ready_for_delivery_gate",
+        "ready_for_render_or_human_review",
         "ready_for_human_effect_review_or_pipeline_promotion",
         "rebuild_motion_preview_from_preview_plan",
         "regenerate_narration_audio",
