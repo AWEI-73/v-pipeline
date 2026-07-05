@@ -39,13 +39,13 @@ branches:
 Run:
 
 ```powershell
-python tools/pipeline_interface_audit.py
+python video_tools.py interface-audit
 ```
 
 JSON output:
 
 ```powershell
-python tools/pipeline_interface_audit.py --json
+python video_tools.py interface-audit --out .tmp/interface_audit.json
 ```
 
 Product artifact dictionary audit:
@@ -95,7 +95,7 @@ Keep the existing flat manifest keys for compatibility. The shared helper is
 
 ## Audit vs Discovery
 
-*   **`pipeline_interface_audit.py` (Hard Gate)**:
+*   **`video_tools.py interface-audit` (Hard Gate)**:
     Verifies that the canonical `pipeline-api-dictionary.json` is structurally valid, self-consistent, and secure (e.g., enforces `final.mp4` forbidden writes and valid branch names). Any failure here is treated as a hard validation failure.
 *   **`pipeline_interface_discovery.py` (Soft Discovery)**:
     Heuristically scans skills and python files to discover new candidate interfaces, missing mappings, or stale declarations. It outputs suggestions/draft report to help agents/humans maintain the dictionary. It does not enforce hard gates or modify the dictionary directly.
