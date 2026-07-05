@@ -396,6 +396,20 @@ follow its `failed_stage`, `blocking`, and `next_action` instead of continuing
 to render. Workers must use the operator-provided material folder exactly: do not substitute `--source-dir`; if the specified folder is missing, stop and
 report `blocked` instead of selecting a neighboring folder.
 
+Self-contained material-first golden path regression:
+
+```powershell
+python video_tools.py replay-acceptance --scenario material-first-golden-path --out .tmp/material_first_golden_replay.json
+```
+
+Use this when a reviewer or cold-start agent needs to rerun the deterministic
+golden path without hand-preparing `MATERIAL_SOURCE_DIR` or
+`material_wall_review_verdict.json`. It reads the tracked fixture recipe at
+`tests/fixtures/material_first_golden/fixture_manifest.json`, generates tiny
+media under `.tmp/material_first_golden_path/`, and produces boundary/build-ready
+artifacts. It does not produce final delivery and must not be reported as
+`final.mp4` completion.
+
 Material-first Remotion MemoryPhotoWall boundary acceptance:
 
 ```powershell
