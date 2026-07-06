@@ -90,6 +90,40 @@ class VoiceoverProviderTests(unittest.TestCase):
             self.assertEqual(len(payload["handoff"]["voice_files"]), 2)
             self.assertTrue(all(seg["status"] == "rendered" for seg in payload["plan"]["segments"]))
 
+    def test_voxcpm_auto_failure_retries_segment_on_cpu(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            fake_bin = root / "voxcpm.cmd"
+            fake_bin.write_text("@echo off\r\n", encoding="utf-8")
+            calls = []
+
+            def runner(command, timeout_sec):
+                calls.append(list(command))
+                output = Path(command[command.index("--output") + 1])
+                device = command[command.index("--device") + 1]
+                if device == "auto":
+                    return subprocess.CompletedProcess(command, 3221225477, "", "cuda access violation")
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"fake wav")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            payload = build_voiceover_provider_plan(
+                script_path=self._script(root),
+                out_dir=root / "voice",
+                voxcpm_bin=str(fake_bin),
+                execute=True,
+                runner=runner,
+            )
+
+            self.assertTrue(payload["handoff"]["voiceover_ready"])
+            self.assertEqual(len(calls), 4)
+            first = payload["plan"]["segments"][0]
+            self.assertEqual(first["status"], "rendered")
+            self.assertEqual(first["retry"]["retry_device"], "cpu")
+            self.assertEqual(first["retry"]["primary_returncode"], 3221225477)
+            self.assertEqual(calls[0][calls[0].index("--device") + 1], "auto")
+            self.assertEqual(calls[1][calls[1].index("--device") + 1], "cpu")
+
     def test_local_voxcpm_repo_entrypoint_is_supported(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

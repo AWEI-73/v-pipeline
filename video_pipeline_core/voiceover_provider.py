@@ -192,6 +192,15 @@ def _voxcpm_command(
     return command
 
 
+def _command_with_device(command: Sequence[str], device: str) -> list[str]:
+    updated = list(command)
+    try:
+        updated[updated.index("--device") + 1] = device
+    except (ValueError, IndexError):
+        updated += ["--device", device]
+    return updated
+
+
 def _legacy_tts_command(script_path: Path, out_dir: Path, voice: str | None) -> list[str]:
     command = [sys.executable, str(Path(__file__).resolve().parents[1] / "video_tools.py"), "tts", str(script_path)]
     if voice:
@@ -341,22 +350,54 @@ def build_voiceover_provider_plan(
                 cfg_value=cfg_value,
             )
             status = "planned"
+            retry: dict[str, object] | None = None
             if execute:
                 result = command_runner(command, timeout_sec)
                 if result.returncode == 0 and target.exists():
                     status = "rendered"
                     rendered_files.append(str(target))
                 else:
-                    status = "failed"
-                    errors.append(
-                        {
-                            "segment": segment["segment"],
-                            "provider": "voxcpm",
-                            "returncode": result.returncode,
-                            "stderr": (result.stderr or "")[-1000:],
+                    primary_error = {
+                        "returncode": result.returncode,
+                        "stderr": (result.stderr or "")[-1000:],
+                    }
+                    if device != "cpu":
+                        retry_command = _command_with_device(command, "cpu")
+                        retry_result = command_runner(retry_command, timeout_sec)
+                        retry = {
+                            "reason": "voxcpm_primary_failed",
+                            "retry_device": "cpu",
+                            "primary_returncode": result.returncode,
+                            "primary_stderr": (result.stderr or "")[-1000:],
+                            "retry_returncode": retry_result.returncode,
+                            "command": retry_command,
                         }
-                    )
-            segment_entries.append({**segment, "provider": "voxcpm", "target_file": str(target), "status": status, "command": command})
+                        if retry_result.returncode == 0 and target.exists():
+                            status = "rendered"
+                            rendered_files.append(str(target))
+                        else:
+                            status = "failed"
+                            errors.append(
+                                {
+                                    "segment": segment["segment"],
+                                    "provider": "voxcpm",
+                                    **primary_error,
+                                    "retry": retry,
+                                }
+                            )
+                    else:
+                        status = "failed"
+                        errors.append(
+                            {
+                                "segment": segment["segment"],
+                                "provider": "voxcpm",
+                                **primary_error,
+                            }
+                        )
+            entry = {**segment, "provider": "voxcpm", "target_file": str(target), "status": status, "command": command}
+            if retry is not None:
+                entry["retry"] = retry
+            segment_entries.append(entry)
         else:
             segment_entries.append(
                 {
