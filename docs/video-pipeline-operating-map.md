@@ -655,6 +655,7 @@ python video_tools.py operator-flow-acceptance ...
 | `director.md` | shot purposes and visual design | `validate-needs`, `contract-dry-build` |
 | `audio-director.md` | BGM, voiceover, cue intent | `gen-bgm`, `music-fetch`, `mix-audio`, `sfx-mix` |
 | `subtitle-director.md` | subtitle plan and fixes | `srt`, `mksrt`, `caption-audit` |
+| `soundtrack-arranger.md` | source-root music discovery, section music planning, source/license handoff | `soundtrack-arrange`, `soundtrack-provider-search`, `soundtrack-import-url`, `soundtrack-audio-handoff-accept` |
 | `effects-director.md` | neutral effect intent and finishing route | `effect-intent-plan`, `light-effects-plan`, `remotion-prompt-pack` |
 | `video-effect-factory.md` | designed effect side branch: design map, contract, backend handoff, review | `effect-revision-*`, `remotion-prompt-pack`, `remotion-worker-outputs`, handoff artifacts |
 | `remotion-effect-worker.md` | bounded Remotion backend worker | `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `tools/remotion_worker_bridge.mjs` |

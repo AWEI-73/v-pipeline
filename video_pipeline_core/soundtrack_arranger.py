@@ -32,6 +32,134 @@ def _has_any(text: str, tokens: tuple[str, ...]) -> bool:
     return any(token.casefold() in text for token in tokens)
 
 
+_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".wma"}
+_VIDEO_AUDIO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".m4v", ".webm"}
+_SOURCE_MUSIC_TOKENS = (
+    "music",
+    "bgm",
+    "sound",
+    "audio",
+    "theme",
+    "\u97f3\u6a02",
+    "\u914d\u6a02",
+    "\u97f3\u6548",
+    "\u7247\u982d",
+)
+_EXTERNAL_FALLBACK_PROVIDERS = ["jamendo", "yt-dlp"]
+
+
+def _path_text(path: Path) -> str:
+    return " ".join(part.casefold() for part in path.parts)
+
+
+def _source_root_from_payload(payload: Mapping[str, Any]) -> str:
+    for key in ("source_root", "material_source_root", "source_folder", "source_dir"):
+        value = _clean(payload.get(key))
+        if value:
+            return value
+    source = payload.get("source")
+    if isinstance(source, Mapping):
+        for key in ("root", "source_root", "folder", "path"):
+            value = _clean(source.get(key))
+            if value:
+                return value
+    return ""
+
+
+def _source_root_candidate_score(path: Path, relative_path: Path) -> tuple[int, list[str]]:
+    suffix = path.suffix.casefold()
+    text = _path_text(relative_path)
+    signals: list[str] = []
+    score = 0
+    token_hits = [token for token in _SOURCE_MUSIC_TOKENS if token.casefold() in text]
+    if not token_hits:
+        return 0, []
+    if suffix in _AUDIO_EXTENSIONS:
+        score += 50
+        signals.append("audio_extension")
+    elif suffix in _VIDEO_AUDIO_EXTENSIONS:
+        score += 20
+        signals.append("video_container")
+    else:
+        return 0, []
+    score += 30 + len(token_hits)
+    signals.extend(f"name_signal:{token}" for token in token_hits)
+    return score, signals
+
+
+def discover_source_root_music(source_root: str | Path | None, *, max_candidates: int = 20) -> dict[str, Any]:
+    """Find likely music/audio inside the active source root without provider calls."""
+    root_text = _clean(source_root)
+    fallback_intent = {
+        "status": "external_fallback_available",
+        "providers": list(_EXTERNAL_FALLBACK_PROVIDERS),
+        "note": "Use sourceable external music search/download only when source-root music is absent or rejected.",
+    }
+    result: dict[str, Any] = {
+        "artifact_role": "source_root_music_discovery",
+        "version": 1,
+        "source_root": root_text,
+        "source_root_music_available": False,
+        "selected_candidate": None,
+        "candidates": [],
+        "fallback_intent": fallback_intent,
+        "legal_review_required": True,
+        "legal_caveat": "Source-folder audio is source evidence, not a legal/music-use approval.",
+    }
+    if not root_text:
+        result["status"] = "source_root_not_provided"
+        return result
+
+    root = Path(root_text)
+    if not root.exists() or not root.is_dir():
+        result["status"] = "source_root_missing"
+        return result
+
+    resolved_root = root.resolve()
+    candidates: list[tuple[int, str, dict[str, Any]]] = []
+    for path in resolved_root.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            relative_path = path.resolve().relative_to(resolved_root)
+        except ValueError:
+            continue
+        score, signals = _source_root_candidate_score(path, relative_path)
+        if score <= 0:
+            continue
+        source_relative_path = relative_path.as_posix()
+        candidate = {
+            "candidate_id": f"source_root_music_{len(candidates) + 1}",
+            "source_type": "source_folder_audio",
+            "provider": "source_root",
+            "path": str(path),
+            "source_relative_path": source_relative_path,
+            "file_name": path.name,
+            "score": score,
+            "signals": signals,
+            "license_status": "source_folder_audio_requires_review",
+            "delivery_allowed": False,
+            "legal_review_required": True,
+            "note": "source-root audio candidate; source evidence recorded, music-use/legal review still required",
+        }
+        candidates.append((-score, source_relative_path.casefold(), candidate))
+
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    result["candidates"] = [candidate for _, _, candidate in candidates[:max_candidates]]
+    if result["candidates"]:
+        result["source_root_music_available"] = True
+        result["status"] = "source_root_music_selected"
+        result["selected_candidate"] = dict(result["candidates"][0])
+        result["fallback_intent"] = {
+            "status": "not_selected_source_root_available",
+            "providers": list(_EXTERNAL_FALLBACK_PROVIDERS),
+            "note": "External fallback remains available only if source-root candidate is rejected or fails probe.",
+        }
+    else:
+        result["status"] = "source_root_music_absent"
+    return result
+
+
 def _target_duration_sec(value: Any, default: int = 300) -> int:
     if isinstance(value, bool) or value is None:
         return default
@@ -310,6 +438,22 @@ def _enrich_section_requirements(sections: list[dict[str, Any]]) -> list[dict[st
     return enriched
 
 
+def _apply_source_root_music_priority(sections: list[dict[str, Any]], discovery: Mapping[str, Any]) -> list[dict[str, Any]]:
+    if not discovery.get("source_root_music_available"):
+        return sections
+    adjusted: list[dict[str, Any]] = []
+    for section in sections:
+        item = dict(section)
+        role = _clean(item.get("music_role")).casefold()
+        if role in {"bgm", "song"}:
+            priority = list(item.get("source_type_priority") or [])
+            if "source_folder_audio" in priority:
+                priority.remove("source_folder_audio")
+            item["source_type_priority"] = ["source_folder_audio", *priority]
+        adjusted.append(item)
+    return adjusted
+
+
 def _required_track_count(sections: list[Mapping[str, Any]]) -> int:
     roles: set[str] = set()
     for section in sections:
@@ -332,6 +476,34 @@ def _section_music_requirements(sections: list[Mapping[str, Any]]) -> list[dict[
     ]
 
 
+def _first_music_section_id(sections: list[Mapping[str, Any]]) -> str:
+    for section in sections:
+        if _clean(section.get("music_role")).casefold() in {"bgm", "song"}:
+            return _clean(section.get("section_id"))
+    return ""
+
+
+def _source_root_candidate_for_plan(discovery: Mapping[str, Any], sections: list[Mapping[str, Any]]) -> dict[str, Any] | None:
+    selected = discovery.get("selected_candidate")
+    if not isinstance(selected, Mapping):
+        return None
+    section_id = _first_music_section_id(sections)
+    if not section_id:
+        return None
+    candidate = dict(selected)
+    candidate["candidate_id"] = f"music_{section_id}_source_root"
+    candidate["section_id"] = section_id
+    candidate["search_brief"] = {
+        "story_function": "source_root_music_discovery",
+        "music_role": "source_folder_audio",
+        "vocal_policy": "requires_probe",
+        "energy_curve": "unknown_until_probe",
+    }
+    candidate["note"] = "source-root candidate preferred before external fallback; legal/music-use review still required"
+    candidate["delivery_allowed"] = False
+    return candidate
+
+
 def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     text = _text(payload)
     total_sec = _target_duration_sec(payload.get("target_length") or payload.get("target_duration_sec") or payload.get("duration"))
@@ -342,9 +514,14 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         stage0_contract,
     )
     sections = _enrich_section_requirements(sections)
+    source_root_music_discovery = discover_source_root_music(_source_root_from_payload(payload))
+    sections = _apply_source_root_music_priority(sections, source_root_music_discovery)
     required_track_count = _required_track_count(sections)
     section_music_requirements = _section_music_requirements(sections)
     candidates = [_candidate_for_section(section, text) for section in sections if section.get("music_role") != "silence"]
+    source_root_candidate = _source_root_candidate_for_plan(source_root_music_discovery, sections)
+    if source_root_candidate:
+        candidates.insert(0, source_root_candidate)
 
     blocks: list[str] = []
     if any(candidate["source_type"] == "reference_only" for candidate in candidates):
@@ -384,9 +561,11 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "stage0_soundtrack_contract": stage0_contract,
         "sections": sections,
         "section_music_requirements": section_music_requirements,
+        "source_root_music_discovery": source_root_music_discovery,
         "assumptions": [
             "provider search is optional; this plan is deterministic and does not require API tokens",
             "commercial/famous songs remain reference_only until license evidence is provided",
+            "source-folder audio is source evidence and still requires music-use/legal review",
         ],
         "handoff_to": "audio-director" if not blocks else "soundtrack_review",
     }
@@ -407,6 +586,8 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "source_type": candidate["source_type"],
                 "license_status": candidate["license_status"],
                 "delivery_allowed": candidate["delivery_allowed"],
+                **({"path": candidate["path"]} if candidate.get("path") else {}),
+                **({"source_relative_path": candidate["source_relative_path"]} if candidate.get("source_relative_path") else {}),
             }
             for candidate in candidates
         ],

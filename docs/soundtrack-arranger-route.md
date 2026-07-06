@@ -54,9 +54,34 @@ Canonical artifacts:
 | `youtube_audio_library` | YouTube Audio Library tracks | Requires track/license record |
 | `pixabay_music` | Pixabay Music/BGM | Requires track URL and license snapshot |
 | `jamendo_song` | Songs/vocals via Jamendo | Requires Jamendo metadata |
+| `source_folder_audio` | Music/audio discovered under the active source root | Requires source-relative evidence, probe, and music-use/legal review |
 | `suno_udio_external` | User-created external AI music | Requires account/source/license note |
 | `reference_only` | Famous song or mood reference | Not deliverable as final soundtrack |
 | `placeholder` | Temporary planning audio | Not deliverable |
+
+## Source-Root Music Discovery
+
+When the current brief or `video_intent.json` provides an active `source_root`,
+Soundtrack Arranger first scans inside that folder for likely source-folder
+music/audio before external provider fallback. The scan is source-root scoped:
+it does not hard-code a user Downloads path and does not inspect outside the
+provided root.
+
+Selected source-root candidates are written as `source_type=source_folder_audio`
+and preserve both:
+
+- `path`: absolute evidence path for the local run.
+- `source_relative_path`: stable evidence relative to the active source root.
+
+The source-root route recognizes audio files and likely music/video containers
+from general folder or file-name signals such as `music`, `bgm`, `sound`,
+`audio`, `theme`, and Chinese music/audio terms. If no source-root music is
+found, `source_root_music_discovery.fallback_intent` keeps external fallback
+available through sourceable providers such as Jamendo or yt-dlp.
+
+Source-folder presence is not legal approval. `source_folder_audio` remains a
+candidate with `legal_review_required=true` until source/license evidence,
+probe results, and human music-use review clear it for the delivery context.
 
 ## API And Token Boundary
 
@@ -170,6 +195,8 @@ and downloaded by `soundtrack-provider-download`.
 
 Provider priority:
 
+- Source-root-scoped music/audio first when `source_root` is present and a
+  candidate is found.
 - Songs/vocals: Jamendo first.
 - BGM/manual licensed/internal-only fallback: `soundtrack-import-url` through
   yt-dlp.

@@ -278,6 +278,7 @@
       "required_inputs": [
         "video_intent.json or soundtrack brief",
         "target sections/durations when available",
+        "active source_root when source-folder music/audio may exist",
         "speech/original-audio policy",
         "source/license policy"
       ],
@@ -299,6 +300,7 @@
       ],
       "next_actions": [
         "search_or_import_soundtrack",
+        "discover_source_root_music",
         "probe_candidate_audio",
         "audio_director_handoff",
         "execute_audio_mix_plan",

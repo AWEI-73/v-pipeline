@@ -31,6 +31,7 @@ coffee_v2/
 runs/
 tmp_runs/
 video_pipeline_projects/
+deliveries/
 
 # Local project pointer; real project data lives outside the repo
 .project/

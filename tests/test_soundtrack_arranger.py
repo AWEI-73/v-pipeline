@@ -6,10 +6,97 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from video_pipeline_core.soundtrack_arranger import arrange_soundtrack, write_soundtrack_artifacts
+from video_pipeline_core.soundtrack_arranger import (
+    arrange_soundtrack,
+    discover_source_root_music,
+    write_soundtrack_artifacts,
+)
 
 
 class SoundtrackArrangerTest(unittest.TestCase):
+    def test_source_root_nested_music_is_selected_before_external_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_root = Path(tmp) / "source"
+            music_file = source_root / "nested" / "music" / "opening_theme.mp3"
+            music_file.parent.mkdir(parents=True)
+            music_file.write_bytes(b"ID3 source-root music")
+
+            result = discover_source_root_music(source_root)
+
+            self.assertTrue(result["source_root_music_available"])
+            self.assertEqual(result["selected_candidate"]["source_type"], "source_folder_audio")
+            self.assertEqual(
+                result["selected_candidate"]["source_relative_path"],
+                "nested/music/opening_theme.mp3",
+            )
+            self.assertEqual(result["selected_candidate"]["provider"], "source_root")
+            self.assertTrue(result["selected_candidate"]["path"].startswith(str(source_root)))
+            self.assertEqual(result["fallback_intent"]["status"], "not_selected_source_root_available")
+            self.assertTrue(result["legal_review_required"])
+            serialized = json.dumps(result, ensure_ascii=False).casefold()
+            self.assertNotIn("license_approved", serialized)
+
+    def test_source_root_discovery_absent_exposes_external_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_root = Path(tmp) / "source"
+            footage = source_root / "footage" / "training_clip.mp4"
+            footage.parent.mkdir(parents=True)
+            footage.write_bytes(b"not selected as music without music signals")
+
+            result = discover_source_root_music(source_root)
+
+            self.assertFalse(result["source_root_music_available"])
+            self.assertIsNone(result["selected_candidate"])
+            self.assertEqual(result["fallback_intent"]["status"], "external_fallback_available")
+            self.assertIn("jamendo", result["fallback_intent"]["providers"])
+            self.assertIn("yt-dlp", result["fallback_intent"]["providers"])
+            self.assertTrue(result["legal_review_required"])
+
+    def test_source_root_discovery_does_not_treat_plain_speech_audio_as_music(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_root = Path(tmp) / "source"
+            speech = source_root / "interviews" / "director_take.wav"
+            speech.parent.mkdir(parents=True)
+            speech.write_bytes(b"RIFF source speech")
+
+            result = discover_source_root_music(source_root)
+
+            self.assertFalse(result["source_root_music_available"])
+            self.assertIsNone(result["selected_candidate"])
+            self.assertEqual(result["fallback_intent"]["status"], "external_fallback_available")
+
+    def test_arrange_soundtrack_prefers_source_root_music_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_root = Path(tmp) / "source"
+            music_file = source_root / "audio" / "training_bgm.wav"
+            music_file.parent.mkdir(parents=True)
+            music_file.write_bytes(b"RIFF source-root wav")
+
+            plan = arrange_soundtrack(
+                {
+                    "request": "training recap with warm instrumental music",
+                    "target_length": "90 seconds",
+                    "source_root": str(source_root),
+                    "soundtrack_contract": {
+                        "music_role": "bgm",
+                        "vocal_policy": "instrumental_preferred",
+                        "handoff_to": "soundtrack-arranger",
+                    },
+                }
+            )
+
+            first = plan["music_source_candidates"]["candidates"][0]
+            self.assertEqual(first["source_type"], "source_folder_audio")
+            self.assertEqual(first["source_relative_path"], "audio/training_bgm.wav")
+            self.assertEqual(first["provider"], "source_root")
+            self.assertTrue(plan["soundtrack_plan"]["source_root_music_discovery"]["source_root_music_available"])
+            warm_story = next(
+                section
+                for section in plan["soundtrack_plan"]["sections"]
+                if section["section_id"] == "warm_story"
+            )
+            self.assertEqual(warm_story["source_type_priority"][0], "source_folder_audio")
+
     def test_training_recap_plan_splits_sections_and_preserves_speech(self):
         plan = arrange_soundtrack(
             {
