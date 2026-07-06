@@ -1462,6 +1462,21 @@ def _delivery_gate_summary(root: Path):
     limitation_reason = _video_only_limitations_reason(gate)
     story_review_reason = _story_human_review_reason(gate)
     if gate.get("pass") is True and (root / "final.mp4").exists():
+        if story_review_reason:
+            return _contract(
+                "waiting",
+                "human_story_review",
+                next_action="human_review_story_to_material_map",
+                reason=(
+                    "delivery gate passed and final.mp4 exists"
+                    + (" after explicit preview promotion" if promotion else "")
+                    + limitation_reason
+                    + story_review_reason
+                ),
+                read=read,
+                run_dir=root,
+                source="delivery_gate.json",
+            )
         return _contract(
             "done",
             "complete",

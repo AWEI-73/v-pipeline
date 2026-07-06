@@ -356,14 +356,32 @@ def _has_text_corruption(value: Any) -> bool:
 
 def _scripted_chinese_expected(*values: Any) -> bool:
     text = "\n".join(_text_payload(value) for value in values)
-    lowered = text.casefold()
-    return (
-        _contains_cjk(text)
-        or "zh" in lowered
-        or "chinese" in lowered
-        or "\u4e2d\u6587" in text
-        or "\u7e41\u9ad4" in text
-    )
+    return _contains_cjk(text) or any(_language_requires_cjk(value) for value in values)
+
+
+def _language_requires_cjk(value: Any) -> bool:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            key_text = str(key).casefold()
+            if isinstance(child, str) and (
+                "language" in key_text
+                or "locale" in key_text
+                or key_text in {"lang", "required_lang"}
+            ):
+                marker = child.strip().casefold()
+                if (
+                    marker == "zh"
+                    or marker.startswith("zh-")
+                    or marker in {"chinese", "mandarin"}
+                    or "\u4e2d\u6587" in child
+                    or "\u7e41\u9ad4" in child
+                ):
+                    return True
+            if _language_requires_cjk(child):
+                return True
+    if isinstance(value, list):
+        return any(_language_requires_cjk(item) for item in value)
+    return False
 
 
 def _text_items(value: Any) -> list[str]:
@@ -1264,21 +1282,44 @@ def _story_map_items(story_map: dict[str, Any] | None) -> list[dict[str, Any]]:
 
 
 def _source_speech_required(story_contract: dict[str, Any] | None, story_map: dict[str, Any] | None) -> bool:
-    text = _text_payload(story_contract) + "\n" + _text_payload(story_map)
-    lowered = text.casefold()
-    markers = (
+    explicit_markers = {
         "source_speech",
-        "visible speaker",
-        "director",
-        "instructor",
-        "\u4e3b\u4efb",
-        "\u8b1b\u8005",
-        "\u539f\u8072",
-        "\u8aaa\u8a71",
-    )
-    if any(marker in lowered or marker in text for marker in markers):
-        return True
-    return any(str(item.get("evidence_type") or "").strip() == "source_speech" for item in _story_map_items(story_map))
+        "preserve_source_speech",
+        "preserve_original_audio",
+        "visible_speaker_source_speech",
+    }
+    for item in _story_map_items(story_map):
+        fields = (
+            item.get("evidence_type"),
+            item.get("audio_role"),
+            item.get("role"),
+            item.get("source_type"),
+            item.get("source_audio_policy"),
+            item.get("original_audio_policy"),
+        )
+        if any(str(value or "").strip().casefold() in explicit_markers for value in fields):
+            return True
+        beat_id = str(item.get("beat_id") or item.get("id") or "").strip().casefold()
+        if "source_speech" in beat_id:
+            return True
+    return _contract_requires_source_speech(story_contract)
+
+
+def _contract_requires_source_speech(value: Any) -> bool:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            key_text = str(key).strip().casefold()
+            if key_text in {"requires_source_speech", "source_speech_required", "preserve_source_speech"}:
+                return child is not False
+            if key_text in {"source_speech_policy", "original_audio_policy"}:
+                policy = str(child or "").strip().casefold()
+                if policy in {"required", "preserve", "preserve_speech", "keep", "source_speech"}:
+                    return True
+            if _contract_requires_source_speech(child):
+                return True
+    if isinstance(value, list):
+        return any(_contract_requires_source_speech(item) for item in value)
+    return False
 
 
 def _source_speech_is_mixed(audio_mix_report: dict[str, Any] | None) -> bool:

@@ -1674,6 +1674,74 @@ class DeliveryGateTest(unittest.TestCase):
         rules = {item["rule"] for item in result["blocking"]}
         self.assertIn("missing_source_speech_preservation_evidence", rules)
 
+    def test_scripted_gate_does_not_treat_zhang_as_chinese_language_signal(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root, subtitles="Zhang opens the session.")
+            script = {
+                "artifact_role": "script",
+                "language": "en",
+                "segments": [{"segment": "opening", "text": "Zhang opens the session."}],
+            }
+            (root / "script.json").write_text(json.dumps(script), encoding="utf-8")
+            (root / "narration_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "narration_manifest",
+                    "segments": [{"text": "Zhang opens the session.", "audio_ref": "narration.wav"}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": True,
+                    "items": [{
+                        "type": "voxcpm_transcript",
+                        "text": "Zhang opens the session.",
+                        "corresponds_to_audible_audio": True,
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertNotIn("corrupt_script_text", rules)
+        self.assertNotIn("corrupt_narration_manifest", rules)
+        self.assertNotIn("corrupt_subtitle_alignment", rules)
+
+    def test_scripted_gate_does_not_require_source_speech_for_director_approved_visual_montage(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "opening_montage", "description": "Director-approved opening montage, no interview audio required"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{
+                        "beat_id": "opening_montage",
+                        "evidence_type": "visual_match",
+                        "needs_human_confirmation": False,
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertNotIn("missing_source_speech_preservation_evidence", rules)
+
     def test_scripted_gate_blocks_preserved_source_speech_that_is_not_mixed(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

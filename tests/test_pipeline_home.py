@@ -64,8 +64,11 @@ class PipelineHomeTest(unittest.TestCase):
 
             summary = summarize_run(tmp)
 
-            self.assertEqual(summary["mode"], "done")
-            self.assertEqual(summary["cursor"], "complete")
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "human_story_review")
+            self.assertEqual(summary["status"], "WAITING")
+            self.assertEqual(summary["next"], "human_review_story_to_material_map")
+            self.assertEqual(summary["next_action_class"], "review_stop")
             self.assertIn("story human review", summary["reason"])
             self.assertIn("Real user approval is still required", summary["reason"])
 

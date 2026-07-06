@@ -156,6 +156,26 @@ Pipeline home status:
 - `final_product_verify` files were not changed. The existing repo pattern allowed the delivery gate to consume the required artifacts directly, and the acceptance suite for `tests.test_final_product_verify` remained green.
 - Existing `AGENTS.md` working-tree changes were left untouched.
 
+## Post-review fixes
+
+An independent review found three merge blockers before PR creation:
+
+- English names such as `Zhang` were incorrectly treated as a Chinese-language signal.
+- `story_human_review_required` still returned `pipeline_home` as `DONE/complete`.
+- Source-speech preservation was triggered by broad words such as `director` instead of explicit source-speech evidence.
+
+Fixes applied after review:
+
+- Chinese/CJK expectation now uses existing CJK text or explicit language/locale fields such as `zh`, `zh-*`, `Chinese`, or `Mandarin`; it does not scan arbitrary prose for `zh`.
+- `pipeline_home` returns `mode=waiting`, `cursor=human_story_review`, and `next_action_class=review_stop` when the delivery gate passes but `story_human_review_required` is present.
+- Source-speech preservation now requires explicit source-speech evidence/policy such as `evidence_type=source_speech`, `source_speech_policy`, or a source-speech beat id, not incidental director/instructor wording.
+
+Focused post-review tests:
+
+- `test_scripted_gate_does_not_treat_zhang_as_chinese_language_signal`
+- `test_scripted_gate_does_not_require_source_speech_for_director_approved_visual_montage`
+- `test_passed_scripted_delivery_gate_exposes_human_review_warning`
+
 ## Blockers
 
 No implementation blocker was hit. No node was stopped for provider/runtime scope. No product decision was required beyond the work-order delegated choice to surface story review as a visible warning.
