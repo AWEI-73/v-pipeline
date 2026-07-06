@@ -24,6 +24,7 @@ The branch registry is the machine-readable ownership contract for:
 - `effect-factory`
 - `workbench-brownfield`
 - `verify-delivery`
+- `film-canon-product-route`
 
 ## Global Precedence
 
@@ -191,6 +192,48 @@ drop, or waiver. Generated candidate fallback must stop at
 `call_image_generation_agent` when no real image provider outputs exist but an
 image-agent handoff is present. If no image-capable provider is available, report
 provider unavailable; do not promote placeholder or text-card images as material.
+
+### Graduation Film Product Route
+
+Use this pre-render route when the target product is a graduation training film
+or another registered product film family and the known blocker is product
+structure rather than render execution.
+
+```text
+film type + fixture or material metadata
+  -> tools/film_canon_route.py --film-type ...
+  -> graduation_film_canon.json
+  -> graduation_film_blueprint_A.json / graduation_film_blueprint_B.json
+  -> story_shell_A.json / story_shell_B.json
+  -> training_catalog_map.real_source.json
+  -> story_retarget_diff_A_to_B.json
+  -> production_readiness_plan.json
+  -> opener_closer_design_handoff.json
+  -> audio_subtitle_review_requirements.json
+  -> graduation_real_source_review_packet
+  -> human/product review before BUILD
+  -> tools/film_canon_readiness.py
+  -> product_route_review_decision.json
+  -> reviewed_catalog_map.json
+  -> story_material_planning_handoff.json
+  -> opener_closer_design_handoff.json
+  -> audio_subtitle_review_handoff.json
+  -> production_readiness_gate.json
+```
+
+Supported film types are listed by `tools/film_canon_route.py --list --json`.
+The route currently supports `graduation_training_film` and
+`daily_kids_memory_film`.
+
+The route must not render `final.mp4` and must not write
+`story_human_review_decision.json`. Agent-filled catalog assignments remain
+`needs_human_confirmation=true` until a later human review step.
+In `reviewed_catalog_map.json`, `pending_review` means material exists but is
+waiting for human product-route review; `missing` is reserved for modules with
+no material assignments.
+Production may be handed off only when `production_readiness_gate.json` has
+`ready_for_production=true`; product-route approval is not final delivery
+approval.
 
 ### BUILD Decision Section
 
