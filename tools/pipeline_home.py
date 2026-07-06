@@ -295,6 +295,22 @@ def _video_only_limitations_reason(gate: dict[str, Any] | None) -> str:
     return "; video-only limitations: " + suffix if suffix else "; video-only limitations declared"
 
 
+def _story_human_review_reason(gate: dict[str, Any] | None) -> str:
+    if not isinstance(gate, dict):
+        return ""
+    messages = []
+    for section in ("warnings", "limitations"):
+        for item in gate.get(section) or []:
+            if not isinstance(item, dict) or item.get("rule") != "story_human_review_required":
+                continue
+            message = str(item.get("message") or item.get("rule") or "").strip()
+            if message and message not in messages:
+                messages.append(message)
+    if not messages:
+        return ""
+    return "; story human review required: " + "; ".join(messages[:3])
+
+
 def _boundary_summary(root: Path, boundary: dict[str, Any]):
     stage = boundary.get("stage") or "boundary"
     refs = _read_refs(root, boundary.get("refs") or {})
@@ -1444,6 +1460,7 @@ def _delivery_gate_summary(root: Path):
     if promotion:
         read.append(_rel(root, promotion_path))
     limitation_reason = _video_only_limitations_reason(gate)
+    story_review_reason = _story_human_review_reason(gate)
     if gate.get("pass") is True and (root / "final.mp4").exists():
         return _contract(
             "done",
@@ -1452,6 +1469,7 @@ def _delivery_gate_summary(root: Path):
                 "delivery gate passed and final.mp4 exists"
                 + (" after explicit preview promotion" if promotion else "")
                 + limitation_reason
+                + story_review_reason
             ),
             read=read,
             run_dir=root,
@@ -1465,6 +1483,7 @@ def _delivery_gate_summary(root: Path):
             reason=(
                 "delivery gate passed for a verified preview candidate; final.mp4 is not present"
                 + limitation_reason
+                + story_review_reason
             ),
             read=read,
             run_dir=root,
@@ -1516,6 +1535,7 @@ def _verified_preview_package_summary(root: Path):
                 "verified preview package is ready for operator delivery review; "
                 "final.mp4 has not been promoted"
                 + _video_only_limitations_reason(gate)
+                + _story_human_review_reason(gate)
             ),
             read=read,
             run_dir=root,

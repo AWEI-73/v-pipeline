@@ -340,6 +340,46 @@ def _contains_cjk(text: str) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
+def _text_payload(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "\n".join(_text_payload(item) for item in value)
+    if isinstance(value, dict):
+        return "\n".join(_text_payload(item) for item in value.values())
+    return ""
+
+
+def _has_text_corruption(value: Any) -> bool:
+    return _has_mojibake(_text_payload(value))
+
+
+def _scripted_chinese_expected(*values: Any) -> bool:
+    text = "\n".join(_text_payload(value) for value in values)
+    lowered = text.casefold()
+    return (
+        _contains_cjk(text)
+        or "zh" in lowered
+        or "chinese" in lowered
+        or "\u4e2d\u6587" in text
+        or "\u7e41\u9ad4" in text
+    )
+
+
+def _text_items(value: Any) -> list[str]:
+    items: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in {"text", "subtitle", "caption", "transcript", "line"} and isinstance(child, str):
+                items.append(child)
+            else:
+                items.extend(_text_items(child))
+    elif isinstance(value, list):
+        for child in value:
+            items.extend(_text_items(child))
+    return items
+
+
 def _expected_language(requirements: dict[str, Any]) -> str | None:
     for key in ("language", "required_language", "subtitle_language", "narration_language"):
         value = requirements.get(key)
@@ -1203,6 +1243,121 @@ def _duration_seconds(probe: dict[str, Any], codec_type: str | None = None) -> f
     return None
 
 
+def _story_beat_ids(story_contract: dict[str, Any] | None) -> set[str]:
+    if not isinstance(story_contract, dict):
+        return set()
+    beats = _as_list(story_contract.get("required_story_beats")) or _as_list(story_contract.get("beats"))
+    out: set[str] = set()
+    for item in beats:
+        if isinstance(item, dict):
+            beat_id = str(item.get("beat_id") or item.get("id") or item.get("name") or "").strip()
+            if beat_id:
+                out.add(beat_id)
+    return out
+
+
+def _story_map_items(story_map: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(story_map, dict):
+        return []
+    raw = story_map.get("items") or story_map.get("beats") or story_map.get("mappings")
+    return [item for item in _as_list(raw) if isinstance(item, dict)]
+
+
+def _source_speech_required(story_contract: dict[str, Any] | None, story_map: dict[str, Any] | None) -> bool:
+    text = _text_payload(story_contract) + "\n" + _text_payload(story_map)
+    lowered = text.casefold()
+    markers = (
+        "source_speech",
+        "visible speaker",
+        "director",
+        "instructor",
+        "\u4e3b\u4efb",
+        "\u8b1b\u8005",
+        "\u539f\u8072",
+        "\u8aaa\u8a71",
+    )
+    if any(marker in lowered or marker in text for marker in markers):
+        return True
+    return any(str(item.get("evidence_type") or "").strip() == "source_speech" for item in _story_map_items(story_map))
+
+
+def _source_speech_is_mixed(audio_mix_report: dict[str, Any] | None) -> bool:
+    if not isinstance(audio_mix_report, dict):
+        return False
+    for key in ("tracks", "placements"):
+        for item in _as_list(audio_mix_report.get(key)):
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role") or "").strip().casefold()
+            policy = str(item.get("ducking_policy") or "").strip().casefold()
+            source_type = str(item.get("source_type") or "").strip().casefold()
+            if role in {"source_speech", "source_speech_preserved", "preserve_original_audio"}:
+                return True
+            if policy == "preserve_original_audio" and source_type in {"source_speech", "source_speech_preserved"}:
+                return True
+    return False
+
+
+def _story_review_findings(
+    story_contract: dict[str, Any] | None,
+    story_map: dict[str, Any] | None,
+    story_alignment: dict[str, Any] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    blocking: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    required = _story_beat_ids(story_contract)
+    if not required:
+        return blocking, warnings
+    items = _story_map_items(story_map)
+    if not items:
+        blocking.append({
+            "rule": "missing_story_to_material_map",
+            "tier": 1,
+            "artifact": "story_to_material_map.json",
+            "message": "story contract has required beats but story_to_material_map.json is missing or empty",
+            "next_action": "map_story_beats_to_material",
+        })
+        return blocking, warnings
+    covered = {
+        str(item.get("beat_id") or item.get("id") or "").strip()
+        for item in items
+        if str(item.get("beat_id") or item.get("id") or "").strip()
+    }
+    missing = sorted(required - covered)
+    if missing:
+        blocking.append({
+            "rule": "story_required_beats_uncovered",
+            "tier": 1,
+            "artifact": "story_to_material_map.json",
+            "message": "required story beats are not covered by story_to_material_map.json",
+            "missing_beats": missing,
+            "next_action": "map_missing_story_beats_to_material",
+        })
+    needs_review = [
+        item for item in items
+        if item.get("needs_human_confirmation") is True
+        or str(item.get("evidence_type") or "").strip() == "agent_inferred"
+    ]
+    if needs_review:
+        warnings.append({
+            "rule": "story_human_review_required",
+            "tier": 2,
+            "artifact": "story_to_material_map.json",
+            "message": "story-to-material mapping includes agent-filled or inferred choices; technical delivery still needs human creative review",
+            "count": len(needs_review),
+            "next_action": "human_review_story_to_material_map",
+        })
+    if isinstance(story_alignment, dict) and story_alignment.get("ok") is False:
+        blocking.append({
+            "rule": "story_to_final_alignment_failed",
+            "tier": 1,
+            "artifact": "story_to_final_alignment_report.json",
+            "message": "story-to-final alignment report is not ok",
+            "next_action": "repair_story_to_final_alignment",
+        })
+    return blocking, warnings
+
+
 def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate a run folder as a complete deliverable video, not just a draft.
 
@@ -1318,6 +1473,14 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         "subtitle_voiceover_build_handoff",
         "subtitle_voiceover_build_handoff.json",
     ) or {}
+    script_artifact = _load_artifact_json(root, "script", "script.json")
+    story_contract = _load_artifact_json(root, "story_contract", "story_contract.json")
+    story_to_material_map = _load_artifact_json(root, "story_to_material_map", "story_to_material_map.json")
+    story_to_final_alignment = _load_artifact_json(
+        root,
+        "story_to_final_alignment_report",
+        "story_to_final_alignment_report.json",
+    )
     blocking.extend(_artifact_manifest_stale_blocks(root, DELIVERY_MANIFEST_EVIDENCE_KEYS))
 
     final_path = root / "final.mp4"
@@ -1394,6 +1557,30 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             "tier": 1,
             "artifact": "narration_manifest.json",
             "message": "narration_manifest.json contains mojibake placeholders",
+            "next_action": "regenerate_narration_manifest_utf8",
+        })
+    chinese_expected = _scripted_chinese_expected(requirements, script_artifact, story_contract, narration_manifest)
+    if script_artifact is not None:
+        script_text_items = _text_items(script_artifact)
+        if _has_text_corruption(script_artifact) or (chinese_expected and script_text_items and not _contains_cjk("\n".join(script_text_items))):
+            blocking.append({
+                "rule": "corrupt_script_text",
+                "tier": 1,
+                "artifact": "script.json",
+                "message": "script.json contains corrupt or non-CJK Chinese narration text",
+                "next_action": "regenerate_script_utf8",
+            })
+    if (
+        narration_manifest is not None
+        and chinese_expected
+        and _text_items(narration_manifest)
+        and not _contains_cjk("\n".join(_text_items(narration_manifest)))
+    ):
+        blocking.append({
+            "rule": "corrupt_narration_manifest",
+            "tier": 1,
+            "artifact": "narration_manifest.json",
+            "message": "narration_manifest.json lacks expected CJK narration text",
             "next_action": "regenerate_narration_manifest_utf8",
         })
     if requires_narration and narration_manifest is not None and not allow_narration_fallback:
@@ -1528,6 +1715,57 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                     })
             blocking.extend(_audio_mix_report_blocks(audio_mix_report))
 
+    source_speech_preservation = _load_artifact_json(
+        root,
+        "source_speech_preservation_report",
+        "source_speech_preservation_report.json",
+    )
+    source_speech_rejection = _load_artifact_json(
+        root,
+        "source_speech_rejection_report",
+        "source_speech_rejection_report.json",
+    )
+    if _source_speech_required(story_contract, story_to_material_map):
+        if source_speech_preservation is None and source_speech_rejection is None:
+            blocking.append({
+                "rule": "missing_source_speech_preservation_evidence",
+                "tier": 1,
+                "artifact": "source_speech_preservation_report.json",
+                "message": "story contract/material map requires visible source speech but no preservation or rejection evidence exists",
+                "next_action": "preserve_source_speech_or_write_rejection_report",
+            })
+        elif isinstance(source_speech_preservation, dict) and source_speech_preservation.get("status") == "preserved":
+            if not _source_speech_is_mixed(audio_mix_report):
+                blocking.append({
+                    "rule": "source_speech_not_mixed",
+                    "tier": 1,
+                    "artifact": "audio_mix_report.json",
+                    "message": "source speech is marked preserved but audio_mix_report does not include a source_speech/preserve_original_audio track",
+                    "next_action": "remix_with_preserved_source_speech",
+                })
+        elif isinstance(source_speech_rejection, dict):
+            reason = (
+                source_speech_rejection.get("reason")
+                or source_speech_rejection.get("unusable_reason")
+                or source_speech_rejection.get("evidence")
+            )
+            if not isinstance(reason, str) or not reason.strip():
+                blocking.append({
+                    "rule": "invalid_source_speech_rejection",
+                    "tier": 1,
+                    "artifact": "source_speech_rejection_report.json",
+                    "message": "source speech rejection report must state a concrete unusable reason",
+                    "next_action": "write_source_speech_rejection_evidence",
+                })
+        else:
+            blocking.append({
+                "rule": "invalid_source_speech_rejection",
+                "tier": 1,
+                "artifact": "source_speech_preservation_report.json",
+                "message": "source speech evidence is present but does not preserve speech or state a valid rejection",
+                "next_action": "repair_source_speech_evidence",
+            })
+
     subtitles_path = root / "subtitles.srt"
     if (
         isinstance(subtitle_voiceover_handoff, dict)
@@ -1550,7 +1788,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                 "message": "subtitles are required but subtitles.srt is missing or has no timing cues",
                 "next_action": "generate_subtitles",
             })
-        elif "????" in subtitles:
+        elif _has_mojibake(subtitles):
             blocking.append({
                 "rule": "corrupt_subtitles",
                 "tier": 1,
@@ -1573,6 +1811,64 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                 "message": "Chinese subtitles are required but subtitles.srt does not contain CJK text",
                 "next_action": "regenerate_subtitles_in_required_language",
             })
+
+        subtitle_alignment = _load_artifact_json(
+            root,
+            "subtitle_audio_alignment_report",
+            "subtitle_audio_alignment_report.json",
+        )
+        has_audible_text_source = _manifest_has_items(narration_manifest, "segments", "clips", "lines") or source_speech_preservation is not None
+        if has_audible_text_source and subtitle_alignment is None:
+            blocking.append({
+                "rule": "missing_subtitle_audio_alignment_report",
+                "tier": 1,
+                "artifact": "subtitle_audio_alignment_report.json",
+                "message": "subtitles require subtitle_audio_alignment_report.json when narration or source speech exists",
+                "next_action": "build_subtitle_audio_alignment_report",
+            })
+        elif isinstance(subtitle_alignment, dict):
+            alignment_text_items = _text_items(subtitle_alignment)
+            if _has_text_corruption(subtitle_alignment) or (
+                chinese_expected and alignment_text_items and not _contains_cjk("\n".join(alignment_text_items))
+            ):
+                blocking.append({
+                    "rule": "corrupt_subtitle_alignment",
+                    "tier": 1,
+                    "artifact": "subtitle_audio_alignment_report.json",
+                    "message": "subtitle_audio_alignment_report.json contains corrupt or non-CJK Chinese subtitle text",
+                    "next_action": "regenerate_subtitle_audio_alignment_utf8",
+                })
+            if subtitle_alignment.get("ok") is False:
+                blocking.append({
+                    "rule": "subtitle_audio_alignment_failed",
+                    "tier": 1,
+                    "artifact": "subtitle_audio_alignment_report.json",
+                    "message": "subtitle_audio_alignment_report.json is not ok",
+                    "next_action": "repair_subtitle_audio_alignment",
+                })
+            for item in _as_list(subtitle_alignment.get("items")):
+                if not isinstance(item, dict):
+                    continue
+                item_type = str(item.get("type") or item.get("kind") or "").strip()
+                is_editorial = item.get("editorial_caption") is True or item_type == "editorial_caption"
+                corresponds = item.get("corresponds_to_audible_audio")
+                if corresponds is False and not is_editorial:
+                    blocking.append({
+                        "rule": "unlabeled_editorial_subtitles",
+                        "tier": 1,
+                        "artifact": "subtitle_audio_alignment_report.json",
+                        "message": "subtitle text that does not correspond to audible speech/narration must be labeled editorial_caption",
+                        "next_action": "label_editorial_captions_or_repair_subtitles",
+                    })
+                    break
+
+    story_blocks, story_warnings = _story_review_findings(
+        story_contract,
+        story_to_material_map,
+        story_to_final_alignment,
+    )
+    blocking.extend(story_blocks)
+    warnings.extend(story_warnings)
 
     for rel in ("agent_interaction_log.md", "HONEST_REVIEW.md"):
         text = _read_text(root / rel)

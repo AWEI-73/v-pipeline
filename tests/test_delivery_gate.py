@@ -580,6 +580,14 @@ class DeliveryGateTest(unittest.TestCase):
                 "1\n00:00:00,000 --> 00:00:03,000\n第一幕開始\n",
                 encoding="utf-8",
             )
+            (root / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": True,
+                    "items": [{"type": "voxcpm_transcript", "text": "第一幕開始", "corresponds_to_audible_audio": True}],
+                }, ensure_ascii=False),
+                encoding="utf-8",
+            )
 
             result = evaluate_complete_video_delivery(root, probe={
                 "ok": True,
@@ -661,6 +669,14 @@ class DeliveryGateTest(unittest.TestCase):
             )
             (root / "handoff" / "subtitles.srt").write_text(
                 "1\n00:00:00,000 --> 00:00:03,000\n完成交接。\n",
+                encoding="utf-8",
+            )
+            (root / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": True,
+                    "items": [{"type": "voxcpm_transcript", "text": "完成交接。", "corresponds_to_audible_audio": True}],
+                }, ensure_ascii=False),
                 encoding="utf-8",
             )
 
@@ -1115,6 +1131,7 @@ class DeliveryGateTest(unittest.TestCase):
                     "audio_mix_report": "handoff/audio_mix_report.json",
                     "soundtrack_probe_report": "handoff/soundtrack_probe_report.json",
                     "effect_render_verification": "handoff/effect_render_verification.json",
+                    "subtitle_audio_alignment_report": "handoff/subtitle_audio_alignment_report.json",
                 }),
                 encoding="utf-8",
             )
@@ -1130,6 +1147,14 @@ class DeliveryGateTest(unittest.TestCase):
             )
             (handoff / "subtitles.srt").write_text(
                 "1\n00:00:00,000 --> 00:00:03,000\n完成這段精神傳承\n",
+                encoding="utf-8",
+            )
+            (handoff / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": True,
+                    "items": [{"type": "voxcpm_transcript", "text": "完成這段精神傳承", "corresponds_to_audible_audio": True}],
+                }, ensure_ascii=False),
                 encoding="utf-8",
             )
             (handoff / "narration_manifest.json").write_text(
@@ -1347,6 +1372,19 @@ class DeliveryGateTest(unittest.TestCase):
             f"1\n00:00:00,000 --> 00:00:03,000\n{subtitles}\n",
             encoding="utf-8",
         )
+        (root / "subtitle_audio_alignment_report.json").write_text(
+            json.dumps({
+                "artifact_role": "subtitle_audio_alignment_report",
+                "version": 1,
+                "ok": True,
+                "items": [{
+                    "type": "voxcpm_transcript",
+                    "text": subtitles,
+                    "corresponds_to_audible_audio": True,
+                }],
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     def test_complete_video_gate_accepts_existing_visual_audit_for_effect_evidence(self):
         with TemporaryDirectory() as tmp:
@@ -1528,6 +1566,216 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         rules = {item["rule"] for item in result["blocking"]}
         self.assertIn("soundtrack_probe_missing_vocal_analysis", rules)
+
+    def test_scripted_gate_blocks_corrupt_chinese_text_across_script_narration_subtitles_and_alignment(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "script.json").write_text(
+                json.dumps({
+                    "artifact_role": "script",
+                    "segments": [{"segment": "opening_bridge", "text": "????"}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "narration_manifest.json").write_text(
+                json.dumps({
+                    "artifact_role": "narration_manifest",
+                    "segments": [{"id": "n1", "text": "????", "audio_ref": "narration.wav"}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "subtitles.srt").write_text(
+                "1\n00:00:00,000 --> 00:00:03,000\n????\n",
+                encoding="utf-8",
+            )
+            (root / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": True,
+                    "items": [{"type": "voxcpm_transcript", "text": "????"}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("corrupt_script_text", rules)
+        self.assertIn("corrupt_narration_manifest", rules)
+        self.assertIn("corrupt_subtitles", rules)
+        self.assertIn("corrupt_subtitle_alignment", rules)
+
+    def test_scripted_gate_blocks_missing_subtitle_audio_alignment_report(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "subtitle_audio_alignment_report.json").unlink()
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_subtitle_audio_alignment_report", rules)
+
+    def test_scripted_gate_blocks_false_alignment_and_unlabeled_editorial_subtitles(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root, subtitles="Training montage begins now")
+            (root / "subtitle_audio_alignment_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "subtitle_audio_alignment_report",
+                    "ok": False,
+                    "items": [{
+                        "type": "subtitle",
+                        "text": "Training montage begins now",
+                        "corresponds_to_audible_audio": False,
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("subtitle_audio_alignment_failed", rules)
+        self.assertIn("unlabeled_editorial_subtitles", rules)
+
+    def test_scripted_gate_requires_source_speech_evidence_when_story_requires_visible_speaker(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "source_speech_instruction", "description": "Preserve visible speaker speech"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{
+                        "beat_id": "source_speech_instruction",
+                        "evidence_type": "source_speech",
+                        "selected_source_files": ["director.mp4"],
+                    }],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_source_speech_preservation_evidence", rules)
+
+    def test_scripted_gate_blocks_preserved_source_speech_that_is_not_mixed(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "source_speech_instruction", "description": "Preserve visible speaker speech"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{"beat_id": "source_speech_instruction", "evidence_type": "source_speech"}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "source_speech_preservation_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "source_speech_preservation_report",
+                    "status": "preserved",
+                    "preserved_audio": "source_speech.wav",
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("source_speech_not_mixed", rules)
+
+    def test_scripted_gate_surfaces_human_review_required_for_agent_inferred_story_map(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "establish_gathering"},
+                        {"beat_id": "training_process_detail"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [
+                        {"beat_id": "establish_gathering", "evidence_type": "visual_match", "needs_human_confirmation": True},
+                        {"beat_id": "training_process_detail", "evidence_type": "agent_inferred", "needs_human_confirmation": True},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_final_alignment_report.json").write_text(
+                json.dumps({"artifact_role": "story_to_final_alignment_report", "ok": True}),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+        visible_rules = {
+            item["rule"]
+            for item in [*result.get("warnings", []), *result.get("limitations", [])]
+        }
+        self.assertIn("story_human_review_required", visible_rules)
+
+    def test_scripted_gate_blocks_when_required_story_beats_are_uncovered(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "establish_gathering"},
+                        {"beat_id": "source_speech_instruction"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [
+                        {"beat_id": "establish_gathering", "evidence_type": "agent_inferred", "needs_human_confirmation": True},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("story_required_beats_uncovered", rules)
 
     def test_complete_video_gate_blocks_vocal_music_conflict_when_requested(self):
         with TemporaryDirectory() as tmp:

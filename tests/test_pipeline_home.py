@@ -42,6 +42,33 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["next_action_class"], "complete")
             self.assertEqual(summary["owner"], "main_pipeline")
 
+    def test_passed_scripted_delivery_gate_exposes_human_review_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "warnings": [{
+                    "rule": "story_human_review_required",
+                    "message": "Story map contains agent-filled decisions that still need human review.",
+                }],
+                "limitations": [{
+                    "rule": "story_human_review_required",
+                    "message": "Real user approval is still required for story decisions.",
+                }],
+                "next_action": None,
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "done")
+            self.assertEqual(summary["cursor"], "complete")
+            self.assertIn("story human review", summary["reason"])
+            self.assertIn("Real user approval is still required", summary["reason"])
+
     def test_summary_exposes_action_class_owner_and_safe_command(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {
