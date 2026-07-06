@@ -56,6 +56,11 @@ worker. It answers five questions:
    - `return_to`
 5. Dispatch only the bounded owner. Stop at the first gate that applies.
 
+For scripted story delivery, write `story_human_review_decision.json` with
+`tools\write_story_human_review_decision.py`; do not hand-edit the decision
+artifact. Only `--reviewer human` decisions may clear
+`story_human_review_required`.
+
 ## Design Boundary
 
 The registry is a contract map, not a template library. It does not decide the

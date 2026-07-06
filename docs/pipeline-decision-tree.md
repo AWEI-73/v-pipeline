@@ -237,7 +237,7 @@ source_section_map / source_motion_profile / source_material_matrix
   -> final.mp4 + final_promotion_report.json
   -> write_delivery_gate_report.py
   -> if story_human_review_required
-  -> story_human_review_decision.json
+  -> tools/write_story_human_review_decision.py writes story_human_review_decision.json
   -> if decision=approved and reviewer=human
   -> pipeline_home.py must report mode=done, cursor=complete
   -> if decision=revision_requested or rejected

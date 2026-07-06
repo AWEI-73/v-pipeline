@@ -8,7 +8,8 @@
     "Whole-video requests enter Stage 0 first; side branches are child lanes unless the request is bounded branch-only work.",
     "Branch outputs are not canonical delivery until the owning gate accepts them.",
     "Workbench, Effect Factory, Soundtrack Arranger, Subtitle/Voiceover, and Verify must not overwrite upstream canonical truth directly.",
-    "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone."
+    "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone.",
+    "Scripted story human-review closure must use story_human_review_decision.json written by tools/write_story_human_review_decision.py; non-human review does not clear story_human_review_required."
   ],
   "branches": [
     {

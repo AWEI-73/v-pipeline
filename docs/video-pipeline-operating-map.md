@@ -333,6 +333,10 @@ explicit human review artifact. Missing or non-human review leaves
 `reviewer` or `reviewer_type` set to `human` clears the warning only when the
 required story beats are approved; `revision_requested` and `rejected` route to
 repair and must not complete delivery.
+Operators should write that artifact with
+`tools\write_story_human_review_decision.py --run run --decision approved --reviewer human --approve-all --json`
+or the equivalent `revision_requested` / `rejected` command with concrete
+`--note` evidence, not by hand-editing JSON.
 If the operator chooses `revise_workbench`, the review decision writes
 `workbench_revision_request.json`; rebuild `workbench_handoff.json` so the
 Workbench/Brownfield agent reads `preview_timeline.json`, the revision request,
