@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from .film_canon_registry import write_film_canon_route_dry_run
 
@@ -34,6 +34,9 @@ def build_product_route_review_decision(
     decision: str = "pending_review",
     reviewer: str = "none",
     notes: str = "",
+    approve_all_reviewed: bool = False,
+    module_overrides: Iterable[Mapping[str, Any]] | None = None,
+    created_by: str = "film_canon_readiness",
 ) -> dict[str, Any]:
     reviewer_type = "human" if reviewer == "human" else reviewer
     return {
@@ -43,9 +46,21 @@ def build_product_route_review_decision(
         "reviewer": reviewer,
         "reviewer_type": reviewer_type,
         "notes": notes,
+        "approve_all_reviewed": bool(approve_all_reviewed),
+        "module_overrides": [dict(item) for item in (module_overrides or [])],
+        "created_by": created_by,
         "is_final_delivery_approval": False,
         "clears_story_human_review": False,
     }
+
+
+def _load_product_route_review_decision(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    if data.get("artifact_role") != "product_route_review_decision":
+        raise ValueError(f"{path} is not a product route review decision")
+    return data
 
 
 def _load_route_catalog(route_dir: Path) -> dict[str, Any]:
@@ -71,6 +86,7 @@ def _decision_is_human_approved(decision: Mapping[str, Any]) -> bool:
             _clean(decision.get("reviewer")) == "human"
             or _clean(decision.get("reviewer_type")) == "human"
         )
+        and bool(decision.get("approve_all_reviewed"))
     )
 
 
@@ -85,8 +101,26 @@ def _catalog_status_for_decision(decision: Mapping[str, Any]) -> str:
     return "pending_review"
 
 
+def _module_overrides(decision: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = {}
+    for item in decision.get("module_overrides") or []:
+        if not isinstance(item, Mapping):
+            continue
+        module_id = _clean(item.get("module_id"))
+        status = _clean(item.get("status"))
+        if not module_id or not status:
+            continue
+        out[module_id] = {
+            "module_id": module_id,
+            "status": status,
+            "review_note": _clean(item.get("review_note") or item.get("note")),
+        }
+    return out
+
+
 def _reviewed_catalog_map(catalog: Mapping[str, Any], decision: Mapping[str, Any]) -> dict[str, Any]:
-    status = _catalog_status_for_decision(decision)
+    default_status = _catalog_status_for_decision(decision)
+    overrides = _module_overrides(decision)
     modules: list[dict[str, Any]] = []
     counts = {
         "accepted": 0,
@@ -97,29 +131,40 @@ def _reviewed_catalog_map(catalog: Mapping[str, Any], decision: Mapping[str, Any
         "pending_review": 0,
     }
     for module in catalog.get("modules", []):
+        module_id = _clean(module.get("module_id"))
+        override = overrides.get(module_id)
+        status = override["status"] if override else default_status
+        review_note = (
+            override["review_note"]
+            if override and override.get("review_note")
+            else (
+                "human product-route approval"
+                if status == "accepted"
+                else _clean(decision.get("notes"), "product-route human review required")
+            )
+        )
         assignments = []
         raw_assignments = module.get("material_assignments") or []
         if not raw_assignments:
-            counts["missing"] += 1
+            missing_status = status if override else "missing"
+            counts[missing_status] = counts.get(missing_status, 0) + 1
         for item in raw_assignments:
             reviewed = {
-                "module_id": module.get("module_id"),
+                "module_id": module_id,
                 "source_relative_path": item.get("source_relative_path"),
                 "agent_filled": bool(item.get("agent_filled") or item.get("authority") == "agent_filled"),
                 "human_review_status": status,
-                "review_note": (
-                    "fixture human product-route approval"
-                    if status == "accepted"
-                    else _clean(decision.get("notes"), "product-route human review required")
-                ),
+                "review_note": review_note,
                 "original_assignment": item,
             }
             assignments.append(reviewed)
             counts[status] = counts.get(status, 0) + 1
         modules.append({
-            "module_id": module.get("module_id"),
+            "module_id": module_id,
             "reviewed_assignments": assignments,
-            "module_review_status": status if assignments else "missing",
+            "module_review_status": status if assignments else (status if override else "missing"),
+            "module_review_note": review_note,
+            "module_override": bool(override),
         })
     return {
         "artifact_role": "reviewed_catalog_map",
@@ -130,6 +175,7 @@ def _reviewed_catalog_map(catalog: Mapping[str, Any], decision: Mapping[str, Any
             "status_counts": counts,
             "total_reviewed_assignments": sum(counts.values()) - counts["missing"],
             "requires_human_review": not _decision_is_human_approved(decision),
+            "module_override_count": len(overrides),
         },
     }
 
@@ -222,7 +268,15 @@ def _readiness_gate(film_type: str, decision: Mapping[str, Any], reviewed: Mappi
     status_counts = reviewed["summary"]["status_counts"]
     if status_counts.get("missing", 0):
         warnings.append("catalog_has_missing_modules")
-    ready = not blockers and _decision_is_human_approved(decision)
+    if status_counts.get("needs_reassign", 0):
+        blockers.append("catalog_needs_reassign")
+    if status_counts.get("rejected", 0):
+        blockers.append("catalog_has_rejected_modules")
+    ready = (
+        not blockers
+        and _decision_is_human_approved(decision)
+        and not status_counts.get("missing", 0)
+    )
     return {
         "artifact_role": "production_readiness_gate",
         "version": 1,
@@ -235,7 +289,22 @@ def _readiness_gate(film_type: str, decision: Mapping[str, Any], reviewed: Mappi
     }
 
 
-def _worker_prompt(film_type: str, gate: Mapping[str, Any]) -> str:
+def _worker_prompt(
+    film_type: str,
+    gate: Mapping[str, Any],
+    reviewed: Mapping[str, Any],
+    story_handoff: Mapping[str, Any],
+    opener_handoff: Mapping[str, Any],
+    audio_handoff: Mapping[str, Any],
+) -> str:
+    counts = reviewed["summary"]["status_counts"]
+    no_render = []
+    if not gate["ready_for_production"]:
+        no_render = [
+            "",
+            "No-render precondition:",
+            "Do not render until product readiness is true and the next owner is production_worker.",
+        ]
     return "\n".join([
         "# Production Worker Handoff Prompt",
         "",
@@ -243,8 +312,39 @@ def _worker_prompt(film_type: str, gate: Mapping[str, Any]) -> str:
         f"Ready for production: {str(gate['ready_for_production']).lower()}",
         f"Next owner: {gate['next_owner']}",
         "",
-        "Use reviewed catalog, story/material handoff, opener/closer handoff, and audio/subtitle handoff as the only pre-render basis.",
-        "Do not render until product readiness is true and the next owner is production_worker.",
+        "Selected story shell:",
+        json.dumps(story_handoff.get("selected_story_shell"), ensure_ascii=False, indent=2),
+        "",
+        "Reviewed module status summary:",
+        json.dumps(counts, ensure_ascii=False, indent=2),
+        "",
+        "Opener/closer design requirements:",
+        json.dumps(
+            {
+                "sections": opener_handoff.get("sections"),
+                "design_intent": opener_handoff.get("design_intent"),
+                "no_plain_white_card_ending": opener_handoff.get("no_plain_white_card_ending"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        "",
+        "Training MV music policy:",
+        _clean(audio_handoff.get("mv_music_vs_speech_ducking_policy")),
+        "",
+        "Source speech/subtitle/readability requirements:",
+        json.dumps(
+            {
+                "supervisor_source_speech_intelligibility_required": audio_handoff.get("supervisor_source_speech_intelligibility_required"),
+                "source_speech_subtitles_required_when_preserved": audio_handoff.get("source_speech_subtitles_required_when_preserved"),
+                "teacher_class_intro_readability_required": audio_handoff.get("teacher_class_intro_readability_required"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        "",
+        "Use reviewed_catalog_map.json, story_material_planning_handoff.json, opener_closer_design_handoff.json, and audio_subtitle_review_handoff.json as the only pre-render basis.",
+        *no_render,
         "",
     ])
 
@@ -308,12 +408,20 @@ def write_film_canon_production_readiness(
     out_dir: str | Path,
     *,
     decision: Mapping[str, Any] | None = None,
+    decision_path: str | Path | None = None,
 ) -> dict[str, Any]:
     out_root = Path(out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
     route_dir = out_root / "film_canon_route_dry_run"
     route_summary = write_film_canon_route_dry_run(film_type, source_root, route_dir)
-    review_decision = dict(decision or build_product_route_review_decision())
+    if decision_path:
+        review_decision = _load_product_route_review_decision(Path(decision_path))
+    elif decision is not None:
+        review_decision = dict(decision)
+    elif (out_root / "product_route_review_decision.json").is_file():
+        review_decision = _load_product_route_review_decision(out_root / "product_route_review_decision.json")
+    else:
+        review_decision = build_product_route_review_decision()
     catalog = _load_route_catalog(route_dir)
     route_packet = _load_route_packet(route_dir)
     reviewed = _reviewed_catalog_map(catalog, review_decision)
@@ -341,7 +449,10 @@ def write_film_canon_production_readiness(
     }
     for name, payload in outputs.items():
         _write_json(out_root / name, payload)
-    (out_root / "production_worker_handoff_prompt.md").write_text(_worker_prompt(film_type, gate), encoding="utf-8")
+    (out_root / "production_worker_handoff_prompt.md").write_text(
+        _worker_prompt(film_type, gate, reviewed, story_handoff, opener_handoff, audio_handoff),
+        encoding="utf-8",
+    )
     (out_root / "product_route_review_packet.md").write_text(_review_packet_markdown(packet), encoding="utf-8")
     return {
         "ok": True,

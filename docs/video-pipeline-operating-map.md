@@ -652,7 +652,7 @@ python video_tools.py operator-flow-acceptance ...
 | `story-soul-blueprint.md` | creative soul / narrative device / shot plan | `story-soul-blueprint` |
 | `blueprint-interview.md` | interactive story intake | `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` |
 | `writer.md` | screenplay/voiceover wording | `story-soul-blueprint`, `blueprint-to-contract` |
-| `film-canon-product-route` | registered film canon selection, product-specific story shell/catalog dry-run, pre-render readiness gate | `tools/film_canon_route.py`, `tools/film_canon_readiness.py`, `tools/graduation_film_blueprint_catalog.py` |
+| `film-canon-product-route` | registered film canon selection, product-specific story shell/catalog dry-run, pre-render readiness gate | `tools/film_canon_route.py`, `tools/write_product_route_review_decision.py`, `tools/film_canon_readiness.py`, `tools/graduation_film_blueprint_catalog.py` |
 | `director.md` | shot purposes and visual design | `validate-needs`, `contract-dry-build` |
 | `audio-director.md` | BGM, voiceover, cue intent | `gen-bgm`, `music-fetch`, `mix-audio`, `sfx-mix` |
 | `subtitle-director.md` | subtitle plan and fixes | `srt`, `mksrt`, `caption-audit` |

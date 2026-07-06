@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,6 +73,24 @@ def _daily_kids_fixture_materials(root: Path) -> Path:
         "school/kindergarten_day.jpg",
         "birthday/birthday_cake.mp4",
         "random/cute_dance.mp4",
+    ]:
+        path = source_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture media")
+    return source_root
+
+
+def _sparse_graduation_materials(root: Path) -> Path:
+    source_root = root / "sparse_graduation_fixture"
+    for relative in [
+        "01_basic/basic_training.mp4",
+        "02_advanced/advanced_training.mp4",
+        "03_supervisor/\u4e3b\u4efb_speech.mp4",
+        "04_teacher/\u5c0e\u5e2b_intro.mp4",
+        "05_closing/\u611f\u8b1d_closing.mp4",
+        "06_physical/physical_run.mp4",
+        "07_daily/daily_life.mp4",
+        "08_special/special_event.mp4",
     ]:
         path = source_root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +190,7 @@ class GraduationFilmBlueprintCatalogTest(unittest.TestCase):
                 decision="approved",
                 reviewer="human",
                 notes="fixture product route approved for planning",
+                approve_all_reviewed=True,
             )
 
             summary = write_film_canon_production_readiness(
@@ -252,6 +273,193 @@ class GraduationFilmBlueprintCatalogTest(unittest.TestCase):
             self.assertEqual(gate["blockers"], ["product_route_review_required"])
             self.assertNotIn("catalog_has_missing_modules", gate["warnings"])
 
+    def test_product_route_review_writer_writes_human_decision_and_rejects_unsafe_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_root = _daily_kids_fixture_materials(root)
+            out_dir = root / "writer_run"
+            write_film_canon_production_readiness(
+                "daily_kids_memory_film",
+                source_root,
+                out_dir,
+                decision=build_product_route_review_decision(
+                    decision="pending_review",
+                    reviewer="none",
+                    notes="waiting for product route review",
+                ),
+            )
+            tool = Path(__file__).resolve().parents[1] / "tools" / "write_product_route_review_decision.py"
+
+            ok = subprocess.run(
+                [
+                    sys.executable,
+                    str(tool),
+                    "--run",
+                    str(out_dir),
+                    "--decision",
+                    "approved",
+                    "--reviewer",
+                    "human",
+                    "--approve-all-reviewed",
+                    "--module-status",
+                    "random_cute_optional=optional:operator accepted as optional",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            written = json.loads((out_dir / "product_route_review_decision.json").read_text(encoding="utf-8"))
+            self.assertEqual(written["decision"], "approved")
+            self.assertEqual(written["reviewer"], "human")
+            self.assertFalse(written["is_final_delivery_approval"])
+            self.assertFalse(written["clears_story_human_review"])
+            self.assertEqual(written["module_overrides"][0]["module_id"], "random_cute_optional")
+            self.assertFalse((out_dir / "story_human_review_decision.json").exists())
+
+            non_human = subprocess.run(
+                [
+                    sys.executable,
+                    str(tool),
+                    "--run",
+                    str(out_dir),
+                    "--decision",
+                    "approved",
+                    "--reviewer",
+                    "agent",
+                    "--approve-all-reviewed",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(non_human.returncode, 2)
+
+            ambiguous = subprocess.run(
+                [
+                    sys.executable,
+                    str(tool),
+                    "--run",
+                    str(out_dir),
+                    "--decision",
+                    "approved",
+                    "--reviewer",
+                    "human",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(ambiguous.returncode, 2)
+
+            pathlike = subprocess.run(
+                [
+                    sys.executable,
+                    str(tool),
+                    "--run",
+                    str(out_dir),
+                    "--decision",
+                    "revision_requested",
+                    "--reviewer",
+                    "human",
+                    "--note",
+                    "needs route revision",
+                    "--out-name",
+                    "../bad.json",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(pathlike.returncode, 2)
+
+    def test_readiness_consumes_decision_path_and_optional_missing_module_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_root = _sparse_graduation_materials(root)
+            initial = root / "initial"
+            write_film_canon_production_readiness(
+                "graduation_training_film",
+                source_root,
+                initial,
+                decision=build_product_route_review_decision(
+                    decision="pending_review",
+                    reviewer="none",
+                    notes="waiting for product route review",
+                ),
+            )
+            initial_counts = json.loads((initial / "reviewed_catalog_map.json").read_text(encoding="utf-8"))["summary"]["status_counts"]
+            self.assertGreater(initial_counts["pending_review"], 0)
+            self.assertGreater(initial_counts["missing"], 0)
+
+            decision_path = initial / "product_route_review_decision.json"
+            decision_path.write_text(
+                json.dumps(
+                    build_product_route_review_decision(
+                        decision="approved",
+                        reviewer="human",
+                        notes="human product route approved with optional gaps",
+                        approve_all_reviewed=True,
+                        module_overrides=[
+                            {
+                                "module_id": "certification",
+                                "status": "optional",
+                                "review_note": "not required for this production route",
+                            },
+                            {
+                                "module_id": "encouragement_activity",
+                                "status": "optional",
+                                "review_note": "not required for this production route",
+                            },
+                        ],
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            approved = root / "approved"
+            summary = write_film_canon_production_readiness(
+                "graduation_training_film",
+                source_root,
+                approved,
+                decision_path=decision_path,
+            )
+            counts = summary["reviewed_catalog_status_counts"]
+            self.assertGreater(counts["accepted"], 0)
+            self.assertGreaterEqual(counts["optional"], 2)
+            self.assertEqual(counts["missing"], 0)
+            self.assertEqual(counts["pending_review"], 0)
+            gate = summary["production_readiness_gate"]
+            self.assertTrue(gate["ready_for_production"], gate)
+
+    def test_production_worker_prompt_contains_required_basis_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_root = _daily_kids_fixture_materials(root)
+            out_dir = root / "prompt"
+            write_film_canon_production_readiness(
+                "daily_kids_memory_film",
+                source_root,
+                out_dir,
+                decision=build_product_route_review_decision(
+                    decision="pending_review",
+                    reviewer="none",
+                    notes="waiting for product route review",
+                ),
+            )
+
+            prompt = (out_dir / "production_worker_handoff_prompt.md").read_text(encoding="utf-8")
+            self.assertIn("Film type: daily_kids_memory_film", prompt)
+            self.assertIn("Selected story shell", prompt)
+            self.assertIn("Reviewed module status summary", prompt)
+            self.assertIn("Opener/closer design requirements", prompt)
+            self.assertIn("Training MV music policy", prompt)
+            self.assertIn("Source speech/subtitle/readability requirements", prompt)
+            self.assertIn("Do not render until product readiness is true", prompt)
+
     def test_product_readiness_outputs_are_utf8_and_include_handoffs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -265,6 +473,7 @@ class GraduationFilmBlueprintCatalogTest(unittest.TestCase):
                     decision="approved",
                     reviewer="human",
                     notes="fixture approved",
+                    approve_all_reviewed=True,
                 ),
             )
 

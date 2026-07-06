@@ -213,7 +213,9 @@ film type + fixture or material metadata
   -> graduation_real_source_review_packet
   -> human/product review before BUILD
   -> tools/film_canon_readiness.py
+  -> tools/write_product_route_review_decision.py
   -> product_route_review_decision.json
+  -> tools/film_canon_readiness.py --decision-path product_route_review_decision.json
   -> reviewed_catalog_map.json
   -> story_material_planning_handoff.json
   -> opener_closer_design_handoff.json
@@ -228,6 +230,9 @@ The route currently supports `graduation_training_film` and
 The route must not render `final.mp4` and must not write
 `story_human_review_decision.json`. Agent-filled catalog assignments remain
 `needs_human_confirmation=true` until a later human review step.
+Write product-route decisions with
+`tools/write_product_route_review_decision.py`; non-human reviewers,
+ambiguous broad approval, and path-like output names fail closed.
 In `reviewed_catalog_map.json`, `pending_review` means material exists but is
 waiting for human product-route review; `missing` is reserved for modules with
 no material assignments.

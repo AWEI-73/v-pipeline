@@ -9,7 +9,8 @@
     "Branch outputs are not canonical delivery until the owning gate accepts them.",
     "Workbench, Effect Factory, Soundtrack Arranger, Subtitle/Voiceover, and Verify must not overwrite upstream canonical truth directly.",
     "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone.",
-    "Scripted story human-review closure must use story_human_review_decision.json written by tools/write_story_human_review_decision.py; non-human review does not clear story_human_review_required."
+    "Scripted story human-review closure must use story_human_review_decision.json written by tools/write_story_human_review_decision.py; non-human review does not clear story_human_review_required.",
+    "Film-canon product-route closure must use product_route_review_decision.json written by tools/write_product_route_review_decision.py; product-route approval is not final story or delivery approval."
   ],
   "branches": [
     {
@@ -690,6 +691,7 @@
       "tools": [
         "tools/film_canon_route.py",
         "tools/film_canon_readiness.py",
+        "tools/write_product_route_review_decision.py",
         "tools/graduation_film_blueprint_catalog.py"
       ],
       "supported_film_types": [
@@ -752,12 +754,17 @@
         "audio_subtitle_review_handoff.json"
       ],
       "next_actions": [
+        "write_product_route_review_decision",
+        "regenerate_readiness_from_decision_path",
         "human_review_graduation_story_shell",
         "confirm_training_catalog_assignments",
         "retarget_opening_or_closing_story",
         "return_to_story_or_material_map"
       ],
       "stop_gates": [
+        "approved product-route decision lacks explicit approve_all_reviewed",
+        "product-route decision reviewer is not human",
+        "product-route approval is treated as final delivery approval",
         "agent-filled catalog assignments lack needs_human_confirmation",
         "product-route approval is non-human",
         "pending review is counted as missing material",
@@ -819,7 +826,8 @@
           "skill": "skills/director.md",
           "artifacts_in": [
             "product route dry-run artifacts",
-            "product_route_review_decision.json"
+            "product_route_review_decision.json",
+            "decision path when review decision was written in a prior folder"
           ],
           "artifacts_out": [
             "reviewed_catalog_map.json",

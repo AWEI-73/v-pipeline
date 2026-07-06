@@ -25,34 +25,39 @@ def main() -> int:
     parser.add_argument("--decision", choices=["approved", "revision_requested", "rejected", "pending_review"])
     parser.add_argument("--reviewer", choices=["human", "agent", "none"])
     parser.add_argument("--notes", default="")
+    parser.add_argument("--decision-path", help="existing product_route_review_decision.json to consume")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    decision_value = args.decision
-    reviewer = args.reviewer
-    if not decision_value:
-        if args.film_type == "daily_kids_memory_film":
-            decision_value = "approved"
-            reviewer = reviewer or "human"
-        else:
-            decision_value = "pending_review"
-            reviewer = reviewer or "none"
-    reviewer = reviewer or "none"
-    decision = build_product_route_review_decision(
-        decision=decision_value,
-        reviewer=reviewer,
-        notes=args.notes or (
-            "fixture product route approval"
-            if decision_value == "approved" and reviewer == "human"
-            else "product-route human review required"
-        ),
-    )
+    decision = None
+    if not args.decision_path:
+        decision_value = args.decision
+        reviewer = args.reviewer
+        if not decision_value:
+            if args.film_type == "daily_kids_memory_film":
+                decision_value = "approved"
+                reviewer = reviewer or "human"
+            else:
+                decision_value = "pending_review"
+                reviewer = reviewer or "none"
+        reviewer = reviewer or "none"
+        decision = build_product_route_review_decision(
+            decision=decision_value,
+            reviewer=reviewer,
+            notes=args.notes or (
+                "fixture product route approval"
+                if decision_value == "approved" and reviewer == "human"
+                else "product-route human review required"
+            ),
+            approve_all_reviewed=(decision_value == "approved" and reviewer == "human"),
+        )
     try:
         summary = write_film_canon_production_readiness(
             args.film_type,
             args.source_root,
             args.out_dir,
             decision=decision,
+            decision_path=args.decision_path,
         )
     except (OSError, ValueError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2), file=sys.stderr)

@@ -62,6 +62,11 @@ For scripted story delivery, write `story_human_review_decision.json` with
 artifact. Only `--reviewer human` decisions may clear
 `story_human_review_required`.
 
+For film-canon product routes, write `product_route_review_decision.json` with
+`tools\write_product_route_review_decision.py`, then regenerate readiness with
+`tools\film_canon_readiness.py --decision-path ...`. This approval only clears
+the product-route readiness gate; it is not final story or delivery approval.
+
 ## Design Boundary
 
 The registry is a contract map, not a template library. It does not decide the
