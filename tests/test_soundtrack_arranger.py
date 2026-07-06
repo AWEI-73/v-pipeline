@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -307,6 +308,48 @@ class SoundtrackArrangerTest(unittest.TestCase):
 
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertTrue((run / "soundtrack_plan.json").is_file())
+
+    def test_write_artifacts_includes_redacted_branch_env_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            run = Path(tmp) / "run"
+            bin_dir = root / "bin"
+            bin_dir.mkdir(parents=True)
+            ytdlp = bin_dir / "yt-dlp.cmd"
+            ytdlp.write_text("@echo off\necho 2026.07.06\n", encoding="utf-8")
+            (root / ".env").write_text(
+                "JAMENDO_CLIENT_ID=jamendo-secret\n"
+                "PIXABAY_API_KEY=pixabay-secret\n",
+                encoding="utf-8",
+            )
+            env = {
+                "PATH": str(bin_dir),
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "ComSpec": os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe"),
+                "SystemRoot": os.environ.get("SystemRoot", r"C:\Windows"),
+            }
+
+            artifacts = write_soundtrack_artifacts(
+                {"request": "training recap with warm instrumental music"},
+                run,
+                repo_root=root,
+                env=env,
+            )
+
+            probe_path = run / "soundtrack_branch_env_probe.json"
+            self.assertTrue(probe_path.is_file())
+            probe = json.loads(probe_path.read_text(encoding="utf-8"))
+            self.assertEqual(artifacts["soundtrack_branch_env_probe"], probe)
+            self.assertTrue(probe["jamendo_client_id_present"])
+            self.assertEqual(probe["jamendo_client_id_length"], len("jamendo-secret"))
+            self.assertTrue(probe["pixabay_api_key_present"])
+            self.assertEqual(probe["pixabay_api_key_length"], len("pixabay-secret"))
+            self.assertEqual(Path(probe["yt_dlp_path"]), ytdlp)
+            self.assertEqual(probe["yt_dlp_version"], "2026.07.06")
+            self.assertTrue(probe["secrets_redacted"])
+            serialized = json.dumps(probe, ensure_ascii=False)
+            self.assertNotIn("jamendo-secret", serialized)
+            self.assertNotIn("pixabay-secret", serialized)
 
 
 if __name__ == "__main__":

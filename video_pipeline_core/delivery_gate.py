@@ -35,11 +35,234 @@ DELIVERY_MANIFEST_EVIDENCE_KEYS = (
     "verify_result",
 )
 
+VIDEO_ONLY_DELIVERY_WAIVER_ITEMS = {
+    "audio",
+    "music",
+    "subtitle",
+    "narration",
+    "soundtrack_license",
+}
+
+VIDEO_ONLY_DELIVERY_WAIVABLE_RULES = {
+    "missing_audio_stream",
+    "audio_video_duration_mismatch",
+    "missing_audio_mix_report",
+    "audio_mix_report_declares_no_audio",
+    "required_audio_ducking_not_applied",
+    "audio_mix_peak_too_hot",
+    "missing_music_manifest",
+    "music_not_mixed",
+    "missing_soundtrack_probe_report",
+    "soundtrack_probe_not_passed",
+    "soundtrack_probe_has_no_features",
+    "soundtrack_probe_has_no_sections",
+    "soundtrack_probe_has_no_section_fit",
+    "soundtrack_probe_has_no_editing_fit",
+    "soundtrack_probe_missing_vocal_analysis",
+    "vocal_music_conflicts_with_voiceover",
+    "missing_narration_manifest",
+    "missing_narration_audio_refs",
+    "invalid_narration_audio_refs",
+    "no_usable_narration_audio",
+    "narration_declares_fallback",
+    "narration_not_mixed",
+    "audio_mix_declares_narration_fallback",
+    "missing_subtitles",
+    "corrupt_subtitles",
+    "subtitle_language_mismatch",
+}
+
+VIDEO_ONLY_DELIVERY_RULE_FAMILIES = {
+    "missing_audio_stream": "audio",
+    "audio_video_duration_mismatch": "audio",
+    "missing_audio_mix_report": "audio",
+    "audio_mix_report_declares_no_audio": "audio",
+    "required_audio_ducking_not_applied": "audio",
+    "audio_mix_peak_too_hot": "audio",
+    "missing_music_manifest": "music",
+    "music_not_mixed": "music",
+    "missing_soundtrack_probe_report": "soundtrack_license",
+    "soundtrack_probe_not_passed": "soundtrack_license",
+    "soundtrack_probe_has_no_features": "soundtrack_license",
+    "soundtrack_probe_has_no_sections": "soundtrack_license",
+    "soundtrack_probe_has_no_section_fit": "soundtrack_license",
+    "soundtrack_probe_has_no_editing_fit": "soundtrack_license",
+    "soundtrack_probe_missing_vocal_analysis": "soundtrack_license",
+    "vocal_music_conflicts_with_voiceover": "soundtrack_license",
+    "missing_narration_manifest": "narration",
+    "missing_narration_audio_refs": "narration",
+    "invalid_narration_audio_refs": "narration",
+    "no_usable_narration_audio": "narration",
+    "narration_declares_fallback": "narration",
+    "narration_not_mixed": "narration",
+    "audio_mix_declares_narration_fallback": "narration",
+    "missing_subtitles": "subtitle",
+    "corrupt_subtitles": "subtitle",
+    "subtitle_language_mismatch": "subtitle",
+}
+
+ALLOWED_DELIVERY_MUSIC_SOURCE_TYPES = {
+    "user_provided",
+    "source_folder_audio",
+    "licensed_library",
+    "youtube_audio_library",
+    "pixabay_music",
+    "jamendo_song",
+    "suno_udio_external",
+    "agentic_music_generation_tool",
+}
+
+BLOCKED_DELIVERY_MUSIC_SOURCE_TYPES = {
+    "synthetic_generated_audio_bed",
+    "placeholder",
+    "reference_only",
+}
+
+
+def _validate_video_only_delivery_waiver(root: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    path = root / "video_only_delivery_waiver.json"
+    waiver = _load_json(path)
+    if waiver is None:
+        return None, []
+
+    errors: list[str] = []
+    if waiver.get("artifact_role") != "video_only_delivery_waiver":
+        errors.append("artifact_role must be video_only_delivery_waiver")
+    if waiver.get("version") != 1:
+        errors.append("version must be 1")
+    if waiver.get("scope") != "video_only_delivery":
+        errors.append("scope must be video_only_delivery")
+    for field in ("reviewer", "reason", "at"):
+        value = waiver.get(field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{field} must be a non-empty string")
+    waives = waiver.get("waives")
+    if not isinstance(waives, list):
+        errors.append("waives must be a list")
+        waives = []
+    else:
+        unknown = sorted({str(item) for item in waives if item not in VIDEO_ONLY_DELIVERY_WAIVER_ITEMS})
+        if unknown:
+            errors.append("waives contains unsupported item(s): " + ", ".join(unknown))
+    limitations = waiver.get("limitations")
+    if not isinstance(limitations, list) or not any(isinstance(item, str) and item.strip() for item in limitations):
+        errors.append("limitations must include at least one non-empty string")
+
+    if errors:
+        return None, errors
+    return waiver, []
+
+
+def _apply_video_only_delivery_waiver(
+    root: Path,
+    blocking: list[dict[str, Any]],
+    warnings: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    waiver, errors = _validate_video_only_delivery_waiver(root)
+    if errors:
+        warnings.append({
+            "rule": "invalid_video_only_delivery_waiver",
+            "artifact": "video_only_delivery_waiver.json",
+            "message": "; ".join(errors),
+        })
+        return blocking, [], []
+    if waiver is None:
+        return blocking, [], []
+
+    waived_families = {str(item) for item in waiver.get("waives") or []}
+    remaining: list[dict[str, Any]] = []
+    limitations: list[dict[str, Any]] = []
+    for finding in blocking:
+        rule = finding.get("rule")
+        family = VIDEO_ONLY_DELIVERY_RULE_FAMILIES.get(str(rule))
+        if rule in VIDEO_ONLY_DELIVERY_WAIVABLE_RULES and family in waived_families:
+            limitation = dict(finding)
+            limitation["waived_by"] = "video_only_delivery_waiver.json"
+            limitation["waiver_family"] = family
+            limitations.append(limitation)
+        else:
+            remaining.append(finding)
+
+    if not limitations:
+        return blocking, [], []
+
+    for text in waiver.get("limitations") or []:
+        if isinstance(text, str) and text.strip():
+            limitations.append({
+                "rule": "video_only_delivery_limitation",
+                "artifact": "video_only_delivery_waiver.json",
+                "message": text.strip(),
+                "waived_by": "video_only_delivery_waiver.json",
+            })
+
+    applied = [{
+        "artifact_role": "video_only_delivery_waiver",
+        "artifact": "video_only_delivery_waiver.json",
+        "scope": waiver.get("scope"),
+        "reviewer": waiver.get("reviewer"),
+        "reason": waiver.get("reason"),
+        "at": waiver.get("at"),
+        "waives": list(waiver.get("waives") or []),
+    }]
+    return remaining, limitations, applied
+
+
+def apply_video_only_delivery_waiver_to_gate(root: str | Path, gate: dict[str, Any]) -> dict[str, Any]:
+    """Return a delivery gate copy with a valid video-only waiver applied."""
+    root = Path(root)
+    out = dict(gate)
+    blocking = [dict(item) for item in _as_list(out.get("blocking")) if isinstance(item, dict)]
+    warnings = [dict(item) for item in _as_list(out.get("warnings")) if isinstance(item, dict)]
+    remaining, limitations, applied = _apply_video_only_delivery_waiver(root, blocking, warnings)
+
+    if not applied:
+        waiver, errors = _validate_video_only_delivery_waiver(root)
+        if waiver is not None and not blocking:
+            limitations = [
+                {
+                    "rule": "video_only_delivery_limitation",
+                    "artifact": "video_only_delivery_waiver.json",
+                    "message": text.strip(),
+                    "waived_by": "video_only_delivery_waiver.json",
+                }
+                for text in waiver.get("limitations") or []
+                if isinstance(text, str) and text.strip()
+            ]
+            applied = [{
+                "artifact_role": "video_only_delivery_waiver",
+                "artifact": "video_only_delivery_waiver.json",
+                "scope": waiver.get("scope"),
+                "reviewer": waiver.get("reviewer"),
+                "reason": waiver.get("reason"),
+                "at": waiver.get("at"),
+                "waives": list(waiver.get("waives") or []),
+            }]
+
+    if not applied:
+        out["blocking"] = blocking
+        out["warnings"] = warnings
+        out.setdefault("waivers_applied", [])
+        out.setdefault("limitations", [])
+        return out
+
+    existing_limitations = [
+        dict(item)
+        for item in _as_list(out.get("limitations"))
+        if isinstance(item, dict)
+    ]
+    out["blocking"] = remaining
+    out["warnings"] = warnings
+    out["limitations"] = existing_limitations + limitations
+    out["waivers_applied"] = [*(_as_list(out.get("waivers_applied"))), *applied]
+    out["pass"] = not remaining
+    out["next_action"] = remaining[0].get("next_action") if remaining else None
+    return out
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -289,6 +512,97 @@ def _soundtrack_probe_report_blocks(
                 "next_action": "select_instrumental_music_or_use_instrumental_window",
             })
     return blocking
+
+
+def _has_explicit_no_narration_approval(root: Path) -> bool:
+    for filename in (
+        "no_narration_delivery_approval.json",
+        "real_user_no_narration_approval.json",
+    ):
+        approval = _load_json(root / filename)
+        if not isinstance(approval, dict):
+            continue
+        if approval.get("approved") is True and approval.get("real_user_approval") is True:
+            return True
+    waiver, errors = _validate_video_only_delivery_waiver(root)
+    return waiver is not None and not errors and "narration" in set(waiver.get("waives") or [])
+
+
+def _music_source_values(music_manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = [music_manifest]
+    for key in ("tracks", "cues", "sources"):
+        for item in _as_list(music_manifest.get(key)):
+            if isinstance(item, dict):
+                sources.append(item)
+    return sources
+
+
+def _music_ref_name(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return Path(value.replace("\\", "/")).name.lower()
+
+
+def _delivery_music_source_blocks(music_manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(music_manifest, dict):
+        return []
+    blocks: list[dict[str, Any]] = []
+    source_items = _music_source_values(music_manifest)
+    source_types = {
+        str(item.get("source_type") or item.get("source_class") or "").strip()
+        for item in source_items
+        if str(item.get("source_type") or item.get("source_class") or "").strip()
+    }
+    blocked_types = sorted(source_types & BLOCKED_DELIVERY_MUSIC_SOURCE_TYPES)
+    if blocked_types:
+        blocks.append({
+            "rule": "synthetic_music_not_delivery_allowed",
+            "tier": 1,
+            "artifact": "music_manifest.json",
+            "message": "complete delivery music cannot be a local synthetic, placeholder, or reference-only bed",
+            "source_types": blocked_types,
+            "next_action": "select_valid_delivery_music_source",
+        })
+
+    refs = {
+        _music_ref_name(item.get(key))
+        for item in source_items
+        for key in ("source_file", "source_ref", "audio_file", "file", "path", "source")
+    }
+    if "generated_bgm.wav" in refs and not (source_types & ALLOWED_DELIVERY_MUSIC_SOURCE_TYPES):
+        blocks.append({
+            "rule": "synthetic_music_not_delivery_allowed",
+            "tier": 1,
+            "artifact": "music_manifest.json",
+            "message": "generated_bgm.wav is a local generated bed and cannot satisfy delivery music without valid external/provider/tool evidence",
+            "next_action": "select_valid_delivery_music_source",
+        })
+
+    if not (source_types & ALLOWED_DELIVERY_MUSIC_SOURCE_TYPES):
+        blocks.append({
+            "rule": "music_source_unavailable",
+            "tier": 1,
+            "artifact": "music_manifest.json",
+            "message": "delivery music requires a user/source-folder/licensed/provider/agentic music source",
+            "next_action": "connect_valid_music_source",
+        })
+    has_license_or_usage = any(
+        item.get("license_note")
+        or item.get("license")
+        or item.get("usage_license")
+        or item.get("usage_notes")
+        or item.get("tool_name")
+        for item in source_items
+    )
+    if not has_license_or_usage:
+        blocks.append({
+            "rule": "music_source_missing_license_metadata",
+            "tier": 1,
+            "artifact": "music_manifest.json",
+            "message": "delivery music source must include license, usage, or generation-tool evidence",
+            "next_action": "document_music_source_license_or_usage",
+        })
+    return blocks
 
 
 def _clip_source_path(clip: dict[str, Any]) -> str | None:
@@ -897,7 +1211,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
     """
     root = Path(root)
     blocking: list[dict[str, Any]] = []
-    warnings: list[str] = []
+    warnings: list[dict[str, Any]] = []
 
     requirements = _load_json(root / "delivery_requirements.json")
     if requirements is None:
@@ -923,6 +1237,82 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         or _effects_required(root)
     )
     language = _expected_language(requirements)
+    preferred_voiceover_provider = str(
+        requirements.get("preferred_voiceover_provider")
+        or requirements.get("voiceover_provider")
+        or "voxcpm"
+    ).strip().lower()
+    fallback_allowed = bool(requirements.get("fallback_allowed", allow_narration_fallback))
+    narration_waived_or_approved = _has_explicit_no_narration_approval(root)
+    if requires_narration is False and not narration_waived_or_approved:
+        blocking.append({
+            "rule": "narration_required_for_complete_real_material_delivery",
+            "tier": 1,
+            "artifact": "delivery_requirements.json",
+            "message": "complete real-material delivery requires narration unless a real user no-narration approval artifact is present",
+            "next_action": "route_voiceover_voxcpm_or_attach_no_narration_approval",
+        })
+        requires_narration = True
+    if requires_narration and preferred_voiceover_provider == "voxcpm" and not narration_waived_or_approved:
+        voxcpm_runtime_check = _load_artifact_json(root, "voxcpm_runtime_check", "voxcpm_runtime_check.json")
+        voiceover_provider_plan = _load_artifact_json(root, "voiceover_provider_plan", "voiceover_provider_plan.json")
+        if voxcpm_runtime_check is None:
+            blocking.append({
+                "rule": "missing_voxcpm_runtime_check",
+                "tier": 1,
+                "artifact": "voxcpm_runtime_check.json",
+                "message": "VoxCPM is the default voiceover provider and requires runtime evidence",
+                "next_action": "run_voxcpm_runtime_check",
+            })
+        elif voxcpm_runtime_check.get("ok_to_execute") is False and not fallback_allowed:
+            blocking.append({
+                "rule": "voiceover_provider_unavailable",
+                "tier": 1,
+                "artifact": "voxcpm_runtime_check.json",
+                "message": "VoxCPM runtime check is not executable and fallback is not allowed",
+                "missing_modules": voxcpm_runtime_check.get("missing_modules"),
+                "next_action": "install_or_connect_voxcpm_runtime",
+            })
+        if voiceover_provider_plan is None:
+            blocking.append({
+                "rule": "missing_voiceover_provider_plan",
+                "tier": 1,
+                "artifact": "voiceover_provider_plan.json",
+                "message": "VoxCPM voiceover branch must record provider plan evidence",
+                "next_action": "dispatch_voiceover_voxcpm",
+            })
+        else:
+            selected_provider = str(voiceover_provider_plan.get("selected_provider") or "").strip().lower()
+            requested_provider = str(voiceover_provider_plan.get("requested_provider") or preferred_voiceover_provider).strip().lower()
+            provider_available = voiceover_provider_plan.get("provider_available")
+            fallback_used = bool(voiceover_provider_plan.get("fallback_used"))
+            plan_allows_fallback = bool(voiceover_provider_plan.get("fallback_allowed"))
+            if selected_provider and selected_provider != "voxcpm":
+                blocking.append({
+                    "rule": "voiceover_provider_unavailable",
+                    "tier": 1,
+                    "artifact": "voiceover_provider_plan.json",
+                    "message": "VoxCPM is required for this delivery and silent fallback is not allowed",
+                    "requested_provider": requested_provider,
+                    "selected_provider": selected_provider,
+                    "next_action": "install_or_connect_voxcpm_runtime",
+                })
+            if provider_available is False and not (fallback_allowed or plan_allows_fallback):
+                blocking.append({
+                    "rule": "voiceover_provider_unavailable",
+                    "tier": 1,
+                    "artifact": "voiceover_provider_plan.json",
+                    "message": "VoxCPM provider is unavailable and fallback is not allowed",
+                    "next_action": "install_or_connect_voxcpm_runtime",
+                })
+            if fallback_used and not (fallback_allowed or plan_allows_fallback):
+                blocking.append({
+                    "rule": "voiceover_provider_unavailable",
+                    "tier": 1,
+                    "artifact": "voiceover_provider_plan.json",
+                    "message": "voiceover provider fallback was used without explicit fallback approval",
+                    "next_action": "rerun_voiceover_with_voxcpm",
+                })
     subtitle_voiceover_handoff = _load_artifact_json(
         root,
         "subtitle_voiceover_build_handoff",
@@ -1074,6 +1464,8 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
             "message": "music is required but music_manifest.json has no tracks/cues",
             "next_action": "generate_or_attach_music",
         })
+    if requires_music:
+        blocking.extend(_delivery_music_source_blocks(music_manifest))
 
     soundtrack_probe_report = _load_artifact_json(
         root,
@@ -1084,7 +1476,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         blocking.extend(
             _soundtrack_probe_report_blocks(
                 soundtrack_probe_report,
-                required=requires_soundtrack_probe,
+                required=requires_music or requires_soundtrack_probe,
                 require_vocal_clearance=requires_vocal_conflict_check,
             )
         )
@@ -1492,12 +1884,16 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
                         "next_action": "sample_rendered_effect_evidence",
                     })
 
+    blocking, limitations, waivers_applied = _apply_video_only_delivery_waiver(root, blocking, warnings)
+
     return {
         "artifact_role": "complete_video_delivery_gate",
         "version": 1,
         "pass": not blocking,
         "blocking": blocking,
         "warnings": warnings,
+        "waivers_applied": waivers_applied,
+        "limitations": limitations,
         "next_action": blocking[0]["next_action"] if blocking else None,
         "summary": {
             "requires_audio": requires_audio,

@@ -10,6 +10,8 @@ from .asset_paths import is_absolute_path_string
 from .material_rough_cut import write_json
 from .platform_tools import resolve_ffmpeg, resolve_ffprobe
 
+IMAGE_INPUT_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
@@ -38,8 +40,8 @@ def _timeline_refs(handoff: dict[str, Any]) -> list[dict[str, Any]]:
     return refs
 
 
-def _resolve_render_inputs(root: Path, handoff: dict[str, Any]) -> tuple[list[tuple[str, Path, float]], list[dict[str, Any]]]:
-    inputs: list[tuple[str, Path, float]] = []
+def _resolve_render_inputs(root: Path, handoff: dict[str, Any]) -> tuple[list[tuple[str, Path, float, float, bool]], list[dict[str, Any]]]:
+    inputs: list[tuple[str, Path, float, float, bool]] = []
     blocking: list[dict[str, Any]] = []
     for item in _timeline_refs(handoff):
         ref = str(item.get("source_path") or "")
@@ -63,7 +65,13 @@ def _resolve_render_inputs(root: Path, handoff: dict[str, Any]) -> tuple[list[tu
             duration_sec = max(0.25, float(duration))
         except (TypeError, ValueError):
             duration_sec = 1.0
-        inputs.append((ref, path, duration_sec))
+        start = item.get("start_sec")
+        try:
+            start_sec = max(0.0, float(start))
+        except (TypeError, ValueError):
+            start_sec = 0.0
+        is_image = path.suffix.lower() in IMAGE_INPUT_SUFFIXES
+        inputs.append((ref, path, start_sec, duration_sec, is_image))
     if not inputs and not blocking:
         blocking.append({
             "rule": "missing_render_handoff_refs",
@@ -72,16 +80,21 @@ def _resolve_render_inputs(root: Path, handoff: dict[str, Any]) -> tuple[list[tu
     return inputs, blocking
 
 
-def _render_mp4(inputs: list[tuple[str, Path, float]], final_mp4: Path, ffmpeg: str) -> None:
+def _render_mp4(inputs: list[tuple[str, Path, float, float, bool]], final_mp4: Path, ffmpeg: str) -> None:
     command = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error"]
     filter_parts = []
     labels = []
-    for index, (_ref, path, duration_sec) in enumerate(inputs):
-        command.extend(["-loop", "1", "-t", f"{duration_sec:.3f}", "-i", str(path)])
+    for index, (_ref, path, start_sec, duration_sec, is_image) in enumerate(inputs):
+        if is_image:
+            command.extend(["-loop", "1", "-t", f"{duration_sec:.3f}", "-i", str(path)])
+        else:
+            if start_sec:
+                command.extend(["-ss", f"{start_sec:.3f}"])
+            command.extend(["-t", f"{duration_sec:.3f}", "-i", str(path)])
         label = f"v{index}"
         filter_parts.append(
             f"[{index}:v]scale=320:180:force_original_aspect_ratio=decrease,"
-            f"pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24[{label}]"
+            f"pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1,setpts=PTS-STARTPTS,fps=24[{label}]"
         )
         labels.append(f"[{label}]")
     filter_parts.append(f"{''.join(labels)}concat=n={len(inputs)}:v=1:a=0,format=yuv420p[outv]")
@@ -157,7 +170,7 @@ def render_material_first_handoff(run_dir: str | Path) -> dict[str, Any]:
             "next_action": "blocked",
             "final_delivery_claimed": False,
             "render_handoff": "render_handoff.json",
-            "input_refs": [ref for ref, _path, _duration in inputs],
+            "input_refs": [ref for ref, _path, _start, _duration, _is_image in inputs],
             "blocking": blocking,
         }
         write_json(root / "material_first_final_artifact_acceptance.json", report)
@@ -180,7 +193,7 @@ def render_material_first_handoff(run_dir: str | Path) -> dict[str, Any]:
         "final_delivery_claimed": False,
         "render_handoff": "render_handoff.json",
         "final_mp4_ref": "final.mp4",
-        "input_refs": [ref for ref, _path, _duration in inputs],
+        "input_refs": [ref for ref, _path, _start, _duration, _is_image in inputs],
         "ffprobe": probe,
         "blocking": [] if ok else [{
             "rule": "ffprobe_video_stream_missing",

@@ -26,6 +26,7 @@ DECISION_NAMES = {
     "highlight_selection_plan.json",
     "highlight_cut_report.json",
     "delivery_gate.json",
+    "video_only_delivery_waiver.json",
     "verified_preview_package.json",
     "final_promotion_report.json",
     "final_product_verify_bundle.json",

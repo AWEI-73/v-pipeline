@@ -783,3 +783,6 @@ Before delivery:
 - verify/audit evidence exists
 - subtitles/audio/effect expectations are stated
 - unresolved limitations are listed
+- `video_only_delivery_waiver.json`, when present, declares a video-only
+  delivery limitation only; it does not waive material truth, visual evidence,
+  target length, semantic match, or rendered effect checks

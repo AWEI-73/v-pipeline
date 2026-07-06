@@ -13,7 +13,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from video_pipeline_core.dashboard_state import load_dashboard_state
-from video_pipeline_core.delivery_gate import evaluate_complete_video_delivery
+from video_pipeline_core.delivery_gate import (
+    apply_video_only_delivery_waiver_to_gate,
+    evaluate_complete_video_delivery,
+)
 
 
 def _is_complete_delivery_run(root: Path) -> bool:
@@ -211,6 +214,7 @@ def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_ga
                 gate["pass"] = False
                 gate["blocking"] = blocking
                 gate["next_action"] = duration_block["next_action"]
+        gate = apply_video_only_delivery_waiver_to_gate(root, gate)
     gate = dict(gate)
     gate["generated_by"] = "tools/write_delivery_gate_report.py"
     gate["report_source"] = report_source

@@ -239,13 +239,19 @@ def _timeline_refs(timeline: dict[str, Any]) -> list[dict[str, Any]]:
     return refs
 
 
-def _asset_ref_blocks(root: Path, materials_db: dict[str, Any], timeline: dict[str, Any]) -> list[dict[str, Any]]:
+def _asset_ref_blocks(
+    root: Path,
+    materials_db: dict[str, Any],
+    timeline: dict[str, Any],
+    rough_cut: dict[str, Any],
+) -> list[dict[str, Any]]:
     blocks = []
     refs = [
         entry.get("asset_store_ref") or entry.get("path")
         for entry in materials_db.get("files") or []
     ]
     refs.extend(clip.get("source_path") for clip in timeline.get("clips") or [])
+    refs.extend(clip.get("source_path") for clip in rough_cut.get("clips") or [])
     for ref in sorted({str(value or "") for value in refs if value}):
         if not ref.startswith("assets/materials/"):
             blocks.append(_block(
@@ -276,7 +282,7 @@ def build_material_first_render_promotion(run_dir: str | Path) -> dict[str, Any]
         if (root / "material_first_review_verdict_acceptance.json").exists()
         else {}
     )
-    asset_audit = build_asset_path_audit(root, strict=True)
+    asset_audit = build_asset_path_audit(root, strict=False)
 
     blocking: list[dict[str, Any]] = []
     if not material_delta.get("ok") or not material_delta.get("ready_for_build"):
@@ -293,15 +299,18 @@ def build_material_first_render_promotion(run_dir: str | Path) -> dict[str, Any]
             "review_verdict_not_accepted",
             "material_first_review_verdict_acceptance.json must pass before render promotion",
         ))
-    if not asset_audit.get("ok"):
-        blocking.append(_block(
-            "asset_path_audit_failed",
-            "strict asset path audit must pass before render promotion",
-            strict_finding_count=asset_audit.get("strict_finding_count"),
-        ))
-    blocking.extend(_asset_ref_blocks(root, materials_db, timeline))
+    render_ref_blocks = _asset_ref_blocks(root, materials_db, timeline, rough_cut)
+    blocking.extend(render_ref_blocks)
 
     ready = not blocking
+    warning_count = int(asset_audit.get("finding_count") or 0)
+    warnings = []
+    if warning_count:
+        warnings.append({
+            "rule": "non_render_critical_absolute_paths",
+            "message": "absolute provenance/evidence paths are preserved as warnings and do not block render handoff",
+            "finding_count": warning_count,
+        })
     report = {
         "artifact_role": "render_readiness_report",
         "version": 1,
@@ -313,9 +322,16 @@ def build_material_first_render_promotion(run_dir: str | Path) -> dict[str, Any]
             "material_delta_ready": bool(material_delta.get("ok") and material_delta.get("ready_for_build")),
             "timeline_clip_count": len(timeline.get("clips") or []),
             "review_verdict_accepted": verdict_acceptance.get("ok") is True,
-            "asset_path_audit_strict_ok": bool(asset_audit.get("ok")),
+            "render_critical_asset_refs_ok": not render_ref_blocks,
+            "asset_path_warning_count": warning_count,
+            "asset_path_audit_finding_count": asset_audit.get("finding_count"),
             "asset_path_audit_strict_finding_count": asset_audit.get("strict_finding_count"),
         },
+        "asset_path_warning_summary": {
+            "finding_count": warning_count,
+            "families": asset_audit.get("families") or {},
+        },
+        "warnings": warnings,
         "blocking": blocking,
         "read": [
             "materials_db.json",

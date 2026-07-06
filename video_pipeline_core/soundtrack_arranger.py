@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
+from .branch_env import build_branch_env_probe
+
 
 def _clean(value: Any) -> str:
     if value is None:
@@ -444,10 +446,17 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def write_soundtrack_artifacts(payload: Mapping[str, Any], out_dir: str | Path) -> dict[str, Any]:
+def write_soundtrack_artifacts(
+    payload: Mapping[str, Any],
+    out_dir: str | Path,
+    *,
+    repo_root: str | Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     out_root = Path(out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
     artifacts = arrange_soundtrack(payload)
+    artifacts["soundtrack_branch_env_probe"] = build_branch_env_probe(repo_root=repo_root, env=env)
     for name, artifact in artifacts.items():
         (out_root / f"{name}.json").write_text(
             json.dumps(artifact, ensure_ascii=False, indent=2),

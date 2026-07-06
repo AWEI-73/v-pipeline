@@ -13,6 +13,11 @@ import sys
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from video_pipeline_core.branch_env import bootstrap_branch_env
+
 DEFAULT_VOXCPM_REPO = REPO_ROOT / "reference repo" / "VoxCPM-main"
 REQUIRED_IMPORTS = [
     "torch",
@@ -65,7 +70,8 @@ def build_runtime_report(
     voxcpm_repo: str | Path = DEFAULT_VOXCPM_REPO,
     python_executable: str | Path | None = None,
 ) -> dict:
-    python = str(Path(python_executable or os.environ.get("VOXCPM_PYTHON") or sys.executable))
+    boot_env = bootstrap_branch_env()
+    python = str(Path(python_executable or boot_env.get("VOXCPM_PYTHON") or sys.executable))
     repo = Path(voxcpm_repo)
     cli_path = repo / "src" / "voxcpm" / "cli.py"
     pyproject = repo / "pyproject.toml"

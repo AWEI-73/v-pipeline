@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
+from .branch_env import bootstrap_branch_env
+
 
 DEFAULT_VOXCPM_MODEL_ID = "openbmb/VoxCPM-0.5B"
 DEFAULT_VOICE_STYLE = "warm, clear Mandarin narrator"
@@ -128,9 +130,10 @@ def _resolve_voxcpm_runtime(
             "reason": None,
         }
 
+    boot_env = bootstrap_branch_env()
     repo_raw = voxcpm_repo or os.environ.get("VOXCPM_REPO") or _default_voxcpm_repo()
     repo = Path(repo_raw)
-    python_raw = voxcpm_python or os.environ.get("VOXCPM_PYTHON")
+    python_raw = voxcpm_python or boot_env.get("VOXCPM_PYTHON")
     python_executable = str(Path(python_raw)) if python_raw else None
     prefix = _voxcpm_repo_command_prefix(repo, python_executable=python_executable)
     if prefix:
@@ -262,7 +265,7 @@ def build_voiceover_provider_plan(
     inference_timesteps: int = 10,
     cfg_value: float = 2.0,
     execute: bool = False,
-    allow_fallback: bool = True,
+    allow_fallback: bool = False,
     execute_fallback: bool = False,
     fallback_voice: str | None = None,
     voxcpm_bin: str | None = None,

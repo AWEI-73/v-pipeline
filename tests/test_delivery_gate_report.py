@@ -149,6 +149,161 @@ class DeliveryGateReportCliTest(unittest.TestCase):
                 for item in summary.get("blocking", [])
             ))
 
+    def test_dashboard_gate_applies_video_only_waiver_to_soundtrack_blocks(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "rough_cut_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+                "target_length": "60-90 seconds preview first",
+            })
+            _write(run / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "duration_sec": 64.0,
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+            _write(run / "sound_license_manifest.json", {
+                "artifact_role": "sound_license_manifest",
+                "delivery_allowed": False,
+                "blocks": ["license_missing"],
+            })
+            _write(run / "video_only_delivery_waiver.json", {
+                "artifact_role": "video_only_delivery_waiver",
+                "version": 1,
+                "scope": "video_only_delivery",
+                "reviewer": "operator",
+                "reason": "reviewed picture-only handoff",
+                "at": "2026-07-05T00:00:00+08:00",
+                "waives": ["soundtrack_license", "music", "audio"],
+                "limitations": ["Video-only handoff; no deliverable soundtrack."],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["pass"], summary)
+            self.assertEqual(summary["generated_by"], "tools/write_delivery_gate_report.py")
+            self.assertEqual(summary["report_source"], "dashboard_state.artifacts.delivery_gate")
+            self.assertTrue(summary["waivers_applied"])
+            self.assertTrue(summary["limitations"])
+
+    def test_dashboard_gate_reads_utf8_sig_video_only_waiver(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            preview = run / "rough_cut_preview.mp4"
+            preview.write_bytes(b"preview")
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+            _write(run / "rough_cut_preview_report.json", {
+                "artifact_role": "rough_cut_preview_report",
+                "ok": True,
+                "output_video": str(preview),
+                "duration_sec": 64.0,
+            })
+            _write(run / "final_product_verify_bundle.json", {
+                "artifact_role": "final_product_verify_bundle",
+                "pass": True,
+                "video": str(preview),
+            })
+            waiver = {
+                "artifact_role": "video_only_delivery_waiver",
+                "version": 1,
+                "scope": "video_only_delivery",
+                "reviewer": "operator",
+                "reason": "PowerShell-authored waiver",
+                "at": "2026-07-05T00:00:00+08:00",
+                "waives": ["audio"],
+                "limitations": ["Video-only handoff; no deliverable audio."],
+            }
+            (run / "video_only_delivery_waiver.json").write_bytes(
+                ("\ufeff" + json.dumps(waiver, ensure_ascii=False)).encode("utf-8")
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["waivers_applied"])
+            self.assertTrue(summary["limitations"])
+
+    def test_dashboard_gate_keeps_missing_video_candidate_block_with_waiver(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            _write(run / "video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "material-first",
+            })
+            _write(run / "video_only_delivery_waiver.json", {
+                "artifact_role": "video_only_delivery_waiver",
+                "version": 1,
+                "scope": "video_only_delivery",
+                "reviewer": "operator",
+                "reason": "reviewed picture-only handoff",
+                "at": "2026-07-05T00:00:00+08:00",
+                "waives": ["audio", "music", "soundtrack_license"],
+                "limitations": ["Video-only handoff; no deliverable soundtrack."],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/write_delivery_gate_report.py",
+                    "--run",
+                    str(run),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertFalse(summary["pass"])
+            self.assertTrue(any(item.get("rule") == "missing_video_candidate" for item in summary["blocking"]))
+
     def test_rough_cut_preview_candidate_satisfies_dashboard_video_candidate_gate(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

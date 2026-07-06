@@ -31,6 +31,7 @@ class VoiceoverProviderTests(unittest.TestCase):
             payload = build_voiceover_provider_plan(
                 script_path=self._script(root),
                 out_dir=root / "voice",
+                allow_fallback=True,
                 voxcpm_bin=str(root / "missing-voxcpm.exe"),
                 voxcpm_repo=root / "missing-voxcpm-repo",
             )

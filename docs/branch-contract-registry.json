@@ -703,6 +703,7 @@
         "verify_result.json",
         "qa_report.json",
         "delivery_gate.json",
+        "video_only_delivery_waiver.json",
         "final_product_verify_bundle.json",
         "verify_evidence_bundle.json",
         "contact_sheet.jpg",
@@ -732,7 +733,8 @@
         "delivery gate blocks",
         "required evidence missing or stale",
         "verify_result.pass=true but semantic delivery gate fails",
-        "reviewer blocks or routes repair"
+        "reviewer blocks or routes repair",
+        "video-only delivery limitations must remain visible"
       ],
       "forbidden_writes": [
         "silently accepting missing evidence",

@@ -270,6 +270,31 @@ def _contract(mode, cursor, *, next_action=None, resume=None, reason=None, read=
     return payload
 
 
+def _video_only_limitations_reason(gate: dict[str, Any] | None) -> str:
+    if not isinstance(gate, dict):
+        return ""
+    waivers = gate.get("waivers_applied") or []
+    has_video_only = any(
+        isinstance(item, dict)
+        and (
+            item.get("artifact_role") == "video_only_delivery_waiver"
+            or item.get("artifact") == "video_only_delivery_waiver.json"
+        )
+        for item in waivers
+    )
+    if not has_video_only:
+        return ""
+    messages = []
+    for item in gate.get("limitations") or []:
+        if not isinstance(item, dict):
+            continue
+        message = str(item.get("message") or item.get("rule") or "").strip()
+        if message and message not in messages:
+            messages.append(message)
+    suffix = "; ".join(messages[:3])
+    return "; video-only limitations: " + suffix if suffix else "; video-only limitations declared"
+
+
 def _boundary_summary(root: Path, boundary: dict[str, Any]):
     stage = boundary.get("stage") or "boundary"
     refs = _read_refs(root, boundary.get("refs") or {})
@@ -1418,6 +1443,7 @@ def _delivery_gate_summary(root: Path):
     promotion_path, promotion = _find_json(root, "final_promotion_report.json")
     if promotion:
         read.append(_rel(root, promotion_path))
+    limitation_reason = _video_only_limitations_reason(gate)
     if gate.get("pass") is True and (root / "final.mp4").exists():
         return _contract(
             "done",
@@ -1425,6 +1451,7 @@ def _delivery_gate_summary(root: Path):
             reason=(
                 "delivery gate passed and final.mp4 exists"
                 + (" after explicit preview promotion" if promotion else "")
+                + limitation_reason
             ),
             read=read,
             run_dir=root,
@@ -1435,7 +1462,10 @@ def _delivery_gate_summary(root: Path):
             "run",
             "stage5_final_review",
             next_action="promote_or_package_verified_preview",
-            reason="delivery gate passed for a verified preview candidate; final.mp4 is not present",
+            reason=(
+                "delivery gate passed for a verified preview candidate; final.mp4 is not present"
+                + limitation_reason
+            ),
             read=read,
             run_dir=root,
             source="delivery_gate.json",
@@ -1477,6 +1507,7 @@ def _verified_preview_package_summary(root: Path):
                 read.append(rel)
     status = str(package.get("status") or "").strip()
     if status == "ready_for_operator_delivery_review":
+        _gate_path, gate = _find_json(root, "delivery_gate.json")
         return _contract(
             "run",
             "verified_preview_delivery_candidate",
@@ -1484,6 +1515,7 @@ def _verified_preview_package_summary(root: Path):
             reason=(
                 "verified preview package is ready for operator delivery review; "
                 "final.mp4 has not been promoted"
+                + _video_only_limitations_reason(gate)
             ),
             read=read,
             run_dir=root,

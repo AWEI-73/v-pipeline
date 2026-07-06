@@ -745,6 +745,9 @@ Handoff artifacts:
 - `qa_report.json`
 - `review_report.md`
 - `delivery_gate_report.json`
+- `video_only_delivery_waiver.json` when the operator intentionally accepts
+  video-only delivery limitations for audio/music/subtitle/narration/license
+  obligations
 - `frame_evidence.json`
 - `contact_sheet.jpg`
 - `effect_render_verification.json`

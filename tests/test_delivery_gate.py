@@ -408,6 +408,135 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertIn("missing_audio_mix_report", rules)
         self.assertIn("missing_subtitles", rules)
 
+    def test_complete_video_gate_applies_video_only_waiver_to_non_video_obligations(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                json.dumps({
+                    "artifact_role": "delivery_requirements",
+                    "version": 1,
+                    "requires_audio": True,
+                    "requires_narration": True,
+                    "requires_music": True,
+                    "requires_subtitles": True,
+                    "requires_soundtrack_probe": True,
+                }),
+                encoding="utf-8",
+            )
+            self._write_video_only_delivery_waiver(root)
+
+            result = evaluate_complete_video_delivery(root, probe={
+                "ok": True,
+                "streams": [{"codec_type": "video", "duration": "10.0"}],
+                "format": {"duration": "10.0"},
+            })
+
+        self.assertTrue(result["pass"], result)
+        self.assertEqual(result["blocking"], [])
+        self.assertEqual(result["waivers_applied"][0]["artifact"], "video_only_delivery_waiver.json")
+        waived_rules = {item["rule"] for item in result["limitations"]}
+        self.assertIn("missing_audio_stream", waived_rules)
+        self.assertIn("missing_narration_manifest", waived_rules)
+        self.assertIn("missing_music_manifest", waived_rules)
+        self.assertIn("missing_audio_mix_report", waived_rules)
+        self.assertIn("missing_subtitles", waived_rules)
+        self.assertIn("missing_soundtrack_probe_report", waived_rules)
+
+    def test_complete_video_gate_partial_video_only_waiver_leaves_unwaived_obligations_blocking(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                json.dumps({
+                    "artifact_role": "delivery_requirements",
+                    "version": 1,
+                    "requires_audio": True,
+                    "requires_narration": True,
+                    "requires_music": True,
+                    "requires_subtitles": True,
+                    "requires_soundtrack_probe": True,
+                }),
+                encoding="utf-8",
+            )
+            self._write_video_only_delivery_waiver(
+                root,
+                waives=["audio"],
+                limitations=["Video-only handoff; no deliverable audio."],
+            )
+
+            result = evaluate_complete_video_delivery(root, probe={
+                "ok": True,
+                "streams": [{"codec_type": "video", "duration": "10.0"}],
+                "format": {"duration": "10.0"},
+            })
+
+        self.assertFalse(result["pass"])
+        blocking_rules = {item["rule"] for item in result["blocking"]}
+        limitation_rules = {item["rule"] for item in result["limitations"]}
+        self.assertIn("missing_audio_stream", limitation_rules)
+        self.assertIn("missing_audio_mix_report", limitation_rules)
+        self.assertNotIn("missing_audio_stream", blocking_rules)
+        self.assertIn("missing_music_manifest", blocking_rules)
+        self.assertIn("missing_soundtrack_probe_report", blocking_rules)
+        self.assertIn("missing_subtitles", blocking_rules)
+        self.assertIn("missing_narration_manifest", blocking_rules)
+        self.assertNotIn("missing_music_manifest", limitation_rules)
+        self.assertNotIn("missing_soundtrack_probe_report", limitation_rules)
+        self.assertNotIn("missing_subtitles", limitation_rules)
+        self.assertNotIn("missing_narration_manifest", limitation_rules)
+
+    def test_complete_video_gate_rejects_invalid_video_only_waiver(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                json.dumps({
+                    "requires_audio": True,
+                    "requires_music": True,
+                }),
+                encoding="utf-8",
+            )
+            self._write_video_only_delivery_waiver(root, reviewer="", waives=["audio", "unknown"])
+
+            result = evaluate_complete_video_delivery(root, probe={
+                "ok": True,
+                "streams": [{"codec_type": "video", "duration": "10.0"}],
+                "format": {"duration": "10.0"},
+            })
+
+        self.assertFalse(result["pass"])
+        self.assertFalse(result["waivers_applied"])
+        self.assertTrue(any(item.get("rule") == "invalid_video_only_delivery_waiver" for item in result["warnings"]))
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_audio_stream", rules)
+        self.assertIn("missing_music_manifest", rules)
+
+    def test_complete_video_gate_does_not_waive_missing_video_or_frame_evidence(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"not a real video, probe is injected")
+            (root / "delivery_requirements.json").write_text(
+                json.dumps({
+                    "requires_audio": True,
+                    "requires_frame_evidence": True,
+                }),
+                encoding="utf-8",
+            )
+            self._write_video_only_delivery_waiver(root)
+
+            result = evaluate_complete_video_delivery(root, probe={
+                "ok": True,
+                "streams": [{"codec_type": "audio", "duration": "10.0"}],
+                "format": {"duration": "10.0"},
+            })
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("missing_video_stream", rules)
+        self.assertIn("missing_frame_evidence", rules)
+        self.assertNotIn("missing_audio_stream", rules)
+
     def test_complete_video_gate_accepts_required_delivery_artifacts(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -419,27 +548,24 @@ class DeliveryGateTest(unittest.TestCase):
   "requires_audio": true,
   "requires_narration": true,
   "requires_music": true,
-  "requires_subtitles": true
+  "requires_subtitles": true,
+  "preferred_voiceover_provider": "voxcpm",
+  "fallback_allowed": false
 }""",
                 encoding="utf-8",
             )
+            self._write_voxcpm_evidence(root)
             (root / "narration_manifest.json").write_text(
                 """{
   "artifact_role": "narration_manifest",
   "version": 1,
+  "provider": "voxcpm",
   "segments": [{"id": "n1", "text": "第一幕開始", "audio_ref": "narration.wav"}]
 }""",
                 encoding="utf-8",
             )
             self._write_silent_wav(root / "narration.wav")
-            (root / "music_manifest.json").write_text(
-                """{
-  "artifact_role": "music_manifest",
-  "version": 1,
-  "tracks": [{"id": "m1", "source": "generated_bgm.wav"}]
-}""",
-                encoding="utf-8",
-            )
+            self._write_valid_music_evidence(root)
             (root / "audio_mix_report.json").write_text(
                 """{
   "artifact_role": "audio_mix_report",
@@ -495,10 +621,13 @@ class DeliveryGateTest(unittest.TestCase):
   "requires_narration": true,
   "requires_music": true,
   "requires_subtitles": true,
+  "preferred_voiceover_provider": "voxcpm",
+  "fallback_allowed": false,
   "language": "zh-TW"
 }""",
                 encoding="utf-8",
             )
+            self._write_voxcpm_evidence(root)
             (root / "subtitle_voiceover_build_handoff.json").write_text(
                 """{
   "artifact_role": "subtitle_voiceover_build_handoff",
@@ -519,14 +648,7 @@ class DeliveryGateTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self._write_silent_wav(root / "handoff" / "narration.wav")
-            (root / "music_manifest.json").write_text(
-                """{
-  "artifact_role": "music_manifest",
-  "version": 1,
-  "tracks": [{"id": "m1", "source": "licensed_bgm.wav"}]
-}""",
-                encoding="utf-8",
-            )
+            self._write_valid_music_evidence(root)
             (root / "audio_mix_report.json").write_text(
                 """{
   "artifact_role": "audio_mix_report",
@@ -977,6 +1099,8 @@ class DeliveryGateTest(unittest.TestCase):
                     "requires_subtitles": True,
                     "requires_soundtrack_probe": True,
                     "requires_effect_render_verification": True,
+                    "preferred_voiceover_provider": "voxcpm",
+                    "fallback_allowed": False,
                 }),
                 encoding="utf-8",
             )
@@ -985,6 +1109,8 @@ class DeliveryGateTest(unittest.TestCase):
                     "artifact_role": "artifact_manifest",
                     "subtitle_voiceover_build_handoff": "handoff/subtitle_voiceover_build_handoff.json",
                     "narration_manifest": "handoff/narration_manifest.json",
+                    "voiceover_provider_plan": "handoff/voiceover_provider_plan.json",
+                    "voxcpm_runtime_check": "handoff/voxcpm_runtime_check.json",
                     "music_manifest": "handoff/music_manifest.json",
                     "audio_mix_report": "handoff/audio_mix_report.json",
                     "soundtrack_probe_report": "handoff/soundtrack_probe_report.json",
@@ -1009,15 +1135,40 @@ class DeliveryGateTest(unittest.TestCase):
             (handoff / "narration_manifest.json").write_text(
                 json.dumps({
                     "artifact_role": "narration_manifest",
+                    "provider": "voxcpm",
                     "segments": [{"id": "n1", "text": "完成這段精神傳承", "audio_ref": "handoff/narration.wav"}],
                 }, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (handoff / "voxcpm_runtime_check.json").write_text(
+                json.dumps({
+                    "artifact_role": "voxcpm_runtime_check",
+                    "version": 1,
+                    "ok_to_execute": True,
+                    "voxcpm_repo": "reference repo/VoxCPM-main",
+                }),
+                encoding="utf-8",
+            )
+            (handoff / "voiceover_provider_plan.json").write_text(
+                json.dumps({
+                    "artifact_role": "voiceover_provider_plan",
+                    "version": 1,
+                    "requested_provider": "voxcpm",
+                    "selected_provider": "voxcpm",
+                    "provider_available": True,
+                    "fallback_allowed": False,
+                    "fallback_used": False,
+                }),
                 encoding="utf-8",
             )
             self._write_silent_wav(handoff / "narration.wav")
             (handoff / "music_manifest.json").write_text(
                 json.dumps({
                     "artifact_role": "music_manifest",
-                    "tracks": [{"id": "bgm", "source": "licensed_library"}],
+                    "source_type": "licensed_library",
+                    "license_note": "test fixture licensed-library metadata",
+                    "tracks": [{"id": "bgm", "source_type": "licensed_library", "source_ref": "licensed_music.wav", "license_note": "test fixture licensed-library metadata"}],
+                    "cues": [{"track_id": "bgm", "start_sec": 0.0, "end_sec": 10.0}],
                 }),
                 encoding="utf-8",
             )
@@ -1120,14 +1271,38 @@ class DeliveryGateTest(unittest.TestCase):
             '  "requires_audio": true,\n'
             '  "requires_narration": true,\n'
             '  "requires_music": true,\n'
-            '  "requires_subtitles": true\n'
+            '  "requires_subtitles": true,\n'
+            '  "preferred_voiceover_provider": "voxcpm",\n'
+            '  "fallback_allowed": false\n'
             "}",
+            encoding="utf-8",
+        )
+        (root / "voxcpm_runtime_check.json").write_text(
+            """{
+  "artifact_role": "voxcpm_runtime_check",
+  "version": 1,
+  "ok_to_execute": true,
+  "voxcpm_repo": "reference repo/VoxCPM-main"
+}""",
+            encoding="utf-8",
+        )
+        (root / "voiceover_provider_plan.json").write_text(
+            """{
+  "artifact_role": "voiceover_provider_plan",
+  "version": 1,
+  "requested_provider": "voxcpm",
+  "selected_provider": "voxcpm",
+  "provider_available": true,
+  "fallback_allowed": false,
+  "fallback_used": false
+}""",
             encoding="utf-8",
         )
         (root / "narration_manifest.json").write_text(
             """{
   "artifact_role": "narration_manifest",
   "version": 1,
+  "provider": "voxcpm",
   "segments": [{"id": "n1", "text": "第一幕開始", "audio_ref": "narration.wav"}]
 }""",
             encoding="utf-8",
@@ -1137,7 +1312,24 @@ class DeliveryGateTest(unittest.TestCase):
             """{
   "artifact_role": "music_manifest",
   "version": 1,
-  "tracks": [{"id": "m1", "source": "generated_bgm.wav"}]
+  "source_type": "licensed_library",
+  "license_note": "test fixture licensed-library metadata",
+  "tracks": [{"id": "m1", "source_type": "licensed_library", "source_ref": "licensed_music.wav", "license_note": "test fixture licensed-library metadata"}],
+  "cues": [{"track_id": "m1", "start_sec": 0.0, "end_sec": 10.0}]
+}""",
+            encoding="utf-8",
+        )
+        (root / "soundtrack_probe_report.json").write_text(
+            """{
+  "artifact_role": "soundtrack_probe_report",
+  "version": 1,
+  "pass": true,
+  "audio_file": "licensed_music.wav",
+  "duration_sec": 10.0,
+  "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+  "sections": [{"start_sec": 0.0, "end_sec": 10.0, "role": "full_track"}],
+  "editing_fit": {"montage": "medium"},
+  "section_fit": [{"video_section": "all", "fit": "medium"}]
 }""",
             encoding="utf-8",
         )
@@ -1264,6 +1456,7 @@ class DeliveryGateTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._write_complete_delivery_artifacts(root)
+            (root / "soundtrack_probe_report.json").unlink()
             requirements = json.loads((root / "delivery_requirements.json").read_text(encoding="utf-8"))
             requirements["requires_soundtrack_probe"] = True
             (root / "delivery_requirements.json").write_text(
@@ -1514,6 +1707,84 @@ class DeliveryGateTest(unittest.TestCase):
             ],
             "format": {"duration": "10.0"},
         }
+
+    def _write_video_only_delivery_waiver(
+        self,
+        root,
+        *,
+        reviewer="operator",
+        reason="handoff picture only",
+        at="2026-07-05T00:00:00+08:00",
+        waives=None,
+        limitations=None,
+    ):
+        if waives is None:
+            waives = ["audio", "music", "subtitle", "narration", "soundtrack_license"]
+        if limitations is None:
+            limitations = ["Video-only handoff; no deliverable soundtrack, narration, or subtitles."]
+        (root / "video_only_delivery_waiver.json").write_text(
+            json.dumps({
+                "artifact_role": "video_only_delivery_waiver",
+                "version": 1,
+                "scope": "video_only_delivery",
+                "reviewer": reviewer,
+                "reason": reason,
+                "at": at,
+                "waives": waives,
+                "limitations": limitations,
+            }),
+            encoding="utf-8",
+        )
+
+    def _write_voxcpm_evidence(self, root):
+        (root / "voxcpm_runtime_check.json").write_text(
+            """{
+  "artifact_role": "voxcpm_runtime_check",
+  "version": 1,
+  "ok_to_execute": true,
+  "voxcpm_repo": "reference repo/VoxCPM-main"
+}""",
+            encoding="utf-8",
+        )
+        (root / "voiceover_provider_plan.json").write_text(
+            """{
+  "artifact_role": "voiceover_provider_plan",
+  "version": 1,
+  "requested_provider": "voxcpm",
+  "selected_provider": "voxcpm",
+  "provider_available": true,
+  "fallback_allowed": false,
+  "fallback_used": false
+}""",
+            encoding="utf-8",
+        )
+
+    def _write_valid_music_evidence(self, root):
+        (root / "music_manifest.json").write_text(
+            """{
+  "artifact_role": "music_manifest",
+  "version": 1,
+  "source_type": "licensed_library",
+  "license_note": "test fixture licensed-library metadata",
+  "tracks": [{"id": "m1", "source_type": "licensed_library", "source_ref": "licensed_music.wav", "license_note": "test fixture licensed-library metadata"}],
+  "cues": [{"track_id": "m1", "start_sec": 0.0, "end_sec": 10.0}]
+}""",
+            encoding="utf-8",
+        )
+        (root / "soundtrack_probe_report.json").write_text(
+            """{
+  "artifact_role": "soundtrack_probe_report",
+  "version": 1,
+  "pass": true,
+  "audio_file": "licensed_music.wav",
+  "duration_sec": 10.0,
+  "features": {"mean_dbfs": -18.0, "peak_dbfs": -3.0},
+  "sections": [{"start_sec": 0.0, "end_sec": 10.0, "role": "full_track"}],
+  "editing_fit": {"montage": "medium"},
+  "section_fit": [{"video_section": "all", "fit": "medium"}]
+}""",
+            encoding="utf-8",
+        )
 
     def _write_silent_wav(self, path):
         with wave.open(str(path), "wb") as wav:

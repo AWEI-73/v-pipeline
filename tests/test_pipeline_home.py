@@ -166,6 +166,31 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["source"], "delivery_gate.json")
             self.assertIn("final.mp4 is not present", summary["reason"])
 
+    def test_video_only_delivery_gate_without_final_routes_to_preview_promotion_with_limitation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "next_action": None,
+                "waivers_applied": [{"artifact_role": "video_only_delivery_waiver"}],
+                "limitations": [{
+                    "rule": "missing_music_manifest",
+                    "message": "Video-only handoff; no deliverable soundtrack.",
+                }],
+            })
+            (root / "single_source_highlight_preview.mp4").write_bytes(b"fake preview")
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage5_final_review")
+            self.assertEqual(summary["next"], "promote_or_package_verified_preview")
+            self.assertIn("video-only", summary["reason"])
+            self.assertIn("no deliverable soundtrack", summary["reason"])
+
     def test_verified_preview_package_takes_precedence_over_delivery_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -202,6 +227,36 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("delivery_candidate.mp4", summary["read"])
             self.assertIn("verified_preview_review_packet.json", summary["read"])
             self.assertIn("review_report.md", summary["read"])
+
+    def test_packaged_video_only_gate_is_operator_review_ready_with_limitation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "delivery_candidate.mp4").write_bytes(b"fake preview")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "waivers_applied": [{"artifact_role": "video_only_delivery_waiver"}],
+                "limitations": [{
+                    "rule": "missing_subtitles",
+                    "message": "Video-only handoff; no deliverable subtitles.",
+                }],
+            })
+            _write(root, "verified_preview_package.json", {
+                "artifact_role": "verified_preview_package",
+                "version": 1,
+                "status": "ready_for_operator_delivery_review",
+                "packaged_video": "delivery_candidate.mp4",
+                "next_action": "operator_review_or_explicit_final_promotion",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "verified_preview_delivery_candidate")
+            self.assertIn("video-only", summary["reason"])
+            self.assertIn("no deliverable subtitles", summary["reason"])
 
     def test_verified_preview_review_decision_takes_precedence_over_package(self):
         with tempfile.TemporaryDirectory() as tmp:
