@@ -326,6 +326,13 @@ is reviewable, `verified_preview_review_decision.json` records the explicit
 accept/revise/rebuild/reject decision, `final.mp4` exists only after
 `accept_promote` plus explicit promotion, and the final delivery gate must pass
 after promotion.
+For scripted story runs where `story_to_material_map.json` contains
+agent-filled or inferred mappings, `story_human_review_decision.json` is the
+explicit human review artifact. Missing or non-human review leaves
+`pipeline_home.py` at `WAITING / human_story_review`; `decision=approved` with
+`reviewer` or `reviewer_type` set to `human` clears the warning only when the
+required story beats are approved; `revision_requested` and `rejected` route to
+repair and must not complete delivery.
 If the operator chooses `revise_workbench`, the review decision writes
 `workbench_revision_request.json`; rebuild `workbench_handoff.json` so the
 Workbench/Brownfield agent reads `preview_timeline.json`, the revision request,

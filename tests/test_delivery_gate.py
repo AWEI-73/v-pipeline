@@ -1815,6 +1815,152 @@ class DeliveryGateTest(unittest.TestCase):
         }
         self.assertIn("story_human_review_required", visible_rules)
 
+    def test_scripted_gate_clears_human_review_warning_after_human_approval(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_contract",
+                    "required_story_beats": [
+                        {"beat_id": "establish_gathering"},
+                        {"beat_id": "training_process_detail"},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [
+                        {"beat_id": "establish_gathering", "evidence_type": "visual_match", "needs_human_confirmation": True},
+                        {"beat_id": "training_process_detail", "evidence_type": "agent_inferred", "needs_human_confirmation": True},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_to_final_alignment_report.json").write_text(
+                json.dumps({"artifact_role": "story_to_final_alignment_report", "ok": True}),
+                encoding="utf-8",
+            )
+            (root / "story_human_review_decision.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_human_review_decision",
+                    "version": 1,
+                    "decision": "approved",
+                    "reviewer": "human",
+                    "approved_beat_ids": ["establish_gathering", "training_process_detail"],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+        visible_rules = {
+            item["rule"]
+            for item in [*result.get("warnings", []), *result.get("limitations", [])]
+        }
+        self.assertNotIn("story_human_review_required", visible_rules)
+
+    def test_scripted_gate_agent_review_does_not_clear_human_review_warning(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({"artifact_role": "story_contract", "required_story_beats": [{"beat_id": "establish_gathering"}]}),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{"beat_id": "establish_gathering", "evidence_type": "agent_inferred", "needs_human_confirmation": True}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_human_review_decision.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_human_review_decision",
+                    "decision": "approved",
+                    "reviewer": "agent",
+                    "approved_beat_ids": ["establish_gathering"],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertTrue(result["pass"], result)
+        visible_rules = {
+            item["rule"]
+            for item in [*result.get("warnings", []), *result.get("limitations", [])]
+        }
+        self.assertIn("story_human_review_required", visible_rules)
+
+    def test_scripted_gate_revision_requested_blocks_completion(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({"artifact_role": "story_contract", "required_story_beats": [{"beat_id": "establish_gathering"}]}),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{"beat_id": "establish_gathering", "evidence_type": "agent_inferred", "needs_human_confirmation": True}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_human_review_decision.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_human_review_decision",
+                    "decision": "revision_requested",
+                    "reviewer_type": "human",
+                    "revision_notes": ["Use the director explanation clip instead."],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("story_human_review_revision_requested", rules)
+        self.assertEqual(result["next_action"], "revise_story_material_mapping")
+
+    def test_scripted_gate_rejected_human_review_blocks_completion(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "story_contract.json").write_text(
+                json.dumps({"artifact_role": "story_contract", "required_story_beats": [{"beat_id": "establish_gathering"}]}),
+                encoding="utf-8",
+            )
+            (root / "story_to_material_map.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_to_material_map",
+                    "items": [{"beat_id": "establish_gathering", "evidence_type": "agent_inferred", "needs_human_confirmation": True}],
+                }),
+                encoding="utf-8",
+            )
+            (root / "story_human_review_decision.json").write_text(
+                json.dumps({
+                    "artifact_role": "story_human_review_decision",
+                    "decision": "rejected",
+                    "reviewer": "human",
+                    "rejected_beat_ids": ["establish_gathering"],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("story_human_review_rejected", rules)
+        self.assertEqual(result["next_action"], "repair_rejected_story_material_mapping")
+
     def test_scripted_gate_blocks_when_required_story_beats_are_uncovered(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

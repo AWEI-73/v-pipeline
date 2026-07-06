@@ -1339,10 +1339,35 @@ def _source_speech_is_mixed(audio_mix_report: dict[str, Any] | None) -> bool:
     return False
 
 
+def _human_story_review_decision_state(
+    decision: dict[str, Any] | None,
+    required_beats: set[str],
+) -> str:
+    if not isinstance(decision, dict):
+        return "missing"
+    reviewer = str(decision.get("reviewer") or decision.get("reviewer_type") or "").strip().casefold()
+    if reviewer != "human":
+        return "non_human"
+    value = str(decision.get("decision") or "").strip().casefold()
+    if value == "approved":
+        approved = {
+            str(item).strip()
+            for item in _as_list(decision.get("approved_beat_ids"))
+            if str(item).strip()
+        }
+        if required_beats and not required_beats.issubset(approved):
+            return "partial_approved"
+        return "approved"
+    if value in {"revision_requested", "rejected"}:
+        return value
+    return "malformed"
+
+
 def _story_review_findings(
     story_contract: dict[str, Any] | None,
     story_map: dict[str, Any] | None,
     story_alignment: dict[str, Any] | None,
+    story_human_review_decision: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     blocking: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
@@ -1379,15 +1404,33 @@ def _story_review_findings(
         if item.get("needs_human_confirmation") is True
         or str(item.get("evidence_type") or "").strip() == "agent_inferred"
     ]
-    if needs_review:
-        warnings.append({
-            "rule": "story_human_review_required",
-            "tier": 2,
-            "artifact": "story_to_material_map.json",
-            "message": "story-to-material mapping includes agent-filled or inferred choices; technical delivery still needs human creative review",
-            "count": len(needs_review),
-            "next_action": "human_review_story_to_material_map",
+    decision_state = _human_story_review_decision_state(story_human_review_decision, required)
+    if decision_state == "revision_requested":
+        blocking.append({
+            "rule": "story_human_review_revision_requested",
+            "tier": 1,
+            "artifact": "story_human_review_decision.json",
+            "message": "human story review requested revisions to the story-to-material mapping",
+            "next_action": "revise_story_material_mapping",
         })
+    elif decision_state == "rejected":
+        blocking.append({
+            "rule": "story_human_review_rejected",
+            "tier": 1,
+            "artifact": "story_human_review_decision.json",
+            "message": "human story review rejected the story-to-material mapping",
+            "next_action": "repair_rejected_story_material_mapping",
+        })
+    if needs_review:
+        if decision_state != "approved":
+            warnings.append({
+                "rule": "story_human_review_required",
+                "tier": 2,
+                "artifact": "story_to_material_map.json",
+                "message": "story-to-material mapping includes agent-filled or inferred choices; technical delivery still needs human creative review",
+                "count": len(needs_review),
+                "next_action": "human_review_story_to_material_map",
+            })
     if isinstance(story_alignment, dict) and story_alignment.get("ok") is False:
         blocking.append({
             "rule": "story_to_final_alignment_failed",
@@ -1521,6 +1564,11 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         root,
         "story_to_final_alignment_report",
         "story_to_final_alignment_report.json",
+    )
+    story_human_review_decision = _load_artifact_json(
+        root,
+        "story_human_review_decision",
+        "story_human_review_decision.json",
     )
     blocking.extend(_artifact_manifest_stale_blocks(root, DELIVERY_MANIFEST_EVIDENCE_KEYS))
 
@@ -1907,6 +1955,7 @@ def evaluate_complete_video_delivery(root: str | Path, probe: dict[str, Any] | N
         story_contract,
         story_to_material_map,
         story_to_final_alignment,
+        story_human_review_decision,
     )
     blocking.extend(story_blocks)
     warnings.extend(story_warnings)

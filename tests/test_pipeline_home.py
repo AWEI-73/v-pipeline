@@ -72,6 +72,93 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertIn("story human review", summary["reason"])
             self.assertIn("Real user approval is still required", summary["reason"])
 
+    def test_passed_scripted_delivery_gate_with_human_approval_is_done(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "story_contract.json", {
+                "artifact_role": "story_contract",
+                "required_story_beats": [{"beat_id": "establish_gathering"}],
+            })
+            _write(root, "story_to_material_map.json", {
+                "artifact_role": "story_to_material_map",
+                "items": [{"beat_id": "establish_gathering", "evidence_type": "agent_inferred", "needs_human_confirmation": True}],
+            })
+            _write(root, "story_human_review_decision.json", {
+                "artifact_role": "story_human_review_decision",
+                "decision": "approved",
+                "reviewer": "human",
+                "approved_beat_ids": ["establish_gathering"],
+            })
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "warnings": [{
+                    "rule": "story_human_review_required",
+                    "message": "Story map contains agent-filled decisions that still need human review.",
+                }],
+                "next_action": None,
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "done")
+            self.assertEqual(summary["cursor"], "complete")
+            self.assertEqual(summary["status"], "DONE")
+            self.assertIn("story_human_review_decision.json", summary["read"])
+
+    def test_passed_scripted_delivery_gate_with_revision_request_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "warnings": [{"rule": "story_human_review_required", "message": "needs human review"}],
+            })
+            _write(root, "story_human_review_decision.json", {
+                "artifact_role": "story_human_review_decision",
+                "decision": "revision_requested",
+                "reviewer_type": "human",
+                "revision_notes": ["Replace inferred training beat."],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "human_story_review")
+            self.assertEqual(summary["next"], "revise_story_material_mapping")
+            self.assertEqual(summary["next_action_class"], "repair_stop")
+
+    def test_passed_scripted_delivery_gate_with_rejection_routes_to_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "final.mp4").write_bytes(b"fake final")
+            _write(root, "delivery_gate.json", {
+                "artifact_role": "delivery_gate",
+                "version": 1,
+                "pass": True,
+                "blocking": [],
+                "warnings": [{"rule": "story_human_review_required", "message": "needs human review"}],
+            })
+            _write(root, "story_human_review_decision.json", {
+                "artifact_role": "story_human_review_decision",
+                "decision": "rejected",
+                "reviewer": "human",
+                "rejected_beat_ids": ["establish_gathering"],
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "human_story_review")
+            self.assertEqual(summary["next"], "repair_rejected_story_material_mapping")
+            self.assertEqual(summary["next_action_class"], "repair_stop")
+
     def test_summary_exposes_action_class_owner_and_safe_command(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "video_intent.json", {

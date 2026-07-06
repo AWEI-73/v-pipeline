@@ -236,7 +236,12 @@ source_section_map / source_motion_profile / source_material_matrix
   -> promote_verified_preview.py
   -> final.mp4 + final_promotion_report.json
   -> write_delivery_gate_report.py
+  -> if story_human_review_required
+  -> story_human_review_decision.json
+  -> if decision=approved and reviewer=human
   -> pipeline_home.py must report mode=done, cursor=complete
+  -> if decision=revision_requested or rejected
+  -> revise_story_material_mapping / repair_rejected_story_material_mapping
   -> if decision=revise_workbench
   -> workbench_revision_request.json + workbench_handoff.json
   -> preview_timeline.json

@@ -311,6 +311,47 @@ def _story_human_review_reason(gate: dict[str, Any] | None) -> str:
     return "; story human review required: " + "; ".join(messages[:3])
 
 
+def _story_required_beat_ids(root: Path) -> set[str]:
+    _path, contract = _find_json(root, "story_contract.json")
+    if not isinstance(contract, dict):
+        return set()
+    beats = contract.get("required_story_beats") or contract.get("beats") or []
+    out: set[str] = set()
+    for item in beats:
+        if not isinstance(item, dict):
+            continue
+        beat_id = str(item.get("beat_id") or item.get("id") or item.get("name") or "").strip()
+        if beat_id:
+            out.add(beat_id)
+    return out
+
+
+def _story_human_review_decision_state(root: Path) -> tuple[str, str | None, str | None]:
+    path, decision = _find_json(root, "story_human_review_decision.json")
+    if not isinstance(decision, dict):
+        return "missing", None, None
+    reviewer = str(decision.get("reviewer") or decision.get("reviewer_type") or "").strip().casefold()
+    if reviewer != "human":
+        return "non_human", _rel(root, path), None
+    value = str(decision.get("decision") or "").strip().casefold()
+    if value == "approved":
+        required = _story_required_beat_ids(root)
+        approved = {
+            str(item).strip()
+            for item in (decision.get("approved_beat_ids") or [])
+            if str(item).strip()
+        }
+        if required and not required.issubset(approved):
+            missing = ", ".join(sorted(required - approved))
+            return "partial_approved", _rel(root, path), f"human story review approval is missing beat approval: {missing}"
+        return "approved", _rel(root, path), "human story review approved story-to-material mapping"
+    if value == "revision_requested":
+        return "revision_requested", _rel(root, path), "human story review requested story/material revisions"
+    if value == "rejected":
+        return "rejected", _rel(root, path), "human story review rejected story/material mapping"
+    return "malformed", _rel(root, path), "story_human_review_decision.json is malformed"
+
+
 def _boundary_summary(root: Path, boundary: dict[str, Any]):
     stage = boundary.get("stage") or "boundary"
     refs = _read_refs(root, boundary.get("refs") or {})
@@ -1461,8 +1502,31 @@ def _delivery_gate_summary(root: Path):
         read.append(_rel(root, promotion_path))
     limitation_reason = _video_only_limitations_reason(gate)
     story_review_reason = _story_human_review_reason(gate)
+    decision_state, decision_ref, decision_reason = _story_human_review_decision_state(root)
+    if decision_ref and decision_ref not in read:
+        read.append(decision_ref)
+    if decision_state == "revision_requested":
+        return _contract(
+            "repair",
+            "human_story_review",
+            next_action="revise_story_material_mapping",
+            reason=decision_reason,
+            read=read,
+            run_dir=root,
+            source="story_human_review_decision.json",
+        )
+    if decision_state == "rejected":
+        return _contract(
+            "repair",
+            "human_story_review",
+            next_action="repair_rejected_story_material_mapping",
+            reason=decision_reason,
+            read=read,
+            run_dir=root,
+            source="story_human_review_decision.json",
+        )
     if gate.get("pass") is True and (root / "final.mp4").exists():
-        if story_review_reason:
+        if story_review_reason and decision_state != "approved":
             return _contract(
                 "waiting",
                 "human_story_review",
@@ -1484,7 +1548,7 @@ def _delivery_gate_summary(root: Path):
                 "delivery gate passed and final.mp4 exists"
                 + (" after explicit preview promotion" if promotion else "")
                 + limitation_reason
-                + story_review_reason
+                + (f"; {decision_reason}" if decision_state == "approved" and decision_reason else story_review_reason)
             ),
             read=read,
             run_dir=root,

@@ -713,7 +713,8 @@
         "timeline_invariants.json",
         "verified_preview_package.json",
         "delivery_candidate.mp4",
-        "verified_preview_review_decision.json"
+        "verified_preview_review_decision.json",
+        "story_human_review_decision.json"
       ],
       "handoff_outputs": [
         "workbench_revision_request.json",
@@ -727,14 +728,18 @@
         "fix_subtitles",
         "revise_effect_intent",
         "review_workbench_route_back",
-        "promote_verified_preview"
+        "promote_verified_preview",
+        "human_review_story_to_material_map",
+        "revise_story_material_mapping",
+        "repair_rejected_story_material_mapping"
       ],
       "stop_gates": [
         "delivery gate blocks",
         "required evidence missing or stale",
         "verify_result.pass=true but semantic delivery gate fails",
         "reviewer blocks or routes repair",
-        "video-only delivery limitations must remain visible"
+        "video-only delivery limitations must remain visible",
+        "story_human_review_required remains waiting until a human story review decision approves, requests revision, or rejects"
       ],
       "forbidden_writes": [
         "silently accepting missing evidence",
