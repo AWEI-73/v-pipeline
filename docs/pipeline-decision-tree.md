@@ -707,6 +707,9 @@ Common policies:
   does not claim legal approval or external publication rights.
 - Famous songs or YouTube references may be `reference_only` unless the license
   or human-declared internal-use basis is explicitly acceptable for the run.
+- Soundtrack Arranger `soundtrack_plan.json` clears the `license/source` gate
+  only when the selected music has source evidence plus license notes or an
+  explicit human-declared `music_use_basis`.
 
 Stop gates:
 
