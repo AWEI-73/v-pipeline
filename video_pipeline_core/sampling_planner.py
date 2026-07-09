@@ -63,6 +63,8 @@ def _shot_for_time(shots: list[dict[str, Any]], timestamp: float) -> dict[str, A
 
 def _baseline_targets(shots: list[dict[str, Any]], *, gap_fill_sec: float = 4.0) -> list[tuple[str, float, str]]:
     targets = []
+    # Sharpness selection may move a target within +/-0.2s, so leave margin.
+    fill_step = max(0.5, gap_fill_sec - 0.5)
     for shot in shots:
         start = float(shot["start_sec"])
         end = float(shot["end_sec"])
@@ -71,10 +73,10 @@ def _baseline_targets(shots: list[dict[str, Any]], *, gap_fill_sec: float = 4.0)
         else:
             points = [start, (start + end) / 2.0, end]
             if gap_fill_sec > 0:
-                cursor = start + gap_fill_sec
+                cursor = start + fill_step
                 while cursor < end:
                     points.append(cursor)
-                    cursor += gap_fill_sec
+                    cursor += fill_step
         for timestamp in points:
             targets.append((shot["shot_id"], timestamp, "baseline"))
     return targets

@@ -320,7 +320,7 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         from video_pipeline_core.sampling_coverage import verify_sampling_coverage
         from video_pipeline_core.sampling_planner import write_sampling_plan
 
-        long_shots = [{"shot_id": "shot_001", "start_sec": 0.0, "end_sec": 10.0}]
+        long_shots = [{"shot_id": "shot_001", "start_sec": 0.0, "end_sec": 18.0}]
         anchors = {"beat_times": [4.05], "energy_peaks": [4.1]}
         out = self.root / "gap_fill_plan.json"
         plan = write_sampling_plan(
