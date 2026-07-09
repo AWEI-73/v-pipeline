@@ -14,6 +14,13 @@ from typing import Any, Iterable, Mapping
 
 VERSION = 1
 REASONS = {"baseline", "motion_peak", "audio_beat", "energy_event", "speech_start"}
+REASON_PRIORITY = {
+    "speech_start": 0,
+    "audio_beat": 1,
+    "energy_event": 2,
+    "motion_peak": 3,
+    "baseline": 4,
+}
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -54,7 +61,7 @@ def _shot_for_time(shots: list[dict[str, Any]], timestamp: float) -> dict[str, A
     return shots[-1] if shots else None
 
 
-def _baseline_targets(shots: list[dict[str, Any]]) -> list[tuple[str, float, str]]:
+def _baseline_targets(shots: list[dict[str, Any]], *, gap_fill_sec: float = 4.0) -> list[tuple[str, float, str]]:
     targets = []
     for shot in shots:
         start = float(shot["start_sec"])
@@ -63,6 +70,11 @@ def _baseline_targets(shots: list[dict[str, Any]]) -> list[tuple[str, float, str
             points = [start]
         else:
             points = [start, (start + end) / 2.0, end]
+            if gap_fill_sec > 0:
+                cursor = start + gap_fill_sec
+                while cursor < end:
+                    points.append(cursor)
+                    cursor += gap_fill_sec
         for timestamp in points:
             targets.append((shot["shot_id"], timestamp, "baseline"))
     return targets
@@ -186,15 +198,16 @@ def build_sampling_plan(
     *,
     audio_anchors: Mapping[str, Any] | None = None,
     motion_threshold: float = 18.0,
+    gap_fill_sec: float = 4.0,
+    merge_window_sec: float = 0.3,
 ) -> dict[str, Any]:
     video = Path(video_path)
     normalized_shots = normalize_shots(shots)
-    targets = _baseline_targets(normalized_shots)
+    targets = _baseline_targets(normalized_shots, gap_fill_sec=gap_fill_sec)
     targets.extend(_motion_targets(video, normalized_shots, threshold=motion_threshold))
     targets.extend(_audio_targets(normalized_shots, audio_anchors))
 
-    seen: set[tuple[str, float, str]] = set()
-    samples = []
+    samples: list[dict[str, Any]] = []
     for shot_id, timestamp, reason in targets:
         if reason not in REASONS:
             continue
@@ -203,19 +216,17 @@ def build_sampling_plan(
             continue
         timestamp = min(max(float(timestamp), float(shot["start_sec"])), float(shot["end_sec"]))
         sharp_ts = _sharpest_timestamp(video, timestamp, shot)
-        key = (shot_id, round(sharp_ts, 2), reason)
-        if key in seen:
-            continue
-        seen.add(key)
-        samples.append({
-            "sample_id": f"s{len(samples) + 1:04d}",
+        _merge_or_append_sample(samples, {
             "shot_id": shot_id,
             "timestamp_sec": round(sharp_ts, 3),
             "target_timestamp_sec": round(float(timestamp), 3),
             "reason": reason,
-        })
+            "reasons": [reason],
+        }, merge_window_sec=merge_window_sec)
 
     samples.sort(key=lambda item: (str(item["shot_id"]), float(item["timestamp_sec"]), str(item["reason"])))
+    for index, sample in enumerate(samples, start=1):
+        sample["sample_id"] = f"s{index:04d}"
     return {
         "artifact_role": "sampling_plan",
         "version": VERSION,
@@ -230,6 +241,25 @@ def build_sampling_plan(
     }
 
 
+def _merge_or_append_sample(samples: list[dict[str, Any]], sample: dict[str, Any], *, merge_window_sec: float) -> None:
+    shot_id = str(sample["shot_id"])
+    timestamp = float(sample["timestamp_sec"])
+    for existing in samples:
+        if str(existing.get("shot_id")) != shot_id:
+            continue
+        if abs(float(existing.get("timestamp_sec", 0.0)) - timestamp) > merge_window_sec:
+            continue
+        reasons = list(existing.get("reasons") or [existing.get("reason")])
+        reason = str(sample["reason"])
+        if reason not in reasons:
+            reasons.append(reason)
+        existing["reasons"] = [item for item in reasons if item]
+        existing["reason"] = min(existing["reasons"], key=lambda item: REASON_PRIORITY.get(str(item), 99))
+        existing["target_timestamp_sec"] = round(min(float(existing.get("target_timestamp_sec", timestamp)), float(sample["target_timestamp_sec"])), 3)
+        return
+    samples.append(sample)
+
+
 def write_sampling_plan(
     video_path: str | Path,
     shots: Iterable[Any],
@@ -237,12 +267,16 @@ def write_sampling_plan(
     *,
     audio_anchors: Mapping[str, Any] | None = None,
     motion_threshold: float = 18.0,
+    gap_fill_sec: float = 4.0,
+    merge_window_sec: float = 0.3,
 ) -> dict[str, Any]:
     payload = build_sampling_plan(
         video_path,
         shots,
         audio_anchors=audio_anchors,
         motion_threshold=motion_threshold,
+        gap_fill_sec=gap_fill_sec,
+        merge_window_sec=merge_window_sec,
     )
     _write_json(Path(out_path), payload)
     return payload

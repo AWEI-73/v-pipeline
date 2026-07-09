@@ -205,6 +205,33 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         self.assertIn(8.5, anchors["energy_peaks"])
         self.assertIn(0.5, anchors["energy_drops"])
 
+    def test_sampling_plan_gap_fills_long_shots_and_merges_near_duplicate_reasons(self):
+        from video_pipeline_core.sampling_coverage import verify_sampling_coverage
+        from video_pipeline_core.sampling_planner import write_sampling_plan
+
+        long_shots = [{"shot_id": "shot_001", "start_sec": 0.0, "end_sec": 10.0}]
+        anchors = {"beat_times": [4.05], "energy_peaks": [4.1]}
+        out = self.root / "gap_fill_plan.json"
+        plan = write_sampling_plan(
+            self.video,
+            long_shots,
+            out,
+            audio_anchors=anchors,
+            gap_fill_sec=4.0,
+            merge_window_sec=0.3,
+        )
+
+        report = verify_sampling_coverage(plan, long_shots, anchors, max_gap_sec=4.0)
+        self.assertTrue(report["pass"], report["gaps"])
+        self.assertFalse(report["gaps"])
+
+        merged = [
+            sample for sample in plan["samples"]
+            if "audio_beat" in sample.get("reasons", []) and "energy_event" in sample.get("reasons", [])
+        ]
+        self.assertEqual(1, len(merged))
+        self.assertEqual("audio_beat", merged[0]["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()
