@@ -263,6 +263,9 @@ def _merge_or_append_sample(samples: list[dict[str, Any]], sample: dict[str, Any
             continue
         reasons = list(existing.get("reasons") or [existing.get("reason")])
         reason = str(sample["reason"])
+        target_distance = abs(float(existing.get("target_timestamp_sec", timestamp)) - float(sample["target_timestamp_sec"]))
+        if reason in reasons and target_distance > merge_window_sec:
+            continue
         if reason not in reasons:
             reasons.append(reason)
         existing["reasons"] = [item for item in reasons if item]
