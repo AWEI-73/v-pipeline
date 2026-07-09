@@ -359,20 +359,24 @@ def _attach_acceptance_collage_refs(fixture: dict[str, Any], refs: list[dict[str
 
 def write_contact_sheet(video_path: str | Path, out_path: str | Path, *,
                         ffmpeg: str | None = None) -> Path:
-    ffmpeg = ffmpeg or resolve_ffmpeg()
     video_path = Path(video_path)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        ffmpeg, "-y",
-        "-i", str(video_path),
-        "-vf", "fps=1,scale=320:-1,tile=4x1",
-        "-frames:v", "1",
-        str(out_path),
-    ]
-    proc = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    if proc.returncode != 0 or not out_path.is_file():
-        raise RuntimeError(f"contact sheet failed: {(proc.stderr or '')[-800:]}")
+    from .keyframe_grid import probe_duration
+    from .montage_wall import write_montage_wall
+    from .sampling_coverage import write_sampling_coverage_report
+    from .sampling_planner import write_sampling_plan
+
+    duration = probe_duration(video_path)
+    shots = [{"shot_id": "render", "start_sec": 0.0, "end_sec": max(duration, 0.001)}]
+    plan_path = out_path.with_suffix(".sampling_plan.json")
+    coverage_path = out_path.with_suffix(".sampling_coverage_report.json")
+    sidecar_path = out_path.with_suffix(".json")
+    write_sampling_plan(video_path, shots, plan_path)
+    write_sampling_coverage_report(plan_path, shots, coverage_path, max_gap_sec=max(duration + 1.0, 4.0))
+    write_montage_wall(video_path, plan_path, coverage_path, out_path, sidecar_path, profile="timeline_wall")
+    if not out_path.is_file() or out_path.stat().st_size <= 0:
+        raise RuntimeError(f"contact sheet failed: {out_path}")
     return out_path
 
 

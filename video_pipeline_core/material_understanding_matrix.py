@@ -7,13 +7,11 @@ mark needs covered or promote assets into BUILD by itself.
 from __future__ import annotations
 
 import json
-import math
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from PIL import Image, ImageDraw
-
+from .montage_wall import write_image_contact_wall
 from .platform_tools import resolve_ffmpeg
 
 
@@ -155,38 +153,21 @@ def _audio_evidence(entry: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _contact_sheet(assets: list[dict[str, Any]], out_path: Path) -> str:
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    thumbs = []
+    items = []
     for asset in assets:
         visual = asset.get("visual_evidence") or {}
         photo = visual.get("photo")
         frames = visual.get("keyframes") or []
-        image = photo or (frames[0].get("image_path") if frames else None)
+        first_frame = frames[0] if frames else {}
+        image = photo or first_frame.get("image_path")
         if image:
-            thumbs.append((asset.get("asset_id"), image))
-
-    if not thumbs:
-        Image.new("RGB", (640, 180), "#f6f7fb").save(out_path)
-        return str(out_path)
-
-    thumb_w, thumb_h, label_h = 180, 102, 28
-    cols = min(5, max(1, len(thumbs)))
-    rows = math.ceil(len(thumbs) / cols)
-    sheet = Image.new("RGB", (cols * thumb_w, rows * (thumb_h + label_h)), "#f6f7fb")
-    draw = ImageDraw.Draw(sheet)
-    for index, (asset_id, image_path) in enumerate(thumbs):
-        x = (index % cols) * thumb_w
-        y = (index // cols) * (thumb_h + label_h)
-        try:
-            img = Image.open(image_path).convert("RGB")
-            img.thumbnail((thumb_w, thumb_h))
-            sheet.paste(img, (x + (thumb_w - img.width) // 2, y + (thumb_h - img.height) // 2))
-        except Exception:
-            draw.rectangle([x, y, x + thumb_w - 1, y + thumb_h - 1], fill="#d9dee8")
-            draw.text((x + 8, y + 42), "preview unavailable", fill="#526070")
-        draw.rectangle([x, y + thumb_h, x + thumb_w - 1, y + thumb_h + label_h - 1], fill="#ffffff")
-        draw.text((x + 8, y + thumb_h + 7), str(asset_id)[:24], fill="#172033")
-    sheet.save(out_path, "JPEG", quality=88)
+            items.append({
+                "asset_id": asset.get("asset_id"),
+                "shot_id": asset.get("asset_id"),
+                "timestamp_sec": first_frame.get("timestamp_sec", 0.0),
+                "image_path": image,
+            })
+    write_image_contact_wall(items, out_path, out_path.with_suffix(".json"))
     return str(out_path)
 
 

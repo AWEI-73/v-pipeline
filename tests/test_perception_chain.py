@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 
 def _ffmpeg_available():
     try:
@@ -146,6 +148,43 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         saved = json.loads(sidecar_path.read_text(encoding="utf-8"))
         self.assertEqual(saved, wall)
         self.assertFalse(wall["limitations"])
+
+    def test_existing_contact_sheet_helpers_write_canonical_sidecars(self):
+        from video_pipeline_core.material_understanding_matrix import _contact_sheet
+        from video_pipeline_core.source_material_matrix import _make_contact_sheet
+
+        img = self.root / "still.png"
+        Image.new("RGB", (80, 60), "#336699").save(img)
+
+        material_out = self.root / "material_understanding_contact_sheet.jpg"
+        _contact_sheet([
+            {
+                "asset_id": "asset_001",
+                "visual_evidence": {"photo": str(img)},
+            }
+        ], material_out)
+        material_sidecar = material_out.with_suffix(".json")
+        self.assertTrue(material_sidecar.exists())
+        self.assertEqual(
+            json.loads(material_sidecar.read_text(encoding="utf-8"))["artifact_role"],
+            "montage_wall",
+        )
+
+        source_out = self.root / "source_material_matrix_contact_sheet.jpg"
+        _make_contact_sheet([
+            {
+                "window_id": "win_001",
+                "start_sec": 0.0,
+                "end_sec": 2.0,
+                "visual": {"keyframe": str(img)},
+            }
+        ], source_out)
+        source_sidecar = source_out.with_suffix(".json")
+        self.assertTrue(source_sidecar.exists())
+        self.assertEqual(
+            json.loads(source_sidecar.read_text(encoding="utf-8"))["artifact_role"],
+            "montage_wall",
+        )
 
 
 if __name__ == "__main__":

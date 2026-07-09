@@ -24,6 +24,7 @@ from video_pipeline_core import (
     material_delta,
     material_generation_fallback,
 )
+from video_pipeline_core.montage_wall import write_image_contact_wall
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -161,23 +162,17 @@ def _case_specs() -> list[dict]:
 
 
 def _contact_sheet(images: list[Path], out: Path, title: str) -> None:
-    thumb_w, thumb_h = 320, 180
-    cols = 2
-    rows = max(1, (len(images) + cols - 1) // cols)
-    sheet = Image.new("RGB", (cols * thumb_w, rows * (thumb_h + 32) + 48), "#111827")
-    draw = ImageDraw.Draw(sheet)
-    font = ImageFont.load_default()
-    draw.text((12, 12), title, fill="#ffffff", font=font)
-    for idx, image_path in enumerate(images):
-        with Image.open(image_path) as image:
-            image = image.convert("RGB")
-            image.thumbnail((thumb_w, thumb_h))
-            x = (idx % cols) * thumb_w
-            y = 48 + (idx // cols) * (thumb_h + 32)
-            sheet.paste(image, (x, y))
-            draw.text((x + 8, y + thumb_h + 8), image_path.name, fill="#ffffff", font=font)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(out)
+    items = [
+        {
+            "asset_id": image_path.stem,
+            "shot_id": image_path.stem,
+            "image_path": str(image_path),
+            "timestamp_sec": float(idx),
+            "reason": title,
+        }
+        for idx, image_path in enumerate(images)
+    ]
+    write_image_contact_wall(items, out, out.with_suffix(".json"))
 
 
 def _summary(delta_payload: Mapping[str, Any]) -> dict:

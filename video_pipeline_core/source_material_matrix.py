@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .keyframe_grid import probe_duration
+from .montage_wall import write_image_contact_wall
 from .platform_tools import resolve_ffmpeg
 from .soundtrack_probe import build_soundtrack_probe
 
@@ -159,42 +160,17 @@ def _review_lookup(visual_review: dict[str, Any] | None) -> dict[str, dict[str, 
 
 
 def _make_contact_sheet(windows: list[dict[str, Any]], out_path: str | Path) -> str:
-    from PIL import Image, ImageDraw
-
     out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    if not windows:
-        Image.new("RGB", (640, 180), "#f6f7fb").save(out)
-        return str(out)
-
-    thumb_w, thumb_h = 220, 124
-    label_h = 34
-    cols = 4
-    rows = (len(windows) + cols - 1) // cols
-    sheet = Image.new("RGB", (cols * thumb_w, rows * (thumb_h + label_h)), "#f6f7fb")
-    draw = ImageDraw.Draw(sheet)
-
-    for idx, window in enumerate(windows):
-        x = (idx % cols) * thumb_w
-        y = (idx // cols) * (thumb_h + label_h)
-        frame_path = ((window.get("visual") or {}).get("keyframe"))
-        try:
-            thumb = Image.open(frame_path).convert("RGB")
-            thumb.thumbnail((thumb_w, thumb_h))
-            paste_x = x + (thumb_w - thumb.width) // 2
-            paste_y = y + (thumb_h - thumb.height) // 2
-            sheet.paste(thumb, (paste_x, paste_y))
-        except Exception:
-            draw.rectangle([x, y, x + thumb_w - 1, y + thumb_h - 1], fill="#d9dee8")
-            draw.text((x + 10, y + 48), "keyframe unavailable", fill="#526070")
-
-        start = float(window.get("start_sec") or 0)
-        end = float(window.get("end_sec") or 0)
-        label = f"{window.get('window_id')}  {start:.0f}-{end:.0f}s"
-        draw.rectangle([x, y + thumb_h, x + thumb_w - 1, y + thumb_h + label_h - 1], fill="#ffffff")
-        draw.text((x + 8, y + thumb_h + 9), label, fill="#172033")
-
-    sheet.save(out, quality=90)
+    items = []
+    for window in windows:
+        items.append({
+            "window_id": window.get("window_id"),
+            "shot_id": window.get("window_id"),
+            "start_sec": window.get("start_sec", 0.0),
+            "timestamp_sec": round((float(window.get("start_sec") or 0.0) + float(window.get("end_sec") or 0.0)) / 2.0, 3),
+            "image_path": (window.get("visual") or {}).get("keyframe"),
+        })
+    write_image_contact_wall(items, out, out.with_suffix(".json"))
     return str(out)
 
 
@@ -296,6 +272,7 @@ def build_source_material_matrix(
         "window_sec": float(window_sec),
         "visual": {
             "contact_sheet": "source_material_matrix_contact_sheet.jpg",
+            "contact_sheet_index": "source_material_matrix_contact_sheet.json",
             "frames_dir": "source_matrix_frames",
         },
         "audio": {

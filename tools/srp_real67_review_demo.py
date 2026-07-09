@@ -332,14 +332,45 @@ def _story_slot_midpoints(plan):
 
 
 def build_contact_sheet(final_mp4, plan, out_path):
-    """(I/O) One cell per story slot via the existing keyframe_grid contact sheet."""
-    from video_pipeline_core import keyframe_grid  # noqa: PLC0415
+    """(I/O) One cell per story slot via the canonical montage wall."""
+    from video_pipeline_core.montage_wall import write_montage_wall  # noqa: PLC0415
+    from video_pipeline_core.sampling_coverage import write_sampling_coverage_report  # noqa: PLC0415
     mids = _story_slot_midpoints(plan)
     if not mids:
         raise Blocked("no story slots to build a contact sheet from")
-    meta = keyframe_grid.generate_keyframe_grid(
-        str(final_mp4), str(out_path),
-        columns=min(3, len(mids)), timestamps=mids)
+    out = Path(out_path)
+    samples = [
+        {
+            "sample_id": f"s{idx:04d}",
+            "shot_id": f"story_slot_{idx:03d}",
+            "timestamp_sec": ts,
+            "target_timestamp_sec": ts,
+            "reason": "baseline",
+        }
+        for idx, ts in enumerate(mids, start=1)
+    ]
+    shots = [
+        {
+            "shot_id": sample["shot_id"],
+            "start_sec": max(0.0, float(sample["timestamp_sec"]) - 0.001),
+            "end_sec": float(sample["timestamp_sec"]) + 0.001,
+        }
+        for sample in samples
+    ]
+    plan_payload = {
+        "artifact_role": "sampling_plan",
+        "version": 1,
+        "source_video": str(final_mp4),
+        "shots": shots,
+        "samples": samples,
+        "limitations": ["SRP demo story slots are preselected timestamps."],
+    }
+    plan_path = out.with_suffix(".sampling_plan.json")
+    coverage_path = out.with_suffix(".sampling_coverage_report.json")
+    plan_path.write_text(json.dumps(plan_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_sampling_coverage_report(plan_path, shots, coverage_path, max_gap_sec=1.0)
+    sidecar = out.with_suffix(".json")
+    meta = write_montage_wall(str(final_mp4), plan_path, coverage_path, out, sidecar, profile="segment_strip")
     if not Path(out_path).exists() or Path(out_path).stat().st_size <= 0:
         raise Blocked(f"contact sheet was not written: {out_path}")
     return meta
