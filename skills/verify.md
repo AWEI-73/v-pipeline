@@ -20,46 +20,272 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
     {
       "tool": "tools/stage5_final_review_smoke.py",
       "when": "驗證 final review / delivery gate 邊界，不重跑完整 render",
-      "inputs": ["stage5 fixture or run folder"],
-      "outputs": ["stage5_final_review_smoke_report.json"],
-      "stop_if": ["delivery evidence missing or hard gate fails"]
+      "inputs": [
+        "stage5 fixture or run folder"
+      ],
+      "outputs": [
+        "stage5_final_review_smoke_report.json"
+      ],
+      "stop_if": [
+        "delivery evidence missing or hard gate fails"
+      ]
     },
     {
       "tool": "tools/reviewer_flow_acceptance.py",
       "when": "驗證 reviewer flow 是否會 fail-closed 並回報正確 route",
-      "inputs": ["review fixture or run folder"],
-      "outputs": ["reviewer_flow_acceptance_report.json"],
-      "stop_if": ["reviewer blocks or missing review artifact"]
+      "inputs": [
+        "review fixture or run folder"
+      ],
+      "outputs": [
+        "reviewer_flow_acceptance_report.json"
+      ],
+      "stop_if": [
+        "reviewer blocks or missing review artifact"
+      ]
     },
     {
       "tool": "tools/write_delivery_gate_report.py",
       "when": "write delivery_gate.json from current run artifacts so verify_result.pass=true cannot be mistaken for delivery readiness",
-      "inputs": ["run folder with verify/material/audio/subtitle/effect evidence"],
-      "outputs": ["delivery_gate.json"],
-      "stop_if": ["delivery gate blocks or required evidence is missing"]
+      "inputs": [
+        "run folder with verify/material/audio/subtitle/effect evidence"
+      ],
+      "outputs": [
+        "delivery_gate.json"
+      ],
+      "stop_if": [
+        "delivery gate blocks or required evidence is missing"
+      ]
     },
     {
       "tool": "tools/final_product_verify.py",
       "when": "build complete-video eye/ear evidence for a final or draft candidate before delivery or Brownfield repair",
-      "inputs": ["final.mp4 or draft candidate video"],
-      "outputs": ["final_product_verify_bundle.json", "keyframe_grid.jpg", "visual_audit.json", "final_audio.wav", "soundtrack_probe_report.json"],
-      "stop_if": ["video cannot be sampled", "audio cannot be extracted", "visual or audio evidence fails"]
+      "inputs": [
+        "final.mp4 or draft candidate video"
+      ],
+      "outputs": [
+        "final_product_verify_bundle.json",
+        "keyframe_grid.jpg",
+        "visual_audit.json",
+        "final_audio.wav",
+        "soundtrack_probe_report.json"
+      ],
+      "stop_if": [
+        "video cannot be sampled",
+        "audio cannot be extracted",
+        "visual or audio evidence fails"
+      ]
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/orphan_audit.py",
       "when": "檢查是否有孤兒 render / ffmpeg / long-running process",
-      "inputs": ["optional process filters"],
-      "outputs": ["orphan audit report"],
-      "stop_if": ["unsafe long-running process is found"]
+      "inputs": [
+        "optional process filters"
+      ],
+      "outputs": [
+        "orphan audit report"
+      ],
+      "stop_if": [
+        "unsafe long-running process is found"
+      ]
     },
     {
       "tool": "tools/test_tiers.py",
       "when": "列出或執行測試分層，用於 focused/full regression 決策",
-      "inputs": ["test tier name"],
-      "outputs": ["test tier command/report"],
-      "stop_if": ["requested tier is unknown"]
+      "inputs": [
+        "test tier name"
+      ],
+      "outputs": [
+        "test tier command/report"
+      ],
+      "stop_if": [
+        "requested tier is unknown"
+      ]
+    },
+    {
+      "tool": "tools/agent_transcript_repair.py",
+      "when": "Draft agent transcript repair suggestions from ASR/subtitle evidence",
+      "inputs": [
+        "subtitle draft",
+        "ASR transcript"
+      ],
+      "outputs": [
+        "agent transcript repair suggestions"
+      ],
+      "stop_if": [
+        "source transcript evidence is missing"
+      ]
+    },
+    {
+      "tool": "tools/effect_director_review.py",
+      "when": "Review effect output evidence before Verify accepts an effect claim",
+      "inputs": [
+        "effect artifacts",
+        "frame evidence"
+      ],
+      "outputs": [
+        "effect director review report"
+      ],
+      "stop_if": [
+        "visual evidence is missing or blocking findings exist"
+      ]
+    },
+    {
+      "tool": "tools/independent_voiceover_asr_qa.py",
+      "when": "Run independent ASR QA on generated voiceover output",
+      "inputs": [
+        "voiceover audio",
+        "expected narration"
+      ],
+      "outputs": [
+        "independent voiceover ASR QA report"
+      ],
+      "stop_if": [
+        "ASR evidence is missing or mismatched"
+      ]
+    },
+    {
+      "tool": "tools/montage_design_review.py",
+      "when": "Review montage structure and story hook/payoff evidence",
+      "inputs": [
+        "render candidate",
+        "contact sheet or frame evidence"
+      ],
+      "outputs": [
+        "montage design review report"
+      ],
+      "stop_if": [
+        "plain-title opener, static shot, or missing payoff is found"
+      ]
+    },
+    {
+      "tool": "tools/no_skip_execution_trace.py",
+      "when": "Verify rendered rehearsal execution was not skipped or self-certified",
+      "inputs": [
+        "run folder",
+        "execution trace"
+      ],
+      "outputs": [
+        "no skip contract decision"
+      ],
+      "stop_if": [
+        "execution trace is missing, stale, or self-authored"
+      ]
+    },
+    {
+      "tool": "tools/rendered_product_qa.py",
+      "when": "Run rendered product QA against frame/contact-sheet evidence",
+      "inputs": [
+        "rendered candidate",
+        "review evidence"
+      ],
+      "outputs": [
+        "rendered product QA report"
+      ],
+      "stop_if": [
+        "frame or contact-sheet evidence is missing"
+      ]
+    },
+    {
+      "tool": "tools/source_speech_subtitle_qa.py",
+      "when": "Check source-speech subtitle coverage and route gaps to human review",
+      "inputs": [
+        "source media",
+        "subtitle file",
+        "speech evidence"
+      ],
+      "outputs": [
+        "source speech subtitle QA report"
+      ],
+      "stop_if": [
+        "later speech coverage is missing without human review route"
+      ]
+    },
+    {
+      "tool": "tools/title_effect_lifecycle_qa.py",
+      "when": "Check title/effect lifecycle timing, overlap, and persistence evidence",
+      "inputs": [
+        "render candidate",
+        "effect timing metadata"
+      ],
+      "outputs": [
+        "title effect lifecycle QA report"
+      ],
+      "stop_if": [
+        "persistent cards, overlap, or missing timing evidence is found"
+      ]
+    },
+    {
+      "tool": "tools/voiceover_leadin_qa.py",
+      "when": "Detect extra spoken lead-in tokens before expected narration",
+      "inputs": [
+        "voiceover audio",
+        "expected narration"
+      ],
+      "outputs": [
+        "voiceover lead-in QA report"
+      ],
+      "stop_if": [
+        "unexpected lead-in speech is detected"
+      ]
+    },
+    {
+      "tool": "tools/voiceover_output_qa.py",
+      "when": "Check generated voiceover output for style/control leakage and content evidence",
+      "inputs": [
+        "voiceover audio",
+        "expected narration",
+        "provider metadata"
+      ],
+      "outputs": [
+        "voiceover output QA report"
+      ],
+      "stop_if": [
+        "style leakage or missing content evidence is detected"
+      ]
+    },
+    {
+      "tool": "tools/voxcpm_leadin_diagnostic.py",
+      "when": "Classify VoxCPM lead-in behavior and whether safe postprocess exists",
+      "inputs": [
+        "VoxCPM output audio",
+        "expected narration"
+      ],
+      "outputs": [
+        "VoxCPM lead-in diagnostic report"
+      ],
+      "stop_if": [
+        "provider is blocked with no safe fix"
+      ]
+    },
+    {
+      "tool": "tools/write_human_transcript_review_decision.py",
+      "when": "Write the human transcript review decision that closes ASR-derived subtitle repair",
+      "inputs": [
+        "reviewer decision",
+        "repair suggestions"
+      ],
+      "outputs": [
+        "human_transcript_review_decision.json"
+      ],
+      "stop_if": [
+        "reviewer is non-human or decision is incomplete"
+      ]
+    },
+    {
+      "tool": "tools/write_story_human_review_decision.py",
+      "when": "Write the human story review decision that closes story-human-review waiting states",
+      "inputs": [
+        "reviewer decision",
+        "story review packet"
+      ],
+      "outputs": [
+        "story_human_review_decision.json"
+      ],
+      "stop_if": [
+        "reviewer is non-human or decision is incomplete"
+      ]
     }
   ],
   "forbidden_tools": [

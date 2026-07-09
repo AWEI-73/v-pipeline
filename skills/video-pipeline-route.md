@@ -22,130 +22,397 @@ This is the operator entry skill for the full Hermes Video Pipeline.
     {
       "tool": "tools/pipeline_home.py",
       "when": "Read the current cursor, mode, and next action of the run folder to prevent agents from guessing the route",
-      "inputs": ["run folder"],
-      "outputs": ["pipeline_home state JSON"],
-      "stop_if": ["mode=waiting", "next action asks for repair or review"]
+      "inputs": [
+        "run folder"
+      ],
+      "outputs": [
+        "pipeline_home state JSON"
+      ],
+      "stop_if": [
+        "mode=waiting",
+        "next action asks for repair or review"
+      ]
     },
     {
       "tool": "tools/video_intent_acceptance.py",
       "when": "驗證 Stage 0 Video Intent Planner 與模糊需求分流",
-      "inputs": ["brief text or fixture"],
-      "outputs": ["video_intent_acceptance_report.json"],
-      "stop_if": ["required_followup_questions remains unresolved"]
+      "inputs": [
+        "brief text or fixture"
+      ],
+      "outputs": [
+        "video_intent_acceptance_report.json"
+      ],
+      "stop_if": [
+        "required_followup_questions remains unresolved"
+      ]
     },
     {
       "tool": "tools/operator_flow_acceptance.py",
       "when": "驗證 bounded operator package 是否完整，不做正式 render",
-      "inputs": ["operator run folder"],
-      "outputs": ["operator_flow_acceptance_report.json"],
-      "stop_if": ["report ok=false", "protected artifacts changed unexpectedly"]
+      "inputs": [
+        "operator run folder"
+      ],
+      "outputs": [
+        "operator_flow_acceptance_report.json"
+      ],
+      "stop_if": [
+        "report ok=false",
+        "protected artifacts changed unexpectedly"
+      ]
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/preflight.py",
       "when": "開工前檢查環境:python/ffmpeg/node/依賴模組/API key 是否就緒",
-      "inputs": ["repo root", ".env.example key names"],
-      "outputs": ["capability summary JSON + human report"],
-      "stop_if": ["--strict 模式下缺硬性依賴"]
+      "inputs": [
+        "repo root",
+        ".env.example key names"
+      ],
+      "outputs": [
+        "capability summary JSON + human report"
+      ],
+      "stop_if": [
+        "--strict 模式下缺硬性依賴"
+      ]
     },
     {
       "tool": "tools/canonical_route_acceptance.py",
       "when": "回歸 canonical route artifacts 與 route surface",
-      "inputs": ["route fixture or run folder"],
-      "outputs": ["canonical route acceptance report"],
-      "stop_if": ["route artifact is missing or stale"]
+      "inputs": [
+        "route fixture or run folder"
+      ],
+      "outputs": [
+        "canonical route acceptance report"
+      ],
+      "stop_if": [
+        "route artifact is missing or stale"
+      ]
     },
     {
       "tool": "tools/pipeline_map.py",
       "when": "產生人類可讀的 pipeline/tool/artifact map",
-      "inputs": ["repo root"],
-      "outputs": ["pipeline map report"],
-      "stop_if": ["map generation fails"]
+      "inputs": [
+        "repo root"
+      ],
+      "outputs": [
+        "pipeline map report"
+      ],
+      "stop_if": [
+        "map generation fails"
+      ]
     },
     {
       "tool": "tools/run_artifact_index.py",
       "when": "operator, dashboard, or agent needs a compact review index for a run folder instead of reading every generated file",
-      "inputs": ["run folder"],
-      "outputs": ["run_artifact_index.json"],
-      "stop_if": ["run folder is missing", "decision/contract/evidence files are hidden as debug noise"]
+      "inputs": [
+        "run folder"
+      ],
+      "outputs": [
+        "run_artifact_index.json"
+      ],
+      "stop_if": [
+        "run folder is missing",
+        "decision/contract/evidence files are hidden as debug noise"
+      ]
     },
     {
       "tool": "tools/skill_tool_contract_audit.py",
       "when": "檢查 skills/*.md 的 Tool Contract 與 tools/*.py 歸屬是否完整",
-      "inputs": ["skills directory", "tools directory"],
-      "outputs": ["skill_tool_contract_audit_report"],
-      "stop_if": ["unowned tool exists", "contract block is malformed"]
+      "inputs": [
+        "skills directory",
+        "tools directory"
+      ],
+      "outputs": [
+        "skill_tool_contract_audit_report"
+      ],
+      "stop_if": [
+        "unowned tool exists",
+        "contract block is malformed"
+      ]
     },
     {
       "tool": "tools/pipeline_interface_audit.py",
       "when": "審計主線與支線的 pipeline API/interface 字典，確認各支線 request、handoff、repair 接口都有對齊",
-      "inputs": ["optional dictionary path", "optional branch registry path"],
-      "outputs": ["pipeline_interface_audit_report"],
-      "stop_if": ["major side branch lacks request/handoff/repair coverage", "referenced tool is missing", "protected canonical output can be written by a side branch interface"]
+      "inputs": [
+        "optional dictionary path",
+        "optional branch registry path"
+      ],
+      "outputs": [
+        "pipeline_interface_audit_report"
+      ],
+      "stop_if": [
+        "major side branch lacks request/handoff/repair coverage",
+        "referenced tool is missing",
+        "protected canonical output can be written by a side branch interface"
+      ]
     },
     {
       "tool": "tools/pipeline_interface_discovery.py",
       "when": "自動探查主線與支線可能漏登的 pipeline API/interface 候選者並與字典對照",
-      "inputs": ["optional dictionary path", "optional branch registry path", "optional skills-dir", "optional tools-dir"],
-      "outputs": ["pipeline_interface_discovery_report"],
-      "stop_if": ["missing candidates detection error"]
+      "inputs": [
+        "optional dictionary path",
+        "optional branch registry path",
+        "optional skills-dir",
+        "optional tools-dir"
+      ],
+      "outputs": [
+        "pipeline_interface_discovery_report"
+      ],
+      "stop_if": [
+        "missing candidates detection error"
+      ]
     },
     {
       "tool": "tools/product_artifact_dictionary_audit.py",
       "when": "審計產品產物字典，確認上游語意能對應到剪輯、音訊、特效、字幕口白與驗證的功能性參數",
-      "inputs": ["optional product artifact dictionary path"],
-      "outputs": ["pipeline_product_artifact_dictionary_audit_report"],
-      "stop_if": ["required product artifacts are missing", "functional parameters are missing"]
+      "inputs": [
+        "optional product artifact dictionary path"
+      ],
+      "outputs": [
+        "pipeline_product_artifact_dictionary_audit_report"
+      ],
+      "stop_if": [
+        "required product artifacts are missing",
+        "functional parameters are missing"
+      ]
     },
     {
       "tool": "tools/compile_edit_decision_plan.py",
       "when": "從 rough cut 與 audio/effect/subtitle handoff 編譯 edit_decision_plan 與 build_handoff，不 render",
-      "inputs": ["run folder with rough_cut_plan and optional branch handoffs"],
-      "outputs": ["edit_decision_plan.json", "audio_decision_plan.json", "effect_decision_plan.json", "subtitle_voiceover_decision_plan.json", "build_handoff.json"],
-      "stop_if": ["required material rough cut is missing", "deferred branch handoffs must be resolved before BUILD"]
+      "inputs": [
+        "run folder with rough_cut_plan and optional branch handoffs"
+      ],
+      "outputs": [
+        "edit_decision_plan.json",
+        "audio_decision_plan.json",
+        "effect_decision_plan.json",
+        "subtitle_voiceover_decision_plan.json",
+        "build_handoff.json"
+      ],
+      "stop_if": [
+        "required material rough cut is missing",
+        "deferred branch handoffs must be resolved before BUILD"
+      ]
     },
     {
       "tool": "tools/route_orchestrator_acceptance.py",
       "when": "驗證 route task packet / runner protocol 不被 worker 越界",
-      "inputs": ["route task fixture"],
-      "outputs": ["route orchestrator acceptance report"],
-      "stop_if": ["task packet violates must_not_touch or freshness rules"]
+      "inputs": [
+        "route task fixture"
+      ],
+      "outputs": [
+        "route orchestrator acceptance report"
+      ],
+      "stop_if": [
+        "task packet violates must_not_touch or freshness rules"
+      ]
     },
     {
       "tool": "tools/srp_acceptance_replay.py",
       "when": "重播 subagent runner protocol acceptance case",
-      "inputs": ["SRP fixture"],
-      "outputs": ["SRP replay report"],
-      "stop_if": ["replay diverges from expected route state"]
+      "inputs": [
+        "SRP fixture"
+      ],
+      "outputs": [
+        "SRP replay report"
+      ],
+      "stop_if": [
+        "replay diverges from expected route state"
+      ]
     },
     {
       "tool": "tools/srp_real67_fuller_replay.py",
       "when": "針對第67期案例重播較完整 route 行為",
-      "inputs": ["real67 fixture/run folder"],
-      "outputs": ["real67 replay report"],
-      "stop_if": ["route state blocks or fixture is stale"]
+      "inputs": [
+        "real67 fixture/run folder"
+      ],
+      "outputs": [
+        "real67 replay report"
+      ],
+      "stop_if": [
+        "route state blocks or fixture is stale"
+      ]
     },
     {
       "tool": "tools/srp_real67_review_demo.py",
       "when": "示範 real67 reviewer handoff，不作正式 build",
-      "inputs": ["real67 review fixture"],
-      "outputs": ["review demo report"],
-      "stop_if": ["review artifact missing"]
+      "inputs": [
+        "real67 review fixture"
+      ],
+      "outputs": [
+        "review demo report"
+      ],
+      "stop_if": [
+        "review artifact missing"
+      ]
     },
     {
       "tool": "tools/srp_real67_sanity.py",
       "when": "快速檢查 real67 route artifacts 是否仍可讀",
-      "inputs": ["real67 run folder"],
-      "outputs": ["sanity report"],
-      "stop_if": ["required artifact missing"]
+      "inputs": [
+        "real67 run folder"
+      ],
+      "outputs": [
+        "sanity report"
+      ],
+      "stop_if": [
+        "required artifact missing"
+      ]
     },
     {
       "tool": "tools/validate_pipeline_run_folder.py",
       "when": "驗證 run folder 結構和必備 artifacts",
-      "inputs": ["run folder"],
-      "outputs": ["run folder validation report"],
-      "stop_if": ["layout invalid"]
+      "inputs": [
+        "run folder"
+      ],
+      "outputs": [
+        "run folder validation report"
+      ],
+      "stop_if": [
+        "layout invalid"
+      ]
+    },
+    {
+      "tool": "tools/doc_reference_hygiene.py",
+      "when": "Check documentation references that route reports and registries depend on",
+      "inputs": [
+        "docs tree",
+        "reference manifest"
+      ],
+      "outputs": [
+        "doc reference hygiene report"
+      ],
+      "stop_if": [
+        "missing or stale reference is found"
+      ]
+    },
+    {
+      "tool": "tools/factory_improvement_loop.py",
+      "when": "Run route-level improvement-loop evidence for factory/product-route closure",
+      "inputs": [
+        "run folder",
+        "route artifacts"
+      ],
+      "outputs": [
+        "factory improvement loop report"
+      ],
+      "stop_if": [
+        "loop evidence is missing or blocks"
+      ]
+    },
+    {
+      "tool": "tools/film_canon_readiness.py",
+      "when": "Evaluate film-canon product-route readiness before production handoff",
+      "inputs": [
+        "film canon artifacts",
+        "review decision"
+      ],
+      "outputs": [
+        "film canon readiness report"
+      ],
+      "stop_if": [
+        "readiness is waiting, repair, or unknown"
+      ]
+    },
+    {
+      "tool": "tools/film_canon_route.py",
+      "when": "Create or inspect registered film-canon route artifacts without rendering delivery output",
+      "inputs": [
+        "film type",
+        "source metadata",
+        "brief"
+      ],
+      "outputs": [
+        "film canon route artifacts"
+      ],
+      "stop_if": [
+        "unknown film type or required source metadata is missing"
+      ]
+    },
+    {
+      "tool": "tools/graduation_film_blueprint_catalog.py",
+      "when": "Build graduation film blueprint/catalog planning artifacts for the product route",
+      "inputs": [
+        "graduation brief",
+        "source metadata"
+      ],
+      "outputs": [
+        "graduation blueprint and catalog artifacts"
+      ],
+      "stop_if": [
+        "catalog assignments need human confirmation"
+      ]
+    },
+    {
+      "tool": "tools/route_closure_integrity.py",
+      "when": "Check that route-closure artifacts are pipeline-owned and not self-authored substitutes",
+      "inputs": [
+        "run folder",
+        "closure artifacts"
+      ],
+      "outputs": [
+        "route closure integrity report"
+      ],
+      "stop_if": [
+        "closure artifact provenance is missing or invalid"
+      ]
+    },
+    {
+      "tool": "tools/run_graduation_product_route.py",
+      "when": "Run the graduation product-route harness through canon, catalog, readiness, and review packet stages",
+      "inputs": [
+        "fixture or source metadata",
+        "route options"
+      ],
+      "outputs": [
+        "graduation product route harness result"
+      ],
+      "stop_if": [
+        "harness stops at waiting, repair, unknown, or missing evidence"
+      ]
+    },
+    {
+      "tool": "tools/visual_selection_gate.py",
+      "when": "Gate render-facing visual selections before production handoff",
+      "inputs": [
+        "visual selection candidates",
+        "review decision"
+      ],
+      "outputs": [
+        "visual selection gate report"
+      ],
+      "stop_if": [
+        "accepted selection lacks visual confirmation evidence"
+      ]
+    },
+    {
+      "tool": "tools/write_product_route_review_decision.py",
+      "when": "Write the human product-route review decision consumed by readiness checks",
+      "inputs": [
+        "reviewer decision",
+        "review packet"
+      ],
+      "outputs": [
+        "product_route_review_decision.json"
+      ],
+      "stop_if": [
+        "reviewer is non-human or decision is incomplete"
+      ]
+    },
+    {
+      "tool": "tools/write_visual_selection_review.py",
+      "when": "Write the human visual-selection review decision for sensitive render-facing choices",
+      "inputs": [
+        "reviewer decision",
+        "candidate evidence"
+      ],
+      "outputs": [
+        "visual_selection_review.json"
+      ],
+      "stop_if": [
+        "review lacks reviewer, evidence, forbidden-role checks, or reason"
+      ]
     }
   ],
   "forbidden_tools": [
