@@ -83,8 +83,9 @@ Stage 0 required decisions:
 - `entry_path`: `material-first`, `structure-first`, or `needs-context`.
 - `material_scan_decision`: whether material-first should scan all material or
   only a user-specified scope.
-- `soundtrack_contract`: song/BGM/mixed/none intent, vocal policy, license and
-  fallback policy, speech preservation, and ducking.
+- `soundtrack_contract`: song/BGM/mixed/none intent, vocal policy,
+  `music_use_basis` for human-declared internal/rehearsal use when applicable,
+  source/license policy, fallback policy, speech preservation, and ducking.
 - `subtitle_voiceover_contract`: subtitle language, narration, voiceover, and
   handoff target.
 - `effect_policy`: whether a bounded effect routes now or waits for segment /
@@ -239,6 +240,18 @@ no material assignments.
 Production may be handed off only when `production_readiness_gate.json` has
 `ready_for_production=true`; product-route approval is not final delivery
 approval.
+Use `tools/run_graduation_product_route.py` as the thin execution harness when
+checking the locked graduation rehearsal path. The harness records
+`pipeline_execution_trace.json`, calls or inspects the existing owner tools, and
+stops at the first upstream WAITING / REPAIR / UNKNOWN / missing-evidence gate.
+Before a graduation route becomes render-facing, run
+`tools/visual_selection_gate.py` or consume `visual_selection_gate.json`.
+Token/folder/path matches are candidate evidence only. Sensitive beats such as
+newcomer, basic training, supervisor source speech, teacher/class intro,
+opening, and closing need accepted visual confirmation evidence first.
+Write those decisions with `tools/write_visual_selection_review.py`; rejected
+and `needs_repick` decisions remain blocking, and accepted supervisor source
+speech still requires video, audio, and speech evidence.
 
 ### BUILD Decision Section
 
@@ -639,7 +652,8 @@ subtitles, voiceover, narration, and final mix policy.
 This branch includes three lanes:
 
 - Source Audio: original speech, ambience, on-camera sound, keep/remove policy.
-- Soundtrack: song, BGM, mixed section strategy, source, license, fallback.
+- Soundtrack: song, BGM, mixed section strategy, source evidence,
+  `music_use_basis`, license/rights caveat, fallback.
 - Caption & Voice: subtitles, narration, voiceover, TTS/voice repo handoff.
 
 ```text
@@ -688,12 +702,15 @@ Common policies:
   VoxCPM and fail closed unless the contract explicitly allows fallback.
 - Songs with vocals and instrumental BGM are different roles. Role fallback
   requires review.
+- Source-folder or human-specified music may be used for internal/rehearsal
+  only when `music_use_basis.status=human_declared_allowed` is recorded. This
+  does not claim legal approval or external publication rights.
 - Famous songs or YouTube references may be `reference_only` unless the license
-  is explicitly acceptable for the run.
+  or human-declared internal-use basis is explicitly acceptable for the run.
 
 Stop gates:
 
-- license/source unknown;
+- source evidence and music-use basis unknown;
 - speech preservation policy missing when the source may contain speech;
 - music role fallback happened silently;
 - soundtrack probe is missing for accepted downloaded audio when final delivery
@@ -807,6 +824,50 @@ Handoff artifacts:
 - `soundtrack_probe_report.json`
 - `audio_mix_report.json`
 - `run_layout.json`
+- `voiceover_output_qa.json`
+- `agent_transcript_repair_suggestions.json`
+- `subtitles.draft.srt`
+- `human_transcript_review_decision.json`
+- `voiceover_leadin_qa.json`
+- `voxcpm_provider_leadin_diagnostic.json`
+- `lead_in_trim_probe.json`
+- `provider_leadin_classification.json`
+- `title_effect_lifecycle_qa.json`
+- `source_speech_subtitle_qa.json`
+- `pipeline_execution_trace.json`
+- `gate_authenticity_audit.json`
+- `rendered_product_qa.json`
+- `no_skip_contract_decision.json`
+
+Focused final-candidate QA:
+
+- voiceover output QA must inspect generated output evidence, not only the
+  intended script, and fail closed on style/control leakage.
+- independent voiceover ASR QA must back voiceover output QA when content
+  review finds audible control leakage; provider manifest text alone is not
+  enough.
+- title/effect lifecycle QA must record appear/disappear timing and evidence
+  that title cards do not persist into the next section.
+- effect director review must inspect frame sequence or video samples, not only
+  metadata, before title/effect quality is accepted.
+- source-speech subtitle QA must cover the later part of source speech or route
+  human transcript review visibly.
+- rendered product QA must be produced by `tools/rendered_product_qa.py` before
+  no-skip trace when a rendered rehearsal or final candidate exists.
+- ASR-derived subtitles must route through agent transcript repair suggestions
+  and remain pending until a human transcript review decision approves the
+  reviewed draft/cue ids.
+- voiceover lead-in QA must compare expected narration with independent ASR and
+  block extra spoken tokens before the expected script.
+- repeated VoxCPM lead-in failures should run provider lead-in diagnostic and
+  trim probes before any final assembly is attempted.
+- montage design review must record opener/MV shot functions, timing, title
+  sync, transitions, and story hook/payoff.
+- no-skip execution trace must classify canonical gate artifacts by owner.
+  Run-local worker generated, copied-from-prior, unknown, or missing-owner
+  gate artifacts cannot clear a rendered rehearsal or verified preview
+  candidate. Rendered product QA must inspect frame/contact-sheet evidence, not
+  only metadata duration or artifact existence.
 
 Return route:
 

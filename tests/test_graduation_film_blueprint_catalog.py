@@ -22,6 +22,7 @@ from video_pipeline_core.film_canon_production_readiness import (
     build_product_route_review_decision,
     write_film_canon_production_readiness,
 )
+from video_pipeline_core.visual_selection_gate import evaluate_visual_selection_gate
 
 
 def _fixture_materials(root: Path) -> Path:
@@ -489,6 +490,135 @@ class GraduationFilmBlueprintCatalogTest(unittest.TestCase):
                 self.assertNotIn("\ufffd", text)
                 self.assertNotIn("????", text)
 
+    def test_visual_selection_gate_blocks_token_only_sensitive_selections(self):
+        report = evaluate_visual_selection_gate({
+            "selections": [
+                {
+                    "beat_id": "newcomer_training_start",
+                    "source_relative_path": "工安早會/IMG_2120.JPG",
+                    "candidate_source": "token_folder_match",
+                },
+                {
+                    "beat_id": "basic_training",
+                    "source_relative_path": "工安早會/IMG_2124.JPG",
+                    "candidate_source": "token_folder_match",
+                },
+            ]
+        })
+
+        self.assertFalse(report["pass"])
+        rules = {item["rule"] for item in report["blocking"]}
+        self.assertIn("visual_confirmation_missing", rules)
+        self.assertIn("token_only_selection_not_accepted", rules)
+        self.assertEqual(
+            sorted(report["blocked_token_only_selections"]),
+            ["basic_training", "newcomer_training_start"],
+        )
+
+    def test_visual_selection_gate_requires_supervisor_video_audio_speech_evidence(self):
+        report = evaluate_visual_selection_gate({
+            "selections": [
+                {
+                    "beat_id": "supervisor_source_speech",
+                    "source_relative_path": "主任勉勵/IMG_2141.MOV",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "accepted",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/supervisor.jpg",
+                    "forbidden_role_flags_checked": True,
+                    "video_evidence": True,
+                }
+            ]
+        })
+
+        self.assertFalse(report["pass"])
+        self.assertIn(
+            "supervisor_source_speech_missing_audio_speech_evidence",
+            {item["rule"] for item in report["blocking"]},
+        )
+
+    def test_visual_selection_gate_blocks_rejected_and_needs_repick(self):
+        report = evaluate_visual_selection_gate({
+            "selections": [
+                {
+                    "beat_id": "newcomer_training_start",
+                    "source_relative_path": "工安早會/IMG_2120.JPG",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "rejected",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/newcomer.jpg",
+                    "forbidden_role_flags_checked": True,
+                },
+                {
+                    "beat_id": "basic_training",
+                    "source_relative_path": "工安早會/IMG_2124.JPG",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "needs_repick",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/basic.jpg",
+                    "forbidden_role_flags_checked": True,
+                },
+            ]
+        })
+
+        self.assertFalse(report["pass"])
+        self.assertEqual(
+            [item["rule"] for item in report["blocking"]],
+            ["visual_selection_rejected", "visual_selection_needs_repick"],
+        )
+
+    def test_visual_selection_gate_accepts_explicit_visual_evidence(self):
+        report = evaluate_visual_selection_gate({
+            "selections": [
+                {
+                    "beat_id": "newcomer_training_start",
+                    "source_relative_path": "工安早會/IMG_2120.JPG",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "accepted",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/newcomer.jpg",
+                    "reason": "visible trainees at morning roll call",
+                    "forbidden_role_flags_checked": True,
+                    "forbidden_role_flags": {
+                        "supervisor_primary": False,
+                        "director_primary": False,
+                        "portrait_primary": False,
+                    },
+                },
+                {
+                    "beat_id": "basic_training",
+                    "source_relative_path": "工安早會/IMG_2124.JPG",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "accepted",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/basic.jpg",
+                    "reason": "visible training preparation",
+                    "forbidden_role_flags_checked": True,
+                    "forbidden_role_flags": {
+                        "supervisor_primary": False,
+                        "director_primary": False,
+                        "portrait_primary": False,
+                    },
+                },
+                {
+                    "beat_id": "supervisor_source_speech",
+                    "source_relative_path": "主任勉勵/IMG_2141.MOV",
+                    "candidate_source": "agent_visual_review",
+                    "visual_confirmation_status": "accepted",
+                    "reviewer_type": "agent_visual_review",
+                    "representative_frame": "frames/supervisor.jpg",
+                    "reason": "talking-head supervisor source-speech clip",
+                    "forbidden_role_flags_checked": True,
+                    "video_evidence": True,
+                    "audio_evidence": True,
+                    "speech_evidence": True,
+                },
+            ]
+        })
+
+        self.assertTrue(report["pass"], report)
+        self.assertEqual(report["accepted_visual_evidence_count"], 3)
+
     def test_canon_defines_fixed_sections_and_training_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
             source_root = _fixture_materials(Path(tmp))
@@ -540,6 +670,13 @@ class GraduationFilmBlueprintCatalogTest(unittest.TestCase):
         self.assertTrue(any(item["authority"] == "agent_filled" for item in assignments))
         self.assertTrue(all(
             item["needs_human_confirmation"]
+            for item in assignments
+            if item["authority"] == "agent_filled"
+        ))
+        self.assertTrue(all(
+            item["visual_selection_role"] == "candidate"
+            and item["render_facing_status"] == "candidate_only"
+            and item["requires_visual_selection_gate"]
             for item in assignments
             if item["authority"] == "agent_filled"
         ))

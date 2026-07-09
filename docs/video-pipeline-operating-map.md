@@ -74,7 +74,7 @@ completion:
 | 4 | Coverage Gate | Are needs covered, thin, missing, or broken? | `gap-analyzer.md`, `shooting-brief.md`, `video-pipeline-route.md` | `lineage-link`, `material-delta`, `material-revision`, `contract-dry-build`, `contract-run` pre-BUILD gate | `material_delta.json`, `shooting_brief.json`, `revision_decisions.json`, `revised_segment_contract.json` | BUILD only if `delta.ok == true` and `ready_for_build == true`, or accepted revision/waiver re-gates cleanly. | Material Truth / Story revision |
 | 5 | BUILD Planning | Which accepted windows become timeline clips, sequence beats, opening, arc, audio/subtitle/effect cues? | `editor.md`, `audio-director.md`, `subtitle-director.md`, `effects-director.md` | `contract-adapt`, `contract-dry-build`, `rank-local`, `match-mv`, `voiceover-provider-plan`, internal VD/SRP planning in `contract-run` | `generated_mv_script.json`, `rough_cut_plan.json`, `timeline_build.json`, `audio_build_handoff.json`, `subtitle_voiceover_build_handoff.json`, `voiceover_provider_plan.json`, `narration_manifest.json`, `effect_handoff.json`, SRP traces, `sfx_cues`, subtitle plan | Stop if planning creates GAP, unrenderable windows, bad window ranges, required voiceover is not ready/deferred, or contract/runtime mismatch. | Material Truth / Coverage Gate |
 | 6 | Official Render | Produce the canonical video. | `editor.md` | `contract-run`, `script-run`, `assemble`, `merge-final`, `burnsub`, `mix-audio`, `sfx-mix`, `gen-bgm`, `music-fetch` | `final.mp4`, `subtitles.srt`, `artifact_manifest.json`, `state.json` | Pass only if canonical render path succeeds and artifacts are current. | BUILD Planning / runtime fix |
-| 7 | Verify | Does the output match story, material truth, subtitles, audio, and technical constraints? | `verify.md` | `verify`, `verify-evidence`, `final-product-verify`, `timeline-audit`, `broll-audit`, `new-visual-audit`, `black-frame-audit`, `caption-audit`, `keyframe-grid`, `visual-audit`, `semantic-novelty-audit`, `action-progression-audit`, `replay-acceptance` | `verify_result.json`, `final_product_verify_bundle.json`, audit reports, contact sheet, review report | Stop on tier-1 defects; tier-2 findings route to quality/brownfield work. | Material Truth or Brownfield Edit |
+| 7 | Verify | Does the output match story, material truth, subtitles, audio, and technical constraints? | `verify.md` | `verify`, `verify-evidence`, `final-product-verify`, `rendered_product_qa.py`, `timeline-audit`, `broll-audit`, `new-visual-audit`, `black-frame-audit`, `caption-audit`, `keyframe-grid`, `visual-audit`, `semantic-novelty-audit`, `action-progression-audit`, `replay-acceptance` | `verify_result.json`, `final_product_verify_bundle.json`, `rendered_product_qa.json`, audit reports, contact sheet, review report | Stop on tier-1 defects; tier-2 findings route to quality/brownfield work. | Material Truth or Brownfield Edit |
 | 8 | Workbench Draft Review | Can a human/agent inspect and patch the material composition without changing truth? | `dashboard.md`, `brownfield-edit.md` | `tools/workbench_server.py`, `tools/preview_timeline.py`, `tools/timeline_patch.py`, `workbench-handoff-validate`, `workbench-draft-rerender` | `preview_timeline.json`, `timeline_patch.json`, `patched_draft_timeline.json`, `workbench_contract_patch.json`, draft export | Drafts must not overwrite canonical timeline/map/final. | Brownfield Edit / official rerender |
 | 9 | Brownfield Edit / Finishing | What small reviewed fixes or finishing assets are needed after verify/review? | `brownfield-edit.md`, `video-effect-factory.md`, `remotion-effect-worker.md`, `effects-director.md`, `subtitle-director.md`, `audio-director.md` | `effect-revision-request`, `effect-revision-draft`, `effect-revision-apply`, `light-effects-plan`, `remotion-prompt-pack`, `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `workbench-draft-rerender` | `effect_revision_request.json`, `effect_design_map.json`, `effect_contract.json`, `effect_review.json`, `effect_handoff.json`, `remotion_prompt_pack.json`, `remotion_effect_review.json`, non-canonical draft composite | If it changes material truth, return to Stage 3/4. If finishing-only, review the effect handoff, draft/rerender, then verify. | Verify or Material Truth |
 | 10 | Delivery | What can be handed off, with what limitations? | `video-pipeline-route.md`, `verify.md`, `dashboard.md` | `dashboard`, `state`, `run-layout-validate`, `operator-flow-acceptance` | `final.mp4`, `review_report.md`, `contact_sheet.jpg`, `run_layout.json`, delivery notes | Do not mark complete without output path, verify evidence, and known limitations. | Verify / Brownfield Edit |
@@ -652,11 +652,11 @@ python video_tools.py operator-flow-acceptance ...
 | `story-soul-blueprint.md` | creative soul / narrative device / shot plan | `story-soul-blueprint` |
 | `blueprint-interview.md` | interactive story intake | `blueprint-coverage`, `blueprint-compile`, `blueprint-to-contract` |
 | `writer.md` | screenplay/voiceover wording | `story-soul-blueprint`, `blueprint-to-contract` |
-| `film-canon-product-route` | registered film canon selection, product-specific story shell/catalog dry-run, pre-render readiness gate | `tools/film_canon_route.py`, `tools/write_product_route_review_decision.py`, `tools/film_canon_readiness.py`, `tools/graduation_film_blueprint_catalog.py` |
+| `film-canon-product-route` | registered film canon selection, product-specific story shell/catalog dry-run, visual-selection review/confirmation, pre-render readiness gate, locked graduation route trace harness | `tools/film_canon_route.py`, `tools/write_product_route_review_decision.py`, `tools/film_canon_readiness.py`, `tools/graduation_film_blueprint_catalog.py`, `tools/visual_selection_gate.py`, `tools/write_visual_selection_review.py`, `tools/run_graduation_product_route.py` |
 | `director.md` | shot purposes and visual design | `validate-needs`, `contract-dry-build` |
 | `audio-director.md` | BGM, voiceover, cue intent | `gen-bgm`, `music-fetch`, `mix-audio`, `sfx-mix` |
 | `subtitle-director.md` | subtitle plan and fixes | `srt`, `mksrt`, `caption-audit` |
-| `soundtrack-arranger.md` | source-root music discovery, section music planning, source/license handoff | `soundtrack-arrange`, `soundtrack-provider-search`, `soundtrack-import-url`, `soundtrack-audio-handoff-accept` |
+| `soundtrack-arranger.md` | source-root music discovery, section music planning, human-declared music-use basis, source/license handoff | `soundtrack-arrange`, `soundtrack-provider-search`, `soundtrack-import-url`, `soundtrack-audio-handoff-accept` |
 | `effects-director.md` | neutral effect intent and finishing route | `effect-intent-plan`, `light-effects-plan`, `remotion-prompt-pack` |
 | `video-effect-factory.md` | designed effect side branch: design map, contract, backend handoff, review | `effect-revision-*`, `remotion-prompt-pack`, `remotion-worker-outputs`, handoff artifacts |
 | `remotion-effect-worker.md` | bounded Remotion backend worker | `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft`, `tools/remotion_worker_bridge.mjs` |
@@ -795,6 +795,30 @@ Before delivery:
 - `final.mp4` exists from current run
 - verify/audit evidence exists
 - subtitles/audio/effect expectations are stated
+- generated voiceover output has `voiceover_output_qa.json` evidence when
+  narration is used
+- voiceover output QA is backed by independent ASR when content verification
+  reports audible control/style leakage
+- generated voiceover has `voiceover_leadin_qa.json` evidence comparing
+  expected narration against independent ASR, with no extra lead-in tokens
+- repeated VoxCPM lead-in artifacts have
+  `voxcpm_provider_leadin_diagnostic.json`, `lead_in_trim_probe.json`, and
+  `provider_leadin_classification.json` before any postprocess repair is used
+- ASR-derived subtitles have `agent_transcript_repair_suggestions.json` and
+  `subtitles.draft.srt`, and remain pending until
+  `human_transcript_review_decision.json` is written by a human reviewer
+- title/effect overlays have `title_effect_lifecycle_qa.json` timing evidence
+  when designed titles or cards are part of the render
+- designed title/effect work has `effect_director_review.json` based on actual
+  frame/video evidence when visual quality is in scope
+- opener or MV montage repairs have `montage_design_review.json` and a timing
+  map when montage grammar is in scope
+- rendered rehearsal or verified preview candidates have
+  `pipeline_execution_trace.json`, `gate_authenticity_audit.json`, and
+  `rendered_product_qa.json` before `no_skip_contract_decision.json`;
+  run-local or copied gate JSON cannot clear preview verification
+- preserved source speech has `source_speech_subtitle_qa.json` coverage or a
+  visible human transcript review route
 - unresolved limitations are listed
 - `video_only_delivery_waiver.json`, when present, declares a video-only
   delivery limitation only; it does not waive material truth, visual evidence,

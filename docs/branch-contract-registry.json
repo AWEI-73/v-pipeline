@@ -10,7 +10,8 @@
     "Workbench, Effect Factory, Soundtrack Arranger, Subtitle/Voiceover, and Verify must not overwrite upstream canonical truth directly.",
     "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone.",
     "Scripted story human-review closure must use story_human_review_decision.json written by tools/write_story_human_review_decision.py; non-human review does not clear story_human_review_required.",
-    "Film-canon product-route closure must use product_route_review_decision.json written by tools/write_product_route_review_decision.py; product-route approval is not final story or delivery approval."
+    "Film-canon product-route closure must use product_route_review_decision.json written by tools/write_product_route_review_decision.py; product-route approval is not final story or delivery approval.",
+    "Rendered rehearsal or verified preview candidates must carry pipeline_execution_trace.json and no_skip_contract_decision.json; run-local self-authored gate JSON cannot clear preview verification."
   ],
   "branches": [
     {
@@ -261,7 +262,7 @@
     {
       "branch_id": "soundtrack-arranger",
       "name": "Soundtrack Arranger",
-      "purpose": "Owns music/song/BGM sourcing intent, section placement, source candidates, license/source notes, soundtrack probing, and Audio Director handoff.",
+      "purpose": "Owns music/song/BGM sourcing intent, section placement, source candidates, human-declared music-use basis, source/license notes, soundtrack probing, and Audio Director handoff.",
       "docs": [
         "docs/soundtrack-arranger-route.md",
         "RUNBOOK.md"
@@ -281,7 +282,8 @@
         "target sections/durations when available",
         "active source_root when source-folder music/audio may exist",
         "speech/original-audio policy",
-        "source/license policy"
+        "source/license policy",
+        "human-declared music_use_basis when internal/rehearsal use is allowed"
       ],
       "canonical_outputs": [
         "soundtrack_plan.json",
@@ -310,17 +312,19 @@
         "repair_audio_handoff"
       ],
       "stop_gates": [
-        "license/source note missing",
+        "source evidence or music_use_basis missing for selected music",
         "reference-only famous song selected for delivery",
         "required speech preservation or ducking policy unresolved",
         "audio_handoff_acceptance.ok is false",
-        "audio_mix_plan.ready_for_mix is false"
+        "audio_mix_plan.ready_for_mix is false",
+        "missing audio file, failed soundtrack probe, vocal conflict, or section mismatch"
       ],
       "forbidden_writes": [
         "final.mp4",
         "burned-in subtitles",
-        "music delivery without license/source note",
-        "covering required original speech without explicit policy"
+        "music mix without source evidence and applicable music_use_basis",
+        "covering required original speech without explicit policy",
+        "claiming legal approval without explicit rights evidence"
       ],
       "return_to": [
         "main-pipeline",
@@ -692,7 +696,10 @@
         "tools/film_canon_route.py",
         "tools/film_canon_readiness.py",
         "tools/write_product_route_review_decision.py",
-        "tools/graduation_film_blueprint_catalog.py"
+        "tools/graduation_film_blueprint_catalog.py",
+        "tools/visual_selection_gate.py",
+        "tools/write_visual_selection_review.py",
+        "tools/run_graduation_product_route.py"
       ],
       "supported_film_types": [
         "graduation_training_film",
@@ -736,12 +743,17 @@
         "review_packet.json",
         "product_route_review_decision.json",
         "reviewed_catalog_map.json",
+        "visual_selection_candidates.json",
+        "visual_selection_review.json",
+        "visual_selection_gate.json",
         "story_material_planning_handoff.json",
         "audio_subtitle_review_handoff.json",
         "production_readiness_gate.json",
         "production_worker_handoff_prompt.md",
         "product_route_review_packet.md",
-        "product_route_review_packet.json"
+        "product_route_review_packet.json",
+        "pipeline_execution_trace.json",
+        "graduation_product_route_harness_result.json"
       ],
       "handoff_outputs": [
         "graduation_real_source_review_packet.md",
@@ -750,6 +762,7 @@
         "review_packet.json",
         "production_readiness_plan.json",
         "production_readiness_gate.json",
+        "visual_selection_gate.json",
         "opener_closer_design_handoff.json",
         "audio_subtitle_review_handoff.json"
       ],
@@ -758,6 +771,8 @@
         "regenerate_readiness_from_decision_path",
         "human_review_graduation_story_shell",
         "confirm_training_catalog_assignments",
+        "run_visual_selection_gate",
+        "write_visual_selection_review",
         "retarget_opening_or_closing_story",
         "return_to_story_or_material_map"
       ],
@@ -769,10 +784,16 @@
         "product-route approval is non-human",
         "pending review is counted as missing material",
         "revision or rejection routed to production instead of repair",
+        "sensitive render-facing selection is token-only",
+        "sensitive render-facing selection lacks accepted visual confirmation evidence",
+        "visual selection review accepted a token-only source",
+        "visual selection review lacks reviewer, visual evidence, forbidden-role checks, or reason",
+        "supervisor source speech lacks video plus audio/speech evidence",
         "dry-run tries to render final.mp4",
         "dry-run writes story_human_review_decision.json",
         "graduation film canon sections are missing",
-        "unknown film type is selected"
+        "unknown film type is selected",
+        "graduation route harness stops at WAITING, REPAIR, UNKNOWN, human review, or missing evidence"
       ],
       "forbidden_writes": [
         "final.mp4",
@@ -847,6 +868,29 @@
             "confirm_training_catalog_assignments",
             "repair_product_route"
           ]
+        },
+        {
+          "stage": "visual-selection-confirmation",
+          "skill": "skills/director.md",
+          "artifacts_in": [
+            "story_material_planning_handoff.json",
+            "story_to_material_map.json or render-facing visual selections",
+            "visual_selection_review.json when explicit visual review exists"
+          ],
+          "artifacts_out": [
+            "visual_selection_candidates.json",
+            "visual_selection_review.json",
+            "visual_selection_gate.json"
+          ],
+          "gate": "visual_selection_gate.json",
+          "next_actions_on_pass": [
+            "dispatch_production_worker"
+          ],
+          "next_actions_on_fail": [
+            "run_visual_selection_review",
+            "repick_visual_material",
+            "probe_supervisor_source_speech"
+          ]
         }
       ]
     },
@@ -889,7 +933,23 @@
         "verified_preview_package.json",
         "delivery_candidate.mp4",
         "verified_preview_review_decision.json",
-        "story_human_review_decision.json"
+        "story_human_review_decision.json",
+        "agent_transcript_repair_suggestions.json",
+        "subtitles.draft.srt",
+        "human_transcript_review_decision.json",
+        "voiceover_output_qa.json",
+        "voiceover_leadin_qa.json",
+        "voxcpm_provider_leadin_diagnostic.json",
+        "lead_in_trim_probe.json",
+        "provider_leadin_classification.json",
+        "title_effect_lifecycle_qa.json",
+        "source_speech_subtitle_qa.json",
+        "effect_director_review.json",
+        "montage_design_review.json",
+        "pipeline_execution_trace.json",
+        "gate_authenticity_audit.json",
+        "rendered_product_qa.json",
+        "no_skip_contract_decision.json"
       ],
       "handoff_outputs": [
         "workbench_revision_request.json",
@@ -906,7 +966,10 @@
         "promote_verified_preview",
         "human_review_story_to_material_map",
         "revise_story_material_mapping",
-        "repair_rejected_story_material_mapping"
+        "repair_rejected_story_material_mapping",
+        "run_no_skip_execution_trace",
+        "create_rendered_product_qa_owner_tool",
+        "run_rendered_product_qa"
       ],
       "stop_gates": [
         "delivery gate blocks",
@@ -914,12 +977,27 @@
         "verify_result.pass=true but semantic delivery gate fails",
         "reviewer blocks or routes repair",
         "video-only delivery limitations must remain visible",
-        "story_human_review_required remains waiting until a human story review decision approves, requests revision, or rejects"
+        "story_human_review_required remains waiting until a human story review decision approves, requests revision, or rejects",
+        "ASR-derived subtitle routes must expose agent transcript repair suggestions and remain pending until human transcript review",
+        "voiceover output QA detects style/control leakage or lacks output probe evidence",
+        "voiceover output QA lacks independent ASR evidence when content review requires it",
+        "voiceover lead-in QA detects extra spoken tokens before expected narration",
+        "VoxCPM provider lead-in diagnostic classifies provider_blocked_no_safe_fix or lacks a proven safe postprocess route",
+        "title/effect lifecycle QA detects persistent cards, missing end time, overlap, or missing timing evidence",
+        "source-speech subtitle QA detects missing later coverage unless explicitly routed to human transcript review",
+        "effect director review is metadata-only or has blocking visual findings",
+        "montage design review finds a plain-title opener, single long static shot, or missing story hook/payoff",
+        "rendered rehearsal candidate lacks pipeline_execution_trace.json",
+        "canonical gate artifact is run-local worker generated, copied from prior, or unknown",
+        "rendered product QA is missing or lacks frame/contact-sheet evidence",
+        "required pipeline owner tool is missing; record missing_pipeline_node instead of hand-rolling a replacement"
       ],
       "forbidden_writes": [
         "silently accepting missing evidence",
         "promoting delivery_candidate.mp4 without verified_preview_review_decision=accept_promote",
-        "repairing canonical artifacts directly from verify findings"
+        "repairing canonical artifacts directly from verify findings",
+        "marking self-authored run-local gate JSON as pipeline-owned evidence",
+        "promoting a rendered rehearsal without no_skip_contract_decision.pass=true"
       ],
       "return_to": [
         "main-pipeline",
@@ -952,6 +1030,10 @@
             "repair_caption_or_voiceover"
           ]
         }
+      ],
+      "tools": [
+        "tools/rendered_product_qa.py",
+        "tools/no_skip_execution_trace.py"
       ]
     }
   ]

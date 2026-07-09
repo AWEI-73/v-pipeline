@@ -227,6 +227,10 @@ def _training_catalog_map(source_root: str | Path | None) -> dict[str, Any]:
                 "authority": "agent_filled",
                 "needs_human_confirmation": True,
                 "assignment_reason": reason,
+                "visual_selection_role": "candidate",
+                "candidate_source": "token_folder_match" if reason == "filename_or_folder_signal" else reason,
+                "render_facing_status": "candidate_only",
+                "requires_visual_selection_gate": True,
             }
             by_id[module_id]["material_assignments"].append(assignment)
             by_id[module_id]["coverage_status"] = "agent_filled_needs_human_confirmation"
