@@ -1519,10 +1519,26 @@ def cmd_perception_field_check(args):
 
     probe = timed("soundtrack_probe", lambda: write_soundtrack_probe(video, probe_path))
     anchors = probe.get("sampling_anchors") if isinstance(probe.get("sampling_anchors"), dict) else {}
-    plan = timed("sampling_plan", lambda: write_sampling_plan(video, shots, plan_path, audio_anchors=anchors))
+    tolerance_sec = float(getattr(args, "tolerance_sec", None) or 0.35)
+    plan = timed(
+        "sampling_plan",
+        lambda: write_sampling_plan(
+            video,
+            shots,
+            plan_path,
+            audio_anchors=anchors,
+            anchor_drift_budget_sec=tolerance_sec,
+        ),
+    )
     coverage = timed(
         "sampling_coverage",
-        lambda: write_sampling_coverage_report(plan_path, shots_path, coverage_path, audio_anchors=anchors),
+        lambda: write_sampling_coverage_report(
+            plan_path,
+            shots_path,
+            coverage_path,
+            audio_anchors=anchors,
+            tolerance_sec=tolerance_sec,
+        ),
     )
     wall = timed(
         "montage_wall",
@@ -4245,6 +4261,13 @@ def main():
     p_pfc.add_argument("--out", required=True, help="output directory for perception field artifacts")
     p_pfc.add_argument("--max-cells-per-page", type=int, default=96, dest="max_cells_per_page")
     p_pfc.add_argument("--max-page-height-px", type=int, default=4096, dest="max_page_height_px")
+    p_pfc.add_argument(
+        "--tolerance-sec",
+        type=float,
+        default=0.35,
+        dest="tolerance_sec",
+        help="single drift budget shared by the planner anchor clamp and coverage tolerance",
+    )
 
     p_va = sub.add_parser("visual-audit")
     p_va.add_argument("video", help="render candidate video")

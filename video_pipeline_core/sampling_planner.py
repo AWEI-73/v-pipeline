@@ -14,6 +14,9 @@ from typing import Any, Iterable, Mapping
 
 VERSION = 1
 REASONS = {"baseline", "motion_peak", "audio_beat", "energy_event", "speech_start"}
+# Anchor-derived samples must stay within the coverage tolerance of their
+# anchor; merges and sharpness shifts may not move them beyond the budget.
+ANCHOR_REASONS = {"audio_beat", "energy_event", "speech_start"}
 REASON_PRIORITY = {
     "speech_start": 0,
     "audio_beat": 1,
@@ -209,6 +212,7 @@ def build_sampling_plan(
     motion_threshold: float = 18.0,
     gap_fill_sec: float = 4.0,
     merge_window_sec: float = 0.3,
+    anchor_drift_budget_sec: float = 0.35,
 ) -> dict[str, Any]:
     video = Path(video_path)
     normalized_shots = normalize_shots(shots)
@@ -228,13 +232,15 @@ def build_sampling_plan(
         prepared.append((shot_id, timestamp, reason, shot))
     sharp_timestamps = _sharpest_timestamps(video, [(timestamp, shot) for _shot_id, timestamp, _reason, shot in prepared])
     for (shot_id, timestamp, reason, _shot), sharp_ts in zip(prepared, sharp_timestamps):
+        if reason in ANCHOR_REASONS and abs(float(sharp_ts) - float(timestamp)) > anchor_drift_budget_sec:
+            sharp_ts = timestamp
         _merge_or_append_sample(samples, {
             "shot_id": shot_id,
             "timestamp_sec": round(sharp_ts, 3),
             "target_timestamp_sec": round(float(timestamp), 3),
             "reason": reason,
             "reasons": [reason],
-        }, merge_window_sec=merge_window_sec)
+        }, merge_window_sec=merge_window_sec, anchor_drift_budget_sec=anchor_drift_budget_sec)
 
     samples.sort(key=lambda item: (str(item["shot_id"]), float(item["timestamp_sec"]), str(item["reason"])))
     for index, sample in enumerate(samples, start=1):
@@ -253,7 +259,13 @@ def build_sampling_plan(
     }
 
 
-def _merge_or_append_sample(samples: list[dict[str, Any]], sample: dict[str, Any], *, merge_window_sec: float) -> None:
+def _merge_or_append_sample(
+    samples: list[dict[str, Any]],
+    sample: dict[str, Any],
+    *,
+    merge_window_sec: float,
+    anchor_drift_budget_sec: float = 0.35,
+) -> None:
     shot_id = str(sample["shot_id"])
     timestamp = float(sample["timestamp_sec"])
     for existing in samples:
@@ -263,6 +275,12 @@ def _merge_or_append_sample(samples: list[dict[str, Any]], sample: dict[str, Any
             continue
         reasons = list(existing.get("reasons") or [existing.get("reason")])
         reason = str(sample["reason"])
+        if reason in ANCHOR_REASONS:
+            anchor_target = float(sample.get("target_timestamp_sec", timestamp))
+            if abs(float(existing.get("timestamp_sec", 0.0)) - anchor_target) > anchor_drift_budget_sec:
+                # Merging would strand the audio anchor beyond the coverage
+                # tolerance; keep the anchor as its own sample instead.
+                continue
         target_distance = abs(float(existing.get("target_timestamp_sec", timestamp)) - float(sample["target_timestamp_sec"]))
         if reason in reasons and target_distance > merge_window_sec:
             continue
@@ -284,6 +302,7 @@ def write_sampling_plan(
     motion_threshold: float = 18.0,
     gap_fill_sec: float = 4.0,
     merge_window_sec: float = 0.3,
+    anchor_drift_budget_sec: float = 0.35,
 ) -> dict[str, Any]:
     payload = build_sampling_plan(
         video_path,
@@ -292,6 +311,7 @@ def write_sampling_plan(
         motion_threshold=motion_threshold,
         gap_fill_sec=gap_fill_sec,
         merge_window_sec=merge_window_sec,
+        anchor_drift_budget_sec=anchor_drift_budget_sec,
     )
     _write_json(Path(out_path), payload)
     return payload

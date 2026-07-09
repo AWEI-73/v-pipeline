@@ -343,6 +343,53 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         self.assertEqual(1, len(merged))
         self.assertEqual("audio_beat", merged[0]["reason"])
 
+    def test_merge_refuses_to_strand_anchor_beyond_drift_budget(self):
+        from video_pipeline_core.sampling_planner import _merge_or_append_sample
+
+        samples = [{
+            "shot_id": "shot_001",
+            "timestamp_sec": 1.0,
+            "target_timestamp_sec": 1.0,
+            "reason": "baseline",
+            "reasons": ["baseline"],
+        }]
+        # Beat anchor at 0.55; sharpness already shifted the sample to 0.72.
+        # Merging into the 1.0 baseline would leave the anchor 0.45s from its
+        # nearest sample, breaking the coverage tolerance of 0.35.
+        _merge_or_append_sample(samples, {
+            "shot_id": "shot_001",
+            "timestamp_sec": 0.72,
+            "target_timestamp_sec": 0.55,
+            "reason": "audio_beat",
+            "reasons": ["audio_beat"],
+        }, merge_window_sec=0.3, anchor_drift_budget_sec=0.35)
+
+        nearest = min(abs(float(s["timestamp_sec"]) - 0.55) for s in samples)
+        self.assertLessEqual(nearest, 0.35, samples)
+
+    def test_plan_keeps_every_audio_anchor_within_drift_budget(self):
+        from video_pipeline_core import sampling_planner
+        from video_pipeline_core.sampling_planner import build_sampling_plan
+
+        anchors = {"beat_times": [0.55, 2.55]}
+
+        def worst_case_sharpness(video_path, requests, *, window_sec=0.2):
+            return [min(target + window_sec, float(shot["end_sec"])) for target, shot in requests]
+
+        with mock.patch.object(sampling_planner, "_sharpest_timestamps", worst_case_sharpness):
+            plan = build_sampling_plan(
+                self.video,
+                self.shots,
+                audio_anchors=anchors,
+                merge_window_sec=0.3,
+                anchor_drift_budget_sec=0.35,
+            )
+
+        timestamps = [float(s["timestamp_sec"]) for s in plan["samples"]]
+        for beat in anchors["beat_times"]:
+            nearest = min(abs(ts - beat) for ts in timestamps)
+            self.assertLessEqual(nearest, 0.35, f"beat {beat} stranded; samples={timestamps}")
+
 
 if __name__ == "__main__":
     unittest.main()

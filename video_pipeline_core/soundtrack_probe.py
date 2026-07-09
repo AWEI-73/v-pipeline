@@ -147,12 +147,18 @@ def _music_features(audio_path: Path) -> dict[str, Any]:
         return {"music_feature_error": str(exc)}
 
 
-def _sampling_anchors(features: dict[str, Any]) -> dict[str, list[float]]:
+def _sampling_anchors(features: dict[str, Any], *, duration_sec: float | None = None) -> dict[str, list[float]]:
     beat_times = features.get("beat_times") if isinstance(features.get("beat_times"), list) else []
     energy_curve = features.get("energy_curve") if isinstance(features.get("energy_curve"), list) else []
     vocal = features.get("vocal_analysis") if isinstance(features.get("vocal_analysis"), dict) else {}
     speech_segments = vocal.get("segments") if isinstance(vocal.get("segments"), list) else []
-    duration_sec = _duration_from_features(features, beat_times, energy_curve)
+    if not isinstance(duration_sec, (int, float)) or duration_sec <= 0:
+        duration_sec = _duration_from_features(features, beat_times, energy_curve)
+
+    def _clamp(value: float) -> float:
+        # The last analysis window may overrun the media end; an anchor
+        # beyond the track is unreachable by any sample.
+        return round(min(max(float(value), 0.0), float(duration_sec)), 3)
 
     energy_peaks: list[float] = []
     energy_drops: list[float] = []
@@ -186,10 +192,10 @@ def _sampling_anchors(features: dict[str, Any]) -> dict[str, list[float]]:
                 continue
 
     return {
-        "beat_times": _density_cap([round(float(item), 3) for item in beat_times], duration_sec, per_minute=24, minimum=128),
-        "energy_peaks": _density_cap(energy_peaks, duration_sec, per_minute=8, minimum=64),
-        "energy_drops": _density_cap(energy_drops, duration_sec, per_minute=8, minimum=64),
-        "speech_starts": _density_cap(speech_starts, duration_sec, per_minute=24, minimum=128),
+        "beat_times": _density_cap([_clamp(item) for item in beat_times if isinstance(item, (int, float))], duration_sec, per_minute=24, minimum=128),
+        "energy_peaks": _density_cap([_clamp(item) for item in energy_peaks], duration_sec, per_minute=8, minimum=64),
+        "energy_drops": _density_cap([_clamp(item) for item in energy_drops], duration_sec, per_minute=8, minimum=64),
+        "speech_starts": _density_cap([_clamp(item) for item in speech_starts], duration_sec, per_minute=24, minimum=128),
     }
 
 
@@ -530,7 +536,7 @@ def build_soundtrack_probe(
         "sections": sections,
         "editing_fit": editing_fit,
         "section_fit": section_fit,
-        "sampling_anchors": _sampling_anchors(features),
+        "sampling_anchors": _sampling_anchors(features, duration_sec=duration),
         "recommended_usage": [
             {
                 "video_section": "montage",
