@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from video_pipeline_core.reviewer_registry import sign_review
+
 
 PASSING_REVIEW_BASES = {"frame_sequence", "video_sample"}
 
@@ -67,7 +69,7 @@ def evaluate_effect_director_review(payload: Mapping[str, Any] | None) -> dict[s
                 finding,
             ))
 
-    return {
+    report = {
         "artifact_role": "effect_director_review",
         "version": 1,
         "pass": not blocking,
@@ -80,6 +82,13 @@ def evaluate_effect_director_review(payload: Mapping[str, Any] | None) -> dict[s
         "findings": _as_list(data.get("findings")),
         "next_action": None if not blocking else blocking[0]["next_action"],
     }
+    report["review_signature"] = sign_review(
+        "effect_director",
+        passed=not blocking,
+        findings=blocking,
+        next_action=report["next_action"],
+    )
+    return report
 
 
 def write_effect_director_review_for_run(run: str | Path, out_name: str = "effect_director_review.json") -> dict[str, Any]:

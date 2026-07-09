@@ -191,6 +191,32 @@ REVIEWERS = [
             _principle("current_artifacts", "artifacts belong to current run, not stale outputs", "delivery_ready"),
         ],
     },
+    {
+        "reviewer_role": "effect_director",
+        "review_type": "effect_director_review",
+        "input_artifacts": ["effect_director_review_packet.json", "title_effect_lifecycle_qa.json"],
+        "output_artifact": "effect_director_review.json",
+        "gate_strength": "hard_gate",
+        "allowed_gate_strengths": ["hard_gate", "revise", "advisory"],
+        "typical_next_actions": ["repair_effect_director_findings", "human_review_or_promote_effect_assets_to_timeline"],
+        "eval_principles": [
+            _principle("visual_evidence_basis", "frame_sequence or video_sample, before/active/after frames", "repair_effect_director_findings"),
+            _principle("effect_records_present", "title/effect records exist and are reviewed", "repair_effect_director_findings"),
+        ],
+    },
+    {
+        "reviewer_role": "montage_design_reviewer",
+        "review_type": "montage_design_review",
+        "input_artifacts": ["montage_design_plan.json"],
+        "output_artifact": "montage_design_review.json",
+        "gate_strength": "revise",
+        "allowed_gate_strengths": ["revise", "advisory", "hard_gate"],
+        "typical_next_actions": ["repair_montage_design", "write_montage_design_plan"],
+        "eval_principles": [
+            _principle("opener_mv_structure", "opener/MV montage section design, hook and payoff", "repair_montage_design"),
+            _principle("shot_and_timing", "shot functions, beat/energy timing, title sync, transitions", "repair_montage_design"),
+        ],
+    },
 ]
 
 
@@ -290,6 +316,64 @@ def validate_review_artifact(review: Mapping[str, Any]) -> dict[str, Any]:
         errors.append("findings must be a list")
 
     return {"ok": not errors, "errors": errors}
+
+
+def sign_review(
+    reviewer_role: str,
+    *,
+    passed: bool,
+    findings: list[Any] | None = None,
+    gate_strength: str | None = None,
+    next_action: str | None = None,
+) -> dict[str, Any]:
+    """Build a consistent, validatable review signature for an agentic review.
+
+    The signature is the canonical ``artifact_review`` envelope so the state
+    machine can detect any signed agentic review with one format regardless of
+    which gate produced it.
+    """
+    spec = _role_map().get(reviewer_role)
+    if not spec:
+        raise ValueError(f"unknown reviewer_role: {reviewer_role!r}")
+    gate = gate_strength or spec["gate_strength"]
+    if passed:
+        decision = "pass"
+    elif gate in {"hard_gate", "delivery_gate"}:
+        decision = "block"
+    else:
+        decision = "revise"
+    signature: dict[str, Any] = {
+        "artifact_role": "artifact_review",
+        "version": 1,
+        "reviewer_role": reviewer_role,
+        "decision": decision,
+        "gate_strength": gate,
+        "findings": list(findings or []),
+    }
+    if next_action:
+        signature["next_action"] = next_action
+    check = validate_review_artifact(signature)
+    if not check["ok"]:
+        raise ValueError(f"invalid review signature: {check['errors']}")
+    return signature
+
+
+def detect_review_signature(payload: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Return the valid ``artifact_review`` signature carried by a payload.
+
+    Accepts either a payload with an embedded ``review_signature`` block or a
+    payload that is itself an ``artifact_review``. Returns None when no valid
+    signature is present, so the state machine can distinguish signed agentic
+    reviews from unsigned artifacts.
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    candidate: Any = payload.get("review_signature")
+    if not isinstance(candidate, Mapping) and payload.get("artifact_role") == "artifact_review":
+        candidate = payload
+    if not isinstance(candidate, Mapping):
+        return None
+    return dict(candidate) if validate_review_artifact(candidate)["ok"] else None
 
 
 def write_policy_packet(level: str, out: str | Path) -> dict[str, Any]:

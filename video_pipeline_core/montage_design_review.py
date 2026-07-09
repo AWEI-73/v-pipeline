@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from video_pipeline_core.reviewer_registry import sign_review
+
 
 def _as_list(value: Any) -> list[Any]:
     if isinstance(value, list):
@@ -87,7 +89,7 @@ def evaluate_montage_design_review(payload: Mapping[str, Any] | None) -> dict[st
         if not _as_list(montage.get("transitions")):
             blocking.append(_block("montage_missing_transition_rationale", montage, "montage plan requires transitions and rationale"))
 
-    return {
+    report = {
         "artifact_role": "montage_design_review",
         "version": 1,
         "pass": not blocking,
@@ -96,6 +98,13 @@ def evaluate_montage_design_review(payload: Mapping[str, Any] | None) -> dict[st
         "checked_montage_count": len(montages),
         "next_action": None if not blocking else blocking[0]["next_action"],
     }
+    report["review_signature"] = sign_review(
+        "montage_design_reviewer",
+        passed=not blocking,
+        findings=blocking,
+        next_action=report["next_action"],
+    )
+    return report
 
 
 def write_montage_design_review_for_run(run: str | Path, out_name: str = "montage_design_review.json") -> dict[str, Any]:
