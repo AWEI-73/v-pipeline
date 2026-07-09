@@ -63,6 +63,7 @@ class BranchRegistryIntegrityTest(unittest.TestCase):
                 "subtitle-voiceover",
                 "effect-factory",
                 "workbench-brownfield",
+                "film-canon-product-route",
                 "verify-delivery",
             },
         )

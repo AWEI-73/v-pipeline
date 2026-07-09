@@ -50,6 +50,7 @@ def collect_direct_refs(data: dict[str, Any]) -> set[str]:
     for branch in data["branches"]:
         refs.update(branch.get("docs", []))
         refs.update(branch.get("skills", []))
+        refs.update(tool.split(":", 1)[0].split(" ", 1)[0] for tool in branch.get("tools", []))
     return _existing(sorted(refs))
 
 

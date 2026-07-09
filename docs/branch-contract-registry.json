@@ -380,6 +380,15 @@
         "skills/subtitle-director.md",
         "skills/audio-director.md"
       ],
+      "tools": [
+        "tools/agent_transcript_repair.py",
+        "tools/independent_voiceover_asr_qa.py",
+        "tools/source_speech_subtitle_qa.py",
+        "tools/voiceover_leadin_qa.py",
+        "tools/voiceover_output_qa.py",
+        "tools/voxcpm_leadin_diagnostic.py",
+        "tools/write_human_transcript_review_decision.py"
+      ],
       "entry_conditions": [
         "subtitle_voiceover_contract requires subtitles, narration, or voiceover",
         "existing draft needs subtitle repair",
@@ -477,6 +486,11 @@
       "skills": [
         "skills/video-effect-factory.md",
         "skills/remotion-effect-worker.md"
+      ],
+      "tools": [
+        "tools/effect_director_review.py",
+        "tools/montage_design_review.py",
+        "tools/title_effect_lifecycle_qa.py"
       ],
       "entry_conditions": [
         "effect_policy marks a required or bounded effect",
@@ -810,11 +824,7 @@
         {
           "stage": "film-canon-route-selector-dry-run",
           "skill": "skills/story-soul-blueprint.md",
-          "artifacts_in": [
-            "graduation film direction",
-            "film_type",
-            "fixture source tree or read-only real source metadata"
-          ],
+          "artifacts_in": [],
           "artifacts_out": [
             "graduation_film_canon.json",
             "graduation_film_blueprint_A.json",
@@ -846,9 +856,7 @@
           "stage": "product-route-production-readiness",
           "skill": "skills/director.md",
           "artifacts_in": [
-            "product route dry-run artifacts",
-            "product_route_review_decision.json",
-            "decision path when review decision was written in a prior folder"
+            "product_route_review_decision.json"
           ],
           "artifacts_out": [
             "reviewed_catalog_map.json",
@@ -874,8 +882,8 @@
           "skill": "skills/director.md",
           "artifacts_in": [
             "story_material_planning_handoff.json",
-            "story_to_material_map.json or render-facing visual selections",
-            "visual_selection_review.json when explicit visual review exists"
+            "story_to_material_map.json",
+            "visual_selection_review.json"
           ],
           "artifacts_out": [
             "visual_selection_candidates.json",

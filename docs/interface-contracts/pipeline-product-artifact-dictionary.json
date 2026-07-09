@@ -270,6 +270,168 @@
         "Are the companion delivery artifacts consistent with the promoted output?"
       ],
       "canonical_write_policy": "canonical_candidate"
+    },
+    {
+      "artifact_name": "film_canon.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Canonical film-type spec (sections, roles, structural targets) for a product-route film.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "graduation_film_canon.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Graduation-film canon: required sections and structural targets for the graduation training film.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "film_blueprint.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Compiled blueprint (beats/sections) derived from the film canon.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "graduation_film_blueprint_A.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Candidate A blueprint for the graduation film.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "graduation_film_blueprint_B.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Candidate B blueprint for the graduation film.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "catalog_map.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Map of source material sections to catalog slots for the product route.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "reviewed_catalog_map.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Catalog map after human/agentic review of section assignments.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "training_catalog_map.real_source.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Catalog map bound to real source-tree assets for the training film.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_shell.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Selected story shell (beat structure) for the product route.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_shell_A.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Candidate A story shell.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_shell_B.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Candidate B story shell.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_retarget_diff_A_to_B.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Diff describing how the story shell retargets from candidate A to B.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_material_planning_handoff.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Handoff mapping story beats to planned material before visual selection.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "product_route_review_decision.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Human/agentic product-route review decision gating production readiness.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "product_route_review_packet.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Review packet summarizing the product route for reviewer decision.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "production_readiness_gate.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Gate artifact recording whether the product route is production-ready.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "production_readiness_plan.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Plan of remaining work to reach production readiness.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "production_worker_handoff_prompt.md",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Dispatch prompt handed to a production worker once readiness passes.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "review_packet.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Review packet for the film-canon route-selector dry-run stage.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "graduation_real_source_review_packet.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Review packet for real graduation source footage.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "visual_selection_candidates.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Candidate visual clips per beat before selection confirmation.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "visual_selection_gate.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Gate recording confirmed render-facing visual selections.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "visual_selection_review.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Review decision over candidate visual selections.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "audio_subtitle_review_handoff.json",
+      "owner_branch": "subtitle-voiceover",
+      "purpose": "Handoff of subtitle/voiceover review outcome to the product route.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "audio_subtitle_review_requirements.json",
+      "owner_branch": "subtitle-voiceover",
+      "purpose": "Required subtitle/voiceover evidence for the product route.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "opener_closer_design_handoff.json",
+      "owner_branch": "effect-factory",
+      "purpose": "Handoff of opener/closer effect design to the product route.",
+      "functional_parameters": []
+    },
+    {
+      "artifact_name": "story_to_material_map.json",
+      "owner_branch": "film-canon-product-route",
+      "purpose": "Mapping of story beats to source material used for render-facing visual selection.",
+      "functional_parameters": []
     }
   ]
 }
