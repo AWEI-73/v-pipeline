@@ -84,6 +84,57 @@ class SoundtrackProbeTest(unittest.TestCase):
         self.assertEqual(report["features"]["beat_times"], [0.5, 1.0, 1.5])
         self.assertIn("energetic_candidate", report["features"]["semantic_tags"])
 
+    def test_emits_sampling_anchors_and_optional_spectrogram(self):
+        from video_pipeline_core.soundtrack_probe import write_soundtrack_probe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "song.mp3"
+            out = root / "soundtrack_probe_report.json"
+            spectrogram = root / "mel_spectrogram.png"
+            audio.write_bytes(b"fake")
+
+            def fake_run(cmd, **kwargs):
+                class Result:
+                    returncode = 0
+                    stdout = json.dumps({
+                        "format": {"duration": "20.0"},
+                        "streams": [{"codec_type": "audio", "codec_name": "mp3", "duration": "20.0"}],
+                    }) if "ffprobe" in cmd[0] else ""
+                    stderr = "[Parsed_volumedetect] mean_volume: -18.5 dB\n[Parsed_volumedetect] max_volume: -2.1 dB\n"
+                return Result()
+
+            with (
+                patch("video_pipeline_core.soundtrack_probe.subprocess.run", side_effect=fake_run),
+                patch("video_pipeline_core.soundtrack_probe._music_features", return_value={
+                    "tempo_bpm": 120.0,
+                    "beat_times": [0.5, 1.0, 1.5],
+                    "energy_curve": [
+                        {"start_sec": 0.0, "end_sec": 4.0, "relative_energy": 0.2},
+                        {"start_sec": 4.0, "end_sec": 8.0, "relative_energy": 0.9},
+                    ],
+                    "semantic_tags": ["has_energy_peaks"],
+                }),
+                patch("video_pipeline_core.soundtrack_probe._asr_vocal_analysis", return_value={
+                    "has_vocals": True,
+                    "method": "faster_whisper",
+                    "segments": [{"start_sec": 6.25, "end_sec": 7.0, "text": "hello"}],
+                }),
+            ):
+                report = write_soundtrack_probe(
+                    audio,
+                    out,
+                    enable_asr=True,
+                    spectrogram_path=spectrogram,
+                )
+
+            self.assertTrue(spectrogram.exists())
+            self.assertGreater(spectrogram.stat().st_size, 0)
+            self.assertEqual(report["sampling_anchors"]["beat_times"], [0.5, 1.0, 1.5])
+            self.assertEqual(report["sampling_anchors"]["energy_peaks"], [6.0])
+            self.assertEqual(report["sampling_anchors"]["speech_starts"], [6.25])
+            self.assertEqual(report["spectrogram"]["path"], str(spectrogram))
+
     def test_video_without_audio_stream_returns_no_audio_probe_instead_of_crashing(self):
         from video_pipeline_core.soundtrack_probe import build_soundtrack_probe
 

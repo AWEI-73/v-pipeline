@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from PIL import Image, ImageDraw
+
 
 def _run_text(cmd: list[str]) -> tuple[str, str]:
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -142,6 +144,61 @@ def _music_features(audio_path: Path) -> dict[str, Any]:
         }
     except Exception as exc:
         return {"music_feature_error": str(exc)}
+
+
+def _sampling_anchors(features: dict[str, Any]) -> dict[str, list[float]]:
+    beat_times = features.get("beat_times") if isinstance(features.get("beat_times"), list) else []
+    energy_curve = features.get("energy_curve") if isinstance(features.get("energy_curve"), list) else []
+    vocal = features.get("vocal_analysis") if isinstance(features.get("vocal_analysis"), dict) else {}
+    speech_segments = vocal.get("segments") if isinstance(vocal.get("segments"), list) else []
+
+    energy_peaks = []
+    for item in energy_curve:
+        if not isinstance(item, dict):
+            continue
+        relative = item.get("relative_energy")
+        if isinstance(relative, (int, float)) and relative >= 0.75:
+            start = float(item.get("start_sec") or 0.0)
+            end = float(item.get("end_sec") or start)
+            energy_peaks.append(round((start + end) / 2.0, 3))
+
+    speech_starts = []
+    for item in speech_segments:
+        if isinstance(item, dict):
+            try:
+                speech_starts.append(round(float(item.get("start_sec")), 3))
+            except (TypeError, ValueError):
+                continue
+
+    return {
+        "beat_times": [round(float(item), 3) for item in beat_times[:128]],
+        "energy_peaks": energy_peaks[:64],
+        "energy_drops": [],
+        "speech_starts": speech_starts[:128],
+    }
+
+
+def _write_mel_spectrogram(audio_path: Path, out_path: str | Path) -> str:
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if audio_path.stat().st_size < 1024:
+            raise ValueError("audio file too small for spectrogram")
+        import librosa  # type: ignore
+        import numpy as np  # type: ignore
+
+        y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
+        mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=64)
+        db = librosa.power_to_db(mel, ref=np.max)
+        norm = (db - db.min()) / (db.max() - db.min() or 1.0)
+        arr = (norm * 255).astype("uint8")
+        image = Image.fromarray(arr).resize((640, 180)).convert("RGB")
+    except Exception:
+        image = Image.new("RGB", (640, 180), "#101820")
+        draw = ImageDraw.Draw(image)
+        draw.text((16, 78), "mel spectrogram unavailable", fill="#ffe66d")
+    image.save(out)
+    return str(out)
 
 
 def _instrumental_windows(vocal_segments: list[dict[str, Any]], duration_sec: float, min_window_sec: float = 4.0) -> list[dict[str, float]]:
@@ -324,6 +381,7 @@ def build_soundtrack_probe(
     enable_asr: bool = False,
     asr_model: str = "small",
     language: str | None = None,
+    spectrogram_path: str | Path | None = None,
 ) -> dict[str, Any]:
     path = Path(audio_path)
     if not path.is_file():
@@ -332,7 +390,7 @@ def build_soundtrack_probe(
     duration = round(_duration_seconds(probe), 3)
     if not _has_audio_stream(probe):
         sections = _sections(duration)
-        return {
+        payload = {
             "artifact_role": "soundtrack_probe_report",
             "version": 1,
             "pass": duration > 0,
@@ -364,11 +422,20 @@ def build_soundtrack_probe(
             },
             "section_fit": [],
             "recommended_usage": [],
+            "sampling_anchors": {
+                "beat_times": [],
+                "energy_peaks": [],
+                "energy_drops": [],
+                "speech_starts": [],
+            },
             "limitations": [
                 "Input media has no audio stream; audio/music decisions must be supplied by the Soundtrack branch or left silent intentionally.",
                 "Visual source analysis may continue, but this report cannot judge music, speech, or vocal content.",
             ],
         }
+        if spectrogram_path:
+            payload["spectrogram"] = {"path": _write_mel_spectrogram(path, spectrogram_path)}
+        return payload
     features: dict[str, Any] = {
         "has_audio": True,
         "codec": _audio_codec(probe),
@@ -404,7 +471,7 @@ def build_soundtrack_probe(
         analysis_depth += "+music_features"
     if enable_asr:
         analysis_depth += "+vocal_asr"
-    return {
+    payload = {
         "artifact_role": "soundtrack_probe_report",
         "version": 1,
         "pass": passed,
@@ -415,6 +482,7 @@ def build_soundtrack_probe(
         "sections": sections,
         "editing_fit": editing_fit,
         "section_fit": section_fit,
+        "sampling_anchors": _sampling_anchors(features),
         "recommended_usage": [
             {
                 "video_section": "montage",
@@ -428,6 +496,9 @@ def build_soundtrack_probe(
             "Use this as a Stage 0.5 / Soundtrack Arranger decision aid, not a final music-quality judgement.",
         ],
     }
+    if spectrogram_path:
+        payload["spectrogram"] = {"path": _write_mel_spectrogram(path, spectrogram_path)}
+    return payload
 
 
 def write_soundtrack_probe(
@@ -439,6 +510,7 @@ def write_soundtrack_probe(
     enable_asr: bool = False,
     asr_model: str = "small",
     language: str | None = None,
+    spectrogram_path: str | Path | None = None,
 ) -> dict[str, Any]:
     payload = build_soundtrack_probe(
         audio_path,
@@ -447,6 +519,7 @@ def write_soundtrack_probe(
         enable_asr=enable_asr,
         asr_model=asr_model,
         language=language,
+        spectrogram_path=spectrogram_path,
     )
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
