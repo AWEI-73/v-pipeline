@@ -14,11 +14,26 @@
         "optional ASR/transcript"
       ],
       "functional_parameters": [
-        {"name": "source_assets", "description": "Asset ids, paths, durations, media type, and original audio presence."},
-        {"name": "section_candidates", "description": "Coarse time ranges or groups such as opening, training, interview, ceremony, ending."},
-        {"name": "visual_characteristics", "description": "Shot density, motion intensity, face/person visibility, scene changes, and quality notes."},
-        {"name": "audio_characteristics", "description": "Speech/music/original audio presence, loudness notes, and transcript availability."},
-        {"name": "suggested_questions", "description": "Focused questions for Stage 0 when media facts are ambiguous."}
+        {
+          "name": "source_assets",
+          "description": "Asset ids, paths, durations, media type, and original audio presence."
+        },
+        {
+          "name": "section_candidates",
+          "description": "Coarse time ranges or groups such as opening, training, interview, ceremony, ending."
+        },
+        {
+          "name": "visual_characteristics",
+          "description": "Shot density, motion intensity, face/person visibility, scene changes, and quality notes."
+        },
+        {
+          "name": "audio_characteristics",
+          "description": "Speech/music/original audio presence, loudness notes, and transcript availability."
+        },
+        {
+          "name": "suggested_questions",
+          "description": "Focused questions for Stage 0 when media facts are ambiguous."
+        }
       ],
       "downstream_consumers": [
         "material_matrix.json",
@@ -43,10 +58,22 @@
         "material_wall_review_verdict.json"
       ],
       "functional_parameters": [
-        {"name": "needs", "description": "Canonical material needs or story beats that require visual/audio evidence."},
-        {"name": "candidate_assets", "description": "Per-need asset candidates with source refs, usable ranges, status, and notes."},
-        {"name": "coverage", "description": "Covered, partial, missing, generated fallback, reshoot, rewrite, or waiver state."},
-        {"name": "rejection_reasons", "description": "Rejected/duplicate/low-quality reasons preserved for review and Workbench."}
+        {
+          "name": "needs",
+          "description": "Canonical material needs or story beats that require visual/audio evidence."
+        },
+        {
+          "name": "candidate_assets",
+          "description": "Per-need asset candidates with source refs, usable ranges, status, and notes."
+        },
+        {
+          "name": "coverage",
+          "description": "Covered, partial, missing, generated fallback, reshoot, rewrite, or waiver state."
+        },
+        {
+          "name": "rejection_reasons",
+          "description": "Rejected/duplicate/low-quality reasons preserved for review and Workbench."
+        }
       ],
       "downstream_consumers": [
         "edit_decision_plan.json",
@@ -74,13 +101,34 @@
         "subtitle_voiceover_decision_plan.json"
       ],
       "functional_parameters": [
-        {"name": "cuts", "description": "Source asset id, in/out seconds, target duration, speed, layer, and reason."},
-        {"name": "overlays", "description": "Text/image/graphic overlays, placement, timing, opacity, and animation intent."},
-        {"name": "audio", "description": "Original audio policy, narration refs, music refs, ducking, fade, and section alignment."},
-        {"name": "effects", "description": "Effect refs, story function, visual family, timing, intensity, and source refs."},
-        {"name": "subtitles", "description": "Subtitle source, style, language, readability constraints, and placement."},
-        {"name": "transitions", "description": "Transition type, timing, duration, reason, and target emotional function."},
-        {"name": "review_focus", "description": "What Workbench and Verify should check against the original intent."}
+        {
+          "name": "cuts",
+          "description": "Source asset id, in/out seconds, target duration, speed, layer, and reason."
+        },
+        {
+          "name": "overlays",
+          "description": "Text/image/graphic overlays, placement, timing, opacity, and animation intent."
+        },
+        {
+          "name": "audio",
+          "description": "Original audio policy, narration refs, music refs, ducking, fade, and section alignment."
+        },
+        {
+          "name": "effects",
+          "description": "Effect refs, story function, visual family, timing, intensity, and source refs."
+        },
+        {
+          "name": "subtitles",
+          "description": "Subtitle source, style, language, readability constraints, and placement."
+        },
+        {
+          "name": "transitions",
+          "description": "Transition type, timing, duration, reason, and target emotional function."
+        },
+        {
+          "name": "review_focus",
+          "description": "What Workbench and Verify should check against the original intent."
+        }
       ],
       "downstream_consumers": [
         "timeline_build.json",
@@ -107,10 +155,22 @@
         "soundtrack_probe_report.json"
       ],
       "functional_parameters": [
-        {"name": "sections", "description": "Music sections with target start/end, mood, energy, vocal policy, and fallback."},
-        {"name": "source_audio_policy", "description": "Preserve, duck, mute, replace, or split original audio by section."},
-        {"name": "selected_tracks", "description": "Track refs, provider, license/source note, usable ranges, and probe summary."},
-        {"name": "mix_parameters", "description": "Volume, fade, ducking threshold/reduction, and clamp-to-video-duration behavior."}
+        {
+          "name": "sections",
+          "description": "Music sections with target start/end, mood, energy, vocal policy, and fallback."
+        },
+        {
+          "name": "source_audio_policy",
+          "description": "Preserve, duck, mute, replace, or split original audio by section."
+        },
+        {
+          "name": "selected_tracks",
+          "description": "Track refs, provider, license/source note, usable ranges, and probe summary."
+        },
+        {
+          "name": "mix_parameters",
+          "description": "Volume, fade, ducking threshold/reduction, and clamp-to-video-duration behavior."
+        }
       ],
       "downstream_consumers": [
         "audio_director_handoff.json",
@@ -137,11 +197,26 @@
         "material refs or logo refs"
       ],
       "functional_parameters": [
-        {"name": "story_function", "description": "Opening, transition, highlight, title, ending, repair, or finishing function."},
-        {"name": "visual_family", "description": "Technique family such as particles, light trails, kinetic type, collage, data reveal, or cinematic grade."},
-        {"name": "motion_grammar", "description": "Pacing, reveal mode, camera motion, easing, density, and duration."},
-        {"name": "asset_usage", "description": "Source refs, generated refs, logo refs, safe area, and masking/alpha needs."},
-        {"name": "negative_rules", "description": "What must not appear, including template pollution or unsupported renderer claims."}
+        {
+          "name": "story_function",
+          "description": "Opening, transition, highlight, title, ending, repair, or finishing function."
+        },
+        {
+          "name": "visual_family",
+          "description": "Technique family such as particles, light trails, kinetic type, collage, data reveal, or cinematic grade."
+        },
+        {
+          "name": "motion_grammar",
+          "description": "Pacing, reveal mode, camera motion, easing, density, and duration."
+        },
+        {
+          "name": "asset_usage",
+          "description": "Source refs, generated refs, logo refs, safe area, and masking/alpha needs."
+        },
+        {
+          "name": "negative_rules",
+          "description": "What must not appear, including template pollution or unsupported renderer claims."
+        }
       ],
       "downstream_consumers": [
         "effect_contract.json",
@@ -168,10 +243,22 @@
         "subtitle_voiceover_contract.json"
       ],
       "functional_parameters": [
-        {"name": "subtitle_policy", "description": "Required/optional/off, language, source, style, position, line length, and safe area."},
-        {"name": "voiceover_policy", "description": "Required/optional/off, provider preference, fallback allowed, voice style, and reference audio."},
-        {"name": "speech_preservation", "description": "Where original speech must be preserved, ducked, subtitled, or replaced."},
-        {"name": "readability_checks", "description": "Caption audit requirements for overflow, contrast, timing, and screen safety."}
+        {
+          "name": "subtitle_policy",
+          "description": "Required/optional/off, language, source, style, position, line length, and safe area."
+        },
+        {
+          "name": "voiceover_policy",
+          "description": "Required/optional/off, provider preference, fallback allowed, voice style, and reference audio."
+        },
+        {
+          "name": "speech_preservation",
+          "description": "Where original speech must be preserved, ducked, subtitled, or replaced."
+        },
+        {
+          "name": "readability_checks",
+          "description": "Caption audit requirements for overflow, contrast, timing, and screen safety."
+        }
       ],
       "downstream_consumers": [
         "subtitle_voiceover_build_handoff.json",
@@ -198,10 +285,22 @@
         "artifact_manifest.json.handoffs"
       ],
       "functional_parameters": [
-        {"name": "accepted_handoffs", "description": "Manifest refs for material, audio, effect, subtitle/voiceover, and workbench handoffs."},
-        {"name": "build_inputs", "description": "Resolved input files and JSON artifacts required by BUILD."},
-        {"name": "deferred_items", "description": "Deferred child contracts with reason, owner, return point, and gate status."},
-        {"name": "forbidden_writes", "description": "Canonical writes that remain blocked until BUILD/verify gates pass."}
+        {
+          "name": "accepted_handoffs",
+          "description": "Manifest refs for material, audio, effect, subtitle/voiceover, and workbench handoffs."
+        },
+        {
+          "name": "build_inputs",
+          "description": "Resolved input files and JSON artifacts required by BUILD."
+        },
+        {
+          "name": "deferred_items",
+          "description": "Deferred child contracts with reason, owner, return point, and gate status."
+        },
+        {
+          "name": "forbidden_writes",
+          "description": "Canonical writes that remain blocked until BUILD/verify gates pass."
+        }
       ],
       "downstream_consumers": [
         "timeline_build.json",
@@ -228,10 +327,22 @@
         "delivery_gate report"
       ],
       "functional_parameters": [
-        {"name": "visual_evidence", "description": "Keyframe grid, montage/contact sheet, material alignment findings, and effect evidence."},
-        {"name": "audio_evidence", "description": "Soundtrack probe, speech/original-audio policy checks, loudness/ducking findings."},
-        {"name": "caption_evidence", "description": "Subtitle readability, overflow, contrast, timing, and language findings."},
-        {"name": "repair_routes", "description": "Problem type and target branch for verify_revision_packet.json."}
+        {
+          "name": "visual_evidence",
+          "description": "Keyframe grid, montage/contact sheet, material alignment findings, and effect evidence."
+        },
+        {
+          "name": "audio_evidence",
+          "description": "Soundtrack probe, speech/original-audio policy checks, loudness/ducking findings."
+        },
+        {
+          "name": "caption_evidence",
+          "description": "Subtitle readability, overflow, contrast, timing, and language findings."
+        },
+        {
+          "name": "repair_routes",
+          "description": "Problem type and target branch for verify_revision_packet.json."
+        }
       ],
       "downstream_consumers": [
         "verify_revision_packet.json",
@@ -255,10 +366,22 @@
         "operator delivery approval"
       ],
       "functional_parameters": [
-        {"name": "promotion_status", "description": "Promoted status, reviewer identity, and whether an existing final.mp4 was overwritten."},
-        {"name": "source_evidence", "description": "Relative refs to the source package, packaged candidate video, and the written final video."},
-        {"name": "companion_writes", "description": "Whether delivery_requirements.json and audio_mix_report.json were written as promotion companions."},
-        {"name": "follow_up", "description": "The recorded next_action after promotion, currently write_delivery_gate_report."}
+        {
+          "name": "promotion_status",
+          "description": "Promoted status, reviewer identity, and whether an existing final.mp4 was overwritten."
+        },
+        {
+          "name": "source_evidence",
+          "description": "Relative refs to the source package, packaged candidate video, and the written final video."
+        },
+        {
+          "name": "companion_writes",
+          "description": "Whether delivery_requirements.json and audio_mix_report.json were written as promotion companions."
+        },
+        {
+          "name": "follow_up",
+          "description": "The recorded next_action after promotion, currently write_delivery_gate_report."
+        }
       ],
       "downstream_consumers": [
         "delivery_gate.json",
@@ -275,163 +398,1097 @@
       "artifact_name": "film_canon.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Canonical film-type spec (sections, roles, structural targets) for a product-route film.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "film_type",
+          "description": "Registered product film identifier such as graduation_training_film."
+        },
+        {
+          "name": "sections",
+          "description": "Required narrative/product sections and their ordering."
+        },
+        {
+          "name": "roles",
+          "description": "Story/material roles required by the product route."
+        },
+        {
+          "name": "structural_targets",
+          "description": "Duration, beat, or evidence targets the downstream route must preserve."
+        }
+      ],
+      "semantic_inputs": [
+        "registered film type",
+        "product family requirements",
+        "section and role doctrine",
+        "structural target docs"
+      ],
+      "downstream_consumers": [
+        "film_blueprint.json",
+        "graduation_film_blueprint_A.json",
+        "graduation_film_blueprint_B.json",
+        "review_packet.json"
+      ],
+      "review_focus": [
+        "Canon sections are present for the selected film type.",
+        "Required roles and structural targets are explicit enough for blueprint/catalog generation.",
+        "Unknown film types fail closed instead of producing a generic route."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "graduation_film_canon.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Graduation-film canon: required sections and structural targets for the graduation training film.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "film_type",
+          "description": "Registered product film identifier such as graduation_training_film."
+        },
+        {
+          "name": "sections",
+          "description": "Required narrative/product sections and their ordering."
+        },
+        {
+          "name": "roles",
+          "description": "Story/material roles required by the product route."
+        },
+        {
+          "name": "structural_targets",
+          "description": "Duration, beat, or evidence targets the downstream route must preserve."
+        }
+      ],
+      "semantic_inputs": [
+        "registered film type",
+        "product family requirements",
+        "section and role doctrine",
+        "structural target docs"
+      ],
+      "downstream_consumers": [
+        "film_blueprint.json",
+        "graduation_film_blueprint_A.json",
+        "graduation_film_blueprint_B.json",
+        "review_packet.json"
+      ],
+      "review_focus": [
+        "Canon sections are present for the selected film type.",
+        "Required roles and structural targets are explicit enough for blueprint/catalog generation.",
+        "Unknown film types fail closed instead of producing a generic route."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "film_blueprint.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Compiled blueprint (beats/sections) derived from the film canon.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "beats",
+          "description": "Ordered story beats compiled from the canon."
+        },
+        {
+          "name": "section_targets",
+          "description": "Target sections and required evidence for each beat."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected variant identifier when multiple blueprints exist."
+        },
+        {
+          "name": "open_questions",
+          "description": "Known missing facts that must remain review-visible."
+        }
+      ],
+      "semantic_inputs": [
+        "film_canon.json or graduation_film_canon.json",
+        "user product brief",
+        "theme/title when available",
+        "source metadata summary"
+      ],
+      "downstream_consumers": [
+        "story_shell.json",
+        "story_shell_A.json",
+        "story_shell_B.json",
+        "catalog_map.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Blueprint preserves the selected canon rather than inventing a generic structure.",
+        "Candidate differences are reviewable before production readiness.",
+        "Missing source facts are explicit and blocking when required."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "graduation_film_blueprint_A.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Candidate A blueprint for the graduation film.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "beats",
+          "description": "Ordered story beats compiled from the canon."
+        },
+        {
+          "name": "section_targets",
+          "description": "Target sections and required evidence for each beat."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected variant identifier when multiple blueprints exist."
+        },
+        {
+          "name": "open_questions",
+          "description": "Known missing facts that must remain review-visible."
+        }
+      ],
+      "semantic_inputs": [
+        "film_canon.json or graduation_film_canon.json",
+        "user product brief",
+        "theme/title when available",
+        "source metadata summary"
+      ],
+      "downstream_consumers": [
+        "story_shell.json",
+        "story_shell_A.json",
+        "story_shell_B.json",
+        "catalog_map.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Blueprint preserves the selected canon rather than inventing a generic structure.",
+        "Candidate differences are reviewable before production readiness.",
+        "Missing source facts are explicit and blocking when required."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "graduation_film_blueprint_B.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Candidate B blueprint for the graduation film.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "beats",
+          "description": "Ordered story beats compiled from the canon."
+        },
+        {
+          "name": "section_targets",
+          "description": "Target sections and required evidence for each beat."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected variant identifier when multiple blueprints exist."
+        },
+        {
+          "name": "open_questions",
+          "description": "Known missing facts that must remain review-visible."
+        }
+      ],
+      "semantic_inputs": [
+        "film_canon.json or graduation_film_canon.json",
+        "user product brief",
+        "theme/title when available",
+        "source metadata summary"
+      ],
+      "downstream_consumers": [
+        "story_shell.json",
+        "story_shell_A.json",
+        "story_shell_B.json",
+        "catalog_map.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Blueprint preserves the selected canon rather than inventing a generic structure.",
+        "Candidate differences are reviewable before production readiness.",
+        "Missing source facts are explicit and blocking when required."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "catalog_map.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Map of source material sections to catalog slots for the product route.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "catalog_slots",
+          "description": "Product-route slots that need real or candidate material."
+        },
+        {
+          "name": "assignments",
+          "description": "Source refs, status, and rationale per slot."
+        },
+        {
+          "name": "review_status",
+          "description": "pending_review, accepted, rejected, missing, or needs_repick state per assignment."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, transcript, audio, or metadata evidence backing each assignment."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint or story shell",
+        "read-only source metadata",
+        "catalog slot definitions",
+        "human/product review decision when available"
+      ],
+      "downstream_consumers": [
+        "review_packet.json",
+        "reviewed_catalog_map.json",
+        "story_material_planning_handoff.json",
+        "visual_selection_candidates.json"
+      ],
+      "review_focus": [
+        "Pending review is not counted as accepted material.",
+        "Sensitive render-facing assignments have evidence beyond token/path matches.",
+        "Rejected or missing assignments route to repair rather than production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "reviewed_catalog_map.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Catalog map after human/agentic review of section assignments.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "catalog_slots",
+          "description": "Product-route slots that need real or candidate material."
+        },
+        {
+          "name": "assignments",
+          "description": "Source refs, status, and rationale per slot."
+        },
+        {
+          "name": "review_status",
+          "description": "pending_review, accepted, rejected, missing, or needs_repick state per assignment."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, transcript, audio, or metadata evidence backing each assignment."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint or story shell",
+        "read-only source metadata",
+        "catalog slot definitions",
+        "human/product review decision when available"
+      ],
+      "downstream_consumers": [
+        "review_packet.json",
+        "reviewed_catalog_map.json",
+        "story_material_planning_handoff.json",
+        "visual_selection_candidates.json"
+      ],
+      "review_focus": [
+        "Pending review is not counted as accepted material.",
+        "Sensitive render-facing assignments have evidence beyond token/path matches.",
+        "Rejected or missing assignments route to repair rather than production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "training_catalog_map.real_source.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Catalog map bound to real source-tree assets for the training film.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "catalog_slots",
+          "description": "Product-route slots that need real or candidate material."
+        },
+        {
+          "name": "assignments",
+          "description": "Source refs, status, and rationale per slot."
+        },
+        {
+          "name": "review_status",
+          "description": "pending_review, accepted, rejected, missing, or needs_repick state per assignment."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, transcript, audio, or metadata evidence backing each assignment."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint or story shell",
+        "read-only source metadata",
+        "catalog slot definitions",
+        "human/product review decision when available"
+      ],
+      "downstream_consumers": [
+        "review_packet.json",
+        "reviewed_catalog_map.json",
+        "story_material_planning_handoff.json",
+        "visual_selection_candidates.json"
+      ],
+      "review_focus": [
+        "Pending review is not counted as accepted material.",
+        "Sensitive render-facing assignments have evidence beyond token/path matches.",
+        "Rejected or missing assignments route to repair rather than production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "story_shell.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Selected story shell (beat structure) for the product route.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "story_beats",
+          "description": "Ordered beat shell with story function and section placement."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected shell identifier."
+        },
+        {
+          "name": "material_expectations",
+          "description": "Expected material role or evidence type for each beat."
+        },
+        {
+          "name": "review_flags",
+          "description": "Human review, retarget, or repair markers that block production when unresolved."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint",
+        "candidate story variant",
+        "catalog map",
+        "theme/title when available"
+      ],
+      "downstream_consumers": [
+        "story_retarget_diff_A_to_B.json",
+        "story_material_planning_handoff.json",
+        "product_route_review_packet.json"
+      ],
+      "review_focus": [
+        "Story shell has conflict, turn, and feeling rather than only parameters.",
+        "Candidate shell choice or retargeting is explicit.",
+        "Human story/product review requirements remain visible before BUILD."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "story_shell_A.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Candidate A story shell.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "story_beats",
+          "description": "Ordered beat shell with story function and section placement."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected shell identifier."
+        },
+        {
+          "name": "material_expectations",
+          "description": "Expected material role or evidence type for each beat."
+        },
+        {
+          "name": "review_flags",
+          "description": "Human review, retarget, or repair markers that block production when unresolved."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint",
+        "candidate story variant",
+        "catalog map",
+        "theme/title when available"
+      ],
+      "downstream_consumers": [
+        "story_retarget_diff_A_to_B.json",
+        "story_material_planning_handoff.json",
+        "product_route_review_packet.json"
+      ],
+      "review_focus": [
+        "Story shell has conflict, turn, and feeling rather than only parameters.",
+        "Candidate shell choice or retargeting is explicit.",
+        "Human story/product review requirements remain visible before BUILD."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "story_shell_B.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Candidate B story shell.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "story_beats",
+          "description": "Ordered beat shell with story function and section placement."
+        },
+        {
+          "name": "variant_id",
+          "description": "Candidate or selected shell identifier."
+        },
+        {
+          "name": "material_expectations",
+          "description": "Expected material role or evidence type for each beat."
+        },
+        {
+          "name": "review_flags",
+          "description": "Human review, retarget, or repair markers that block production when unresolved."
+        }
+      ],
+      "semantic_inputs": [
+        "film blueprint",
+        "candidate story variant",
+        "catalog map",
+        "theme/title when available"
+      ],
+      "downstream_consumers": [
+        "story_retarget_diff_A_to_B.json",
+        "story_material_planning_handoff.json",
+        "product_route_review_packet.json"
+      ],
+      "review_focus": [
+        "Story shell has conflict, turn, and feeling rather than only parameters.",
+        "Candidate shell choice or retargeting is explicit.",
+        "Human story/product review requirements remain visible before BUILD."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "story_retarget_diff_A_to_B.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Diff describing how the story shell retargets from candidate A to B.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "changed_beats",
+          "description": "Beat-level differences from candidate A to candidate B."
+        },
+        {
+          "name": "reason",
+          "description": "Why a beat was retargeted or preserved."
+        },
+        {
+          "name": "risk_flags",
+          "description": "Review-visible risk created by the retarget."
+        },
+        {
+          "name": "followup_actions",
+          "description": "Repair or confirmation actions required before production handoff."
+        }
+      ],
+      "semantic_inputs": [
+        "story_shell_A.json",
+        "story_shell_B.json",
+        "review notes",
+        "product route constraints"
+      ],
+      "downstream_consumers": [
+        "product_route_review_packet.json",
+        "production_readiness_plan.json",
+        "story_material_planning_handoff.json"
+      ],
+      "review_focus": [
+        "Retargeting changes are explicit and attributable.",
+        "Changed beats still satisfy canon/product requirements.",
+        "New unknowns are routed to review instead of silently accepted."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "story_material_planning_handoff.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Handoff mapping story beats to planned material before visual selection.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "handoff_scope",
+          "description": "What downstream owner may do with the artifact."
+        },
+        {
+          "name": "required_inputs",
+          "description": "Artifacts, media refs, and evidence refs needed by the downstream owner."
+        },
+        {
+          "name": "constraints",
+          "description": "Stop gates, forbidden writes, and limitations that must remain visible."
+        },
+        {
+          "name": "return_route",
+          "description": "Owning branch or repair path if the downstream owner blocks."
+        }
+      ],
+      "semantic_inputs": [
+        "approved product route artifacts",
+        "review decisions",
+        "readiness gate or plan",
+        "source/evidence refs"
+      ],
+      "downstream_consumers": [
+        "main-pipeline build eligibility",
+        "material-map",
+        "subtitle-voiceover",
+        "effect-factory",
+        "production worker"
+      ],
+      "review_focus": [
+        "Handoff references reviewed artifacts only.",
+        "Constraints and forbidden writes remain explicit.",
+        "Downstream owner can identify repair route without guessing."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "product_route_review_decision.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Human/agentic product-route review decision gating production readiness.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "reviewer",
+          "description": "Human or declared reviewer identity and role."
+        },
+        {
+          "name": "decision",
+          "description": "approve_all_reviewed, request_revision, reject, or equivalent fail-closed state."
+        },
+        {
+          "name": "scope",
+          "description": "Artifacts and sections covered by the decision."
+        },
+        {
+          "name": "limitations",
+          "description": "Unreviewed items, unknowns, or non-delivery caveats that remain active."
+        }
+      ],
+      "semantic_inputs": [
+        "product_route_review_packet.json or review_packet.json",
+        "reviewer identity",
+        "explicit reviewer decision",
+        "blocking findings"
+      ],
+      "downstream_consumers": [
+        "production_readiness_gate.json",
+        "reviewed_catalog_map.json",
+        "production_worker_handoff_prompt.md"
+      ],
+      "review_focus": [
+        "Decision is explicit and scoped.",
+        "Non-human or ambiguous broad approval fails closed where required.",
+        "Product-route approval is not mistaken for final story or delivery approval."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "product_route_review_packet.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Review packet summarizing the product route for reviewer decision.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "artifact_refs",
+          "description": "References to the artifacts being reviewed."
+        },
+        {
+          "name": "review_questions",
+          "description": "Concrete reviewer decisions needed before readiness can pass."
+        },
+        {
+          "name": "blocking_findings",
+          "description": "Known blockers, unknowns, or missing evidence."
+        },
+        {
+          "name": "decision_path",
+          "description": "Expected decision artifact or tool that closes the review."
+        }
+      ],
+      "semantic_inputs": [
+        "film-canon route artifacts",
+        "catalog/story shell artifacts",
+        "source metadata evidence",
+        "known limitations"
+      ],
+      "downstream_consumers": [
+        "product_route_review_decision.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Packet contains enough evidence for a product-route decision.",
+        "Limitations and missing evidence remain visible.",
+        "Approval is not treated as final delivery approval."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "production_readiness_gate.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Gate artifact recording whether the product route is production-ready.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "ready_for_production",
+          "description": "Boolean readiness result for dispatching a production worker."
+        },
+        {
+          "name": "blocking_items",
+          "description": "Remaining review, source, visual, audio, subtitle, or effect blockers."
+        },
+        {
+          "name": "handoff_refs",
+          "description": "Artifacts the production worker may consume."
+        },
+        {
+          "name": "repair_routes",
+          "description": "Owning route or tool for each blocker."
+        }
+      ],
+      "semantic_inputs": [
+        "product_route_review_decision.json",
+        "catalog/story handoff artifacts",
+        "visual selection status",
+        "audio/subtitle/effect requirements"
+      ],
+      "downstream_consumers": [
+        "production_worker_handoff_prompt.md",
+        "story_material_planning_handoff.json",
+        "audio_subtitle_review_handoff.json",
+        "opener_closer_design_handoff.json"
+      ],
+      "review_focus": [
+        "Readiness passes only with explicit approved review and required handoffs.",
+        "WAITING, REPAIR, UNKNOWN, or missing evidence remains blocking.",
+        "Dispatch prompt does not hide limitations."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "production_readiness_plan.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Plan of remaining work to reach production readiness.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "ready_for_production",
+          "description": "Boolean readiness result for dispatching a production worker."
+        },
+        {
+          "name": "blocking_items",
+          "description": "Remaining review, source, visual, audio, subtitle, or effect blockers."
+        },
+        {
+          "name": "handoff_refs",
+          "description": "Artifacts the production worker may consume."
+        },
+        {
+          "name": "repair_routes",
+          "description": "Owning route or tool for each blocker."
+        }
+      ],
+      "semantic_inputs": [
+        "product_route_review_decision.json",
+        "catalog/story handoff artifacts",
+        "visual selection status",
+        "audio/subtitle/effect requirements"
+      ],
+      "downstream_consumers": [
+        "production_worker_handoff_prompt.md",
+        "story_material_planning_handoff.json",
+        "audio_subtitle_review_handoff.json",
+        "opener_closer_design_handoff.json"
+      ],
+      "review_focus": [
+        "Readiness passes only with explicit approved review and required handoffs.",
+        "WAITING, REPAIR, UNKNOWN, or missing evidence remains blocking.",
+        "Dispatch prompt does not hide limitations."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "production_worker_handoff_prompt.md",
       "owner_branch": "film-canon-product-route",
       "purpose": "Dispatch prompt handed to a production worker once readiness passes.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "handoff_scope",
+          "description": "What downstream owner may do with the artifact."
+        },
+        {
+          "name": "required_inputs",
+          "description": "Artifacts, media refs, and evidence refs needed by the downstream owner."
+        },
+        {
+          "name": "constraints",
+          "description": "Stop gates, forbidden writes, and limitations that must remain visible."
+        },
+        {
+          "name": "return_route",
+          "description": "Owning branch or repair path if the downstream owner blocks."
+        }
+      ],
+      "semantic_inputs": [
+        "approved product route artifacts",
+        "review decisions",
+        "readiness gate or plan",
+        "source/evidence refs"
+      ],
+      "downstream_consumers": [
+        "main-pipeline build eligibility",
+        "material-map",
+        "subtitle-voiceover",
+        "effect-factory",
+        "production worker"
+      ],
+      "review_focus": [
+        "Handoff references reviewed artifacts only.",
+        "Constraints and forbidden writes remain explicit.",
+        "Downstream owner can identify repair route without guessing."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "review_packet.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Review packet for the film-canon route-selector dry-run stage.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "artifact_refs",
+          "description": "References to the artifacts being reviewed."
+        },
+        {
+          "name": "review_questions",
+          "description": "Concrete reviewer decisions needed before readiness can pass."
+        },
+        {
+          "name": "blocking_findings",
+          "description": "Known blockers, unknowns, or missing evidence."
+        },
+        {
+          "name": "decision_path",
+          "description": "Expected decision artifact or tool that closes the review."
+        }
+      ],
+      "semantic_inputs": [
+        "film-canon route artifacts",
+        "catalog/story shell artifacts",
+        "source metadata evidence",
+        "known limitations"
+      ],
+      "downstream_consumers": [
+        "product_route_review_decision.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Packet contains enough evidence for a product-route decision.",
+        "Limitations and missing evidence remain visible.",
+        "Approval is not treated as final delivery approval."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "graduation_real_source_review_packet.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Review packet for real graduation source footage.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "artifact_refs",
+          "description": "References to the artifacts being reviewed."
+        },
+        {
+          "name": "review_questions",
+          "description": "Concrete reviewer decisions needed before readiness can pass."
+        },
+        {
+          "name": "blocking_findings",
+          "description": "Known blockers, unknowns, or missing evidence."
+        },
+        {
+          "name": "decision_path",
+          "description": "Expected decision artifact or tool that closes the review."
+        }
+      ],
+      "semantic_inputs": [
+        "film-canon route artifacts",
+        "catalog/story shell artifacts",
+        "source metadata evidence",
+        "known limitations"
+      ],
+      "downstream_consumers": [
+        "product_route_review_decision.json",
+        "production_readiness_plan.json"
+      ],
+      "review_focus": [
+        "Packet contains enough evidence for a product-route decision.",
+        "Limitations and missing evidence remain visible.",
+        "Approval is not treated as final delivery approval."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "visual_selection_candidates.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Candidate visual clips per beat before selection confirmation.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "candidates",
+          "description": "Candidate visual refs per story beat or sensitive role."
+        },
+        {
+          "name": "selection_status",
+          "description": "accepted, rejected, needs_repick, pending_review, or missing."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, video, audio/speech, or reviewer evidence for each candidate."
+        },
+        {
+          "name": "forbidden_role_checks",
+          "description": "Checks that prevent token-only or role-mismatched selections from passing."
+        }
+      ],
+      "semantic_inputs": [
+        "story_material_planning_handoff.json",
+        "story_to_material_map.json",
+        "candidate source evidence",
+        "visual_selection_review.json when available"
+      ],
+      "downstream_consumers": [
+        "visual_selection_gate.json",
+        "production_readiness_gate.json",
+        "production_worker_handoff_prompt.md"
+      ],
+      "review_focus": [
+        "Render-facing sensitive selections have accepted visual confirmation evidence.",
+        "Token/folder/path matches remain candidate evidence only.",
+        "Rejected or needs_repick selections block production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "visual_selection_gate.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Gate recording confirmed render-facing visual selections.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "candidates",
+          "description": "Candidate visual refs per story beat or sensitive role."
+        },
+        {
+          "name": "selection_status",
+          "description": "accepted, rejected, needs_repick, pending_review, or missing."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, video, audio/speech, or reviewer evidence for each candidate."
+        },
+        {
+          "name": "forbidden_role_checks",
+          "description": "Checks that prevent token-only or role-mismatched selections from passing."
+        }
+      ],
+      "semantic_inputs": [
+        "story_material_planning_handoff.json",
+        "story_to_material_map.json",
+        "candidate source evidence",
+        "visual_selection_review.json when available"
+      ],
+      "downstream_consumers": [
+        "visual_selection_gate.json",
+        "production_readiness_gate.json",
+        "production_worker_handoff_prompt.md"
+      ],
+      "review_focus": [
+        "Render-facing sensitive selections have accepted visual confirmation evidence.",
+        "Token/folder/path matches remain candidate evidence only.",
+        "Rejected or needs_repick selections block production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "visual_selection_review.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Review decision over candidate visual selections.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "candidates",
+          "description": "Candidate visual refs per story beat or sensitive role."
+        },
+        {
+          "name": "selection_status",
+          "description": "accepted, rejected, needs_repick, pending_review, or missing."
+        },
+        {
+          "name": "evidence_refs",
+          "description": "Frame, video, audio/speech, or reviewer evidence for each candidate."
+        },
+        {
+          "name": "forbidden_role_checks",
+          "description": "Checks that prevent token-only or role-mismatched selections from passing."
+        }
+      ],
+      "semantic_inputs": [
+        "story_material_planning_handoff.json",
+        "story_to_material_map.json",
+        "candidate source evidence",
+        "visual_selection_review.json when available"
+      ],
+      "downstream_consumers": [
+        "visual_selection_gate.json",
+        "production_readiness_gate.json",
+        "production_worker_handoff_prompt.md"
+      ],
+      "review_focus": [
+        "Render-facing sensitive selections have accepted visual confirmation evidence.",
+        "Token/folder/path matches remain candidate evidence only.",
+        "Rejected or needs_repick selections block production."
+      ],
+      "canonical_write_policy": "canonical_candidate"
     },
     {
       "artifact_name": "audio_subtitle_review_handoff.json",
       "owner_branch": "subtitle-voiceover",
       "purpose": "Handoff of subtitle/voiceover review outcome to the product route.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "requirements",
+          "description": "Subtitle, narration, source speech, and voiceover evidence required by the product route."
+        },
+        {
+          "name": "coverage_status",
+          "description": "Which required communication elements are satisfied, pending, or blocked."
+        },
+        {
+          "name": "handoff_refs",
+          "description": "Artifacts handed to subtitle/voiceover or audio owners."
+        },
+        {
+          "name": "blocking_findings",
+          "description": "Missing subtitle, source-speech, voiceover, or review evidence."
+        }
+      ],
+      "semantic_inputs": [
+        "story shell or product route plan",
+        "source speech evidence",
+        "subtitle/voiceover requirements",
+        "review decision when available"
+      ],
+      "downstream_consumers": [
+        "subtitle-voiceover",
+        "verify-delivery",
+        "production_readiness_gate.json"
+      ],
+      "review_focus": [
+        "Required source speech and subtitle coverage are explicit.",
+        "Pending transcript or voiceover review remains blocking.",
+        "Audio/subtitle handoff does not imply final delivery approval."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "audio_subtitle_review_requirements.json",
       "owner_branch": "subtitle-voiceover",
       "purpose": "Required subtitle/voiceover evidence for the product route.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "requirements",
+          "description": "Subtitle, narration, source speech, and voiceover evidence required by the product route."
+        },
+        {
+          "name": "coverage_status",
+          "description": "Which required communication elements are satisfied, pending, or blocked."
+        },
+        {
+          "name": "handoff_refs",
+          "description": "Artifacts handed to subtitle/voiceover or audio owners."
+        },
+        {
+          "name": "blocking_findings",
+          "description": "Missing subtitle, source-speech, voiceover, or review evidence."
+        }
+      ],
+      "semantic_inputs": [
+        "story shell or product route plan",
+        "source speech evidence",
+        "subtitle/voiceover requirements",
+        "review decision when available"
+      ],
+      "downstream_consumers": [
+        "subtitle-voiceover",
+        "verify-delivery",
+        "production_readiness_gate.json"
+      ],
+      "review_focus": [
+        "Required source speech and subtitle coverage are explicit.",
+        "Pending transcript or voiceover review remains blocking.",
+        "Audio/subtitle handoff does not imply final delivery approval."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "opener_closer_design_handoff.json",
       "owner_branch": "effect-factory",
       "purpose": "Handoff of opener/closer effect design to the product route.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "opener_design",
+          "description": "Opening visual/effect intent, story hook, and material refs."
+        },
+        {
+          "name": "closer_design",
+          "description": "Closing visual/effect intent, payoff, and material refs."
+        },
+        {
+          "name": "effect_constraints",
+          "description": "Backend, timing, and evidence constraints for the effect owner."
+        },
+        {
+          "name": "review_requirements",
+          "description": "What must be reviewed before the design becomes render-facing."
+        }
+      ],
+      "semantic_inputs": [
+        "story shell",
+        "film blueprint",
+        "visual technique requirements",
+        "product-route review notes"
+      ],
+      "downstream_consumers": [
+        "effect-factory",
+        "production_readiness_gate.json",
+        "production_worker_handoff_prompt.md"
+      ],
+      "review_focus": [
+        "Opener/closer design carries story hook and payoff.",
+        "Effect constraints are renderable by the owning branch.",
+        "Unreviewed design does not become final timeline content."
+      ],
+      "canonical_write_policy": "handoff_only"
     },
     {
       "artifact_name": "story_to_material_map.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Mapping of story beats to source material used for render-facing visual selection.",
-      "functional_parameters": []
+      "functional_parameters": [
+        {
+          "name": "handoff_scope",
+          "description": "What downstream owner may do with the artifact."
+        },
+        {
+          "name": "required_inputs",
+          "description": "Artifacts, media refs, and evidence refs needed by the downstream owner."
+        },
+        {
+          "name": "constraints",
+          "description": "Stop gates, forbidden writes, and limitations that must remain visible."
+        },
+        {
+          "name": "return_route",
+          "description": "Owning branch or repair path if the downstream owner blocks."
+        }
+      ],
+      "semantic_inputs": [
+        "approved product route artifacts",
+        "review decisions",
+        "readiness gate or plan",
+        "source/evidence refs"
+      ],
+      "downstream_consumers": [
+        "main-pipeline build eligibility",
+        "material-map",
+        "subtitle-voiceover",
+        "effect-factory",
+        "production worker"
+      ],
+      "review_focus": [
+        "Handoff references reviewed artifacts only.",
+        "Constraints and forbidden writes remain explicit.",
+        "Downstream owner can identify repair route without guessing."
+      ],
+      "canonical_write_policy": "handoff_only"
     }
   ]
 }
