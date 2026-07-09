@@ -113,18 +113,55 @@ def _geometry(profile: str, samples: list[dict[str, Any]]) -> tuple[int, int, in
     return cell_w, cell_h, cols, rows, spark_h
 
 
+def _page_path(out_path: str | Path, page_number: int) -> Path:
+    out = Path(out_path)
+    return out.with_name(f"{out.stem}_p{page_number:02d}{out.suffix}")
+
+
+def _page_capacity(profile: str, *, max_cells_per_page: int, max_page_height_px: int) -> int:
+    cell_w, cell_h, cols, _rows, spark_h = _geometry(profile, [{"shot_id": "preview"}])
+    row_h = cell_h + spark_h
+    max_rows = max(1, max_page_height_px // max(1, row_h))
+    if profile == "material_wall":
+        height_capacity = max_rows
+    else:
+        height_capacity = max_rows * cols
+    return max(1, min(max_cells_per_page, height_capacity))
+
+
 def _render_wall(
     video_path: str | Path,
     samples: list[dict[str, Any]],
     out_path: str | Path,
     *,
     profile: str,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     if not samples:
-        Image.new("RGB", (640, 180), "#f6f7fb").save(out)
-        return []
+        page = _page_path(out, 1)
+        Image.new("RGB", (640, 180), "#f6f7fb").save(page)
+        return [], [{
+            "page": 1,
+            "image_path": str(page),
+            "cell_count": 0,
+            "width_px": 640,
+            "height_px": 180,
+        }]
+
+    return _render_wall_page(video_path, samples, out, profile=profile, page_number=1)
+
+
+def _render_wall_page(
+    video_path: str | Path,
+    samples: list[dict[str, Any]],
+    out_path: Path,
+    *,
+    profile: str,
+    page_number: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    page_path = _page_path(out_path, page_number)
+    page_path.parent.mkdir(parents=True, exist_ok=True)
 
     cell_w, cell_h, cols, rows, spark_h = _geometry(profile, samples)
     row_h = cell_h + spark_h
@@ -156,6 +193,8 @@ def _render_wall(
             draw.line([tick, y + cell_h + 4, tick, y + cell_h + spark_h - 4], fill="#ef4444", width=2)
         cells.append({
             "cell_id": f"cell_{len(cells) + 1:04d}",
+            "page": page_number,
+            "page_image_path": str(page_path),
             "row": row,
             "column": col,
             "shot_id": shot_id,
@@ -164,8 +203,40 @@ def _render_wall(
             "reason": sample.get("reason"),
         })
 
-    sheet.save(out)
-    return cells
+    sheet.save(page_path)
+    return cells, [{
+        "page": page_number,
+        "image_path": str(page_path),
+        "cell_count": len(cells),
+        "width_px": sheet.width,
+        "height_px": sheet.height,
+    }]
+
+
+def _render_wall_pages(
+    video_path: str | Path,
+    samples: list[dict[str, Any]],
+    out_path: str | Path,
+    *,
+    profile: str,
+    max_cells_per_page: int,
+    max_page_height_px: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not samples:
+        return _render_wall(video_path, samples, out, profile=profile)
+    capacity = _page_capacity(profile, max_cells_per_page=max_cells_per_page, max_page_height_px=max_page_height_px)
+    all_cells: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
+    for page_index, start in enumerate(range(0, len(samples), capacity), start=1):
+        chunk = samples[start:start + capacity]
+        cells, page_meta = _render_wall_page(video_path, chunk, out, profile=profile, page_number=page_index)
+        for cell in cells:
+            cell["cell_id"] = f"cell_{len(all_cells) + 1:04d}"
+            all_cells.append(cell)
+        pages.extend(page_meta)
+    return all_cells, pages
 
 
 def build_montage_wall(
@@ -175,12 +246,22 @@ def build_montage_wall(
     wall_image_path: str | Path,
     *,
     profile: str = "material_wall",
+    max_cells_per_page: int = 96,
+    max_page_height_px: int = 4096,
 ) -> dict[str, Any]:
     if profile not in PROFILES:
         raise ValueError(f"unknown montage wall profile: {profile}")
     coverage, limitations = _load_coverage(coverage_report_path)
     samples = _ordered_samples(sampling_plan)
-    cells = _render_wall(video_path, samples, wall_image_path, profile=profile)
+    cells, pages = _render_wall_pages(
+        video_path,
+        samples,
+        wall_image_path,
+        profile=profile,
+        max_cells_per_page=max_cells_per_page,
+        max_page_height_px=max_page_height_px,
+    )
+    page_paths = [str(page["image_path"]) for page in pages]
     return {
         "artifact_role": "montage_wall",
         "version": VERSION,
@@ -188,7 +269,14 @@ def build_montage_wall(
         "source_video": str(video_path),
         "sampling_plan_path": sampling_plan.get("artifact_path"),
         "coverage_report_path": str(coverage_report_path) if coverage_report_path else None,
-        "wall_image_path": str(wall_image_path),
+        "wall_image_path": page_paths[0] if page_paths else None,
+        "page_image_paths": page_paths,
+        "pages": pages,
+        "pagination": {
+            "max_cells_per_page": max_cells_per_page,
+            "max_page_height_px": max_page_height_px,
+            "page_count": len(pages),
+        },
         "coverage_pass": bool(coverage and coverage.get("pass")),
         "cells": cells,
         "limitations": limitations,
@@ -203,6 +291,8 @@ def write_montage_wall(
     sidecar_path: str | Path,
     *,
     profile: str = "material_wall",
+    max_cells_per_page: int = 96,
+    max_page_height_px: int = 4096,
 ) -> dict[str, Any]:
     plan = _load_json(sampling_plan_path)
     if not isinstance(plan, dict) or plan.get("artifact_role") != "sampling_plan":
@@ -214,6 +304,8 @@ def write_montage_wall(
         coverage_report_path,
         wall_image_path,
         profile=profile,
+        max_cells_per_page=max_cells_per_page,
+        max_page_height_px=max_page_height_px,
     )
     _write_json(Path(sidecar_path), payload)
     return payload

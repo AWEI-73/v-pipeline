@@ -1473,6 +1473,8 @@ def cmd_montage_wall(args):
         args.out,
         args.sidecar,
         profile=getattr(args, "profile", None) or "material_wall",
+        max_cells_per_page=getattr(args, "max_cells_per_page", None) or 96,
+        max_page_height_px=getattr(args, "max_page_height_px", None) or 4096,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
@@ -4117,6 +4119,8 @@ def main():
         default="material_wall",
         choices=["material_wall", "timeline_wall", "segment_strip"],
     )
+    p_mw.add_argument("--max-cells-per-page", type=int, default=96, dest="max_cells_per_page")
+    p_mw.add_argument("--max-page-height-px", type=int, default=4096, dest="max_page_height_px")
 
     p_va = sub.add_parser("visual-audit")
     p_va.add_argument("video", help="render candidate video")

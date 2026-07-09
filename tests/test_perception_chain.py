@@ -135,19 +135,56 @@ class PerceptionChainSmokeTest(unittest.TestCase):
             profile="material_wall",
         )
 
-        for path in (plan_path, coverage_path, wall_path, sidecar_path):
+        for path in (plan_path, coverage_path, sidecar_path):
             self.assertTrue(path.exists(), path)
             self.assertGreater(path.stat().st_size, 0)
         self.assertEqual(wall["artifact_role"], "montage_wall")
         self.assertEqual(wall["profile"], "material_wall")
         self.assertEqual(wall["coverage_report_path"], str(coverage_path))
         self.assertEqual(wall["sampling_plan_path"], str(plan_path))
-        self.assertEqual(wall["wall_image_path"], str(wall_path))
+        self.assertTrue(wall["page_image_paths"])
+        self.assertEqual(wall["wall_image_path"], wall["page_image_paths"][0])
+        self.assertTrue(Path(wall["wall_image_path"]).exists())
         self.assertTrue(wall["cells"])
         self.assertTrue(all(cell["shot_id"] and "timestamp_sec" in cell for cell in wall["cells"]))
         saved = json.loads(sidecar_path.read_text(encoding="utf-8"))
         self.assertEqual(saved, wall)
         self.assertFalse(wall["limitations"])
+
+    def test_montage_wall_paginates_bounded_pages_and_sidecar_cells(self):
+        from video_pipeline_core.montage_wall import write_montage_wall
+        from video_pipeline_core.sampling_coverage import write_sampling_coverage_report
+        from video_pipeline_core.sampling_planner import write_sampling_plan
+
+        shots = [
+            {"shot_id": f"shot_{index:03d}", "start_sec": float(index), "end_sec": float(index) + 0.8}
+            for index in range(6)
+        ]
+        shots_path = self.root / "page_shots.json"
+        shots_path.write_text(json.dumps(shots), encoding="utf-8")
+        plan_path = self.root / "page_plan.json"
+        coverage_path = self.root / "page_coverage.json"
+        wall_path = self.root / "paged_wall.png"
+        sidecar_path = self.root / "paged_wall.json"
+
+        write_sampling_plan(self.video, shots, plan_path, audio_anchors={})
+        write_sampling_coverage_report(plan_path, shots_path, coverage_path, max_gap_sec=4.0)
+        wall = write_montage_wall(
+            self.video,
+            plan_path,
+            coverage_path,
+            wall_path,
+            sidecar_path,
+            profile="timeline_wall",
+            max_cells_per_page=4,
+            max_page_height_px=4096,
+        )
+
+        self.assertGreater(len(wall["page_image_paths"]), 1)
+        self.assertFalse(wall_path.exists())
+        for page_path in wall["page_image_paths"]:
+            self.assertTrue(Path(page_path).exists())
+        self.assertTrue(all(cell["page"] >= 1 for cell in wall["cells"]))
 
     def test_existing_contact_sheet_helpers_write_canonical_sidecars(self):
         from video_pipeline_core.material_understanding_matrix import _contact_sheet
