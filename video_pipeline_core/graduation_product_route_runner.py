@@ -93,6 +93,33 @@ def _music_subtitle_ok(run: Path) -> tuple[bool, str | None]:
     return False, "missing music/subtitle profile evidence"
 
 
+# Declarative route stage table (single source of the graduation product-route
+# sequence + per-stage owner branch, owner tool, gate artifact, and kind). run()
+# is a consumer of this table; a guard test asserts the executed stage order
+# matches it and that every owner is a registered branch. ``kind`` declares
+# whether each stage is a mechanical verify or a review (point-4 "every stage has
+# a verify or a review"); signature enforcement is declared here but intentionally
+# not enforced yet (turning it on is a deliberate tightening, not a refactor).
+VERIFY_KINDS = {"state_check", "artifact_check", "verify"}
+REVIEW_KINDS = {"human_review", "review", "signed_review"}
+
+ROUTE_STAGES: list[dict[str, Any]] = [
+    {"stage_id": "pipeline_home", "owner": "main-pipeline", "owner_tool": "tools/pipeline_home.py", "artifact": None, "kind": "state_check"},
+    {"stage_id": "film_canon_route_artifact_check", "owner": "film-canon-product-route", "owner_tool": None, "artifact": "graduation_film_canon.json", "kind": "artifact_check"},
+    {"stage_id": "film_canon_readiness", "owner": "film-canon-product-route", "owner_tool": "tools/film_canon_readiness.py", "artifact": "production_readiness_gate.json", "kind": "verify"},
+    {"stage_id": "product_route_review_decision", "owner": "film-canon-product-route", "owner_tool": "tools/write_product_route_review_decision.py", "artifact": "product_route_review_decision.json", "kind": "human_review"},
+    {"stage_id": "shot_level_material_proof", "owner": "material-map", "owner_tool": None, "artifact": "shot_level_material_proof_plan.json", "kind": "verify"},
+    {"stage_id": "visual_selection_gate", "owner": "film-canon-product-route", "owner_tool": "tools/visual_selection_gate.py", "artifact": "visual_selection_gate.json", "kind": "review"},
+    {"stage_id": "effect_handoff", "owner": "effect-factory", "owner_tool": None, "artifact": "effect_handoff.json", "kind": "review"},
+    {"stage_id": "music_subtitle_profile", "owner": "soundtrack-arranger", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
+    {"stage_id": "compose_render_handoff", "owner": "main-pipeline", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
+    {"stage_id": "rendered_product_qa", "owner": "verify-delivery", "owner_tool": "tools/rendered_product_qa.py", "artifact": "rendered_product_qa.json", "kind": "verify"},
+    {"stage_id": "no_skip_execution_trace", "owner": "verify-delivery", "owner_tool": "tools/no_skip_execution_trace.py", "artifact": "no_skip_contract_decision.json", "kind": "verify"},
+]
+
+ROUTE_STAGE_BY_ID: dict[str, dict[str, Any]] = {stage["stage_id"]: stage for stage in ROUTE_STAGES}
+
+
 class GraduationProductRouteRunner:
     def __init__(
         self,
@@ -137,6 +164,34 @@ class GraduationProductRouteRunner:
             "source_tool": owner_tool,
         })
 
+    def _record_stage(
+        self,
+        stage_id: str,
+        *,
+        status: str,
+        inputs: list[str] | None = None,
+        outputs: list[str] | None = None,
+        command: list[str] | None = None,
+        command_result: dict[str, Any] | None = None,
+        evidence: dict[str, Any] | None = None,
+        stop_reason: str | None = None,
+    ) -> None:
+        """Record a stage, taking owner/owner_tool/artifact from ROUTE_STAGES."""
+        spec = ROUTE_STAGE_BY_ID[stage_id]
+        self._record(
+            stage_id,
+            owner=spec["owner"],
+            owner_tool=spec["owner_tool"],
+            artifact=spec["artifact"],
+            inputs=inputs,
+            outputs=outputs,
+            command=command,
+            command_result=command_result,
+            status=status,
+            evidence=evidence,
+            stop_reason=stop_reason,
+        )
+
     def _stop(self, out_dir: Path, gate: str, reason: str) -> dict[str, Any]:
         result = {
             "artifact_role": "graduation_product_route_harness_result",
@@ -179,10 +234,8 @@ class GraduationProductRouteRunner:
         home_result = self.command_runner(command, self.repo_root)
         home_payload = _parse_stdout_json(home_result) or {}
         home_status = str(home_payload.get("status") or "UNKNOWN")
-        self._record(
+        self._record_stage(
             "pipeline_home",
-            owner="main-pipeline",
-            owner_tool="tools/pipeline_home.py",
             inputs=[str(run_dir)],
             outputs=["pipeline_home_json_stdout"],
             command=command,
@@ -194,10 +247,8 @@ class GraduationProductRouteRunner:
         if home_status in {"UNKNOWN", "WAITING", "REPAIR"}:
             return self._stop(out, "pipeline_home", home_status)
 
-        self._record(
+        self._record_stage(
             "film_canon_route_artifact_check",
-            owner="film-canon-product-route",
-            artifact="graduation_film_canon.json",
             inputs=[str(source)],
             outputs=["graduation_film_canon.json", "film_canon.json"],
             status="inspected",
@@ -209,11 +260,8 @@ class GraduationProductRouteRunner:
 
         readiness_payload = _load_json(run_dir / "production_readiness_gate.json")
         readiness_pass, readiness_reason = _readiness_ok(readiness_payload)
-        self._record(
+        self._record_stage(
             "film_canon_readiness",
-            owner="film-canon-product-route",
-            owner_tool="tools/film_canon_readiness.py",
-            artifact="production_readiness_gate.json",
             inputs=["product_route_review_decision.json"],
             outputs=["production_readiness_gate.json"],
             status="pass" if readiness_pass else "missing_or_not_ready",
@@ -223,11 +271,8 @@ class GraduationProductRouteRunner:
 
         decision_payload = _load_json(run_dir / "product_route_review_decision.json")
         decision_pass, decision_reason = _is_approved_product_decision(decision_payload)
-        self._record(
+        self._record_stage(
             "product_route_review_decision",
-            owner="film-canon-product-route",
-            owner_tool="tools/write_product_route_review_decision.py",
-            artifact="product_route_review_decision.json",
             status="pass" if decision_pass else "stop",
             evidence=decision_payload or {},
             stop_reason=decision_reason,
@@ -238,10 +283,8 @@ class GraduationProductRouteRunner:
             return self._stop(out, "film_canon_readiness", readiness_reason or "not ready")
 
         shot_proof = _load_json(run_dir / "shot_level_material_proof_plan.json")
-        self._record(
+        self._record_stage(
             "shot_level_material_proof",
-            owner="material-map",
-            artifact="shot_level_material_proof_plan.json",
             status="pass" if shot_proof else "stop",
             evidence=shot_proof or {},
             stop_reason=None if shot_proof else "missing shot_level_material_proof_plan.json",
@@ -251,11 +294,8 @@ class GraduationProductRouteRunner:
 
         visual_payload = _load_json(run_dir / "visual_selection_gate.json")
         visual_pass, visual_reason = _visual_gate_ok(run_dir, visual_payload)
-        self._record(
+        self._record_stage(
             "visual_selection_gate",
-            owner="film-canon-product-route",
-            owner_tool="tools/visual_selection_gate.py",
-            artifact="visual_selection_gate.json",
             status="pass" if visual_pass else "stop",
             evidence=visual_payload or {},
             stop_reason=visual_reason,
@@ -265,10 +305,8 @@ class GraduationProductRouteRunner:
 
         effect_payload = _load_json(run_dir / "effect_handoff.json")
         effect_pass, effect_reason = _effect_ok(effect_payload)
-        self._record(
+        self._record_stage(
             "effect_handoff",
-            owner="effect-factory",
-            artifact="effect_handoff.json",
             status="pass" if effect_pass else "stop",
             evidence=effect_payload or {},
             stop_reason=effect_reason,
@@ -277,10 +315,8 @@ class GraduationProductRouteRunner:
             return self._stop(out, "effect_handoff", effect_reason or "effect handoff not accepted")
 
         music_pass, music_reason = _music_subtitle_ok(run_dir)
-        self._record(
+        self._record_stage(
             "music_subtitle_profile",
-            owner="soundtrack-arranger",
-            artifact="render_handoff.json",
             status="pass" if music_pass else "stop",
             evidence={"checked_artifacts": ["render_handoff.json", "audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json"]},
             stop_reason=music_reason,
@@ -289,10 +325,8 @@ class GraduationProductRouteRunner:
             return self._stop(out, "music_subtitle_profile", music_reason or "missing evidence")
 
         compose_handoff = _load_json(run_dir / "render_handoff.json")
-        self._record(
+        self._record_stage(
             "compose_render_handoff",
-            owner="main-pipeline",
-            artifact="render_handoff.json",
             status="pass" if compose_handoff else "stop",
             evidence=compose_handoff or {},
             stop_reason=None if compose_handoff else "missing render_handoff.json",
@@ -318,11 +352,8 @@ class GraduationProductRouteRunner:
         rendered_command = [self.python_exe, "tools/rendered_product_qa.py", "--run", str(run_dir), "--out-dir", str(out), "--json"]
         rendered_result = self.command_runner(rendered_command, self.repo_root)
         rendered_payload = _parse_stdout_json(rendered_result) or {}
-        self._record(
+        self._record_stage(
             "rendered_product_qa",
-            owner="verify-delivery",
-            owner_tool="tools/rendered_product_qa.py",
-            artifact="rendered_product_qa.json",
             inputs=[str(candidate)],
             outputs=["rendered_product_qa.json"],
             command=rendered_command,
@@ -337,11 +368,8 @@ class GraduationProductRouteRunner:
         no_skip_command = [self.python_exe, "tools/no_skip_execution_trace.py", "--run", str(out), "--out-dir", str(out), "--json"]
         no_skip_result = self.command_runner(no_skip_command, self.repo_root)
         no_skip_payload = _parse_stdout_json(no_skip_result) or {}
-        self._record(
+        self._record_stage(
             "no_skip_execution_trace",
-            owner="verify-delivery",
-            owner_tool="tools/no_skip_execution_trace.py",
-            artifact="no_skip_contract_decision.json",
             inputs=["pipeline_execution_trace.json", "rendered_product_qa.json"],
             outputs=["no_skip_contract_decision.json"],
             command=no_skip_command,
