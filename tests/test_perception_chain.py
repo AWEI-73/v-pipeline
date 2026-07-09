@@ -106,6 +106,47 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         self.assertEqual(saved["artifact_role"], "sampling_coverage_report")
         self.assertEqual(saved["sampling_plan_path"], str(plan_path))
 
+    def test_chain_writes_sampling_coverage_and_montage_wall_artifacts(self):
+        from video_pipeline_core.montage_wall import write_montage_wall
+        from video_pipeline_core.sampling_coverage import write_sampling_coverage_report
+        from video_pipeline_core.sampling_planner import write_sampling_plan
+
+        plan_path = self.root / "sampling_plan.json"
+        coverage_path = self.root / "sampling_coverage_report.json"
+        wall_path = self.root / "wall.png"
+        sidecar_path = self.root / "montage_wall.json"
+
+        write_sampling_plan(self.video, self.shots, plan_path, audio_anchors=self.anchors)
+        write_sampling_coverage_report(
+            plan_path,
+            self.shots_path,
+            coverage_path,
+            audio_anchors=self.anchors,
+            max_gap_sec=1.25,
+        )
+        wall = write_montage_wall(
+            self.video,
+            plan_path,
+            coverage_path,
+            wall_path,
+            sidecar_path,
+            profile="material_wall",
+        )
+
+        for path in (plan_path, coverage_path, wall_path, sidecar_path):
+            self.assertTrue(path.exists(), path)
+            self.assertGreater(path.stat().st_size, 0)
+        self.assertEqual(wall["artifact_role"], "montage_wall")
+        self.assertEqual(wall["profile"], "material_wall")
+        self.assertEqual(wall["coverage_report_path"], str(coverage_path))
+        self.assertEqual(wall["sampling_plan_path"], str(plan_path))
+        self.assertEqual(wall["wall_image_path"], str(wall_path))
+        self.assertTrue(wall["cells"])
+        self.assertTrue(all(cell["shot_id"] and "timestamp_sec" in cell for cell in wall["cells"]))
+        saved = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved, wall)
+        self.assertFalse(wall["limitations"])
+
 
 if __name__ == "__main__":
     unittest.main()

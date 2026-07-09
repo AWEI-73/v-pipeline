@@ -1462,6 +1462,21 @@ def cmd_sampling_coverage(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_montage_wall(args):
+    """Canonical reviewer montage wall renderer."""
+    from video_pipeline_core.montage_wall import write_montage_wall
+
+    result = write_montage_wall(
+        args.video,
+        args.sampling_plan,
+        args.coverage_report,
+        args.out,
+        args.sidecar,
+        profile=getattr(args, "profile", None) or "material_wall",
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_visual_audit(args):
     """P1 Node 12: keyframe-grid generation + mechanical visual audit."""
     from video_pipeline_core import keyframe_grid, visual_audit
@@ -2982,6 +2997,7 @@ def _build_video_tools_dispatch():
         "caption-audit":   cmd_caption_audit,
         "keyframe-grid":   cmd_keyframe_grid,
         "sampling-coverage": cmd_sampling_coverage,
+        "montage-wall": cmd_montage_wall,
         "visual-audit":    cmd_visual_audit,
         "verify-evidence": cmd_verify_evidence,
         "final-product-verify": cmd_final_product_verify,
@@ -4068,6 +4084,18 @@ def main():
     p_sc.add_argument("--out", required=True, help="sampling_coverage_report.json output")
     p_sc.add_argument("--tolerance-sec", type=float, default=0.35, dest="tolerance_sec")
     p_sc.add_argument("--max-gap-sec", type=float, default=4.0, dest="max_gap_sec")
+
+    p_mw = sub.add_parser("montage-wall")
+    p_mw.add_argument("video", help="source video")
+    p_mw.add_argument("--sampling-plan", required=True, dest="sampling_plan")
+    p_mw.add_argument("--coverage-report", required=True, dest="coverage_report")
+    p_mw.add_argument("--out", required=True, help="wall PNG output")
+    p_mw.add_argument("--sidecar", required=True, help="montage_wall.json output")
+    p_mw.add_argument(
+        "--profile",
+        default="material_wall",
+        choices=["material_wall", "timeline_wall", "segment_strip"],
+    )
 
     p_va = sub.add_parser("visual-audit")
     p_va.add_argument("video", help="render candidate video")
