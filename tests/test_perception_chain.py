@@ -75,6 +75,37 @@ class PerceptionChainSmokeTest(unittest.TestCase):
             self.assertGreaterEqual(sample["timestamp_sec"], 0.0)
             self.assertLessEqual(sample["timestamp_sec"], 4.0)
 
+    def test_sampling_coverage_report_fails_closed_and_cli_writes_json(self):
+        import video_tools
+        from video_pipeline_core.sampling_planner import write_sampling_plan
+        from video_pipeline_core.sampling_coverage import verify_sampling_coverage
+
+        plan_path = self.root / "sampling_plan.json"
+        plan = write_sampling_plan(self.video, self.shots, plan_path, audio_anchors=self.anchors)
+        report = verify_sampling_coverage(plan, self.shots, self.anchors, max_gap_sec=1.25)
+        self.assertEqual(report["artifact_role"], "sampling_coverage_report")
+        self.assertTrue(report["pass"])
+        self.assertFalse(report["gaps"])
+        self.assertTrue(all(check["pass"] for check in report["checks"]))
+
+        failing = verify_sampling_coverage({}, self.shots, self.anchors)
+        self.assertFalse(failing["pass"])
+        self.assertIn("missing_sampling_plan", {check["check"] for check in failing["checks"]})
+
+        out = self.root / "sampling_coverage_report.json"
+        args = type("Args", (), {
+            "sampling_plan": str(plan_path),
+            "shots": str(self.shots_path),
+            "anchors": None,
+            "out": str(out),
+            "tolerance_sec": 0.35,
+            "max_gap_sec": 1.25,
+        })()
+        video_tools.cmd_sampling_coverage(args)
+        saved = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(saved["artifact_role"], "sampling_coverage_report")
+        self.assertEqual(saved["sampling_plan_path"], str(plan_path))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1447,6 +1447,21 @@ def cmd_keyframe_grid(args):
             "(unreadable/zero-duration video?)")
 
 
+def cmd_sampling_coverage(args):
+    """Reviewer perception sampling coverage verification."""
+    from video_pipeline_core.sampling_coverage import write_sampling_coverage_report
+
+    result = write_sampling_coverage_report(
+        args.sampling_plan,
+        args.shots,
+        args.out,
+        audio_anchors=getattr(args, "anchors", None),
+        tolerance_sec=getattr(args, "tolerance_sec", None) or 0.35,
+        max_gap_sec=getattr(args, "max_gap_sec", None) or 4.0,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_visual_audit(args):
     """P1 Node 12: keyframe-grid generation + mechanical visual audit."""
     from video_pipeline_core import keyframe_grid, visual_audit
@@ -2966,6 +2981,7 @@ def _build_video_tools_dispatch():
         "jumpcut-review":   cmd_jumpcut_review,
         "caption-audit":   cmd_caption_audit,
         "keyframe-grid":   cmd_keyframe_grid,
+        "sampling-coverage": cmd_sampling_coverage,
         "visual-audit":    cmd_visual_audit,
         "verify-evidence": cmd_verify_evidence,
         "final-product-verify": cmd_final_product_verify,
@@ -4044,6 +4060,14 @@ def main():
     p_kg.add_argument("--out", required=True, help="keyframe_grid.jpg output")
     p_kg.add_argument("--samples", type=int, default=12, help="number of keyframes")
     p_kg.add_argument("--columns", type=int, default=4, help="grid columns")
+
+    p_sc = sub.add_parser("sampling-coverage")
+    p_sc.add_argument("sampling_plan", help="sampling_plan.json")
+    p_sc.add_argument("--shots", required=True, help="shot list JSON")
+    p_sc.add_argument("--anchors", default=None, help="optional audio anchors JSON")
+    p_sc.add_argument("--out", required=True, help="sampling_coverage_report.json output")
+    p_sc.add_argument("--tolerance-sec", type=float, default=0.35, dest="tolerance_sec")
+    p_sc.add_argument("--max-gap-sec", type=float, default=4.0, dest="max_gap_sec")
 
     p_va = sub.add_parser("visual-audit")
     p_va.add_argument("video", help="render candidate video")
