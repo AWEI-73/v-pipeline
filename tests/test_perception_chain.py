@@ -232,6 +232,34 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         self.assertGreaterEqual(reason_counts.get("audio_beat", 0), 3)
         self.assertGreaterEqual(reason_counts.get("energy_event", 0), 1)
 
+    def test_perception_field_check_command_writes_report_and_classifies_command(self):
+        import video_tools
+
+        out_dir = self.root / "field_check"
+        args = type("Args", (), {
+            "video": str(self.video),
+            "out": str(out_dir),
+            "max_cells_per_page": 4,
+            "max_page_height_px": 4096,
+        })()
+
+        video_tools.cmd_perception_field_check(args)
+
+        report_path = out_dir / "perception_field_report.json"
+        self.assertTrue(report_path.exists())
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual("perception_field_report", report["artifact_role"])
+        self.assertTrue(report["ok"], report.get("fail_reason"))
+        self.assertTrue(report["coverage"]["pass"])
+        self.assertGreaterEqual(report["wall"]["page_count"], 1)
+        self.assertTrue((out_dir / "sampling_plan.json").exists())
+        self.assertTrue((out_dir / "sampling_coverage_report.json").exists())
+        self.assertTrue((out_dir / "montage_wall.json").exists())
+
+        manifest = video_tools.build_video_tools_command_manifest()
+        self.assertIn("perception-field-check", manifest["commands"])
+        self.assertNotIn("perception-field-check", manifest["unclassified_commands"])
+
     def test_existing_contact_sheet_helpers_write_canonical_sidecars(self):
         from video_pipeline_core.material_understanding_matrix import _contact_sheet
         from video_pipeline_core.source_material_matrix import _make_contact_sheet

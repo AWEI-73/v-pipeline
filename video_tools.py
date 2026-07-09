@@ -1479,6 +1479,122 @@ def cmd_montage_wall(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_perception_field_check(args):
+    """Run the observation-only perception chain and write field metrics."""
+    import time
+
+    from video_pipeline_core import mv_cut
+    from video_pipeline_core.montage_wall import write_montage_wall
+    from video_pipeline_core.sampling_coverage import write_sampling_coverage_report
+    from video_pipeline_core.sampling_planner import write_sampling_plan
+    from video_pipeline_core.soundtrack_probe import write_soundtrack_probe
+
+    video = Path(args.video)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    max_cells_per_page = int(getattr(args, "max_cells_per_page", None) or 96)
+    max_page_height_px = int(getattr(args, "max_page_height_px", None) or 4096)
+    stage_seconds: dict[str, float] = {}
+
+    def timed(stage: str, fn):
+        start = time.perf_counter()
+        result = fn()
+        stage_seconds[stage] = round(time.perf_counter() - start, 3)
+        return result
+
+    shots_path = out_dir / "shots.json"
+    probe_path = out_dir / "soundtrack_probe.json"
+    plan_path = out_dir / "sampling_plan.json"
+    coverage_path = out_dir / "sampling_coverage_report.json"
+    wall_path = out_dir / "montage_wall.png"
+    sidecar_path = out_dir / "montage_wall.json"
+    report_path = out_dir / "perception_field_report.json"
+
+    shots_raw = timed("shot_detection", lambda: mv_cut.detect_shots(str(video)))
+    shots = [
+        {"shot_id": f"shot_{index:03d}", "start_sec": round(float(start), 3), "end_sec": round(float(end), 3)}
+        for index, (start, end) in enumerate(shots_raw, start=1)
+    ]
+    shots_path.write_text(json.dumps(shots, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    probe = timed("soundtrack_probe", lambda: write_soundtrack_probe(video, probe_path))
+    anchors = probe.get("sampling_anchors") if isinstance(probe.get("sampling_anchors"), dict) else {}
+    plan = timed("sampling_plan", lambda: write_sampling_plan(video, shots, plan_path, audio_anchors=anchors))
+    coverage = timed(
+        "sampling_coverage",
+        lambda: write_sampling_coverage_report(plan_path, shots_path, coverage_path, audio_anchors=anchors),
+    )
+    wall = timed(
+        "montage_wall",
+        lambda: write_montage_wall(
+            video,
+            plan_path,
+            coverage_path,
+            wall_path,
+            sidecar_path,
+            profile="material_wall",
+            max_cells_per_page=max_cells_per_page,
+            max_page_height_px=max_page_height_px,
+        ),
+    )
+
+    reason_counts: dict[str, int] = {}
+    for sample in plan.get("samples") or []:
+        if not isinstance(sample, dict):
+            continue
+        for reason in sample.get("reasons") or [sample.get("reason")]:
+            if reason:
+                reason_counts[str(reason)] = reason_counts.get(str(reason), 0) + 1
+    page_violations = [
+        page for page in wall.get("pages") or []
+        if int(page.get("cell_count") or 0) > max_cells_per_page
+        or int(page.get("height_px") or 0) > max_page_height_px
+    ]
+    ok = bool(coverage.get("pass")) and not page_violations
+    fail_reason = None
+    if not coverage.get("pass"):
+        fail_reason = "coverage_failed"
+    elif page_violations:
+        fail_reason = "wall_page_limit_exceeded"
+    report = {
+        "artifact_role": "perception_field_report",
+        "version": 1,
+        "ok": ok,
+        "source_video": str(video),
+        "artifacts": {
+            "shots": str(shots_path),
+            "soundtrack_probe": str(probe_path),
+            "sampling_plan": str(plan_path),
+            "sampling_coverage_report": str(coverage_path),
+            "montage_wall": str(sidecar_path),
+        },
+        "stage_seconds": stage_seconds,
+        "shot_count": len(shots),
+        "sample_count": len(plan.get("samples") or []),
+        "reason_counts": reason_counts,
+        "coverage": {
+            "pass": bool(coverage.get("pass")),
+            "gap_count": len(coverage.get("gaps") or []),
+            "gaps": coverage.get("gaps") or [],
+        },
+        "wall": {
+            "page_count": len(wall.get("pages") or []),
+            "page_image_paths": wall.get("page_image_paths") or [],
+            "pages": wall.get("pages") or [],
+            "page_violations": page_violations,
+        },
+        "fail_reason": fail_reason,
+        "limitations": [
+            "Perception field check observes coverage, anchors, and wall bounds only; it does not judge visual quality.",
+            "Passing coverage does not promote any asset or approve final delivery.",
+        ],
+    }
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if not ok:
+        raise ToolError(f"perception field check failed: {fail_reason}")
+
+
 def cmd_visual_audit(args):
     """P1 Node 12: keyframe-grid generation + mechanical visual audit."""
     from video_pipeline_core import keyframe_grid, visual_audit
@@ -3000,6 +3116,7 @@ def _build_video_tools_dispatch():
         "keyframe-grid":   cmd_keyframe_grid,
         "sampling-coverage": cmd_sampling_coverage,
         "montage-wall": cmd_montage_wall,
+        "perception-field-check": cmd_perception_field_check,
         "visual-audit":    cmd_visual_audit,
         "verify-evidence": cmd_verify_evidence,
         "final-product-verify": cmd_final_product_verify,
@@ -3021,6 +3138,7 @@ def build_video_tools_command_manifest():
     local_groups = {
         "sampling-coverage": "verify",
         "montage-wall": "verify",
+        "perception-field-check": "verify",
     }
     unclassified = set(manifest.get("unclassified_commands") or [])
     for command, group in local_groups.items():
@@ -4121,6 +4239,12 @@ def main():
     )
     p_mw.add_argument("--max-cells-per-page", type=int, default=96, dest="max_cells_per_page")
     p_mw.add_argument("--max-page-height-px", type=int, default=4096, dest="max_page_height_px")
+
+    p_pfc = sub.add_parser("perception-field-check")
+    p_pfc.add_argument("video", help="read-only source video")
+    p_pfc.add_argument("--out", required=True, help="output directory for perception field artifacts")
+    p_pfc.add_argument("--max-cells-per-page", type=int, default=96, dest="max_cells_per_page")
+    p_pfc.add_argument("--max-page-height-px", type=int, default=4096, dest="max_page_height_px")
 
     p_va = sub.add_parser("visual-audit")
     p_va.add_argument("video", help="render candidate video")
