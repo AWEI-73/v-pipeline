@@ -3015,7 +3015,28 @@ VIDEO_TOOLS_DISPATCH = _build_video_tools_dispatch()
 
 
 def build_video_tools_command_manifest():
-    return build_command_manifest(VIDEO_TOOLS_DISPATCH.keys())
+    manifest = build_command_manifest(VIDEO_TOOLS_DISPATCH.keys())
+    local_groups = {
+        "sampling-coverage": "verify",
+        "montage-wall": "verify",
+    }
+    unclassified = set(manifest.get("unclassified_commands") or [])
+    for command, group in local_groups.items():
+        if command not in manifest.get("commands", {}):
+            continue
+        old_group = manifest["commands"][command].get("group")
+        if old_group in manifest.get("groups", {}) and command in manifest["groups"][old_group].get("commands", []):
+            manifest["groups"][old_group]["commands"].remove(command)
+        manifest["commands"][command]["group"] = group
+        manifest.setdefault("groups", {}).setdefault(group, {"description": "", "commands": []})
+        if command not in manifest["groups"][group]["commands"]:
+            manifest["groups"][group]["commands"].append(command)
+        unclassified.discard(command)
+    if "unclassified" in manifest.get("groups", {}) and not manifest["groups"]["unclassified"].get("commands"):
+        del manifest["groups"]["unclassified"]
+    manifest["unclassified_commands"] = sorted(unclassified)
+    manifest["group_count"] = len(manifest.get("groups") or {})
+    return manifest
 
 
 def build_video_tools_workflow_manifest():
