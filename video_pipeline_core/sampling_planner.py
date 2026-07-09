@@ -163,33 +163,40 @@ def _motion_targets(video_path: Path, shots: list[dict[str, Any]], *, threshold:
 
 
 def _sharpest_timestamp(video_path: Path, target: float, shot: Mapping[str, Any], *, window_sec: float = 0.2) -> float:
+    return _sharpest_timestamps(video_path, [(target, shot)], window_sec=window_sec)[0]
+
+
+def _sharpest_timestamps(video_path: Path, requests: list[tuple[float, Mapping[str, Any]]], *, window_sec: float = 0.2) -> list[float]:
     try:
         import cv2  # type: ignore
     except Exception:
-        return round(target, 3)
+        return [round(float(target), 3) for target, _shot in requests]
 
-    start = max(float(shot["start_sec"]), target - window_sec)
-    end = min(float(shot["end_sec"]), target + window_sec)
-    candidates = [start, target, end]
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        return round(target, 3)
-    best_ts = target
-    best_score = -1.0
+        return [round(float(target), 3) for target, _shot in requests]
+    best: list[float] = []
     try:
-        for ts in candidates:
-            cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, ts) * 1000.0)
-            ok, frame = cap.read()
-            if not ok:
-                continue
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-            if score > best_score:
-                best_score = score
-                best_ts = ts
+        for target, shot in requests:
+            start = max(float(shot["start_sec"]), float(target) - window_sec)
+            end = min(float(shot["end_sec"]), float(target) + window_sec)
+            candidates = [start, float(target), end]
+            best_ts = float(target)
+            best_score = -1.0
+            for ts in candidates:
+                cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, ts) * 1000.0)
+                ok, frame = cap.read()
+                if not ok:
+                    continue
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+                if score > best_score:
+                    best_score = score
+                    best_ts = ts
+            best.append(round(float(best_ts), 3))
     finally:
         cap.release()
-    return round(float(best_ts), 3)
+    return best
 
 
 def build_sampling_plan(
@@ -207,6 +214,7 @@ def build_sampling_plan(
     targets.extend(_motion_targets(video, normalized_shots, threshold=motion_threshold))
     targets.extend(_audio_targets(normalized_shots, audio_anchors))
 
+    prepared: list[tuple[str, float, str, Mapping[str, Any]]] = []
     samples: list[dict[str, Any]] = []
     for shot_id, timestamp, reason in targets:
         if reason not in REASONS:
@@ -215,7 +223,9 @@ def build_sampling_plan(
         if not shot:
             continue
         timestamp = min(max(float(timestamp), float(shot["start_sec"])), float(shot["end_sec"]))
-        sharp_ts = _sharpest_timestamp(video, timestamp, shot)
+        prepared.append((shot_id, timestamp, reason, shot))
+    sharp_timestamps = _sharpest_timestamps(video, [(timestamp, shot) for _shot_id, timestamp, _reason, shot in prepared])
+    for (shot_id, timestamp, reason, _shot), sharp_ts in zip(prepared, sharp_timestamps):
         _merge_or_append_sample(samples, {
             "shot_id": shot_id,
             "timestamp_sec": round(sharp_ts, 3),

@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from PIL import Image
 
@@ -185,6 +186,51 @@ class PerceptionChainSmokeTest(unittest.TestCase):
         for page_path in wall["page_image_paths"]:
             self.assertTrue(Path(page_path).exists())
         self.assertTrue(all(cell["page"] >= 1 for cell in wall["cells"]))
+
+    def test_planner_and_wall_use_bounded_video_opens_with_same_reason_counts(self):
+        try:
+            import cv2  # type: ignore
+        except Exception:
+            self.skipTest("opencv not available")
+        from video_pipeline_core.montage_wall import write_montage_wall
+        from video_pipeline_core.sampling_coverage import write_sampling_coverage_report
+        from video_pipeline_core.sampling_planner import write_sampling_plan
+
+        shots = [{"shot_id": "shot_001", "start_sec": 0.0, "end_sec": 4.0}]
+        shots_path = self.root / "bounded_shots.json"
+        shots_path.write_text(json.dumps(shots), encoding="utf-8")
+        anchors = {"beat_times": [0.5, 1.5, 2.5], "energy_peaks": [3.0]}
+        plan_path = self.root / "bounded_plan.json"
+        coverage_path = self.root / "bounded_coverage.json"
+        wall_path = self.root / "bounded_wall.png"
+        sidecar_path = self.root / "bounded_wall.json"
+
+        open_count = 0
+        original_capture = cv2.VideoCapture
+
+        class CountingCapture:
+            def __init__(self, *args, **kwargs):
+                nonlocal open_count
+                open_count += 1
+                self._inner = original_capture(*args, **kwargs)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        with mock.patch.object(cv2, "VideoCapture", CountingCapture):
+            plan = write_sampling_plan(self.video, shots, plan_path, audio_anchors=anchors)
+            write_sampling_coverage_report(plan_path, shots_path, coverage_path, audio_anchors=anchors)
+            write_montage_wall(self.video, plan_path, coverage_path, wall_path, sidecar_path, profile="timeline_wall")
+
+        reason_counts = {}
+        for sample in plan["samples"]:
+            for reason in sample.get("reasons", [sample.get("reason")]):
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+        self.assertLessEqual(open_count, 4)
+        self.assertGreaterEqual(reason_counts.get("baseline", 0), 3)
+        self.assertGreaterEqual(reason_counts.get("audio_beat", 0), 3)
+        self.assertGreaterEqual(reason_counts.get("energy_event", 0), 1)
 
     def test_existing_contact_sheet_helpers_write_canonical_sidecars(self):
         from video_pipeline_core.material_understanding_matrix import _contact_sheet

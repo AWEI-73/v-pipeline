@@ -43,26 +43,37 @@ def _placeholder(size: tuple[int, int], text: str) -> Image.Image:
 
 
 def _extract_frame(video_path: str | Path, timestamp_sec: float, size: tuple[int, int]) -> Image.Image:
+    return _extract_frames(video_path, [timestamp_sec], size)[0]
+
+
+def _frame_to_image(frame: Any, size: tuple[int, int]) -> Image.Image:
+    import cv2  # type: ignore
+
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(rgb)
+    image.thumbnail(size)
+    canvas = Image.new("RGB", size, "#101820")
+    canvas.paste(image, ((size[0] - image.width) // 2, (size[1] - image.height) // 2))
+    return canvas
+
+
+def _extract_frames(video_path: str | Path, timestamps_sec: list[float], size: tuple[int, int]) -> list[Image.Image]:
     try:
         import cv2  # type: ignore
     except Exception:
-        return _placeholder(size, "preview unavailable")
+        return [_placeholder(size, "preview unavailable") for _timestamp in timestamps_sec]
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        return _placeholder(size, "preview unavailable")
+        return [_placeholder(size, "preview unavailable") for _timestamp in timestamps_sec]
+    frames: list[Image.Image] = []
     try:
-        cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, timestamp_sec) * 1000.0)
-        ok, frame = cap.read()
-        if not ok:
-            return _placeholder(size, "preview unavailable")
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(rgb)
-        image.thumbnail(size)
-        canvas = Image.new("RGB", size, "#101820")
-        canvas.paste(image, ((size[0] - image.width) // 2, (size[1] - image.height) // 2))
-        return canvas
+        for timestamp_sec in timestamps_sec:
+            cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, timestamp_sec) * 1000.0)
+            ok, frame = cap.read()
+            frames.append(_frame_to_image(frame, size) if ok else _placeholder(size, "preview unavailable"))
     finally:
         cap.release()
+    return frames
 
 
 def _draw_cell(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, shot_id: str, timestamp: float) -> None:
@@ -159,6 +170,7 @@ def _render_wall_page(
     *,
     profile: str,
     page_number: int,
+    frames: list[Image.Image] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     page_path = _page_path(out_path, page_number)
     page_path.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +182,9 @@ def _render_wall_page(
     cells: list[dict[str, Any]] = []
     row_offsets: dict[str, int] = {}
     shot_positions: dict[str, int] = {}
+
+    if frames is None:
+        frames = _extract_frames(video_path, [_float(sample.get("timestamp_sec")) for sample in samples], (cell_w, cell_h))
 
     for index, sample in enumerate(samples):
         shot_id = str(sample.get("shot_id"))
@@ -183,7 +198,7 @@ def _render_wall_page(
             col = index % cols
         x = col * cell_w
         y = row * row_h
-        frame = _extract_frame(video_path, timestamp, (cell_w, cell_h))
+        frame = frames[index] if index < len(frames) else _placeholder((cell_w, cell_h), "preview unavailable")
         sheet.paste(frame, (x, y))
         _draw_cell(draw, x, y, cell_w, cell_h, shot_id, timestamp)
         if spark_h:
@@ -227,11 +242,21 @@ def _render_wall_pages(
     if not samples:
         return _render_wall(video_path, samples, out, profile=profile)
     capacity = _page_capacity(profile, max_cells_per_page=max_cells_per_page, max_page_height_px=max_page_height_px)
+    cell_w, cell_h, _cols, _rows, _spark_h = _geometry(profile, [{"shot_id": "preview"}])
+    extracted_frames = _extract_frames(video_path, [_float(sample.get("timestamp_sec")) for sample in samples], (cell_w, cell_h))
     all_cells: list[dict[str, Any]] = []
     pages: list[dict[str, Any]] = []
     for page_index, start in enumerate(range(0, len(samples), capacity), start=1):
         chunk = samples[start:start + capacity]
-        cells, page_meta = _render_wall_page(video_path, chunk, out, profile=profile, page_number=page_index)
+        chunk_frames = extracted_frames[start:start + capacity]
+        cells, page_meta = _render_wall_page(
+            video_path,
+            chunk,
+            out,
+            profile=profile,
+            page_number=page_index,
+            frames=chunk_frames,
+        )
         for cell in cells:
             cell["cell_id"] = f"cell_{len(all_cells) + 1:04d}"
             all_cells.append(cell)
