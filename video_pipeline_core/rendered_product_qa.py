@@ -133,6 +133,28 @@ def _has_rendered_evidence(payload: dict[str, Any] | None) -> bool:
     return bool(payload.get("contact_sheet") or payload.get("representative_frame"))
 
 
+def _effects_required_by_profile(root: Path) -> bool:
+    """Whether the render profile requires composited title/effects.
+
+    Defaults to True so a title/effect QA that claims pass but lacks rendered
+    frame evidence stays a hard block. Only a positive music/subtitle-only
+    profile signal (effects deliberately deferred) downgrades it to a warning.
+    """
+    for name in ("render_handoff.json", "render_rehearsal_entry_packet.json"):
+        payload = _load_json(root / name)
+        if not payload:
+            continue
+        profile = str(
+            payload.get("profile")
+            or payload.get("selected_profile")
+            or payload.get("render_profile")
+            or ""
+        ).lower()
+        if payload.get("music_subtitle_profile") is True or "music_subtitle" in profile:
+            return False
+    return True
+
+
 def build_rendered_product_qa(
     run: str | Path,
     out_dir: str | Path,
@@ -170,11 +192,20 @@ def build_rendered_product_qa(
 
     title_qa = _load_json(root / "title_effect_lifecycle_qa.json")
     if title_qa is not None and title_qa.get("pass") is True and not _has_rendered_evidence(title_qa):
-        blocking.append(_block(
-            "title_effect_evidence_missing",
-            "title/effect lifecycle QA exists but lacks rendered frame evidence",
-            "title_effect_lifecycle_qa.json",
-        ))
+        if _effects_required_by_profile(root):
+            blocking.append(_block(
+                "title_effect_evidence_missing",
+                "title/effect lifecycle QA claims pass but lacks rendered frame evidence "
+                "and the render profile requires composited effects",
+                "title_effect_lifecycle_qa.json",
+            ))
+        else:
+            warnings.append({
+                "rule": "title_effect_not_composited_in_profile",
+                "artifact": "title_effect_lifecycle_qa.json",
+                "message": "title/effect designed (keyframe proof) but not composited into "
+                           "this music/subtitle-only rehearsal profile",
+            })
     source_speech_qa = _load_json(root / "source_speech_subtitle_qa.json")
     if source_speech_qa is not None and source_speech_qa.get("pass") is not True:
         warnings.append({
