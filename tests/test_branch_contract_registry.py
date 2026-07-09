@@ -26,6 +26,7 @@ class BranchContractRegistryTest(unittest.TestCase):
             "subtitle-voiceover",
             "effect-factory",
             "workbench-brownfield",
+            "film-canon-product-route",
             "verify-delivery",
         }
         self.assertEqual(required_ids, set(branches))

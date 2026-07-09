@@ -11,7 +11,7 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/brownfield-edit.md` | workbench-brownfield | workbench patch | Handles bounded edits to drafts without rewriting canonical truth. |
 | `skills/curator.md` | material-map | material curation | Selects and reviews material candidates for segment needs. |
 | `skills/dashboard.md` | workbench-brownfield | dashboard/workbench | Presents run state, artifacts, and review surfaces for operators. |
-| `skills/director.md` | main-pipeline | production SPEC | Owns production intent, segment logic, and director-level revisions. |
+| `skills/director.md` | film-canon-product-route | production SPEC | Owns production intent, segment logic, and director-level revisions. |
 | `skills/editor.md` | main-pipeline | build/edit | Converts approved contracts into edit/timeline decisions. |
 | `skills/effects-director.md` | effect-factory | effect direction | Translates desired visual mood into effect direction and constraints. |
 | `skills/gap-analyzer.md` | main-pipeline | upstream story | Identifies narrative/material gaps before build handoff. |
@@ -25,7 +25,7 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/shooting-brief.md` | main-pipeline | upstream story | Converts gaps into reshoot or missing-material briefs. |
 | `skills/soundtrack-arranger.md` | soundtrack-arranger | soundtrack branch | Plans, sources, probes, and hands off music/BGM choices. |
 | `skills/spec-contract.md` | main-pipeline | contract compile | Compiles Stage 0/story/material intent into `segment_contract.json`. |
-| `skills/story-soul-blueprint.md` | main-pipeline | upstream story | Captures story soul, tone, and narrative structure before build. |
+| `skills/story-soul-blueprint.md` | film-canon-product-route | upstream story | Captures story soul, tone, and narrative structure before build. |
 | `skills/subtitle-director.md` | subtitle-voiceover | subtitle/voiceover | Owns subtitle, narration, and voiceover handoff requirements. |
 | `skills/verify.md` | verify-delivery | final verify | Verifies delivery evidence, gates, audits, and final handoff readiness. |
 | `skills/video-effect-factory.md` | effect-factory | effect planning | Plans effect contracts, capability translation, and worker handoff. |

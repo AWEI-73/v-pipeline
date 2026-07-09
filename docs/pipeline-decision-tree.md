@@ -231,6 +231,10 @@ The route currently supports `graduation_training_film` and
 The route must not render `final.mp4` and must not write
 `story_human_review_decision.json`. Agent-filled catalog assignments remain
 `needs_human_confirmation=true` until a later human review step.
+The film-canon route-selector dry-run clears the
+`human story/product review required before BUILD` gate only after the
+product-route review decision explicitly covers the reviewed story shell,
+catalog map, and readiness artifacts.
 Write product-route decisions with
 `tools/write_product_route_review_decision.py`; non-human reviewers,
 ambiguous broad approval, and path-like output names fail closed.
