@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -151,16 +152,30 @@ def _sampling_anchors(features: dict[str, Any]) -> dict[str, list[float]]:
     energy_curve = features.get("energy_curve") if isinstance(features.get("energy_curve"), list) else []
     vocal = features.get("vocal_analysis") if isinstance(features.get("vocal_analysis"), dict) else {}
     speech_segments = vocal.get("segments") if isinstance(vocal.get("segments"), list) else []
+    duration_sec = _duration_from_features(features, beat_times, energy_curve)
 
-    energy_peaks = []
+    energy_peaks: list[float] = []
+    energy_drops: list[float] = []
+    values = [
+        float(item.get("relative_energy"))
+        for item in energy_curve
+        if isinstance(item, dict) and isinstance(item.get("relative_energy"), (int, float))
+    ]
+    peak_threshold = _percentile(values, 0.85)
+    drop_threshold = _percentile(values, 0.15)
     for item in energy_curve:
         if not isinstance(item, dict):
             continue
         relative = item.get("relative_energy")
-        if isinstance(relative, (int, float)) and relative >= 0.75:
-            start = float(item.get("start_sec") or 0.0)
-            end = float(item.get("end_sec") or start)
-            energy_peaks.append(round((start + end) / 2.0, 3))
+        if not isinstance(relative, (int, float)):
+            continue
+        start = float(item.get("start_sec") or 0.0)
+        end = float(item.get("end_sec") or start)
+        midpoint = round((start + end) / 2.0, 3)
+        if peak_threshold is not None and relative >= max(peak_threshold, 0.08):
+            energy_peaks.append(midpoint)
+        if drop_threshold is not None and relative <= drop_threshold and relative <= 0.12:
+            energy_drops.append(midpoint)
 
     speech_starts = []
     for item in speech_segments:
@@ -171,11 +186,43 @@ def _sampling_anchors(features: dict[str, Any]) -> dict[str, list[float]]:
                 continue
 
     return {
-        "beat_times": [round(float(item), 3) for item in beat_times[:128]],
-        "energy_peaks": energy_peaks[:64],
-        "energy_drops": [],
-        "speech_starts": speech_starts[:128],
+        "beat_times": _density_cap([round(float(item), 3) for item in beat_times], duration_sec, per_minute=24, minimum=128),
+        "energy_peaks": _density_cap(energy_peaks, duration_sec, per_minute=8, minimum=64),
+        "energy_drops": _density_cap(energy_drops, duration_sec, per_minute=8, minimum=64),
+        "speech_starts": _density_cap(speech_starts, duration_sec, per_minute=24, minimum=128),
     }
+
+
+def _duration_from_features(features: dict[str, Any], beat_times: list[Any], energy_curve: list[Any]) -> float:
+    try:
+        duration = float(features.get("duration_sec") or 0.0)
+    except (TypeError, ValueError):
+        duration = 0.0
+    if duration > 0:
+        return duration
+    curve_ends = [
+        float(item.get("end_sec"))
+        for item in energy_curve
+        if isinstance(item, dict) and isinstance(item.get("end_sec"), (int, float))
+    ]
+    beat_values = [float(item) for item in beat_times if isinstance(item, (int, float))]
+    return max([0.0, *curve_ends, *beat_values])
+
+
+def _density_cap(values: list[float], duration_sec: float, *, per_minute: float, minimum: int) -> list[float]:
+    if not values:
+        return []
+    minutes = max(duration_sec / 60.0, 1.0)
+    cap = max(minimum, int(math.ceil(minutes * per_minute)))
+    return values[:cap]
+
+
+def _percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(math.ceil(len(ordered) * fraction)) - 1))
+    return ordered[index]
 
 
 def _write_mel_spectrogram(audio_path: Path, out_path: str | Path) -> str:
@@ -439,6 +486,7 @@ def build_soundtrack_probe(
     features: dict[str, Any] = {
         "has_audio": True,
         "codec": _audio_codec(probe),
+        "duration_sec": duration,
         **_volume_features(path, ffmpeg),
         **_silence_features(path, ffmpeg, duration),
         "tempo_bpm": None,

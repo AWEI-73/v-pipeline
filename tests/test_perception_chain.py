@@ -186,6 +186,25 @@ class PerceptionChainSmokeTest(unittest.TestCase):
             "montage_wall",
         )
 
+    def test_soundtrack_anchors_use_distribution_relative_energy_and_density_cap(self):
+        from video_pipeline_core.soundtrack_probe import _sampling_anchors
+
+        features = {
+            "duration_sec": 600.0,
+            "beat_times": [float(index) for index in range(180)],
+            "energy_curve": [
+                {"start_sec": float(index), "end_sec": float(index + 1), "relative_energy": value}
+                for index, value in enumerate([0.02, 0.08, 0.1, 0.11, 0.2, 0.32, 0.38, 0.5, 0.6, 0.55])
+            ],
+            "vocal_analysis": {"segments": []},
+        }
+
+        anchors = _sampling_anchors(features)
+
+        self.assertGreater(len(anchors["beat_times"]), 128)
+        self.assertIn(8.5, anchors["energy_peaks"])
+        self.assertIn(0.5, anchors["energy_drops"])
+
 
 if __name__ == "__main__":
     unittest.main()
