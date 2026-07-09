@@ -234,6 +234,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "run_voiceover_output_probe",
         "run_voxcpm_runtime_check",
         "select_valid_delivery_music_source",
+        "sign_review",
         "write_montage_design_plan",
         "write_product_route_review_decision",
         "write_source_speech_rejection_evidence",

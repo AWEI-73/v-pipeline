@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from video_pipeline_core.reviewer_registry import sign_review
 from video_pipeline_core.visual_selection_gate import (
     ACCEPTED_REVIEWERS,
     NEWCOMER_BASIC_BEATS,
@@ -123,20 +124,27 @@ def build_visual_selection_review(
         }
         _validate_decision(item)
         review_items.append(item)
-    return {
+    summary = {
+        "reviewed_count": len(review_items),
+        "accepted_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "accepted"),
+        "rejected_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "rejected"),
+        "needs_repick_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "needs_repick"),
+    }
+    result = {
         "artifact_role": "visual_selection_review",
         "version": 1,
         "created_at": created_at or _now_iso(),
         "is_final_story_approval": False,
         "is_legal_music_approval": False,
         "selections": review_items,
-        "summary": {
-            "reviewed_count": len(review_items),
-            "accepted_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "accepted"),
-            "rejected_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "rejected"),
-            "needs_repick_count": sum(1 for item in review_items if item["visual_confirmation_status"] == "needs_repick"),
-        },
+        "summary": summary,
     }
+    result["review_signature"] = sign_review(
+        "visual_selection_reviewer",
+        passed=summary["rejected_count"] == 0 and summary["needs_repick_count"] == 0,
+        findings=[item for item in review_items if item["visual_confirmation_status"] in {"rejected", "needs_repick"}],
+    )
+    return result
 
 
 def write_visual_selection_review(

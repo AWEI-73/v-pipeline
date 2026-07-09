@@ -11,7 +11,8 @@
     "Delivery readiness is decided by delivery gate evidence, not verify_result.pass alone.",
     "Scripted story human-review closure must use story_human_review_decision.json written by tools/write_story_human_review_decision.py; non-human review does not clear story_human_review_required.",
     "Film-canon product-route closure must use product_route_review_decision.json written by tools/write_product_route_review_decision.py; product-route approval is not final story or delivery approval.",
-    "Rendered rehearsal or verified preview candidates must carry pipeline_execution_trace.json and no_skip_contract_decision.json; run-local self-authored gate JSON cannot clear preview verification."
+    "Rendered rehearsal or verified preview candidates must carry pipeline_execution_trace.json and no_skip_contract_decision.json; run-local self-authored gate JSON cannot clear preview verification.",
+    "Route closure, docs/reference hygiene, and factory improvement-loop checks are machine facts, not narrative report claims."
   ],
   "branches": [
     {
@@ -193,7 +194,8 @@
         "generated_provider_packet.json",
         "image_agent_prompt_handoff.json",
         "generated_material_review.json",
-        "shooting_brief.md"
+        "shooting_brief.md",
+        "shot_level_material_proof_plan.json"
       ],
       "next_actions": [
         "await_material_review",
@@ -295,7 +297,8 @@
         "audio_mix_plan.json",
         "final_audio.wav",
         "audio_mix_report.json",
-        "audio_build_handoff.json"
+        "audio_build_handoff.json",
+        "render_handoff.json"
       ],
       "handoff_outputs": [
         "soundtrack_flow_acceptance_report.json",
@@ -518,7 +521,8 @@
         "remotion_effect_review.json",
         "effect_render_verification.json",
         "effect_handoff.json",
-        "remotion_effect_handoff.json"
+        "remotion_effect_handoff.json",
+        "effect_review.json"
       ],
       "handoff_outputs": [
         "effect_factory_boundary_acceptance_report.json",
@@ -713,7 +717,10 @@
         "tools/graduation_film_blueprint_catalog.py",
         "tools/visual_selection_gate.py",
         "tools/write_visual_selection_review.py",
-        "tools/run_graduation_product_route.py"
+        "tools/run_graduation_product_route.py",
+        "tools/route_closure_integrity.py",
+        "tools/doc_reference_hygiene.py",
+        "tools/factory_improvement_loop.py"
       ],
       "supported_film_types": [
         "graduation_training_film",

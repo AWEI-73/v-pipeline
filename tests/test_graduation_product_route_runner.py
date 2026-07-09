@@ -165,5 +165,129 @@ class GraduationProductRouteRunnerTest(unittest.TestCase):
             self.assertIn("copied", result["stop_reason"])
 
 
+    def _reach_visual_gate(self, run):
+        (run / "product_route_review_decision.json").write_text(
+            json.dumps({"decision": "approved", "reviewer": "human", "approve_all_reviewed": True}),
+            encoding="utf-8",
+        )
+        (run / "production_readiness_gate.json").write_text(
+            json.dumps({"ready_for_production": True}), encoding="utf-8"
+        )
+        (run / "visual_selection_gate.json").write_text(json.dumps({"pass": True}), encoding="utf-8")
+        (run / "shot_level_material_proof_plan.json").write_text(
+            json.dumps({"shots": [{"shot_id": "s1", "proof_role": "primary"}]}), encoding="utf-8"
+        )
+        (run / "pipeline_execution_trace.json").write_text(
+            json.dumps({"entries": [{
+                "artifact": "visual_selection_gate.json",
+                "classification": "pipeline_tool_generated",
+                "source_tool": "tools/visual_selection_gate.py",
+            }]}),
+            encoding="utf-8",
+        )
+
+    def _write_signed_visual_review(self, run):
+        from video_pipeline_core.reviewer_registry import sign_review
+
+        signature = sign_review("visual_selection_reviewer", passed=True, findings=[])
+        (run / "visual_selection_review.json").write_text(
+            json.dumps({"artifact_role": "visual_selection_review", "review_signature": signature}),
+            encoding="utf-8",
+        )
+
+    def test_unsigned_visual_review_blocks_with_sign_reminder(self):
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            (run / "visual_selection_review.json").write_text(
+                json.dumps({"artifact_role": "visual_selection_review", "selections": []}),
+                encoding="utf-8",
+            )
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            self.assertFalse(result["pass"])
+            self.assertEqual(result["stop_gate"], "visual_selection_gate")
+            self.assertEqual(result["next_action"], "sign_review")
+
+    def test_signed_visual_review_passes_signature_gate(self):
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            self._write_signed_visual_review(run)
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            # signature accepted -> route proceeds past visual gate to the next
+            # missing gate (effect_handoff), not blocked on signature
+            self.assertEqual(result["stop_gate"], "effect_handoff")
+
+    def test_unsigned_effect_review_blocks_with_sign_reminder(self):
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            self._write_signed_visual_review(run)
+            (run / "effect_handoff.json").write_text(
+                json.dumps({"status": "accepted"}),
+                encoding="utf-8",
+            )
+            (run / "effect_review.json").write_text(
+                json.dumps({"artifact_role": "effect_review", "status": "pass"}),
+                encoding="utf-8",
+            )
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            self.assertFalse(result["pass"])
+            self.assertEqual(result["stop_gate"], "effect_handoff")
+            self.assertEqual(result["next_action"], "sign_review")
+
+    def test_signed_effect_review_passes_signature_gate(self):
+        from video_pipeline_core.reviewer_registry import sign_review
+
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            self._write_signed_visual_review(run)
+            (run / "effect_handoff.json").write_text(
+                json.dumps({"status": "accepted"}),
+                encoding="utf-8",
+            )
+            signature = sign_review("effect_director", passed=True, findings=[])
+            (run / "effect_review.json").write_text(
+                json.dumps({"artifact_role": "effect_review", "status": "pass", "review_signature": signature}),
+                encoding="utf-8",
+            )
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            self.assertFalse(result["pass"])
+            self.assertEqual(result["stop_gate"], "music_subtitle_profile")
+
+
 if __name__ == "__main__":
     unittest.main()

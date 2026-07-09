@@ -217,6 +217,19 @@ REVIEWERS = [
             _principle("shot_and_timing", "shot functions, beat/energy timing, title sync, transitions", "repair_montage_design"),
         ],
     },
+    {
+        "reviewer_role": "visual_selection_reviewer",
+        "review_type": "visual_selection_review",
+        "input_artifacts": ["visual_selection_candidates.json"],
+        "output_artifact": "visual_selection_review.json",
+        "gate_strength": "revise",
+        "allowed_gate_strengths": ["revise", "hard_gate", "advisory"],
+        "typical_next_actions": ["repick_visual_material", "run_visual_selection_review"],
+        "eval_principles": [
+            _principle("visual_evidence", "representative frame, contact sheet, or frame evidence per beat", "repick_visual_material"),
+            _principle("forbidden_role_flags", "supervisor/director/portrait not marked primary where forbidden", "repick_visual_material"),
+        ],
+    },
 ]
 
 

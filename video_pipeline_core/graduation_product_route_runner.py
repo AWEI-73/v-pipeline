@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from video_pipeline_core.no_skip_execution_trace import classify_artifact
 from video_pipeline_core.rendered_product_qa import find_rendered_candidate
+from video_pipeline_core.reviewer_registry import detect_review_signature
 
 
 CommandRunner = Callable[[list[str], Path | None], dict[str, Any]]
@@ -81,6 +82,33 @@ def _effect_ok(payload: dict[str, Any] | None) -> tuple[bool, str | None]:
     return False, str(status or "effect handoff not accepted")
 
 
+def _review_artifact_names(review_artifact: str | list[str] | tuple[str, ...] | None) -> list[str]:
+    if review_artifact is None:
+        return []
+    if isinstance(review_artifact, str):
+        return [review_artifact]
+    return [str(item) for item in review_artifact if item]
+
+
+def _signed_review_ok(run_dir: Path, review_artifact: str | list[str] | tuple[str, ...] | None) -> tuple[bool, str | None]:
+    """Point-4 signing enforcement for a review-kind stage.
+
+    A review artifact that is PRESENT must carry a valid signature. Absence is
+    not blocked here (the stage's own gate decides whether the review must
+    exist); a present-but-unsigned review blocks with a sign_review reminder.
+    """
+    names = _review_artifact_names(review_artifact)
+    if not names:
+        return True, None
+    for name in names:
+        payload = _load_json(run_dir / name)
+        if payload is None:
+            continue
+        if detect_review_signature(payload) is None:
+            return False, f"{name} present but unsigned; attach review_signature via sign_review"
+    return True, None
+
+
 def _music_subtitle_ok(run: Path) -> tuple[bool, str | None]:
     for name in ("render_handoff.json", "audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json"):
         payload = _load_json(run / name)
@@ -98,8 +126,10 @@ def _music_subtitle_ok(run: Path) -> tuple[bool, str | None]:
 # is a consumer of this table; a guard test asserts the executed stage order
 # matches it and that every owner is a registered branch. ``kind`` declares
 # whether each stage is a mechanical verify or a review (point-4 "every stage has
-# a verify or a review"); signature enforcement is declared here but intentionally
-# not enforced yet (turning it on is a deliberate tightening, not a refactor).
+# a verify or a review"). ``signed_review`` stages additionally enforce signing:
+# their ``review_artifact``, if present, must carry a valid review_signature or
+# the stage stops with next_action=sign_review (present-but-unsigned is blocked;
+# absence is left to the stage's own gate).
 VERIFY_KINDS = {"state_check", "artifact_check", "verify"}
 REVIEW_KINDS = {"human_review", "review", "signed_review"}
 
@@ -109,8 +139,8 @@ ROUTE_STAGES: list[dict[str, Any]] = [
     {"stage_id": "film_canon_readiness", "owner": "film-canon-product-route", "owner_tool": "tools/film_canon_readiness.py", "artifact": "production_readiness_gate.json", "kind": "verify"},
     {"stage_id": "product_route_review_decision", "owner": "film-canon-product-route", "owner_tool": "tools/write_product_route_review_decision.py", "artifact": "product_route_review_decision.json", "kind": "human_review"},
     {"stage_id": "shot_level_material_proof", "owner": "material-map", "owner_tool": None, "artifact": "shot_level_material_proof_plan.json", "kind": "verify"},
-    {"stage_id": "visual_selection_gate", "owner": "film-canon-product-route", "owner_tool": "tools/visual_selection_gate.py", "artifact": "visual_selection_gate.json", "kind": "review"},
-    {"stage_id": "effect_handoff", "owner": "effect-factory", "owner_tool": None, "artifact": "effect_handoff.json", "kind": "review"},
+    {"stage_id": "visual_selection_gate", "owner": "film-canon-product-route", "owner_tool": "tools/visual_selection_gate.py", "artifact": "visual_selection_gate.json", "kind": "signed_review", "review_artifact": "visual_selection_review.json"},
+    {"stage_id": "effect_handoff", "owner": "effect-factory", "owner_tool": None, "artifact": "effect_handoff.json", "kind": "signed_review", "review_artifact": ["effect_review.json", "effect_director_review.json"]},
     {"stage_id": "music_subtitle_profile", "owner": "soundtrack-arranger", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
     {"stage_id": "compose_render_handoff", "owner": "main-pipeline", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
     {"stage_id": "rendered_product_qa", "owner": "verify-delivery", "owner_tool": "tools/rendered_product_qa.py", "artifact": "rendered_product_qa.json", "kind": "verify"},
@@ -192,7 +222,7 @@ class GraduationProductRouteRunner:
             stop_reason=stop_reason,
         )
 
-    def _stop(self, out_dir: Path, gate: str, reason: str) -> dict[str, Any]:
+    def _stop(self, out_dir: Path, gate: str, reason: str, *, next_action: str = "repair_or_complete_upstream_gate") -> dict[str, Any]:
         result = {
             "artifact_role": "graduation_product_route_harness_result",
             "version": 1,
@@ -201,7 +231,7 @@ class GraduationProductRouteRunner:
             "stop_gate": gate,
             "stop_reason": reason,
             "trace_path": str(out_dir / "pipeline_execution_trace.json"),
-            "next_action": "repair_or_complete_upstream_gate",
+            "next_action": next_action,
         }
         self._write_outputs(out_dir, result)
         return result
@@ -294,25 +324,35 @@ class GraduationProductRouteRunner:
 
         visual_payload = _load_json(run_dir / "visual_selection_gate.json")
         visual_pass, visual_reason = _visual_gate_ok(run_dir, visual_payload)
+        visual_sig_ok, visual_sig_reason = _signed_review_ok(
+            run_dir, ROUTE_STAGE_BY_ID["visual_selection_gate"].get("review_artifact")
+        )
         self._record_stage(
             "visual_selection_gate",
-            status="pass" if visual_pass else "stop",
+            status="pass" if visual_pass and visual_sig_ok else "stop",
             evidence=visual_payload or {},
-            stop_reason=visual_reason,
+            stop_reason=visual_reason if not visual_pass else visual_sig_reason,
         )
         if not visual_pass:
             return self._stop(out, "visual_selection_gate", visual_reason or "visual gate not passed")
+        if not visual_sig_ok:
+            return self._stop(out, "visual_selection_gate", visual_sig_reason or "visual selection review unsigned", next_action="sign_review")
 
         effect_payload = _load_json(run_dir / "effect_handoff.json")
         effect_pass, effect_reason = _effect_ok(effect_payload)
+        effect_sig_ok, effect_sig_reason = _signed_review_ok(
+            run_dir, ROUTE_STAGE_BY_ID["effect_handoff"].get("review_artifact")
+        )
         self._record_stage(
             "effect_handoff",
-            status="pass" if effect_pass else "stop",
+            status="pass" if effect_pass and effect_sig_ok else "stop",
             evidence=effect_payload or {},
-            stop_reason=effect_reason,
+            stop_reason=effect_reason if not effect_pass else effect_sig_reason,
         )
         if not effect_pass:
             return self._stop(out, "effect_handoff", effect_reason or "effect handoff not accepted")
+        if not effect_sig_ok:
+            return self._stop(out, "effect_handoff", effect_sig_reason or "effect review unsigned", next_action="sign_review")
 
         music_pass, music_reason = _music_subtitle_ok(run_dir)
         self._record_stage(

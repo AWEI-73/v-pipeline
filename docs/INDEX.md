@@ -25,6 +25,7 @@ Current document layers:
 | Decision tree | `docs/pipeline-decision-tree.md` | Main route, branch choice, insertion points, stop gates, and return route. |
 | Branch contracts | `docs/branch-contract-registry.md`, `docs/branch-contract-registry.json` | Human and machine-readable branch ownership, allowed artifacts, stop gates, forbidden writes, and return routes. |
 | Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-to-skill/tool/artifact map. |
+| Closure hygiene | `tools/route_closure_integrity.py`, `tools/doc_reference_hygiene.py`, `tools/factory_improvement_loop.py` | Machine checks for route registration, top-level docs/reference classification, and structured improvement-loop backlog items. |
 | Canonical route | `docs/canonical-video-pipeline-route.md` | Official stage names, route semantics, and delivery requirements. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |
 | API contract | `docs/api-surface-map.md` | API Surface Manifest contract, allowed/forbidden writes, and endpoint audit rules. |
