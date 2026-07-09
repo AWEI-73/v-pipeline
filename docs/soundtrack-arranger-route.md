@@ -54,7 +54,7 @@ Canonical artifacts:
 | `youtube_audio_library` | YouTube Audio Library tracks | Requires track/license record |
 | `pixabay_music` | Pixabay Music/BGM | Requires track URL and license snapshot |
 | `jamendo_song` | Songs/vocals via Jamendo | Requires Jamendo metadata |
-| `source_folder_audio` | Music/audio discovered under the active source root | Requires source-relative evidence, probe, and music-use/legal review |
+| `source_folder_audio` | Music/audio discovered under the active source root | Internal/rehearsal use may proceed with `music_use_basis.status=human_declared_allowed`; still requires source-relative evidence and probe before mix |
 | `suno_udio_external` | User-created external AI music | Requires account/source/license note |
 | `reference_only` | Famous song or mood reference | Not deliverable as final soundtrack |
 | `placeholder` | Temporary planning audio | Not deliverable |
@@ -79,9 +79,28 @@ from general folder or file-name signals such as `music`, `bgm`, `sound`,
 found, `source_root_music_discovery.fallback_intent` keeps external fallback
 available through sourceable providers such as Jamendo or yt-dlp.
 
-Source-folder presence is not legal approval. `source_folder_audio` remains a
-candidate with `legal_review_required=true` until source/license evidence,
-probe results, and human music-use review clear it for the delivery context.
+Source-folder presence is not legal approval. For internal rehearsal/review,
+`source_folder_audio`, `user_provided`, `manual_import`, or `reviewed_manual`
+may become mixable when a human declaration is recorded:
+
+```json
+{
+  "music_use_basis": {
+    "status": "human_declared_allowed",
+    "usage_scope": "internal_rehearsal",
+    "declared_by": "human",
+    "basis_note": "User allowed this music for internal review.",
+    "pipeline_legal_search_performed": false,
+    "legal_approval_claimed": false,
+    "external_publication_requires_rights_review": true
+  }
+}
+```
+
+This clears only the internal/rehearsal music-use policy. It does not set
+`license_approved=true`, does not approve external publication/upload, and does
+not bypass missing-file, probe, vocal-conflict, section-mismatch, or
+`reference_only` blockers.
 
 ## API And Token Boundary
 
@@ -214,8 +233,9 @@ python tools\soundtrack_flow_acceptance.py `
   --input RUN_DIR\video_intent.json `
   --out-dir RUN_DIR `
   --selected-section-id mv_climax `
-  --source-type youtube_audio_library `
+  --source-type source_folder_audio `
   --license-note "user confirmed internal classroom use" `
+  --music-use-basis human_declared_internal_use `
   --fake-reviewed-audio `
   --json
 ```

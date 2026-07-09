@@ -435,6 +435,66 @@ class AudioHandoffAcceptanceTest(unittest.TestCase):
             self.assertIn("missing_soundtrack_probe_report", rules)
             self.assertEqual(result["audio_handoff_acceptance"]["next_action"], "run_soundtrack_probe_with_asr")
 
+    def test_accepts_human_declared_source_folder_music_for_internal_rehearsal_without_legal_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "source" / "music" / "opening.wav"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"RIFF source folder music")
+            basis = {
+                "status": "human_declared_allowed",
+                "usage_scope": "internal_rehearsal",
+                "declared_by": "human",
+                "basis_note": "User allowed source-folder music for internal review.",
+                "legal_approval_claimed": False,
+            }
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "source_music_opening",
+                    "section_id": "opening",
+                    "source_type": "source_folder_audio",
+                    "audio_file": str(music),
+                    "source_relative_path": "music/opening.wav",
+                    "license_status": "human_declared_allowed",
+                    "usage_scope": "internal_rehearsal",
+                    "music_use_basis": basis,
+                    "delivery_allowed": True,
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "opening",
+                    "duration_sec": 6,
+                    "music_role": "bgm",
+                    "ducking_policy": "none",
+                    "vocal_policy": "instrumental_preferred",
+                }],
+            }
+            manifest = {
+                "artifact_role": "sound_license_manifest",
+                "delivery_allowed": True,
+                "legal_approval_claimed": False,
+                "music_use_basis": basis,
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                sound_license_manifest=manifest,
+                soundtrack_probe_report=_probe_for(music),
+                out_dir=root,
+            )
+
+            self.assertTrue(result["audio_handoff_acceptance"]["ok"])
+            track = result["audio_mix_plan"]["tracks"][0]
+            self.assertEqual(track["source_type"], "source_folder_audio")
+            self.assertEqual(track["license_status"], "human_declared_allowed")
+            self.assertEqual(track["music_use_basis"]["status"], "human_declared_allowed")
+            self.assertFalse(track["legal_approval_claimed"])
+
     def test_blocks_vocal_heavy_music_under_voiceover(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

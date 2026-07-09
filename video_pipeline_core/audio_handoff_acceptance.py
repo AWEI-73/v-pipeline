@@ -16,6 +16,20 @@ MUSIC_SOURCE_TYPES = {
     "pixabay_music",
     "manual_import",
     "reviewed_manual",
+    "source_folder_audio",
+}
+HUMAN_DECLARED_MUSIC_USE_STATUSES = {
+    "human_declared_allowed",
+    "human_declared_internal_use",
+    "user_asserted_internal_use",
+}
+INTERNAL_MUSIC_USE_SCOPES = {
+    "internal",
+    "internal_only",
+    "internal_review",
+    "internal_rehearsal",
+    "rehearsal",
+    "review",
 }
 STRICT_INSTRUMENTAL_POLICIES = {
     "instrumental_required",
@@ -128,6 +142,36 @@ def _same_path(left: Any, right: Path) -> bool:
         return Path(value).resolve() == right.resolve()
     except OSError:
         return str(Path(value)) == str(right)
+
+
+def _music_use_basis(item: Mapping[str, Any]) -> dict[str, Any] | None:
+    raw = item.get("music_use_basis")
+    if not isinstance(raw, Mapping):
+        return None
+    status = _clean(raw.get("status")).casefold()
+    usage_scope = _clean(raw.get("usage_scope")).casefold()
+    if status not in HUMAN_DECLARED_MUSIC_USE_STATUSES:
+        return None
+    if usage_scope not in INTERNAL_MUSIC_USE_SCOPES:
+        return None
+    if raw.get("legal_approval_claimed") is True:
+        return None
+    return {
+        "status": "human_declared_allowed",
+        "usage_scope": usage_scope,
+        "declared_by": _clean(raw.get("declared_by")) or "human",
+        "basis_note": _clean(raw.get("basis_note") or raw.get("note")),
+        "pipeline_legal_search_performed": bool(raw.get("pipeline_legal_search_performed")),
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
+    }
+
+
+def _manifest_delivery_blocks(sound_license_manifest: Mapping[str, Any] | None) -> bool:
+    if not sound_license_manifest or sound_license_manifest.get("delivery_allowed") is not False:
+        return False
+    basis = _music_use_basis(sound_license_manifest)
+    return basis is None
 
 
 def _probe_matches(
@@ -355,7 +399,7 @@ def accept_audio_handoff(
             "message": "audio_director_handoff.selected_audio_files must contain at least one item",
         })
 
-    if sound_license_manifest and sound_license_manifest.get("delivery_allowed") is False:
+    if _manifest_delivery_blocks(sound_license_manifest):
         blocking.append({
             "rule": "license_manifest_blocks_delivery",
             "message": "sound_license_manifest.delivery_allowed is false",
@@ -437,6 +481,7 @@ def accept_audio_handoff(
                 )
 
         if audio_path.is_file() and source_type != "reference_only" and item.get("delivery_allowed") is True and license_status not in BAD_LICENSE_STATUSES:
+            basis = _music_use_basis(item)
             track = {
                 "section_id": section_id,
                 "candidate_id": candidate_id,
@@ -446,7 +491,14 @@ def accept_audio_handoff(
                 "usage_scope": item.get("usage_scope") or "unknown",
                 "source_type": source_type,
                 "license_status": license_status,
+                "legal_approval_claimed": False,
             }
+            if basis:
+                track["music_use_basis"] = basis
+                track["usage_scope"] = basis["usage_scope"]
+                track["external_publication_requires_rights_review"] = True
+            if item.get("source_relative_path"):
+                track["source_relative_path"] = item.get("source_relative_path")
             if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
                 probe_report = _select_probe_report(
                     soundtrack_probe_report,

@@ -171,6 +171,67 @@ class SoundtrackFlowAcceptanceTest(unittest.TestCase):
                 for section in mix_plan["sections"]
             ))
 
+    def test_no_render_flow_records_human_declared_music_use_basis(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            intent = run / "video_intent.json"
+            intent.write_text(
+                json.dumps(
+                    {
+                        "artifact_role": "video_intent",
+                        "video_type": "training graduation recap",
+                        "target_length": "3 minutes",
+                        "style_direction": "warm opening with source-folder BGM",
+                        "soundtrack_contract": {
+                            "music_role": "bgm",
+                            "vocal_policy": "instrumental_preferred",
+                            "handoff_to": "soundtrack-arranger",
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/soundtrack_flow_acceptance.py",
+                    "--input",
+                    str(intent),
+                    "--out-dir",
+                    str(run),
+                    "--selected-section-id",
+                    "warm_story",
+                    "--source-type",
+                    "source_folder_audio",
+                    "--license-note",
+                    "Human declared source-folder music usable for internal rehearsal.",
+                    "--music-use-basis",
+                    "human_declared_internal_use",
+                    "--fake-reviewed-audio",
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertTrue(summary["ok"])
+            manifest = json.loads((run / "sound_license_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["music_use_basis"]["status"], "human_declared_allowed")
+            self.assertFalse(manifest["legal_approval_claimed"])
+            mix_plan = json.loads((run / "audio_mix_plan.json").read_text(encoding="utf-8"))
+            track = mix_plan["tracks"][0]
+            self.assertEqual(track["source_type"], "source_folder_audio")
+            self.assertEqual(track["music_use_basis"]["status"], "human_declared_allowed")
+            self.assertFalse(track["legal_approval_claimed"])
+
     def test_relative_out_dir_fake_audio_uses_resolvable_audio_path(self):
         repo = Path(__file__).resolve().parents[1]
         run = Path("runs") / "_tmp_soundtrack_relative_acceptance"

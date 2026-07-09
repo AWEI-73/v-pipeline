@@ -97,6 +97,43 @@ class SoundtrackArrangerTest(unittest.TestCase):
             )
             self.assertEqual(warm_story["source_type_priority"][0], "source_folder_audio")
 
+    def test_human_declared_source_root_music_is_internal_rehearsal_usable_without_legal_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_root = Path(tmp) / "source"
+            music_file = source_root / "audio" / "training_bgm.wav"
+            music_file.parent.mkdir(parents=True)
+            music_file.write_bytes(b"RIFF source-root wav")
+
+            plan = arrange_soundtrack(
+                {
+                    "request": "training recap with source-folder music",
+                    "target_length": "90 seconds",
+                    "source_root": str(source_root),
+                    "soundtrack_contract": {
+                        "music_role": "bgm",
+                        "vocal_policy": "instrumental_preferred",
+                        "music_use_basis": {
+                            "status": "human_declared_allowed",
+                            "usage_scope": "internal_rehearsal",
+                            "declared_by": "human",
+                            "basis_note": "User said source-folder music may be used for internal review.",
+                        },
+                        "handoff_to": "soundtrack-arranger",
+                    },
+                }
+            )
+
+            first = plan["music_source_candidates"]["candidates"][0]
+            self.assertEqual(first["source_type"], "source_folder_audio")
+            self.assertTrue(first["delivery_allowed"])
+            self.assertEqual(first["license_status"], "human_declared_allowed")
+            self.assertEqual(first["music_use_basis"]["usage_scope"], "internal_rehearsal")
+            self.assertTrue(plan["sound_license_manifest"]["delivery_allowed"])
+            self.assertFalse(plan["sound_license_manifest"]["legal_approval_claimed"])
+            self.assertEqual(plan["audio_director_handoff"]["blocks"], [])
+            serialized = json.dumps(plan, ensure_ascii=False).casefold()
+            self.assertNotIn("license_approved", serialized)
+
     def test_training_recap_plan_splits_sections_and_preserves_speech(self):
         plan = arrange_soundtrack(
             {

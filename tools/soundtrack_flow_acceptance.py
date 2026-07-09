@@ -90,6 +90,7 @@ def _write_selected_handoff(
     section_id: str,
     source_type: str,
     license_note: str,
+    music_use_basis: str = "",
     selected_audio_file: str = "",
     fake_reviewed_audio: bool,
 ) -> dict[str, Any]:
@@ -104,23 +105,43 @@ def _write_selected_handoff(
         raise ValueError(f"selected_audio_file does not exist: {selected_audio_file}")
     if fake_reviewed_audio and not selected_audio_file:
         audio_file.write_bytes(b"ID3 fake reviewed audio")
+    basis = None
+    if music_use_basis.strip():
+        normalized = music_use_basis.strip()
+        if normalized not in {"human_declared_internal_use", "human_declared_allowed"}:
+            raise ValueError("music_use_basis must be human_declared_internal_use or human_declared_allowed")
+        basis = {
+            "status": "human_declared_allowed",
+            "usage_scope": "internal_rehearsal",
+            "declared_by": "human",
+            "basis_note": license_note,
+            "pipeline_legal_search_performed": False,
+            "legal_approval_claimed": False,
+            "external_publication_requires_rights_review": True,
+        }
 
     def selected_for(item: Mapping[str, Any], item_source_type: str, item_audio_file: Path) -> dict[str, Any]:
         item_section_id = str(item.get("section_id"))
-        return {
+        selected = {
             "candidate_id": f"reviewed_{item_section_id}",
             "provider": "reviewed_manual",
             "section_id": item_section_id,
             "source_type": item_source_type,
             "audio_file": str(item_audio_file),
             "license_note": license_note,
-            "license_status": "user_asserted",
+            "license_status": "human_declared_allowed" if basis else "user_asserted",
             "usage_scope": "internal_only",
             "delivery_allowed": True,
             "music_role": item.get("music_role"),
             "vocal_policy": item.get("vocal_policy"),
             "ducking_policy": item.get("ducking_policy"),
         }
+        if basis:
+            selected["usage_scope"] = basis["usage_scope"]
+            selected["music_use_basis"] = basis
+            selected["legal_approval_claimed"] = False
+            selected["external_publication_requires_rights_review"] = True
+        return selected
 
     selected_audio_files = [selected_for(section, source_type, audio_file)]
     if fake_reviewed_audio:
@@ -144,6 +165,9 @@ def _write_selected_handoff(
         "version": 1,
         "delivery_allowed": True,
         "blocked_reasons": [],
+        "music_use_basis": basis,
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
         "selected_sources": selected_audio_files,
     }
     handoff = {
@@ -219,6 +243,7 @@ def run_acceptance(
     selected_section_id: str = "",
     source_type: str = "licensed_library",
     license_note: str = "",
+    music_use_basis: str = "",
     selected_audio_file: str = "",
     soundtrack_probe_report: str = "",
     fake_reviewed_audio: bool = False,
@@ -236,6 +261,7 @@ def run_acceptance(
                 section_id=selected_section_id,
                 source_type=source_type,
                 license_note=license_note,
+                music_use_basis=music_use_basis,
                 selected_audio_file=selected_audio_file,
                 fake_reviewed_audio=fake_reviewed_audio,
             )
@@ -288,6 +314,11 @@ def main() -> int:
     parser.add_argument("--selected-section-id", default="", help="section id with reviewed/selected audio")
     parser.add_argument("--source-type", default="licensed_library", help="selected audio source_type")
     parser.add_argument("--license-note", default="", help="required when selected audio is provided")
+    parser.add_argument(
+        "--music-use-basis",
+        default="",
+        help="set to human_declared_internal_use when a human declared internal/rehearsal use is allowed",
+    )
     parser.add_argument("--selected-audio-file", default="", help="existing reviewed/downloaded audio file to pass to Audio Director")
     parser.add_argument("--soundtrack-probe-report", default="", help="existing soundtrack_probe_report.json for selected audio")
     parser.add_argument("--fake-reviewed-audio", action="store_true", help="write a tiny fake audio file for no-render tests")
@@ -301,6 +332,7 @@ def main() -> int:
             selected_section_id=args.selected_section_id,
             source_type=args.source_type,
             license_note=args.license_note,
+            music_use_basis=args.music_use_basis,
             selected_audio_file=args.selected_audio_file,
             soundtrack_probe_report=args.soundtrack_probe_report,
             fake_reviewed_audio=args.fake_reviewed_audio,

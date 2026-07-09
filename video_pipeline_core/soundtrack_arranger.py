@@ -46,6 +46,19 @@ _SOURCE_MUSIC_TOKENS = (
     "\u7247\u982d",
 )
 _EXTERNAL_FALLBACK_PROVIDERS = ["jamendo", "yt-dlp"]
+HUMAN_DECLARED_MUSIC_USE_STATUSES = {
+    "human_declared_allowed",
+    "human_declared_internal_use",
+    "user_asserted_internal_use",
+}
+INTERNAL_MUSIC_USE_SCOPES = {
+    "internal",
+    "internal_only",
+    "internal_review",
+    "internal_rehearsal",
+    "rehearsal",
+    "review",
+}
 
 
 def _path_text(path: Path) -> str:
@@ -64,6 +77,43 @@ def _source_root_from_payload(payload: Mapping[str, Any]) -> str:
             if value:
                 return value
     return ""
+
+
+def _music_use_basis_from_payload(payload: Mapping[str, Any], contract: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    contract = contract or {}
+    raw = contract.get("music_use_basis") if isinstance(contract.get("music_use_basis"), Mapping) else None
+    if raw is None and isinstance(payload.get("music_use_basis"), Mapping):
+        raw = payload.get("music_use_basis")
+    if raw is None:
+        return None
+    status = _clean(raw.get("status")).casefold()
+    usage_scope = _clean(raw.get("usage_scope")).casefold()
+    declared_by = _clean(raw.get("declared_by")).casefold()
+    if status not in HUMAN_DECLARED_MUSIC_USE_STATUSES:
+        return None
+    if usage_scope not in INTERNAL_MUSIC_USE_SCOPES:
+        return None
+    if declared_by and declared_by not in {"human", "user", "operator"}:
+        return None
+    return {
+        "status": "human_declared_allowed",
+        "usage_scope": usage_scope,
+        "declared_by": declared_by or "human",
+        "basis_note": _clean(raw.get("basis_note") or raw.get("note")),
+        "pipeline_legal_search_performed": bool(raw.get("pipeline_legal_search_performed")),
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
+    }
+
+
+def _has_human_declared_internal_music_use(basis: Mapping[str, Any] | None) -> bool:
+    if not basis:
+        return False
+    return (
+        _clean(basis.get("status")).casefold() == "human_declared_allowed"
+        and _clean(basis.get("usage_scope")).casefold() in INTERNAL_MUSIC_USE_SCOPES
+        and basis.get("legal_approval_claimed") is False
+    )
 
 
 def _source_root_candidate_score(path: Path, relative_path: Path) -> tuple[int, list[str]]:
@@ -504,11 +554,33 @@ def _source_root_candidate_for_plan(discovery: Mapping[str, Any], sections: list
     return candidate
 
 
+def _apply_human_declared_music_use_to_candidate(candidate: dict[str, Any], basis: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not _has_human_declared_internal_music_use(basis):
+        return candidate
+    source_type = _clean(candidate.get("source_type")).casefold()
+    if source_type not in {"source_folder_audio", "user_provided", "manual_import", "reviewed_manual"}:
+        return candidate
+    item = dict(candidate)
+    item["license_status"] = "human_declared_allowed"
+    item["music_use_status"] = "human_declared_internal_use"
+    item["music_use_basis"] = dict(basis or {})
+    item["usage_scope"] = basis.get("usage_scope")
+    item["delivery_allowed"] = True
+    item["legal_approval_claimed"] = False
+    item["external_publication_requires_rights_review"] = True
+    item["note"] = (
+        "human-declared internal/rehearsal music use; source evidence recorded; "
+        "legal approval is not claimed"
+    )
+    return item
+
+
 def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     text = _text(payload)
     total_sec = _target_duration_sec(payload.get("target_length") or payload.get("target_duration_sec") or payload.get("duration"))
     speech_markers = _speech_markers(payload, text)
     stage0_contract = dict(_stage0_soundtrack_contract(payload))
+    music_use_basis = _music_use_basis_from_payload(payload, stage0_contract)
     sections = _apply_stage0_soundtrack_contract(
         _base_sections(total_sec, text, speech_markers),
         stage0_contract,
@@ -518,15 +590,22 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     sections = _apply_source_root_music_priority(sections, source_root_music_discovery)
     required_track_count = _required_track_count(sections)
     section_music_requirements = _section_music_requirements(sections)
-    candidates = [_candidate_for_section(section, text) for section in sections if section.get("music_role") != "silence"]
+    candidates = [
+        _apply_human_declared_music_use_to_candidate(_candidate_for_section(section, text), music_use_basis)
+        for section in sections
+        if section.get("music_role") != "silence"
+    ]
     source_root_candidate = _source_root_candidate_for_plan(source_root_music_discovery, sections)
     if source_root_candidate:
-        candidates.insert(0, source_root_candidate)
+        candidates.insert(0, _apply_human_declared_music_use_to_candidate(source_root_candidate, music_use_basis))
 
     blocks: list[str] = []
     if any(candidate["source_type"] == "reference_only" for candidate in candidates):
         blocks.append("reference_only")
-    if any(not candidate["delivery_allowed"] for candidate in candidates):
+    if _has_human_declared_internal_music_use(music_use_basis):
+        if candidates and not any(candidate.get("delivery_allowed") is True for candidate in candidates):
+            blocks.append("license_missing")
+    elif any(not candidate["delivery_allowed"] for candidate in candidates):
         blocks.append("license_missing")
     if any(
         section.get("vocal_policy") == "preserve_speech" and section.get("ducking_policy") not in {"duck_under_voice", "preserve_original_audio"}
@@ -562,10 +641,18 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "sections": sections,
         "section_music_requirements": section_music_requirements,
         "source_root_music_discovery": source_root_music_discovery,
+        "music_use_policy": {
+            "music_use_basis": music_use_basis,
+            "legal_approval_claimed": False,
+            "external_publication_requires_rights_review": True,
+        },
         "assumptions": [
             "provider search is optional; this plan is deterministic and does not require API tokens",
             "commercial/famous songs remain reference_only until license evidence is provided",
-            "source-folder audio is source evidence and still requires music-use/legal review",
+            (
+                "source-folder or user-provided audio can be used for internal/rehearsal review "
+                "when a human-declared music_use_basis is recorded; legal approval is not claimed"
+            ),
         ],
         "handoff_to": "audio-director" if not blocks else "soundtrack_review",
     }
@@ -580,12 +667,18 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "delivery_allowed": not blocks,
         "blocked_reasons": sorted(set(blocks)),
         "fallback_policy": fallback_policy,
+        "music_use_basis": music_use_basis,
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
         "sources": [
             {
                 "candidate_id": candidate["candidate_id"],
                 "source_type": candidate["source_type"],
                 "license_status": candidate["license_status"],
                 "delivery_allowed": candidate["delivery_allowed"],
+                **({"music_use_status": candidate["music_use_status"]} if candidate.get("music_use_status") else {}),
+                **({"music_use_basis": candidate["music_use_basis"]} if candidate.get("music_use_basis") else {}),
+                **({"legal_approval_claimed": candidate["legal_approval_claimed"]} if "legal_approval_claimed" in candidate else {}),
                 **({"path": candidate["path"]} if candidate.get("path") else {}),
                 **({"source_relative_path": candidate["source_relative_path"]} if candidate.get("source_relative_path") else {}),
             }
@@ -601,6 +694,9 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
         "blocks": sorted(set(blocks)),
         "speech_preservation": stage0_contract.get("speech_preservation"),
         "fallback_policy": fallback_policy,
+        "music_use_basis": music_use_basis,
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
         "sections": [
             {
                 "section_id": section["section_id"],
