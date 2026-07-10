@@ -108,11 +108,17 @@ carried context＋relevant evidence
 | L2 Effects | 標題、章卡、轉場、圖像處理 | effect factory、Remotion worker、motion graphics、lifecycle QA | DOCTRINE |
 | L3 Audio | 音樂、原音、SFX、ducking、混音 | soundtrack、mix-audio、sfx-mix、loudness/audio handoff | DOCTRINE |
 | L4 Text | approved text、字幕、字卡正確性 | subtitle chain、caption audit、title cards、ASR draft | DOCTRINE |
-| L5 Review | 客觀檢查、感知審查、品味 finding、owner verdict | rendered QA、final verify、black frame、fatigue、caption、perception、blueprint checklist | DOCTRINE；儀器可用 |
+| L5 Review | 客觀檢查、感知審查、品味 finding、owner verdict | rendered QA、final verify、black frame、fatigue、caption、perception、blueprint checklist | **CERTIFIED（Canon 67／44s／review-only）** |
 
 L1 的 CERTIFIED 僅表示「有界、單一 picture 修訂」的 Skill
 reproducibility 已通過；不等於完整影片、其他 LOOP 或 creative delivery
 已批准。
+
+L5 的 CERTIFIED 僅表示 Canon 67 `candidate_v2` 44 秒 review-only
+first-of-kind 已由 owner/integrator 認證可重現；candidate creative quality
+仍為 UNKNOWN，且不等於整片審查、其他 LOOP、creative approval 或 delivery。
+三個 L5 findings 仍為 open，h01/h02 仍須另開 TDD plan。Durable evidence:
+`docs/pilots/2026-07-10-editing-loop-l5-first-of-kind-evidence.md`。
 
 ## 4. 跨 LOOP 的可攜 context
 
@@ -270,9 +276,13 @@ ASR-draft→owner-approved-script→caption 流程；44 秒純音樂切片不能
 
 ## 10. 目前下一步
 
-下一個 bounded task 是 **L5 Review Loop first-of-kind**：只讀已封存的
-Canon 67 context 與 `candidate_v2`，組合既有 review/verify capabilities，
-寫實驗型 findings packet，停在 owner taste gate。
+L5 Review Loop first-of-kind 已完成並封存。下一個 bounded construction
+decision 是為 `h01`／`h02` 各寫一個 focused TDD repair plan，修復既有
+audit 與正式 timeline contract 的相容性；本規格本身不授權直接改 code。
 
-這一步不建立 orchestrator、常駐 driver、timeline v2、journal、正式
-finding registry 或自動回派引擎。
+相容性證據轉綠後，建議以 `l5_f01` 進行 L2 Effects first-of-kind：只修
+title lifecycle 的 approved-script mismatch。`l5_f02` 保持 open taste
+finding，`l5_f03` 保持 open L1 picture finding；不得順手合併施工。
+
+後續仍不建立 orchestrator、常駐 driver、timeline v2、journal、正式
+finding registry 或自動回派引擎，除非 §8 的獨立觸發事件發生。
