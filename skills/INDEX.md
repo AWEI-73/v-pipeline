@@ -12,6 +12,7 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/curator.md` | material-map | material curation | Selects and reviews material candidates for segment needs. |
 | `skills/dashboard.md` | workbench-brownfield | dashboard/workbench | Presents run state, artifacts, and review surfaces for operators. |
 | `skills/director.md` | film-canon-product-route | production SPEC | Owns production intent, segment logic, and director-level revisions. |
+| `skills/editing-loop-director.md` | main-pipeline | editing loop front door | Runs the interactive L0-L5 editing loops (propose, owner verdict, apply, verify) over existing capability libraries. |
 | `skills/editor.md` | main-pipeline | build/edit | Converts approved contracts into edit/timeline decisions. |
 | `skills/effects-director.md` | effect-factory | effect direction | Translates desired visual mood into effect direction and constraints. |
 | `skills/gap-analyzer.md` | main-pipeline | upstream story | Identifies narrative/material gaps before build handoff. |
