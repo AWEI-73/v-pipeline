@@ -384,6 +384,13 @@ def render_edit_decision(
             raise EditDecisionRenderError(f"motion graphics composite failed: {composite}")
     else:
         shutil.copy2(run / "with_audio.mp4", final)
+    precise_ref = "final.precise.mp4"
+    _run_ffmpeg([
+        "-i", "final.mp4", "-t", f"{target_duration:.6f}", "-map", "0:v:0", "-map", "0:a:0",
+        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+        "-movflags", "+faststart", precise_ref,
+    ], run_dir=run, command_log=command_log)
+    (run / precise_ref).replace(final)
     command_manifest["status"] = "completed"
     command_manifest["commands"] = command_log
     _write_json(run / "render_command_manifest.json", command_manifest)

@@ -203,6 +203,7 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
     effects, effect_decision = _compile_effects(effect_handoff)
     subtitles, subtitle_decision = _compile_subtitles(subtitle_handoff)
     overlays, transitions, unsupported_instructions = _compile_opening_graphics(opening_sequence)
+    opening_settings = dict(opening_sequence.get("settings") or {}) if isinstance(opening_sequence, Mapping) else {}
 
     edit_decision = {
         "artifact_role": "edit_decision_plan",
@@ -210,6 +211,7 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
         "source_intent": "video_intent.json" if intent else None,
         "video_type": intent.get("video_type"),
         "goal": intent.get("goal"),
+        "settings": opening_settings,
         "cuts": cuts,
         "overlays": overlays,
         "audio": audio,

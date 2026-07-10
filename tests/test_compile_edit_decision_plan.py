@@ -120,6 +120,7 @@ class CompileEditDecisionPlanTest(unittest.TestCase):
             transition = {"type": "hard_cut", "at_sec": 11.0}
             _write_json(root, "opening_sequence.json", {
                 "artifact_role": "opening_sequence",
+                "settings": {"fps": 30, "resolution": "1920x1080"},
                 "clips": [
                     {
                         "id": "opening_photo",
@@ -145,6 +146,7 @@ class CompileEditDecisionPlanTest(unittest.TestCase):
 
             self.assertEqual(result["overlays"], [overlay])
             self.assertEqual(result["transitions"], [transition])
+            self.assertEqual(result.get("settings"), {"fps": 30, "resolution": "1920x1080"})
             self.assertEqual(result["cuts"][1]["generated_background"], {"color": "black"})
             self.assertEqual(result["cuts"][0]["lineage"]["asset_id"], "accepted_photo")
 
