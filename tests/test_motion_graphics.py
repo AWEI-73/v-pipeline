@@ -84,6 +84,24 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertIn("Dialogue: 0,0:00:00.00,0:00:04.00", content)
         self.assertIn("fade", outputs[0]["motion"])
 
+    def test_ffmpeg_libass_writes_progressive_typewriter_dialogues(self):
+        item = {
+            "id": "opening_title",
+            "start_sec": 0.0,
+            "end_sec": 3.0,
+            "effect_type": "title_sequence",
+            "text": {"main": "ABC"},
+            "style": {"motion": "progressive_typewriter"},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            path = motion_graphics._write_ass_overlay(item, Path(d) / "opening_title.ass")
+            content = Path(path).read_text(encoding="utf-8-sig")
+
+        self.assertEqual(content.count("Dialogue:"), 3)
+        self.assertIn(",A\n", content)
+        self.assertIn(",AB\n", content)
+        self.assertIn(",ABC\n", content)
+
     def test_unimplemented_backend_is_explicitly_pending(self):
         contract = self._contract()
         contract["items"][0]["backend"] = "remotion"

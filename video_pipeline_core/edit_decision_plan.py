@@ -39,7 +39,7 @@ def _compile_cuts(rough_cut: Mapping[str, Any] | None) -> list[dict[str, Any]]:
         start = _clip_start(clip)
         duration = _clip_duration(clip)
         source = clip.get("source_path") or clip.get("src") or clip.get("source")
-        cuts.append({
+        cut = {
             "id": str(clip.get("id") or f"cut_{idx + 1:03d}"),
             "source": source,
             "in_seconds": start,
@@ -50,8 +50,43 @@ def _compile_cuts(rough_cut: Mapping[str, Any] | None) -> list[dict[str, Any]]:
             "scene_id": clip.get("scene_id"),
             "need_id": clip.get("need_id"),
             "reason": clip.get("reason") or clip.get("caption") or "rough cut material selection",
-        })
+        }
+        for field in (
+            "asset_id", "source_type", "source_relative_path", "source_lineage", "lineage",
+            "generated_background", "is_photo", "opening_role", "section", "treatment", "text",
+            "overlay_ids", "transition", "transition_duration_sec", "timeline_in_sec",
+            "timeline_out_sec", "beat_anchor_sec", "accepted",
+        ):
+            if field in clip:
+                cut[field] = clip[field]
+        cuts.append(cut)
     return cuts
+
+
+def _compile_opening_graphics(opening: Mapping[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    if not isinstance(opening, Mapping):
+        return [], [], []
+    overlays = [dict(item) for item in (opening.get("overlays") or []) if isinstance(item, Mapping)]
+    transitions = [dict(item) for item in (opening.get("transitions") or []) if isinstance(item, Mapping)]
+    unsupported: list[dict[str, Any]] = []
+    for index, overlay in enumerate(overlays):
+        if overlay.get("kind") != "text" or overlay.get("treatment") != "progressive_typewriter":
+            unsupported.append({
+                "instruction_type": "overlay",
+                "index": index,
+                "id": overlay.get("id"),
+                "reason": "unsupported opening overlay instruction",
+                "instruction": overlay,
+            })
+    for index, transition in enumerate(transitions):
+        if transition.get("type") != "hard_cut":
+            unsupported.append({
+                "instruction_type": "transition",
+                "index": index,
+                "reason": "unsupported opening transition instruction",
+                "instruction": transition,
+            })
+    return overlays, transitions, unsupported
 
 
 def _compile_audio(handoff: Mapping[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -159,12 +194,15 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
     audio_handoff = _load_json(root / "audio_director_handoff.json")
     effect_handoff = _load_json(root / "effect_handoff.json") or _load_json(root / "remotion_effect_handoff.json")
     subtitle_handoff = _load_json(root / "subtitle_voiceover_build_handoff.json")
+    opening_sequence = _load_json(root / "opening_sequence.json")
     intent = _load_json(root / "video_intent.json") or {}
 
-    cuts = _compile_cuts(rough_cut)
+    opening_cuts = _compile_cuts(opening_sequence)
+    cuts = opening_cuts + _compile_cuts(rough_cut)
     audio, audio_decision = _compile_audio(audio_handoff)
     effects, effect_decision = _compile_effects(effect_handoff)
     subtitles, subtitle_decision = _compile_subtitles(subtitle_handoff)
+    overlays, transitions, unsupported_instructions = _compile_opening_graphics(opening_sequence)
 
     edit_decision = {
         "artifact_role": "edit_decision_plan",
@@ -173,14 +211,16 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
         "video_type": intent.get("video_type"),
         "goal": intent.get("goal"),
         "cuts": cuts,
-        "overlays": [],
+        "overlays": overlays,
         "audio": audio,
         "effects": effects,
         "subtitles": subtitles,
-        "transitions": [],
+        "transitions": transitions,
+        "unsupported_instructions": unsupported_instructions,
         "review_focus": [
             "cuts trace to material evidence",
             "audio/effect/subtitle policies match Stage 0 intent",
+            "opening graphics and generated backgrounds remain visible in canonical composition",
             "deferred items are resolved before BUILD",
         ],
     }
@@ -203,6 +243,8 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
         accepted_handoffs["material"] = "rough_cut_plan.json" if (root / "rough_cut_plan.json").is_file() else "preview_rough_cut_plan.json"
     else:
         deferred_items.append(_deferred("material-map", "rough_cut_plan.json is absent"))
+    if opening_sequence:
+        accepted_handoffs["opening"] = "opening_sequence.json"
 
     audio_decision = audio_decision or {
         "artifact_role": "audio_decision_plan",
@@ -231,6 +273,7 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
         "version": 1,
         "accepted_handoffs": accepted_handoffs,
         "deferred_items": deferred_items,
+        "unsupported_instructions": unsupported_instructions,
         "build_inputs": {
             "edit_decision_plan": "edit_decision_plan.json",
             "audio_decision_plan": "audio_decision_plan.json",
@@ -238,7 +281,7 @@ def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
             "subtitle_voiceover_decision_plan": "subtitle_voiceover_decision_plan.json",
         },
         "forbidden_writes": ["final.mp4"],
-        "ready_for_build": not deferred_items and bool(cuts),
+        "ready_for_build": not deferred_items and not unsupported_instructions and bool(cuts),
     }
 
     artifacts = {

@@ -1,0 +1,19 @@
+{
+  "artifact_role": "graduation_opening_slice_request",
+  "version": 1,
+  "title": "台電67TH養成班",
+  "subtitle": "ON THE LAST PAGE",
+  "poem_lines": [
+    "當風雨掩襲城市的每一道亮光",
+    "總有人逆著風雨疾行",
+    "而今天 我們正在成為他們的路上"
+  ],
+  "fps": 30,
+  "resolution": "1920x1080",
+  "target_duration_sec": 44,
+  "segments": {
+    "title": {"start_sec": 0, "end_sec": 11},
+    "poetry_card": {"start_sec": 11, "end_sec": 18},
+    "montage": {"start_sec": 18, "end_sec": 44}
+  }
+}

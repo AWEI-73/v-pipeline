@@ -366,6 +366,29 @@ def _write_ass_overlay(item, path):
         "slide_up": r"{\an2\move(960,1160,960,930,0,320)\fad(120,220)}",
     }
     motion_tag = motion_tags.get(motion, "")
+    start_sec = float(item["start_sec"])
+    end_sec = float(item["end_sec"])
+    dialogues = []
+    if motion == "progressive_typewriter":
+        text = item.get("text") or {}
+        main = str(text.get("main") or "")
+        subtitle = str(text.get("subtitle") or "")
+        progressive = list(main) or [""]
+        duration = max(0.0, end_sec - start_sec)
+        for index in range(1, len(progressive) + 1):
+            item_start = start_sec + (duration * (index - 1) / len(progressive))
+            item_end = end_sec if index == len(progressive) else start_sec + (duration * index / len(progressive))
+            visible = _ass_escape("".join(progressive[:index]))
+            if index == len(progressive) and subtitle:
+                visible = f"{visible}\\N{_ass_escape(subtitle)}"
+            dialogues.append(
+                f"Dialogue: 0,{_ass_time(item_start)},{_ass_time(item_end)},Default,,0,0,0,,{visible}\n"
+            )
+    else:
+        dialogues.append(
+            f"Dialogue: 0,{_ass_time(start_sec)},{_ass_time(end_sec)},"
+            f"Default,,0,0,0,,{motion_tag}{_ass_text(item)}\n"
+        )
     content = (
         "\ufeff[Script Info]\n"
         "ScriptType: v4.00+\n"
@@ -380,8 +403,7 @@ def _write_ass_overlay(item, path):
         f"-1,0,0,0,100,100,0,0,1,3,1,{alignment},100,100,{margin_v},1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
-        f"Dialogue: 0,{_ass_time(item['start_sec'])},{_ass_time(item['end_sec'])},"
-        f"Default,,0,0,0,,{motion_tag}{_ass_text(item)}\n"
+        + "".join(dialogues)
     )
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

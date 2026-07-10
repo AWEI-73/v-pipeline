@@ -106,6 +106,48 @@ class CompileEditDecisionPlanTest(unittest.TestCase):
             self.assertEqual(result["edit_decision_plan"]["audio"], {})
             self.assertEqual(result["edit_decision_plan"]["effects"], [])
 
+    def test_carries_accepted_opening_graphics_and_generated_poetry_card(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            overlay = {
+                "id": "opening_title",
+                "kind": "text",
+                "text": {"main": "TITLE", "subtitle": "SUBTITLE"},
+                "treatment": "progressive_typewriter",
+                "start_sec": 0.0,
+                "end_sec": 11.0,
+            }
+            transition = {"type": "hard_cut", "at_sec": 11.0}
+            _write_json(root, "opening_sequence.json", {
+                "artifact_role": "opening_sequence",
+                "clips": [
+                    {
+                        "id": "opening_photo",
+                        "source": "assets/photo.jpg",
+                        "start_sec": 0.0,
+                        "duration_sec": 11.0,
+                        "lineage": {"asset_id": "accepted_photo", "accepted": True},
+                    },
+                    {
+                        "id": "poetry_card",
+                        "source_type": "generated_background",
+                        "generated_background": {"color": "black"},
+                        "start_sec": 0.0,
+                        "duration_sec": 7.0,
+                        "lineage": {"generated": True, "reason": "poetry_card"},
+                    },
+                ],
+                "overlays": [overlay],
+                "transitions": [transition],
+            })
+
+            result = compile_edit_decision_plan(root)["edit_decision_plan"]
+
+            self.assertEqual(result["overlays"], [overlay])
+            self.assertEqual(result["transitions"], [transition])
+            self.assertEqual(result["cuts"][1]["generated_background"], {"color": "black"})
+            self.assertEqual(result["cuts"][0]["lineage"]["asset_id"], "accepted_photo")
+
     def test_cli_writes_product_artifacts_without_rendering(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as temp:
