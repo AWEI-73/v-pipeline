@@ -286,6 +286,22 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       "stop_if": [
         "reviewer is non-human or decision is incomplete"
       ]
+    },
+    {
+      "tool": "tools/verify_beat_cut_alignment.py",
+      "when": "Objectively verify intended cut boundaries against the declared beat grid; it does not judge montage taste",
+      "inputs": [
+        "timeline_build.json",
+        "declared beat grid",
+        "output window and fps"
+      ],
+      "outputs": [
+        "beat_cut_alignment_report.json"
+      ],
+      "stop_if": [
+        "an intended cut boundary exceeds one frame from a beat anchor",
+        "alignment report is not pass"
+      ]
     }
   ],
   "forbidden_tools": [

@@ -145,6 +145,49 @@
       "canonical_write_policy": "canonical_candidate"
     },
     {
+      "artifact_name": "render_handoff.json",
+      "owner_branch": "main-pipeline",
+      "purpose": "Render-ready composition handoff for the bounded renderer; it records technical readiness and is not delivery approval.",
+      "semantic_inputs": [
+        "edit_decision_plan.json",
+        "timeline_build.json",
+        "accepted source provenance"
+      ],
+      "functional_parameters": [
+        {
+          "name": "readiness",
+          "description": "Render readiness state, ok flag, and any blocking reason."
+        },
+        {
+          "name": "owner",
+          "description": "Main Pipeline owner state for the composition handoff."
+        },
+        {
+          "name": "timeline_or_source_refs",
+          "description": "Canonical timeline and accepted-source references that the renderer must consume."
+        },
+        {
+          "name": "output_settings",
+          "description": "Required output resolution, frame rate, duration, and audio settings."
+        },
+        {
+          "name": "final_delivery_claimed",
+          "description": "Explicit false boundary: render readiness never claims final delivery."
+        }
+      ],
+      "downstream_consumers": [
+        "bounded edit-decision renderer",
+        "rendered_product_qa.py",
+        "final_review_bundle.json"
+      ],
+      "review_focus": [
+        "Is the handoff ready and owned by Main Pipeline?",
+        "Do timeline/source references and output settings remain traceable?",
+        "Does the handoff remain distinct from delivery approval?"
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
       "artifact_name": "audio_decision_plan.json",
       "owner_branch": "soundtrack-arranger",
       "purpose": "Translate music/original-audio intent into section-aware music and mix parameters.",

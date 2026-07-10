@@ -413,6 +413,23 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "stop_if": [
         "review lacks reviewer, evidence, forbidden-role checks, or reason"
       ]
+    },
+    {
+      "tool": "tools/run_graduation_opening_slice.py",
+      "when": "Replay the legacy Canon 67 0-44 opening as a bounded technical acceptance/control; it is not the editing-loop front door",
+      "inputs": [
+        "accepted seed run",
+        "read-only source root",
+        "opening slice request"
+      ],
+      "outputs": [
+        "Canon 67 opening technical control artifacts",
+        "technical acceptance report"
+      ],
+      "stop_if": [
+        "technical acceptance blocks",
+        "source provenance or reference-footage exclusion fails"
+      ]
     }
   ],
   "forbidden_tools": [
