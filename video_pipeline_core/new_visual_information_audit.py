@@ -26,16 +26,37 @@ def _visual_identity(item):
     return f"{source}@{round(float(start), 2):.2f}"
 
 
+def _duration_sec(item):
+    for field in ("duration_sec", "extract_dur", "target_duration_sec"):
+        value = item.get(field)
+        if value is None:
+            continue
+        try:
+            duration = float(value)
+        except (TypeError, ValueError):
+            continue
+        if duration > 0:
+            return duration
+    timeline_in = item.get("timeline_in_sec")
+    timeline_out = item.get("timeline_out_sec")
+    if timeline_in is None or timeline_out is None:
+        return 0.0
+    try:
+        return max(0.0, float(timeline_out) - float(timeline_in))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def audit_new_visual_information(timeline, *, min_new_visual_ratio=0.6,
                                  max_repeated_hold_sec=3.0):
     clips = _clips(timeline)
-    total = sum(float(item.get("duration_sec") or item.get("extract_dur") or 0) for item in clips)
+    total = sum(_duration_sec(item) for item in clips)
     seen = set()
     new_duration = 0.0
     repeated_duration = 0.0
     repeated_ids = set()
     for item in clips:
-        duration = float(item.get("duration_sec") or item.get("extract_dur") or 0)
+        duration = _duration_sec(item)
         identity = _visual_identity(item)
         if not identity or identity not in seen:
             new_duration += duration
