@@ -65,6 +65,17 @@ class GraduationRouteRegistryConsistencyTest(unittest.TestCase):
                 f"{stage['stage_id']} kind {stage['kind']!r} is neither a verify nor a review",
             )
 
+    def test_registry_assigns_render_handoff_to_main_pipeline_composition(self):
+        registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+        branches = {branch["branch_id"]: branch for branch in registry["branches"]}
+        main = branches["main-pipeline"]
+        soundtrack = branches["soundtrack-arranger"]
+
+        self.assertIn("render_handoff.json", main["canonical_outputs"])
+        self.assertNotIn("render_handoff.json", soundtrack["canonical_outputs"])
+        build_stage = next(stage for stage in main["stages"] if stage["stage"] == "build-eligibility")
+        self.assertIn("render_handoff.json", build_stage["artifacts_out"])
+
     def test_executed_order_matches_route_stages(self):
         with TemporaryDirectory() as tmp:
             run = Path(tmp) / "run"
@@ -92,7 +103,10 @@ class GraduationRouteRegistryConsistencyTest(unittest.TestCase):
             )
             (run / "effect_handoff.json").write_text(json.dumps({"status": "accepted"}), encoding="utf-8")
             (run / "render_handoff.json").write_text(
-                json.dumps({"music_subtitle_profile": {"status": "ready"}}), encoding="utf-8"
+                json.dumps({"artifact_role": "render_handoff", "owner": "main-pipeline", "ok": True}), encoding="utf-8"
+            )
+            (run / "audio_subtitle_review_handoff.json").write_text(
+                json.dumps({"status": "ready"}), encoding="utf-8"
             )
             runner = GraduationProductRouteRunner(
                 repo_root=Path.cwd(),

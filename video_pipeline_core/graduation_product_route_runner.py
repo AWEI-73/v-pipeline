@@ -110,7 +110,7 @@ def _signed_review_ok(run_dir: Path, review_artifact: str | list[str] | tuple[st
 
 
 def _music_subtitle_ok(run: Path) -> tuple[bool, str | None]:
-    for name in ("render_handoff.json", "audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json"):
+    for name in ("audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json", "audio_director_handoff.json"):
         payload = _load_json(run / name)
         if payload is None:
             continue
@@ -118,7 +118,20 @@ def _music_subtitle_ok(run: Path) -> tuple[bool, str | None]:
             return True, None
         if payload.get("music_subtitle_profile") or payload.get("profiles"):
             return True, None
+        if payload.get("artifact_role") == "audio_subtitle_review_handoff" or payload.get("audio_subtitle_owner_route"):
+            return True, None
     return False, "missing music/subtitle profile evidence"
+
+
+def _compose_render_handoff_ok(payload: dict[str, Any] | None) -> tuple[bool, str | None]:
+    if payload is None:
+        return False, "missing render_handoff.json"
+    if payload.get("ok") is not True:
+        return False, "render_handoff.ok must be true"
+    owner = payload.get("owner") or payload.get("owner_branch")
+    if owner != "main-pipeline":
+        return False, "render_handoff must be owned by main-pipeline"
+    return True, None
 
 
 # Declarative route stage table (single source of the graduation product-route
@@ -141,7 +154,7 @@ ROUTE_STAGES: list[dict[str, Any]] = [
     {"stage_id": "shot_level_material_proof", "owner": "material-map", "owner_tool": None, "artifact": "shot_level_material_proof_plan.json", "kind": "verify"},
     {"stage_id": "visual_selection_gate", "owner": "film-canon-product-route", "owner_tool": "tools/visual_selection_gate.py", "artifact": "visual_selection_gate.json", "kind": "signed_review", "review_artifact": "visual_selection_review.json"},
     {"stage_id": "effect_handoff", "owner": "effect-factory", "owner_tool": None, "artifact": "effect_handoff.json", "kind": "signed_review", "review_artifact": ["effect_review.json", "effect_director_review.json"]},
-    {"stage_id": "music_subtitle_profile", "owner": "soundtrack-arranger", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
+    {"stage_id": "music_subtitle_profile", "owner": "soundtrack-arranger", "owner_tool": None, "artifact": "audio_subtitle_review_handoff.json", "kind": "verify"},
     {"stage_id": "compose_render_handoff", "owner": "main-pipeline", "owner_tool": None, "artifact": "render_handoff.json", "kind": "verify"},
     {"stage_id": "rendered_product_qa", "owner": "verify-delivery", "owner_tool": "tools/rendered_product_qa.py", "artifact": "rendered_product_qa.json", "kind": "verify"},
     {"stage_id": "no_skip_execution_trace", "owner": "verify-delivery", "owner_tool": "tools/no_skip_execution_trace.py", "artifact": "no_skip_contract_decision.json", "kind": "verify"},
@@ -358,21 +371,22 @@ class GraduationProductRouteRunner:
         self._record_stage(
             "music_subtitle_profile",
             status="pass" if music_pass else "stop",
-            evidence={"checked_artifacts": ["render_handoff.json", "audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json"]},
+            evidence={"checked_artifacts": ["audio_subtitle_review_handoff.json", "render_rehearsal_entry_packet.json", "audio_director_handoff.json"]},
             stop_reason=music_reason,
         )
         if not music_pass:
             return self._stop(out, "music_subtitle_profile", music_reason or "missing evidence")
 
         compose_handoff = _load_json(run_dir / "render_handoff.json")
+        compose_pass, compose_reason = _compose_render_handoff_ok(compose_handoff)
         self._record_stage(
             "compose_render_handoff",
-            status="pass" if compose_handoff else "stop",
+            status="pass" if compose_pass else "stop",
             evidence=compose_handoff or {},
-            stop_reason=None if compose_handoff else "missing render_handoff.json",
+            stop_reason=compose_reason,
         )
-        if compose_handoff is None:
-            return self._stop(out, "compose_render_handoff", "missing render_handoff.json")
+        if not compose_pass:
+            return self._stop(out, "compose_render_handoff", compose_reason or "invalid render_handoff.json")
 
         candidate = find_rendered_candidate(run_dir)
         if mode == "no-render" or candidate is None:

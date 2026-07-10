@@ -47,6 +47,7 @@
         "handoff_packet",
         "segment_contract.json",
         "delivery_requirements.json",
+        "render_handoff.json",
         "final.mp4",
         "final_promotion_report.json"
       ],
@@ -130,8 +131,9 @@
             "effect_decision_plan.json",
             "subtitle_voiceover_decision_plan.json"
           ],
-          "artifacts_out": [
-            "build_handoff.json"
+        "artifacts_out": [
+          "build_handoff.json",
+          "render_handoff.json"
           ],
           "gate": "BUILD",
           "next_actions_on_pass": [
@@ -297,8 +299,7 @@
         "audio_mix_plan.json",
         "final_audio.wav",
         "audio_mix_report.json",
-        "audio_build_handoff.json",
-        "render_handoff.json"
+        "audio_build_handoff.json"
       ],
       "handoff_outputs": [
         "soundtrack_flow_acceptance_report.json",

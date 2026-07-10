@@ -101,8 +101,11 @@ class GraduationProductRouteRunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (run / "render_handoff.json").write_text(
-                json.dumps({"music_subtitle_profile": {"status": "ready"}}),
+                json.dumps({"artifact_role": "render_handoff", "owner": "main-pipeline", "ok": True}),
                 encoding="utf-8",
+            )
+            (run / "audio_subtitle_review_handoff.json").write_text(
+                json.dumps({"status": "ready"}), encoding="utf-8"
             )
             runner = GraduationProductRouteRunner(
                 repo_root=Path.cwd(),
@@ -287,6 +290,67 @@ class GraduationProductRouteRunnerTest(unittest.TestCase):
 
             self.assertFalse(result["pass"])
             self.assertEqual(result["stop_gate"], "music_subtitle_profile")
+
+    def test_music_subtitle_stage_does_not_consume_main_render_handoff(self):
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            self._write_signed_visual_review(run)
+            (run / "effect_handoff.json").write_text(json.dumps({"status": "accepted"}), encoding="utf-8")
+            from video_pipeline_core.reviewer_registry import sign_review
+
+            signature = sign_review("effect_director", passed=True, findings=[])
+            (run / "effect_review.json").write_text(
+                json.dumps({"artifact_role": "effect_review", "status": "pass", "review_signature": signature}),
+                encoding="utf-8",
+            )
+            (run / "render_handoff.json").write_text(
+                json.dumps({"artifact_role": "render_handoff", "owner": "main-pipeline", "ok": True, "status": "ready"}),
+                encoding="utf-8",
+            )
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            self.assertFalse(result["pass"])
+            self.assertEqual(result["stop_gate"], "music_subtitle_profile")
+
+    def test_compose_render_handoff_requires_ok_main_pipeline_ownership(self):
+        with TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            out = Path(tmp) / "out"
+            run.mkdir()
+            self._reach_visual_gate(run)
+            self._write_signed_visual_review(run)
+            (run / "effect_handoff.json").write_text(json.dumps({"status": "accepted"}), encoding="utf-8")
+            from video_pipeline_core.reviewer_registry import sign_review
+
+            signature = sign_review("effect_director", passed=True, findings=[])
+            (run / "effect_review.json").write_text(
+                json.dumps({"artifact_role": "effect_review", "status": "pass", "review_signature": signature}),
+                encoding="utf-8",
+            )
+            (run / "audio_subtitle_review_handoff.json").write_text(
+                json.dumps({"status": "ready"}), encoding="utf-8"
+            )
+            (run / "render_handoff.json").write_text(
+                json.dumps({"artifact_role": "render_handoff", "status": "ready"}), encoding="utf-8"
+            )
+            runner = GraduationProductRouteRunner(
+                repo_root=Path.cwd(),
+                command_runner=FakeCommandRunner([_result(payload={"status": "READY"})]),
+            )
+
+            result = runner.run(run=run, source_root=run, out_dir=out, mode="no-render")
+
+            self.assertFalse(result["pass"])
+            self.assertEqual(result["stop_gate"], "compose_render_handoff")
+            self.assertIn("ok", result["stop_reason"])
 
 
 if __name__ == "__main__":
