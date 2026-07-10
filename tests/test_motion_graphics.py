@@ -47,6 +47,36 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertEqual(item["output_mode"], "overlay")
         self.assertEqual(item["duration_sec"], 4.0)
 
+    def test_build_render_plan_propagates_reveal_complete_sec(self):
+        contract = self._contract()
+        contract["items"][0]["timing"] = {
+            "start_sec": 3.5,
+            "duration_sec": 7.5,
+            "reveal_complete_sec": 9.0,
+        }
+        contract["items"][0]["style"]["motion"] = "progressive_typewriter"
+
+        plan = motion_graphics.build_motion_graphics_render_plan(contract)
+
+        self.assertEqual(plan["items"][0]["reveal_complete_sec"], 9.0)
+
+    def test_validate_rejects_invalid_reveal_complete_sec(self):
+        for reveal_complete_sec in (3.5, 11.1):
+            with self.subTest(reveal_complete_sec=reveal_complete_sec):
+                contract = self._contract()
+                contract["items"][0]["timing"] = {
+                    "start_sec": 3.5,
+                    "duration_sec": 7.5,
+                    "reveal_complete_sec": reveal_complete_sec,
+                }
+                result = motion_graphics.validate_motion_graphics_contract(contract)
+
+                self.assertFalse(result["ok"])
+                self.assertIn(
+                    "items[0].timing.reveal_complete_sec",
+                    [error["field"] for error in result["errors"]],
+                )
+
     def test_heavy_backend_requires_policy(self):
         contract = self._contract()
         contract["items"][0]["backend"] = "blender"
@@ -101,6 +131,43 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertIn(",A\n", content)
         self.assertIn(",AB\n", content)
         self.assertIn(",ABC\n", content)
+
+    def test_ffmpeg_libass_honors_reveal_complete_sec_and_legacy_timing(self):
+        explicit_item = {
+            "id": "opening_title",
+            "start_sec": 3.5,
+            "reveal_complete_sec": 9.0,
+            "end_sec": 11.0,
+            "effect_type": "title_sequence",
+            "text": {"main": "ABC"},
+            "style": {"motion": "progressive_typewriter"},
+        }
+        legacy_item = {
+            "id": "legacy_title",
+            "start_sec": 0.0,
+            "end_sec": 3.0,
+            "effect_type": "title_sequence",
+            "text": {"main": "ABC"},
+            "style": {"motion": "progressive_typewriter"},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            explicit_path = motion_graphics._write_ass_overlay(
+                explicit_item, Path(d) / "opening_title.ass"
+            )
+            legacy_path = motion_graphics._write_ass_overlay(
+                legacy_item, Path(d) / "legacy_title.ass"
+            )
+            explicit_content = Path(explicit_path).read_text(encoding="utf-8-sig")
+            legacy_content = Path(legacy_path).read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "Dialogue: 0,0:00:09.00,0:00:11.00,Default,,0,0,0,,ABC\n",
+            explicit_content,
+        )
+        self.assertIn(
+            "Dialogue: 0,0:00:02.00,0:00:03.00,Default,,0,0,0,,ABC\n",
+            legacy_content,
+        )
 
     def test_unimplemented_backend_is_explicitly_pending(self):
         contract = self._contract()

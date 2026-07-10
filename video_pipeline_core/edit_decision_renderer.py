@@ -192,6 +192,16 @@ def _validate_composition(decision: Mapping[str, Any], timeline: Mapping[str, An
         end = _number(overlay.get("end_sec"), f"overlay {index}.end_sec", positive=True)
         if end <= start or start < 0 or end > target_duration + (1.0 / fps):
             raise EditDecisionRenderError(f"overlay {index} is outside the timeline")
+        if "reveal_complete_sec" in overlay:
+            reveal_complete = _number(
+                overlay.get("reveal_complete_sec"),
+                f"overlay {index}.reveal_complete_sec",
+            )
+            if not start < reveal_complete <= end:
+                raise EditDecisionRenderError(
+                    f"overlay {index}.reveal_complete_sec must satisfy "
+                    "start_sec < reveal_complete_sec <= end_sec"
+                )
         if not isinstance(overlay.get("text"), Mapping):
             raise EditDecisionRenderError(f"overlay {index}.text must be an object")
     music = ((decision.get("audio") or {}).get("music") or {}) if isinstance(decision.get("audio"), Mapping) else {}
@@ -273,6 +283,10 @@ def _motion_graphics_contract(overlays: Sequence[Mapping[str, Any]]) -> dict[str
                 "timing": {
                     "start_sec": float(overlay["start_sec"]),
                     "duration_sec": float(overlay["end_sec"]) - float(overlay["start_sec"]),
+                    **(
+                        {"reveal_complete_sec": float(overlay["reveal_complete_sec"])}
+                        if "reveal_complete_sec" in overlay else {}
+                    ),
                 },
                 "text": dict(overlay.get("text") or {}),
                 "style": {"motion": overlay["treatment"], "safe_area": "title_safe"},

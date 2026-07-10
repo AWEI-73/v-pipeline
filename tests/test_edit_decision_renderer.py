@@ -80,3 +80,62 @@ class EditDecisionRendererTest(unittest.TestCase):
             self.assertEqual({stream["codec_type"] for stream in streams}, {"video", "audio"})
             self.assertLessEqual(abs(float(json.loads(probe.stdout)["format"]["duration"]) - 2.0), 1.0 / 30.0)
             self.assertTrue(result["ok"], result)
+
+    def test_motion_graphics_contract_propagates_reveal_complete_sec(self):
+        renderer = _renderer_module()
+        self.assertIsNotNone(renderer, "canonical edit-decision renderer module is required")
+
+        contract = renderer._motion_graphics_contract([{
+            "id": "title",
+            "kind": "text",
+            "text": {"main": "ABC"},
+            "treatment": "progressive_typewriter",
+            "start_sec": 3.5,
+            "reveal_complete_sec": 9.0,
+            "end_sec": 11.0,
+        }])
+
+        self.assertEqual(contract["items"][0]["timing"]["reveal_complete_sec"], 9.0)
+
+    def test_rejects_invalid_reveal_complete_sec_before_render(self):
+        renderer = _renderer_module()
+        self.assertIsNotNone(renderer, "canonical edit-decision renderer module is required")
+        for reveal_complete_sec in (0.0, 1.1):
+            with self.subTest(reveal_complete_sec=reveal_complete_sec):
+                cuts = [{
+                    "id": "black",
+                    "source_type": "generated_background",
+                    "generated_background": {"color": "black"},
+                    "timeline_in_sec": 0.0,
+                    "timeline_out_sec": 1.0,
+                    "in_seconds": 0.0,
+                }]
+                decision = {
+                    "artifact_role": "edit_decision_plan",
+                    "settings": {"fps": 30, "resolution": "1920x1080"},
+                    "cuts": cuts,
+                    "overlays": [{
+                        "id": "title",
+                        "kind": "text",
+                        "text": {"main": "ABC"},
+                        "treatment": "progressive_typewriter",
+                        "start_sec": 0.0,
+                        "reveal_complete_sec": reveal_complete_sec,
+                        "end_sec": 1.0,
+                    }],
+                    "transitions": [],
+                    "audio": {"music": {"asset_id": "accepted_bgm"}},
+                }
+                timeline = {
+                    "settings": {"fps": 30, "resolution": "1920x1080"},
+                    "clips": cuts,
+                    "overlays": decision["overlays"],
+                    "transitions": [],
+                }
+
+                with self.assertRaisesRegex(renderer.EditDecisionRenderError, "reveal_complete_sec"):
+                    renderer._validate_composition(
+                        decision,
+                        timeline,
+                        {"accepted_bgm": {"kind": "audio"}},
+                    )

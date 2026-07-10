@@ -224,11 +224,31 @@ def validate_motion_graphics_contract(contract):
         if not isinstance(timing, dict):
             errors.append(_finding("error", f"items[{i}].timing", "must be object"))
             continue
-        if not isinstance(timing.get("start_sec"), (int, float)):
+        start_sec = timing.get("start_sec")
+        if not isinstance(start_sec, (int, float)):
             errors.append(_finding("error", f"items[{i}].timing.start_sec", "required number"))
         duration = timing.get("duration_sec")
         if not isinstance(duration, (int, float)) or duration <= 0:
             errors.append(_finding("error", f"items[{i}].timing.duration_sec", "required positive number"))
+        if "reveal_complete_sec" in timing:
+            reveal_complete = timing.get("reveal_complete_sec")
+            if not isinstance(reveal_complete, (int, float)):
+                errors.append(_finding(
+                    "error",
+                    f"items[{i}].timing.reveal_complete_sec",
+                    "required number",
+                ))
+            elif (
+                isinstance(start_sec, (int, float))
+                and isinstance(duration, (int, float))
+                and duration > 0
+                and not start_sec < reveal_complete <= start_sec + duration
+            ):
+                errors.append(_finding(
+                    "error",
+                    f"items[{i}].timing.reveal_complete_sec",
+                    "must satisfy start_sec < reveal_complete_sec <= end_sec",
+                ))
         text = item.get("text") or {}
         if not isinstance(text, dict) or not any(text.get(k) for k in ("main", "subtitle", "names")):
             warnings.append(_finding("warn", f"items[{i}].text", "no visible text payload"))
@@ -273,6 +293,10 @@ def build_motion_graphics_render_plan(contract, backend_policy=None):
             "start_sec": float(timing["start_sec"]),
             "duration_sec": float(timing["duration_sec"]),
             "end_sec": float(timing["start_sec"]) + float(timing["duration_sec"]),
+            **(
+                {"reveal_complete_sec": float(timing["reveal_complete_sec"])}
+                if "reveal_complete_sec" in timing else {}
+            ),
             "output_mode": output_mode,
             "text": item.get("text") or {},
             "style": {
@@ -374,10 +398,20 @@ def _write_ass_overlay(item, path):
         main = str(text.get("main") or "")
         subtitle = str(text.get("subtitle") or "")
         progressive = list(main) or [""]
-        duration = max(0.0, end_sec - start_sec)
         for index in range(1, len(progressive) + 1):
-            item_start = start_sec + (duration * (index - 1) / len(progressive))
-            item_end = end_sec if index == len(progressive) else start_sec + (duration * index / len(progressive))
+            if "reveal_complete_sec" in item and len(progressive) > 1:
+                reveal_complete_sec = float(item["reveal_complete_sec"])
+                if index == len(progressive):
+                    item_start = reveal_complete_sec
+                    item_end = end_sec
+                else:
+                    reveal_duration = max(0.0, reveal_complete_sec - start_sec)
+                    item_start = start_sec + (reveal_duration * (index - 1) / (len(progressive) - 1))
+                    item_end = start_sec + (reveal_duration * index / (len(progressive) - 1))
+            else:
+                duration = max(0.0, end_sec - start_sec)
+                item_start = start_sec + (duration * (index - 1) / len(progressive))
+                item_end = end_sec if index == len(progressive) else start_sec + (duration * index / len(progressive))
             visible = _ass_escape("".join(progressive[:index]))
             if index == len(progressive) and subtitle:
                 visible = f"{visible}\\N{_ass_escape(subtitle)}"
