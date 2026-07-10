@@ -413,15 +413,17 @@ Expected: 17 tests, `OK`, exit `0`; no whitespace errors.
 
 Expected: no decode error, no `U+FFFD`, no suspicious repeated literal `?`.
 
-- [ ] **Step 5: Commit the durable evidence only**
+- [ ] **Step 5: Hand the durable diff to the integrator**
 
 ```powershell
-git add -- docs/pilots/2026-07-10-editing-loop-l5-first-of-kind-evidence.md docs/construction-guides/2026-07-10-editing-loop-product-spec.md skills/editing-loop-director.md
-git diff --cached --check
-git commit -m "Certify editing loop L5 review"
+git diff -- docs/pilots/2026-07-10-editing-loop-l5-first-of-kind-evidence.md docs/construction-guides/2026-07-10-editing-loop-product-spec.md skills/editing-loop-director.md
+git status --short
 ```
 
-Do not stage unrelated dirty-tree files or `.tmp` media.
+The worker must not stage or commit. The integrator independently checks the
+packet, owner verdict, diff scope and material commands, then commits the exact
+durable files if accepted. Do not stage unrelated dirty-tree files or `.tmp`
+media.
 
 ### Task 11: Open The Next Bounded Plan, Not An Engine
 
