@@ -54,6 +54,44 @@ class TimelineInvariantsTest(unittest.TestCase):
         self.assertIn(2, checks["clip_trace_present"]["affected_segments"])
         self.assertIsNotNone(result["next_action"])
 
+    def test_generated_poetry_card_with_explicit_lineage_passes_trace(self):
+        poetry_card = {
+            "id": "opening_poetry_card",
+            "source_type": "generated_background",
+            "source_lineage": {
+                "generated": True,
+                "reason": "explicit_black_poetry_card",
+            },
+            "generated_background": {"color": "black"},
+            "target_duration_sec": 7.0,
+            "timeline_in_sec": 11.0,
+            "timeline_out_sec": 18.0,
+        }
+
+        result = ti.audit_timeline({"clips": [poetry_card]})
+
+        self.assertTrue(result["pass"])
+        self.assertEqual(
+            _checks_by_name(result)["clip_trace_present"]["status"], "pass"
+        )
+
+    def test_generated_lineage_without_visual_descriptor_fails_trace(self):
+        incomplete_generated_clip = {
+            "id": "opening_poetry_card",
+            "source_type": "generated_background",
+            "source_lineage": {"generated": True},
+            "target_duration_sec": 7.0,
+            "timeline_in_sec": 11.0,
+            "timeline_out_sec": 18.0,
+        }
+
+        result = ti.audit_timeline({"clips": [incomplete_generated_clip]})
+
+        self.assertFalse(result["pass"])
+        self.assertEqual(
+            _checks_by_name(result)["clip_trace_present"]["status"], "fail"
+        )
+
     def test_negative_duration_fails(self):
         bad = _clip(2, "b.mp4", 5, 2, 3)
         bad["duration_sec"] = -1.0

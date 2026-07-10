@@ -33,7 +33,12 @@ def _clips(timeline):
 
 
 def _has_trace(clip):
-    return bool(clip.get("trace") or clip.get("source_path") or clip.get("file"))
+    if clip.get("trace") or clip.get("source_path") or clip.get("file"):
+        return True
+    lineage = clip.get("source_lineage")
+    generated = isinstance(lineage, dict) and lineage.get("generated") is True
+    descriptor = clip.get("generated_background")
+    return generated and isinstance(descriptor, dict) and bool(descriptor)
 
 
 def audit_timeline(timeline, *, must_include_segments=None,
