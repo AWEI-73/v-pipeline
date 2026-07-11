@@ -1312,6 +1312,34 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["mode"], "waiting")
             self.assertEqual(summary["next"], "review_internal_audio_preview")
 
+    def test_preview_only_repo_relative_output_is_independent_of_current_directory(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        tmp_root = repo_root / ".tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_root) as run_tmp, tempfile.TemporaryDirectory() as other_tmp:
+            root = Path(run_tmp)
+            preview_audio = root / "interview_audio_preview.wav"
+            preview_audio.write_bytes(b"RIFF preview audio")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "usage_scope": "internal_technical_reference",
+                "output_audio": os.path.relpath(preview_audio, repo_root),
+                "next_action": "review_internal_audio_preview",
+            })
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(other_tmp)
+                summary = summarize_run(root)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["next"], "review_internal_audio_preview")
+
     def test_stage0_required_subtitles_block_audio_build_handoff_until_handoff_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

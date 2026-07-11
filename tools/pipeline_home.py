@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 EXECUTABLE_NEXT_ACTIONS = {
     "accept_subtitle_voiceover_handoff",
     "audio_mix_plan_ready",
@@ -996,7 +998,7 @@ def _audio_ready_summary(root: Path):
         preview_output = Path(str(declared_output or ""))
         if not preview_output.is_absolute():
             run_relative_output = root / preview_output
-            repository_relative_output = Path.cwd() / preview_output
+            repository_relative_output = REPOSITORY_ROOT / preview_output
             preview_output = (
                 run_relative_output
                 if run_relative_output.is_file() or not repository_relative_output.is_file()

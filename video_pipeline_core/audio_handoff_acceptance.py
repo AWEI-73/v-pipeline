@@ -191,7 +191,7 @@ def _default_internal_preview_mix_eligibility(
     delivery_allowed = item.get("delivery_allowed")
     mix_allowed = item.get("mix_allowed")
 
-    if preview_only is None:
+    if preview_only is None or preview_only is False:
         if mix_allowed is False:
             return False, None, "mix_not_allowed"
         if mix_allowed is not None and mix_allowed is not True:

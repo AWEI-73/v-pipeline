@@ -39,6 +39,33 @@ def _probe_for(audio_file):
 
 
 class AudioHandoffAcceptanceTest(unittest.TestCase):
+    def test_accepts_explicit_preview_false_as_delivery_track(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "source_speech.wav"
+            audio.write_bytes(b"RIFF original speech")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "source_speech",
+                    "section_id": "interview",
+                    "source_type": "original_audio",
+                    "audio_file": str(audio),
+                    "license_status": "source_original",
+                    "preview_only": False,
+                    "delivery_allowed": True,
+                    "ducking_policy": "preserve_original_audio",
+                }],
+            }
+
+            result = accept_audio_handoff(handoff, out_dir=root)
+
+            self.assertTrue(result["audio_handoff_acceptance"]["ok"])
+            track = result["audio_mix_plan"]["tracks"][0]
+            self.assertFalse(track["preview_only"])
+            self.assertTrue(track["delivery_allowed"])
+
     def test_accepts_downloaded_music_and_writes_mix_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
