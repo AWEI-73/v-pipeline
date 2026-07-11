@@ -175,6 +175,46 @@ def build_human_transcript_review_decision(payload: Mapping[str, Any]) -> dict[s
     return artifact
 
 
+def _srt_timestamp(seconds: float) -> str:
+    total_millis = int(round(max(0.0, seconds) * 1000))
+    hours, remainder = divmod(total_millis, 60 * 60 * 1000)
+    minutes, remainder = divmod(remainder, 60 * 1000)
+    whole_seconds, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d},{millis:03d}"
+
+
+def write_approved_srt_for_run(
+    run: str | Path,
+    decision: Mapping[str, Any],
+) -> Path:
+    root = Path(run)
+    approved_decision = build_human_transcript_review_decision(decision)
+    if approved_decision["version"] != 2 or approved_decision["decision"] != "approved":
+        raise ValueError("approved SRT requires an approved v2 human transcript decision")
+    source_path = Path(approved_decision["source_binding"]["source_path"])
+    if not source_path.is_absolute():
+        source_path = root / source_path
+    if _sha256_file(source_path) != approved_decision["source_binding"]["source_sha256"]:
+        raise ValueError("source binding SHA-256 does not match the source file")
+    reviewed_draft_path = Path(approved_decision["reviewed_draft"])
+    if not reviewed_draft_path.is_absolute():
+        reviewed_draft_path = root / reviewed_draft_path
+    if _sha256_file(reviewed_draft_path) != _sha256(decision.get("reviewed_draft_sha256"), "reviewed_draft_sha256"):
+        raise ValueError("reviewed draft SHA-256 does not match the reviewed draft")
+
+    lines: list[str] = []
+    for index, cue in enumerate(approved_decision["approved_cues"], start=1):
+        lines.extend([
+            str(index),
+            f"{_srt_timestamp(float(cue['start_sec']))} --> {_srt_timestamp(float(cue['end_sec']))}",
+            str(cue["approved_text"]),
+            "",
+        ])
+    out_path = root / "subtitles.srt"
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    return out_path
+
+
 def write_human_transcript_review_decision_for_run(
     run: str | Path,
     payload: Mapping[str, Any],

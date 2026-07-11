@@ -11,7 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from video_pipeline_core.human_transcript_review_decision import write_human_transcript_review_decision_for_run
+from video_pipeline_core.human_transcript_review_decision import (
+    write_approved_srt_for_run,
+    write_human_transcript_review_decision_for_run,
+)
 
 
 def main() -> int:
@@ -24,6 +27,7 @@ def main() -> int:
     parser.add_argument("--note", action="append", default=[], help="Required for revision_requested or rejected.")
     parser.add_argument("--payload-file", help="UTF-8 JSON payload for the existing transcript review decision writer.")
     parser.add_argument("--out-name", default="human_transcript_review_decision.json")
+    parser.add_argument("--write-approved-srt", action="store_true", help="Write subtitles.srt from an approved v2 human transcript decision.")
     parser.add_argument("--json", action="store_true", help="Print JSON summary.")
     args = parser.parse_args()
 
@@ -47,6 +51,7 @@ def main() -> int:
             payload,
             out_name=args.out_name,
         )
+        approved_srt = write_approved_srt_for_run(args.run, decision) if args.write_approved_srt else None
     except (OSError, ValueError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
@@ -60,6 +65,8 @@ def main() -> int:
         "reviewed_cue_count": len(decision["reviewed_cue_ids"]),
         "note_count": len(decision["notes"]),
     }
+    if approved_srt is not None:
+        summary["approved_srt"] = str(approved_srt)
     print(json.dumps(summary if args.json else decision, ensure_ascii=False, indent=2))
     return 0
 

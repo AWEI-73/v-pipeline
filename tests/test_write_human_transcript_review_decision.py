@@ -8,6 +8,7 @@ from pathlib import Path
 
 from video_pipeline_core.human_transcript_review_decision import (
     build_human_transcript_review_decision,
+    write_approved_srt_for_run,
     write_human_transcript_review_decision_for_run,
 )
 
@@ -148,6 +149,100 @@ class HumanTranscriptReviewDecisionV2Test(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             stored = json.loads((root / "human_transcript_review_decision.json").read_text(encoding="utf-8"))
             self.assertEqual(stored["version"], 1)
+
+    def test_opt_in_cli_writes_exact_v2_approved_srt_and_carries_a_minute_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = _v2_run_and_payload(root)
+            payload["source_binding"]["window_end_sec"] = 60.2
+            payload["reviewed_cue_ids"] = ["cue01", "cue02"]
+            payload["approved_cues"] = [
+                {
+                    "cue_id": "cue01",
+                    "start_sec": 0.3,
+                    "end_sec": 3.4,
+                    "approved_text": "主任勉勵",
+                },
+                {
+                    "cue_id": "cue02",
+                    "start_sec": 59.9996,
+                    "end_sec": 60.2,
+                    "approved_text": "大家終於活了下來",
+                },
+            ]
+            payload_path = root / "owner_payload.json"
+            payload_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(TOOL),
+                    "--run",
+                    str(root),
+                    "--payload-file",
+                    str(payload_path),
+                    "--write-approved-srt",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            subtitles = (root / "subtitles.srt").read_text(encoding="utf-8")
+            self.assertEqual(
+                subtitles,
+                "1\n00:00:00,300 --> 00:00:03,400\n主任勉勵\n\n"
+                "2\n00:01:00,000 --> 00:01:00,200\n大家終於活了下來\n",
+            )
+            self.assertNotIn("\ufffd", subtitles)
+
+    def test_opt_in_cli_rejects_legacy_v1_decision_for_approved_srt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(TOOL),
+                    "--run",
+                    str(root),
+                    "--decision",
+                    "approved",
+                    "--reviewer",
+                    "human",
+                    "--reviewed-cue-id",
+                    "cue01",
+                    "--write-approved-srt",
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("requires an approved v2 human transcript decision", proc.stderr)
+            self.assertFalse((root / "subtitles.srt").exists())
+
+    def test_public_approved_srt_helper_rejects_a_forged_v2_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            forged = {
+                "version": 2,
+                "decision": "approved",
+                "reviewer": "human",
+                "reviewed_draft": "subtitles.draft.srt",
+                "clears_human_transcript_review": True,
+                "approved_cues": [
+                    {"cue_id": "cue01", "start_sec": -1.0, "end_sec": 2.0, "approved_text": "forged"},
+                ],
+            }
+
+            with self.assertRaisesRegex(ValueError, "source binding"):
+                write_approved_srt_for_run(root, forged)
+            self.assertFalse((root / "subtitles.srt").exists())
 
 
 if __name__ == "__main__":
