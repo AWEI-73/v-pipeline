@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 
 class RoughCutPlanExecuteTest(unittest.TestCase):
-    def test_ffmpeg_command_uses_input_level_seek_for_each_clip(self):
+    def test_ffmpeg_command_uses_decoder_preroll_and_filter_precise_trim(self):
         from tools.rough_cut_plan_execute import build_rough_cut_ffmpeg_command
 
         clips = [
@@ -32,13 +32,15 @@ class RoughCutPlanExecuteTest(unittest.TestCase):
         )
 
         self.assertLess(command.index("-ss"), command.index("-i"))
-        self.assertEqual(command[command.index("-ss") + 1], "12.000")
+        self.assertEqual(command[command.index("-ss") + 1], "11.000")
         first_input = command.index(str(Path("a.mp4")))
         second_seek = command.index("-ss", first_input + 1)
         self.assertLess(second_seek, command.index(str(Path("b.mp4"))))
-        self.assertEqual(command[second_seek + 1], "30.500")
-        self.assertIn("-t", command)
-        self.assertEqual(command[command.index("-t") + 1], "6.000")
+        self.assertEqual(command[second_seek + 1], "29.500")
+        self.assertNotIn("-t", command)
+        filtergraph = command[command.index("-filter_complex") + 1]
+        self.assertIn("trim=start=1.000:end=7.000", filtergraph)
+        self.assertIn("trim=start=1.000:end=5.500", filtergraph)
 
     def test_ffmpeg_command_pins_preview_frame_rate(self):
         from tools.rough_cut_plan_execute import build_rough_cut_ffmpeg_command
@@ -61,6 +63,61 @@ class RoughCutPlanExecuteTest(unittest.TestCase):
         self.assertIn("setpts=N/(30*TB)", filtergraph)
         self.assertIn("-r", command)
         self.assertEqual(command[command.index("-r") + 1], "30")
+
+    def test_nonzero_source_seek_preserves_exact_frames_and_external_audio(self):
+        from tools.rough_cut_plan_execute import execute_rough_cut_plan
+        from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "main10_hevc_source.mp4"
+            external_audio = root / "continuous_speech.wav"
+            plan = root / "rough_cut_plan.json"
+            out = root / "preview.mp4"
+            report = root / "rough_cut_preview_report.json"
+            subprocess.run([
+                resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=duration=5:size=320x180:rate=30",
+                "-vf", "format=yuv420p10le", "-c:v", "libx265",
+                "-x265-params", "keyint=90:min-keyint=90:scenecut=0:pools=1:frame-threads=1:log-level=error",
+                "-pix_fmt", "yuv420p10le", str(source),
+            ], check=True, capture_output=True, text=True)
+            subprocess.run([
+                resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                "-c:a", "pcm_s16le", str(external_audio),
+            ], check=True, capture_output=True, text=True)
+            plan.write_text(json.dumps({
+                "clips": [{
+                    "source_path": str(source),
+                    "start_sec": 1.1,
+                    "duration_sec": 2.0,
+                }]
+            }), encoding="utf-8")
+
+            payload = execute_rough_cut_plan(
+                plan,
+                out,
+                report,
+                audio_path=external_audio,
+                width=320,
+                height=180,
+                fps=30,
+                timeout_sec=30,
+            )
+
+            self.assertTrue(payload["ok"])
+            probe = subprocess.run([
+                resolve_ffprobe(), "-v", "error", "-count_frames",
+                "-show_entries", "stream=codec_type,duration,nb_read_frames",
+                "-of", "json", str(out),
+            ], check=True, capture_output=True, text=True)
+            streams = json.loads(probe.stdout)["streams"]
+            video = next(stream for stream in streams if stream["codec_type"] == "video")
+            audio = next(stream for stream in streams if stream["codec_type"] == "audio")
+            self.assertEqual(int(video["nb_read_frames"]), round(2.0 * 30))
+            self.assertAlmostEqual(float(video["duration"]), 2.0, places=3)
+            self.assertAlmostEqual(float(audio["duration"]), 2.0, places=2)
 
     def test_execute_clamps_clip_duration_to_source_duration(self):
         from tools.rough_cut_plan_execute import execute_rough_cut_plan

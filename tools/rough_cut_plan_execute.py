@@ -18,6 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe  # noqa: E402
 
 
+# Decode a bounded lead-in, then let the filter graph apply the exact source window.
+DECODER_PREROLL_SEC = 1.0
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
@@ -90,8 +94,8 @@ def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int, fps: i
     parts = []
     labels = []
     for index, clip in enumerate(clips):
-        start = 0.0
-        end = clip["duration_sec"]
+        start = clip["filter_trim_start_sec"]
+        end = clip["filter_trim_end_sec"]
         label = f"v{index}"
         parts.append(
             f"[{index}:v]trim=start={start:.3f}:end={end:.3f},"
@@ -117,12 +121,17 @@ def build_rough_cut_ffmpeg_command(
     fps: int = 30,
 ) -> list[str]:
     cmd = [resolve_ffmpeg(), "-y", "-hide_banner"]
+    render_clips = []
     for clip in clips:
+        input_seek_sec = max(0.0, clip["start_sec"] - DECODER_PREROLL_SEC)
+        filter_trim_start_sec = clip["start_sec"] - input_seek_sec
+        render_clip = dict(clip)
+        render_clip["filter_trim_start_sec"] = filter_trim_start_sec
+        render_clip["filter_trim_end_sec"] = filter_trim_start_sec + clip["duration_sec"]
+        render_clips.append(render_clip)
         cmd += [
             "-ss",
-            f"{clip['start_sec']:.3f}",
-            "-t",
-            f"{clip['duration_sec']:.3f}",
+            f"{input_seek_sec:.3f}",
             "-i",
             clip["source_path"],
         ]
@@ -132,7 +141,7 @@ def build_rough_cut_ffmpeg_command(
     total_duration = round(sum(clip["duration_sec"] for clip in clips), 3)
     cmd += [
         "-filter_complex",
-        _filtergraph(clips, width=width, height=height, fps=fps),
+        _filtergraph(render_clips, width=width, height=height, fps=fps),
         "-map",
         "[v]",
     ]
