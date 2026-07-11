@@ -1,6 +1,8 @@
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 from video_pipeline_core.agent_transcript_repair import (
@@ -10,6 +12,7 @@ from video_pipeline_core.agent_transcript_repair import (
 from video_pipeline_core.human_transcript_review_decision import (
     build_human_transcript_review_decision,
 )
+from tools.agent_transcript_repair import main as agent_transcript_repair_main
 
 
 class SourceSpeechTranscriptRepairTest(unittest.TestCase):
@@ -65,6 +68,42 @@ class SourceSpeechTranscriptRepairTest(unittest.TestCase):
             self.assertEqual(result["approval_status"], "agent_draft_not_approved")
             draft = (root / "subtitles.draft.srt").read_text(encoding="utf-8")
             self.assertIn("五個半月養成", draft)
+
+    def test_nested_probe_segments_are_adapted_and_write_a_draft_srt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "source_speech_asr_probe.json").write_text(
+                json.dumps(
+                    {
+                        "features": {
+                            "vocal_analysis": {
+                                "segments": [
+                                    {"id": "cue01", "start": 0.0, "end": 1.5, "text": "第一句"},
+                                    {"id": "cue02", "start": 1.5, "end": 3.0, "text": "第二句"},
+                                ]
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            result = write_agent_transcript_repair_for_run(root)
+
+            self.assertEqual(result["suggestion_count"], 2)
+            self.assertEqual(len(json.loads((root / "asr_raw_transcript.json").read_text(encoding="utf-8"))["segments"]), 2)
+            self.assertTrue((root / "subtitles.draft.srt").read_text(encoding="utf-8").strip())
+
+    def test_require_cues_is_opt_in_and_fails_closed_for_zero_cues(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with redirect_stdout(StringIO()):
+                legacy_exit = agent_transcript_repair_main(["--run", str(root)])
+                required_exit = agent_transcript_repair_main(["--run", str(root), "--require-cues"])
+
+            self.assertEqual(legacy_exit, 0)
+            self.assertNotEqual(required_exit, 0)
 
     def test_all_asr_derived_source_types_remain_human_review_drafts(self):
         for source_type in ("source_speech", "voiceover", "generated_subtitle", "interview", "original_audio"):

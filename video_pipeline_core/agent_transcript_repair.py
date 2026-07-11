@@ -137,8 +137,14 @@ def render_draft_srt(report: Mapping[str, Any]) -> str:
 
 
 def _raw_from_source_speech_probe(probe: Mapping[str, Any]) -> dict[str, Any]:
+    probe_segments = _segments(probe)
+    if not probe_segments:
+        features = probe.get("features")
+        vocal_analysis = features.get("vocal_analysis") if isinstance(features, Mapping) else None
+        nested_segments = vocal_analysis.get("segments") if isinstance(vocal_analysis, Mapping) else []
+        probe_segments = [item for item in _as_list(nested_segments) if isinstance(item, dict)]
     segments = []
-    for index, item in enumerate(_segments(probe), start=1):
+    for index, item in enumerate(probe_segments, start=1):
         segments.append({
             "id": _text(item.get("id") or item.get("segment_id") or f"cue{index:02d}"),
             "start_sec": _float(item.get("start_sec") if "start_sec" in item else item.get("start")),
