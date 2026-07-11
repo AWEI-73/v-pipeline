@@ -16,9 +16,15 @@ truthful internal-only BGM
 → final delivery remains fail-closed
 ```
 
-The owner approved one product decision: **mix eligibility and delivery
-eligibility are separate**. A track may be explicitly authorized for an
-internal preview mix while remaining forbidden from final delivery.
+The owner approved two product decisions:
+
+1. **Mix eligibility and delivery eligibility are separate.**
+2. **Internal preview mixing is policy-allowed by default.** It must not stop at
+   a per-run human authorization gate. Final delivery remains fail-closed.
+
+The default is an operational permission to build an internal review artifact.
+It is not evidence that the track was legally verified, rights-cleared,
+creatively approved or accepted for delivery.
 
 This work order repairs and forward-tests that contract. It does not approve
 the music license, the transcript, the picture edit, the audio taste or the
@@ -75,12 +81,28 @@ backward-compatible field contract.
 | Input state | Mix result | Delivery result |
 |---|---|---|
 | `delivery_allowed=true`; preview fields absent | Existing behavior: mixable | Not changed by this work order |
-| `mix_allowed=true`, `preview_only=true`, `delivery_allowed=false`, valid internal `music_use_basis` | Mixable for internal preview | Forbidden |
+| `preview_only=true`, `delivery_allowed=false`, valid internal scope, and `mix_allowed` absent or true | Mixable by the default internal-preview policy | Forbidden |
+| `mix_allowed=false` | Block, including for preview | Forbidden |
 | `delivery_allowed=false` without the complete preview contract | Block exactly as before | Forbidden |
 | `source_type=reference_only` or bad license status | Block exactly as before | Forbidden |
-| contradictory booleans or missing internal-use provenance | Fail closed | Forbidden |
+| contradictory booleans or an invalid internal scope | Fail closed | Forbidden |
 
-The preview-only music item must carry portable provenance:
+The minimum preview input is:
+
+```json
+{
+  "preview_only": true,
+  "delivery_allowed": false,
+  "usage_scope": "internal_technical_reference"
+}
+```
+
+`mix_allowed` may be omitted and is then derived as true by one named default
+internal-preview policy. An explicit `mix_allowed=false` always wins and blocks
+the track.
+
+Acceptance must normalize and carry portable provenance without pretending a
+human reviewed each run:
 
 ```json
 {
@@ -89,17 +111,22 @@ The preview-only music item must carry portable provenance:
   "delivery_allowed": false,
   "usage_scope": "internal_technical_reference",
   "music_use_basis": {
-    "status": "human_declared_allowed",
+    "status": "pipeline_default_internal_preview",
     "usage_scope": "internal_technical_reference",
-    "declared_by": "human",
-    "basis_note": "Owner authorized this track only for an internal preview mix; no delivery or legal approval is claimed.",
-    "legal_approval_claimed": false
+    "declared_by": "pipeline_policy",
+    "basis_note": "Default policy permits an internal preview mix only; no verification, delivery or legal approval is claimed.",
+    "pipeline_legal_search_performed": false,
+    "legal_approval_claimed": false,
+    "external_publication_requires_rights_review": true
   }
 }
 ```
 
-Add `internal_technical_reference` to the existing internal-use scope vocabulary.
-Do not create a second provenance schema.
+Add `internal_technical_reference` to `INTERNAL_MUSIC_USE_SCOPES`. Recognize
+`pipeline_default_internal_preview` through a separate policy-status vocabulary
+or a truthfully renamed general basis-status vocabulary; do not insert a
+pipeline decision into a human-declared-only set as if a human reviewed that
+run. Do not create a second provenance schema or call this status `verified`.
 
 ### Aggregate Artifact Rules
 
@@ -118,8 +145,9 @@ This applies to `audio_handoff_acceptance.json`, `audio_mix_plan.json` and
 `audio_mix_report.json`. Each accepted track must also retain its own scope,
 eligibility and provenance fields.
 
-`audio_handoff_acceptance.ok=true` means accepted for the declared scope; it is
-not a delivery approval. A preview-only success uses
+`audio_handoff_acceptance.ok=true` means policy-accepted for the declared
+internal preview scope; it is not verification or delivery approval. A
+preview-only success uses
 `next_action=audio_preview_mix_plan_ready`.
 
 The executor may render the plan through the existing path, but its successful
@@ -194,8 +222,8 @@ rename the preview output to `final.mp4` or `final_audio.wav`.
 
 Required red behaviors:
 
-- a complete preview-only item with `delivery_allowed=false` cannot currently
-  enter the mix plan;
+- a complete preview-only item with `delivery_allowed=false` and no human basis
+  cannot currently enter the mix plan through the default policy;
 - a preview-only mix report is not currently stopped explicitly by the final
   delivery gate;
 - Home does not currently return a review stop for a preview-only output.
@@ -207,11 +235,13 @@ Piece 5 for behavioral acceptance.
 
 In `audio_handoff_acceptance.py`:
 
-1. Add one private, named predicate for track mix eligibility; do not scatter
-   boolean expressions through `accept_audio_handoff`.
-2. Preserve delivery-track behavior when new fields are absent.
-3. Accept the preview-only branch only when every field and the existing
-   `music_use_basis` are valid.
+1. Add one private, named default-internal-preview policy/predicate for track
+   mix eligibility; do not scatter boolean expressions through
+   `accept_audio_handoff`.
+2. Preserve delivery-track behavior when preview fields are absent.
+3. For a complete internal preview contract, derive `mix_allowed=true` when it
+   is absent and synthesize the normalized `music_use_basis` shown above. Do
+   not require a per-run human declaration. An explicit false still blocks.
 4. Preserve old `reference_only`, missing-file, license, required-track-count,
    probe and vocal-conflict blocks.
 5. Run probe/vocal checks for preview-only music as well as delivery music.
@@ -262,8 +292,9 @@ Create a fresh run only under:
 `.tmp/editing_loop_certification_campaign/l3/audio_trial/preview_mix_contract_v1/`
 
 Use the frozen repaired picture, exact 0–22 second original speech, existing
-candidate_l2 BGM and existing soundtrack plan. Create a new handoff with the
-approved preview contract and human provenance above.
+candidate_l2 BGM and existing soundtrack plan. Create a new handoff with only
+the minimum preview fields above; the public acceptance path must apply and
+record the default policy provenance itself.
 
 Run these existing public capabilities in order:
 
@@ -283,6 +314,9 @@ commands are allowed as read-only evidence.
 Real forward-test acceptance:
 
 - handoff acceptance `ok=true`, `accepted_track_count=2` and no blocking;
+- the accepted BGM track records
+  `music_use_basis.status=pipeline_default_internal_preview` and
+  `declared_by=pipeline_policy`, without a human-approval claim;
 - mix plan `ready_for_mix=true`, `preview_only=true`,
   `delivery_allowed=false`;
 - report `ok=true`, original-speech track present, music track present,
