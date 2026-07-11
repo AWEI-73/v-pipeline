@@ -1431,6 +1431,34 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertTrue(result["pass"])
 
+    def test_complete_video_gate_blocks_preview_only_audio_mix_even_with_valid_media(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_delivery_artifacts(root)
+            (root / "audio_mix_report.json").write_text(
+                json.dumps({
+                    "artifact_role": "audio_mix_report",
+                    "version": 1,
+                    "ok": True,
+                    "audio_stream_present": True,
+                    "narration_included": True,
+                    "music_included": True,
+                    "peak_dbfs": -3.0,
+                    "preview_only": True,
+                    "delivery_allowed": False,
+                    "usage_scope": "internal_technical_reference",
+                    "external_publication_requires_rights_review": True,
+                    "placements": [],
+                }),
+                encoding="utf-8",
+            )
+
+            result = evaluate_complete_video_delivery(root, probe=self._probe_with_audio_video())
+
+        self.assertFalse(result["pass"])
+        rules = {item["rule"] for item in result["blocking"]}
+        self.assertIn("preview_only_audio_not_delivery_allowed", rules)
+
     def test_complete_video_gate_blocks_music_that_should_duck_but_did_not(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -31,6 +31,7 @@ REVIEW_STOP_ACTIONS = {
     "operator_review_or_explicit_final_promotion",
     "ready_for_human_effect_review_or_pipeline_promotion",
     "ready_for_render_or_human_review",
+    "review_internal_audio_preview",
     "review_material_inventory_summary",
 }
 
@@ -989,6 +990,64 @@ def _audio_ready_summary(root: Path):
     rel_report = _rel(root, report_path)
     if rel_report and rel_report not in read:
         read.append(rel_report)
+
+    if report and report.get("preview_only") is True:
+        declared_output = report.get("output_audio")
+        preview_output = Path(str(declared_output or ""))
+        if not preview_output.is_absolute():
+            run_relative_output = root / preview_output
+            repository_relative_output = Path.cwd() / preview_output
+            preview_output = (
+                run_relative_output
+                if run_relative_output.is_file() or not repository_relative_output.is_file()
+                else repository_relative_output
+            )
+        if report.get("ok") is not True:
+            return _contract(
+                "repair",
+                "audio_preview",
+                next_action=report.get("next_action") or "repair_audio_mix_plan",
+                resume="audio_director",
+                reason="preview-only audio_mix_report is not ok=true",
+                read=read,
+                run_dir=root,
+                source="audio_mix_report.json",
+            )
+        if report.get("delivery_allowed") is not False:
+            return _contract(
+                "repair",
+                "audio_preview",
+                next_action="repair_preview_audio_contract",
+                resume="audio_director",
+                reason="preview-only audio_mix_report must declare delivery_allowed=false",
+                read=read,
+                run_dir=root,
+                source="audio_mix_report.json",
+            )
+        if not declared_output or not preview_output.is_file():
+            return _contract(
+                "repair",
+                "audio_preview",
+                next_action="repair_preview_audio_output",
+                resume="audio_director",
+                reason="preview-only audio_mix_report declares an output_audio path that is missing",
+                read=read,
+                run_dir=root,
+                source="audio_mix_report.json",
+            )
+        rel_preview = _rel(root, preview_output)
+        if rel_preview and rel_preview not in read:
+            read.append(rel_preview)
+        return _contract(
+            "waiting",
+            "audio_preview",
+            next_action="review_internal_audio_preview",
+            resume="audio_director",
+            reason="preview-only internal audio mix is ready for review and is not delivery-allowed",
+            read=read,
+            run_dir=root,
+            source="audio_mix_report.json",
+        )
 
     if not final_audio.is_file():
         return _contract(

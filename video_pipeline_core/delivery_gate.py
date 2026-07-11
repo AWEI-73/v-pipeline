@@ -463,6 +463,17 @@ def _string_contains_any(value: Any, needles: tuple[str, ...]) -> bool:
 
 def _audio_mix_report_blocks(audio_mix_report: dict[str, Any]) -> list[dict[str, Any]]:
     blocking: list[dict[str, Any]] = []
+    if (
+        audio_mix_report.get("preview_only") is True
+        or audio_mix_report.get("delivery_allowed") is False
+    ):
+        blocking.append({
+            "rule": "preview_only_audio_not_delivery_allowed",
+            "tier": 1,
+            "artifact": "audio_mix_report.json",
+            "message": "preview-only or non-delivery audio mix cannot pass the final delivery gate",
+            "next_action": "review_internal_audio_preview",
+        })
     placements = _as_list(audio_mix_report.get("placements"))
     for index, placement in enumerate(placements):
         if not isinstance(placement, dict):

@@ -495,6 +495,160 @@ class AudioHandoffAcceptanceTest(unittest.TestCase):
             self.assertEqual(track["music_use_basis"]["status"], "human_declared_allowed")
             self.assertFalse(track["legal_approval_claimed"])
 
+    def test_accepts_default_internal_preview_without_human_basis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "candidate_l2_bgm.wav"
+            speech = root / "audio" / "sources" / "original_speech.wav"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"RIFF preview music")
+            speech.write_bytes(b"RIFF original speech")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [
+                    {
+                        "candidate_id": "candidate_l2_bgm",
+                        "section_id": "interview",
+                        "source_type": "candidate_l2_internal_reference",
+                        "audio_file": str(music),
+                        "license_status": "not_reapproved_for_delivery",
+                        "preview_only": True,
+                        "delivery_allowed": False,
+                        "usage_scope": "internal_technical_reference",
+                    },
+                    {
+                        "candidate_id": "interview_original_speech",
+                        "section_id": "interview",
+                        "source_type": "original_audio",
+                        "audio_file": str(speech),
+                        "license_status": "source_original",
+                        "delivery_allowed": True,
+                        "ducking_policy": "preserve_original_audio",
+                    },
+                ],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "required_track_count": 2,
+                "sections": [{
+                    "section_id": "interview",
+                    "start_sec": 0,
+                    "duration_sec": 22,
+                    "music_role": "bgm",
+                    "ducking_policy": "duck_under_voice",
+                    "vocal_policy": "preserve_speech",
+                }],
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=_probe_for(music),
+                out_dir=root,
+            )
+
+            acceptance = result["audio_handoff_acceptance"]
+            plan = result["audio_mix_plan"]
+            self.assertTrue(acceptance["ok"])
+            self.assertEqual(acceptance["accepted_track_count"], 2)
+            self.assertEqual(acceptance["next_action"], "audio_preview_mix_plan_ready")
+            self.assertTrue(acceptance["preview_only"])
+            self.assertFalse(acceptance["delivery_allowed"])
+            self.assertTrue(acceptance["external_publication_requires_rights_review"])
+            self.assertTrue(plan["ready_for_mix"])
+            self.assertTrue(plan["preview_only"])
+            self.assertFalse(plan["delivery_allowed"])
+            bgm = next(track for track in plan["tracks"] if track["candidate_id"] == "candidate_l2_bgm")
+            self.assertTrue(bgm["mix_allowed"])
+            self.assertTrue(bgm["preview_only"])
+            self.assertFalse(bgm["delivery_allowed"])
+            self.assertEqual(bgm["usage_scope"], "internal_technical_reference")
+            self.assertEqual(bgm["music_use_basis"]["status"], "pipeline_default_internal_preview")
+            self.assertEqual(bgm["music_use_basis"]["declared_by"], "pipeline_policy")
+            self.assertFalse(bgm["music_use_basis"]["legal_approval_claimed"])
+            self.assertTrue(bgm["music_use_basis"]["external_publication_requires_rights_review"])
+
+    def test_blocks_preview_when_mix_allowed_is_explicitly_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "candidate_l2_bgm.wav"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"RIFF preview music")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "candidate_l2_bgm",
+                    "section_id": "interview",
+                    "source_type": "candidate_l2_internal_reference",
+                    "audio_file": str(music),
+                    "license_status": "not_reapproved_for_delivery",
+                    "preview_only": True,
+                    "mix_allowed": False,
+                    "delivery_allowed": False,
+                    "usage_scope": "internal_technical_reference",
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "interview",
+                    "duration_sec": 22,
+                    "music_role": "bgm",
+                    "ducking_policy": "duck_under_voice",
+                    "vocal_policy": "preserve_speech",
+                }],
+            }
+
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=_probe_for(music),
+                out_dir=root,
+            )
+
+            self.assertFalse(result["audio_handoff_acceptance"]["ok"])
+            rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
+            self.assertIn("preview_mix_not_allowed", rules)
+
+    def test_preview_music_still_requires_soundtrack_probe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "candidate_l2_bgm.wav"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"RIFF preview music")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [{
+                    "candidate_id": "candidate_l2_bgm",
+                    "section_id": "interview",
+                    "source_type": "candidate_l2_internal_reference",
+                    "audio_file": str(music),
+                    "license_status": "not_reapproved_for_delivery",
+                    "preview_only": True,
+                    "delivery_allowed": False,
+                    "usage_scope": "internal_technical_reference",
+                }],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "interview",
+                    "duration_sec": 22,
+                    "music_role": "bgm",
+                    "ducking_policy": "duck_under_voice",
+                    "vocal_policy": "preserve_speech",
+                }],
+            }
+
+            result = accept_audio_handoff(handoff, soundtrack_plan=soundtrack, out_dir=root)
+
+            self.assertFalse(result["audio_handoff_acceptance"]["ok"])
+            rules = {item["rule"] for item in result["audio_handoff_acceptance"]["blocking"]}
+            self.assertIn("missing_soundtrack_probe_report", rules)
+
     def test_blocks_vocal_heavy_music_under_voiceover(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

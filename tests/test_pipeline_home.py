@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -1244,6 +1245,72 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "audio_build_handoff")
             self.assertEqual(summary["next"], "continue_build_or_material_gate")
             self.assertEqual(summary["source"], "audio_build_handoff.json")
+
+    def test_preview_only_audio_report_stops_at_internal_audio_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            preview_audio = root / "interview_audio_preview.wav"
+            preview_audio.write_bytes(b"RIFF preview audio")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "usage_scope": "internal_technical_reference",
+                "output_audio": str(preview_audio),
+                "next_action": "review_internal_audio_preview",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["cursor"], "audio_preview")
+            self.assertEqual(summary["owner"], "soundtrack_arranger")
+            self.assertEqual(summary["next"], "review_internal_audio_preview")
+            self.assertEqual(summary["next_action_class"], "review_stop")
+            self.assertIn("interview_audio_preview.wav", summary["read"])
+
+    def test_preview_only_audio_report_with_missing_declared_output_repairs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "usage_scope": "internal_technical_reference",
+                "output_audio": str(root / "missing_preview.wav"),
+                "next_action": "review_internal_audio_preview",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "repair")
+            self.assertEqual(summary["cursor"], "audio_preview")
+            self.assertEqual(summary["next"], "repair_preview_audio_output")
+
+    def test_preview_only_audio_report_accepts_repo_relative_output_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            preview_audio = root / "interview_audio_preview.wav"
+            preview_audio.write_bytes(b"RIFF preview audio")
+            _write(root, "audio_mix_report.json", {
+                "artifact_role": "audio_mix_report",
+                "ok": True,
+                "audio_stream_present": True,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "usage_scope": "internal_technical_reference",
+                "output_audio": os.path.relpath(preview_audio, Path.cwd()),
+                "next_action": "review_internal_audio_preview",
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "waiting")
+            self.assertEqual(summary["next"], "review_internal_audio_preview")
 
     def test_stage0_required_subtitles_block_audio_build_handoff_until_handoff_exists(self):
         with tempfile.TemporaryDirectory() as tmp:

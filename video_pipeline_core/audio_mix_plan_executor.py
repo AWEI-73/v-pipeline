@@ -251,6 +251,39 @@ def _target_duration(audio_mix_plan: Mapping[str, Any]) -> float:
     return 0.0
 
 
+def _preview_contract_blocks(audio_mix_plan: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Reject aggregate preview intent that cannot truthfully remain non-delivery."""
+    preview_only = audio_mix_plan.get("preview_only")
+    delivery_allowed = audio_mix_plan.get("delivery_allowed")
+    mix_allowed = audio_mix_plan.get("mix_allowed")
+    usage_scope = _clean(audio_mix_plan.get("usage_scope"))
+    if preview_only is True:
+        if (
+            delivery_allowed is not False
+            or mix_allowed is not True
+            or not usage_scope
+        ):
+            return [{
+                "rule": "contradictory_preview_delivery_contract",
+                "message": (
+                    "preview-only audio_mix_plan requires delivery_allowed=false, "
+                    "mix_allowed=true, and a declared usage_scope"
+                ),
+            }]
+        return []
+    if delivery_allowed is False:
+        return [{
+            "rule": "contradictory_preview_delivery_contract",
+            "message": "non-delivery audio_mix_plan must declare preview_only=true",
+        }]
+    if preview_only is not None and preview_only is not False:
+        return [{
+            "rule": "contradictory_preview_delivery_contract",
+            "message": "preview_only must be a boolean when declared",
+        }]
+    return []
+
+
 def _align_placements_to_duration(
     placements: list[dict[str, Any]],
     target_duration_sec: float,
@@ -457,6 +490,7 @@ def execute_audio_mix_plan(
             "rule": "audio_mix_plan_not_ready",
             "message": "audio_mix_plan.ready_for_mix must be true",
         })
+    blocking.extend(_preview_contract_blocks(audio_mix_plan))
 
     tracks = list(audio_mix_plan.get("tracks") or [])
     source_audio_policy = audio_mix_plan.get("source_audio_policy") if isinstance(audio_mix_plan.get("source_audio_policy"), Mapping) else {}
@@ -541,6 +575,16 @@ def execute_audio_mix_plan(
             "blocking": blocking,
             "next_action": "repair_audio_mix_plan",
         }
+        for key in (
+            "mix_allowed",
+            "preview_only",
+            "delivery_allowed",
+            "usage_scope",
+            "music_use_basis",
+            "external_publication_requires_rights_review",
+        ):
+            if key in audio_mix_plan:
+                report[key] = audio_mix_plan[key]
         report_path.write_text(
             json.dumps(relativize_payload_refs(report_path.parent, report), ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -581,9 +625,21 @@ def execute_audio_mix_plan(
                 "mix_duration_sec": placements[index]["duration_sec"],
                 "source_offset_sec": placements[index]["source_offset_sec"],
             })
+        for key in (
+            "mix_allowed",
+            "preview_only",
+            "delivery_allowed",
+            "usage_scope",
+            "music_use_basis",
+            "external_publication_requires_rights_review",
+            "legal_approval_claimed",
+        ):
+            if key in track:
+                track_report[key] = track[key]
         track_reports.append(track_report)
 
     roles = {str(track.get("role") or "") for track in resolved_tracks}
+    preview_only = audio_mix_plan.get("preview_only") is True
     report = {
         "artifact_role": "audio_mix_report",
         "version": 1,
@@ -605,8 +661,19 @@ def execute_audio_mix_plan(
         "placements": placements,
         "section_verification": section_verification,
         "blocking": [],
-        "next_action": "audio_ready_for_build",
+        "next_action": "review_internal_audio_preview" if preview_only else "audio_ready_for_build",
     }
+    if preview_only:
+        for key in (
+            "mix_allowed",
+            "preview_only",
+            "delivery_allowed",
+            "usage_scope",
+            "music_use_basis",
+            "external_publication_requires_rights_review",
+        ):
+            if key in audio_mix_plan:
+                report[key] = audio_mix_plan[key]
     report_path.write_text(
         json.dumps(relativize_payload_refs(report_path.parent, report), ensure_ascii=False, indent=2),
         encoding="utf-8",

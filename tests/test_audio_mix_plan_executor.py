@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from video_pipeline_core.audio_mix_plan_executor import execute_audio_mix_plan
 from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe
 from tools.pipeline_home import summarize_run
 
@@ -424,6 +425,130 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             self.assertAlmostEqual(music_placement["applied_volume"], 0.28, delta=0.01)
             self.assertFalse(voice_placement["ducking_applied"])
             self.assertAlmostEqual(voice_placement["applied_volume"], 1.0, delta=0.01)
+
+    def test_preview_only_mix_carries_contract_and_stops_for_review(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "candidate_l2_bgm.wav"
+            speech = root / "audio" / "sources" / "original_speech.wav"
+            music.parent.mkdir(parents=True)
+            _sine(music, 1.0)
+            _sine(speech, 1.0)
+            acceptance = _write_json(root, "audio_handoff_acceptance.json", {
+                "artifact_role": "audio_handoff_acceptance",
+                "ok": True,
+                "accepted_track_count": 2,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "external_publication_requires_rights_review": True,
+            })
+            plan = _write_json(root, "audio_mix_plan.json", {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "preview_only": True,
+                "delivery_allowed": False,
+                "mix_allowed": True,
+                "usage_scope": "internal_technical_reference",
+                "external_publication_requires_rights_review": True,
+                "source_audio_policy": {
+                    "original_audio_policy": "preserve_speech",
+                    "music_policy": "bgm",
+                    "time_authority": "video_sections",
+                },
+                "sections": [{
+                    "section_id": "interview",
+                    "start_sec": 0.0,
+                    "duration_sec": 1.0,
+                    "audio_required": True,
+                }],
+                "tracks": [
+                    {
+                        "section_id": "interview",
+                        "candidate_id": "candidate_l2_bgm",
+                        "audio_file": str(music),
+                        "role": "music_bed",
+                        "ducking_policy": "duck_under_voice",
+                        "source_type": "candidate_l2_internal_reference",
+                        "license_status": "not_reapproved_for_delivery",
+                        "mix_allowed": True,
+                        "preview_only": True,
+                        "delivery_allowed": False,
+                        "usage_scope": "internal_technical_reference",
+                        "music_use_basis": {
+                            "status": "pipeline_default_internal_preview",
+                            "usage_scope": "internal_technical_reference",
+                            "declared_by": "pipeline_policy",
+                            "legal_approval_claimed": False,
+                            "external_publication_requires_rights_review": True,
+                        },
+                    },
+                    {
+                        "section_id": "interview",
+                        "candidate_id": "original_speech",
+                        "audio_file": str(speech),
+                        "role": "source_speech",
+                        "ducking_policy": "preserve_original_audio",
+                        "source_type": "original_audio",
+                        "license_status": "source_original",
+                        "delivery_allowed": True,
+                    },
+                ],
+            })
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/audio_mix_plan_execute.py",
+                    "--plan",
+                    str(plan),
+                    "--acceptance",
+                    str(acceptance),
+                    "--out-dir",
+                    str(root),
+                    "--output-name",
+                    "interview_audio_preview.wav",
+                    "--json",
+                ],
+                cwd=repo,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            report = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertTrue(report["ok"])
+            self.assertTrue(report["preview_only"])
+            self.assertFalse(report["delivery_allowed"])
+            self.assertTrue(report["external_publication_requires_rights_review"])
+            self.assertEqual(report["next_action"], "review_internal_audio_preview")
+            self.assertTrue(report["ducking_applied"])
+            bgm = next(track for track in report["tracks"] if track["candidate_id"] == "candidate_l2_bgm")
+            self.assertTrue(bgm["preview_only"])
+            self.assertFalse(bgm["delivery_allowed"])
+            self.assertEqual(bgm["music_use_basis"]["status"], "pipeline_default_internal_preview")
+            self.assertTrue((root / "interview_audio_preview.wav").is_file())
+
+    def test_preview_only_plan_with_delivery_true_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = execute_audio_mix_plan(
+                {
+                    "artifact_role": "audio_mix_plan",
+                    "ready_for_mix": True,
+                    "preview_only": True,
+                    "delivery_allowed": True,
+                    "tracks": [],
+                },
+                acceptance={"ok": True},
+                out_dir=root,
+            )
+
+            self.assertFalse(result["ok"])
+            rules = {item["rule"] for item in result["audio_mix_report"]["blocking"]}
+            self.assertIn("contradictory_preview_delivery_contract", rules)
 
     def test_blocks_required_section_without_audio_placement(self):
         repo = Path(__file__).resolve().parents[1]

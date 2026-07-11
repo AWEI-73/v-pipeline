@@ -23,11 +23,17 @@ HUMAN_DECLARED_MUSIC_USE_STATUSES = {
     "human_declared_internal_use",
     "user_asserted_internal_use",
 }
+PIPELINE_DEFAULT_INTERNAL_PREVIEW_STATUS = "pipeline_default_internal_preview"
+DEFAULT_INTERNAL_PREVIEW_BASIS_NOTE = (
+    "Default policy permits an internal preview mix only; no verification, "
+    "delivery or legal approval is claimed."
+)
 INTERNAL_MUSIC_USE_SCOPES = {
     "internal",
     "internal_only",
     "internal_review",
     "internal_rehearsal",
+    "internal_technical_reference",
     "rehearsal",
     "review",
 }
@@ -150,11 +156,21 @@ def _music_use_basis(item: Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     status = _clean(raw.get("status")).casefold()
     usage_scope = _clean(raw.get("usage_scope")).casefold()
-    if status not in HUMAN_DECLARED_MUSIC_USE_STATUSES:
-        return None
     if usage_scope not in INTERNAL_MUSIC_USE_SCOPES:
         return None
     if raw.get("legal_approval_claimed") is True:
+        return None
+    if status == PIPELINE_DEFAULT_INTERNAL_PREVIEW_STATUS:
+        return {
+            "status": PIPELINE_DEFAULT_INTERNAL_PREVIEW_STATUS,
+            "usage_scope": usage_scope,
+            "declared_by": "pipeline_policy",
+            "basis_note": _clean(raw.get("basis_note") or raw.get("note")) or DEFAULT_INTERNAL_PREVIEW_BASIS_NOTE,
+            "pipeline_legal_search_performed": False,
+            "legal_approval_claimed": False,
+            "external_publication_requires_rights_review": True,
+        }
+    if status not in HUMAN_DECLARED_MUSIC_USE_STATUSES:
         return None
     return {
         "status": "human_declared_allowed",
@@ -165,6 +181,45 @@ def _music_use_basis(item: Mapping[str, Any]) -> dict[str, Any] | None:
         "legal_approval_claimed": False,
         "external_publication_requires_rights_review": True,
     }
+
+
+def _default_internal_preview_mix_eligibility(
+    item: Mapping[str, Any],
+) -> tuple[bool, dict[str, Any] | None, str | None]:
+    """Return mix eligibility and normalized policy provenance for one track."""
+    preview_only = item.get("preview_only")
+    delivery_allowed = item.get("delivery_allowed")
+    mix_allowed = item.get("mix_allowed")
+
+    if preview_only is None:
+        if mix_allowed is False:
+            return False, None, "mix_not_allowed"
+        if mix_allowed is not None and mix_allowed is not True:
+            return False, None, "invalid_preview_mix_contract"
+        if delivery_allowed is True:
+            return True, None, None
+        return False, None, "delivery_not_allowed"
+
+    if preview_only is not True:
+        return False, None, "invalid_preview_mix_contract"
+    if delivery_allowed is not False:
+        return False, None, "invalid_preview_mix_contract"
+    usage_scope = _clean(item.get("usage_scope")).casefold()
+    if usage_scope not in INTERNAL_MUSIC_USE_SCOPES:
+        return False, None, "invalid_preview_mix_contract"
+    if mix_allowed is False:
+        return False, None, "preview_mix_not_allowed"
+    if mix_allowed is not None and mix_allowed is not True:
+        return False, None, "invalid_preview_mix_contract"
+    return True, {
+        "status": PIPELINE_DEFAULT_INTERNAL_PREVIEW_STATUS,
+        "usage_scope": usage_scope,
+        "declared_by": "pipeline_policy",
+        "basis_note": DEFAULT_INTERNAL_PREVIEW_BASIS_NOTE,
+        "pipeline_legal_search_performed": False,
+        "legal_approval_claimed": False,
+        "external_publication_requires_rights_review": True,
+    }, None
 
 
 def _manifest_delivery_blocks(sound_license_manifest: Mapping[str, Any] | None) -> bool:
@@ -420,17 +475,27 @@ def accept_audio_handoff(
 
         source_type = _clean(item.get("source_type"))
         license_status = _clean(item.get("license_status"))
+        mix_eligible, preview_basis, eligibility_rule = _default_internal_preview_mix_eligibility(item)
         if source_type == "reference_only":
             blocking.append({
                 "rule": "reference_only_source",
                 "candidate_id": candidate_id,
                 "message": "reference_only source cannot enter audio mix plan",
             })
-        if item.get("delivery_allowed") is not True:
+        if eligibility_rule:
+            eligibility_messages = {
+                "delivery_not_allowed": "selected audio is not delivery_allowed",
+                "mix_not_allowed": "selected audio has mix_allowed=false",
+                "preview_mix_not_allowed": "preview-only audio has mix_allowed=false",
+                "invalid_preview_mix_contract": (
+                    "preview-only audio must declare preview_only=true, delivery_allowed=false, "
+                    "a valid internal usage_scope, and an optional boolean mix_allowed"
+                ),
+            }
             blocking.append({
-                "rule": "delivery_not_allowed",
+                "rule": eligibility_rule,
                 "candidate_id": candidate_id,
-                "message": "selected audio is not delivery_allowed",
+                "message": eligibility_messages[eligibility_rule],
             })
         if license_status in BAD_LICENSE_STATUSES:
             blocking.append({
@@ -457,7 +522,7 @@ def accept_audio_handoff(
                 "section_id": section_id,
                 "message": "preserve_speech section requires duck_under_voice or preserve_original_audio",
             })
-        if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
+        if mix_eligible and _music_track_requires_probe(item, section):
             probe_report = _select_probe_report(
                 soundtrack_probe_report,
                 selected_audio_file=audio_path,
@@ -480,8 +545,8 @@ def accept_audio_handoff(
                     )
                 )
 
-        if audio_path.is_file() and source_type != "reference_only" and item.get("delivery_allowed") is True and license_status not in BAD_LICENSE_STATUSES:
-            basis = _music_use_basis(item)
+        if audio_path.is_file() and source_type != "reference_only" and mix_eligible and license_status not in BAD_LICENSE_STATUSES:
+            basis = preview_basis or _music_use_basis(item)
             track = {
                 "section_id": section_id,
                 "candidate_id": candidate_id,
@@ -491,6 +556,9 @@ def accept_audio_handoff(
                 "usage_scope": item.get("usage_scope") or "unknown",
                 "source_type": source_type,
                 "license_status": license_status,
+                "mix_allowed": True,
+                "preview_only": item.get("preview_only") is True,
+                "delivery_allowed": item.get("delivery_allowed") is True,
                 "legal_approval_claimed": False,
             }
             if basis:
@@ -499,7 +567,7 @@ def accept_audio_handoff(
                 track["external_publication_requires_rights_review"] = True
             if item.get("source_relative_path"):
                 track["source_relative_path"] = item.get("source_relative_path")
-            if item.get("delivery_allowed") is True and _music_track_requires_probe(item, section):
+            if mix_eligible and _music_track_requires_probe(item, section):
                 probe_report = _select_probe_report(
                     soundtrack_probe_report,
                     selected_audio_file=audio_path,
@@ -535,8 +603,27 @@ def accept_audio_handoff(
         })
 
     ok = not blocking
+    preview_tracks = [track for track in tracks if track.get("preview_only") is True]
+    preview_aggregate = {}
+    if preview_tracks:
+        preview_track = preview_tracks[0]
+        preview_aggregate = {
+            "mix_allowed": True,
+            "preview_only": True,
+            "delivery_allowed": False,
+            "usage_scope": preview_track.get("usage_scope"),
+            "external_publication_requires_rights_review": True,
+        }
+        if isinstance(preview_track.get("music_use_basis"), Mapping):
+            preview_aggregate["music_use_basis"] = dict(preview_track["music_use_basis"])
     rules = {_clean(item.get("rule")) for item in blocking if isinstance(item, Mapping)}
-    next_action = "audio_mix_plan_ready" if ok else "repair_audio_handoff"
+    next_action = (
+        "audio_preview_mix_plan_ready"
+        if ok and preview_tracks
+        else "audio_mix_plan_ready"
+        if ok
+        else "repair_audio_handoff"
+    )
     if not ok and any(rule.startswith("soundtrack_probe") or rule == "missing_soundtrack_probe_report" for rule in rules):
         next_action = "run_soundtrack_probe"
     if not ok and "soundtrack_probe_missing_vocal_analysis" in rules:
@@ -554,6 +641,7 @@ def accept_audio_handoff(
         "accepted_track_count": len(tracks),
         "required_track_count": required_track_count,
         "next_action": next_action,
+        **preview_aggregate,
     }
     mix_plan = {
         "artifact_role": "audio_mix_plan",
@@ -564,6 +652,7 @@ def accept_audio_handoff(
         "sections": mix_sections if ok else [],
         "requires_ffmpeg": True,
         "rendered": False,
+        **preview_aggregate,
     }
     (out_root / "audio_handoff_acceptance.json").write_text(
         json.dumps(acceptance, ensure_ascii=False, indent=2),
