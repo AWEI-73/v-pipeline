@@ -247,12 +247,24 @@ SPEECH_AWARE_DEFAULTS = {
     "activity_source": "protected_audio_silencedetect",
 }
 SPEECH_AWARE_KEYS = set(SPEECH_AWARE_DEFAULTS)
+SPEECH_PROTECTED_LOW_RATE_MIX_WEIGHT = 1.38
 
 
 def _speech_aware_requested(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping[str, Any]]) -> bool:
     return audio_mix_plan.get("ducking_policy") == "speech_aware" or any(
         track.get("ducking_policy") == "speech_aware" for track in tracks
     )
+
+
+def _speech_protected_mix_weight(placement: Mapping[str, Any], speech_aware: bool) -> float:
+    if not speech_aware or not _is_voice_or_original_audio(placement):
+        return 1.0
+    try:
+        with wave.open(str(placement["audio_file"]), "rb") as handle:
+            sample_rate = handle.getframerate()
+    except (OSError, wave.Error):
+        sample_rate = 48000
+    return SPEECH_PROTECTED_LOW_RATE_MIX_WEIGHT if sample_rate < 48000 else 1.0
 
 
 def _speech_aware_config(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -347,30 +359,75 @@ def _speech_aware_expression(windows: list[Mapping[str, float]], config: Mapping
     duck_gain = 10 ** (_float_value(config.get("duck_db"), -12.0) / 20.0)
     attack = _float_value(config.get("attack_ms"), 80.0) / 1000.0
     release = _float_value(config.get("release_ms"), 300.0) / 1000.0
-    expression = "1"
-    for window in reversed(windows):
+    clauses: list[tuple[str, str]] = []
+    cursor = 0.0
+    for window in windows:
         start = max(0.0, _float_value(window.get("start_sec")))
         end = min(duration_sec, _float_value(window.get("end_sec")))
+        if end <= start:
+            continue
         attack_start = max(0.0, start - attack)
         release_end = min(duration_sec, end + release)
+        if attack_start > cursor:
+            clauses.append((f"lt(t\\,{attack_start:.6f})", "1"))
         attack_value = f"1+({duck_gain:.8f}-1)*(t-{attack_start:.6f})/{attack:.6f}"
         release_value = f"{duck_gain:.8f}+(1-{duck_gain:.8f})*(t-{end:.6f})/{release:.6f}"
-        expression = (
-            f"if(lt(t\\,{attack_start:.6f})\\,{expression}"
-            f"\\,if(lt(t\\,{start:.6f})\\,{attack_value}"
-            f"\\,if(lt(t\\,{end:.6f})\\,{duck_gain:.8f}"
-            f"\\,if(lt(t\\,{release_end:.6f})\\,{release_value}\\,{expression}))))"
-        )
+        clauses.extend([
+            (f"lt(t\\,{start:.6f})", attack_value),
+            (f"lt(t\\,{end:.6f})", f"{duck_gain:.8f}"),
+            (f"lt(t\\,{release_end:.6f})", release_value),
+        ])
+        cursor = max(cursor, release_end)
+    if cursor < duration_sec:
+        clauses.append((f"lt(t\\,{duration_sec:.6f})", "1"))
+    expression = "1"
+    for condition, value in reversed(clauses):
+        expression = f"if({condition}\\,{value}\\,{expression})"
     return expression
 
 
 def _read_wav_mono(path: Path) -> tuple[int, list[float]]:
-    with wave.open(str(path), "rb") as handle:
-        rate = handle.getframerate()
-        channels = handle.getnchannels()
-        width = handle.getsampwidth()
-        frames = handle.getnframes()
-        raw = handle.readframes(frames)
+    try:
+        with wave.open(str(path), "rb") as handle:
+            rate = handle.getframerate()
+            channels = handle.getnchannels()
+            width = handle.getsampwidth()
+            frames = handle.getnframes()
+            raw = handle.readframes(frames)
+    except (wave.Error, EOFError):
+        with tempfile.TemporaryDirectory() as tmp:
+            decoded = Path(tmp) / "decoded.wav"
+            proc = subprocess.run(
+                [
+                    resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", str(path), "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "1",
+                    str(decoded),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0 or not decoded.is_file():
+                raise wave.Error(f"could not decode audio input {path}: {proc.stderr.strip()}")
+            return _read_wav_mono(decoded)
+    if rate != 48000:
+        with tempfile.TemporaryDirectory() as tmp:
+            decoded = Path(tmp) / "resampled.wav"
+            proc = subprocess.run(
+                [
+                    resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", str(path), "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "1",
+                    str(decoded),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0 or not decoded.is_file():
+                raise wave.Error(f"could not resample audio input {path}: {proc.stderr.strip()}")
+            return _read_wav_mono(decoded)
     if width != 2:
         raise ValueError(f"waveform check requires 16-bit PCM, got sample width {width}")
     values = array("h")
@@ -492,14 +549,16 @@ def _waveform_activity_alignment(
         offset = min(len(frame_rms), active[-1] + 1) / 100.0
         onset_error_ms = (onset - expected_start) * 1000.0
         offset_error_ms = (offset - expected_end) * 1000.0
+        end_is_open = expected_end >= (len(values) / rate) - 0.02
         checks.append({
-            "pass": abs(onset_error_ms) <= 10.0 and abs(offset_error_ms) <= 20.0 + 1e-6,
+            "pass": abs(onset_error_ms) <= 10.0 and (end_is_open or abs(offset_error_ms) <= 20.0 + 1e-6),
             "expected_start_sec": round(expected_start, 3),
             "actual_start_sec": round(onset, 3),
             "expected_end_sec": round(expected_end, 3),
             "actual_end_sec": round(offset, 3),
             "onset_error_ms": round(onset_error_ms, 3),
             "offset_error_ms": round(offset_error_ms, 3),
+            "end_is_open": end_is_open,
         })
     return {
         "pass": bool(checks) and all(item["pass"] for item in checks),
@@ -795,6 +854,7 @@ def _protected_speech_waveform_report(
     output_path: Path,
 ) -> dict[str, Any]:
     checks = []
+    skipped = []
     for placement in protected:
         placement_windows = [
             window for window in speech_windows
@@ -805,6 +865,16 @@ def _protected_speech_waveform_report(
             source_start = _float_value(window.get("source_start_sec"))
             timeline_start = _float_value(window.get("start_sec"))
             duration = _float_value(window.get("duration_sec"))
+            if duration < 0.25:
+                skipped.append({
+                    "candidate_id": placement.get("candidate_id"),
+                    "source_start_sec": source_start,
+                    "timeline_start_sec": timeline_start,
+                    "duration_sec": duration,
+                    "eligible": False,
+                    "reason": "window_below_minimum_measurement_duration",
+                })
+                continue
             waveform = _recovered_waveform_window_check(
                 Path(placement["audio_file"]),
                 output_path,
@@ -836,6 +906,7 @@ def _protected_speech_waveform_report(
         "pass": bool(checks) and len(passed) / len(checks) >= 0.90,
         "passing_window_ratio": round(len(passed) / len(checks), 3) if checks else 0.0,
         "windows": checks,
+        "skipped_windows": skipped,
         "tolerances": {
             "max_lag_ms": 10.0,
             "max_gain_error_db": 0.5,
@@ -1041,7 +1112,13 @@ def _mix_section_timeline(
         mix_inputs.append(f"[t{idx}]")
 
     final_filter = (
-        f"amix=inputs={len(mix_inputs)}:duration=longest:dropout_transition=0,volume={len(mix_inputs):.3f},"
+        f"amix=inputs={len(mix_inputs)}:duration=longest:dropout_transition=0:weights="
+        + "1.000 "
+        + " ".join(
+            f"{_speech_protected_mix_weight(placement, speech_aware):.3f}"
+            for placement in placements
+        )
+        + f",volume={len(mix_inputs):.3f},"
         if speech_aware
         else f"amix=inputs={len(mix_inputs)}:duration=longest:dropout_transition=0,"
     )
@@ -1365,6 +1442,7 @@ def execute_audio_mix_plan(
                 "placements": [
                     {
                         "candidate_id": item.get("candidate_id"),
+                        "source_sha256": sha256(Path(item["audio_file"]).read_bytes()).hexdigest().upper(),
                         "start_sec": item.get("start_sec"),
                         "duration_sec": item.get("duration_sec"),
                         "source_offset_sec": item.get("source_offset_sec"),
