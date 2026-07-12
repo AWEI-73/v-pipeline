@@ -307,6 +307,13 @@ authoritative everywhere; no run-root copy is created. The execution trace
 repeats the version, source path, source commit, and contract hash only as
 observed evidence; it never activates strict mode.
 
+The committed `run_root` is also an activation key. Both executor and closure
+scan tracked companions and normalize their `run_root`; if one companion names
+the requested run, that run is strict even when a caller omits a CLI contract
+argument. Zero matching companions permits legacy only when the run contains
+no accountability control root, reference, reservation, receipt, or version-2
+trace. More than one match is an activation conflict.
+
 The rules are deterministic:
 
 - no committed companion means legacy behavior;
@@ -495,6 +502,9 @@ capability-run
 
 It is a single-step executor, not a router:
 
+- `--initialize --contract <committed companion>` verifies activation,
+  baseline/protected hashes, and an empty reserved control root, then writes
+  exactly one immutable contract reference before any capability may run;
 - accepts one committed execution contract and one step ID;
 - resolves the step's Capability Card from the live catalog;
 - materializes the frozen `command_argv`, replacing only `{python}`;
@@ -515,6 +525,27 @@ It is a single-step executor, not a router:
 
 The implementation lives in one shared core module and one existing
 `video_tools.py` command. No per-tool receipt code is required.
+
+Initialization generates a random UUID `run_instance_id` and writes:
+
+```json
+{
+  "artifact_role": "accountability_contract_reference",
+  "version": 1,
+  "run_instance_id": "UUIDv4",
+  "run_root": ".tmp/accountability_run",
+  "contract_path": "docs/construction-guides/work-orders/example.execution.json",
+  "contract_sha256": "SHA-256",
+  "contract_source_commit": "full git SHA",
+  "initialized_at": "RFC3339"
+}
+```
+
+The file lives at `<accountability-root>/contract_reference.json`, uses
+exclusive creation, and is never edited. Every reservation, receipt,
+attestation, verdict, trace, and closure decision must repeat its
+`run_instance_id` and contract hash. A normal step refuses to run before this
+reference exists and matches the invoked companion.
 
 ### 8.2 Command matching
 
@@ -590,6 +621,7 @@ than a mutable journal:
   "artifact_role": "pipeline_execution_trace",
   "version": 2,
   "accountability_contract_version": 1,
+  "run_instance_id": "UUID from contract_reference.json",
   "work_order_execution_contract": "docs/construction-guides/work-orders/example.execution.json",
   "work_order_execution_contract_sha256": "SHA-256",
   "tool_entries": [
@@ -619,6 +651,7 @@ than a mutable journal:
       "requirement_id": "review.L1.picture.revise",
       "actor_class": "agent",
       "depends_on_step_ids": ["L1.picture.revise"],
+      "dependency_receipt_hashes": {"L1.picture.revise": "SHA-256"},
       "evidence_path": ".tmp/accountability_run/accountability/attestations/L1.picture.revise.json",
       "evidence_sha256": "SHA-256",
       "status": "present | missing | invalid"
@@ -627,6 +660,7 @@ than a mutable journal:
       "requirement_id": "owner.final",
       "actor_class": "owner",
       "depends_on_step_ids": ["L1.picture.revise"],
+      "dependency_receipt_hashes": {"L1.picture.revise": "SHA-256"},
       "evidence_path": ".tmp/accountability_run/accountability/verdicts/owner.final.json",
       "evidence_sha256": null,
       "status": "present | missing | invalid"
@@ -666,6 +700,9 @@ attestation artifact:
 {
   "artifact_role": "agent_attestation",
   "version": 1,
+  "run_instance_id": "UUID from contract_reference.json",
+  "execution_contract_path": "repo-relative committed companion path",
+  "execution_contract_sha256": "SHA-256",
   "requirement_id": "review.L1.picture.revise",
   "step_id": "L1.picture.revise",
   "capability_id": "registered capability ID",
@@ -674,6 +711,14 @@ attestation artifact:
   "model": null,
   "reviewed_evidence": [
     {"path": "repo-relative path", "sha256": "SHA-256", "locator": "time/cell/check"}
+  ],
+  "dependency_receipts": [
+    {
+      "step_id": "L1.picture.revise",
+      "path": "repo-relative receipt path",
+      "sha256": "SHA-256",
+      "completed_at": "RFC3339"
+    }
   ],
   "judgment": "bounded conclusion",
   "blind_spots": ["explicit limitations"],
@@ -694,9 +739,44 @@ Owner decision requirements reference an existing explicit owner decision
 artifact. The trace binds requirement ID, path, and hash; the accountability
 layer does not invent a new creative-verdict system.
 
+The minimum owner sidecar is:
+
+```json
+{
+  "artifact_role": "owner_decision",
+  "version": 1,
+  "run_instance_id": "UUID from contract_reference.json",
+  "execution_contract_path": "repo-relative committed companion path",
+  "execution_contract_sha256": "SHA-256",
+  "requirement_id": "owner.final",
+  "dependency_receipts": [
+    {
+      "step_id": "L1.picture.revise",
+      "path": "repo-relative receipt path",
+      "sha256": "SHA-256",
+      "completed_at": "RFC3339"
+    }
+  ],
+  "scope": "bounded decision scope",
+  "decision": "approve | revise | reject | delegate",
+  "evidence_refs": [
+    {"path": "repo-relative evidence path", "sha256": "SHA-256", "locator": "time/cell/check"}
+  ],
+  "verbatim_owner_text": "owner-provided wording",
+  "decided_at": "RFC3339 after every dependency receipt"
+}
+```
+
 An owner decision must state the bounded scope and one of approve, revise,
 reject, or delegate. Owner silence is never approval. Tool or agent output
 cannot set `human_creative_approval=true` or `final_delivery_claimed=true`.
+
+For both sidecar types, closure requires exact contract path/hash and
+`run_instance_id`, an exact dependency receipt set matching the requirement,
+receipt hashes that read back, and `attested_at`/`decided_at` later than every
+dependency `completed_at`. The sidecar path must be absent at initialization
+and during wrapped tool execution. A copied prior-run or pre-existing sidecar
+is invalid even when requirement IDs happen to match.
 
 ### 9.3 Actor substitution rules
 
@@ -759,6 +839,14 @@ Closure is a two-phase meta-gate outside the work-order step list:
    attestations, owner verdicts, and live catalog, then writes the derived
    `pipeline_execution_trace.json` and `no_skip_contract_decision.json`.
 
+For strict runs the closure CLI accepts and the pinned workflow always passes
+`--contract <committed companion>`. Independently, closure scans tracked
+companions for a normalized `run_root` match. A matching companion or any
+accountability control artifact activates strict validation; omitting
+`--contract`, omitting/mismatching `contract_reference.json`, or supplying a
+different companion is `STOPPED_CONTRACT_ACTIVATION_INVALID`, never legacy
+fallback.
+
 Before writing those control artifacts, the meta-gate captures a final
 production-state manifest. It must equal the last executable step's
 post-manifest, or the committed initial manifest when no executable step
@@ -771,7 +859,9 @@ closure step.
 
 When `accountability_contract_version=1`, closure verifies:
 
-1. execution-contract hash and work-order hash;
+1. unique run-root companion resolution plus contract-reference
+   path/hash/source-commit/run-instance binding, execution-contract hash, and
+   work-order hash;
 2. every required capability step has a legal consecutive attempt chain within
    its bound and one derived terminal tool status;
 3. every executable attempt has one prior exclusive reservation and no stale,
@@ -788,8 +878,8 @@ When `accountability_contract_version=1`, closure verifies:
 12. the baseline/pre/post/final manifest chain has no observable unplanned
     state-changing capability execution in monitored
     roots;
-13. agent-attestation completeness and hashes;
-14. owner-verdict presence when required;
+13. agent-attestation contract/run/receipt/timestamp completeness and hashes;
+14. owner-verdict contract/run/receipt/timestamp binding when required;
 15. gate purity and gate authenticity;
 16. state legality and approval flags.
 
@@ -881,6 +971,8 @@ receipts and candidate media are not indexed as durable project memory.
   strict contract: `STOPPED_CONTRACT_ACTIVATION_INVALID` without legacy
   fallback.
 - Contract or input hash drift: stop before execution.
+- Missing/mismatched contract reference, run-instance ID, or strict closure
+  `--contract`: activation stop with no legacy fallback.
 - Unknown capability or mismatched tool: reject the step; do not guess.
 - Missing dependency receipt: stop the step.
 - Duplicate, non-consecutive, over-bound, or concurrent attempt: structural
@@ -893,6 +985,8 @@ receipts and candidate media are not indexed as durable project memory.
 - Gate writes production truth: gate-purity FAIL.
 - Agent attestation missing evidence/blind spots: incomplete agent decision
   requirement.
+- Decision sidecar contract/run/receipt/timestamp mismatch: stale or copied
+  evidence failure.
 - Owner verdict missing: WAITING owner, never PASS.
 - Entry anchors conflict: entry audit FAIL; do not start new construction from
   a guessed document.
@@ -949,6 +1043,8 @@ Red-first fixtures must cover at least:
 - deterministic receipt substituted for an agent decision requirement;
 - agent attestation substituted for owner verdict;
 - agent attestation with missing evidence or blind spots;
+- stale/copied agent or owner sidecar, wrong run-instance ID, wrong contract
+  hash, wrong dependency receipt hash, or pre-dependency decision timestamp;
 - self-authored, copied, or unknown gate;
 - gate that writes production truth;
 - gate that manufactures its own prerequisite;
@@ -1003,12 +1099,14 @@ one owner decision requirement.
 Exact forward commands and expected results:
 
 ```powershell
+C:/Users/user/miniconda3/python.exe video_tools.py capability-run --initialize --contract docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json --json
 C:/Users/user/miniconda3/python.exe video_tools.py capability-run --contract docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json --step-id fixture.material-rough-cut --json
 C:/Users/user/miniconda3/python.exe video_tools.py capability-run --contract docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json --step-id fixture.audio-mix-plan-execute --json
-C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --run .tmp/single_entry_forward_accountability_acceptance/forward --out-dir .tmp/single_entry_forward_accountability_acceptance/forward/accountability --json
+C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --contract docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json --run .tmp/single_entry_forward_accountability_acceptance/forward --out-dir .tmp/single_entry_forward_accountability_acceptance/forward/accountability --json
 ```
 
-Both capability commands exit 0 with a PASS tool receipt. After the evidence
+Initialization exits 0 and creates one immutable contract reference. Both
+capability commands exit 0 with a PASS tool receipt. After the evidence
 worker writes the declared technical attestation, no-skip exits 0 with
 `ok=true`, state `WAITING_OWNER_ACCOUNTABILITY_FIXTURE`,
 `human_creative_approval=false`, and `final_delivery_claimed=false`. The owner
@@ -1019,7 +1117,9 @@ The technical attestation procedure is exact:
 
 1. after both PASS receipts exist, the evidence worker reads the material
    rough-cut output, audio-mix report, both receipts, and their hashes;
-2. it writes only
+2. it copies `run_instance_id` and execution-contract path/hash from the
+   contract reference, binds both dependency receipt path/hash/completion
+   records, and writes only
    `.tmp/single_entry_forward_accountability_acceptance/forward/accountability/attestations/fixture.technical-review.json`
    with the section-9 schema, requirement ID `fixture.technical-review`, both
    reviewed evidence locators, bounded judgment, and non-empty blind spots;
@@ -1032,24 +1132,27 @@ C:/Users/user/miniconda3/python.exe -m json.tool .tmp/single_entry_forward_accou
    Expected exit is 0. The no-skip meta-gate computes and binds the file hash;
    the worker does not self-certify its identity or creative correctness.
 
-Two committed negative run fixtures are required:
+Four committed negative unit fixtures are required:
 
 ```text
 tests/fixtures/accountability_forward_v1/negative/missing-step
 tests/fixtures/accountability_forward_v1/negative/self-authored-gate
+tests/fixtures/accountability_forward_v1/negative/stale-agent-sidecar
+tests/fixtures/accountability_forward_v1/negative/copied-owner-sidecar
 ```
 
-They run with:
+They run through the pure closure evaluator in one pinned command:
 
 ```powershell
-C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --run tests/fixtures/accountability_forward_v1/negative/missing-step --out-dir .tmp/single_entry_forward_accountability_acceptance/negative/missing-step --json
-C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --run tests/fixtures/accountability_forward_v1/negative/self-authored-gate --out-dir .tmp/single_entry_forward_accountability_acceptance/negative/self-authored-gate --json
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_capability_execution_contract.AccountabilityNegativeFixtureTests.test_missing_required_step tests.test_capability_execution_contract.AccountabilityNegativeFixtureTests.test_self_authored_gate tests.test_capability_execution_contract.AccountabilityNegativeFixtureTests.test_stale_agent_sidecar tests.test_capability_execution_contract.AccountabilityNegativeFixtureTests.test_copied_owner_sidecar -v
 ```
 
-Each exits 1. The first decision includes `missing_required_step`; the second
-includes `self_authored_gate_artifact` with classification
-`run_local_worker_generated`. Neither writes into
-the committed fixture directories.
+The command exits 0 with four passing negative tests. Their asserted evaluator
+decisions respectively include `missing_required_step`,
+`self_authored_gate_artifact` with classification
+`run_local_worker_generated`, `stale_agent_decision_sidecar`, and
+`copied_owner_decision_sidecar`. Test setup uses isolated temporary git/run
+roots and never writes into the committed fixture directories.
 
 Infrastructure acceptance does not depend on an owner liking a picture edit or
 audio mix. Actual L1 picture-diversity and L3 audio-balance revisions are an
@@ -1163,8 +1266,8 @@ creative taste, final delivery, or automatic loop selection.
 ### Phase C - Forward-only runtime accountability
 
 - add committed execution-companion parsing and path rules;
-- add the single-step executor, immutable attempt receipts, and derived trace
-  v2;
+- add initialization/contract reference, the single-step executor, immutable
+  attempt receipts, run-bound decision sidecars, and derived trace v2;
 - extend no-skip closure and gate-purity checks;
 - preserve trace v1/legacy reads.
 
@@ -1193,15 +1296,16 @@ The design is implemented only when all are true:
 6. All current tools/capabilities/commands remain owned, classified, and
    queryable.
 7. Strict activation is determined only by one valid committed version-1
-   companion; malformed or conflicting activation fails without legacy
-   fallback.
+   companion and its immutable run reference; a matching run root, control
+   artifact, malformed/conflicting reference, or omitted CLI argument cannot
+   fall back to legacy.
 8. A strict run cannot execute altered argv, a mismatched/unknown command, an
    invalid path, or a concurrent/over-bound attempt.
 9. Required capability steps have immutable attempt receipts with frozen
    input/output hashes; decision requirements have typed sidecars; the final
    trace derives separate tool and decision entry variants.
-10. Agentic and owner evidence cannot be replaced by deterministic or gate
-   output.
+10. Agent and owner evidence cannot be replaced by deterministic or gate
+   output, copied from another run, or dated before its dependency receipts.
 11. A gate cannot observably alter production truth in monitored roots or
     create its own prerequisite.
 12. The closure meta-gate cannot require or consume its own receipt/decision.
