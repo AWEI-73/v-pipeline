@@ -31,7 +31,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "stop_if": [
         "mode=waiting",
         "next action asks for repair or review"
-      ]
+      ],
+      "capability_id": "cap.video-pipeline-route.pipeline-home.v1",
+      "loops": [
+        "L0",
+        "L5"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/video_intent_acceptance.py",
@@ -44,7 +50,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       ],
       "stop_if": [
         "required_followup_questions remains unresolved"
-      ]
+      ],
+      "capability_id": "cap.video-pipeline-route.video-intent-acceptance.v1",
+      "loops": [
+        "L0",
+        "L5"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/operator_flow_acceptance.py",
@@ -58,7 +70,13 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "stop_if": [
         "report ok=false",
         "protected artifacts changed unexpectedly"
-      ]
+      ],
+      "capability_id": "cap.video-pipeline-route.operator-flow-acceptance.v1",
+      "loops": [
+        "L0",
+        "L5"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
@@ -436,7 +454,9 @@ This is the operator entry skill for the full Hermes Video Pipeline.
     "Do not call contract-run from a fuzzy request",
     "Do not render final.mp4 before pipeline_home and gates are green",
     "Do not use route_judgment as a replacement for video_intent.json"
-  ]
+  ],
+  "capability_namespace": "cap.video-pipeline-route.*",
+  "capability_lookup_owner": "video-pipeline-route"
 }
 <!-- TOOL_CONTRACT_END -->
 

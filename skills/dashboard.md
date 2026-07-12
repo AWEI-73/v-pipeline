@@ -20,46 +20,91 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
     {
       "tool": "tools/dashboard_server.py",
       "when": "啟動 dashboard review surface",
-      "inputs": ["repo root", "optional run root"],
-      "outputs": ["local dashboard URL"],
-      "stop_if": ["server fails to bind or dashboard state cannot load"]
+      "inputs": [
+        "repo root",
+        "optional run root"
+      ],
+      "outputs": [
+        "local dashboard URL"
+      ],
+      "stop_if": [
+        "server fails to bind or dashboard state cannot load"
+      ],
+      "capability_id": "cap.dashboard.dashboard-server.v1",
+      "loops": [
+        "L0"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/workbench_server.py",
       "when": "啟動 Workbench review/edit surface",
-      "inputs": ["repo root", "optional run root"],
-      "outputs": ["local workbench URL"],
-      "stop_if": ["server fails to bind or workbench state cannot load"]
+      "inputs": [
+        "repo root",
+        "optional run root"
+      ],
+      "outputs": [
+        "local workbench URL"
+      ],
+      "stop_if": [
+        "server fails to bind or workbench state cannot load"
+      ],
+      "capability_id": "cap.dashboard.workbench-server.v1",
+      "loops": [
+        "L0"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/api_surface_manifest.py",
       "when": "審計與盤點 API Surface Manifest 限制與健康度",
-      "inputs": ["registry json path"],
-      "outputs": ["manifest JSON or audit report"],
-      "stop_if": ["audit fails rules or branch not match"]
+      "inputs": [
+        "registry json path"
+      ],
+      "outputs": [
+        "manifest JSON or audit report"
+      ],
+      "stop_if": [
+        "audit fails rules or branch not match"
+      ]
     },
     {
       "tool": "tools/workbench_frontend_smoke.py",
       "when": "用瀏覽器或前端 smoke 檢查 Workbench UI",
-      "inputs": ["workbench URL or local server"],
-      "outputs": ["frontend smoke report"],
-      "stop_if": ["browser check fails"]
+      "inputs": [
+        "workbench URL or local server"
+      ],
+      "outputs": [
+        "frontend smoke report"
+      ],
+      "stop_if": [
+        "browser check fails"
+      ]
     },
     {
       "tool": "tools/workbench_proxy.py",
       "when": "代理 Workbench 讀取本機素材或 run artifacts",
-      "inputs": ["repo root", "request path"],
-      "outputs": ["proxied artifact or media response"],
-      "stop_if": ["path escapes allowed workspace"]
+      "inputs": [
+        "repo root",
+        "request path"
+      ],
+      "outputs": [
+        "proxied artifact or media response"
+      ],
+      "stop_if": [
+        "path escapes allowed workspace"
+      ]
     }
   ],
   "forbidden_tools": [
     "Dashboard must not silently rewrite canonical artifacts",
     "Workbench UI drafts must return through review before canonical promotion",
     "Do not use UI visibility as proof that delivery gates passed"
-  ]
+  ],
+  "capability_namespace": "cap.dashboard.*",
+  "capability_lookup_owner": "dashboard"
 }
 <!-- TOOL_CONTRACT_END -->
 

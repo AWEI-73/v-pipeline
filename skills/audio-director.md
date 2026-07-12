@@ -20,46 +20,129 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
     {
       "tool": "video_tools.py voiceover-provider-plan",
       "when": "plan or optionally execute provider-backed narration/voiceover audio before BUILD; prefer VoxCPM when available and fall back to legacy edge-tts only through an explicit artifact",
-      "inputs": ["script.json or segment_contract.json with narration/text", "voice style", "optional VoxCPM reference audio", "optional VOXCPM_BIN / VOXCPM_MODEL_ID"],
-      "outputs": ["voiceover_provider_plan.json", "subtitle_voiceover_build_handoff.json", "narration_manifest.json"],
-      "stop_if": ["voiceover is required but provider is unavailable and fallback is disabled", "voiceover_provider_plan has errors", "voiceover_ready=false and BUILD requires narration audio"]
+      "inputs": [
+        "script.json or segment_contract.json with narration/text",
+        "voice style",
+        "optional VoxCPM reference audio",
+        "optional VOXCPM_BIN / VOXCPM_MODEL_ID"
+      ],
+      "outputs": [
+        "voiceover_provider_plan.json",
+        "subtitle_voiceover_build_handoff.json",
+        "narration_manifest.json"
+      ],
+      "stop_if": [
+        "voiceover is required but provider is unavailable and fallback is disabled",
+        "voiceover_provider_plan has errors",
+        "voiceover_ready=false and BUILD requires narration audio"
+      ],
+      "capability_id": "cap.audio-director.voiceover-provider-plan.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/voxcpm_voiceover_provider.py",
       "when": "use the checked-out local reference repo\\VoxCPM-main as the preferred narration provider; this is the simple local wrapper for VoxCPM-specific runs",
-      "inputs": ["script.json or segment_contract.json with narration/text", "reference repo\\VoxCPM-main", "voice style", "optional reference audio"],
-      "outputs": ["voiceover_provider_plan.json", "subtitle_voiceover_build_handoff.json", "narration_manifest.json"],
-      "stop_if": ["local VoxCPM repo is missing and --allow-legacy-fallback is not set", "VoxCPM dependencies/model are missing during --execute", "voiceover_ready=false and BUILD requires narration audio"]
+      "inputs": [
+        "script.json or segment_contract.json with narration/text",
+        "reference repo\\VoxCPM-main",
+        "voice style",
+        "optional reference audio"
+      ],
+      "outputs": [
+        "voiceover_provider_plan.json",
+        "subtitle_voiceover_build_handoff.json",
+        "narration_manifest.json"
+      ],
+      "stop_if": [
+        "local VoxCPM repo is missing and --allow-legacy-fallback is not set",
+        "VoxCPM dependencies/model are missing during --execute",
+        "voiceover_ready=false and BUILD requires narration audio"
+      ],
+      "capability_id": "cap.audio-director.voxcpm-voiceover-provider.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/voxcpm_runtime_check.py",
       "when": "diagnose whether the local reference repo\\VoxCPM-main runtime can execute before choosing VoxCPM as the primary voiceover provider",
-      "inputs": ["reference repo\\VoxCPM-main", "optional VOXCPM_PYTHON"],
-      "outputs": ["voxcpm_runtime_check report"],
-      "stop_if": ["VoxCPM repo path is missing", "required Python modules are missing", "runtime is treated as usable without checking"]
+      "inputs": [
+        "reference repo\\VoxCPM-main",
+        "optional VOXCPM_PYTHON"
+      ],
+      "outputs": [
+        "voxcpm_runtime_check report"
+      ],
+      "stop_if": [
+        "VoxCPM repo path is missing",
+        "required Python modules are missing",
+        "runtime is treated as usable without checking"
+      ],
+      "capability_id": "cap.audio-director.voxcpm-runtime-check.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/audio_mix_plan_execute.py",
       "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
-      "inputs": ["audio_mix_plan.json", "audio_handoff_acceptance.json", "accepted source audio files", "optional sections[] timing", "source_audio_policy"],
-      "outputs": ["final_audio.wav", "audio_mix_report.json"],
-      "stop_if": ["audio_handoff_acceptance ok=false", "audio_mix_plan ready_for_mix=false", "audio_file missing"]
+      "inputs": [
+        "audio_mix_plan.json",
+        "audio_handoff_acceptance.json",
+        "accepted source audio files",
+        "optional sections[] timing",
+        "source_audio_policy"
+      ],
+      "outputs": [
+        "final_audio.wav",
+        "audio_mix_report.json"
+      ],
+      "stop_if": [
+        "audio_handoff_acceptance ok=false",
+        "audio_mix_plan ready_for_mix=false",
+        "audio_file missing"
+      ],
+      "capability_id": "cap.audio-director.audio-mix-plan-execute.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "bounded",
+      "certified_scope": "Canon 67 39s speech-aware preview mix"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/final_av_assemble.py",
       "when": "assemble an already-approved visual video stream with final_audio.wav after BUILD and Audio Director are both complete; write assembly_report.json and do not choose clips, music, voice, subtitles, or effects",
-      "inputs": ["approved visual video", "final_audio.wav", "source_audio_policy"],
-      "outputs": ["final.mp4", "assembly_report.json"],
-      "stop_if": ["visual video missing", "final_audio.wav missing", "audio_mix_report.json missing for required audio", "source_audio_policy is preserve_speech but final_audio.wav has not already mixed protected speech"]
+      "inputs": [
+        "approved visual video",
+        "final_audio.wav",
+        "source_audio_policy"
+      ],
+      "outputs": [
+        "final.mp4",
+        "assembly_report.json"
+      ],
+      "stop_if": [
+        "visual video missing",
+        "final_audio.wav missing",
+        "audio_mix_report.json missing for required audio",
+        "source_audio_policy is preserve_speech but final_audio.wav has not already mixed protected speech"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not render final.mp4 from Audio Director",
     "Do not mix reference_only or unlicensed music",
     "Do not bypass audio_handoff_acceptance"
-  ]
+  ],
+  "capability_namespace": "cap.audio-director.*",
+  "capability_lookup_owner": "audio-director"
 }
 <!-- TOOL_CONTRACT_END -->
 

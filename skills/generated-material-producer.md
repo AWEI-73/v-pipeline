@@ -23,23 +23,70 @@ material-map evidence.
     {
       "tool": "tools/story_first_provider_happy_path.py",
       "when": "no-material/story-first request needs the full safe path to real image provider handoff without test_pil or placeholder cards",
-      "inputs": ["title/story subject", "visual style", "target duration", "provider list"],
-      "outputs": ["video_intent.json", "story_blueprint/*", "material_generation_fallback.json", "style_profile.json", "provider_packet/generated_provider_packet.json", "provider_packet/generated_provider_prompts.md", "provider_packet/image_agent_handoff/image_agent_prompt_handoff.json"],
-      "stop_if": ["pipeline_home does not return call_image_generation_agent", "generated_material_production.json exists before provider outputs", "final.mp4 exists"]
+      "inputs": [
+        "title/story subject",
+        "visual style",
+        "target duration",
+        "provider list"
+      ],
+      "outputs": [
+        "video_intent.json",
+        "story_blueprint/*",
+        "material_generation_fallback.json",
+        "style_profile.json",
+        "provider_packet/generated_provider_packet.json",
+        "provider_packet/generated_provider_prompts.md",
+        "provider_packet/image_agent_handoff/image_agent_prompt_handoff.json"
+      ],
+      "stop_if": [
+        "pipeline_home does not return call_image_generation_agent",
+        "generated_material_production.json exists before provider outputs",
+        "final.mp4 exists"
+      ],
+      "capability_id": "cap.generated-material-producer.story-first-provider-happy-path.v1",
+      "loops": [
+        "L2"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/generated_material_flow_acceptance.py",
       "when": "驗證 generated material fallback flow，不把生成物直接當 proof material",
-      "inputs": ["material_generation_fallback.json", "material_needs.json"],
-      "outputs": ["generated_material_flow_acceptance_report.json"],
-      "stop_if": ["generated asset lacks review path", "candidate is treated as accepted material"]
+      "inputs": [
+        "material_generation_fallback.json",
+        "material_needs.json"
+      ],
+      "outputs": [
+        "generated_material_flow_acceptance_report.json"
+      ],
+      "stop_if": [
+        "generated asset lacks review path",
+        "candidate is treated as accepted material"
+      ],
+      "capability_id": "cap.generated-material-producer.generated-material-flow-acceptance.v1",
+      "loops": [
+        "L2"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/story_to_generated_material_e2e.py",
       "when": "驗證 story-first 到 generated-material candidate 的端到端邊界",
-      "inputs": ["story/brief fixture"],
-      "outputs": ["story_to_generated_material_e2e_report.json"],
-      "stop_if": ["provider packet missing", "generated candidates skip material-map review"]
+      "inputs": [
+        "story/brief fixture"
+      ],
+      "outputs": [
+        "story_to_generated_material_e2e_report.json"
+      ],
+      "stop_if": [
+        "provider packet missing",
+        "generated candidates skip material-map review"
+      ],
+      "capability_id": "cap.generated-material-producer.story-to-generated-material-e2e.v1",
+      "loops": [
+        "L2"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [],
@@ -47,7 +94,9 @@ material-map evidence.
     "Do not treat generated assets as real footage",
     "Do not satisfy proof-critical material needs without explicit review",
     "Do not render final.mp4 from generated-material acceptance"
-  ]
+  ],
+  "capability_namespace": "cap.generated-material-producer.*",
+  "capability_lookup_owner": "generated-material-producer"
 }
 <!-- TOOL_CONTRACT_END -->
 

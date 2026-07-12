@@ -28,7 +28,12 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       ],
       "stop_if": [
         "delivery evidence missing or hard gate fails"
-      ]
+      ],
+      "capability_id": "cap.verify.stage5-final-review-smoke.v1",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/reviewer_flow_acceptance.py",
@@ -41,7 +46,12 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       ],
       "stop_if": [
         "reviewer blocks or missing review artifact"
-      ]
+      ],
+      "capability_id": "cap.verify.reviewer-flow-acceptance.v1",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/write_delivery_gate_report.py",
@@ -54,7 +64,12 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       ],
       "stop_if": [
         "delivery gate blocks or required evidence is missing"
-      ]
+      ],
+      "capability_id": "cap.verify.write-delivery-gate-report.v1",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/final_product_verify.py",
@@ -73,7 +88,12 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "video cannot be sampled",
         "audio cannot be extracted",
         "visual or audio evidence fails"
-      ]
+      ],
+      "capability_id": "cap.verify.final-product-verify.v1",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
@@ -308,7 +328,9 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
     "Do not use local VLM for VERIFY unless explicitly opted into legacy experiment",
     "Do not call a video passed when delivery evidence is missing",
     "Do not confuse warning-only diagnostics with hard gate pass"
-  ]
+  ],
+  "capability_namespace": "cap.verify.*",
+  "capability_lookup_owner": "verify"
 }
 <!-- TOOL_CONTRACT_END -->
 

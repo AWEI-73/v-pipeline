@@ -267,38 +267,74 @@ shorten/merge, await material, or reshoot before rendering.
     {
       "tool": "tools/boundary_smoke.py",
       "when": "用既有 verify_fn/lifecycle source of truth 跑單一邊界 smoke",
-      "inputs": ["boundary fixture directory"],
-      "outputs": ["boundary_report.json"],
-      "stop_if": ["gate_status is fail or expected artifact is missing"]
+      "inputs": [
+        "boundary fixture directory"
+      ],
+      "outputs": [
+        "boundary_report.json"
+      ],
+      "stop_if": [
+        "gate_status is fail or expected artifact is missing"
+      ],
+      "capability_id": "cap.spec-contract.boundary-smoke.v1",
+      "loops": [
+        "L0"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/stage4_build_smoke.py",
       "when": "驗證 BUILD stage no-render handoff、timeline/build invariants",
-      "inputs": ["build-ready fixture or run folder"],
-      "outputs": ["stage4_build_smoke_report.json"],
-      "stop_if": ["timeline/build invariant fails"]
+      "inputs": [
+        "build-ready fixture or run folder"
+      ],
+      "outputs": [
+        "stage4_build_smoke_report.json"
+      ],
+      "stop_if": [
+        "timeline/build invariant fails"
+      ],
+      "capability_id": "cap.spec-contract.stage4-build-smoke.v1",
+      "loops": [
+        "L0"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/boundary_fixture_hub.py",
       "when": "管理或產生 boundary fixture hub index",
-      "inputs": ["fixture root"],
-      "outputs": ["fixture hub report/index"],
-      "stop_if": ["fixture schema invalid"]
+      "inputs": [
+        "fixture root"
+      ],
+      "outputs": [
+        "fixture hub report/index"
+      ],
+      "stop_if": [
+        "fixture schema invalid"
+      ]
     },
     {
       "tool": "tools/m6e_acceptance.py",
       "when": "驗證 M6e contract/build acceptance path",
-      "inputs": ["M6e fixture"],
-      "outputs": ["M6e acceptance report"],
-      "stop_if": ["contract/build gate diverges"]
+      "inputs": [
+        "M6e fixture"
+      ],
+      "outputs": [
+        "M6e acceptance report"
+      ],
+      "stop_if": [
+        "contract/build gate diverges"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not run final render from a boundary smoke",
     "Do not treat dry-build success as visual delivery success",
     "Do not bypass spec-review or supply-review findings"
-  ]
+  ],
+  "capability_namespace": "cap.spec-contract.*",
+  "capability_lookup_owner": "spec-contract"
 }
 <!-- TOOL_CONTRACT_END -->

@@ -20,158 +20,477 @@ description: 素材地圖生命週期 Skill。把討論/現有素材/補拍需�
     {
       "tool": "tools/material_quick_inventory.py",
       "when": "run Stage 0 material_scan_decision quick inventory over all materials or a user-specified folder/file scope before deep Material Map review",
-      "inputs": ["source folder", "video_intent.json or standalone material_scan_decision"],
-      "outputs": ["material_inventory_summary.json"],
-      "stop_if": ["source folder is missing", "summary has zero usable files and user did not intend an empty scan"]
+      "inputs": [
+        "source folder",
+        "video_intent.json or standalone material_scan_decision"
+      ],
+      "outputs": [
+        "material_inventory_summary.json"
+      ],
+      "stop_if": [
+        "source folder is missing",
+        "summary has zero usable files and user did not intend an empty scan"
+      ],
+      "capability_id": "cap.material-map.material-quick-inventory.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_understanding_matrix.py",
       "when": "multi-material runs need frame/audio/path evidence before a reviewer writes material_wall_review_verdict.json; run after quick inventory or materials_db ingest and before rough cut/BUILD",
-      "inputs": ["materials_db.json", "optional bounded max-assets/frame-budget"],
-      "outputs": ["material_understanding_matrix.json", "material_understanding_contact_sheet.jpg", "material_understanding_frames/*"],
-      "stop_if": ["materials_db.json is missing", "matrix has zero assets", "agent treats role_hints as accepted material truth instead of review hints"]
+      "inputs": [
+        "materials_db.json",
+        "optional bounded max-assets/frame-budget"
+      ],
+      "outputs": [
+        "material_understanding_matrix.json",
+        "material_understanding_contact_sheet.jpg",
+        "material_understanding_frames/*"
+      ],
+      "stop_if": [
+        "materials_db.json is missing",
+        "matrix has zero assets",
+        "agent treats role_hints as accepted material truth instead of review hints"
+      ],
+      "capability_id": "cap.material-map.material-understanding-matrix.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_wall_verdict_draft.py",
       "when": "a material_understanding_matrix exists and the agent needs a conservative first draft of material_wall_review_verdict.json before human/agent review",
-      "inputs": ["material_understanding_matrix.json", "required visual roles such as opening/training/closing"],
-      "outputs": ["material_wall_review_verdict.draft.json with one primary keep per required role and alternates separated"],
-      "stop_if": ["matrix is missing", "required roles have no primary candidate", "draft is treated as final material truth without review"]
+      "inputs": [
+        "material_understanding_matrix.json",
+        "required visual roles such as opening/training/closing"
+      ],
+      "outputs": [
+        "material_wall_review_verdict.draft.json with one primary keep per required role and alternates separated"
+      ],
+      "stop_if": [
+        "matrix is missing",
+        "required roles have no primary candidate",
+        "draft is treated as final material truth without review"
+      ],
+      "capability_id": "cap.material-map.material-wall-verdict-draft.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_first_happy_path.py",
       "when": "operator needs the full no-render material-first happy path before attempting 60-90s or 5min editing",
-      "inputs": ["source folder", "max-assets", "frame-budget", "required visual roles"],
-      "outputs": ["materials_db.source_candidates.json", "material_understanding_matrix.json", "material_wall_review_verdict.draft.json", "preview_rough_cut_plan.json", "material_first_boundary_acceptance_report.json", "rough_cut_plan.json"],
-      "stop_if": ["ok=false", "failed_stage is not null", "final.mp4 exists", "operator treats the 12s smoke rough cut as the finished highlight"]
+      "inputs": [
+        "source folder",
+        "max-assets",
+        "frame-budget",
+        "required visual roles"
+      ],
+      "outputs": [
+        "materials_db.source_candidates.json",
+        "material_understanding_matrix.json",
+        "material_wall_review_verdict.draft.json",
+        "preview_rough_cut_plan.json",
+        "material_first_boundary_acceptance_report.json",
+        "rough_cut_plan.json"
+      ],
+      "stop_if": [
+        "ok=false",
+        "failed_stage is not null",
+        "final.mp4 exists",
+        "operator treats the 12s smoke rough cut as the finished highlight"
+      ],
+      "capability_id": "cap.material-map.material-first-happy-path.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_first_preview_plan.py",
       "when": "matrix plus wall verdict draft are ready and the operator needs a 60-90 second reviewable rough cut proposal before render",
-      "inputs": ["material_understanding_matrix.json", "material_wall_review_verdict.draft.json", "target/min/max duration"],
-      "outputs": ["preview_rough_cut_plan.json"],
-      "stop_if": ["preview plan is treated as canonical timeline", "preview has gaps", "preview is rendered before review"]
+      "inputs": [
+        "material_understanding_matrix.json",
+        "material_wall_review_verdict.draft.json",
+        "target/min/max duration"
+      ],
+      "outputs": [
+        "preview_rough_cut_plan.json"
+      ],
+      "stop_if": [
+        "preview plan is treated as canonical timeline",
+        "preview has gaps",
+        "preview is rendered before review"
+      ],
+      "capability_id": "cap.material-map.material-first-preview-plan.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/rough_cut_storyboard_preview.py",
       "when": "preview_rough_cut_plan.json needs a fast reviewable video but source clips are too large to decode for motion preview",
-      "inputs": ["material_understanding_matrix.json with durable keyframe paths", "preview_rough_cut_plan.json"],
-      "outputs": ["rough_cut_storyboard_preview_report.json", "storyboard preview mp4"],
-      "stop_if": ["matrix keyframes are missing", "storyboard preview is treated as final render", "motion quality is being judged from still frames"]
+      "inputs": [
+        "material_understanding_matrix.json with durable keyframe paths",
+        "preview_rough_cut_plan.json"
+      ],
+      "outputs": [
+        "rough_cut_storyboard_preview_report.json",
+        "storyboard preview mp4"
+      ],
+      "stop_if": [
+        "matrix keyframes are missing",
+        "storyboard preview is treated as final render",
+        "motion quality is being judged from still frames"
+      ],
+      "capability_id": "cap.material-map.rough-cut-storyboard-preview.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_first_boundary_acceptance.py",
       "when": "驗證 material-first 邊界，不跑 contract-run、不 render",
-      "inputs": ["source folder", "video_intent.json or brief assumptions", "optional material_wall_review_verdict.json"],
-      "outputs": ["material_first_boundary_acceptance_report.json"],
-      "stop_if": ["ok=false", "failed_stage is not null", "await_map_review without reviewed edges"]
+      "inputs": [
+        "source folder",
+        "video_intent.json or brief assumptions",
+        "optional material_wall_review_verdict.json"
+      ],
+      "outputs": [
+        "material_first_boundary_acceptance_report.json"
+      ],
+      "stop_if": [
+        "ok=false",
+        "failed_stage is not null",
+        "await_map_review without reviewed edges"
+      ],
+      "capability_id": "cap.material-map.material-first-boundary-acceptance.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_first_stage2_3_smoke.py",
       "when": "小步驗證素材地圖與 review apply 邊界",
-      "inputs": ["stage2/stage3 fixture or run folder"],
-      "outputs": ["stage2_3 smoke report"],
-      "stop_if": ["lifecycle does not reach expected review/build-ready state"]
+      "inputs": [
+        "stage2/stage3 fixture or run folder"
+      ],
+      "outputs": [
+        "stage2_3 smoke report"
+      ],
+      "stop_if": [
+        "lifecycle does not reach expected review/build-ready state"
+      ],
+      "capability_id": "cap.material-map.material-first-stage2-3-smoke.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/material_rough_cut.py",
       "when": "根據素材地圖、review verdict、usable ranges 產生可審查粗剪計畫",
-      "inputs": ["materials_db.json", "material map/review artifacts", "segment needs"],
-      "outputs": ["rough_cut_plan.json"],
-      "stop_if": ["reject/duplicate material is still selected", "usable ranges are ignored"]
+      "inputs": [
+        "materials_db.json",
+        "material map/review artifacts",
+        "segment needs"
+      ],
+      "outputs": [
+        "rough_cut_plan.json"
+      ],
+      "stop_if": [
+        "reject/duplicate material is still selected",
+        "usable ranges are ignored"
+      ],
+      "capability_id": "cap.material-map.material-rough-cut.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "bounded",
+      "certified_scope": "Canon 67 39s Material Map diversity forward plan"
     },
     {
       "tool": "tools/source_highlight_plan.py",
       "when": "single long source video needs a 60-90s highlight and the request is about practical/training/event highlights rather than a full multi-asset material map",
-      "inputs": ["one source video", "optional soundtrack_probe_report.json", "brief intent such as internship highlights, ending, or music refill"],
-      "outputs": ["source_timeline_map.json", "highlight_selection_plan.json", "rough_cut_plan.json"],
-      "stop_if": ["source video duration cannot be probed", "rough_cut_plan has no clips", "content-critical selection has no human/VLM review evidence"]
+      "inputs": [
+        "one source video",
+        "optional soundtrack_probe_report.json",
+        "brief intent such as internship highlights, ending, or music refill"
+      ],
+      "outputs": [
+        "source_timeline_map.json",
+        "highlight_selection_plan.json",
+        "rough_cut_plan.json"
+      ],
+      "stop_if": [
+        "source video duration cannot be probed",
+        "rough_cut_plan has no clips",
+        "content-critical selection has no human/VLM review evidence"
+      ],
+      "capability_id": "cap.material-map.source-highlight-plan.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/source_section_map.py",
       "when": "one long source video needs structural understanding before highlight selection; use this first to split the source into big visual/audio sections",
-      "inputs": ["one source video", "optional source_soundtrack_probe_report.json"],
-      "outputs": ["source_section_map.json"],
-      "stop_if": ["source video duration cannot be probed", "section map has no sections", "section boundaries are treated as semantic labels without review"]
+      "inputs": [
+        "one source video",
+        "optional source_soundtrack_probe_report.json"
+      ],
+      "outputs": [
+        "source_section_map.json"
+      ],
+      "stop_if": [
+        "source video duration cannot be probed",
+        "section map has no sections",
+        "section boundaries are treated as semantic labels without review"
+      ],
+      "capability_id": "cap.material-map.source-section-map.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/source_motion_profile.py",
       "when": "one long source video needs edit-point or transition evidence; use after source_section_map for scoped high-motion or quiet-boundary scans",
-      "inputs": ["one source video", "optional source_soundtrack_probe_report.json", "optional start/end scope"],
-      "outputs": ["source_motion_profile.json", "source_motion_points.jpg", "motion_frames/*.jpg"],
-      "stop_if": ["source video duration cannot be probed", "ranked edit points are used as semantic truth without matrix/review evidence"]
+      "inputs": [
+        "one source video",
+        "optional source_soundtrack_probe_report.json",
+        "optional start/end scope"
+      ],
+      "outputs": [
+        "source_motion_profile.json",
+        "source_motion_points.jpg",
+        "motion_frames/*.jpg"
+      ],
+      "stop_if": [
+        "source video duration cannot be probed",
+        "ranked edit points are used as semantic truth without matrix/review evidence"
+      ],
+      "capability_id": "cap.material-map.source-motion-profile.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/source_dialogue_script.py",
       "when": "one long source video is dialogue/podcast/interview-driven; import correct subtitles or ASR and expand rough picks to complete sentence-safe clips before cutting",
-      "inputs": ["yt-dlp json3 subtitle or reviewed ASR transcript", "optional rough dialogue windows", "soft target duration"],
-      "outputs": ["source_transcript.json", "dialogue_edit_script.json", "dialogue_highlight_windows.json"],
-      "stop_if": ["transcript source is missing or low-confidence", "selected clips cut half sentences", "exact target duration is forced over speech flow"]
+      "inputs": [
+        "yt-dlp json3 subtitle or reviewed ASR transcript",
+        "optional rough dialogue windows",
+        "soft target duration"
+      ],
+      "outputs": [
+        "source_transcript.json",
+        "dialogue_edit_script.json",
+        "dialogue_highlight_windows.json"
+      ],
+      "stop_if": [
+        "transcript source is missing or low-confidence",
+        "selected clips cut half sentences",
+        "exact target duration is forced over speech flow"
+      ],
+      "capability_id": "cap.material-map.source-dialogue-script.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/source_material_matrix.py",
       "when": "one long source video must be understood before highlight selection; build window-level visual keyframes plus audio evidence before deciding clips",
-      "inputs": ["one source video", "optional source_material_matrix_review.json", "optional precomputed source_soundtrack_probe_report.json with ASR"],
-      "outputs": ["source_material_matrix.json", "source_material_matrix_contact_sheet.jpg", "source_audio.wav", "source_soundtrack_probe_report.json", "source_matrix_frames/*.jpg"],
-      "stop_if": ["source video/audio cannot be probed", "content-critical windows remain unreviewed", "requested ending/practice/music decisions are not backed by matrix evidence"]
+      "inputs": [
+        "one source video",
+        "optional source_material_matrix_review.json",
+        "optional precomputed source_soundtrack_probe_report.json with ASR"
+      ],
+      "outputs": [
+        "source_material_matrix.json",
+        "source_material_matrix_contact_sheet.jpg",
+        "source_audio.wav",
+        "source_soundtrack_probe_report.json",
+        "source_matrix_frames/*.jpg"
+      ],
+      "stop_if": [
+        "source video/audio cannot be probed",
+        "content-critical windows remain unreviewed",
+        "requested ending/practice/music decisions are not backed by matrix evidence"
+      ],
+      "capability_id": "cap.material-map.source-material-matrix.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/safe_highlight_cut.py",
       "when": "material-first or Workbench highlight cut has accepted time windows and needs a stable playable MP4; use for yt-dlp, VP9/Opus, non-keyframe, or stutter-prone sources",
-      "inputs": ["rough_cut_plan.json for single-source highlights, or source video plus windows JSON from Workbench selection", "output mp4 path", "highlight_cut_report.json path"],
-      "outputs": ["stable H.264/AAC highlight mp4", "highlight_cut_report.json"],
-      "stop_if": ["windows are empty or invalid", "rough_cut_plan has multiple source videos", "ffmpeg re-encode fails", "output probe is missing H.264 video", "audio source exists but output AAC audio is missing"]
+      "inputs": [
+        "rough_cut_plan.json for single-source highlights, or source video plus windows JSON from Workbench selection",
+        "output mp4 path",
+        "highlight_cut_report.json path"
+      ],
+      "outputs": [
+        "stable H.264/AAC highlight mp4",
+        "highlight_cut_report.json"
+      ],
+      "stop_if": [
+        "windows are empty or invalid",
+        "rough_cut_plan has multiple source videos",
+        "ffmpeg re-encode fails",
+        "output probe is missing H.264 video",
+        "audio source exists but output AAC audio is missing"
+      ],
+      "capability_id": "cap.material-map.safe-highlight-cut.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/rough_cut_plan_execute.py",
       "when": "an accepted material rough_cut_plan.json needs a bounded review video candidate before canonical BUILD/render",
-      "inputs": ["rough_cut_plan.json", "approved source clips", "optional approved audio"],
-      "outputs": ["review video candidate", "rough_cut_preview_report.json"],
-      "stop_if": ["rough_cut_plan is unreviewed", "selected source clips are missing", "rough_cut_preview_report.json ok=false", "operator treats the preview as final.mp4"]
+      "inputs": [
+        "rough_cut_plan.json",
+        "approved source clips",
+        "optional approved audio"
+      ],
+      "outputs": [
+        "review video candidate",
+        "rough_cut_preview_report.json"
+      ],
+      "stop_if": [
+        "rough_cut_plan is unreviewed",
+        "selected source clips are missing",
+        "rough_cut_preview_report.json ok=false",
+        "operator treats the preview as final.mp4"
+      ],
+      "capability_id": "cap.material-map.rough-cut-plan-execute.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/package_verified_preview.py",
       "when": "a single-source highlight or dialogue preview has passed final-product-verify and delivery gate but must remain a reviewable candidate before final promotion",
-      "inputs": ["delivery_gate.json pass=true", "final_product_verify_bundle.json pass=true", "highlight_cut_report.json with playable output"],
-      "outputs": ["verified_preview_package.json", "delivery_candidate.mp4"],
-      "stop_if": ["delivery gate failed", "final-product-verify failed", "candidate video is missing", "operator expects this to create final.mp4"]
+      "inputs": [
+        "delivery_gate.json pass=true",
+        "final_product_verify_bundle.json pass=true",
+        "highlight_cut_report.json with playable output"
+      ],
+      "outputs": [
+        "verified_preview_package.json",
+        "delivery_candidate.mp4"
+      ],
+      "stop_if": [
+        "delivery gate failed",
+        "final-product-verify failed",
+        "candidate video is missing",
+        "operator expects this to create final.mp4"
+      ],
+      "capability_id": "cap.material-map.package-verified-preview.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/verified_preview_review_decision.py",
       "when": "operator has reviewed delivery_candidate.mp4 and needs to record accept/promote, Workbench revision, motion-preview rebuild, or rejection without mutating video artifacts",
-      "inputs": ["verified_preview_package.json", "delivery_candidate.mp4", "explicit operator decision"],
-      "outputs": ["verified_preview_review_decision.json", "workbench_revision_request.json when decision=revise_workbench"],
-      "stop_if": ["verified_preview_package.json is missing", "decision is not explicit", "operator expects this tool to create final.mp4"]
+      "inputs": [
+        "verified_preview_package.json",
+        "delivery_candidate.mp4",
+        "explicit operator decision"
+      ],
+      "outputs": [
+        "verified_preview_review_decision.json",
+        "workbench_revision_request.json when decision=revise_workbench"
+      ],
+      "stop_if": [
+        "verified_preview_package.json is missing",
+        "decision is not explicit",
+        "operator expects this tool to create final.mp4"
+      ],
+      "capability_id": "cap.material-map.verified-preview-review-decision.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/promote_verified_preview.py",
       "when": "operator explicitly accepts delivery_candidate.mp4 and wants to promote it to canonical final.mp4",
-      "inputs": ["verified_preview_package.json", "delivery_candidate.mp4", "operator/reviewer identity"],
-      "outputs": ["final.mp4", "final_promotion_report.json", "delivery_requirements.json if missing", "audio_mix_report.json if missing"],
-      "stop_if": ["package is not ready_for_operator_delivery_review", "final.mp4 already exists and overwrite is not explicit", "operator has not reviewed the candidate"]
+      "inputs": [
+        "verified_preview_package.json",
+        "delivery_candidate.mp4",
+        "operator/reviewer identity"
+      ],
+      "outputs": [
+        "final.mp4",
+        "final_promotion_report.json",
+        "delivery_requirements.json if missing",
+        "audio_mix_report.json if missing"
+      ],
+      "stop_if": [
+        "package is not ready_for_operator_delivery_review",
+        "final.mp4 already exists and overwrite is not explicit",
+        "operator has not reviewed the candidate"
+      ],
+      "capability_id": "cap.material-map.promote-verified-preview.v1",
+      "loops": [
+        "L1"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/material_first_landing_case.py",
       "when": "產生或驗證 material-first landing case fixture",
-      "inputs": ["source folder or fixture"],
-      "outputs": ["landing case report"],
-      "stop_if": ["case cannot produce material-first artifacts"]
+      "inputs": [
+        "source folder or fixture"
+      ],
+      "outputs": [
+        "landing case report"
+      ],
+      "stop_if": [
+        "case cannot produce material-first artifacts"
+      ]
     },
     {
       "tool": "tools/material_gap_brief.py",
       "when": "把 material_delta 缺口轉成補拍、生成、縮剪或 waiver 討論用 brief",
-      "inputs": ["material_delta.json"],
-      "outputs": ["material_gap_brief.json or md"],
-      "stop_if": ["gap evidence is missing or ambiguous"]
+      "inputs": [
+        "material_delta.json"
+      ],
+      "outputs": [
+        "material_gap_brief.json or md"
+      ],
+      "stop_if": [
+        "gap evidence is missing or ambiguous"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not treat filenames as verified visual truth",
     "Do not mark material needs covered without review evidence",
     "Do not jump from inventory directly to final render"
-  ]
+  ],
+  "capability_namespace": "cap.material-map.*",
+  "capability_lookup_owner": "material-map"
 }
 <!-- TOOL_CONTRACT_END -->
 

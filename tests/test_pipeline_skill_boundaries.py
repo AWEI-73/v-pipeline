@@ -1,6 +1,12 @@
 from pathlib import Path
 import re
 import unittest
+from video_pipeline_core.skill_tool_contract import (
+    audit_repository_contracts,
+    iter_tool_entries,
+    load_capability_consumers,
+    load_contracts,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -226,6 +232,41 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
             self.assertNotRegex(frontmatter, re.compile(r"[\ue000-\uf8ff]"), rel)
             self.assertRegex(frontmatter, re.compile(r"^name:\s+[-a-z0-9]+$", re.MULTILINE), rel)
             self.assertRegex(frontmatter, re.compile(r"^description:\s+\S", re.MULTILINE), rel)
+
+    def test_editing_loop_director_is_one_capability_consumer_not_a_tool_owner(self):
+        text = read("skills/editing-loop-director.md")
+        self.assertEqual(1, text.count("<!-- CAPABILITY_CONSUMER_START -->"))
+        self.assertEqual(1, text.count("<!-- CAPABILITY_CONSUMER_END -->"))
+        consumers, parse_errors = load_capability_consumers(ROOT / "skills")
+        self.assertEqual([], parse_errors)
+        self.assertEqual(1, len(consumers))
+        consumer = consumers[0]
+        self.assertEqual("editing-loop-director", consumer["consumer"])
+        self.assertFalse(any(key in consumer for key in ("canonical_tools", "supporting_tools", "internal_tools", "diagnostic_tools")))
+        contracts, contract_errors = load_contracts(ROOT / "skills")
+        self.assertEqual([], contract_errors)
+        python_tools = {
+            str(path.relative_to(ROOT)).replace("\\", "/")
+            for path in (ROOT / "tools").glob("*.py")
+            if path.name != "__init__.py"
+        }
+        errors = audit_repository_contracts(
+            contracts,
+            python_tools=python_tools,
+            capability_consumers=consumers,
+        )
+        self.assertEqual([], errors)
+        canonical = {
+            entry.get("capability_id"): entry
+            for contract in contracts
+            for entry in iter_tool_entries(contract)
+            if entry.get("_section") == "canonical_tools"
+        }
+        self.assertTrue(consumer["active_capability_ids"])
+        self.assertTrue(set(consumer["active_capability_ids"]).issubset(canonical))
+        self.assertTrue(all(canonical[item]["maturity"] != "legacy" for item in consumer["active_capability_ids"]))
+        self.assertFalse(consumer["human_creative_approval"])
+        self.assertFalse(consumer["final_delivery_claimed"])
 
 
 if __name__ == "__main__":

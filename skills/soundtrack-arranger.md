@@ -20,39 +20,94 @@ description: Use for bounded music, song, BGM, soundtrack mood, section audio so
     {
       "tool": "tools/soundtrack_arranger.py",
       "when": "write deterministic soundtrack plan, source candidates, license manifest, and Audio Director handoff from a brief or video_intent",
-      "inputs": ["brief or section plan", "optional provider credentials", "optional license notes"],
-      "outputs": ["soundtrack_plan.json", "music_source_candidates.json", "sound_license_manifest.json", "audio_director_handoff.json"],
-      "stop_if": ["license_status is missing", "candidate is reference_only for delivery"]
+      "inputs": [
+        "brief or section plan",
+        "optional provider credentials",
+        "optional license notes"
+      ],
+      "outputs": [
+        "soundtrack_plan.json",
+        "music_source_candidates.json",
+        "sound_license_manifest.json",
+        "audio_director_handoff.json"
+      ],
+      "stop_if": [
+        "license_status is missing",
+        "candidate is reference_only for delivery"
+      ],
+      "capability_id": "cap.soundtrack-arranger.soundtrack-arranger.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/soundtrack_flow_acceptance.py",
       "when": "run a no-render acceptance from soundtrack plan through reviewed selected audio, handoff acceptance, audio_mix_plan, and pipeline_home",
-      "inputs": ["video_intent or brief JSON", "optional reviewed selected audio decision", "soundtrack_probe_report.json for selected music"],
-      "outputs": ["soundtrack_flow_acceptance_report.json", "audio_handoff_acceptance.json", "audio_mix_plan.json"],
-      "stop_if": ["audio_handoff_acceptance ok=false", "selected audio is missing or unlicensed", "selected music has no soundtrack_probe_report or section_fit"]
+      "inputs": [
+        "video_intent or brief JSON",
+        "optional reviewed selected audio decision",
+        "soundtrack_probe_report.json for selected music"
+      ],
+      "outputs": [
+        "soundtrack_flow_acceptance_report.json",
+        "audio_handoff_acceptance.json",
+        "audio_mix_plan.json"
+      ],
+      "stop_if": [
+        "audio_handoff_acceptance ok=false",
+        "selected audio is missing or unlicensed",
+        "selected music has no soundtrack_probe_report or section_fit"
+      ],
+      "capability_id": "cap.soundtrack-arranger.soundtrack-flow-acceptance.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/soundtrack_probe.py",
       "when": "inspect an accepted music/audio file before placement so agents can see tempo, beats, energy sections, silence, loudness, optional vocals/transcript, and section fit",
-      "inputs": ["audio file"],
-      "outputs": ["soundtrack_probe_report.json"],
-      "stop_if": ["probe pass=false", "sections, editing_fit, or required section_fit are missing"]
+      "inputs": [
+        "audio file"
+      ],
+      "outputs": [
+        "soundtrack_probe_report.json"
+      ],
+      "stop_if": [
+        "probe pass=false",
+        "sections, editing_fit, or required section_fit are missing"
+      ],
+      "capability_id": "cap.soundtrack-arranger.soundtrack-probe.v1",
+      "loops": [
+        "L3"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/audio_cue_patch.py",
       "when": "convert approved section audio cue decisions into a Workbench/Brownfield draft patch",
-      "inputs": ["audio cue decisions", "timeline context"],
-      "outputs": ["audio_cue_patch.json"],
-      "stop_if": ["cue would cover protected speech without ducking policy"]
+      "inputs": [
+        "audio cue decisions",
+        "timeline context"
+      ],
+      "outputs": [
+        "audio_cue_patch.json"
+      ],
+      "stop_if": [
+        "cue would cover protected speech without ducking policy"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not download or use unlicensed music for delivery",
     "Do not mix final audio from fuzzy soundtrack intent",
     "Do not treat reference-only songs as delivery-allowed"
-  ]
+  ],
+  "capability_namespace": "cap.soundtrack-arranger.*",
+  "capability_lookup_owner": "soundtrack-arranger"
 }
 <!-- TOOL_CONTRACT_END -->
 

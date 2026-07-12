@@ -20,25 +20,57 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
     {
       "tool": "tools/subtitle_voiceover_handoff_accept.py",
       "when": "accept subtitle/voiceover evidence into subtitle_voiceover_handoff_acceptance.json and subtitle_voiceover_build_handoff.json without rendering video",
-      "inputs": ["subtitle_voiceover_contract", "subtitles.srt", "caption_audit.json", "narration_manifest.json", "voiceover_provider_plan.json", "voxcpm_runtime_check.json"],
-      "outputs": ["subtitle_voiceover_handoff_acceptance.json", "subtitle_voiceover_build_handoff.json"],
-      "stop_if": ["required subtitles missing", "caption audit failed or missing", "required voiceover has no narration manifest", "voiceover audio refs are missing", "preferred voiceover provider unavailable and fallback is not allowed"]
+      "inputs": [
+        "subtitle_voiceover_contract",
+        "subtitles.srt",
+        "caption_audit.json",
+        "narration_manifest.json",
+        "voiceover_provider_plan.json",
+        "voxcpm_runtime_check.json"
+      ],
+      "outputs": [
+        "subtitle_voiceover_handoff_acceptance.json",
+        "subtitle_voiceover_build_handoff.json"
+      ],
+      "stop_if": [
+        "required subtitles missing",
+        "caption audit failed or missing",
+        "required voiceover has no narration manifest",
+        "voiceover audio refs are missing",
+        "preferred voiceover provider unavailable and fallback is not allowed"
+      ],
+      "capability_id": "cap.subtitle-director.subtitle-voiceover-handoff-accept.v1",
+      "loops": [
+        "L2"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/subtitle_patch.py",
       "when": "apply reviewed Workbench subtitle text/timing patches without overwriting canonical SRT",
-      "inputs": ["review_subtitles.srt", "subtitles.srt", "subtitle_patch.json"],
-      "outputs": ["patched_draft_subtitles.json"],
-      "stop_if": ["subtitle id is invalid", "patch would overwrite source subtitle file"]
+      "inputs": [
+        "review_subtitles.srt",
+        "subtitles.srt",
+        "subtitle_patch.json"
+      ],
+      "outputs": [
+        "patched_draft_subtitles.json"
+      ],
+      "stop_if": [
+        "subtitle id is invalid",
+        "patch would overwrite source subtitle file"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not render final.mp4 from Subtitle Director",
     "Do not burn subtitles in the handoff acceptance step",
     "Do not synthesize TTS from subtitle handoff acceptance"
-  ]
+  ],
+  "capability_namespace": "cap.subtitle-director.*",
+  "capability_lookup_owner": "subtitle-director"
 }
 <!-- TOOL_CONTRACT_END -->
 

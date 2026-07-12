@@ -22,81 +22,197 @@ This is the upper route for designed effects in Hermes.
     {
       "tool": "tools/visual_technique_plan.py",
       "when": "把模糊特效語意轉成可審查參數、primitives、controls 和候選選項",
-      "inputs": ["effect phrase", "segment context", "optional review"],
-      "outputs": ["visual_technique_plan.json or confirmed plan"],
-      "stop_if": ["parameter_status=candidate_parameters and no review is supplied"]
+      "inputs": [
+        "effect phrase",
+        "segment context",
+        "optional review"
+      ],
+      "outputs": [
+        "visual_technique_plan.json or confirmed plan"
+      ],
+      "stop_if": [
+        "parameter_status=candidate_parameters and no review is supplied"
+      ],
+      "capability_id": "cap.video-effect-factory.visual-technique-plan.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "python video_tools.py effect-design-concept",
       "when": "after fuzzy user-facing effect intent and before locking worker params; creates a design brief, multiple concepts, and a selected concept",
-      "inputs": ["request", "effect_role", "duration_sec", "material_context"],
-      "outputs": ["effect_design_brief.json", "effect_concept_options.json", "effect_concept_selection.json"],
-      "stop_if": ["selected concept conflicts with material truth or requires unsupported renderer controls"]
+      "inputs": [
+        "request",
+        "effect_role",
+        "duration_sec",
+        "material_context"
+      ],
+      "outputs": [
+        "effect_design_brief.json",
+        "effect_concept_options.json",
+        "effect_concept_selection.json"
+      ],
+      "stop_if": [
+        "selected concept conflicts with material truth or requires unsupported renderer controls"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-design-concept.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "python video_tools.py effect-capability-review",
       "when": "before Remotion worker handoff, or when deciding whether an effect request is supported, partial, unsupported, or should be rerouted",
-      "inputs": ["request/effect_role/duration/effect_build_spec"],
-      "outputs": ["effect_capability_review.json"],
-      "stop_if": ["decision is partial/probe_required/reroute_material/reroute_editing/unsupported"]
+      "inputs": [
+        "request/effect_role/duration/effect_build_spec"
+      ],
+      "outputs": [
+        "effect_capability_review.json"
+      ],
+      "stop_if": [
+        "decision is partial/probe_required/reroute_material/reroute_editing/unsupported"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-capability-review.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "python video_tools.py effect-design-review",
       "when": "after a playable preview/contact sheet exists; checks the rendered result against the selected concept",
-      "inputs": ["effect_concept_selection.json", "render probe report"],
-      "outputs": ["effect_design_review.json"],
-      "stop_if": ["default/internal copy remains", "duration padding/drift", "missing playable preview", "presentation feel"]
+      "inputs": [
+        "effect_concept_selection.json",
+        "render probe report"
+      ],
+      "outputs": [
+        "effect_design_review.json"
+      ],
+      "stop_if": [
+        "default/internal copy remains",
+        "duration padding/drift",
+        "missing playable preview",
+        "presentation feel"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-design-review.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "python video_tools.py effect-dictionary-promote",
       "when": "after a GenericRemotionEffect preview has accepted review evidence and should become reusable",
-      "inputs": ["promotion request with accepted review evidence", "effect_factory_dictionary.json"],
-      "outputs": ["updated effect_factory_dictionary.json"],
-      "stop_if": ["review evidence is missing or not accepted"]
+      "inputs": [
+        "promotion request with accepted review evidence",
+        "effect_factory_dictionary.json"
+      ],
+      "outputs": [
+        "updated effect_factory_dictionary.json"
+      ],
+      "stop_if": [
+        "review evidence is missing or not accepted"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-dictionary-promote.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/effect_factory_boundary_acceptance.py",
       "when": "驗證 Effect Factory 邊界與 handoff，不接管 final.mp4",
-      "inputs": ["effect intent fixture or run folder"],
-      "outputs": ["effect_factory_boundary_acceptance_report.json"],
-      "stop_if": ["candidate parameters unconfirmed", "required effect lacks review evidence"]
+      "inputs": [
+        "effect intent fixture or run folder"
+      ],
+      "outputs": [
+        "effect_factory_boundary_acceptance_report.json"
+      ],
+      "stop_if": [
+        "candidate parameters unconfirmed",
+        "required effect lacks review evidence"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-factory-boundary-acceptance.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     },
     {
       "tool": "tools/effect_factory_route_acceptance.py",
       "when": "prove the full semantic request -> visual technique -> capability review -> Remotion prompt pack -> worker review -> bounded handoff line without final render",
-      "inputs": ["effect request", "effect_role", "duration_sec", "display_text"],
-      "outputs": ["effect_factory_route_acceptance_report.json"],
-      "stop_if": ["visual_technique_plan needs follow-up", "effect_capability_review is not supported", "remotion_effect_review evidence is missing"]
+      "inputs": [
+        "effect request",
+        "effect_role",
+        "duration_sec",
+        "display_text"
+      ],
+      "outputs": [
+        "effect_factory_route_acceptance_report.json"
+      ],
+      "stop_if": [
+        "visual_technique_plan needs follow-up",
+        "effect_capability_review is not supported",
+        "remotion_effect_review evidence is missing"
+      ],
+      "capability_id": "cap.video-effect-factory.effect-factory-route-acceptance.v1",
+      "loops": [
+        "L4"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
     {
       "tool": "tools/remotion_material_first_memory_acceptance.py",
       "when": "用 material-first refs 驗證 Remotion effect probe 或照片牆類素材輸入",
-      "inputs": ["material refs", "effect build spec"],
-      "outputs": ["remotion material-first acceptance report"],
-      "stop_if": ["material refs are missing or unreviewed"]
+      "inputs": [
+        "material refs",
+        "effect build spec"
+      ],
+      "outputs": [
+        "remotion material-first acceptance report"
+      ],
+      "stop_if": [
+        "material refs are missing or unreviewed"
+      ]
     },
     {
       "tool": "tools/remotion_transition_acceptance.py",
       "when": "驗證 bounded Remotion transition probe 是否符合 contract",
-      "inputs": ["transition effect contract"],
-      "outputs": ["transition acceptance report"],
-      "stop_if": ["preview/contact sheet/evidence missing"]
+      "inputs": [
+        "transition effect contract"
+      ],
+      "outputs": [
+        "transition acceptance report"
+      ],
+      "stop_if": [
+        "preview/contact sheet/evidence missing"
+      ]
     },
     {
       "tool": "tools/gemini_demo_film.py",
       "when": "將外部 HTML/canvas demo 當 bounded reference probe，不作 canonical render",
-      "inputs": ["demo spec or local html"],
-      "outputs": ["demo film/probe evidence"],
-      "stop_if": ["probe is mistaken for pipeline output"]
+      "inputs": [
+        "demo spec or local html"
+      ],
+      "outputs": [
+        "demo film/probe evidence"
+      ],
+      "stop_if": [
+        "probe is mistaken for pipeline output"
+      ]
     }
   ],
   "forbidden_tools": [
     "Do not replace remotion-effect-worker",
     "Do not silently collapse fuzzy effect intent into a fixed template",
     "Do not write final.mp4 from Effect Factory"
-  ]
+  ],
+  "capability_namespace": "cap.video-effect-factory.*",
+  "capability_lookup_owner": "video-effect-factory"
 }
 <!-- TOOL_CONTRACT_END -->
 
