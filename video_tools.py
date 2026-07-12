@@ -4469,7 +4469,9 @@ def main():
         sys.exit(1)
 
     try:
-        dispatch[args.command](args)
+        result = dispatch[args.command](args)
+        if isinstance(result, int):
+            sys.exit(result)
     except ToolError as e:
         die(str(e))
     except Exception as e:

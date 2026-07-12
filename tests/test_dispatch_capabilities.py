@@ -1,5 +1,7 @@
 import copy
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -72,6 +74,37 @@ class DispatchCapabilitiesTest(unittest.TestCase):
             second = load_live_catalog(root)
             self.assertNotEqual(first["cards"], second["cards"])
             self.assertEqual(first["cards"], sorted(first["cards"], key=lambda item: item["capability_id"]))
+
+    def test_live_speech_ducking_query_resolves_audio_capability(self):
+        root = Path(__file__).resolve().parents[1]
+        catalog = load_live_catalog(root / "skills")
+        result = query_catalog(catalog, selector="query", value="speech ducking")
+        self.assertTrue(result["ok"], result)
+        self.assertIn(
+            "cap.audio-director.audio-mix-plan-execute.v1",
+            [item["capability_id"] for item in result["results"]],
+        )
+
+    def test_cli_no_match_with_json_output_returns_one(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "missing.json"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "dispatch-capabilities",
+                    "--id",
+                    "cap.no-such-owner.no-such-capability.v1",
+                    "--out",
+                    str(out),
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(1, completed.returncode, completed.stdout + completed.stderr)
+            self.assertEqual("no_match", json.loads(out.read_text(encoding="utf-8"))["error"]["code"])
 
     def test_query_requires_count_to_equal_results(self):
         catalog = build_catalog([_contract()])

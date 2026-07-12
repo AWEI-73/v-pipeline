@@ -90,7 +90,7 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
     },
     {
       "tool": "tools/audio_mix_plan_execute.py",
-      "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present",
+      "when": "execute accepted audio_mix_plan.json into final_audio.wav and audio_mix_report.json without rendering video; use sections[] for section-aware placement when present; apply speech ducking when the plan opts into speech-aware music",
       "inputs": [
         "audio_mix_plan.json",
         "audio_handoff_acceptance.json",
