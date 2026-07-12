@@ -134,6 +134,11 @@ evidence coordinates 與 blind spots，必須轉成既有 Project Material Map
 既有 scene ranking＋diversity selector，而不是直接依 catalog 或 agent 手排順序
 寫入 plan。
 
+正式的 `tools/material_rough_cut.py`／`build_rough_cut_plan()` 入口也必須在 opt-in
+diversity policy 下調用同一 selector 並直接產出可交給 executor 的
+`rough_cut_plan.json`／`timeline_build.json`；不得要求 worker 先呼叫 selector，
+再手排轉寫另一份 plan。Legacy 無 policy 路徑保持既有 first-accepted 行為。
+
 規則：
 
 1. `talking_head` 為語音敘事錨點，不受 cutaway source-repeat ceiling 約束。
@@ -432,7 +437,7 @@ tests。完整 suite 只在功能、forward test、registry migration 與 audits
 
 | Wave | Logical owner | 可編輯 production／contract paths | 可編輯 tests／evidence |
 | --- | --- | --- | --- |
-| A1 | `material-map` | `video_pipeline_core/material_retrieval.py`、必要時 `video_pipeline_core/project_material_map.py`、`video_pipeline_core/mv_cut.py`、`video_pipeline_core/semantic_novelty_audit.py` | 對應 Material Map／retrieval／mv_cut／semantic-novelty tests；新 run root |
+| A1 | `material-map` | `video_pipeline_core/material_retrieval.py`、`video_pipeline_core/material_rough_cut.py`、`tools/material_rough_cut.py`、必要時 `video_pipeline_core/project_material_map.py`、`video_pipeline_core/mv_cut.py`、`video_pipeline_core/semantic_novelty_audit.py` | 對應 Material Map／retrieval／material-rough-cut／mv_cut／semantic-novelty tests；新 run root |
 | A2 | `audio-director` | `video_pipeline_core/audio_mix_plan_executor.py`、契約需要時 `video_pipeline_core/audio_handoff_acceptance.py` | 對應 audio executor／handoff／delivery tests；新 run root |
 | A3 | integration／review | 不新增 private renderer；只用既有 public assembly surfaces | 新 39 秒 run artifacts、fresh L5 evidence |
 | B1 | shared integration | 新的單一 shared Tool Contract parser module；`tools/skill_tool_contract_audit.py`、`tools/pipeline_interface_discovery.py` | 兩者既有 tests 與 shared parser tests |
