@@ -39,6 +39,64 @@ def _probe_for(audio_file):
 
 
 class AudioHandoffAcceptanceTest(unittest.TestCase):
+    def test_accepts_opt_in_speech_aware_ducking_and_propagates_plan_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "audio" / "sources" / "speech_aware_bgm.wav"
+            speech = root / "audio" / "sources" / "source_speech.wav"
+            music.parent.mkdir(parents=True)
+            music.write_bytes(b"RIFF speech aware music")
+            speech.write_bytes(b"RIFF original speech")
+            handoff = {
+                "artifact_role": "audio_director_handoff",
+                "ready_for_audio_director": True,
+                "selected_audio_files": [
+                    {
+                        "candidate_id": "speech_aware_bgm",
+                        "section_id": "interview",
+                        "source_type": "licensed_library",
+                        "audio_file": str(music),
+                        "license_status": "user_asserted",
+                        "delivery_allowed": True,
+                        "ducking_policy": "speech_aware",
+                    },
+                    {
+                        "candidate_id": "source_speech",
+                        "section_id": "interview",
+                        "source_type": "original_audio",
+                        "audio_file": str(speech),
+                        "license_status": "source_original",
+                        "delivery_allowed": True,
+                        "ducking_policy": "preserve_original_audio",
+                    },
+                ],
+            }
+            soundtrack = {
+                "artifact_role": "soundtrack_plan",
+                "sections": [{
+                    "section_id": "interview",
+                    "start_sec": 0.0,
+                    "duration_sec": 6.0,
+                    "music_role": "bgm",
+                    "ducking_policy": "speech_aware",
+                    "vocal_policy": "preserve_speech",
+                }],
+            }
+            result = accept_audio_handoff(
+                handoff,
+                soundtrack_plan=soundtrack,
+                soundtrack_probe_report=_probe_for(music),
+                out_dir=root,
+            )
+
+            self.assertTrue(result["audio_handoff_acceptance"]["ok"])
+            plan = result["audio_mix_plan"]
+            self.assertEqual(plan["ducking_policy"], "speech_aware")
+            self.assertEqual(
+                next(track for track in plan["tracks"] if track["candidate_id"] == "speech_aware_bgm")["role"],
+                "music_ducked",
+            )
+
     def test_accepts_explicit_preview_false_as_delivery_track(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

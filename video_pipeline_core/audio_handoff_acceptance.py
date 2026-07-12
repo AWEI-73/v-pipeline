@@ -8,7 +8,7 @@ from typing import Any, Mapping
 
 
 BAD_LICENSE_STATUSES = {"license_missing", "provider_unavailable", "reference_only"}
-SPEECH_DUCKING_POLICIES = {"duck_under_voice", "preserve_original_audio"}
+SPEECH_DUCKING_POLICIES = {"duck_under_voice", "preserve_original_audio", "speech_aware"}
 MUSIC_SOURCE_TYPES = {
     "licensed_library",
     "youtube_audio_library",
@@ -123,6 +123,8 @@ def _role_for_track(selected: Mapping[str, Any], section: Mapping[str, Any] | No
     if ducking == "preserve_original_audio":
         return "preserve_original_audio"
     if ducking == "duck_under_voice":
+        return "music_ducked"
+    if ducking == "speech_aware":
         return "music_ducked"
     if music_role == "song" or _clean(selected.get("source_type")) == "jamendo_song":
         return "music_main"
@@ -332,7 +334,7 @@ def _requires_vocal_clearance(selected: Mapping[str, Any], section: Mapping[str,
     ducking_policy = _clean(selected.get("ducking_policy") or section.get("ducking_policy")).casefold()
     if vocal_policy == "vocal_ok":
         return False
-    return vocal_policy in STRICT_INSTRUMENTAL_POLICIES or ducking_policy == "duck_under_voice"
+    return vocal_policy in STRICT_INSTRUMENTAL_POLICIES or ducking_policy in {"duck_under_voice", "speech_aware"}
 
 
 def _vocal_conflict_blocks(
@@ -416,7 +418,7 @@ def _source_audio_policy(
 
     if "preserve_original_audio" in roles or "preserve_original_audio" in ducking:
         original_audio_policy = "preserve_speech"
-    elif "music_ducked" in roles or "duck_under_voice" in ducking:
+    elif "music_ducked" in roles or ducking & {"duck_under_voice", "speech_aware"}:
         original_audio_policy = "mixed"
     elif any(role.startswith("music") for role in roles) or "bgm" in section_music_roles or "song" in section_music_roles:
         original_audio_policy = "replace_with_music"
@@ -428,7 +430,7 @@ def _source_audio_policy(
         "original_audio_policy": original_audio_policy,
         "music_policy": music_policy,
         "time_authority": "video_sections",
-        "ducking_policy": "duck_under_voice" if original_audio_policy in {"preserve_speech", "mixed"} else "none",
+        "ducking_policy": "speech_aware" if "speech_aware" in ducking else "duck_under_voice" if original_audio_policy in {"preserve_speech", "mixed"} else "none",
     }
 
 
@@ -654,6 +656,8 @@ def accept_audio_handoff(
         "rendered": False,
         **preview_aggregate,
     }
+    if ok and any(_clean(track.get("ducking_policy")) == "speech_aware" for track in tracks):
+        mix_plan["ducking_policy"] = "speech_aware"
     (out_root / "audio_handoff_acceptance.json").write_text(
         json.dumps(acceptance, ensure_ascii=False, indent=2),
         encoding="utf-8",

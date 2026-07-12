@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from video_pipeline_core.audio_mix_plan_executor import execute_audio_mix_plan
 from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe
@@ -57,7 +58,144 @@ def _duration(path: Path) -> float:
     return float(proc.stdout.strip())
 
 
+def _speech_tone(path: Path, *, shift: float = 0.0, duration: float = 6.0):
+    first_start = 1.0 + shift
+    first_end = 2.0 + shift
+    second_start = 4.0 + shift
+    second_end = 5.0 + shift
+    expression = (
+        f"if(between(t,{first_start},{first_end})+between(t,{second_start},{second_end}),"
+        "0.35,0)"
+    )
+    subprocess.run(
+        [
+            resolve_ffmpeg(), "-y", "-f", "lavfi",
+            "-i", "sine=frequency=440:sample_rate=48000:duration=6",
+            "-af", f"volume='{expression}':eval=frame,aformat=channel_layouts=stereo",
+            "-t", str(duration), "-ar", "48000", str(path),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+
+def _speech_aware_plan(root: Path, music: Path, speech: Path, *, ducking=None):
+    return {
+        "artifact_role": "audio_mix_plan",
+        "ready_for_mix": True,
+        "target_duration_sec": 6.0,
+        "ducking_policy": "speech_aware",
+        **({"ducking": ducking} if ducking is not None else {}),
+        "source_audio_policy": {"original_audio_policy": "preserve_speech"},
+        "sections": [{"section_id": "interview", "start_sec": 0.0, "duration_sec": 6.0}],
+        "tracks": [
+            {
+                "section_id": "interview",
+                "candidate_id": "bgm",
+                "audio_file": str(music),
+                "role": "music_bed",
+                "ducking_policy": "speech_aware",
+                "source_type": "licensed_library",
+                "license_status": "accepted",
+            },
+            {
+                "section_id": "interview",
+                "candidate_id": "protected_speech",
+                "audio_file": str(speech),
+                "role": "source_speech",
+                "ducking_policy": "preserve_original_audio",
+                "source_type": "original_audio",
+                "license_status": "source_original",
+                "volume": 1.0,
+            },
+        ],
+    }
+
+
 class AudioMixPlanExecutorTest(unittest.TestCase):
+    def test_speech_aware_defaults_report_dynamic_rms_and_waveform_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "music.wav"
+            speech = root / "speech.wav"
+            _sine(music, 6.0)
+            _speech_tone(speech)
+            plan = _speech_aware_plan(root, music, speech)
+
+            with patch(
+                "video_pipeline_core.material_map.detect_speech_runs",
+                return_value=[
+                    {"start": 0.0, "end": 1.0, "kind": "silence"},
+                    {"start": 1.0, "end": 2.0, "kind": "speech"},
+                    {"start": 2.0, "end": 4.0, "kind": "silence"},
+                    {"start": 4.0, "end": 5.0, "kind": "speech"},
+                    {"start": 5.0, "end": 6.0, "kind": "silence"},
+                ],
+            ):
+                result = execute_audio_mix_plan(
+                    plan,
+                    acceptance={"ok": True},
+                    out_dir=root,
+                )
+
+            self.assertTrue(result["ok"], result)
+            report = result["audio_mix_report"]
+            self.assertEqual(report["ducking_mode"], "speech_aware")
+            self.assertEqual(report["ducking_parameters"]["duck_db"], -12.0)
+            self.assertEqual(report["ducking_parameters"]["attack_ms"], 80)
+            self.assertEqual(report["ducking_parameters"]["release_ms"], 300)
+            evidence = report["speech_aware_evidence"]
+            self.assertGreaterEqual(evidence["active_reduction_db"], 8.0)
+            self.assertGreaterEqual(evidence["recovery_gain_over_active_db"], 4.0)
+            self.assertTrue(evidence["ramp_evidence"]["attack_monotonic"])
+            self.assertTrue(evidence["ramp_evidence"]["release_monotonic"])
+            waveform = report["protected_speech_waveform_check"]
+            self.assertTrue(waveform["pass"], waveform)
+            self.assertEqual(waveform["passing_window_ratio"], 1.0)
+            self.assertEqual(report["protected_speech"]["gain"], 1.0)
+            self.assertAlmostEqual(report["duration_sec"], 6.0, delta=0.02)
+
+    def test_speech_aware_contract_rejects_unknown_keys_and_missing_protected_track(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "music.wav"
+            _sine(music, 6.0)
+            unknown = _speech_aware_plan(
+                root, music, music,
+                ducking={"duck_db": -12.0, "unknown": 1},
+            )
+            unknown["tracks"] = unknown["tracks"][:1]
+            result = execute_audio_mix_plan(unknown, acceptance={"ok": True}, out_dir=root)
+            self.assertFalse(result["ok"])
+            rules = {item["rule"] for item in result["audio_mix_report"]["blocking"]}
+            self.assertIn("speech_aware_invalid_contract", rules)
+            self.assertIn("speech_aware_protected_track_missing", rules)
+
+    def test_speech_aware_waveform_check_rejects_shifted_protected_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "music.wav"
+            speech = root / "speech_shifted.wav"
+            _sine(music, 6.0)
+            _speech_tone(speech, shift=0.05)
+            plan = _speech_aware_plan(root, music, speech)
+
+            with patch(
+                "video_pipeline_core.material_map.detect_speech_runs",
+                return_value=[
+                    {"start": 0.0, "end": 1.0, "kind": "silence"},
+                    {"start": 1.0, "end": 2.0, "kind": "speech"},
+                    {"start": 2.0, "end": 4.0, "kind": "silence"},
+                    {"start": 4.0, "end": 5.0, "kind": "speech"},
+                    {"start": 5.0, "end": 6.0, "kind": "silence"},
+                ],
+            ):
+                result = execute_audio_mix_plan(plan, acceptance={"ok": True}, out_dir=root)
+
+            self.assertFalse(result["ok"])
+            self.assertFalse(result["audio_mix_report"]["protected_speech_waveform_check"]["pass"])
+
     def test_cli_executes_ready_mix_plan_and_writes_report(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
