@@ -1068,7 +1068,7 @@ For every named case directory under `tests/fixtures/capability_contract_audit/`
 C:/Users/user/miniconda3/python.exe -m unittest discover -s tests
 ```
 
-Expected: exit `0`. A timeout is UNKNOWN and a non-zero completion is FAIL. Either result ends this campaign immediately at the last green commit: perform no repair and no second full-suite run in this campaign. Record the failing evidence and request a separately authorized continuation; only that continuation may repair the cause and run a fresh full suite. Do not edit unrelated owner zones merely to make the suite green.
+Expected: exit `0`. This is one-shot acceptance: a timeout is UNKNOWN and a non-zero completion is FAIL. Either result ends this campaign immediately at the last green commit; perform no repair and no second full-suite run in this campaign. Record the failing evidence and request a separately authorized continuation; only that continuation may repair the cause and run a fresh full suite. Do not edit unrelated owner zones merely to make the suite green.
 
 - [ ] **Step 5: Run repository integrity checks**
 

@@ -1,7 +1,7 @@
 # Work Order — Editing Quality And Capability Dispatch Convergence
 
-Date: 2026-07-12  
-Status: ready for execution  
+Date: 2026-07-12
+Status: ready for execution
 Execution shape: one sequential long-running worker; four ordered chunks, scoped commits, no parallel writers
 
 ## 1. Goal And Construction Sources
