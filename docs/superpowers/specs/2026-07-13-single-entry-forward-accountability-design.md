@@ -229,8 +229,10 @@ Roles are orthogonal:
 - `gate`: reads evidence and returns PASS/FAIL/UNKNOWN plus findings.
 - `adapter`: deterministic format conversion without route or taste judgment.
 
-The existing Skill `TOOL_CONTRACT` command remains the command authority. The
-live catalog and query response expose all three exact fields:
+The existing Skill `TOOL_CONTRACT` `tool` value remains the stored command
+authority. The live catalog derives a normalized `command` from that value and
+exposes it with the two new fields; Domain Skills do not store a duplicate
+command field:
 
 ```json
 {
@@ -243,7 +245,8 @@ live catalog and query response expose all three exact fields:
 For commands dispatched through `video_tools.py`, the registered subcommand is
 part of identity. Matching `video_tools.py` while invoking another subcommand
 is a mismatch. Static audit fails an unknown or missing value, a missing live
-`command`, or disagreement between the Skill contract and command catalog.
+`command`, or disagreement between the normalized Skill `tool` and command
+catalog.
 
 ## 7. Forward-Only Work-Order Execution Contract
 
