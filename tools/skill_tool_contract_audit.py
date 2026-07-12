@@ -85,10 +85,28 @@ def discover_python_tools(tools_dir: Path) -> list[str]:
     )
 
 
+def discover_command_sets(skills_dir: Path) -> tuple[set[str], set[str]]:
+    """Use the live CLI/catalog surface, with deterministic fixture overrides."""
+    context_path = skills_dir.parent / "audit_context.json"
+    if context_path.exists():
+        context = json.loads(context_path.read_text(encoding="utf-8"))
+        return (
+            {normalize_tool_ref(value) for value in context.get("dispatch_commands", [])},
+            {normalize_tool_ref(value) for value in context.get("catalog_commands", [])},
+        )
+    from video_tools import VIDEO_TOOLS_DISPATCH, build_video_tools_command_manifest
+
+    dispatch = {f"video_tools.py {name}" for name in VIDEO_TOOLS_DISPATCH}
+    manifest = build_video_tools_command_manifest()
+    catalog = {f"video_tools.py {name}" for name in (manifest.get("commands") or {})}
+    return dispatch, catalog
+
+
 def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     contracts, parse_errors = load_contracts(skills_dir)
     capability_consumers, consumer_parse_errors = load_capability_consumers(skills_dir)
     python_tools = discover_python_tools(tools_dir)
+    dispatch_commands, catalog_commands = discover_command_sets(skills_dir)
     capability_errors = [*parse_errors, *consumer_parse_errors]
     capability_errors.extend(validate_contract_schema(contracts))
 
@@ -152,8 +170,8 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     repository_errors = audit_repository_contracts(
         contracts,
         python_tools=python_tools,
-        dispatch_commands=(),
-        catalog_commands=(),
+        dispatch_commands=dispatch_commands,
+        catalog_commands=catalog_commands,
         capability_consumers=capability_consumers,
     )
     # The shared repository audit includes pure schema errors; retain one

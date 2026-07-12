@@ -1,0 +1,6 @@
+{
+  "dispatch_commands": [
+    "video_tools.py fixture-command"
+  ],
+  "catalog_commands": []
+}
