@@ -7,6 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from video_pipeline_core.skill_tool_contract import iter_tool_entries, load_contracts, normalize_tool_ref
+
 
 MAJOR_SIDE_BRANCHES = {
     "material-map",
@@ -52,42 +58,20 @@ INFRASTRUCTURE_TOOL_MARKERS = (
 
 
 def extract_tool_contracts(skills_dir: Path) -> list[dict[str, Any]]:
-    contracts = []
-    if not skills_dir.exists():
-        return contracts
-
-    for md_file in skills_dir.glob("*.md"):
-        try:
-            content = md_file.read_text(encoding="utf-8-sig")
-            # Extract JSON between TOOL_CONTRACT_START and TOOL_CONTRACT_END
-            match = re.search(
-                r"<!--\s*TOOL_CONTRACT_START\s*-->(.*?)<!--\s*TOOL_CONTRACT_END\s*-->",
-                content,
-                re.DOTALL
-            )
-            if match:
-                contract_json = match.group(1).strip()
-                contracts.append(json.loads(contract_json))
-        except Exception:
-            pass
+    contracts, _errors = load_contracts(skills_dir)
     return contracts
 
 
 def _tool_entries(contract: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    skill_name = contract.get("skill")
-    stage_owner = contract.get("stage_owner")
-    for bucket in ("canonical_tools", "supporting_tools"):
-        for item in contract.get(bucket, []) or []:
-            if isinstance(item, dict) and item.get("tool"):
-                entry = dict(item)
-            elif isinstance(item, str):
-                entry = {"tool": item}
-            else:
-                continue
-            entry["skill"] = skill_name
-            entry["stage_owner"] = stage_owner
-            entry["tool_bucket"] = bucket
+    for item in iter_tool_entries(contract):
+        if item.get("_section") not in {"canonical_tools", "supporting_tools"}:
+            continue
+        entry = dict(item)
+        entry["skill"] = contract.get("skill")
+        entry["stage_owner"] = contract.get("stage_owner")
+        entry["tool_bucket"] = item.get("_section")
+        if entry.get("tool"):
             out.append(entry)
     return out
 

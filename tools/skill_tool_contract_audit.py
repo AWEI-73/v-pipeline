@@ -2,64 +2,28 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-START = "<!-- TOOL_CONTRACT_START -->"
-END = "<!-- TOOL_CONTRACT_END -->"
-REQUIRED_TOOL_FIELDS = ("tool", "when", "inputs", "outputs", "stop_if")
-
-
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8-sig")
+from video_pipeline_core.skill_tool_contract import (
+    REQUIRED_TOOL_FIELDS,
+    iter_tool_entries,
+    load_contracts,
+    normalize_tool_ref,
+)
 
 
 def _normalize_tool_name(value: str) -> str:
-    value = str(value).strip().replace("\\", "/")
-    if value.startswith("./"):
-        value = value[2:]
-    return value
+    return normalize_tool_ref(value)
 
 
 def _tool_entries(contract: dict[str, Any]) -> list[dict[str, Any]]:
-    entries: list[dict[str, Any]] = []
-    for key in ("canonical_tools", "supporting_tools", "internal_tools", "diagnostic_tools"):
-        for item in contract.get(key, []) or []:
-            if isinstance(item, dict):
-                entry = dict(item)
-                entry["_section"] = key
-                entries.append(entry)
-    return entries
-
-
-def _parse_contract_block(path: Path, text: str) -> tuple[list[dict[str, Any]], list[str]]:
-    errors: list[str] = []
-    contracts: list[dict[str, Any]] = []
-    pattern = re.compile(re.escape(START) + r"(.*?)" + re.escape(END), re.DOTALL)
-    for index, match in enumerate(pattern.finditer(text), start=1):
-        raw = match.group(1).strip()
-        try:
-            contract = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            errors.append(f"{path}: contract block {index} is not valid JSON: {exc}")
-            continue
-        contract["_source"] = str(path).replace("\\", "/")
-        contracts.append(contract)
-    return contracts, errors
-
-
-def load_contracts(skills_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    contracts: list[dict[str, Any]] = []
-    errors: list[str] = []
-    for path in sorted(skills_dir.glob("*.md")):
-        text = _read(path)
-        file_contracts, file_errors = _parse_contract_block(path, text)
-        contracts.extend(file_contracts)
-        errors.extend(file_errors)
-    return contracts, errors
+    return iter_tool_entries(contract)
 
 
 def validate_contracts(contracts: list[dict[str, Any]]) -> list[str]:
@@ -119,7 +83,7 @@ def discover_python_tools(tools_dir: Path) -> list[str]:
 
 def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     contracts, parse_errors = load_contracts(skills_dir)
-    errors = list(parse_errors)
+    errors = [str(item.get("message") or item) for item in parse_errors]
     errors.extend(validate_contracts(contracts))
 
     python_tools = discover_python_tools(tools_dir)
