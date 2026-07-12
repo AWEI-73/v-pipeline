@@ -424,13 +424,14 @@ Diagnostic reads may remain unplanned when they do not write state or make a
 closure claim.
 
 The git commit is the external trust anchor for expected truth. The executor
-derives `contract_source_commit` from the first reachable commit containing the
-exact current companion blob, requires current HEAD to descend from that
-commit, records the commit in the receipt/trace, and rejects a working-copy
-blob that differs from the committed blob. The companion does not contain its
-own commit SHA, avoiding a self-referential hash. `agent_run_id` remains a
-claimed runtime identifier unless the dispatch runtime itself supplies a
-stronger signed identity.
+resolves `contract_source_commit` as the latest commit returned by
+`git rev-list -1 HEAD -- <companion-path>`, requires `git show
+<contract_source_commit>:<companion-path>` to equal both index and working-copy
+bytes, and records that commit in the receipt/trace. An untracked, staged-only,
+or dirty companion is invalid. The companion does not contain its own commit
+SHA, avoiding a self-referential hash. `agent_run_id` remains a claimed runtime
+identifier unless the dispatch runtime itself supplies a stronger signed
+identity.
 
 ## 8. Trusted Single-Step Capability Execution
 
