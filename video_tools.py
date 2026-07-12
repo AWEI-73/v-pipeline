@@ -13,6 +13,7 @@ Commands:
   subtitle    <file> [--language zh] [--out output.srt]   語音轉字幕
   mksrt       <script.json> [--out output.srt]            從劇本 JSON 生成中文 .srt
   burnsub     <video> <srt> [--out output.mp4]            把 .srt 燒進影片
+              [--subtitle-text-policy polish|exact]
   script-run  <script.json> [--out output.mp4]            劇本驅動全自動剪片
   title       <file> --text "標題文字" [--out output.mp4]
   tts         <script.json> [--voice ZH-VOICE] [--outdir DIR]
@@ -26,6 +27,7 @@ Commands:
   assemble    --clips clip_list.json --timing tts_timing.json [--out rough_cut.mp4]
               剪輯師：依 TTS 時長剪每段素材 → scale 1920x1080 → concat
   merge-final --visual VIDEO --audio AUDIO --subs SRT [--out final.mp4]
+              [--subtitle-text-policy polish|exact]
               剪輯師最終組合：把音軌+字幕套到無音軌的視覺上
   verify      --script S --timing T --edit-log E --srt SRT --video V [--out qa.json]
               VERIFY：5 維度評分 + fix_target 路由
@@ -2244,8 +2246,8 @@ def cmd_burnsub(args):
     from video_pipeline_core.platform_tools import resolve_font
     from video_pipeline_core.subtitle_presentation import (
         build_ass_style,
-        polished_srt_file,
         probe_video_height,
+        subtitle_srt_file,
     )
     out = args.out or Path(args.video).stem + "_subbed.mp4"
     font_path = resolve_font()
@@ -2255,8 +2257,11 @@ def cmd_burnsub(args):
     font_name   = Path(font_path).stem   # e.g. wqy-microhei or msjh
     # D3 字幕美學：加粗 + 半透明投影（與 merge-final 一致）
     style = build_ass_style(probe_video_height(args.video, FFPROBE))
-    with polished_srt_file(args.srt) as polished_srt:
-        srt_escaped = str(Path(polished_srt).resolve()).replace("\\", "\\\\").replace(":", "\\:")
+    with subtitle_srt_file(
+        args.srt,
+        subtitle_text_policy=getattr(args, "subtitle_text_policy", "polish"),
+    ) as render_srt:
+        srt_escaped = str(Path(render_srt).resolve()).replace("\\", "\\\\").replace(":", "\\:")
         vf = f"subtitles='{srt_escaped}':fontsdir='{font_dir}':force_style='FontName={font_name},{style}'"
         cmd = [FFMPEG, "-y", "-i", args.video, "-vf", vf,
                "-c:v", "libx264", "-crf", "23", "-c:a", "copy", out]
@@ -3227,6 +3232,12 @@ def main():
     p_burnsub.add_argument("video")
     p_burnsub.add_argument("srt")
     p_burnsub.add_argument("--out")
+    p_burnsub.add_argument(
+        "--subtitle-text-policy",
+        choices=["polish", "exact"],
+        default="polish",
+        dest="subtitle_text_policy",
+    )
 
     p_validate = sub.add_parser("validate")
     p_validate.add_argument("script", help="劇本 JSON 路徑")
@@ -3297,6 +3308,12 @@ def main():
     p_mf.add_argument("--audio", required=True, help="最終音軌（mix-audio 輸出）")
     p_mf.add_argument("--subs", required=True, help="字幕 SRT（srt 輸出）")
     p_mf.add_argument("--out", help="輸出最終影片，預設 final.mp4")
+    p_mf.add_argument(
+        "--subtitle-text-policy",
+        choices=["polish", "exact"],
+        default="polish",
+        dest="subtitle_text_policy",
+    )
 
     p_vrf = sub.add_parser("verify")
     p_vrf.add_argument("--script", required=True, help="script.json")

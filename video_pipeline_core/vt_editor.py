@@ -145,7 +145,7 @@ def cmd_merge_final(args):
 
     from pathlib import Path
     from .platform_tools import resolve_font
-    from .subtitle_presentation import build_ass_style, polished_srt_file, probe_video_height
+    from .subtitle_presentation import build_ass_style, probe_video_height, subtitle_srt_file
     font_path = resolve_font()
     if os.path.exists(font_path):
         with open(font_path, 'rb') as f:
@@ -160,8 +160,11 @@ def cmd_merge_final(args):
     #   BackColour=&H80000000 = 50% 半透明黑投影；Shadow=1.5 給深度
     #   Outline 由 3 降 to 2（有投影分離，不需過重描邊）
     style = build_ass_style(probe_video_height(args.visual, FFPROBE))
-    with polished_srt_file(args.subs) as polished_subs:
-        subs_escaped = str(Path(polished_subs).resolve()).replace("\\", "\\\\").replace(":", "\\:")
+    with subtitle_srt_file(
+        args.subs,
+        subtitle_text_policy=getattr(args, "subtitle_text_policy", "polish"),
+    ) as render_srt:
+        subs_escaped = str(Path(render_srt).resolve()).replace("\\", "\\\\").replace(":", "\\:")
         vf = (
             f"subtitles='{subs_escaped}':fontsdir='{font_dir}':"
             f"force_style='FontName={font_name},{style}'"

@@ -11,6 +11,7 @@ from pathlib import Path
 
 _CLEAN_PUNCTUATION = re.compile(r"[，。；！？、,.!?;:：]+")
 _SRT_TIMING = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}")
+_SUBTITLE_TEXT_POLICIES = frozenset({"polish", "exact"})
 
 
 def polish_caption_text(text: str, *, max_chars_per_line: int = 16, max_lines: int = 2) -> str:
@@ -60,6 +61,37 @@ def polish_srt_text(text: str, *, max_chars_per_line: int = 16, max_lines: int =
             )]
         ))
     return "\n\n".join(output) + ("\n" if text.endswith(("\n", "\r")) else "")
+
+
+@contextmanager
+def subtitle_srt_file(
+    source_path: str,
+    *,
+    subtitle_text_policy: str = "polish",
+    max_chars_per_line: int = 16,
+    max_lines: int = 2,
+):
+    """Yield the SRT path selected by the shared subtitle text policy.
+
+    ``exact`` yields the source path directly so the renderer receives the
+    original bytes. ``polish`` retains the established temporary-file flow.
+    """
+    if subtitle_text_policy not in _SUBTITLE_TEXT_POLICIES:
+        raise ValueError(
+            f"unknown subtitle text policy: {subtitle_text_policy!r}; "
+            "expected 'polish' or 'exact'"
+        )
+
+    if subtitle_text_policy == "exact":
+        yield str(Path(source_path))
+        return
+
+    with polished_srt_file(
+        source_path,
+        max_chars_per_line=max_chars_per_line,
+        max_lines=max_lines,
+    ) as rendered:
+        yield rendered
 
 
 def build_ass_style(video_height: int = 1080) -> str:
