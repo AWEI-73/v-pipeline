@@ -228,7 +228,7 @@ accountability:
 
 ```json
 {
-  "execution_class": "deterministic | agentic | owner | hybrid",
+  "execution_class": "deterministic | hybrid",
   "capability_role": "operation | review | gate | adapter"
 }
 ```
@@ -238,9 +238,11 @@ Definitions:
 | execution class | Required evidence |
 | --- | --- |
 | `deterministic` | Trusted single-step execution receipt. |
-| `agentic` | Agent attestation with evidence refs, judgment, and blind spots. |
-| `owner` | Explicit owner decision artifact. |
-| `hybrid` | Deterministic receipt plus agent attestation; owner decision when the step declares one. |
+| `hybrid` | Trusted single-step execution receipt plus a contract-bound agent attestation. |
+
+Agent and owner are decision actors, not pretend tool capabilities. They are
+declared in work-order `decision_requirements` and produce attestations or
+verdicts; they do not need fake `TOOL_CONTRACT.tool` commands or tool receipts.
 
 Roles are orthogonal:
 
@@ -248,6 +250,19 @@ Roles are orthogonal:
 - `review`: reads evidence and proposes findings or decisions.
 - `gate`: reads evidence and returns PASS/FAIL/UNKNOWN plus findings.
 - `adapter`: deterministic format conversion without route or taste judgment.
+
+Allowed class/role combinations are explicit:
+
+| role | allowed execution class | State-changing boundary |
+| --- | --- | --- |
+| `operation` | deterministic or hybrid | Only the registered tool may change production truth. |
+| `review` | deterministic or hybrid | Tool writes review evidence; hybrid agent writes only an attestation sidecar. |
+| `gate` | deterministic or hybrid | Tool writes gate report/findings; hybrid agent writes only an attestation sidecar. |
+| `adapter` | deterministic only | Tool performs format conversion only. |
+
+Neither agent attestation nor owner verdict may write production truth. Any
+accepted change to timeline, media, subtitles, maps, mix plans, or effects must
+be applied by a registered `operation` capability in a later executable step.
 
 The existing Skill `TOOL_CONTRACT` `tool` value remains the stored command
 authority. The live catalog derives a normalized `command` from that value and
@@ -303,6 +318,20 @@ The rules are deterministic:
 - changing the committed companion requires an integrator-authored amendment
   commit and a fresh run; a worker cannot amend an active contract.
 
+Duplicate/conflict detection scans only tracked files returned by:
+
+```text
+git ls-files docs/construction-guides/work-orders/*.execution.json
+```
+
+After parsing, companions are grouped by exact `work_order_id` and normalized
+`work_order_path`. More than one current-tree file in either group is a
+duplicate. Different `accountability_contract_version` values within a group
+are conflicting versions. An unsupported version at the explicitly invoked
+companion path is invalid; malformed or unsupported unrelated companions fail
+the static contract audit but do not ambiguously activate another run. The
+invoked companion path must itself be one unique tracked group member.
+
 ### 7.2 Execution contract
 
 Before a worker mutates an owner zone, the integrator freezes expected truth in
@@ -343,10 +372,23 @@ the committed execution companion:
       "required_outputs": ["repo-relative paths"],
       "required_verifier_step_ids": ["verify.picture.rendered"],
       "max_attempts": 1,
-      "allowed_retry_failure_classes": [],
-      "agent_attestation_path": ".tmp/accountability_run/accountability/attestations/L1.picture.revise.json",
-      "owner_verdict_path": null,
-      "owner_verdict_required": false
+      "allowed_retry_failure_classes": []
+    }
+  ],
+  "decision_requirements": [
+    {
+      "requirement_id": "review.L1.picture.revise",
+      "actor_class": "agent",
+      "depends_on_step_ids": ["L1.picture.revise"],
+      "evidence_path": ".tmp/accountability_run/accountability/attestations/L1.picture.revise.json",
+      "missing_state": "UNKNOWN_AGENT_EVIDENCE"
+    },
+    {
+      "requirement_id": "owner.final",
+      "actor_class": "owner",
+      "depends_on_step_ids": ["L1.picture.revise"],
+      "evidence_path": ".tmp/accountability_run/accountability/verdicts/owner.final.json",
+      "missing_state": "WAITING_OWNER_FINAL_VERDICT"
     }
   ],
   "allowed_owner_zones": [
@@ -354,6 +396,9 @@ the committed execution companion:
   ],
   "forbidden_paths": [
     {"path": "repo-relative path", "match": "exact"}
+  ],
+  "protected_paths": [
+    {"path": "repo-relative read-only path", "sha256": "SHA-256"}
   ],
   "human_creative_approval": false,
   "final_delivery_claimed": false
@@ -367,18 +412,16 @@ worker-selectable.
 
 The contract is expected truth, not observed evidence and not a second product
 spec. A step freezes its command, timeout, inputs, outputs, verifier step IDs,
-dependencies, attempt bound, evidence paths, and owner requirement.
+dependencies, attempt bound, and owner requirement.
 `required_verifier_step_ids` always references contract step IDs, never
 capability IDs.
 
-The field requirements follow execution class:
-
-- `deterministic`: non-null argv/timeout and tool receipt; attestation/verdict
-  paths null unless the contract independently requires owner review;
-- `agentic`: argv/timeout/max-attempts null and one non-null attestation path;
-- `owner`: argv/timeout/max-attempts null and one non-null owner-verdict path;
-- `hybrid`: non-null argv/timeout, tool receipt, and one non-null attestation
-  path; owner-verdict path is additionally required only when declared.
+Every capability step has non-null argv/timeout/max-attempts and a tool
+receipt. A hybrid step must have exactly one agent decision requirement that
+depends on its step ID. Owner requirements may depend on one or more executable
+steps but do not alter their capability class. Decision requirement IDs and
+evidence paths are unique; agent requirements use `UNKNOWN_AGENT_EVIDENCE`
+when absent, while owner requirements use an explicit `WAITING_OWNER_*` state.
 
 `allowed_retry_failure_classes` defaults to empty and may contain only
 enumerated `LOCAL_*` classes. Structural failures and STOPPED outcomes are
@@ -388,6 +431,10 @@ The initial run-root and owner-zone manifests are complete expected state. The
 run root is usually empty; existing dirty owner-zone files are named and
 hashed. Undeclared pre-existing files or a baseline mismatch make activation
 fail.
+
+`protected_paths` freezes read-only compatibility/fixture files that are not
+owner zones. The executor verifies them before the first step and the closure
+meta-gate verifies them again at final seal; any drift is structural.
 
 `accountability_root` is a reserved control subtree excluded from production
 state manifests. Only the executor may write receipts there, only the declared
@@ -453,6 +500,8 @@ It is a single-step executor, not a router:
 - rejects shell strings and executes with an argv list and no shell;
 - verifies dependency receipts and frozen input hashes before execution;
 - snapshots the monitored repository owner zones and run root before and after;
+- snapshots the reserved accountability subtree immediately after its own
+  reservation and immediately after the child exits, before writing a receipt;
 - executes exactly one command from the repository working directory;
 - records exit code, duration, declared output hashes, changed paths, and
   manifest-chain references;
@@ -494,6 +543,14 @@ start time. Exclusive creation must succeed before the child process starts;
 a second invocation therefore fails before production side effects. A stale
 reservation without a receipt is UNKNOWN and non-retryable in the same run.
 
+The child-process accountability-subtree snapshots must be identical. Thus the
+registered tool cannot create the exact declared attestation/verdict path (or
+any other control artifact) and have it mistaken for later actor evidence. The
+executor's reservation and later receipt are the only expected executor writes.
+An attestation still carries a claimed agent identity rather than cryptographic
+identity proof; the enforceable claim is that it was not created by the wrapped
+deterministic child process.
+
 Rules:
 
 - attempts start at 1, are consecutive, and cannot exceed `max_attempts`;
@@ -514,14 +571,13 @@ Rules:
 Each receipt contains observed evidence, including exact argv, input/output
 hashes, changed paths, timestamps, exit code, status, and pre/post monitored
 manifest hashes, `failure_class`, and contract-derived `retryable`. Receipts
-cover deterministic execution only. They do not
-pretend that a later agent or owner decision already existed.
+cover registered tool execution only. They do not pretend that a later agent
+or owner decision already existed.
 
-Pure `agentic` and `owner` steps do not receive tool receipts. Their declared
-attestation or verdict is their evidence form. For `hybrid`, the immutable tool
-receipt is written first; the agent then writes the separately declared
-attestation. Closure binds both. No mutable pending receipt or second sealing
-command is introduced.
+For a hybrid step, the immutable tool receipt is written first; the agent then
+writes the separately declared decision-requirement attestation. Owner verdicts
+are likewise separate. Closure binds tool entries and decision entries without
+a mutable pending receipt or second sealing command.
 
 `pipeline_execution_trace.json` becomes a derived version-2 aggregate rather
 than a mutable journal:
@@ -533,7 +589,7 @@ than a mutable journal:
   "accountability_contract_version": 1,
   "work_order_execution_contract": "docs/construction-guides/work-orders/example.execution.json",
   "work_order_execution_contract_sha256": "SHA-256",
-  "entries": [
+  "tool_entries": [
     {
       "step_id": "L1.picture.revise",
       "capability_id": "cap.material-map.material-rough-cut.v1",
@@ -552,11 +608,25 @@ than a mutable journal:
       "output_hashes": {},
       "changed_paths": [],
       "verify_refs": [],
-      "agent_attestation_path": null,
-      "agent_attestation_sha256": null,
-      "owner_verdict_path": null,
-      "owner_verdict_sha256": null,
       "source_tool": "video_tools.py capability-run"
+    }
+  ],
+  "decision_entries": [
+    {
+      "requirement_id": "review.L1.picture.revise",
+      "actor_class": "agent",
+      "depends_on_step_ids": ["L1.picture.revise"],
+      "evidence_path": ".tmp/accountability_run/accountability/attestations/L1.picture.revise.json",
+      "evidence_sha256": "SHA-256",
+      "status": "present | missing | invalid"
+    },
+    {
+      "requirement_id": "owner.final",
+      "actor_class": "owner",
+      "depends_on_step_ids": ["L1.picture.revise"],
+      "evidence_path": ".tmp/accountability_run/accountability/verdicts/owner.final.json",
+      "evidence_sha256": null,
+      "status": "present | missing | invalid"
     }
   ],
   "human_creative_approval": false,
@@ -567,8 +637,9 @@ than a mutable journal:
 The aggregate is created only during closure sealing from the committed
 contract, immutable receipts, attestations, verdicts, and live Capability
 Catalog. Execution class and capability role are derived from the catalog; a
-receipt cannot redefine them. Version-1 traces remain readable and keep their
-existing meaning, but cannot satisfy a strict contract.
+receipt cannot redefine them. `tool_entries` contains only executable steps;
+`decision_entries` contains no receipt fields. Version-1 traces remain
+readable and keep their existing meaning, but cannot satisfy a strict contract.
 
 For monitored production state, closure excludes the reserved accountability
 subtree, requires the contract's initial run-root and owner-zone manifests to
@@ -582,15 +653,18 @@ observable unplanned state change.
 ### 9.1 Agent attestation
 
 Agent cognition cannot be proven cryptographically. The enforceable promise is
-only that an agentic claim must be evidence-bearing and content-consistent.
+only that an agent decision claim must be evidence-bearing and
+content-consistent.
 
-An `agentic` or `hybrid` step references an attestation artifact:
+A hybrid capability step's agent decision requirement references an
+attestation artifact:
 
 ```json
 {
   "artifact_role": "agent_attestation",
   "version": 1,
-  "step_id": "L1.picture.review",
+  "requirement_id": "review.L1.picture.revise",
+  "step_id": "L1.picture.revise",
   "capability_id": "registered capability ID",
   "actor_type": "agent",
   "agent_run_id": "runtime/session identifier",
@@ -601,21 +675,21 @@ An `agentic` or `hybrid` step references an attestation artifact:
   "judgment": "bounded conclusion",
   "blind_spots": ["explicit limitations"],
   "proposed_findings": ["finding artifact IDs or paths"],
-  "attested_at": "RFC3339",
-  "content_sha256": "canonical content hash excluding this field"
+  "attested_at": "RFC3339"
 }
 ```
 
 The model field is optional and may be populated only when the runtime proves
-the selected model. The content hash detects accidental drift but does not
-authenticate who authored it. A prose statement such as "reviewed" without
-evidence, judgment, blind spots, and hashes does not satisfy the step.
+the selected model. Closure computes and records the whole-file content hash;
+it detects drift but does not authenticate who authored it. A prose statement
+such as "reviewed" without evidence, judgment, blind spots, and evidence hashes
+does not satisfy the requirement.
 
 ### 9.2 Owner verdict
 
-Owner-required steps reference an existing explicit owner decision artifact.
-The trace binds its path and hash; the accountability layer does not invent a
-new creative-verdict system.
+Owner decision requirements reference an existing explicit owner decision
+artifact. The trace binds requirement ID, path, and hash; the accountability
+layer does not invent a new creative-verdict system.
 
 An owner decision must state the bounded scope and one of approve, revise,
 reject, or delegate. Owner silence is never approval. Tool or agent output
@@ -623,8 +697,8 @@ cannot set `human_creative_approval=true` or `final_delivery_claimed=true`.
 
 ### 9.3 Actor substitution rules
 
-- A deterministic receipt cannot satisfy an agentic step.
-- Agent attestation cannot satisfy an owner step.
+- A deterministic receipt cannot satisfy an agent decision requirement.
+- Agent attestation cannot satisfy an owner decision requirement.
 - Gate PASS cannot satisfy a missing operation, review, or owner verdict.
 - A hybrid step is complete only when every declared evidence part exists.
 - An agent may propose findings but may not convert taste to objective PASS.
@@ -675,9 +749,9 @@ Extend `no_skip_execution_trace` rather than creating another closure engine.
 
 Closure is a two-phase meta-gate outside the work-order step list:
 
-1. deterministic/hybrid contract steps finish through `capability-run` and
-   leave immutable receipts; pure agentic/owner steps leave only their
-   declared evidence artifacts;
+1. every capability step finishes through `capability-run` and leaves an
+   immutable tool receipt; declared agent/owner decision requirements leave
+   their separate evidence artifacts;
 2. `no_skip_execution_trace` reads the committed contract, receipts,
    attestations, owner verdicts, and live catalog, then writes the derived
    `pipeline_execution_trace.json` and `no_skip_contract_decision.json`.
@@ -695,16 +769,15 @@ closure step.
 When `accountability_contract_version=1`, closure verifies:
 
 1. execution-contract hash and work-order hash;
-2. every required step has a legal consecutive attempt chain within its bound
-   and one derived terminal status when its execution class uses a tool
-   receipt; pure agentic/owner steps have their declared evidence form;
+2. every required capability step has a legal consecutive attempt chain within
+   its bound and one derived terminal tool status;
 3. every executable attempt has one prior exclusive reservation and no stale,
    duplicate, or concurrent reservation;
 4. all dependency ordering constraints;
 5. capability ID resolves in the live catalog;
 6. command/tool matches the capability;
 7. execution class and role derived from the live catalog require the correct
-   receipt, attestation, and owner evidence;
+   tool receipt and, for hybrid steps, the bound agent decision requirement;
 8. exit/status/failure-class/retry consistency;
 9. required output existence and hashes;
 10. required verifier evidence and refs;
@@ -815,7 +888,8 @@ receipts and candidate media are not indexed as durable project memory.
 - Output missing or hash mismatch: receipt FAIL.
 - Forbidden path or undeclared output change: STRUCTURAL stop.
 - Gate writes production truth: gate-purity FAIL.
-- Agent attestation missing evidence/blind spots: incomplete agentic step.
+- Agent attestation missing evidence/blind spots: incomplete agent decision
+  requirement.
 - Owner verdict missing: WAITING owner, never PASS.
 - Entry anchors conflict: entry audit FAIL; do not start new construction from
   a guessed document.
@@ -869,7 +943,7 @@ Red-first fixtures must cover at least:
 - dependency order violation;
 - absolute, backslash, `..`, case-collision, and junction-escape paths;
 - missing output and output hash drift;
-- deterministic receipt substituted for agentic attestation;
+- deterministic receipt substituted for an agent decision requirement;
 - agent attestation substituted for owner verdict;
 - agent attestation with missing evidence or blind spots;
 - self-authored, copied, or unknown gate;
@@ -908,8 +982,8 @@ The fixture manifest contains canonical SHA-256 for every fixture file. The
 WAVs are short deterministic test assets with no delivery or rights claim. The
 execution companion fixes run root to
 `.tmp/single_entry_forward_accountability_acceptance/forward` and defines the
-two capability steps plus one pure agentic technical-review step and one pure
-owner-gate fixture step.
+two capability steps plus one agent technical-review decision requirement and
+one owner decision requirement.
 
 1. freeze a version-1 execution contract;
 2. invoke the existing `material-rough-cut` and
@@ -938,6 +1012,42 @@ worker writes the declared technical attestation, no-skip exits 0 with
 fixture is deliberately left undecided; that WAITING state is the successful
 infrastructure result.
 
+The technical attestation procedure is exact:
+
+1. after both PASS receipts exist, the evidence worker reads the material
+   rough-cut output, audio-mix report, both receipts, and their hashes;
+2. it writes only
+   `.tmp/single_entry_forward_accountability_acceptance/forward/accountability/attestations/fixture.technical-review.json`
+   with the section-9 schema, requirement ID `fixture.technical-review`, both
+   reviewed evidence locators, bounded judgment, and non-empty blind spots;
+3. it parses the file with:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m json.tool .tmp/single_entry_forward_accountability_acceptance/forward/accountability/attestations/fixture.technical-review.json
+```
+
+   Expected exit is 0. The no-skip meta-gate computes and binds the file hash;
+   the worker does not self-certify its identity or creative correctness.
+
+Two committed negative run fixtures are required:
+
+```text
+tests/fixtures/accountability_forward_v1/negative/missing-step
+tests/fixtures/accountability_forward_v1/negative/self-authored-gate
+```
+
+They run with:
+
+```powershell
+C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --run tests/fixtures/accountability_forward_v1/negative/missing-step --out-dir .tmp/single_entry_forward_accountability_acceptance/negative/missing-step --json
+C:/Users/user/miniconda3/python.exe tools/no_skip_execution_trace.py --run tests/fixtures/accountability_forward_v1/negative/self-authored-gate --out-dir .tmp/single_entry_forward_accountability_acceptance/negative/self-authored-gate --json
+```
+
+Each exits 1. The first decision includes `missing_required_step`; the second
+includes `self_authored_gate_artifact` with classification
+`run_local_worker_generated`. Neither writes into
+the committed fixture directories.
+
 Infrastructure acceptance does not depend on an owner liking a picture edit or
 audio mix. Actual L1 picture-diversity and L3 audio-balance revisions are an
 optional later operational demonstration, not an implementation acceptance
@@ -946,17 +1056,29 @@ gate. The forward test proves accountability, not creative quality.
 ### 16.4 Regression boundary
 
 - focused/adjacent tests run per behavior change;
-- before Phase A, freeze these exact Workbench paths into
-  `.tmp/single_entry_forward_accountability_acceptance/baseline/workbench_hashes.json`:
+- the design review froze these exact Workbench paths and SHA-256 values before
+  Phase A; the acceptance companion copies them into `protected_paths`:
 
-```text
-tools/workbench_handoff.py
-tools/preview_timeline.py
-tools/timeline_patch.py
-tools/subtitle_patch.py
-tools/audio_cue_patch.py
-tools/effect_patch.py
+| Path | Frozen SHA-256 |
+| --- | --- |
+| `tools/workbench_handoff.py` | `92B4FEFA5BA86CAA08A8DB2765F123CA22837935B703AAC1CA5A191DC435B29C` |
+| `tools/preview_timeline.py` | `19EB07DD3C4A96D9676622C8FB4060E0B5AEDBF71DC2F61A21716F7D4C8AA7A3` |
+| `tools/timeline_patch.py` | `4F9B284524F207A78C22AE7AE7E810354F0512B30A93DE768C1F0404A14E928A` |
+| `tools/subtitle_patch.py` | `0659D00C838777375D2496A7794A2ACAF7314987705E948DFE45EC598AFF5685` |
+| `tools/audio_cue_patch.py` | `1B1AC2DDBD14361F01A56A8A21F7CE936D0793951DD621D5EAB87B72E7CF2C1C` |
+| `tools/effect_patch.py` | `0040E8B3FA6D7AC1DDD947F9EFF099DDBCC2B0C9318E409F883DB3F123BA3AB7` |
+
+Use this read-only command before authoring the companion and after final
+closure to confirm the table:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath @('tools/workbench_handoff.py','tools/preview_timeline.py','tools/timeline_patch.py','tools/subtitle_patch.py','tools/audio_cue_patch.py','tools/effect_patch.py') | Select-Object Path,Hash
 ```
+
+Both invocations must exit 0; the second six hashes must exactly equal the
+committed `protected_paths`. The committed contract, not an ad-hoc baseline
+JSON, is the authority. The fixture manifest and every fixture file are also
+listed in `protected_paths` and receive the same final-seal comparison.
 
 - Workbench compatibility command is:
 
@@ -1072,8 +1194,9 @@ The design is implemented only when all are true:
    fallback.
 8. A strict run cannot execute altered argv, a mismatched/unknown command, an
    invalid path, or a concurrent/over-bound attempt.
-9. Required steps have immutable attempt receipts with frozen input/output
-   hashes, and the final trace is derived from them.
+9. Required capability steps have immutable attempt receipts with frozen
+   input/output hashes; decision requirements have typed sidecars; the final
+   trace derives separate tool and decision entry variants.
 10. Agentic and owner evidence cannot be replaced by deterministic or gate
    output.
 11. A gate cannot observably alter production truth in monitored roots or
