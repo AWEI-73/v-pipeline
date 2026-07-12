@@ -1059,7 +1059,8 @@ No phase requires a new orchestrator or historical migration.
 The design is implemented only when all are true:
 
 1. An always-loaded agent instruction points to one RUNBOOK.
-2. Only RUNBOOK claims operational-entry authority.
+2. Only RUNBOOK carries the exact `OPERATIONAL_ENTRY` marker; all other entry
+   markers match their fixed values and surfaces.
 3. HANDOFF contains one valid current-state block with existing references.
 4. HANDOFF state exactly matches its named authoritative JSON field; entry
    audit fails stale, conflicting, duplicated, or non-HANDOFF current routing.
