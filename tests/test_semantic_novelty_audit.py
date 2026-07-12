@@ -6,7 +6,8 @@ from video_pipeline_core.delivery_gate import evaluate_delivery_gate
 
 def _clip(seg, t_in, t_out):
     return {"segment": seg, "timeline_in_sec": t_in, "timeline_out_sec": t_out,
-            "duration_sec": round(t_out - t_in, 3)}
+            "duration_sec": round(t_out - t_in, 3),
+            "stable_segment_id": f"segment_{seg}", "clip_id": f"clip_{seg}"}
 
 
 class HashTest(unittest.TestCase):
@@ -42,6 +43,9 @@ class AuditTest(unittest.TestCase):
         checks = {f["check"] for f in result["findings"]}
         self.assertIn("distinct_composition_ratio", checks)
         self.assertIn("max_similar_composition_run_sec", checks)
+        for finding in result["findings"]:
+            self.assertTrue(finding["affected_stable_ids"])
+        self.assertIn("segment_1", result["findings"][0]["affected_stable_ids"])
 
     def test_long_similar_run_fails_even_when_ratio_ok(self):
         # 2 distinct ideas (ratio 0.667 ok) but first idea holds 8s in a row
@@ -53,10 +57,22 @@ class AuditTest(unittest.TestCase):
         self.assertFalse(result["pass"])
         self.assertEqual(result["findings"][0]["check"], "max_similar_composition_run_sec")
 
-    def test_planning_replay_without_render_is_skipped_not_failed(self):
+    def test_planning_replay_without_render_is_unknown_not_pass(self):
         result = sna.audit_semantic_novelty([_clip(1, 0, 3)], video_path=None)
-        self.assertTrue(result["pass"])
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["status"], "unknown")
+        self.assertEqual(result["applicability"], "unknown")
         self.assertEqual(result["reason"], "no_render")
+
+    def test_hash_unavailable_is_unknown_not_pass(self):
+        result = sna.audit_semantic_novelty(
+            [_clip(1, 0, 3)], frame_hasher=lambda _t: None,
+        )
+
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["status"], "unknown")
+        self.assertEqual(result["applicability"], "unknown")
+        self.assertEqual(result["reason"], "hash_unavailable")
 
     def test_unhashed_long_clip_does_not_count_as_similar_composition_run(self):
         clips = [_clip(1, 0, 10), _clip(2, 10, 12)]

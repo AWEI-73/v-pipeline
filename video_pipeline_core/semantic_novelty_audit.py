@@ -86,7 +86,8 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
     if hasher is None:
         if not video_path:
             # planning replay without a render cannot evaluate pixels
-            return _result(True, [], {"clips": len(clips)}, reason="no_render")
+            return _result(False, [], {"clips": len(clips)},
+                           reason="no_render", applicability="unknown")
         hasher = lambda ts: _extract_frame_dhash(video_path, ts)
 
     hashes = []
@@ -99,7 +100,8 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
             hashes.append(None)
 
     if all(value is None for value in hashes):
-        return _result(True, [], {"clips": len(clips)}, reason="hash_unavailable")
+        return _result(False, [], {"clips": len(clips)},
+                       reason="hash_unavailable", applicability="unknown")
 
     cluster_ids = cluster_by_similarity(hashes, max_distance=max_distance)
     distinct = len({cid for cid in cluster_ids if cid is not None})
@@ -111,6 +113,7 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
     run = 0.0
     prev = object()
     affected = set()
+    affected_ids_by_cluster = {}
     for clip, cid in zip(clips, cluster_ids):
         dur = float(clip.get("duration_sec") or 0)
         if cid is None:
@@ -125,6 +128,10 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
             longest = run
         if cid == prev:
             affected.add(cid)
+        if cid is not None:
+            stable_id = _stable_clip_id(clip)
+            if stable_id is not None:
+                affected_ids_by_cluster.setdefault(cid, []).append(stable_id)
         prev = cid
 
     findings = []
@@ -134,6 +141,10 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
             "value": distinct_ratio, "limit": float(min_distinct_ratio),
             "message": (f"only {distinct} distinct compositions across {hashed} clips "
                         f"(ratio {distinct_ratio}); different files repeat the same visible idea"),
+            "affected_stable_ids": [
+                _stable_clip_id(clip) for clip, cid in zip(clips, cluster_ids)
+                if cid is not None and _stable_clip_id(clip) is not None
+            ],
             "fix_class": "material", "next_route": "curator",
         })
     if longest > float(max_similar_run_sec):
@@ -141,6 +152,11 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
             "check": "max_similar_composition_run_sec", "level": "fail",
             "value": round(longest, 3), "limit": float(max_similar_run_sec),
             "affected": sorted(affected),
+            "affected_stable_ids": [
+                stable_id
+                for cid in sorted(affected)
+                for stable_id in affected_ids_by_cluster.get(cid, [])
+            ],
             "message": (f"{longest:.1f}s of perceptually-similar compositions in a row "
                         f"exceeds {max_similar_run_sec}s"),
             "fix_class": "material", "next_route": "curator",
@@ -154,11 +170,22 @@ def audit_semantic_novelty(timeline, *, video_path=None, frame_hasher=None,
     })
 
 
-def _result(passed, findings, metrics, *, reason=None):
+def _stable_clip_id(clip):
+    for key in ("stable_segment_id", "stable_id", "id", "clip_id", "segment"):
+        value = clip.get(key)
+        if value is not None and str(value).strip():
+            return str(value)
+    return None
+
+
+def _result(passed, findings, metrics, *, reason=None, applicability="known"):
+    status = "unknown" if applicability == "unknown" else ("fail" if findings else "pass")
     out = {
         "artifact_role": "semantic_novelty_audit",
         "version": 1,
-        "pass": bool(passed),
+        "pass": bool(passed) if applicability == "known" else False,
+        "status": status,
+        "applicability": applicability,
         "metrics": metrics,
         "findings": findings,
         "next_action": "curator" if findings else None,
