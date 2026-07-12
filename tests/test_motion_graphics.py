@@ -28,6 +28,21 @@ class MotionGraphicsTest(unittest.TestCase):
         contract.update(overrides)
         return contract
 
+    def _info_card_controls(self):
+        return {
+            "left_px": 140,
+            "bottom_px": 190,
+            "min_width_px": 360,
+            "padding_x_px": 32,
+            "padding_y_px": 22,
+            "main_font_px": 76,
+            "accent_width_px": 4,
+            "background_alpha": 0.78,
+            "translate_y_px": 18,
+            "enter_frames": 10,
+            "exit_frames": 10,
+        }
+
     def test_validate_accepts_title_contract(self):
         result = motion_graphics.validate_motion_graphics_contract(self._contract())
         self.assertTrue(result["ok"], result)
@@ -196,6 +211,106 @@ class MotionGraphicsTest(unittest.TestCase):
         self.assertIn("min-width:620px", content)
         self.assertIn("font-size:150px", content)
         self.assertIn("font-size:40px", content)
+
+    def test_info_card_controls_validate_and_preserve_allowed_fields(self):
+        contract = self._contract()
+        item = contract["items"][0]
+        item["backend"] = "html_playwright"
+        item["effect_type"] = "info_card"
+        controls = self._info_card_controls()
+        item["style"]["info_card"] = controls
+
+        validation = motion_graphics.validate_motion_graphics_contract(contract)
+        plan = motion_graphics.build_motion_graphics_render_plan(contract)
+
+        self.assertTrue(validation["ok"], validation)
+        self.assertEqual(plan["items"][0]["style"]["info_card"], controls)
+
+    def test_info_card_controls_reject_closed_invalid_numeric_values(self):
+        invalid_cases = {
+            "unknown": {"unexpected_px": 1},
+            "boolean": {"left_px": True},
+            "wrong_type": {"padding_x_px": "32"},
+            "non_finite": {"background_alpha": float("inf")},
+            "out_of_range": {"enter_frames": 9999},
+        }
+        for label, override in invalid_cases.items():
+            with self.subTest(label=label):
+                contract = self._contract()
+                item = contract["items"][0]
+                item["backend"] = "html_playwright"
+                item["effect_type"] = "info_card"
+                controls = self._info_card_controls()
+                controls.update(override)
+                item["style"]["info_card"] = controls
+
+                validation = motion_graphics.validate_motion_graphics_contract(contract)
+
+                self.assertFalse(validation["ok"], validation)
+                self.assertTrue(
+                    any("style.info_card" in error["field"] for error in validation["errors"]),
+                    validation,
+                )
+
+    def test_html_playwright_info_card_controls_emit_css_and_frame_envelopes(self):
+        controls = self._info_card_controls()
+        controlled_item = {
+            "id": "metric_001",
+            "effect_type": "info_card",
+            "duration_sec": 2.60,
+            "text": {"main": "42", "subtitle": "completed"},
+            "style": {"info_card": controls},
+        }
+        legacy_item = {
+            "id": "legacy_metric_001",
+            "effect_type": "info_card",
+            "text": {"main": "42", "subtitle": "completed"},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            controlled_path = motion_graphics._write_html_overlay(
+                controlled_item, Path(d) / "controlled.html"
+            )
+            legacy_path = motion_graphics._write_html_overlay(
+                legacy_item, Path(d) / "legacy.html"
+            )
+            controlled = Path(controlled_path).read_text(encoding="utf-8")
+            legacy = Path(legacy_path).read_text(encoding="utf-8")
+
+        for expected in (
+            "left:140px",
+            "bottom:190px",
+            "min-width:360px",
+            "padding:22px 32px",
+            "background:rgba(12,18,28,0.78)",
+            "border-left:4px solid #f0b44d",
+            "font-size:76px",
+            "const totalFrames=78",
+            "const enterFrames=10",
+            "const exitFrames=10",
+            "const translateYPx=18",
+            "enterFrames<=1?1",
+            "exitFrames<=1?1",
+        ):
+            self.assertIn(expected, controlled)
+        self.assertIn("min-width:620px", legacy)
+        self.assertIn("font-size:150px", legacy)
+        self.assertIn("q*5", legacy)
+
+    def test_html_playwright_info_card_controls_handle_one_frame_duration(self):
+        item = {
+            "id": "short_metric_001",
+            "effect_type": "info_card",
+            "duration_sec": 0.01,
+            "text": {"main": "42"},
+            "style": {"info_card": self._info_card_controls()},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            path = motion_graphics._write_html_overlay(item, Path(d) / "short.html")
+            content = Path(path).read_text(encoding="utf-8")
+
+        self.assertIn("const totalFrames=1", content)
+        self.assertIn("enterFrames<=1?1", content)
+        self.assertIn("exitFrames<=1?1", content)
 
     def test_html_playwright_runner_records_rendered_overlay(self):
         contract = self._contract()

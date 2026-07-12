@@ -7,6 +7,7 @@ HTML/Playwright, Blender, or external compositors when the route allows it.
 """
 import html
 import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -52,6 +53,80 @@ TEXT_RECIPES = {
         "safe_area": "lower_third",
     },
 }
+
+
+INFO_CARD_NUMERIC_BOUNDS = {
+    "left_px": (0, 1600),
+    "bottom_px": (0, 1000),
+    "min_width_px": (120, 620),
+    "padding_x_px": (0, 80),
+    "padding_y_px": (0, 60),
+    "main_font_px": (24, 160),
+    "accent_width_px": (1, 12),
+    "background_alpha": (0.0, 1.0),
+    "translate_y_px": (0, 120),
+    "enter_frames": (1, 30),
+    "exit_frames": (1, 30),
+}
+
+INFO_CARD_DEFAULTS = {
+    "left_px": 140,
+    "bottom_px": 150,
+    "min_width_px": 620,
+    "padding_x_px": 55,
+    "padding_y_px": 45,
+    "main_font_px": 150,
+    "accent_width_px": 8,
+    "background_alpha": 0.86,
+    "translate_y_px": 30,
+    "enter_frames": 10,
+    "exit_frames": 10,
+}
+
+INFO_CARD_FRAME_FIELDS = {"enter_frames", "exit_frames"}
+
+
+def _parse_info_card_controls(style):
+    """Return bounded controls and relative validation findings for an info card."""
+    if not isinstance(style, dict):
+        return None, [("", "must be object")]
+    if "info_card" not in style:
+        return None, []
+    raw = style["info_card"]
+    if not isinstance(raw, dict):
+        return None, [("info_card", "must be object")]
+
+    errors = []
+    controls = {}
+    for key in sorted(raw):
+        if key not in INFO_CARD_NUMERIC_BOUNDS:
+            errors.append((f"info_card.{key}", "unknown control"))
+    for key, (minimum, maximum) in INFO_CARD_NUMERIC_BOUNDS.items():
+        if key not in raw:
+            continue
+        value = raw[key]
+        field = f"info_card.{key}"
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            errors.append((field, "must be finite number"))
+            continue
+        if not math.isfinite(value):
+            errors.append((field, "must be finite number"))
+            continue
+        if not minimum <= value <= maximum:
+            errors.append((field, f"must be between {minimum} and {maximum}"))
+            continue
+        if key in INFO_CARD_FRAME_FIELDS:
+            if not float(value).is_integer():
+                errors.append((field, "must be whole number"))
+                continue
+            controls[key] = int(value)
+        else:
+            controls[key] = value
+    return (None if errors else controls), errors
+
+
+def _css_number(value):
+    return f"{float(value):.6f}".rstrip("0").rstrip(".")
 
 
 def contract_from_timeline(canonical_contract, timeline, *, backend="ffmpeg_libass", contract_hash=None):
@@ -249,6 +324,13 @@ def validate_motion_graphics_contract(contract):
                     f"items[{i}].timing.reveal_complete_sec",
                     "must satisfy start_sec < reveal_complete_sec <= end_sec",
                 ))
+        style = item.get("style")
+        if style is None:
+            style = {}
+        _controls, control_errors = _parse_info_card_controls(style)
+        for field, message in control_errors:
+            suffix = f".{field}" if field else ""
+            errors.append(_finding("error", f"items[{i}].style{suffix}", message))
         text = item.get("text") or {}
         if not isinstance(text, dict) or not any(text.get(k) for k in ("main", "subtitle", "names")):
             warnings.append(_finding("warn", f"items[{i}].text", "no visible text payload"))
@@ -280,8 +362,17 @@ def build_motion_graphics_render_plan(contract, backend_policy=None):
     for item in contract["items"]:
         timing = item["timing"]
         style = item.get("style") or {}
+        info_card, _control_errors = _parse_info_card_controls(style)
         backend = _backend_for(item, policy)
         output_mode = item.get("output_mode") or "overlay"
+        render_style = {
+            "motion": style.get("motion", "fade"),
+            "safe_area": style.get("safe_area", "title_safe"),
+            "font_role": style.get("font_role", "bold_cjk"),
+            "color_role": style.get("color_role", "utility_clean"),
+        }
+        if info_card is not None:
+            render_style["info_card"] = info_card
         items.append({
             "id": item["id"],
             "source_effect_id": item.get("source_effect_id"),
@@ -299,12 +390,7 @@ def build_motion_graphics_render_plan(contract, backend_policy=None):
             ),
             "output_mode": output_mode,
             "text": item.get("text") or {},
-            "style": {
-                "motion": style.get("motion", "fade"),
-                "safe_area": style.get("safe_area", "title_safe"),
-                "font_role": style.get("font_role", "bold_cjk"),
-                "color_role": style.get("color_role", "utility_clean"),
-            },
+            "style": render_style,
             "reason": item.get("reason"),
         })
     return {
@@ -445,12 +531,19 @@ def _write_ass_overlay(item, path):
     return str(path)
 
 
-def _write_html_overlay(item, path):
+def _write_html_overlay(item, path, *, fps=30):
     """Write a deterministic transparent info-card animation."""
     text = item.get("text") or {}
     main = html.escape(str(text.get("main") or ""))
     subtitle = html.escape(str(text.get("subtitle") or ""))
-    content = f"""<!doctype html>
+    style = item.get("style")
+    if style is None:
+        style = {}
+    controls, control_errors = _parse_info_card_controls(style)
+    if control_errors:
+        raise ValueError(f"invalid info-card controls: {control_errors}")
+    if controls is None:
+        content = f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
 html,body{{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}}
 .card{{position:absolute;left:140px;bottom:150px;min-width:620px;padding:45px 55px;
@@ -461,6 +554,33 @@ color:white;font-family:Arial,sans-serif;opacity:0;transform:translateY(30px) sc
 <div class="sub">{subtitle}</div></div><script>
 window.setProgress=(p)=>{{const q=Math.max(0,Math.min(1,p));const edge=Math.min(1,q*5,(1-q)*5);
 const c=document.getElementById('card');c.style.opacity=edge;c.style.transform=`translateY(${{30*(1-edge)}}px) scale(${{.96+.04*edge}})`;}};
+window.setProgress(0);
+</script></body></html>"""
+    else:
+        info_card = {**INFO_CARD_DEFAULTS, **controls}
+        duration_sec = float(item.get("duration_sec") or 0)
+        frame_count = max(1, round(duration_sec * fps))
+        left_px = _css_number(info_card["left_px"])
+        bottom_px = _css_number(info_card["bottom_px"])
+        min_width_px = _css_number(info_card["min_width_px"])
+        padding_x_px = _css_number(info_card["padding_x_px"])
+        padding_y_px = _css_number(info_card["padding_y_px"])
+        main_font_px = _css_number(info_card["main_font_px"])
+        accent_width_px = _css_number(info_card["accent_width_px"])
+        background_alpha = _css_number(info_card["background_alpha"])
+        translate_y_px = _css_number(info_card["translate_y_px"])
+        content = f"""<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}}
+.card{{position:absolute;left:{left_px}px;bottom:{bottom_px}px;min-width:{min_width_px}px;padding:{padding_y_px}px {padding_x_px}px;
+background:rgba(12,18,28,{background_alpha});border-left:{accent_width_px}px solid #f0b44d;border-radius:12px;
+color:white;font-family:Arial,sans-serif;opacity:0;transform:translateY({translate_y_px}px) scale(.96)}}
+.main{{font-size:{main_font_px}px;font-weight:800;line-height:1}} .sub{{font-size:40px;margin-top:16px;opacity:.82}}
+</style></head><body><div class="card" id="card"><div class="main">{main}</div>
+<div class="sub">{subtitle}</div></div><script>
+const totalFrames={frame_count};const enterFrames={info_card["enter_frames"]};const exitFrames={info_card["exit_frames"]};const translateYPx={translate_y_px};
+window.setProgress=(p)=>{{const q=Math.max(0,Math.min(1,p));const frame=Math.round(q*Math.max(0,totalFrames-1));const enterEdge=enterFrames<=1?1:Math.min(1,frame/(enterFrames-1));const exitEdge=exitFrames<=1?1:Math.min(1,(totalFrames-1-frame)/(exitFrames-1));const edge=Math.max(0,Math.min(1,enterEdge,exitEdge));
+const c=document.getElementById('card');c.style.opacity=edge;c.style.transform=`translateY(${{translateYPx*(1-edge)}}px) scale(${{.96+.04*edge}})`;}};
 window.setProgress(0);
 </script></body></html>"""
     path = Path(path)
@@ -481,11 +601,11 @@ def _browser_executable():
 def _render_html_playwright_overlay(item, out_dir, fps=30):
     """Render deterministic HTML frames and encode an alpha overlay MOV."""
     item_dir = Path(out_dir)
-    html_path = Path(_write_html_overlay(item, item_dir / f"{item['id']}.html"))
-    frames_dir = item_dir / f"{item['id']}.frames"
-    frames_dir.mkdir(parents=True, exist_ok=True)
     duration = float(item.get("duration_sec") or 0)
     frame_count = max(1, round(duration * fps))
+    html_path = Path(_write_html_overlay(item, item_dir / f"{item['id']}.html", fps=fps))
+    frames_dir = item_dir / f"{item['id']}.frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
     from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
     with sync_playwright() as playwright:
