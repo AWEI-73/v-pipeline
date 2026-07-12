@@ -12,9 +12,13 @@ if str(ROOT) not in sys.path:
 
 from video_pipeline_core.skill_tool_contract import (
     REQUIRED_TOOL_FIELDS,
+    audit_repository_contracts,
     iter_tool_entries,
+    load_capability_consumers,
     load_contracts,
     normalize_tool_ref,
+    suggest_capability_id,
+    validate_contract_schema,
 )
 
 
@@ -83,10 +87,11 @@ def discover_python_tools(tools_dir: Path) -> list[str]:
 
 def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     contracts, parse_errors = load_contracts(skills_dir)
-    errors = [str(item.get("message") or item) for item in parse_errors]
-    errors.extend(validate_contracts(contracts))
-
+    capability_consumers, consumer_parse_errors = load_capability_consumers(skills_dir)
     python_tools = discover_python_tools(tools_dir)
+    capability_errors = [*parse_errors, *consumer_parse_errors]
+    capability_errors.extend(validate_contract_schema(contracts))
+
     ownership: dict[str, list[str]] = {}
     for contract in contracts:
         skill = str(contract.get("skill") or "")
@@ -108,17 +113,67 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     duplicate_canonical = {
         tool: owners for tool, owners in canonical_seen.items() if len(set(owners)) > 1
     }
+    capability_id_proposals = []
+    for contract in contracts:
+        for entry in contract.get("canonical_tools", []) or []:
+            if not isinstance(entry, dict) or entry.get("capability_id"):
+                continue
+            tool = _normalize_tool_name(str(entry.get("tool") or ""))
+            capability_id_proposals.append({
+                "source": contract.get("_source"),
+                "skill": contract.get("skill"),
+                "tool": tool,
+                "proposed_capability_id": suggest_capability_id(str(contract.get("skill") or ""), tool),
+            })
+    capability_id_proposals.sort(key=lambda item: (str(item.get("skill") or ""), str(item.get("tool") or "")))
 
     if unowned:
-        errors.append(f"unowned python tools: {', '.join(unowned)}")
+        capability_errors.extend(
+            {
+                "code": "unowned_python_tool",
+                "source": str(tools_dir).replace("\\", "/"),
+                "skill": None,
+                "capability_id": None,
+                "tool": tool,
+                "message": "python tool is not owned by any Skill contract",
+            }
+            for tool in unowned
+        )
     if duplicate_canonical:
         for tool, owners in duplicate_canonical.items():
-            errors.append(f"duplicate canonical owners for {tool}: {', '.join(sorted(set(owners)))}")
+            capability_errors.append({
+                "code": "duplicate_canonical_owner",
+                "source": str(skills_dir).replace("\\", "/"),
+                "skill": ",".join(sorted(set(owners))),
+                "capability_id": None,
+                "tool": tool,
+                "message": f"canonical tool has multiple owners: {', '.join(sorted(set(owners)))}",
+            })
+    repository_errors = audit_repository_contracts(
+        contracts,
+        python_tools=python_tools,
+        dispatch_commands=(),
+        catalog_commands=(),
+        capability_consumers=capability_consumers,
+    )
+    # The shared repository audit includes pure schema errors; retain one
+    # deterministic list for the report rather than duplicating them.
+    capability_errors = sorted(
+        {json.dumps(item, ensure_ascii=False, sort_keys=True): item for item in [*capability_errors, *repository_errors]}.values(),
+        key=lambda item: (
+            str(item.get("code") or ""),
+            str(item.get("source") or ""),
+            str(item.get("skill") or ""),
+            str(item.get("tool") or ""),
+            str(item.get("capability_id") or ""),
+        ),
+    )
+    errors = [str(item.get("message") or item) for item in capability_errors]
 
     return {
         "artifact_role": "skill_tool_contract_audit_report",
         "version": 1,
-        "ok": not errors,
+        "ok": not capability_errors,
         "skills_dir": str(skills_dir).replace("\\", "/"),
         "tools_dir": str(tools_dir).replace("\\", "/"),
         "contract_count": len(contracts),
@@ -126,6 +181,17 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
         "owned_python_tool_count": len(python_tools) - len(unowned),
         "unowned_python_tools": unowned,
         "duplicate_canonical_tools": duplicate_canonical,
+        "capability_id_proposals": capability_id_proposals,
+        "capability_consumer_count": len(capability_consumers),
+        "capability_consumers": [
+            {
+                "consumer": item.get("consumer"),
+                "source": item.get("_source"),
+                "active_capability_ids": sorted(str(value) for value in item.get("active_capability_ids") or []),
+                "active_namespaces": sorted(str(value) for value in item.get("active_namespaces") or []),
+            }
+            for item in capability_consumers
+        ],
         "contracts": [
             {
                 "skill": contract.get("skill"),
@@ -141,6 +207,14 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
         ],
         "tool_ownership": {tool: sorted(set(owners)) for tool, owners in sorted(ownership.items())},
         "errors": errors,
+        "capability_errors": capability_errors,
+        "duplicate_capability_ids": [item for item in capability_errors if item.get("code") == "duplicate_capability_id"],
+        "broken_tool_references": [item for item in capability_errors if item.get("code") == "missing_tool_reference"],
+        "broken_command_references": [item for item in capability_errors if item.get("code", "").startswith("command_")],
+        "broken_domain_lookups": [item for item in capability_errors if item.get("code") == "broken_domain_lookup"],
+        "broken_director_references": [item for item in capability_errors if item.get("code") == "broken_director_reference"],
+        "active_legacy_references": [item for item in capability_errors if item.get("code") == "active_legacy_reference"],
+        "noncanonical_public_references": [item for item in capability_errors if item.get("code") == "noncanonical_public_reference"],
     }
 
 

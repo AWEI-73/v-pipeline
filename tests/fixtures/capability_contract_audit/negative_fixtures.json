@@ -1,0 +1,28 @@
+{
+  "artifact_role": "capability_contract_negative_fixtures",
+  "version": 1,
+  "fixtures": [
+    {"name": "unowned_python_tool", "expected_codes": ["unowned_python_tool"]},
+    {"name": "canonical_missing_capability_id", "expected_codes": ["missing_capability_id"]},
+    {"name": "invalid_capability_id", "expected_codes": ["invalid_capability_id"]},
+    {"name": "duplicate_capability_id", "expected_codes": ["duplicate_capability_id"]},
+    {"name": "missing_loops", "expected_codes": ["missing_loops"]},
+    {"name": "invalid_loops", "expected_codes": ["invalid_loops"]},
+    {"name": "missing_maturity", "expected_codes": ["missing_maturity"]},
+    {"name": "invalid_maturity", "expected_codes": ["invalid_maturity"]},
+    {"name": "empty_loops_without_stage_owner", "expected_codes": ["missing_loop_or_stage"]},
+    {"name": "bounded_missing_certified_scope", "expected_codes": ["missing_certified_scope"]},
+    {"name": "certified_missing_certified_scope", "expected_codes": ["missing_certified_scope"]},
+    {"name": "capability_missing_tool", "expected_codes": ["missing_tool_reference"]},
+    {"name": "duplicate_canonical_owner", "expected_codes": ["duplicate_canonical_owner"]},
+    {"name": "command_missing_both", "expected_codes": ["command_not_dispatched", "command_not_cataloged"]},
+    {"name": "command_dispatch_only", "expected_codes": ["command_not_cataloged"]},
+    {"name": "command_catalog_only", "expected_codes": ["command_not_dispatched"]},
+    {"name": "broken_domain_lookup", "expected_codes": ["broken_domain_lookup"]},
+    {"name": "broken_director_reference", "expected_codes": ["broken_director_reference"]},
+    {"name": "active_legacy_reference", "expected_codes": ["active_legacy_reference"]},
+    {"name": "supporting_promoted_as_public", "expected_codes": ["noncanonical_public_reference"]},
+    {"name": "internal_promoted_as_public", "expected_codes": ["noncanonical_public_reference"]},
+    {"name": "diagnostic_promoted_as_public", "expected_codes": ["noncanonical_public_reference"]}
+  ]
+}

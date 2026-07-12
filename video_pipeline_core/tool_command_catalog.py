@@ -47,6 +47,7 @@ COMMAND_GROUPS: Dict[str, str] = {
     "video-intent-plan": "workspace",
     "state": "workspace",
     "commands-manifest": "workspace",
+    "dispatch-capabilities": "workspace",
     "workflow-manifest": "workspace",
     "test-tiers": "verify",
     "acceptance-contract": "verify",

@@ -115,6 +115,93 @@ def die(msg: str):
     sys.exit(1)
 
 
+def _dispatch_python_tools(tools_dir: Path) -> set[str]:
+    if not tools_dir.exists():
+        return set()
+    return {
+        str(path.relative_to(tools_dir.parent)).replace("\\", "/")
+        for path in tools_dir.glob("*.py")
+        if path.name != "__init__.py"
+    }
+
+
+def _capability_human_text(result: dict) -> str:
+    lines = []
+    fields = ("owner", "stage_owner", "kind", "loops", "certified_scope", "tool", "when", "inputs", "outputs", "stop_if", "source_skill")
+    for card in result.get("results") or []:
+        lines.append(f"{card.get('capability_id')} [{card.get('maturity')}]")
+        for field in fields:
+            value = card.get(field)
+            if isinstance(value, list):
+                value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            lines.append(f"{field}: {value if value is not None else ''}")
+        lines.append("---")
+    return "\n".join(lines[:-1] if lines and lines[-1] == "---" else lines)
+
+
+def run_dispatch_capabilities_query(
+    args,
+    *,
+    skills_dir: Path,
+    tools_dir: Path,
+    dispatch_commands: set[str],
+    catalog_commands: set[str],
+) -> int:
+    from video_pipeline_core.capability_catalog import build_catalog, query_catalog
+    from video_pipeline_core.skill_tool_contract import audit_repository_contracts, load_contracts
+
+    selected = [("id", args.id), ("owner", args.owner), ("loop", args.loop), ("query", args.query)]
+    selected = [(kind, value) for kind, value in selected if value is not None]
+    if len(selected) != 1:
+        print("exactly one of --id, --owner, --loop, or --query is required", file=sys.stderr)
+        return 2
+    selector, value = selected[0]
+    if selector == "loop" and str(value).upper() not in {f"L{i}" for i in range(6)}:
+        print("--loop must be one of L0..L5", file=sys.stderr)
+        return 2
+    contracts, parse_errors = load_contracts(skills_dir)
+    repository_errors = audit_repository_contracts(
+        contracts,
+        python_tools=_dispatch_python_tools(tools_dir),
+        dispatch_commands=dispatch_commands,
+        catalog_commands=catalog_commands,
+        capability_consumers=(),
+    )
+    catalog = build_catalog(contracts, validation_errors=[*parse_errors, *repository_errors])
+    result = query_catalog(catalog, selector=selector, value=value)
+    if args.json or args.out:
+        payload = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+        if args.out:
+            Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.out).write_text(payload, encoding="utf-8")
+        if args.json:
+            print(payload, end="")
+    elif result.get("ok"):
+        print(_capability_human_text(result))
+    else:
+        code = (result.get("error") or {}).get("code")
+        print(
+            "capability query: live catalog invalid" if code == "invalid_catalog" else "capability query: no matches",
+            file=sys.stderr,
+        )
+    if result.get("ok"):
+        return 0
+    if (result.get("error") or {}).get("code") == "invalid_catalog":
+        return 2
+    return 1
+
+
+def cmd_dispatch_capabilities(args):
+    commands = {f"video_tools.py {name}" for name in VIDEO_TOOLS_DISPATCH}
+    return run_dispatch_capabilities_query(
+        args,
+        skills_dir=Path(getattr(args, "skills_dir", "skills")),
+        tools_dir=Path(getattr(args, "tools_dir", "tools")),
+        dispatch_commands=commands,
+        catalog_commands=commands,
+    )
+
+
 # ── commands ─────────────────────────────────────────────────────────────────
 
 def cmd_contract_adapt(args):
@@ -3044,6 +3131,7 @@ def _build_video_tools_dispatch():
         "video-intent-plan": cmd_video_intent_plan,
         "video-intent-acceptance": cmd_video_intent_acceptance,
         "commands-manifest": cmd_commands_manifest,
+        "dispatch-capabilities": cmd_dispatch_capabilities,
         "workflow-manifest": cmd_workflow_manifest,
         "acceptance-contract": cmd_acceptance_contract,
         "test-tiers": cmd_test_tiers,
@@ -3489,6 +3577,17 @@ def main():
 
     p_cmdm = sub.add_parser("commands-manifest")
     p_cmdm.add_argument("--out", help="write video_tools command manifest JSON")
+
+    p_dispatch = sub.add_parser("dispatch-capabilities")
+    selector = p_dispatch.add_mutually_exclusive_group(required=True)
+    selector.add_argument("--id")
+    selector.add_argument("--owner")
+    selector.add_argument("--loop", choices=[f"L{i}" for i in range(6)])
+    selector.add_argument("--query")
+    p_dispatch.add_argument("--json", action="store_true")
+    p_dispatch.add_argument("--out")
+    p_dispatch.add_argument("--skills-dir", default="skills")
+    p_dispatch.add_argument("--tools-dir", default="tools")
 
     p_wfm = sub.add_parser("workflow-manifest")
     p_wfm.add_argument("--out", help="write video_tools workflow manifest JSON")

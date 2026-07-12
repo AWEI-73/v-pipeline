@@ -100,6 +100,35 @@ def load_contracts(skills_dir: Path | str) -> tuple[list[dict[str, Any]], list[d
     return contracts, sorted(errors, key=_error_sort_key)
 
 
+def load_capability_consumers(skills_dir: Path | str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Load director/consumer declarations without creating a second registry."""
+    skills_dir = Path(skills_dir)
+    consumers: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for path in sorted(skills_dir.glob("*.md"), key=lambda item: item.as_posix()):
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeError) as exc:
+            errors.append({
+                "code": "skill_read_error",
+                "source": _source_text(path),
+                "skill": None,
+                "capability_id": None,
+                "tool": None,
+                "message": str(exc),
+            })
+            continue
+        parsed, parse_errors = parse_json_marker_blocks(
+            path,
+            text,
+            start="CAPABILITY_CONSUMER_START",
+            end="CAPABILITY_CONSUMER_END",
+        )
+        consumers.extend(parsed)
+        errors.extend(parse_errors)
+    return consumers, sorted(errors, key=_error_sort_key)
+
+
 def iter_tool_entries(contract: dict[str, Any]) -> list[dict[str, Any]]:
     """Return copied entries with enough provenance for audits and catalogs."""
     entries: list[dict[str, Any]] = []
@@ -191,7 +220,7 @@ def validate_contract_schema(contracts: Iterable[dict[str, Any]]) -> list[dict[s
                 errors.append(_error("missing_capability_id", contract, entry, "canonical tool is missing capability_id"))
             elif not isinstance(capability_id, str) or not CAPABILITY_ID_RE.fullmatch(capability_id):
                 errors.append(_error("invalid_capability_id", contract, entry, "capability_id must match cap.<owner>.<action>.v<major>"))
-            elif capability_id in seen_ids:
+            elif capability_id in seen_ids and not (entry.get("shared") is True and seen_ids[capability_id].get("shared") is True):
                 errors.append(_error("duplicate_capability_id", contract, entry, "capability_id is duplicated"))
             else:
                 seen_ids[capability_id] = entry
@@ -229,13 +258,23 @@ def audit_repository_contracts(
     dispatch_commands = {normalize_tool_ref(x) for x in dispatch_commands}
     catalog_commands = {normalize_tool_ref(x) for x in catalog_commands}
     ownership: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
+    canonical_ids: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+    all_capability_refs: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
     for contract in contracts:
         for entry in iter_tool_entries(contract):
             tool = normalize_tool_ref(entry.get("tool"))
             if tool.startswith("tools/"):
                 ownership.setdefault(tool, []).append((contract, entry))
-            if entry.get("_section") == "canonical_tools" and tool not in python_tools:
+            # Domain Skills may own the root ``video_tools.py`` command
+            # surface by command name; only tools/ Python files participate in
+            # the filesystem ownership check here.
+            if entry.get("_section") == "canonical_tools" and tool.startswith("tools/") and tool not in python_tools:
                 errors.append(_error("missing_tool_reference", contract, entry, "canonical tool does not exist in tools directory"))
+            capability_id = entry.get("capability_id")
+            if capability_id:
+                all_capability_refs[str(capability_id)] = (contract, entry)
+                if entry.get("_section") == "canonical_tools":
+                    canonical_ids[str(capability_id)] = (contract, entry)
             command = normalize_tool_ref(entry.get("command"))
             if command and command not in dispatch_commands:
                 errors.append(_error("command_not_dispatched", contract, entry, "command is not present in dispatch command set"))
@@ -248,4 +287,30 @@ def audit_repository_contracts(
         if len(canonical) > 1 and not all(e.get("shared") is True for _, e in canonical):
             first_contract, first_entry = canonical[0]
             errors.append(_error("duplicate_canonical_owner", first_contract, first_entry, "canonical tool has multiple owners without shared=true"))
+    for contract in contracts:
+        namespace = str(contract.get("capability_namespace") or "").strip()
+        if namespace:
+            prefix = namespace[:-1] if namespace.endswith("*") else namespace
+            if not any(capability_id.startswith(prefix) for capability_id in canonical_ids):
+                errors.append(_error("broken_domain_lookup", contract, message="capability_namespace has no matching canonical capability"))
+    for consumer in capability_consumers:
+        if not isinstance(consumer, dict):
+            continue
+        source = {"_source": consumer.get("source", "<consumer>"), "skill": consumer.get("consumer")}
+        if any(key in consumer for key in ("canonical_tools", "supporting_tools", "internal_tools", "diagnostic_tools")):
+            errors.append(_error("broken_director_reference", source, message="capability consumer cannot contain tool ownership fields"))
+        for capability_id in consumer.get("active_capability_ids") or []:
+            ref = all_capability_refs.get(str(capability_id))
+            if ref is None:
+                errors.append(_error("broken_director_reference", source, {"capability_id": capability_id}, "consumer references an unknown capability ID"))
+                continue
+            contract, entry = ref
+            if entry.get("_section") != "canonical_tools":
+                errors.append(_error("noncanonical_public_reference", contract, entry, "consumer references a non-canonical tool"))
+            if entry.get("maturity") == "legacy":
+                errors.append(_error("active_legacy_reference", contract, entry, "consumer references a legacy capability"))
+        for namespace in consumer.get("active_namespaces") or []:
+            prefix = str(namespace)[:-1] if str(namespace).endswith("*") else str(namespace)
+            if not any(capability_id.startswith(prefix) for capability_id in canonical_ids):
+                errors.append(_error("broken_director_reference", source, message="consumer references an unknown capability namespace"))
     return sorted(errors, key=_error_sort_key)

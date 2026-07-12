@@ -1,10 +1,13 @@
 import json
+import copy
 import tempfile
 import unittest
 from pathlib import Path
 
 from video_pipeline_core.skill_tool_contract import (
+    audit_repository_contracts,
     iter_tool_entries,
+    load_capability_consumers,
     load_contracts,
     normalize_tool_ref,
     parse_json_marker_blocks,
@@ -86,6 +89,21 @@ class SkillToolContractParserTest(unittest.TestCase):
             self.assertEqual([], errors)
             self.assertEqual(["a.md", "a.md", "z.md"], [Path(x["_source"]).name for x in contracts])
 
+    def test_load_capability_consumers_is_sorted_and_preserves_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = "<!-- CAPABILITY_CONSUMER_START -->\n" + json.dumps({
+                "consumer": "director",
+                "active_capability_ids": ["cap.fixture.tool.v1"],
+                "active_namespaces": ["cap.fixture.*"],
+            }) + "\n<!-- CAPABILITY_CONSUMER_END -->\n"
+            (root / "z.md").write_text(marker, encoding="utf-8")
+            (root / "a.md").write_text(marker, encoding="utf-8")
+            consumers, errors = load_capability_consumers(root)
+            self.assertEqual([], errors)
+            self.assertEqual(["a.md", "z.md"], [Path(x["_source"]).name for x in consumers])
+            self.assertEqual("director", consumers[0]["consumer"])
+
     def test_iter_entries_copies_sections_and_owner_metadata(self):
         contract = _contract("fixture")
         contract["_source"] = "skills/fixture.md"
@@ -106,6 +124,85 @@ class SkillToolContractParserTest(unittest.TestCase):
         errors = validate_contract_schema([bad])
         self.assertEqual(["invalid_capability_id", "invalid_maturity", "missing_loops"], [e["code"] for e in errors])
         self.assertTrue(all(set(e) == {"code", "source", "skill", "capability_id", "tool", "message"} for e in errors))
+
+    def test_all_22_named_negative_fixtures_return_expected_codes(self):
+        manifest = json.loads(
+            (Path(__file__).parent / "fixtures" / "capability_contract_audit" / "negative_fixtures.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(22, len(manifest["fixtures"]))
+        base_tools = {"tools/example.py", "tools/support.py", "tools/internal.py", "tools/diagnostic.py"}
+        for fixture in manifest["fixtures"]:
+            name = fixture["name"]
+            contracts = [_contract("fixture")]
+            tools = set(base_tools)
+            dispatch = {"video_tools.py known"}
+            catalog = {"video_tools.py known"}
+            consumers = []
+            if name == "unowned_python_tool":
+                tools = tools | {"tools/unowned.py"}
+            elif name == "canonical_missing_capability_id":
+                contracts[0]["canonical_tools"][0].pop("capability_id")
+            elif name == "invalid_capability_id":
+                contracts[0]["canonical_tools"][0]["capability_id"] = "bad"
+            elif name == "duplicate_capability_id":
+                contracts.append(_contract("other"))
+            elif name == "missing_loops":
+                contracts[0]["canonical_tools"][0].pop("loops")
+            elif name == "invalid_loops":
+                contracts[0]["canonical_tools"][0]["loops"] = ["L9"]
+            elif name == "missing_maturity":
+                contracts[0]["canonical_tools"][0].pop("maturity")
+            elif name == "invalid_maturity":
+                contracts[0]["canonical_tools"][0]["maturity"] = "unknown"
+            elif name == "empty_loops_without_stage_owner":
+                contracts[0]["stage_owner"] = ""
+                contracts[0]["canonical_tools"][0]["loops"] = []
+            elif name == "bounded_missing_certified_scope":
+                contracts[0]["canonical_tools"][0].pop("certified_scope")
+            elif name == "certified_missing_certified_scope":
+                contracts[0]["canonical_tools"][0]["maturity"] = "certified"
+                contracts[0]["canonical_tools"][0].pop("certified_scope")
+            elif name == "capability_missing_tool":
+                contracts[0]["canonical_tools"][0]["tool"] = "tools/missing.py"
+            elif name == "duplicate_canonical_owner":
+                contracts.append(_contract("other", capability_id="cap.fixture.other.v1"))
+            elif name in {"command_missing_both", "command_dispatch_only", "command_catalog_only"}:
+                contracts[0]["canonical_tools"][0]["command"] = "video_tools.py absent"
+                if name == "command_dispatch_only":
+                    dispatch.add("video_tools.py absent")
+                elif name == "command_catalog_only":
+                    catalog.add("video_tools.py absent")
+            elif name == "broken_domain_lookup":
+                contracts[0]["capability_namespace"] = "cap.unknown.*"
+            elif name == "broken_director_reference":
+                consumers.append({"source": "skills/director.md", "consumer": "director", "active_capability_ids": ["cap.unknown.missing.v1"]})
+            elif name == "active_legacy_reference":
+                contracts[0]["canonical_tools"][0]["maturity"] = "legacy"
+                consumers.append({"source": "skills/director.md", "consumer": "director", "active_capability_ids": ["cap.fixture.tool.v1"]})
+            elif name in {"supporting_promoted_as_public", "internal_promoted_as_public", "diagnostic_promoted_as_public"}:
+                section = name.removesuffix("_promoted_as_public") + "_tools"
+                contracts[0][section][0]["capability_id"] = f"cap.fixture.{name}.v1"
+                consumers.append({"source": "skills/director.md", "consumer": "director", "active_capability_ids": [f"cap.fixture.{name}.v1"]})
+            errors = audit_repository_contracts(
+                copy.deepcopy(contracts),
+                python_tools=tools,
+                dispatch_commands=dispatch,
+                catalog_commands=catalog,
+                capability_consumers=consumers,
+            )
+            codes = {item["code"] for item in errors}
+            self.assertTrue(set(fixture["expected_codes"]) <= codes, (name, codes))
+
+    def test_explicitly_shared_owner_is_valid(self):
+        first = _contract("first")
+        second = _contract("second")
+        first["canonical_tools"][0]["shared"] = True
+        second["canonical_tools"][0]["shared"] = True
+        errors = audit_repository_contracts(
+            [first, second],
+            python_tools={"tools/example.py", "tools/support.py", "tools/internal.py", "tools/diagnostic.py"},
+        )
+        self.assertEqual([], errors)
 
 
 if __name__ == "__main__":
