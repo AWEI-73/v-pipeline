@@ -19,7 +19,8 @@ AGENTS.md (always-loaded pointer)
   -> HANDOFF_CURRENT.md (current state, not another entry)
   -> dispatch-capabilities (read-only machine lookup)
   -> Domain Skill / Capability / Tool / Workbench
-  -> pipeline_execution_trace.json (planned steps plus receipts)
+  -> immutable step receipts (observed evidence)
+  -> pipeline_execution_trace.json (derived aggregate)
   -> no_skip_contract_decision.json (fail-closed closure)
   -> owner verdict or STOPPED_<STEP>_<REASON>
 ```
@@ -79,7 +80,8 @@ These are forward-growth risks. Historical artifacts do not need migration.
    evidence that makes itself pass.
 9. Fail closure when steps are missing, substituted, self-authored, stale,
    unregistered, out of scope, or actor-incompatible.
-10. Apply the contract only to new runs that opt into version 1.
+10. Apply the contract only to new runs with a committed version-1 execution
+    companion.
 
 ## 4. Non-Goals
 
@@ -149,12 +151,13 @@ block:
   "artifact_role": "current_handoff_state",
   "version": 1,
   "updated_at": "RFC3339 timestamp",
-  "state": "WAITING_* | STOPPED_* | ACTIVE",
+  "state": "IDLE | WAITING_* | STOPPED_* | ACTIVE",
   "active_work_order": "repo-relative path or null",
   "active_spec": "repo-relative path or null",
   "active_skill": "repo-relative path or null",
   "active_run_root": "repo-relative path or null",
-  "owner_packet": "repo-relative path or null",
+  "authoritative_state_artifact": "repo-relative JSON path or null",
+  "authoritative_state_field": "state or null",
   "next_actions": ["bounded actions"],
   "do_not_do": ["explicit prohibitions"],
   "human_creative_approval": false,
@@ -164,7 +167,17 @@ block:
 ```
 
 There is no second current-state JSON file. The block is the machine-readable
-part of the existing handoff document.
+pointer carried by the existing handoff document. It does not compete with a
+campaign packet for state authority:
+
+- when a run is active, `authoritative_state_artifact` must name one
+  machine-readable JSON artifact and `state` must equal the exact string at
+  `authoritative_state_field` in that artifact;
+- `active_work_order` is the only definition of which work order is current;
+- when no run is active, `state` is `IDLE`, all active paths and the state
+  artifact/field are null, and no campaign packet is inferred;
+- Markdown reports and historical campaign status files may be linked as
+  evidence, but cannot be the authoritative state artifact.
 
 ### 5.4 Entry audit
 
@@ -175,11 +188,15 @@ when:
 - `AGENTS.md` does not point to `RUNBOOK.md`;
 - `RUNBOOK.md` does not point to `HANDOFF_CURRENT.md`;
 - `RUNBOOK.md` contains a campaign-specific current-state literal;
+- `RUNBOOK.md` or `docs/INDEX.md` contains an active work-order path or a
+  `WAITING_`, `STOPPED_`, or `ACTIVE` state literal;
 - the HANDOFF block is missing, duplicated, invalid JSON, or invalid UTF-8;
 - a non-null HANDOFF path does not exist;
-- the HANDOFF state contradicts its owner packet or campaign state;
+- an active HANDOFF lacks an authoritative JSON state artifact/field;
+- the HANDOFF state differs from the exact authoritative JSON field;
+- an `IDLE` HANDOFF retains an active path or state authority;
 - `docs/INDEX.md` or START_HERE claims to be the operational entry;
-- current anchors classify a historical work order as active.
+- any document other than HANDOFF claims that a work order is current.
 
 The audit extends `doc_reference_hygiene`; it does not create a new entry
 registry.
@@ -212,14 +229,34 @@ Roles are orthogonal:
 - `gate`: reads evidence and returns PASS/FAIL/UNKNOWN plus findings.
 - `adapter`: deterministic format conversion without route or taste judgment.
 
-The live catalog and query response expose these two fields. Static audit fails
-an unknown or missing value on canonical capabilities after migration.
+The existing Skill `TOOL_CONTRACT` command remains the command authority. The
+live catalog and query response expose all three exact fields:
+
+```json
+{
+  "command": "video_tools.py material-rough-cut",
+  "execution_class": "hybrid",
+  "capability_role": "operation"
+}
+```
+
+For commands dispatched through `video_tools.py`, the registered subcommand is
+part of identity. Matching `video_tools.py` while invoking another subcommand
+is a mismatch. Static audit fails an unknown or missing value, a missing live
+`command`, or disagreement between the Skill contract and command catalog.
 
 ## 7. Forward-Only Work-Order Execution Contract
 
 ### 7.1 Opt-in boundary
 
-A new accountable run contains:
+A strict run is activated by exactly one source: a committed machine companion
+next to its formal work order:
+
+```text
+docs/construction-guides/work-orders/<work-order-id>.execution.json
+```
+
+That document contains:
 
 ```json
 {
@@ -227,13 +264,26 @@ A new accountable run contains:
 }
 ```
 
-The version may live in the execution contract and trace. Absence means legacy
-behavior. Presence activates strict closure; it is not a waiverable flag.
+The integrator commits the companion before dispatch. The worker may copy it
+into the run root, but the source and copy hashes must match. The execution
+trace repeats the version and contract hash only as observed evidence; it never
+activates strict mode.
+
+The rules are deterministic:
+
+- no committed companion means legacy behavior;
+- a committed companion with supported version 1 means strict behavior;
+- duplicate companions, conflicting versions, malformed JSON, an unsupported
+  version, source/copy hash mismatch, or a worker-authored uncommitted
+  companion is `STOPPED_CONTRACT_ACTIVATION_INVALID`;
+- an activation error never falls back to legacy behavior;
+- changing the committed companion requires an integrator-authored amendment
+  commit and a fresh run; a worker cannot amend an active contract.
 
 ### 7.2 Execution contract
 
-Before a worker mutates an owner zone, the integrator freezes
-`work_order_execution_contract.json` under the new run root:
+Before a worker mutates an owner zone, the integrator freezes expected truth in
+the committed execution companion:
 
 ```json
 {
@@ -249,29 +299,83 @@ Before a worker mutates an owner zone, the integrator freezes
       "loop": "L1",
       "capability_id": "cap.material-map.material-rough-cut.v1",
       "depends_on": [],
-      "required_outputs": ["repo-relative or run-relative paths"],
-      "required_verifiers": ["registered capability IDs"],
+      "command_argv": [
+        "{python}",
+        "tools/material_rough_cut.py",
+        "--contract",
+        ".tmp/accountability_fixture/segment_contract.json",
+        "--project-map",
+        ".tmp/accountability_fixture/project_material_map.json",
+        "--out",
+        ".tmp/accountability_run/rough_cut_plan.json"
+      ],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": "repo-relative path", "sha256": "SHA-256"}
+      ],
+      "required_outputs": ["repo-relative paths"],
+      "required_verifier_step_ids": ["verify.picture.rendered"],
+      "max_attempts": 1,
       "owner_verdict_required": false
     }
   ],
-  "allowed_owner_zones": ["repo-relative path patterns"],
-  "forbidden_paths": ["repo-relative path patterns"],
+  "allowed_owner_zones": [
+    {"path": "repo-relative directory", "match": "directory_prefix"}
+  ],
+  "forbidden_paths": [
+    {"path": "repo-relative path", "match": "exact"}
+  ],
   "human_creative_approval": false,
   "final_delivery_claimed": false
 }
 ```
 
-The contract is a machine companion to a formal work order, not a second
-product spec. Its hash is frozen before execution. A changed contract requires
-an integrator-authored amendment and a new hash; workers cannot silently widen
-it.
+`{python}` is the sole environment placeholder. At execution it resolves to
+the current `sys.executable`; every repo tool path and `video_tools.py`
+subcommand must match literally after normalization. No other argv field is
+worker-selectable.
 
-### 7.3 Plan completeness
+The contract is expected truth, not observed evidence and not a second product
+spec. A step freezes its command, timeout, inputs, outputs, verifier step IDs,
+dependencies, attempt bound, and owner requirement. `required_verifier_step_ids`
+always references contract step IDs, never capability IDs.
+
+### 7.3 Canonical path and hash rules
+
+Every contract and evidence path uses repo-relative POSIX spelling:
+
+- reject absolute paths, drive letters, UNC paths, backslashes, empty
+  components, and `..`;
+- resolve the path and require it to remain inside the repository root;
+- reject a symlink, junction, or other reparse-point traversal that escapes
+  the repository;
+- on Windows, compare containment and equality case-insensitively while
+  preserving the canonical POSIX spelling in artifacts;
+- owner-zone entries use only `exact` or `directory_prefix`; glob patterns are
+  not accepted;
+- deleted paths appear in changed-path evidence with `sha256: null` and
+  `state: "deleted"` rather than disappearing from the manifest.
+
+Canonical JSON hashing is UTF-8 over JSON serialized with sorted keys,
+`ensure_ascii=false`, separators `(',', ':')`, and LF line ending, excluding
+only the artifact's declared self-hash field. Hashes prove content consistency,
+not author identity or resistance to a malicious process.
+
+### 7.4 Plan completeness
 
 The execution contract describes only required accountable steps, not every
 read-only shell inspection. A required step must be a registered capability.
 Diagnostic reads may remain unplanned when they do not write state or make a
 closure claim.
+
+The git commit is the external trust anchor for expected truth. The executor
+derives `contract_source_commit` from the first reachable commit containing the
+exact current companion blob, requires current HEAD to descend from that
+commit, records the commit in the receipt/trace, and requires the committed
+blob hash to match the run-root copy. The companion does not contain its own
+commit SHA, avoiding a self-referential hash. `agent_run_id` remains a claimed
+runtime identifier unless the dispatch runtime itself supplies a stronger
+signed identity.
 
 ## 8. Trusted Single-Step Capability Execution
 
@@ -285,18 +389,19 @@ capability-run
 
 It is a single-step executor, not a router:
 
-- accepts one execution contract, one step ID, and an argv array;
+- accepts one committed execution contract and one step ID;
 - resolves the step's Capability Card from the live catalog;
-- verifies the command prefix matches the capability's registered tool;
-- rejects shell strings and uses no `shell=True` behavior;
-- verifies the step's dependency receipts before execution;
-- snapshots declared inputs, run-root paths, and git/worktree state relevant to
-  the allowed owner zone;
-- executes exactly one command;
+- materializes the frozen `command_argv`, replacing only `{python}`;
+- verifies the exact registered repo tool and, where applicable, exact
+  `video_tools.py` subcommand;
+- rejects shell strings and executes with an argv list and no shell;
+- verifies dependency receipts and frozen input hashes before execution;
+- snapshots the monitored repository owner zones and run root before and after;
+- executes exactly one command from the repository working directory;
 - records exit code, duration, declared output hashes, changed paths, and
-  verifier references;
+  attestation/owner references;
 - does not choose a next capability;
-- does not retry;
+- does not retry automatically;
 - does not transform FAIL into PASS;
 - does not mutate the work-order contract.
 
@@ -305,13 +410,41 @@ The implementation lives in one shared core module and one existing
 
 ### 8.2 Command matching
 
-The exact executable may vary by environment, but the repo-relative tool or
-`video_tools.py` subcommand must match the Capability Card's normalized tool
-reference. A worker cannot declare one capability and run another command.
+The Python executable may vary only through `{python}`. The repo-relative tool,
+subcommand, and remaining argv are frozen by the contract. A worker cannot
+declare one capability and run another command or vary arguments at dispatch.
 
-### 8.3 Receipt entry
+### 8.3 Immutable attempts and receipts
 
-`pipeline_execution_trace.json` becomes version 2 for accountable runs:
+Execution is sequential. Strict runs prohibit parallel accountable steps and
+concurrent writers. This removes the need for a lock service and makes attempt
+order auditable.
+
+Each invocation writes exactly one immutable receipt:
+
+```text
+<run-root>/receipts/<step-id>/attempt-<N>.json
+```
+
+Rules:
+
+- attempts start at 1, are consecutive, and cannot exceed `max_attempts`;
+- the executor writes a temporary file, fsyncs it where supported, then uses an
+  atomic non-overwriting create/rename into a path that must not already exist;
+- an existing attempt path, missing prior attempt, or evidence of concurrent
+  invocation fails the step and closure;
+- a later permitted attempt may supersede an earlier FAIL, UNKNOWN, or STOPPED
+  attempt, but no receipt is edited or deleted;
+- a PASS attempt is terminal and cannot be superseded;
+- the final status for a step is its latest legal receipt.
+
+Each receipt contains observed evidence, including exact argv, input/output
+hashes, changed paths, timestamps, exit code, status, and when applicable
+`agent_attestation_path`/`agent_attestation_sha256` and
+`owner_verdict_path`/`owner_verdict_sha256`.
+
+`pipeline_execution_trace.json` becomes a derived version-2 aggregate rather
+than a mutable journal:
 
 ```json
 {
@@ -324,8 +457,9 @@ reference. A worker cannot declare one capability and run another command.
     {
       "step_id": "L1.picture.revise",
       "capability_id": "cap.material-map.material-rough-cut.v1",
-      "execution_class": "hybrid",
-      "capability_role": "operation",
+      "attempt": 1,
+      "receipt_path": "receipts/L1.picture.revise/attempt-1.json",
+      "receipt_sha256": "SHA-256",
       "actor_type": "tool",
       "actor_id": "normalized registered tool",
       "command_argv": [],
@@ -338,6 +472,10 @@ reference. A worker cannot declare one capability and run another command.
       "output_hashes": {},
       "changed_paths": [],
       "verify_refs": [],
+      "agent_attestation_path": null,
+      "agent_attestation_sha256": null,
+      "owner_verdict_path": null,
+      "owner_verdict_sha256": null,
       "source_tool": "video_tools.py capability-run"
     }
   ],
@@ -346,15 +484,18 @@ reference. A worker cannot declare one capability and run another command.
 }
 ```
 
-Version 1 traces remain readable and keep their existing meaning. They do not
-satisfy a version 1 accountability contract.
+The aggregate is created only during closure sealing from the committed
+contract, immutable receipts, attestations, verdicts, and live Capability
+Catalog. Execution class and capability role are derived from the catalog; a
+receipt cannot redefine them. Version-1 traces remain readable and keep their
+existing meaning, but cannot satisfy a strict contract.
 
 ## 9. Agent Attestation And Owner Verdict
 
 ### 9.1 Agent attestation
 
 Agent cognition cannot be proven cryptographically. The enforceable promise is
-that an agentic claim must be evidence-bearing and tamper-evident.
+only that an agentic claim must be evidence-bearing and content-consistent.
 
 An `agentic` or `hybrid` step references an attestation artifact:
 
@@ -374,13 +515,14 @@ An `agentic` or `hybrid` step references an attestation artifact:
   "blind_spots": ["explicit limitations"],
   "proposed_findings": ["finding artifact IDs or paths"],
   "attested_at": "RFC3339",
-  "content_sha256": "hash of canonical content excluding this field"
+  "content_sha256": "canonical content hash excluding this field"
 }
 ```
 
 The model field is optional and may be populated only when the runtime proves
-the selected model. A prose statement such as "reviewed" without evidence,
-judgment, blind spots, and hashes does not satisfy the step.
+the selected model. The content hash detects accidental drift but does not
+authenticate who authored it. A prose statement such as "reviewed" without
+evidence, judgment, blind spots, and hashes does not satisfy the step.
 
 ### 9.2 Owner verdict
 
@@ -402,6 +544,12 @@ cannot set `human_creative_approval=true` or `final_delivery_claimed=true`.
 
 ## 10. Gate Purity
 
+This design enforces observable final-state purity inside monitored repository
+and run-root paths plus registered command provenance. It does not claim to
+detect a write that is restored before the after-snapshot, a write outside the
+monitored roots, or a hidden child-process side effect. Preventing those
+requires an OS sandbox and is explicitly outside this project.
+
 A capability with `capability_role=gate` may:
 
 - read declared inputs;
@@ -420,10 +568,13 @@ It may not:
 - use a run-local helper to impersonate the registered owner tool;
 - waive a missing upstream step.
 
-`capability-run` records a before/after run-root manifest and relevant git diff.
-For a gate, changed paths must be a subset of the card's declared outputs. A
-production-truth or media write makes the gate receipt FAIL even when the gate
-process exits zero.
+`capability-run` records the exact argv and before/after manifests for the run
+root and allowed repository owner zones. Commands are allow-listed, run from
+the repository root, and invoked without a shell. For a gate, final changed
+paths must be a subset of the card's declared outputs. A production-truth or
+media write makes the gate receipt FAIL even when the process exits zero. This
+boundary relies on reviewed canonical gate code; it is not a hostile-process
+sandbox.
 
 The existing gate-authenticity classifications remain authoritative:
 
@@ -435,20 +586,34 @@ The existing gate-authenticity classifications remain authoritative:
 
 Extend `no_skip_execution_trace` rather than creating another closure engine.
 
+Closure is a two-phase meta-gate outside the work-order step list:
+
+1. all contract steps finish through `capability-run` and leave immutable
+   receipts;
+2. `no_skip_execution_trace` reads the committed contract, receipts,
+   attestations, owner verdicts, and live catalog, then writes the derived
+   `pipeline_execution_trace.json` and `no_skip_contract_decision.json`.
+
+The meta-gate has no receipt requirement and cannot consume its own decision as
+evidence. This is the only hard-coded exception; it avoids a self-referential
+closure step.
+
 When `accountability_contract_version=1`, closure verifies:
 
 1. execution-contract hash and work-order hash;
-2. every required step has exactly one terminal receipt or an explicit stopped
-   receipt;
+2. every required step has a legal consecutive attempt chain within its bound
+   and one derived terminal status;
 3. all dependency ordering constraints;
 4. capability ID resolves in the live catalog;
 5. command/tool matches the capability;
-6. execution class and role match the receipt and evidence;
+6. execution class and role derived from the live catalog require the correct
+   receipt, attestation, and owner evidence;
 7. exit/status consistency;
 8. required output existence and hashes;
 9. required verifier receipts and evidence refs;
 10. owner-zone and forbidden-path compliance;
-11. no unplanned state-changing capability execution;
+11. no observable unplanned state-changing capability execution in monitored
+    roots;
 12. agent-attestation completeness and hashes;
 13. owner-verdict presence when required;
 14. gate purity and gate authenticity;
@@ -463,8 +628,8 @@ Legal outcomes:
 - evidence is missing or unverifiable -> `UNKNOWN` or `STOPPED_*_UNKNOWN`;
 - no path may claim COMPLETE solely because a narrative report says so.
 
-The closure decision is itself a gate and may write only
-`no_skip_contract_decision.json` plus its declared audit report.
+The closure meta-gate may write only the derived trace,
+`no_skip_contract_decision.json`, and its declared audit report.
 
 ## 12. Static Orphan Prevention
 
@@ -505,7 +670,8 @@ as the first real forward test, but their algorithms/UI are separate work.
 
 ### 14.1 Forward-only rule
 
-- Only new runs with `accountability_contract_version=1` are strict.
+- Only new runs with a valid committed version-1 execution companion are
+  strict.
 - Historical runs, traces, work orders, and Workbench artifacts remain
   readable.
 - No old artifact is rewritten or backfilled.
@@ -537,10 +703,16 @@ receipts and candidate media are not indexed as durable project memory.
 
 ## 15. Error Handling And Stop-Loss
 
-- Contract hash drift: stop before execution.
+- Missing, malformed, duplicate, conflicting, unsupported, or uncommitted
+  strict contract: `STOPPED_CONTRACT_ACTIVATION_INVALID` without legacy
+  fallback.
+- Contract or input hash drift: stop before execution.
 - Unknown capability or mismatched tool: reject the step; do not guess.
 - Missing dependency receipt: stop the step.
-- Process timeout: receipt status UNKNOWN; no automatic retry.
+- Duplicate, non-consecutive, over-bound, or concurrent attempt: structural
+  stop.
+- Process timeout: receipt status UNKNOWN; another attempt requires remaining
+  contract allowance and explicit worker invocation.
 - Output missing or hash mismatch: receipt FAIL.
 - Forbidden path or undeclared output change: STRUCTURAL stop.
 - Gate writes production truth: gate-purity FAIL.
@@ -552,6 +724,12 @@ receipts and candidate media are not indexed as durable project memory.
   STRUCTURAL and stops the campaign at the last green commit.
 
 ## 16. Verification Strategy
+
+All acceptance evidence is written under:
+
+```text
+.tmp/single_entry_forward_accountability_acceptance/**
+```
 
 ### 16.1 Focused static tests
 
@@ -565,15 +743,30 @@ Require tests for:
 - unowned tool, duplicate ID, broken Director reference, and command mismatch;
 - legacy cards/traces remain readable where explicitly supported.
 
+Pinned command:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_pipeline_skill_boundaries tests.test_doc_reference_hygiene tests.test_interactive_skill_flow_docs tests.test_skill_index -v
+```
+
+Capability schema/catalog command:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_skill_tool_contract_parser tests.test_skill_tool_contracts tests.test_dispatch_capabilities tests.test_video_tools_command_catalog -v
+```
+
 ### 16.2 Runtime contract tests
 
 Red-first fixtures must cover at least:
 
+- missing, duplicate, malformed, unsupported, and conflicting strict-version
+  activation;
 - missing required step;
-- duplicate terminal receipt;
-- wrong capability command;
+- duplicate, non-consecutive, over-bound, and concurrent attempt receipts;
+- wrong tool and wrong `video_tools.py` subcommand;
 - unplanned state-changing step;
 - dependency order violation;
+- absolute, backslash, `..`, case-collision, and junction-escape paths;
 - missing output and output hash drift;
 - deterministic receipt substituted for agentic attestation;
 - agent attestation substituted for owner verdict;
@@ -583,53 +776,91 @@ Red-first fixtures must cover at least:
 - gate that manufactures its own prerequisite;
 - WAITING/COMPLETE claim with an unresolved required step;
 - approval flags changed without owner evidence;
+- closure attempting to require or consume its own receipt/decision;
 - strict run carrying only a legacy v1 trace;
 - legacy run remaining readable without strict closure claims.
 
+Pinned command after the new test modules exist:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_capability_execution_contract tests.test_capability_execution_receipts tests.test_accountability_path_rules tests.test_no_skip_execution_trace tests.test_route_closure_integrity -v
+```
+
 ### 16.3 Real forward test
 
-Use a fresh bounded run after the infrastructure is green:
+Use a fresh bounded technical run after the infrastructure is green:
 
 1. freeze a version-1 execution contract;
-2. route the existing owner picture-diversity finding to L1;
-3. route the existing owner audio-balance finding to L3;
-4. run only registered capabilities through the single-step boundary;
-5. attach agent evidence and owner verdict where required;
-6. run focused verifies and no-skip closure;
+2. invoke the existing `material-rough-cut` and
+   `audio-mix-plan-execute` capabilities against frozen accepted fixtures;
+3. run only registered capabilities through the single-step boundary;
+4. attach technical agent attestation where the contract requires it;
+5. seal the run through no-skip closure;
+6. prove that an owner-required fixture legally ends at `WAITING_OWNER_*`
+   without creative approval or delivery claim;
 7. prove an intentionally skipped step and an intentionally self-authored gate
    fail closed in isolated negative fixtures;
-8. stop at owner review without delivery claim.
+8. preserve frozen fixture and Workbench production-path hashes.
 
-The forward test proves accountability, not that the creative revisions are
-universally good.
+Infrastructure acceptance does not depend on an owner liking a picture edit or
+audio mix. Actual L1 picture-diversity and L3 audio-balance revisions are an
+optional later operational demonstration, not an implementation acceptance
+gate. The forward test proves accountability, not creative quality.
 
 ### 16.4 Regression boundary
 
 - focused/adjacent tests run per behavior change;
-- Workbench compatibility tests and frozen legacy hashes run before closure;
+- Workbench compatibility command is:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_workbench_handoff tests.test_preview_timeline tests.test_workbench_contract_sync tests.test_workbench_draft_rerender -v
+```
+
+- frozen legacy, Workbench production-path, and real-fixture hashes are read
+  before the first test and compared after the final test;
 - static orphan/entry audits run on the real repo;
-- one full suite runs at the end with an explicit timeout longer than the known
-  approximately ten-minute baseline;
+- one full suite runs exactly once at the end:
+
+```powershell
+C:/Users/user/miniconda3/python.exe -m unittest discover -s tests
+```
+
+  with timeout at least 1,200,000 ms;
 - UTF-8, JSON, path, hash, and dirty-tree read-back are required;
 - `human_creative_approval=false` and `final_delivery_claimed=false` unless a
   real owner decision explicitly changes them.
 
 ## 17. Implementation Units And Ownership
 
-The implementation plan must keep these units independently testable:
+Implementation is sequential and single-writer. No two workers may edit a hot
+shared file concurrently.
 
-1. **Entry contract**
-   - repo anchors and document audit only.
-2. **Capability schema**
-   - execution class/role parsing, validation, catalog, and query only.
-3. **Single-step executor**
-   - one allow-listed capability command and one receipt; no routing.
-4. **Accountable trace closure**
-   - execution-contract/trace/attestation/gate validation only.
-5. **Forward test**
-   - bounded run evidence; no unrelated production refactor.
+1. **Phase A integrator — entry authority**
+   - owns only `AGENTS.md`, `RUNBOOK.md`, `HANDOFF_CURRENT.md`,
+     `docs/INDEX.md`, optional START_HERE clarification,
+     `doc_reference_hygiene`, and their tests;
+   - records pre-edit hashes for currently dirty authority files and
+     reconciles them intentionally rather than staging unrelated content.
+2. **Phase B capability-schema worker — catalog authority**
+   - is the sole writer for the 11 Domain Skill `TOOL_CONTRACT` blocks,
+     shared Skill parser/catalog/audit/query code, command catalog, and their
+     focused tests;
+   - Phase A does not edit these files while Phase B is active.
+3. **Phase C runtime worker — execution authority**
+   - owns the one new shared capability-execution core module,
+     `video_tools.py`, `no_skip_execution_trace`, bounded closure integration,
+     and their tests;
+   - it does not edit Domain Skills, entry documents, or Workbench production
+     code.
+4. **Phase D integrator then evidence worker — read-only production consumer**
+   - the integrator authors and commits the work-order companion before
+     dispatch;
+   - the evidence worker owns only the acceptance run root;
+   - Workbench production paths and frozen fixtures are read-only.
 
-No unit may own creative taste, final delivery, or automatic loop selection.
+Every phase begins by checking the predecessor commit and dirty-tree hashes and
+ends with a scoped commit. The integrator alone resolves overlaps. No unit owns
+creative taste, final delivery, or automatic loop selection.
 
 ## 18. Rollout Order
 
@@ -649,20 +880,22 @@ No unit may own creative taste, final delivery, or automatic loop selection.
 
 ### Phase C - Forward-only runtime accountability
 
-- add execution contract;
-- add the single-step executor and trace v2 receipts;
+- add committed execution-companion parsing and path rules;
+- add the single-step executor, immutable attempt receipts, and derived trace
+  v2;
 - extend no-skip closure and gate-purity checks;
 - preserve trace v1/legacy reads.
 
 ### Phase D - Real bounded forward test
 
-- use the next L1/L3 revision work as the test case;
-- produce fresh accountable evidence;
+- use frozen accepted L1/L3-shaped fixtures without changing creative truth;
+- produce fresh accountable technical evidence and a legal WAITING_OWNER
+  outcome;
 - verify Workbench and legacy compatibility;
 - refresh Codebase Memory after stable commits.
 
-Each phase has focused tests and a scoped commit. No phase requires a new
-orchestrator or historical migration.
+Each phase has focused tests and a scoped commit. Phases are not parallelized.
+No phase requires a new orchestrator or historical migration.
 
 ## 19. Acceptance Criteria
 
@@ -671,21 +904,29 @@ The design is implemented only when all are true:
 1. An always-loaded agent instruction points to one RUNBOOK.
 2. Only RUNBOOK claims operational-entry authority.
 3. HANDOFF contains one valid current-state block with existing references.
-4. Entry audit fails stale, conflicting, duplicated, or historical-as-current
-   routing.
+4. HANDOFF state exactly matches its named authoritative JSON field; entry
+   audit fails stale, conflicting, duplicated, or non-HANDOFF current routing.
 5. All canonical capabilities have valid execution class and role.
 6. All current tools/capabilities/commands remain owned, classified, and
    queryable.
-7. A strict run cannot execute a mismatched or unknown capability command.
-8. Required steps have trace receipts with hashes and declared outputs.
-9. Agentic and owner evidence cannot be replaced by deterministic or gate
+7. Strict activation is determined only by one valid committed version-1
+   companion; malformed or conflicting activation fails without legacy
+   fallback.
+8. A strict run cannot execute altered argv, a mismatched/unknown command, an
+   invalid path, or a concurrent/over-bound attempt.
+9. Required steps have immutable attempt receipts with frozen input/output
+   hashes, and the final trace is derived from them.
+10. Agentic and owner evidence cannot be replaced by deterministic or gate
    output.
-10. A gate cannot alter production truth or create its own prerequisite.
-11. Missing, stale, copied, skipped, or unplanned evidence blocks closure.
-12. Legacy traces and Workbench artifacts remain readable and unchanged.
-13. A fresh L1/L3 bounded run reaches the correct owner gate with full
-    accountability evidence.
-14. The final focused, compatibility, real-audit, integrity, and full-suite
+11. A gate cannot observably alter production truth in monitored roots or
+    create its own prerequisite.
+12. The closure meta-gate cannot require or consume its own receipt/decision.
+13. Missing, stale, copied, skipped, or unplanned evidence blocks closure.
+14. Legacy traces and Workbench artifacts remain readable and unchanged.
+15. A fresh bounded technical run invokes the two registered fixture
+    capabilities and reaches the correct owner gate without requiring a
+    creative verdict.
+16. The pinned focused, compatibility, real-audit, integrity, and full-suite
     checks pass.
 
 ## 20. Explicit Architecture Rejections
