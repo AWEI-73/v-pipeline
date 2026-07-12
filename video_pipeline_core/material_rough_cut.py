@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .edit_artifacts import build_timeline_build
+from . import material_retrieval
 
 
 def _need_refs(segment: dict) -> list[str]:
@@ -163,6 +164,10 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
     clips = []
     gaps = []
     source_counts = {}
+    diversity_policy = contract.get("diversity_policy")
+    if diversity_policy is not None and not isinstance(diversity_policy, dict):
+        raise ValueError("diversity_policy must be an object when provided")
+    diversity_history = []
 
     for index, segment in enumerate(contract.get("segments") or []):
         segment_id = segment.get("segment", index + 1)
@@ -178,12 +183,55 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
         requested = _requested_duration(segment, default_clip_sec)
         chosen = None
         chosen_need = None
-        for need_id in refs:
-            candidates = _candidate_scenes(project_map, need_id)
-            if candidates:
-                chosen = candidates[0]
-                chosen_need = need_id
-                break
+        if diversity_policy is not None:
+            ranked = []
+            for need_id in refs:
+                for candidate in _candidate_scenes(project_map, need_id):
+                    scene = candidate["scene"]
+                    start = float(candidate["available_start_sec"])
+                    available = float(candidate["available_range_sec"])
+                    protected = bool(
+                        segment.get("protected_speech_anchor")
+                        or scene.get("protected_speech_anchor")
+                        or scene.get("story_function") == "protected_speech_anchor"
+                        or scene.get("visual_family") == "talking_head"
+                    )
+                    ranked.append({
+                        **candidate,
+                        "scene_id": f"{candidate.get('asset_id')}:{candidate.get('scene_index')}",
+                        "source": candidate.get("source"),
+                        "start": start,
+                        "end": start + available,
+                        "score": available,
+                        "caption": scene.get("caption"),
+                        "visual_family": scene.get("visual_family"),
+                        "angle_scale": scene.get("angle_scale"),
+                        "function": scene.get("function"),
+                        "story_function": scene.get("story_function"),
+                        "protected_speech_anchor": protected,
+                    })
+            ranked.sort(key=lambda item: (-item["score"], item["scene_id"]))
+            selected = material_retrieval.select_diverse_ranked_scenes(
+                ranked,
+                project_map,
+                1,
+                history=diversity_history,
+                max_source_repeats=diversity_policy.get("max_source_repeats"),
+                require_unique_visual_family=bool(
+                    diversity_policy.get("require_unique_visual_family")
+                ),
+            )
+            if selected:
+                chosen = selected[0]
+                chosen_need = chosen.get("need_id")
+                diversity_history.append(chosen)
+        else:
+            for need_id in refs:
+                candidates = _candidate_scenes(project_map, need_id)
+                if candidates:
+                    chosen = candidates[0]
+                    chosen_need = need_id
+                    break
         if not chosen:
             gaps.append({
                 "segment": segment_id,
@@ -205,7 +253,12 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
         if start is None:
             start = _scene_start(scene)
         duration = min(requested, available)
-        source_counts[source] = source_counts.get(source, 0) + 1
+        protected_anchor = bool(
+            diversity_policy is not None
+            and (chosen.get("protected_speech_anchor") or segment.get("protected_speech_anchor"))
+        )
+        if not protected_anchor:
+            source_counts[source] = source_counts.get(source, 0) + 1
         clips.append({
             "segment": segment_id,
             "need_id": chosen_need,
@@ -218,9 +271,23 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
             "duration_sec": round(duration, 3),
             "available_range_sec": round(available, 3),
             "caption": scene.get("caption"),
-            "source_repeat_count": source_counts[source],
-            "reason": "selected first accepted material-map scene for segment need",
+            "source_repeat_count": source_counts.get(source, 0),
+            "reason": (
+                "selected ranked Material Map scene with opt-in diversity policy"
+                if diversity_policy is not None
+                else "selected first accepted material-map scene for segment need"
+            ),
         })
+        if diversity_policy is not None:
+            clips[-1]["diversity_selection_reason"] = chosen.get(
+                "diversity_selection_reason", "default"
+            )
+            if chosen.get("diversity_fallback_reason"):
+                clips[-1]["diversity_fallback_reason"] = chosen["diversity_fallback_reason"]
+            if chosen.get("visual_family"):
+                clips[-1]["visual_family"] = chosen["visual_family"]
+            if chosen.get("protected_speech_anchor"):
+                clips[-1]["protected_speech_anchor"] = True
         missing_duration = round(max(0.0, requested - duration), 3)
         if missing_duration > 0 and not is_still_asset:
             gaps.append({

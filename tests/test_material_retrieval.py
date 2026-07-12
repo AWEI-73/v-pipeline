@@ -66,6 +66,59 @@ class MaterialRetrievalRepeatCapTest(unittest.TestCase):
 
         self.assertEqual([slot["source"] for slot in slots], ["same.mp4", "fresh.mp4"])
 
+    def test_unique_visual_family_policy_prefers_eligible_cutaway_family(self):
+        ranked = [
+            {"scene_id": "a:0", "source": "a.mp4", "score": 5,
+             "visual_family": "group", "angle_scale": "wide", "start": 0, "end": 5},
+            {"scene_id": "b:0", "source": "b.mp4", "score": 5,
+             "visual_family": "classroom", "angle_scale": "medium", "start": 0, "end": 5},
+            {"scene_id": "c:0", "source": "c.mp4", "score": 5,
+             "visual_family": "group", "angle_scale": "close", "start": 0, "end": 5},
+        ]
+
+        selected = material_retrieval.select_diverse_ranked_scenes(
+            ranked, [], limit=2, max_source_repeats=1,
+            require_unique_visual_family=True,
+        )
+
+        self.assertEqual([item["scene_id"] for item in selected], ["a:0", "b:0"])
+        self.assertEqual([item["visual_family"] for item in selected], ["group", "classroom"])
+        self.assertNotIn("diversity_fallback_reason", selected[0])
+        self.assertNotIn("diversity_fallback_reason", selected[1])
+
+    def test_unique_visual_family_records_supply_exhaustion_fallback(self):
+        ranked = [
+            {"scene_id": "a:0", "source": "a.mp4", "score": 5,
+             "visual_family": "group", "angle_scale": "wide", "start": 0, "end": 5},
+            {"scene_id": "b:0", "source": "b.mp4", "score": 4,
+             "visual_family": "group", "angle_scale": "medium", "start": 0, "end": 5},
+        ]
+
+        selected = material_retrieval.select_diverse_ranked_scenes(
+            ranked, [], limit=2, max_source_repeats=1,
+            require_unique_visual_family=True,
+        )
+
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(selected[1]["diversity_fallback_reason"], "eligible_supply_exhausted")
+
+    def test_protected_talking_head_does_not_consume_cutaway_source_ceiling(self):
+        ranked = [
+            {"scene_id": "speech:0", "source": "same.mp4", "score": 5,
+             "visual_family": "talking_head", "protected_speech_anchor": True,
+             "start": 0, "end": 5},
+            {"scene_id": "cutaway:0", "source": "same.mp4", "score": 4,
+             "visual_family": "utility_action", "start": 0, "end": 5},
+        ]
+
+        selected = material_retrieval.select_diverse_ranked_scenes(
+            ranked, [], limit=2, max_source_repeats=1,
+            require_unique_visual_family=True,
+        )
+
+        self.assertEqual([item["scene_id"] for item in selected], ["speech:0", "cutaway:0"])
+        self.assertEqual(selected[1]["source_repeat_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

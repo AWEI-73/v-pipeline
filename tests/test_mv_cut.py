@@ -345,6 +345,54 @@ class AudioQaTest(unittest.TestCase):
 
 
 class RunMvArtifactTest(unittest.TestCase):
+    def test_run_mv_passes_opt_in_family_policy_to_map_ranked_selection(self):
+        script = {
+            "disable_auto_sequence": True,
+            "disable_auto_opening": True,
+            "disable_auto_ending": True,
+            "segments": [
+                {"segment": 1, "visual_desc": "training group", "audio_role": "music"},
+                {"segment": 2, "visual_desc": "training group", "audio_role": "music"},
+            ],
+        }
+        material_map = {
+            "artifact_role": "project_material_map",
+            "version": 1,
+            "assets": [
+                {"asset_id": "a", "asset_type": "video", "source": "a.mp4", "scenes": [{
+                    "start": 0.0, "end": 8.0, "caption": "training group",
+                    "visual_family": "group", "angle_scale": "wide",
+                }]},
+                {"asset_id": "b", "asset_type": "video", "source": "b.mp4", "scenes": [{
+                    "start": 0.0, "end": 8.0, "caption": "training group",
+                    "visual_family": "classroom", "angle_scale": "medium",
+                }]},
+                {"asset_id": "c", "asset_type": "video", "source": "c.mp4", "scenes": [{
+                    "start": 0.0, "end": 8.0, "caption": "training group",
+                    "visual_family": "group", "angle_scale": "close",
+                }]},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "video_pipeline_core.mv_cut._resolve_music_timing",
+            return_value=(120.0, [0.0, 19.67, 39.34], 39.34, 39.34),
+        ):
+            result = mv_cut.run_mv(
+                script, None, str(Path(tmp) / "unused.mp4"), music_path="music.mp3",
+                mat_dir=str(Path(tmp) / "mat"), max_clips_per_seg=1,
+                windows_per_clip=1, verbose=False, skip_render=True,
+                target_sec=39.34, burn_text=False, visual_judge="none",
+                material_maps=material_map, max_source_repeats=1,
+                require_unique_visual_family=True,
+            )
+
+        story_slots = [p for p in result["plan"] if p.get("scene_id")]
+        self.assertEqual([p["scene_id"] for p in story_slots], ["a:0", "b:0"])
+        self.assertEqual([entry["retrieval_path"] for entry in result["segments"]],
+                         ["map_ranked", "map_ranked"])
+        self.assertTrue(all("diversity_selection_reason" in p for p in story_slots))
+
     def test_fast_tempo_photo_stack_uses_reviewable_shot_floor(self):
         self.assertEqual(mv_cut._stack_shot_duration(152.0), 0.8)
 

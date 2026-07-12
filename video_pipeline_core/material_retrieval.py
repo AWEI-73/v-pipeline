@@ -155,6 +155,15 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
                 "visual_family": scene.get("visual_family"),
                 "angle_scale": scene.get("angle_scale"),
                 "asset_type": material_map.get("asset_type"),
+                "function": scene.get("function"),
+                "story_function": scene.get("story_function"),
+                "protected_speech_anchor": bool(
+                    scene.get("protected_speech_anchor")
+                    or scene.get("story_function") == "protected_speech_anchor"
+                    or scene.get("function") == "talking_head"
+                    or scene.get("visual_family") == "talking_head"
+                    or scene.get("audio_role") == "source_speech"
+                ),
             })
     return sorted(ranked, key=lambda item: (-item["score"], item["scene_id"]))
 
@@ -170,9 +179,21 @@ def _scene_by_id(material_maps, scene_id):
     return None
 
 
+def _is_protected_speech_anchor(item):
+    return bool(
+        item.get("protected_speech_anchor")
+        or item.get("story_function") == "protected_speech_anchor"
+        or item.get("function") == "talking_head"
+        or item.get("visual_family") == "talking_head"
+        or item.get("audio_role") == "source_speech"
+    )
+
+
 def _source_counts(history):
     counts = {}
     for prev in history or []:
+        if not isinstance(prev, dict) or _is_protected_speech_anchor(prev):
+            continue
         source = prev.get("source") if isinstance(prev, dict) else None
         if source:
             counts[source] = counts.get(source, 0) + 1
@@ -180,7 +201,8 @@ def _source_counts(history):
 
 
 def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
-                                 diversity=True, max_source_repeats=None):
+                                 diversity=True, max_source_repeats=None,
+                                 require_unique_visual_family=False):
     """Select scenes from ranked list with diversity preference within same score
     tiers. `diversity=False` (VD2 off / acceptance baseline) skips the same-tier
     family/scale reorder and the cross-segment history, taking the strict
@@ -234,7 +256,7 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
     if history:
         for prev in history:
             vf = prev.get("visual_family")
-            if vf:
+            if vf and not _is_protected_speech_anchor(prev):
                 used_families.add(vf)
             scale = prev.get("angle_scale")
             if scale:
@@ -247,9 +269,24 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             scored_candidates = []
             under_source_cap = [
                 c for c in tier
-                if source_cap is None or source_counts.get(c.get("source"), 0) < source_cap
+                if _is_protected_speech_anchor(c)
+                or source_cap is None
+                or source_counts.get(c.get("source"), 0) < source_cap
             ]
+            fallback_reason = None
+            if source_cap is not None and not under_source_cap:
+                fallback_reason = "eligible_supply_exhausted"
             tier_pool = under_source_cap or tier
+            if require_unique_visual_family:
+                unique_family_pool = [
+                    c for c in tier_pool
+                    if not c.get("visual_family")
+                    or c.get("visual_family") not in used_families
+                ]
+                if unique_family_pool:
+                    tier_pool = unique_family_pool
+                else:
+                    fallback_reason = "eligible_supply_exhausted"
             for c in tier:
                 if c not in tier_pool:
                     continue
@@ -284,7 +321,7 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             best_reason = best_tuple[5]
 
             vf = best_candidate.get("visual_family")
-            if vf:
+            if vf and not _is_protected_speech_anchor(best_candidate):
                 used_families.add(vf)
             scale = best_candidate.get("angle_scale")
             if scale:
@@ -294,8 +331,10 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             c_copy["diversity_selection_reason"] = best_reason
             source = best_candidate.get("source")
             c_copy["source_repeat_count"] = source_counts.get(source, 0) if source else 0
+            if fallback_reason and (source_cap is not None or require_unique_visual_family):
+                c_copy["diversity_fallback_reason"] = fallback_reason
             selected.append(c_copy)
-            if source:
+            if source and not _is_protected_speech_anchor(best_candidate):
                 source_counts[source] = source_counts.get(source, 0) + 1
             tier.remove(best_candidate)
 
@@ -346,7 +385,8 @@ def _window_quality_reason(scene, start, dur):
 
 def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
                         history=None, diversity=True, soul_ranking=True,
-                        max_source_repeats=None):
+                        max_source_repeats=None,
+                        require_unique_visual_family=False):
     """Convert top-ranked scenes to concrete editor slots. `diversity=False`
     disables the VD2 same-tier diversity reorder (correctness order only)."""
     from .action_progression import classify_function
@@ -358,7 +398,8 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
     # caller's limit.
     selected = select_diverse_ranked_scenes(ranked, material_maps, len(ranked),
                                             history=history, diversity=diversity,
-                                            max_source_repeats=max_source_repeats)
+                                            max_source_repeats=max_source_repeats,
+                                            require_unique_visual_family=require_unique_visual_family)
 
     slots = []
     fallback_slots = []
@@ -411,6 +452,10 @@ def plan_ranked_windows(segment, material_maps, *, limit, clip_dur, ranker=None,
             "source_repeat_count": item.get("source_repeat_count", 0),
             "window_quality_reason": quality_reason,
         }
+        if item.get("diversity_fallback_reason"):
+            slot["diversity_fallback_reason"] = item["diversity_fallback_reason"]
+        if item.get("protected_speech_anchor"):
+            slot["protected_speech_anchor"] = True
         if is_photo:
             slot["is_photo"] = True
             slot["kenburns"] = True

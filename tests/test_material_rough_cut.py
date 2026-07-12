@@ -62,6 +62,66 @@ def _project_map():
 
 
 class MaterialRoughCutTest(unittest.TestCase):
+    def test_opt_in_diversity_uses_ranked_material_map_and_protects_speech_anchor(self):
+        contract = {
+            "diversity_policy": {
+                "max_source_repeats": 1,
+                "require_unique_visual_family": True,
+            },
+            "segments": [
+                {
+                    "segment": 1,
+                    "requested_duration_sec": 4,
+                    "protected_speech_anchor": True,
+                    "material_fit": {"need_refs": ["nd_speech"]},
+                },
+                {
+                    "segment": 2,
+                    "requested_duration_sec": 4,
+                    "material_fit": {"need_refs": ["nd_cutaway"]},
+                },
+                {
+                    "segment": 3,
+                    "requested_duration_sec": 4,
+                    "material_fit": {"need_refs": ["nd_cutaway"]},
+                },
+            ],
+        }
+        project_map = {
+            "artifact_role": "project_material_map",
+            "version": 1,
+            "assets": [
+                {"asset_id": "anchor", "asset_type": "video", "source": "speech.mp4", "scenes": [{
+                    "start": 0.0, "end": 6.0, "caption": "supervisor speaking",
+                    "visual_family": "talking_head", "story_function": "protected_speech_anchor",
+                    "protected_speech_anchor": True,
+                    "satisfies": [{"need_id": "nd_speech", "status": "accepted",
+                                   "usable_range": {"start": 0.0, "end": 6.0}}],
+                }]},
+                {"asset_id": "cutaway-a", "asset_type": "video", "source": "speech.mp4", "scenes": [{
+                    "start": 0.0, "end": 6.0, "caption": "training group",
+                    "visual_family": "group", "satisfies": [{"need_id": "nd_cutaway", "status": "accepted"}],
+                }]},
+                {"asset_id": "cutaway-b", "asset_type": "video", "source": "classroom.mp4", "scenes": [{
+                    "start": 0.0, "end": 6.0, "caption": "training group",
+                    "visual_family": "classroom", "satisfies": [{"need_id": "nd_cutaway", "status": "accepted"}],
+                }]},
+                {"asset_id": "cutaway-c", "asset_type": "video", "source": "group.mp4", "scenes": [{
+                    "start": 0.0, "end": 6.0, "caption": "training group",
+                    "visual_family": "group", "satisfies": [{"need_id": "nd_cutaway", "status": "accepted"}],
+                }]},
+            ],
+        }
+
+        plan = build_rough_cut_plan(contract, project_map)
+
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual([clip["scene_id"] for clip in plan["clips"]],
+                         ["anchor:0", "cutaway-a:0", "cutaway-b:0"])
+        self.assertEqual(plan["source_repetition"]["speech.mp4"], 1)
+        self.assertTrue(all("diversity_selection_reason" in clip for clip in plan["clips"][1:]))
+        self.assertTrue(all("diversity_fallback_reason" not in clip for clip in plan["clips"]))
+
     def test_builds_timeline_from_reviewed_scene_to_need_edges(self):
         plan = build_rough_cut_plan(_contract(), _project_map())
 

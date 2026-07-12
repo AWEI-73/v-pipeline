@@ -672,7 +672,8 @@ def _apply_anti_presentation_plan(slots, segment):
 
 def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=None,
                              history=None, diversity=True, soul_ranking=True,
-                             max_source_repeats=None):
+                             max_source_repeats=None,
+                             require_unique_visual_family=False):
     """MR1: map-based scene/window retrieval for a local segment — the DEFAULT
     selection path whenever a valid material map exists. Returns concrete slots
     carrying their material+window evidence (source/scene_id/extract_start/
@@ -685,6 +686,7 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
         s, material_maps, limit=a["n_clips"], clip_dur=a["clip_dur"], ranker=ranker,
         history=history, diversity=diversity, soul_ranking=soul_ranking,
         max_source_repeats=max_source_repeats,
+        require_unique_visual_family=require_unique_visual_family,
     )
     for slot in slots:
         slot["provider"] = "local"
@@ -705,7 +707,8 @@ def _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps, ranker=N
 
 def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
                           material_maps=None, ranker=None, history=None, diversity=True,
-                          soul_ranking=True, max_source_repeats=None):
+                          soul_ranking=True, max_source_repeats=None,
+                          require_unique_visual_family=False):
     """local 段:用 match-mv 已配好的 clip 開窗(不 live 重評)。`_winfn` 可注入測試。"""
     winfn = _winfn or _windows_from_clip
     vd = s.get("visual_desc", "")
@@ -713,7 +716,8 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
         return _plan_map_ranked_segment(s, a, seg_text, keep_audio, material_maps,
                                         ranker=ranker, history=history,
                                         diversity=diversity, soul_ranking=soul_ranking,
-                                        max_source_repeats=max_source_repeats)
+                                        max_source_repeats=max_source_repeats,
+                                        require_unique_visual_family=require_unique_visual_family)
     paths = (
         [s["file"]]
         if s.get("file")
@@ -752,7 +756,8 @@ def _plan_matched_segment(s, a, clip_by_seg, seg_text, keep_audio, _winfn=None,
 def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
                         material_maps=None, clip_list=None, ranker=None,
                         live_kwargs=None, history=None, diversity=True,
-                        soul_ranking=True, max_source_repeats=None):
+                        soul_ranking=True, max_source_repeats=None,
+                        require_unique_visual_family=False):
     """MR1 dispatcher for a local (non-stock, non-source_speech) segment.
 
     Priority: **map-ranked** retrieval whenever a valid material map exists →
@@ -765,7 +770,8 @@ def _plan_local_segment(s, a, clip_by_seg, seg_text, keep_audio, *,
         slots, entry, msgs = _plan_map_ranked_segment(
             s, a, seg_text, keep_audio, material_maps, ranker=ranker,
             history=history, diversity=diversity, soul_ranking=soul_ranking,
-            max_source_repeats=max_source_repeats)
+            max_source_repeats=max_source_repeats,
+            require_unique_visual_family=require_unique_visual_family)
         if slots:
             return slots, entry, msgs
     live_kwargs = live_kwargs or {}
@@ -1171,7 +1177,8 @@ def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
                          max_clips_per_seg, windows_per_clip, min_score,
                          prefilter_static, visual_judge, vp,
                          auto_sequence=True, diversity=True, soul_ranking=True,
-                         max_source_repeats=None):
+                         max_source_repeats=None,
+                         require_unique_visual_family=False):
     """Per-segment material planning → ordered render-plan slots (AR1 extraction;
     moved verbatim from run_mv, no behavior change).
 
@@ -1241,7 +1248,8 @@ def _plan_story_timeline(segs, alloc, beats, *, material_maps, clip_by_seg,
                     "prefilter_static": prefilter_static,
                 },
                 history=shared_history, diversity=diversity, soul_ranking=soul_ranking,
-                max_source_repeats=max_source_repeats)
+                max_source_repeats=max_source_repeats,
+                require_unique_visual_family=require_unique_visual_family)
         # BR2 beat-to-sequence: if a segment opts into a beat recipe, compile its
         # approved windows into a multi-shot sequence and replace the slots so the
         # timeline sequence actually changes. Runs BEFORE anti-presentation so the
@@ -1545,7 +1553,8 @@ def run_mv(script, material_root, out_path, music_path=None,
            model="qwen3-vl:4b-instruct", mat_dir=None, max_clips_per_seg=2,
            windows_per_clip=2, min_score=60, clip_list=None, prefilter_static=True,
            verbose=True, skip_render=False, target_sec=None, burn_text=True,
-           visual_judge="agent", material_maps=None, max_source_repeats=None):
+           visual_judge="agent", material_maps=None, max_source_repeats=None,
+           require_unique_visual_family=False):
     """clip_list(match-mv 結果)給定時:local 段用「已配好+人複核」的 clip,不 live 重評
     (roadmap #0 接線)。未給則 fallback live 評分。stock 段一律 Pexels。"""
     """劇本驅動跑全鏈(v0):音樂先→cut_grid 分段→per-段 visual_desc 評窗(鑑別力)
@@ -1620,7 +1629,8 @@ def run_mv(script, material_root, out_path, music_path=None,
         auto_sequence=not script.get("disable_auto_sequence"),
         diversity=not script.get("disable_visual_diversity"),
         soul_ranking=not script.get("disable_soul_ranking"),
-        max_source_repeats=max_source_repeats)
+        max_source_repeats=max_source_repeats,
+        require_unique_visual_family=require_unique_visual_family)
 
     # SRP3 trace stamping (story slots + per-segment entries only; before bookends
     # so opening/ending evidence is never tagged with arc trace).
@@ -1862,7 +1872,7 @@ def _load_material_maps(material_db_payload, db_dir="."):
 
 def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbose=True,
              skip_render=False, target_sec=None, burn_text=True, visual_judge="agent",
-             max_source_repeats=None):
+             max_source_repeats=None, require_unique_visual_family=False):
     """單一入口(roadmap #0 接線):material_db × 劇本 → match-mv → render。
     把 curator 理解(caption)+ 比對 + 渲染串成一條;render 吃 match 結果,不 live 重評。
     前置:material_db 須先 `ingest-meta` + `caption-meta`。stock 段仍由 run_mv 抓 Pexels。"""
@@ -1893,7 +1903,8 @@ def mv_chain(script, material_db, out_path, music_path=None, mat_dir=None, verbo
     res = run_mv(script, None, out_path, music_path=music_path,
                  clip_list=matched, mat_dir=mat_dir, verbose=verbose, skip_render=skip_render,
                  target_sec=target_sec, burn_text=burn_text, visual_judge=visual_judge,
-                 material_maps=material_maps, max_source_repeats=max_source_repeats)
+                 material_maps=material_maps, max_source_repeats=max_source_repeats,
+                 require_unique_visual_family=require_unique_visual_family)
     res["match"] = matched
     return res
 

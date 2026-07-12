@@ -14,7 +14,10 @@ from pathlib import Path
 
 from video_pipeline_core import mv_cut
 from video_pipeline_core.material_retrieval import plan_ranked_windows, rank_scenes
-from video_pipeline_core.project_material_map import expand_project_material_map
+from video_pipeline_core.project_material_map import (
+    build_project_material_map,
+    expand_project_material_map,
+)
 from video_pipeline_core.vt_core import FFMPEG
 
 
@@ -156,6 +159,41 @@ class MapDefaultPathTest(unittest.TestCase):
 
 
 class ExpandProjectMapTest(unittest.TestCase):
+    def test_l0_shaped_scene_evidence_survives_existing_map_normalization(self):
+        source = {
+            "artifact_role": "material_map",
+            "version": 1,
+            "asset_id": "ca_action_cable_8237",
+            "asset_type": "video",
+            "source": "materials/拖拉電纜/IMG_8237.MOV",
+            "scenes": [{
+                "scene_index": 0,
+                "start": 2.4,
+                "end": 4.4,
+                "caption": "Outdoor crew cable-work action.",
+                "visual_family": "utility_cable_action",
+                "angle_scale": "medium",
+                "action_family": "technical_training",
+                "subject": "uniformed crew",
+                "story_function": "training-process cutaway",
+                "evidence_refs": ["l0_selects_provenance.json#ca_action_cable_8237"],
+                "blind_spots": ["No close-up proof of hand placement."],
+            }],
+        }
+
+        project = build_project_material_map([source])
+        normalized = expand_project_material_map(project)
+        scene = normalized[0]["scenes"][0]
+
+        self.assertEqual(project["assets"][0]["asset_id"], "ca_action_cable_8237")
+        self.assertEqual(scene["start"], 2.4)
+        self.assertEqual(scene["end"], 4.4)
+        self.assertEqual(scene["evidence_refs"], ["l0_selects_provenance.json#ca_action_cable_8237"])
+        self.assertEqual(scene["blind_spots"], ["No close-up proof of hand placement."])
+        self.assertEqual(scene["visual_family"], "utility_cable_action")
+        self.assertEqual(scene["story_function"], "training-process cutaway")
+        self.assertNotIn("filename_semantics", scene)
+
     def test_D_project_map_expands_to_per_asset_maps_for_retrieval(self):
         project_map = {
             "artifact_role": "project_material_map", "version": 1,
