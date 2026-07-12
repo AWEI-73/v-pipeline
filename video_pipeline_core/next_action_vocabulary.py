@@ -121,6 +121,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "review_dialogue_edit_script_then_cut",
         "review_effect_recipe_patch",
         "review_generated_material",
+        "review_internal_audio_preview",
         "review_noncanonical_draft_then_promote_rules",
         "review_or_apply_primary_wall_verdict",
         "review_or_regenerate_inconsistent_material",

@@ -4,8 +4,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from video_tools import cmd_soundtrack_provider_search
 from video_pipeline_core.soundtrack_providers import (
     download_candidate,
     import_url_with_ytdlp,
@@ -362,31 +364,37 @@ class SoundtrackProvidersTest(unittest.TestCase):
             plan_path = run / "soundtrack_plan.json"
             plan_path.write_text(json.dumps(_plan()), encoding="utf-8")
             out = run / "music_source_candidates.json"
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "video_tools.py",
-                    "soundtrack-provider-search",
-                    "--plan",
-                    str(plan_path),
-                    "--out",
-                    str(out),
-                    "--providers",
-                    "jamendo",
-                    "--limit",
-                    "1",
-                ],
-                cwd=root,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            jamendo_payload = {
+                "results": [
+                    {
+                        "id": "123",
+                        "name": "Run Forward",
+                        "artist_name": "Open Band",
+                        "duration": 123,
+                        "audio": "https://audio.example/preview.mp3",
+                        "audiodownload": "https://audio.example/download.mp3",
+                        "audiodownload_allowed": True,
+                        "shareurl": "https://jamendo.com/track/123",
+                        "license_ccurl": "https://creativecommons.org/licenses/by-sa/3.0/",
+                    }
+                ]
+            }
 
-            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with patch("urllib.request.urlopen", return_value=FakeResponse(jamendo_payload)) as mocked:
+                cmd_soundtrack_provider_search(
+                    SimpleNamespace(
+                        plan=str(plan_path),
+                        out=str(out),
+                        providers="jamendo",
+                        limit=1,
+                    )
+                )
+
+            self.assertTrue(mocked.called)
             payload = json.loads(out.read_text(encoding="utf-8"))
-            self.assertIn("jamendo", payload["provider_status"])
+            self.assertEqual(payload["provider_status"]["jamendo"], "ok")
             self.assertGreaterEqual(len(payload["candidates"]), 1)
+            self.assertTrue(any(item["provider"] == "jamendo" for item in payload["candidates"]))
 
 
 if __name__ == "__main__":
