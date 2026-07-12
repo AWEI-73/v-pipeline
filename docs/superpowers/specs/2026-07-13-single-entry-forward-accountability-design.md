@@ -19,7 +19,7 @@ AGENTS.md (always-loaded pointer)
   -> HANDOFF_CURRENT.md (current state, not another entry)
   -> dispatch-capabilities (read-only machine lookup)
   -> Domain Skill / Capability / Tool / Workbench
-  -> immutable step receipts (observed evidence)
+  -> immutable tool receipts + typed actor decision sidecars
   -> pipeline_execution_trace.json (derived aggregate)
   -> no_skip_contract_decision.json (fail-closed closure)
   -> owner verdict or STOPPED_<STEP>_<REASON>
@@ -437,10 +437,13 @@ owner zones. The executor verifies them before the first step and the closure
 meta-gate verifies them again at final seal; any drift is structural.
 
 `accountability_root` is a reserved control subtree excluded from production
-state manifests. Only the executor may write receipts there, only the declared
-agent/owner actor may write the exact attestation/verdict path, and only the
-closure meta-gate may write its exact trace/decision/report paths. Closure
-validates every control-subtree path separately; any extra file is a failure.
+state manifests. Policy reserves receipts to the executor, exact
+attestation/verdict paths to the declared decision actors, and exact
+trace/decision/report paths to the closure meta-gate. Enforcement proves that
+the wrapped tool did not write decision sidecars and validates every
+control-subtree path/schema separately; any extra file is a failure. It does
+not cryptographically prove the human or agent identity behind a valid
+sidecar.
 
 ### 7.3 Canonical path and hash rules
 
