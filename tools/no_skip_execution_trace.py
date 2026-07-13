@@ -35,6 +35,8 @@ def main() -> int:
         print(json.dumps(check, ensure_ascii=False, indent=2))
     else:
         print(f"no_skip_trace status={check.get('status')} out={out_dir}")
+    if args.contract:
+        return 0 if check.get("ok") else 1
     return 0 if check.get("status") == "ok" else 1
 
 

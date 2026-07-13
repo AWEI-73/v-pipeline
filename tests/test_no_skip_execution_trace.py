@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from video_pipeline_core.no_skip_execution_trace import (
     audit_run_gate_authenticity,
@@ -21,6 +22,25 @@ def _write_json(root: Path, name: str, payload: dict) -> Path:
 
 
 class NoSkipExecutionTraceTest(unittest.TestCase):
+    def test_strict_cli_returns_zero_for_ok_waiting_owner_result(self):
+        import tools.no_skip_execution_trace as no_skip_cli
+
+        with patch.object(
+            no_skip_cli,
+            "write_strict_trace_audit",
+            return_value={"ok": True, "final_state": "WAITING_OWNER_ACCOUNTABILITY_FIXTURE"},
+        ), patch.object(
+            no_skip_cli.sys,
+            "argv",
+            [
+                "no_skip_execution_trace.py",
+                "--contract", "contract.json",
+                "--run", "run",
+                "--out-dir", "out",
+            ],
+        ):
+            self.assertEqual(0, no_skip_cli.main())
+
     def test_strict_closure_derives_v2_trace_and_decision_without_legacy_fallback(self):
         with execution_repository() as (root, path):
             initialize_accountable_run(root, path)
