@@ -1317,7 +1317,9 @@ creative taste, final delivery, or automatic loop selection.
 
 - add execution class/role to canonical cards;
 - extend shared parser/catalog/query/audit;
-- keep all 51 current capabilities discoverable and owned.
+- keep every non-retired capability discoverable and owned; the post-change
+  catalog ID set/count must equal the pre-change set minus only Capability IDs
+  whose approved retirement-table outcome is `delete`.
 - remove only proven-dead aliases or active legacy references; preserve named
   historical readers as `legacy_read_only`.
 
@@ -1354,8 +1356,9 @@ The design is implemented only when all are true:
 4. HANDOFF state exactly matches its named authoritative JSON field; entry
    audit fails stale, conflicting, duplicated, or non-HANDOFF current routing.
 5. All canonical capabilities have valid execution class and role.
-6. All current tools/capabilities/commands remain owned, classified, and
-   queryable.
+6. All non-retired tools/capabilities/commands remain owned, classified, and
+   queryable; the catalog delta exactly matches approved `delete` rows and no
+   `keep`/`legacy_read_only` row disappears unexpectedly.
 7. Strict activation is determined only by one valid committed version-1
    companion and its immutable run reference; a matching run root, control
    artifact, malformed/conflicting reference, or omitted CLI argument cannot
