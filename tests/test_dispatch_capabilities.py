@@ -47,6 +47,36 @@ def _contract(
 
 
 class DispatchCapabilitiesTest(unittest.TestCase):
+    def test_capability_run_is_a_registered_thin_dispatch_surface(self):
+        self.assertIn("capability-run", video_tools.VIDEO_TOOLS_DISPATCH)
+        self.assertEqual("contract", video_tools.build_video_tools_command_manifest()["commands"]["capability-run"]["group"])
+
+    def test_capability_run_requires_exactly_one_mode_and_returns_json_on_invalid_contract(self):
+        root = Path(__file__).resolve().parents[1]
+        invalid_contract = subprocess.run(
+            [sys.executable, "video_tools.py", "capability-run", "--contract", "missing.execution.json", "--step-id", "step", "--json"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(0, invalid_contract.returncode, invalid_contract.stdout + invalid_contract.stderr)
+        payload = json.loads(invalid_contract.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertIn("errors", payload)
+
+        for command in (
+            ["capability-run", "--initialize", "--step-id", "step", "--contract", "missing.execution.json", "--json"],
+            ["capability-run", "--contract", "missing.execution.json", "--step-id", "step", "--route", "alternate", "--json"],
+        ):
+            completed = subprocess.run(
+                [sys.executable, "video_tools.py", *command],
+                cwd=root,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(0, completed.returncode, completed.stdout + completed.stderr)
+            self.assertEqual("", completed.stdout)
+
     def test_build_and_query_exact_id_owner_loop_and_and_query(self):
         catalog = build_catalog([_contract()])
         self.assertTrue(catalog["ok"], catalog)

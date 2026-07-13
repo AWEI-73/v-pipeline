@@ -48,6 +48,7 @@ class VideoToolsCommandCatalogTest(unittest.TestCase):
         self.assertEqual(manifest["commands"]["dashboard"]["group"], "frontend")
         self.assertEqual(manifest["commands"]["replay-acceptance"]["group"], "acceptance")
         self.assertEqual(manifest["commands"]["video-intent-acceptance"]["group"], "acceptance")
+        self.assertEqual(manifest["commands"]["capability-run"]["group"], "contract")
 
     def test_commands_manifest_cli_prints_or_writes_json(self):
         with tempfile.TemporaryDirectory() as d:

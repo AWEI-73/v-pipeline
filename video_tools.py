@@ -202,6 +202,19 @@ def cmd_dispatch_capabilities(args):
     )
 
 
+def cmd_capability_run(args):
+    """Thin CLI boundary for one accountable initialization or step execution."""
+    from video_pipeline_core.capability_execution import initialize_accountable_run, run_capability_step
+
+    contract = Path(args.contract)
+    if args.initialize:
+        result = initialize_accountable_run(Path.cwd(), contract)
+    else:
+        result = run_capability_step(Path.cwd(), contract, args.step_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("ok") else 1
+
+
 # ── commands ─────────────────────────────────────────────────────────────────
 
 def cmd_contract_adapt(args):
@@ -3132,6 +3145,7 @@ def _build_video_tools_dispatch():
         "video-intent-acceptance": cmd_video_intent_acceptance,
         "commands-manifest": cmd_commands_manifest,
         "dispatch-capabilities": cmd_dispatch_capabilities,
+        "capability-run": cmd_capability_run,
         "workflow-manifest": cmd_workflow_manifest,
         "acceptance-contract": cmd_acceptance_contract,
         "test-tiers": cmd_test_tiers,
@@ -3588,6 +3602,13 @@ def main():
     p_dispatch.add_argument("--out")
     p_dispatch.add_argument("--skills-dir", default="skills")
     p_dispatch.add_argument("--tools-dir", default="tools")
+
+    p_capability = sub.add_parser("capability-run")
+    capability_mode = p_capability.add_mutually_exclusive_group(required=True)
+    capability_mode.add_argument("--initialize", action="store_true")
+    capability_mode.add_argument("--step-id")
+    p_capability.add_argument("--contract", required=True)
+    p_capability.add_argument("--json", action="store_true")
 
     p_wfm = sub.add_parser("workflow-manifest")
     p_wfm.add_argument("--out", help="write video_tools workflow manifest JSON")
