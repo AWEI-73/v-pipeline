@@ -1,0 +1,262 @@
+{
+  "artifact_role": "work_order_execution_contract",
+  "version": 1,
+  "accountability_contract_version": 1,
+  "work_order_id": "canon67-150s-l1-picture-composition",
+  "work_order_path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-l1-picture-composition.md",
+  "work_order_sha256": "b145c6cde4dbbcbff2ad50a0d0ddeabc04161ce70c497040c768860b5149c7cd",
+  "run_root": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate",
+  "accountability_root": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/accountability",
+  "initial_run_root_manifest": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/mixed_media_probe_rough_cut_plan.json",
+      "sha256": "2f99f8d3e615fd9d99d558b7ea4b7e66a6c1286d3d114ce92f3bc4427282502f"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/combined_rough_cut_plan.json",
+      "sha256": "8a4dadf40dd13b74ea0f39724e61fd15eb2e7fbe304aa94467177ae839dc2c0d"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/source_hash_manifest.json",
+      "sha256": "7c5f48219990121cf6d22848914e5c667df701c27737f55f834b0bc976235ac1"
+    }
+  ],
+  "initial_owner_zone_manifest": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
+      "sha256": "4955f19dce9f4f887a77cce59263d9ea29306b66d701487cbaba345ebb5eae5f"
+    },
+    {
+      "path": "HANDOFF_CURRENT.md",
+      "sha256": "a8128edd1fc680104fdf2160109ed62c359ca55520cdc001cd65c471303ade88"
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "L1.mixed-media-render-probe",
+      "loop": "L1",
+      "capability_id": "cap.material-map.rough-cut-plan-execute.v1",
+      "depends_on": [],
+      "command_argv": [
+        "{python}",
+        "tools/rough_cut_plan_execute.py",
+        "--rough-cut-plan",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/mixed_media_probe_rough_cut_plan.json",
+        "--out",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/probe/mixed_media_probe.mp4",
+        "--report",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/probe/rough_cut_preview_report.json",
+        "--width",
+        "640",
+        "--height",
+        "360",
+        "--fps",
+        "30",
+        "--timeout-sec",
+        "180"
+      ],
+      "timeout_ms": 300000,
+      "inputs": [
+        {
+          "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/mixed_media_probe_rough_cut_plan.json",
+          "sha256": "2f99f8d3e615fd9d99d558b7ea4b7e66a6c1286d3d114ce92f3bc4427282502f"
+        }
+      ],
+      "required_outputs": [
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/probe/mixed_media_probe.mp4",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/probe/rough_cut_preview_report.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "L1.render-150s-picture-candidate",
+      "loop": "L1",
+      "capability_id": "cap.material-map.rough-cut-plan-execute.v1",
+      "depends_on": [
+        "L1.mixed-media-render-probe"
+      ],
+      "command_argv": [
+        "{python}",
+        "tools/rough_cut_plan_execute.py",
+        "--rough-cut-plan",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/combined_rough_cut_plan.json",
+        "--out",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/final.mp4",
+        "--report",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/rough_cut_preview_report.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--fps",
+        "30",
+        "--timeout-sec",
+        "1800"
+      ],
+      "timeout_ms": 2100000,
+      "inputs": [
+        {
+          "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/combined_rough_cut_plan.json",
+          "sha256": "8a4dadf40dd13b74ea0f39724e61fd15eb2e7fbe304aa94467177ae839dc2c0d"
+        },
+        {
+          "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/source_hash_manifest.json",
+          "sha256": "7c5f48219990121cf6d22848914e5c667df701c27737f55f834b0bc976235ac1"
+        }
+      ],
+      "required_outputs": [
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/final.mp4",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/rough_cut_preview_report.json"
+      ],
+      "required_verifier_step_ids": [
+        "L5.verify-150s-picture-candidate"
+      ],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "L5.verify-150s-picture-candidate",
+      "loop": "L5",
+      "capability_id": "cap.verify.final-product-verify.v1",
+      "depends_on": [
+        "L1.render-150s-picture-candidate"
+      ],
+      "command_argv": [
+        "{python}",
+        "tools/final_product_verify.py",
+        "--video",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/final.mp4",
+        "--out-dir",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/l5/final_product_verify",
+        "--sample-count",
+        "36",
+        "--json"
+      ],
+      "timeout_ms": 600000,
+      "inputs": [],
+      "required_outputs": [
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/l5/final_product_verify/keyframe_grid.jpg",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/l5/final_product_verify/visual_audit.json",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/l5/final_product_verify/soundtrack_probe_report.json",
+        ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/l5/final_product_verify/final_product_verify_bundle.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    }
+  ],
+  "decision_requirements": [
+    {
+      "requirement_id": "L1.picture-technical-review",
+      "actor_class": "agent",
+      "depends_on_step_ids": [
+        "L1.render-150s-picture-candidate",
+        "L5.verify-150s-picture-candidate"
+      ],
+      "evidence_path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/accountability/attestations/L1.picture-technical-review.json",
+      "missing_state": "UNKNOWN_AGENT_EVIDENCE"
+    }
+  ],
+  "allowed_owner_zones": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate",
+      "match": "directory_prefix"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
+      "match": "exact"
+    },
+    {
+      "path": "HANDOFF_CURRENT.md",
+      "match": "exact"
+    }
+  ],
+  "forbidden_paths": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0",
+      "match": "directory_prefix"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0_revision_v2",
+      "match": "directory_prefix"
+    },
+    {
+      "path": "tools/workbench_handoff.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/preview_timeline.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/timeline_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/subtitle_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/audio_cue_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/effect_patch.py",
+      "match": "exact"
+    }
+  ],
+  "protected_paths": [
+    {
+      "path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-l1-picture-composition.md",
+      "sha256": "b145c6cde4dbbcbff2ad50a0d0ddeabc04161ce70c497040c768860b5149c7cd"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-13-canon67-150s-l1-picture-composition-plan.md",
+      "sha256": "a4e4efc3bcb0881bb45ec13f7052cadb6258fdf5aa792dd77ce4e4844516641e"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-07-13-canon67-150s-picture-first-longform-design.md",
+      "sha256": "8870b7d65b11639cd7d2f9e212ded4359bf04c19da52fe96272aaa394ddc8968"
+    },
+    {
+      "path": "RUNBOOK.md",
+      "sha256": "a3e455095be04ae7b8ce86f36f0ecc74c9880f5b8c745333b037e3108cc50d56"
+    },
+    {
+      "path": "skills/editing-loop-director.md",
+      "sha256": "1bd1ff2370a9721a69faa5032040faf6df227c410ee68655fc34f70ee3b87fab"
+    },
+    {
+      "path": "skills/material-map.md",
+      "sha256": "4ecd3761418fff6adc292dbb489ff8662e3729a87d9d56de884cfd49b1fa00ff"
+    },
+    {
+      "path": "skills/verify.md",
+      "sha256": "4ac3f01c8135b3e9433cd0166b01da41592c5d58853368c352b1c66759006f19"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0_revision_v2/proposal/l0_selects_proposal_v2.json",
+      "sha256": "87686deb7139e26b6246b9d32b4ce46d0c85834963d97899126fe39f90845309"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0_revision_v2/review/integrator_verdict_v2.json",
+      "sha256": "801c0ec16dcb95bb5870e83600d0ec95ca56bf26928148f3e357f5d681788f3c"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/mixed_media_probe_rough_cut_plan.json",
+      "sha256": "2f99f8d3e615fd9d99d558b7ea4b7e66a6c1286d3d114ce92f3bc4427282502f"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/combined_rough_cut_plan.json",
+      "sha256": "8a4dadf40dd13b74ea0f39724e61fd15eb2e7fbe304aa94467177ae839dc2c0d"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate/inputs/source_hash_manifest.json",
+      "sha256": "7c5f48219990121cf6d22848914e5c667df701c27737f55f834b0bc976235ac1"
+    }
+  ],
+  "human_creative_approval": false,
+  "final_delivery_claimed": false
+}
