@@ -10,6 +10,7 @@ from video_pipeline_core.capability_execution import (
     validate_execution_contract,
 )
 from video_pipeline_core.capability_catalog import load_live_catalog
+from video_pipeline_core.audio_mix_plan_executor import _resolve_audio_file
 from video_pipeline_core.no_skip_execution_trace import evaluate_no_skip_contract, write_strict_trace_audit
 
 
@@ -236,6 +237,24 @@ class ExecutionContractSchemaTest(unittest.TestCase):
 
 
 class AccountabilityForwardFixtureTest(unittest.TestCase):
+    def test_bare_audio_filename_resolves_to_declared_forward_v2_initial_input(self):
+        root = Path(__file__).resolve().parents[1]
+        companion_path = root / "docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json"
+        contract = json.loads(companion_path.read_text(encoding="utf-8"))
+        fixture_root = root / "tests/fixtures/accountability_forward_v1"
+        audio_plan = json.loads((fixture_root / "audio/audio_mix_plan.json").read_text(encoding="utf-8"))
+        audio_step = next(item for item in contract["steps"] if item["step_id"] == "fixture.audio-mix-plan-execute")
+        audio_file = audio_plan["tracks"][0]["audio_file"]
+        expected_path = ".tmp/single_entry_forward_accountability_acceptance/forward_v2/audio/background_music.wav"
+        out_dir = root / ".tmp/single_entry_forward_accountability_acceptance/forward_v2/audio"
+
+        self.assertEqual("background_music.wav", audio_file)
+        self.assertEqual(expected_path, next(item["path"] for item in contract["initial_run_root_manifest"]))
+        self.assertEqual(expected_path, next(item["path"] for item in contract["protected_paths"] if item["path"] == expected_path))
+        self.assertIn({"path": expected_path, "sha256": hash_bytes((fixture_root / "audio/background_music.wav").read_bytes())}, contract["initial_run_root_manifest"])
+        self.assertIn({"path": expected_path, "sha256": hash_bytes((fixture_root / "audio/background_music.wav").read_bytes())}, audio_step["inputs"])
+        self.assertEqual(out_dir / audio_file, _resolve_audio_file(audio_file, out_dir))
+
     def test_fixture_and_companion_schema(self):
         root = Path(__file__).resolve().parents[1]
         fixture_root = root / "tests/fixtures/accountability_forward_v1"
