@@ -6,6 +6,21 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .capability_catalog import load_live_catalog
+from .capability_execution import (
+    _attempt_numbers,
+    _execution_context,
+    _find_step,
+    _now_rfc3339,
+    _read_json,
+    _relative_path,
+    _sorted_errors,
+    hash_file,
+    load_execution_contract,
+    resolve_strict_contract,
+    validate_accountable_run_evidence,
+)
+
 
 TRACE_CLASSIFICATIONS = {
     "pipeline_tool_generated",
@@ -345,6 +360,296 @@ def evaluate_no_skip_contract(run: str | Path) -> dict[str, Any]:
         "next_action": None if not blocking else blocking[0]["next_action"],
         "gate_authenticity": gate_audit,
     }
+
+
+def write_strict_trace_audit(
+    repo_root: str | Path,
+    contract_path: str | Path,
+    run: str | Path,
+    out_dir: str | Path,
+) -> dict[str, Any]:
+    """Seal strict accountable evidence without falling back to legacy trace data."""
+    root = Path(repo_root).resolve()
+    run_root = Path(run)
+    if not run_root.is_absolute():
+        run_root = root / run_root
+    try:
+        activation = resolve_strict_contract(root, run_root, contract_path)
+    except (OSError, ValueError):
+        activation = {"ok": False, "errors": [{"code": "strict_contract_invalid", "path": str(contract_path), "message": "strict contract could not be resolved"}]}
+    if not activation.get("ok"):
+        return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", activation.get("errors") or [], [])
+    contract = load_execution_contract(root, contract_path)
+    contract = dict(contract)
+    contract["_contract_path"] = activation["contract_path"]
+    context, context_errors = _execution_context(root, contract)
+    if context is None:
+        return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", context_errors, [])
+    accountability = root / contract["accountability_root"]
+    output_root = Path(out_dir)
+    if not output_root.is_absolute():
+        output_root = root / output_root
+    output_root = output_root.resolve(strict=False)
+    if not _is_within_path(accountability.resolve(strict=False), output_root):
+        return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", [{"code": "strict_output_outside_accountability", "path": str(out_dir), "message": "strict closure output must remain under accountability root"}], [])
+    catalog = load_live_catalog(root / "skills")
+    evidence = validate_accountable_run_evidence(root, contract, catalog)
+    decision_entries, decision_errors, owner_waiting = _strict_decision_entries(root, contract, context["reference"])
+    errors = [*evidence.get("errors", []), *decision_errors]
+    if errors:
+        final_state = "UNKNOWN_ACCOUNTABILITY"
+    elif owner_waiting:
+        final_state = owner_waiting
+    else:
+        final_state = evidence.get("final_state") or "PASS"
+    tool_entries = _strict_tool_entries(root, contract, catalog, evidence.get("tool_entries") or [])
+    gate_audit = audit_run_gate_authenticity(run_root)
+    trace = {
+        "artifact_role": "pipeline_execution_trace",
+        "version": 2,
+        "accountability_contract_version": 1,
+        "run_instance_id": context["reference"]["run_instance_id"],
+        "work_order_execution_contract": context["reference"]["contract_path"],
+        "work_order_execution_contract_sha256": context["reference"]["contract_sha256"],
+        "tool_entries": tool_entries,
+        "decision_entries": decision_entries,
+        "human_creative_approval": False,
+        "final_delivery_claimed": False,
+    }
+    decision = {
+        "artifact_role": "no_skip_contract_decision",
+        "version": 2,
+        "ok": not errors and bool(evidence.get("ok")),
+        "final_state": final_state,
+        "errors": _sorted_errors(errors),
+        "warnings": evidence.get("warnings") or [],
+        "tool_entries": tool_entries,
+        "decision_entries": decision_entries,
+        "human_creative_approval": False,
+        "final_delivery_claimed": False,
+        "gate_authenticity": gate_audit,
+    }
+    audit = {
+        "artifact_role": "strict_accountability_closure_audit",
+        "version": 1,
+        "ok": decision["ok"],
+        "run_instance_id": context["reference"]["run_instance_id"],
+        "contract_path": context["reference"]["contract_path"],
+        "contract_sha256": context["reference"]["contract_sha256"],
+        "errors": decision["errors"],
+        "warnings": decision["warnings"],
+    }
+    output_root.mkdir(parents=True, exist_ok=True)
+    files = {
+        "pipeline_execution_trace.json": trace,
+        "no_skip_contract_decision.json": decision,
+        "strict_accountability_closure_audit.json": audit,
+    }
+    for name, payload in files.items():
+        target = output_root / name
+        if target.exists():
+            return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", [{"code": "strict_closure_already_sealed", "path": _relative_path(root, target), "message": "strict closure artifact already exists"}], [])
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return decision
+
+
+def _strict_tool_entries(root: Path, contract: dict, catalog: dict, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    cards = {item.get("capability_id"): item for item in catalog.get("cards") or [] if isinstance(item, dict)}
+    output: list[dict[str, Any]] = []
+    for item in entries:
+        receipt_path = root / str(item.get("receipt_path") or "")
+        receipt = _read_json(receipt_path)
+        card = cards.get(receipt.get("capability_id"), {})
+        output.append({
+            "step_id": receipt.get("step_id"),
+            "capability_id": receipt.get("capability_id"),
+            "execution_class": card.get("execution_class"),
+            "capability_role": card.get("capability_role"),
+            "attempt": receipt.get("attempt"),
+            "receipt_path": item.get("receipt_path"),
+            "receipt_sha256": item.get("receipt_sha256"),
+            "actor_type": "tool",
+            "actor_id": card.get("tool") or card.get("command"),
+            "command_argv": receipt.get("command_argv") or [],
+            "started_at": receipt.get("started_at"),
+            "completed_at": receipt.get("completed_at"),
+            "duration_sec": receipt.get("duration_sec"),
+            "exit_code": receipt.get("exit_code"),
+            "status": receipt.get("status"),
+            "input_hashes": receipt.get("input_hashes") or {},
+            "output_hashes": receipt.get("output_hashes") or {},
+            "changed_paths": receipt.get("changed_paths") or [],
+            "verify_refs": [],
+            "source_tool": receipt.get("source_tool"),
+        })
+    return sorted(output, key=lambda item: str(item.get("step_id") or ""))
+
+
+def _strict_decision_entries(root: Path, contract: dict, reference: dict) -> tuple[list[dict[str, Any]], list[dict[str, str]], str | None]:
+    entries: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    owner_waiting: str | None = None
+    for requirement in contract.get("decision_requirements") or []:
+        if not isinstance(requirement, dict):
+            continue
+        requirement_id = requirement.get("requirement_id")
+        actor = requirement.get("actor_class")
+        path = str(requirement.get("evidence_path") or "")
+        evidence_path = root / path
+        account_root = (root / str(contract.get("accountability_root") or "")).resolve(strict=False)
+        if not _is_within_path(account_root, evidence_path.resolve(strict=False)):
+            errors.append(_error("decision_sidecar_path_invalid", path, "decision sidecar must remain under accountability root"))
+            entries.append({
+                "requirement_id": requirement_id,
+                "actor_class": actor,
+                "depends_on_step_ids": list(requirement.get("depends_on_step_ids") or []),
+                "dependency_receipt_hashes": {},
+                "evidence_path": path,
+                "evidence_sha256": None,
+                "status": "invalid",
+            })
+            continue
+        status = "missing"
+        evidence_sha256 = None
+        if evidence_path.is_file():
+            payload = _load_json(evidence_path)
+            sidecar_errors = _validate_sidecar(root, contract, requirement, reference, payload)
+            if sidecar_errors:
+                status = "invalid"
+                errors.extend(sidecar_errors)
+            else:
+                status = "present"
+                evidence_sha256 = hash_file(evidence_path)
+        elif actor == "agent":
+            errors.append(_error("missing_agent_evidence", path, "agent decision evidence is missing"))
+        else:
+            owner_waiting = owner_waiting or str(requirement.get("missing_state") or "WAITING_OWNER_ACCOUNTABILITY")
+        dependency_hashes = {}
+        for step_id in requirement.get("depends_on_step_ids") or []:
+            receipt = _latest_receipt(root, contract, step_id)
+            if receipt:
+                dependency_hashes[step_id] = hash_file(receipt[0])
+        entries.append({
+            "requirement_id": requirement_id,
+            "actor_class": actor,
+            "depends_on_step_ids": list(requirement.get("depends_on_step_ids") or []),
+            "dependency_receipt_hashes": dependency_hashes,
+            "evidence_path": path,
+            "evidence_sha256": evidence_sha256,
+            "status": status,
+        })
+    return sorted(entries, key=lambda item: str(item.get("requirement_id") or "")), _sorted_errors(errors), owner_waiting
+
+
+def _validate_sidecar(root: Path, contract: dict, requirement: dict, reference: dict, payload: dict | None) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    actor = requirement.get("actor_class")
+    requirement_id = str(requirement.get("requirement_id") or "")
+    code = "stale_agent_decision_sidecar" if actor == "agent" else "copied_owner_decision_sidecar"
+    if not isinstance(payload, dict):
+        return [_error("invalid_decision_sidecar", requirement_id, "decision sidecar must be a JSON object")]
+    expected_role = "agent_attestation" if actor == "agent" else "owner_decision"
+    if payload.get("artifact_role") != expected_role:
+        errors.append(_error("decision_actor_substitution", requirement_id, "decision sidecar actor role does not match the contract"))
+    if payload.get("version") != 1 or payload.get("run_instance_id") != reference.get("run_instance_id") or payload.get("execution_contract_path") != reference.get("contract_path") or payload.get("execution_contract_sha256") != reference.get("contract_sha256"):
+        errors.append(_error(code, requirement_id, "decision sidecar is stale or copied from another accountable run"))
+    if payload.get("requirement_id") != requirement_id:
+        errors.append(_error("decision_requirement_mismatch", requirement_id, "decision sidecar requirement_id does not match"))
+    if actor == "agent":
+        if payload.get("step_id") not in set(requirement.get("depends_on_step_ids") or []):
+            errors.append(_error("agent_decision_binding_invalid", requirement_id, "agent sidecar step_id is not a declared dependency"))
+        if payload.get("capability_id") is None or payload.get("actor_type") != "agent":
+            errors.append(_error("agent_decision_binding_invalid", requirement_id, "agent sidecar actor binding is incomplete"))
+        if not isinstance(payload.get("reviewed_evidence"), list) or not payload.get("reviewed_evidence"):
+            errors.append(_error("agent_evidence_incomplete", requirement_id, "agent sidecar requires reviewed evidence"))
+        if not str(payload.get("judgment") or "").strip() or not isinstance(payload.get("blind_spots"), list) or not payload.get("blind_spots") or not isinstance(payload.get("proposed_findings"), list):
+            errors.append(_error("agent_evidence_incomplete", requirement_id, "agent sidecar requires judgment, blind_spots, and proposed_findings"))
+        timestamp = payload.get("attested_at")
+    else:
+        if payload.get("decision") not in {"approve", "revise", "reject", "delegate"}:
+            errors.append(_error("owner_decision_invalid", requirement_id, "owner decision must be approve|revise|reject|delegate"))
+        if not str(payload.get("scope") or "").strip() or not isinstance(payload.get("evidence_refs"), list) or not payload.get("evidence_refs") or not str(payload.get("verbatim_owner_text") or "").strip():
+            errors.append(_error("owner_decision_incomplete", requirement_id, "owner decision requires scope, evidence_refs, and verbatim_owner_text"))
+        timestamp = payload.get("decided_at")
+    if not isinstance(timestamp, str) or not _parse_rfc3339(timestamp):
+        errors.append(_error(code, requirement_id, "decision timestamp is invalid"))
+    dependency_errors = _validate_sidecar_dependencies(root, contract, requirement, payload)
+    errors.extend(dependency_errors)
+    if isinstance(timestamp, str):
+        timestamp_value = _parse_rfc3339(timestamp)
+        for step_id in requirement.get("depends_on_step_ids") or []:
+            latest = _latest_receipt(root, contract, step_id)
+            if latest is None:
+                continue
+            completed = _parse_rfc3339(latest[1].get("completed_at"))
+            if timestamp_value is None or completed is None or timestamp_value <= completed:
+                errors.append(_error(code, requirement_id, "decision timestamp must be after every dependency receipt"))
+    return _sorted_errors(errors)
+
+
+def _validate_sidecar_dependencies(root: Path, contract: dict, requirement: dict, payload: dict | None) -> list[dict[str, str]]:
+    if not isinstance(payload, dict):
+        return []
+    expected = list(requirement.get("depends_on_step_ids") or [])
+    actual = payload.get("dependency_receipts")
+    code = "stale_agent_decision_sidecar" if requirement.get("actor_class") == "agent" else "copied_owner_decision_sidecar"
+    if not isinstance(actual, list) or {item.get("step_id") for item in actual if isinstance(item, dict)} != set(expected):
+        return [_error(code, str(requirement.get("requirement_id") or ""), "decision dependency receipt set does not match the contract")]
+    errors: list[dict[str, str]] = []
+    for item in actual:
+        if not isinstance(item, dict):
+            continue
+        latest = _latest_receipt(root, contract, item.get("step_id"))
+        if latest is None or item.get("path") != _relative_path(root, latest[0]) or item.get("sha256") != hash_file(latest[0]):
+            errors.append(_error(code, str(requirement.get("requirement_id") or ""), "decision dependency receipt binding is stale"))
+            continue
+        receipt = _read_json(latest[0])
+        if _parse_rfc3339(item.get("completed_at")) is None or item.get("completed_at") != receipt.get("completed_at"):
+            errors.append(_error(code, str(requirement.get("requirement_id") or ""), "decision dependency completion timestamp is stale"))
+    return _sorted_errors(errors)
+
+
+def _latest_receipt(root: Path, contract: dict, step_id: str | None) -> tuple[Path, dict] | None:
+    if not isinstance(step_id, str):
+        return None
+    directory = root / contract["accountability_root"] / "receipts" / step_id
+    numbers = _attempt_numbers(directory)
+    if not numbers:
+        return None
+    path = directory / f"attempt-{max(numbers)}.json"
+    return path, _read_json(path)
+
+
+def _parse_rfc3339(value: Any) -> Any:
+    if not isinstance(value, str):
+        return None
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _strict_result(ok: bool, final_state: str, errors: list[dict[str, str]], warnings: list[dict[str, str]]) -> dict[str, Any]:
+    return {
+        "ok": ok,
+        "tool_entries": [],
+        "decision_entries": [],
+        "final_state": final_state,
+        "errors": _sorted_errors(errors),
+        "warnings": warnings,
+    }
+
+
+def _is_within_path(root: Path, candidate: Path) -> bool:
+    try:
+        return candidate == root or root in candidate.parents
+    except (OSError, ValueError):
+        return False
+
+
+def _error(code: str, path: str, message: str) -> dict[str, str]:
+    return {"code": code, "path": path, "message": message}
 
 
 def build_failed_rehearsal_execution_trace(run: str | Path) -> dict[str, Any]:
