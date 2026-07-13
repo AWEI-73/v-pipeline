@@ -4,7 +4,7 @@
   "accountability_contract_version": 1,
   "work_order_id": "canon67-150s-picture-first-l0-selects",
   "work_order_path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-picture-first-l0-selects.md",
-  "work_order_sha256": "8054fee805c077f82c6b7893743fab5d77e9e9b213ee5789794fe3f54a2e71d5",
+  "work_order_sha256": "861359518e9456c8ab46cc96dadca7efa3574b01d1c6e924901da0d41eb17ab8",
   "run_root": ".tmp/canon67_150s_picture_first_longform/l0",
   "accountability_root": ".tmp/canon67_150s_picture_first_longform/l0/accountability",
   "initial_run_root_manifest": [
@@ -101,11 +101,11 @@
   "protected_paths": [
     {
       "path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-picture-first-l0-selects.md",
-      "sha256": "8054fee805c077f82c6b7893743fab5d77e9e9b213ee5789794fe3f54a2e71d5"
+      "sha256": "861359518e9456c8ab46cc96dadca7efa3574b01d1c6e924901da0d41eb17ab8"
     },
     {
       "path": "docs/superpowers/plans/2026-07-13-canon67-150s-picture-first-l0-plan.md",
-      "sha256": "240317dec29c4731ce1331466097d6854eed1f29da69925912da5388c1af48b3"
+      "sha256": "0bcf048515874d6d968420f86f1f825cf97ff660397d983bac06abbba2810d94"
     },
     {
       "path": "docs/superpowers/specs/2026-07-13-canon67-150s-picture-first-longform-design.md",

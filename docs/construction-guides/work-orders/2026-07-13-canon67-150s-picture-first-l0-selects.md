@@ -59,11 +59,16 @@ The worker may not decide:
 The worker may create or update only:
 
 - `.tmp/canon67_150s_picture_first_longform/l0/**`;
+- `.tmp/canon67_150s_picture_first_longform/preflight/**`;
+- `.tmp/canon67_150s_picture_first_longform/stopped_attempts/**` for preserved
+  failed-attempt evidence only;
 - `.tmp/canon67_150s_picture_first_longform/campaign_status.json`;
 - the machine-state JSON block and current-work summary in
   `HANDOFF_CURRENT.md` at final state transition.
 
 All source media are read-only. `HANDOFF_CURRENT.md` remains unstaged.
+Before accountability initialization, `l0/` may contain only the committed
+control input. Baseline or stopped-attempt evidence belongs outside `l0/`.
 
 ## Forbidden And Protected Zone
 

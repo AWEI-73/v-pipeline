@@ -34,12 +34,17 @@ agent decision awaiting integrator review.
   sections, and `skills/material-map.md` completely where relevant.
 - [ ] Record `git status --short --branch`, HEAD, source-root existence, source
   top-level folders, and hashes of all protected authorities under
-  `l0/baseline/`.
+  `.tmp/canon67_150s_picture_first_longform/preflight/active_attempt/`.
+  Pre-initialization evidence must remain outside the monitored `l0/` run root.
 - [ ] Confirm the canonical source root is
   `C:/Users/user/Downloads/微電影素材/_整理後` and remains read-only.
 - [ ] Confirm the pre-created `campaign_status.json` and
   `control/stage0_material_scan_decision.json` hashes match the committed
   companion before initializing it.
+- [ ] Immediately before initialization, require that `l0/` contains exactly
+  `control/stage0_material_scan_decision.json` and no other file. Preserve any
+  prior stopped-attempt evidence under the campaign-level
+  `stopped_attempts/**` archive; never delete or count it as current evidence.
 - [ ] Stop if the work order, plan, spec, companion, or source root is missing;
   do not substitute a remembered path.
 
@@ -165,8 +170,8 @@ C:/Users/user/miniconda3/python.exe -m unittest tests.test_capability_execution_
   current-work summary in `HANDOFF_CURRENT.md` to
   `WAITING_INTEGRATOR_150S_L0_SELECTS_REVIEW`.
 - [ ] Write `final/worker_report.md` with commands/exits, receipts/hashes,
-  evidence counts, exact dirty-tree preservation, corrections, deviations,
-  blind spots, and both approval flags false.
+  evidence counts, links to campaign-level preflight and stopped-attempt
+  evidence, exact dirty-tree preservation, corrections, deviations, blind
+  spots, and both approval flags false.
 - [ ] Do not run the full suite. Stop. The integrator, not the worker, decides
   whether L1 composition may begin.
-
