@@ -71,6 +71,32 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
         self.assertIn("2026-06-19-interactive-skill-flow.md", roadmap)
         self.assertIn("2026-06-19-interactive-skill-flow.md", index)
 
+    def test_start_here_is_orientation_only_not_an_operational_entry(self):
+        text = read("docs/START_HERE_VIDEO_PIPELINE.md")
+        self.assertIn("<!-- DOCUMENT_ROLE: ORIENTATION -->", text)
+        self.assertNotIn("<!-- OPERATIONAL_ENTRY: RUNBOOK -->", text)
+        self.assertNotIn("active_work_order", text)
+        self.assertNotIn("authoritative_state_artifact", text)
+        self.assertIn("Current E2E review hardening source:", text)
+        self.assertIn(
+            "docs/construction-guides/agent-orchestration/2026-06-22-integrated-e2e-review-action-plan.md",
+            text,
+        )
+        self.assertIn("construction review, not a replacement for the canonical route docs.", text)
+
+    def test_docs_index_is_map_only_and_historical_links_stay_non_authoritative(self):
+        text = read("docs/INDEX.md")
+        self.assertIn("<!-- DOCUMENT_ROLE: MAP -->", text)
+        self.assertNotIn("<!-- OPERATIONAL_ENTRY: RUNBOOK -->", text)
+        self.assertNotIn("active_work_order", text)
+        self.assertNotIn("authoritative_state_artifact", text)
+        self.assertIn("Current Editing Loop continuation", text)
+        self.assertIn(
+            "docs/construction-guides/work-orders/2026-07-11-editing-loop-anchor-health-integrated-longform-campaign.md",
+            text,
+        )
+        self.assertIn("stop at the declared owner gate.", text)
+
 
 if __name__ == "__main__":
     unittest.main()

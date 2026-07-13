@@ -1,9 +1,12 @@
+<!-- DOCUMENT_ROLE: ORIENTATION -->
+
 # Start Here: Hermes Video Pipeline
 
 Date: 2026-06-25
 Status: canonical entrypoint for agents and operators
 
-Read this first when you need to run, debug, or extend the video pipeline.
+Read this first when you need to run, debug, or extend the video pipeline. This
+file is orientation only; `RUNBOOK.md` is the operational entry surface.
 
 ## Rule Zero
 

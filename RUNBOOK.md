@@ -1,3 +1,6 @@
+<!-- OPERATIONAL_ENTRY: RUNBOOK -->
+<!-- CURRENT_HANDOFF_POINTER: HANDOFF_CURRENT.md -->
+
 # Hermes Video Pipeline Runbook
 
 Date: 2026-07-03
@@ -9,12 +12,24 @@ first on PATH.
 
 ## Single Operator Entry
 
-Start operational work from `docs/START_HERE_VIDEO_PIPELINE.md` and this
-runbook. The active branch contract registry is
-`docs/branch-contract-registry.json`; it defines each branch owner, handoff
-artifacts, forbidden actions, and return route. Current construction work that
-touches Stage 0-10 alignment links back to
+`RUNBOOK.md` is the sole operational entry surface. Read
+`docs/START_HERE_VIDEO_PIPELINE.md` for route vocabulary and conceptual
+orientation, then use this runbook for operator routing and
+`HANDOFF_CURRENT.md` for the current bounded work order and machine-readable
+state pointer.
+
+The active branch contract registry is `docs/branch-contract-registry.json`; it
+defines each branch owner, handoff artifacts, forbidden actions, and return
+route. Stage 0-10 alignment construction links back to
 `docs/construction-guides/stage0-10-route-alignment-plan.md`.
+
+## Current Work Pointer
+
+For any live campaign, resume, or stop/go decision, read `HANDOFF_CURRENT.md`.
+That handoff document names the active work order, the runtime state artifact,
+bounded next actions, and explicit do-not-do items. Historical campaign links
+may remain elsewhere in the docs, but this runbook stays stable and does not
+carry live state tokens or current campaign payloads.
 
 ## Task-to-Document Router
 

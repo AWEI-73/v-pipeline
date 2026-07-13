@@ -1,3 +1,5 @@
+<!-- DOCUMENT_ROLE: MAP -->
+
 # Docs Index ??canonical map (2026-06-25)
 
 One page that says what is current and what is historical, so old/new no longer mix.
@@ -38,6 +40,13 @@ Current document layers:
 | Construction guides | `docs/construction-guides/` | Implementation plans and migration notes; use only when changing that area. |
 | Generated maps | `docs/generated/` | Local machine-generated route maps and audits. Ignored by Git; regenerate when needed. |
 | Historical archive | `docs/archive/` | Decision history and old roadmap evidence; not a current source unless linked by a current doc. |
+
+## Historical Continuation Links
+
+- Current Editing Loop continuation (historical campaign map link only):
+  `docs/construction-guides/work-orders/2026-07-11-editing-loop-anchor-health-integrated-longform-campaign.md`.
+  Keep it as map context, not a current authority surface; use the RUNBOOK →
+  HANDOFF chain for live work and stop at the declared owner gate.
 
 ## Legacy Entry Notes
 

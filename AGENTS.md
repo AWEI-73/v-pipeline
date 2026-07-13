@@ -1,3 +1,5 @@
+<!-- OPERATIONAL_ENTRY_POINTER: RUNBOOK.md -->
+
 ## Text Encoding
 
 This repository contains Chinese Markdown and skill files. When checking
@@ -38,3 +40,19 @@ explicit UTF-8 decoding and check both:
 - `"\ufffd" not in text`
 - No suspicious repeated literal question marks in Chinese fields, such as
   `"????"` or a high `?` count where Chinese text is expected.
+
+<!-- codebase-memory-mcp:start -->
+## Codebase Knowledge Graph
+
+This repository uses codebase-memory-mcp. Prefer graph tools for code
+discovery in this order:
+
+1. `search_graph` — find functions, classes, routes, and variables.
+2. `trace_path` — trace callers or callees.
+3. `get_code_snippet` — read a specific function or class.
+4. `query_graph` — run complex graph queries.
+5. `get_architecture` — obtain the high-level project map.
+
+Fall back to `rg` for string literals, error messages, configuration and other
+non-code files, or when graph results are insufficient.
+<!-- codebase-memory-mcp:end -->

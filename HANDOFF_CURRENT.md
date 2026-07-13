@@ -1,28 +1,36 @@
+<!-- DOCUMENT_ROLE: CURRENT_HANDOFF -->
+
 # Current Handoff: Hermes Video Pipeline
 
-Entry contract: read `docs/START_HERE_VIDEO_PIPELINE.md` first.
+Read `RUNBOOK.md` first for the operational entry, then use this handoff for
+the current machine-readable work pointer.
+
+<!-- HANDOFF_STATE_START -->
+{
+  "artifact_role": "current_handoff_state",
+  "version": 1,
+  "updated_at": "2026-07-13T17:48:23+08:00",
+  "state": "IDLE",
+  "active_work_order": null,
+  "active_spec": null,
+  "active_skill": null,
+  "active_run_root": null,
+  "authoritative_state_artifact": null,
+  "authoritative_state_field": null,
+  "next_actions": [],
+  "do_not_do": [
+    "do_not_claim_final_delivery",
+    "do_not_set_human_creative_approval"
+  ],
+  "human_creative_approval": false,
+  "final_delivery_claimed": false
+}
+<!-- HANDOFF_STATE_END -->
 
 ## Current Work In Flight
 
-- Active convergence work is Phase 1 and Phase 2 from:
-  - `docs/construction-guides/work-orders/2026-07-03-phase1-entry-contract.md`
-  - `docs/construction-guides/work-orders/2026-07-03-phase2-registry-manifest.md`
-- Background plan is read-only:
-  `docs/construction-guides/2026-07-03-convergence-single-pipeline-plan.md`.
-- Latest clean baseline before this handoff is commit `bf2bff46`:
-  `Add convergence plan, phase 1-2 work orders, and code-memory handoff doc`.
-
-## Open Blockers
-
-- None recorded at this handoff.
-
-## Next Pending Action
-
-Continue the work-order sequence exactly:
-
-1. Finish Phase 1 entry-contract slimming, run the six acceptance checks, then
-   commit `Slim entry contract to three-tier START_HERE`.
-2. Do Phase 2 Piece 1, Piece 2, and Piece 3 in order. Each piece requires a
-   green full suite before its commit.
-3. Write and commit
-   `docs/construction-guides/work-orders/2026-07-03-phase1-2-execution-report.md`.
+- No active campaign. Start from `RUNBOOK.md` for the next bounded task.
+- The single-entry and forward-accountability construction was independently
+  accepted by the integrator on 2026-07-13. Its work order and sealed runtime
+  artifacts remain historical evidence, not current state authority.
+- Human creative approval and final delivery remain explicitly unclaimed.

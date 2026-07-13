@@ -268,6 +268,43 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
         self.assertFalse(consumer["human_creative_approval"])
         self.assertFalse(consumer["final_delivery_claimed"])
 
+    def test_authority_surfaces_publish_exact_entry_markers(self):
+        expected_markers = {
+            "AGENTS.md": ["<!-- OPERATIONAL_ENTRY_POINTER: RUNBOOK.md -->"],
+            "RUNBOOK.md": [
+                "<!-- OPERATIONAL_ENTRY: RUNBOOK -->",
+                "<!-- CURRENT_HANDOFF_POINTER: HANDOFF_CURRENT.md -->",
+            ],
+            "HANDOFF_CURRENT.md": ["<!-- DOCUMENT_ROLE: CURRENT_HANDOFF -->"],
+        }
+
+        for rel, markers in expected_markers.items():
+            text = read(rel)
+            for marker in markers:
+                self.assertIn(marker, text, rel)
+
+    def test_runbook_is_the_only_operational_entry_surface(self):
+        runbook = read("RUNBOOK.md")
+        self.assertEqual(1, runbook.count("<!-- OPERATIONAL_ENTRY: RUNBOOK -->"))
+
+        for rel in [
+            "AGENTS.md",
+            "HANDOFF_CURRENT.md",
+            "docs/START_HERE_VIDEO_PIPELINE.md",
+            "docs/INDEX.md",
+        ]:
+            self.assertNotIn("<!-- OPERATIONAL_ENTRY: RUNBOOK -->", read(rel), rel)
+
+    def test_runbook_stays_free_of_active_state_machine_keys_and_tokens(self):
+        runbook = read("RUNBOOK.md")
+        self.assertNotIn("active_work_order", runbook)
+        self.assertNotIn("authoritative_state_artifact", runbook)
+        self.assertNotIn("ACTIVE_WORK_ORDER", runbook)
+        self.assertNotRegex(
+            runbook,
+            re.compile(r"\b(?:WAITING|STOPPED|ACTIVE)(?:_[A-Z0-9]+)+\b"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
