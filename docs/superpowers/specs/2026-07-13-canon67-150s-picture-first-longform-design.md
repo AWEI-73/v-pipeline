@@ -1,7 +1,7 @@
 # Canon 67 150-Second Picture-First Longform Design
 
 Date: 2026-07-13
-Status: OWNER-APPROVED DESIGN; written-spec review pending
+Status: OWNER-APPROVED DESIGN
 Owner: user
 Integrator: SOL / Codex
 Intended worker: a fresh Luna high-capability session

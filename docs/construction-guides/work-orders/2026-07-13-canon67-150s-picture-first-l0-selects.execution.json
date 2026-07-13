@@ -1,0 +1,125 @@
+{
+  "artifact_role": "work_order_execution_contract",
+  "version": 1,
+  "accountability_contract_version": 1,
+  "work_order_id": "canon67-150s-picture-first-l0-selects",
+  "work_order_path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-picture-first-l0-selects.md",
+  "work_order_sha256": "8054fee805c077f82c6b7893743fab5d77e9e9b213ee5789794fe3f54a2e71d5",
+  "run_root": ".tmp/canon67_150s_picture_first_longform/l0",
+  "accountability_root": ".tmp/canon67_150s_picture_first_longform/l0/accountability",
+  "initial_run_root_manifest": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0/control/stage0_material_scan_decision.json",
+      "sha256": "09666bb3ef18274be001885569c9fe30db5ab666fe9c45ca462989424c906211"
+    }
+  ],
+  "initial_owner_zone_manifest": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
+      "sha256": "23608aec9d602ea802a08b34283311dac6fa793f0eb9451eb55a2933f5d2d1d7"
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "L0.complete-pool-inventory",
+      "loop": "L0",
+      "capability_id": "cap.material-map.material-quick-inventory.v1",
+      "depends_on": [],
+      "command_argv": [
+        "{python}",
+        "tools/material_quick_inventory.py",
+        "--source-dir",
+        "C:/Users/user/Downloads/微電影素材/_整理後",
+        "--out",
+        ".tmp/canon67_150s_picture_first_longform/l0/accountable/material_inventory_summary.json",
+        "--scan-decision",
+        ".tmp/canon67_150s_picture_first_longform/l0/control/stage0_material_scan_decision.json",
+        "--json"
+      ],
+      "timeout_ms": 300000,
+      "inputs": [
+        {
+          "path": ".tmp/canon67_150s_picture_first_longform/l0/control/stage0_material_scan_decision.json",
+          "sha256": "09666bb3ef18274be001885569c9fe30db5ab666fe9c45ca462989424c906211"
+        }
+      ],
+      "required_outputs": [
+        ".tmp/canon67_150s_picture_first_longform/l0/accountable/material_inventory_summary.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    }
+  ],
+  "decision_requirements": [
+    {
+      "requirement_id": "L0.selection-review",
+      "actor_class": "agent",
+      "depends_on_step_ids": [
+        "L0.complete-pool-inventory"
+      ],
+      "evidence_path": ".tmp/canon67_150s_picture_first_longform/l0/accountability/attestations/L0.selection-review.json",
+      "missing_state": "UNKNOWN_AGENT_EVIDENCE"
+    }
+  ],
+  "allowed_owner_zones": [
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/l0",
+      "match": "directory_prefix"
+    },
+    {
+      "path": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
+      "match": "exact"
+    }
+  ],
+  "forbidden_paths": [
+    {
+      "path": "tools/workbench_handoff.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/preview_timeline.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/timeline_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/subtitle_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/audio_cue_patch.py",
+      "match": "exact"
+    },
+    {
+      "path": "tools/effect_patch.py",
+      "match": "exact"
+    }
+  ],
+  "protected_paths": [
+    {
+      "path": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-picture-first-l0-selects.md",
+      "sha256": "8054fee805c077f82c6b7893743fab5d77e9e9b213ee5789794fe3f54a2e71d5"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-13-canon67-150s-picture-first-l0-plan.md",
+      "sha256": "240317dec29c4731ce1331466097d6854eed1f29da69925912da5388c1af48b3"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-07-13-canon67-150s-picture-first-longform-design.md",
+      "sha256": "8870b7d65b11639cd7d2f9e212ded4359bf04c19da52fe96272aaa394ddc8968"
+    },
+    {
+      "path": "RUNBOOK.md",
+      "sha256": "a3e455095be04ae7b8ce86f36f0ecc74c9880f5b8c745333b037e3108cc50d56"
+    },
+    {
+      "path": "skills/editing-loop-director.md",
+      "sha256": "1bd1ff2370a9721a69faa5032040faf6df227c410ee68655fc34f70ee3b87fab"
+    }
+  ],
+  "human_creative_approval": false,
+  "final_delivery_claimed": false
+}
