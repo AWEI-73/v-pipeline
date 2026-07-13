@@ -1026,7 +1026,7 @@ def _validate_step(root: Path, step: dict, location: str, card: dict | None, err
             if "{" in item or "}" in item:
                 if not (index == 0 and item == "{python}"):
                     errors.append(_error("contract_command_argv_invalid", location + f"/command_argv/{index}", "only argv[0] may equal {python}"))
-        if card and isinstance(card.get("command"), str):
+        if card and isinstance(card.get("command"), str) and card.get("command").strip():
             expected = [sys.executable, *shlex.split(card["command"])]
             actual = [sys.executable if item == "{python}" else item for item in argv]
             if actual != expected:
