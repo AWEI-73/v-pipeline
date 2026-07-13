@@ -470,9 +470,9 @@ def audit_repository_contracts(
                 if entry.get("_section") == "canonical_tools":
                     canonical_ids[str(capability_id)] = (contract, entry)
             command = projected_command_ref(entry)
-            if command and is_video_tools_command(command) and command not in dispatch_commands:
+            if command and dispatch_commands and is_video_tools_command(command) and command not in dispatch_commands:
                 errors.append(_error("command_not_dispatched", contract, entry, "command is not present in dispatch command set"))
-            if command and is_video_tools_command(command) and command not in catalog_commands:
+            if command and catalog_commands and is_video_tools_command(command) and command not in catalog_commands:
                 errors.append(_error("command_not_cataloged", contract, entry, "command is not present in catalog command set"))
     for tool in sorted(python_tools - set(ownership)):
         errors.append(_error("unowned_python_tool", {"_source": "tools", "skill": None}, {"tool": tool}, "python tool is not owned by any Skill contract"))
