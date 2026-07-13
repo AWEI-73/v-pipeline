@@ -7,6 +7,97 @@ from unittest.mock import patch
 
 
 class RoughCutPlanExecuteTest(unittest.TestCase):
+    def test_ffmpeg_command_uses_shared_motion_for_requested_still_duration(self):
+        from tools.rough_cut_plan_execute import build_rough_cut_ffmpeg_command
+
+        clips = [
+            {
+                "source_path": "motion.mp4",
+                "source_type": "video",
+                "start_sec": 1.0,
+                "duration_sec": 2.0,
+            },
+            {
+                "source_path": "portrait.jpg",
+                "source_type": "photo",
+                "start_sec": 0.0,
+                "duration_sec": 2.0,
+                "still_treatment": {"mode": "slow_push"},
+            },
+        ]
+
+        command = build_rough_cut_ffmpeg_command(clips, out=Path("out.mp4"), fps=30)
+        image_index = command.index("portrait.jpg")
+        self.assertIn("-loop", command[:image_index])
+        self.assertIn("-t", command[:image_index])
+        self.assertNotIn("-ss", command[command.index("-loop", 1):image_index])
+        filtergraph = command[command.index("-filter_complex") + 1]
+        self.assertIn("scale=w='2560*", filtergraph)
+        self.assertNotIn("zoompan", filtergraph)
+
+    def test_mixed_video_and_still_render_is_four_seconds_and_silent(self):
+        from tools.rough_cut_plan_execute import execute_rough_cut_plan
+        from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            motion = root / "motion.mp4"
+            photo = root / "photo.jpg"
+            plan = root / "plan.json"
+            out = root / "out.mp4"
+            report = root / "report.json"
+            subprocess.run([
+                resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=duration=2:size=320x180:rate=30",
+                "-pix_fmt", "yuv420p", str(motion),
+            ], check=True)
+            subprocess.run([
+                resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=size=640x360:rate=1",
+                "-frames:v", "1", str(photo),
+            ], check=True)
+            plan.write_text(json.dumps({"clips": [
+                {
+                    "track": "video",
+                    "clip_id": "v1",
+                    "source_type": "video",
+                    "source_path": str(motion),
+                    "start_sec": 0.0,
+                    "duration_sec": 2.0,
+                },
+                {
+                    "track": "video",
+                    "clip_id": "p1",
+                    "source_type": "photo",
+                    "source_path": str(photo),
+                    "start_sec": 0.0,
+                    "duration_sec": 2.0,
+                    "still_treatment": {"mode": "slow_push"},
+                },
+            ]}), encoding="utf-8")
+            payload = execute_rough_cut_plan(plan, out, report, width=320, height=180, fps=30)
+            probe = subprocess.run([
+                resolve_ffprobe(), "-v", "error", "-count_frames",
+                "-show_entries", "stream=codec_type,duration,nb_read_frames",
+                "-of", "json", str(out),
+            ], check=True, capture_output=True, text=True)
+            streams = json.loads(probe.stdout)["streams"]
+            video = next(item for item in streams if item["codec_type"] == "video")
+            self.assertTrue(payload["ok"])
+            self.assertEqual(int(video["nb_read_frames"]), 120)
+            self.assertAlmostEqual(float(video["duration"]), 4.0, places=2)
+            self.assertFalse(any(item["codec_type"] == "audio" for item in streams))
+            self.assertEqual([item["clip_id"] for item in payload["clips"]], ["v1", "p1"])
+            self.assertEqual(payload["clips"][1]["source_type"], "photo")
+            self.assertEqual(payload["clips"][1]["still_treatment"]["mode"], "slow_push")
+            early, late = root / "early.png", root / "late.png"
+            for at, target in ((2.1, early), (3.8, late)):
+                subprocess.run([
+                    resolve_ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", str(at), "-i", str(out), "-frames:v", "1", str(target),
+                ], check=True)
+            self.assertNotEqual(early.read_bytes(), late.read_bytes())
+
     def test_ffmpeg_command_uses_decoder_preroll_and_filter_precise_trim(self):
         from tools.rough_cut_plan_execute import build_rough_cut_ffmpeg_command
 

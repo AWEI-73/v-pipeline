@@ -10,9 +10,10 @@ import os
 from pathlib import Path
 
 from .asset_paths import to_asset_ref
+from .still_motion import STILL_TREATMENT_MODES
 
 
-_STILL_TREATMENT_MODES = ("slow_push", "pan_right", "detail_push", "pan_left")
+_STILL_TREATMENT_MODES = STILL_TREATMENT_MODES
 
 
 def _resolve_anti_presentation_plan(seg, duration_sec, editing_policy):

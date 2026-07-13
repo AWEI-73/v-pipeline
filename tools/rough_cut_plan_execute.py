@@ -16,6 +16,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from video_pipeline_core.platform_tools import resolve_ffmpeg, resolve_ffprobe  # noqa: E402
+from video_pipeline_core.still_motion import build_still_motion_filter, is_still_source  # noqa: E402
 
 
 # Decode a bounded lead-in, then let the filter graph apply the exact source window.
@@ -76,6 +77,7 @@ def _clips(payload: dict[str, Any]) -> list[dict[str, Any]]:
         path = Path(source)
         if not path.is_file():
             raise FileNotFoundError(f"clip {index} source does not exist: {path}")
+        source_type = item.get("source_type") or ("photo" if is_still_source(path) else "video")
         clips.append({
             "index": index,
             "source_path": str(path),
@@ -84,6 +86,11 @@ def _clips(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "segment": item.get("segment"),
             "asset_id": item.get("asset_id"),
             "need_id": item.get("need_id"),
+            "clip_id": item.get("clip_id"),
+            "source_type": source_type,
+            "source_sha256": item.get("source_sha256"),
+            "still_treatment": item.get("still_treatment"),
+            "is_still": is_still_source(path, source_type),
         })
     if not clips:
         raise ValueError("rough_cut_plan has no video clips")
@@ -94,18 +101,29 @@ def _filtergraph(clips: list[dict[str, Any]], *, width: int, height: int, fps: i
     parts = []
     labels = []
     for index, clip in enumerate(clips):
-        start = clip["filter_trim_start_sec"]
-        end = clip["filter_trim_end_sec"]
         label = f"v{index}"
-        parts.append(
-            f"[{index}:v]trim=start={start:.3f}:end={end:.3f},"
-            f"fps={fps},"
-            f"setpts=N/({fps}*TB),"
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
-            "setsar=1,"
-            f"format=yuv420p[{label}]"
-        )
+        is_still = clip.get("is_still", is_still_source(clip["source_path"], clip.get("source_type")))
+        if is_still:
+            still_filter = build_still_motion_filter(
+                clip["duration_sec"],
+                treatment=clip.get("still_treatment"),
+                width=width,
+                height=height,
+                fps=fps,
+            )
+            parts.append(f"[{index}:v]{still_filter}[{label}]")
+        else:
+            start = clip["filter_trim_start_sec"]
+            end = clip["filter_trim_end_sec"]
+            parts.append(
+                f"[{index}:v]trim=start={start:.3f}:end={end:.3f},"
+                f"fps={fps},"
+                f"setpts=N/({fps}*TB),"
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
+                "setsar=1,"
+                f"format=yuv420p[{label}]"
+            )
         labels.append(f"[{label}]")
     parts.append("".join(labels) + f"concat=n={len(labels)}:v=1:a=0[v]")
     return ";".join(parts)
@@ -123,18 +141,32 @@ def build_rough_cut_ffmpeg_command(
     cmd = [resolve_ffmpeg(), "-y", "-hide_banner"]
     render_clips = []
     for clip in clips:
-        input_seek_sec = max(0.0, clip["start_sec"] - DECODER_PREROLL_SEC)
-        filter_trim_start_sec = clip["start_sec"] - input_seek_sec
         render_clip = dict(clip)
-        render_clip["filter_trim_start_sec"] = filter_trim_start_sec
-        render_clip["filter_trim_end_sec"] = filter_trim_start_sec + clip["duration_sec"]
+        is_still = clip.get("is_still", is_still_source(clip["source_path"], clip.get("source_type")))
+        render_clip["is_still"] = is_still
+        if is_still:
+            cmd += [
+                "-loop",
+                "1",
+                "-framerate",
+                str(fps),
+                "-t",
+                f"{clip['duration_sec']:.3f}",
+                "-i",
+                clip["source_path"],
+            ]
+        else:
+            input_seek_sec = max(0.0, clip["start_sec"] - DECODER_PREROLL_SEC)
+            filter_trim_start_sec = clip["start_sec"] - input_seek_sec
+            render_clip["filter_trim_start_sec"] = filter_trim_start_sec
+            render_clip["filter_trim_end_sec"] = filter_trim_start_sec + clip["duration_sec"]
+            cmd += [
+                "-ss",
+                f"{input_seek_sec:.3f}",
+                "-i",
+                clip["source_path"],
+            ]
         render_clips.append(render_clip)
-        cmd += [
-            "-ss",
-            f"{input_seek_sec:.3f}",
-            "-i",
-            clip["source_path"],
-        ]
     if audio:
         cmd += ["-i", str(audio)]
 
@@ -177,6 +209,11 @@ def _adjust_clip_durations_to_source(clips: list[dict[str, Any]]) -> tuple[list[
     adjusted = []
     adjustments = []
     for clip in clips:
+        if clip.get("is_still"):
+            next_clip = dict(clip)
+            next_clip["start_sec"] = 0.0
+            adjusted.append(next_clip)
+            continue
         source = Path(clip["source_path"])
         source_probe = _probe(source)
         source_duration = _float(source_probe.get("duration_sec"))

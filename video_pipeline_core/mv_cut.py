@@ -19,6 +19,7 @@ import tempfile
 
 from .vt_core import GAP, FIX_TARGET, ToolError  # 統一錯誤/缺口分類(對齊)
 from .platform_tools import resolve_ffmpeg, resolve_font, resolve_temp_dir
+from .still_motion import build_still_motion_filter, is_still_source, still_motion_strength
 
 try:
     FFMPEG = resolve_ffmpeg()
@@ -340,17 +341,11 @@ def _video_vf(crop_center=None):
 
 
 def _is_image(path):
-    return os.path.splitext(path or "")[1].lower() in _IMG_EXTS
+    return is_still_source(path)
 
 
 def _still_motion_strength(dur):
-    """Cap long still motion so extended photo holds do not overpush."""
-    seconds = float(dur or 0)
-    if seconds >= 12:
-        return {"slow": 0.05, "detail": 0.12, "pan_zoom": 1.08}
-    if seconds >= 8:
-        return {"slow": 0.08, "detail": 0.16, "pan_zoom": 1.10}
-    return {"slow": 0.22, "detail": 0.32, "pan_zoom": 1.18}
+    return still_motion_strength(dur)
 
 
 def _photo_vf(dur, kenburns=True, treatment=None):
@@ -359,33 +354,13 @@ def _photo_vf(dur, kenburns=True, treatment=None):
     Avoid ffmpeg zoompan for motion: zoompan is prone to subtle jitter on stills
     when x/y are animated. Use a 30fps still stream, dynamic scale, and crop.
     """
-    if not kenburns:
-        return _MV_VF
-    frames = max(1, round((dur or 1.0) * 30))
-    progress = max(1, frames - 1)
-    t = f"(n/{progress})"
-    mode = (treatment or {}).get("mode", "slow_push")
-    if mode == "hold":
-        return _MV_VF
-    strength = _still_motion_strength(dur)
-    if mode in ("pan_right", "pan_left"):
-        zoom = f"{strength['pan_zoom']:.2f}"
-        x = f"(iw-ow)*{t}" if mode == "pan_right" else f"(iw-ow)*(1-{t})"
-        return (
-            "fps=30,"
-            f"scale=w='3840*{zoom}':h='2160*{zoom}':force_original_aspect_ratio=increase:eval=frame,"
-            f"crop=3840:2160:x='{x}':y='(ih-oh)/2',"
-            "scale=1920:1080,"
-            "setsar=1,format=yuv420p"
-        )
-    delta = strength["detail"] if mode == "detail_push" else strength["slow"]
-    zoom = f"(1+{delta:.2f}*{t})"
-    return (
-        "fps=30,"
-        f"scale=w='3840*{zoom}':h='2160*{zoom}':force_original_aspect_ratio=increase:eval=frame,"
-        "crop=3840:2160:x='(iw-ow)/2':y='(ih-oh)/2',"
-        "scale=1920:1080,"
-        "setsar=1,format=yuv420p"
+    return build_still_motion_filter(
+        dur,
+        treatment=treatment,
+        kenburns=kenburns,
+        width=1920,
+        height=1080,
+        fps=30,
     )
 
 
