@@ -1,0 +1,1 @@
+{"artifact_role":"audio_mix_plan","version":1,"ready_for_mix":true,"rendered":false,"tracks":[{"section_id":"technical_fixture","candidate_id":"fixture_music","audio_file":"background_music.wav","role":"music_main","ducking_policy":"none","source_type":"repository_test_asset","license_status":"repository_fixture"}]}

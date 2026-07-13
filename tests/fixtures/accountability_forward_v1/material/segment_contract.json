@@ -1,0 +1,1 @@
+{"artifact_role":"segment_contract","version":1,"segments":[{"segment":1,"requested_duration_sec":4,"material_fit":{"need_refs":["nd_opening"]}},{"segment":2,"requested_duration_sec":6,"material_fit":{"need_refs":["nd_closing"]}}]}

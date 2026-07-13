@@ -9,6 +9,8 @@ from video_pipeline_core.capability_execution import (
     resolve_strict_contract,
     validate_execution_contract,
 )
+from video_pipeline_core.capability_catalog import load_live_catalog
+from video_pipeline_core.no_skip_execution_trace import evaluate_no_skip_contract, write_strict_trace_audit
 
 
 class ContractActivationTest(unittest.TestCase):
@@ -195,6 +197,94 @@ class ExecutionContractSchemaTest(unittest.TestCase):
         )
 
 
+class AccountabilityForwardFixtureTest(unittest.TestCase):
+    def test_fixture_and_companion_schema(self):
+        root = Path(__file__).resolve().parents[1]
+        fixture_root = root / "tests/fixtures/accountability_forward_v1"
+        manifest = json.loads((fixture_root / "fixture_manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("accountability_forward_fixture_manifest", manifest["artifact_role"])
+        self.assertEqual(1, manifest["version"])
+        for item in manifest["files"]:
+            path = fixture_root / item["path"]
+            self.assertTrue(path.is_file(), item["path"])
+            self.assertEqual(item["sha256"], hash_bytes(path.read_bytes()), item["path"])
+        self.assertNotIn("PLACEHOLDER", json.dumps(manifest))
+
+        companion_path = root / "docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-acceptance.execution.json"
+        contract = json.loads(companion_path.read_text(encoding="utf-8"))
+        self.assertNotIn("PLACEHOLDER", json.dumps(contract))
+        self.assertEqual("single-entry-forward-accountability-long-task", contract["work_order_id"])
+        self.assertEqual(hash_bytes((root / contract["work_order_path"]).read_bytes()), contract["work_order_sha256"])
+        self.assertEqual({"fixture.material-rough-cut", "fixture.audio-mix-plan-execute"}, {item["step_id"] for item in contract["steps"]})
+        self.assertEqual({"fixture.technical-review", "owner.final"}, {item["requirement_id"] for item in contract["decision_requirements"]})
+        self.assertFalse(contract["human_creative_approval"])
+        self.assertFalse(contract["final_delivery_claimed"])
+        self.assertEqual([], validate_execution_contract(root, contract, load_live_catalog(root / "skills")))
+        for relative, expected in {item["path"]: item["sha256"] for item in contract["protected_paths"]}.items():
+            path = root / relative
+            self.assertTrue(path.is_file(), relative)
+            self.assertEqual(expected, hash_bytes(path.read_bytes()), relative)
+
+
+class AccountabilityNegativeFixtureTests(unittest.TestCase):
+    def test_missing_required_step(self):
+        from tests.test_capability_execution_receipts import execution_repository
+        from video_pipeline_core.capability_execution import initialize_accountable_run, load_execution_contract, run_capability_step, validate_accountable_run_evidence
+
+        with execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            run = run_capability_step(root, path, "L1.example")
+            contract = load_execution_contract(root, path)
+            (root / run["receipt_path"]).unlink()
+            result = validate_accountable_run_evidence(root, contract, load_live_catalog(root / "skills"))
+            expected = json.loads((Path(__file__).resolve().parents[1] / "tests/fixtures/accountability_forward_v1/negative/missing-step/mutation.json").read_text(encoding="utf-8"))["expected_code"]
+
+            self.assertIn(expected, error_codes(result))
+
+    def test_self_authored_gate(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "visual_selection_gate.json").write_text(json.dumps({"artifact_role": "visual_selection_gate", "pass": True}), encoding="utf-8")
+            (root / "pipeline_execution_trace.json").write_text(json.dumps({"entries": [{"artifact": "visual_selection_gate.json", "classification": "run_local_worker_generated"}]}), encoding="utf-8")
+            result = evaluate_no_skip_contract(root)
+            expected = json.loads((Path(__file__).resolve().parents[1] / "tests/fixtures/accountability_forward_v1/negative/self-authored-gate/mutation.json").read_text(encoding="utf-8"))["expected_code"]
+
+            self.assertIn(expected, {item["rule"] for item in result["blocking"]})
+
+    def test_stale_agent_sidecar(self):
+        from tests.test_capability_execution_receipts import execution_repository
+        from tests.test_no_skip_execution_trace import _add_decision_requirements
+        from video_pipeline_core.capability_execution import initialize_accountable_run, load_execution_contract, run_capability_step
+
+        with execution_repository() as (root, path):
+            _add_decision_requirements(root, path)
+            initialize_accountable_run(root, path)
+            run = run_capability_step(root, path, "L1.example")
+            contract = load_execution_contract(root, path)
+            write_agent_sidecar(root, path, contract, run, stale=True)
+            result = write_strict_trace_audit(root, path, root / contract["run_root"], root / contract["accountability_root"])
+            expected = json.loads((Path(__file__).resolve().parents[1] / "tests/fixtures/accountability_forward_v1/negative/stale-agent-sidecar/mutation.json").read_text(encoding="utf-8"))["expected_code"]
+
+            self.assertIn(expected, error_codes(result))
+
+    def test_copied_owner_sidecar(self):
+        from tests.test_capability_execution_receipts import execution_repository
+        from tests.test_no_skip_execution_trace import _add_decision_requirements
+        from video_pipeline_core.capability_execution import initialize_accountable_run, load_execution_contract, run_capability_step
+
+        with execution_repository() as (root, path):
+            _add_decision_requirements(root, path)
+            initialize_accountable_run(root, path)
+            run = run_capability_step(root, path, "L1.example")
+            contract = load_execution_contract(root, path)
+            write_agent_sidecar(root, path, contract, run)
+            write_owner_sidecar(root, path, contract, run, copied=True)
+            result = write_strict_trace_audit(root, path, root / contract["run_root"], root / contract["accountability_root"])
+            expected = json.loads((Path(__file__).resolve().parents[1] / "tests/fixtures/accountability_forward_v1/negative/copied-owner-sidecar/mutation.json").read_text(encoding="utf-8"))["expected_code"]
+
+            self.assertIn(expected, error_codes(result))
+
+
 def git_repository():
     return _GitRepository()
 
@@ -285,6 +375,59 @@ def contract_for(work_order_id, run_root, *, work_order_path=None, version=1, ex
 
 def error_codes(result):
     return [item["code"] for item in result["errors"]]
+
+
+def hash_bytes(value):
+    import hashlib
+    return hashlib.sha256(value).hexdigest()
+
+
+def write_agent_sidecar(root, path, contract, run, *, stale=False):
+    reference = json.loads((root / contract["accountability_root"] / "contract_reference.json").read_text(encoding="utf-8"))
+    receipt = json.loads((root / run["receipt_path"]).read_text(encoding="utf-8"))
+    payload = {
+        "artifact_role": "agent_attestation",
+        "version": 1,
+        "run_instance_id": "00000000-0000-4000-8000-000000000000" if stale else reference["run_instance_id"],
+        "execution_contract_path": path,
+        "execution_contract_sha256": "0" * 64 if stale else reference["contract_sha256"],
+        "requirement_id": "fixture.review",
+        "step_id": "L1.example",
+        "capability_id": "cap.example.child.v1",
+        "actor_type": "agent",
+        "agent_run_id": "test-agent",
+        "reviewed_evidence": [{"path": ".tmp/example/output.txt", "sha256": hash_bytes((root / ".tmp/example/output.txt").read_bytes()), "locator": "test"}],
+        "dependency_receipts": [{"step_id": "L1.example", "path": run["receipt_path"], "sha256": run["receipt_sha256"], "completed_at": receipt["completed_at"]}],
+        "judgment": "bounded test evidence",
+        "blind_spots": ["synthetic fixture"],
+        "proposed_findings": [],
+        "attested_at": "2999-01-01T00:00:00+00:00",
+    }
+    target = root / contract["accountability_root"] / "attestations/fixture.review.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_owner_sidecar(root, path, contract, run, *, copied=False):
+    reference = json.loads((root / contract["accountability_root"] / "contract_reference.json").read_text(encoding="utf-8"))
+    receipt = json.loads((root / run["receipt_path"]).read_text(encoding="utf-8"))
+    payload = {
+        "artifact_role": "owner_decision",
+        "version": 1,
+        "run_instance_id": "00000000-0000-4000-8000-000000000000" if copied else reference["run_instance_id"],
+        "execution_contract_path": path,
+        "execution_contract_sha256": "0" * 64 if copied else reference["contract_sha256"],
+        "requirement_id": "owner.final",
+        "dependency_receipts": [{"step_id": "L1.example", "path": run["receipt_path"], "sha256": run["receipt_sha256"], "completed_at": receipt["completed_at"]}],
+        "scope": "fixture accountability",
+        "decision": "approve",
+        "evidence_refs": [{"path": ".tmp/example/output.txt", "sha256": hash_bytes((root / ".tmp/example/output.txt").read_bytes()), "locator": "test"}],
+        "verbatim_owner_text": "fixture owner text",
+        "decided_at": "2999-01-01T00:00:00+00:00",
+    }
+    target = root / contract["accountability_root"] / "verdicts/owner.final.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

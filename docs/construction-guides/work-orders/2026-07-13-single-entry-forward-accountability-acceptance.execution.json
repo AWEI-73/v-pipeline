@@ -1,0 +1,91 @@
+{
+  "artifact_role": "work_order_execution_contract",
+  "version": 1,
+  "accountability_contract_version": 1,
+  "work_order_id": "single-entry-forward-accountability-long-task",
+  "work_order_path": "docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-long-task.md",
+  "work_order_sha256": "0b4f7b4487a6577f9fba6d0549f56dee5266dedd1cf3f038bbb7ffbf13684ebb",
+  "run_root": ".tmp/single_entry_forward_accountability_acceptance/forward",
+  "accountability_root": ".tmp/single_entry_forward_accountability_acceptance/forward/accountability",
+  "initial_run_root_manifest": [],
+  "initial_owner_zone_manifest": [],
+  "steps": [
+    {
+      "step_id": "fixture.material-rough-cut",
+      "loop": "L1",
+      "capability_id": "cap.material-map.material-rough-cut.v1",
+      "depends_on": [],
+      "command_argv": ["{python}", "tools/material_rough_cut.py", "--contract", "tests/fixtures/accountability_forward_v1/material/segment_contract.json", "--project-map", "tests/fixtures/accountability_forward_v1/material/project_material_map.json", "--out", ".tmp/single_entry_forward_accountability_acceptance/forward/material/rough_cut_plan.json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": "tests/fixtures/accountability_forward_v1/material/segment_contract.json", "sha256": "2683b255adfb4e15b1ccdc5d1983af6c3e9991d8135109e848bd490f690b2331"},
+        {"path": "tests/fixtures/accountability_forward_v1/material/project_material_map.json", "sha256": "c13d03e47ce07d93e254ab6538edf5e7ebbf22ac337dc8d383b3c4e01aead811"}
+      ],
+      "required_outputs": [".tmp/single_entry_forward_accountability_acceptance/forward/material/rough_cut_plan.json"],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "fixture.audio-mix-plan-execute",
+      "loop": "L3",
+      "capability_id": "cap.audio-director.audio-mix-plan-execute.v1",
+      "depends_on": ["fixture.material-rough-cut"],
+      "command_argv": ["{python}", "tools/audio_mix_plan_execute.py", "--plan", "tests/fixtures/accountability_forward_v1/audio/audio_mix_plan.json", "--acceptance", "tests/fixtures/accountability_forward_v1/audio/audio_handoff_acceptance.json", "--out-dir", ".tmp/single_entry_forward_accountability_acceptance/forward/audio", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": "tests/fixtures/accountability_forward_v1/audio/audio_mix_plan.json", "sha256": "13b72eaec9c3735d8e8bb785b5de89b44a64791c434867429418747aed1d5364"},
+        {"path": "tests/fixtures/accountability_forward_v1/audio/audio_handoff_acceptance.json", "sha256": "8bd224f9afc276c47f85aab457d45be45045f93d0fc482f779aeb0aa0e1ced10"},
+        {"path": "tests/fixtures/accountability_forward_v1/audio/source_speech.wav", "sha256": "438a36dfa5d3a412362b4fd7c6444eb442788f9ad6c5aebc25914e773612c907"},
+        {"path": "tests/fixtures/accountability_forward_v1/audio/background_music.wav", "sha256": "438a36dfa5d3a412362b4fd7c6444eb442788f9ad6c5aebc25914e773612c907"}
+      ],
+      "required_outputs": [".tmp/single_entry_forward_accountability_acceptance/forward/audio/final_audio.wav", ".tmp/single_entry_forward_accountability_acceptance/forward/audio/audio_mix_report.json"],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    }
+  ],
+  "decision_requirements": [
+    {
+      "requirement_id": "fixture.technical-review",
+      "actor_class": "agent",
+      "depends_on_step_ids": ["fixture.material-rough-cut", "fixture.audio-mix-plan-execute"],
+      "evidence_path": ".tmp/single_entry_forward_accountability_acceptance/forward/accountability/attestations/fixture.technical-review.json",
+      "missing_state": "UNKNOWN_AGENT_EVIDENCE"
+    },
+    {
+      "requirement_id": "owner.final",
+      "actor_class": "owner",
+      "depends_on_step_ids": ["fixture.material-rough-cut", "fixture.audio-mix-plan-execute"],
+      "evidence_path": ".tmp/single_entry_forward_accountability_acceptance/forward/accountability/verdicts/owner.final.json",
+      "missing_state": "WAITING_OWNER_ACCOUNTABILITY_FIXTURE"
+    }
+  ],
+  "allowed_owner_zones": [{"path": ".tmp/single_entry_forward_accountability_acceptance/forward", "match": "directory_prefix"}],
+  "forbidden_paths": [
+    {"path": "tools/workbench_handoff.py", "match": "exact"},
+    {"path": "tools/preview_timeline.py", "match": "exact"},
+    {"path": "tools/timeline_patch.py", "match": "exact"},
+    {"path": "tools/subtitle_patch.py", "match": "exact"},
+    {"path": "tools/audio_cue_patch.py", "match": "exact"},
+    {"path": "tools/effect_patch.py", "match": "exact"}
+  ],
+  "protected_paths": [
+    {"path": "tools/workbench_handoff.py", "sha256": "92b4fefa5ba86caa08a8db2765f123ca22837935b703aac1ca5a191dc435b29c"},
+    {"path": "tools/preview_timeline.py", "sha256": "19eb07dd3c4a96d9676622c8fb4060e0b5aedbf71dc2f61a21716f7d4c8aa7a3"},
+    {"path": "tools/timeline_patch.py", "sha256": "4f9b284524f207a78c22ae7ae7e810354f0512b30a93de768c1f0404a14e928a"},
+    {"path": "tools/subtitle_patch.py", "sha256": "0659d00c838777375d2496a7794a2acaf7314987705e948dfe45ec598aff5685"},
+    {"path": "tools/audio_cue_patch.py", "sha256": "1b1ac2ddbd14361f01a56a8a21f7ce936d0793951dd621d5eab87b72e7cf2c1c"},
+    {"path": "tools/effect_patch.py", "sha256": "0040e8b3fa6d7ac1ddd947f9eff099ddbcc2b0c9318e409f883db3f123ba3ab7"},
+    {"path": "docs/construction-guides/work-orders/2026-07-13-single-entry-forward-accountability-long-task.md", "sha256": "0b4f7b4487a6577f9fba6d0549f56dee5266dedd1cf3f038bbb7ffbf13684ebb"},
+    {"path": "tests/fixtures/accountability_forward_v1/fixture_manifest.json", "sha256": "0c995be9fdda7bb87590830035a97ac752f9c8e9c703d8fd1f6b29ca051bb89d"},
+    {"path": "tests/fixtures/accountability_forward_v1/material/segment_contract.json", "sha256": "2683b255adfb4e15b1ccdc5d1983af6c3e9991d8135109e848bd490f690b2331"},
+    {"path": "tests/fixtures/accountability_forward_v1/material/project_material_map.json", "sha256": "c13d03e47ce07d93e254ab6538edf5e7ebbf22ac337dc8d383b3c4e01aead811"},
+    {"path": "tests/fixtures/accountability_forward_v1/audio/audio_mix_plan.json", "sha256": "13b72eaec9c3735d8e8bb785b5de89b44a64791c434867429418747aed1d5364"},
+    {"path": "tests/fixtures/accountability_forward_v1/audio/audio_handoff_acceptance.json", "sha256": "8bd224f9afc276c47f85aab457d45be45045f93d0fc482f779aeb0aa0e1ced10"},
+    {"path": "tests/fixtures/accountability_forward_v1/audio/source_speech.wav", "sha256": "438a36dfa5d3a412362b4fd7c6444eb442788f9ad6c5aebc25914e773612c907"},
+    {"path": "tests/fixtures/accountability_forward_v1/audio/background_music.wav", "sha256": "438a36dfa5d3a412362b4fd7c6444eb442788f9ad6c5aebc25914e773612c907"}
+  ],
+  "human_creative_approval": false,
+  "final_delivery_claimed": false
+}
