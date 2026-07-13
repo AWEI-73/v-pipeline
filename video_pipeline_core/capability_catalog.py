@@ -9,7 +9,8 @@ from . import skill_tool_contract
 
 CARD_FIELDS = (
     "capability_id", "owner", "stage_owner", "kind", "loops", "maturity",
-    "certified_scope", "tool", "when", "inputs", "outputs", "stop_if", "source_skill",
+    "certified_scope", "tool", "command", "execution_class", "capability_role",
+    "when", "inputs", "outputs", "stop_if", "source_skill",
 )
 
 
@@ -23,6 +24,9 @@ def _card(contract: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
         "maturity": entry.get("maturity"),
         "certified_scope": entry.get("certified_scope"),
         "tool": skill_tool_contract.normalize_tool_ref(entry.get("tool")),
+        "command": skill_tool_contract.projected_command_ref(entry),
+        "execution_class": entry.get("execution_class"),
+        "capability_role": entry.get("capability_role"),
         "when": entry.get("when"),
         "inputs": list(entry.get("inputs") or []),
         "outputs": list(entry.get("outputs") or []),
@@ -56,7 +60,18 @@ def build_catalog(contracts: Iterable[dict[str, Any]], *, validation_errors: Ite
 
 def _search_text(card: dict[str, Any]) -> str:
     values = []
-    for field in ("capability_id", "owner", "stage_owner", "tool", "when", "certified_scope", "source_skill"):
+    for field in (
+        "capability_id",
+        "owner",
+        "stage_owner",
+        "tool",
+        "command",
+        "execution_class",
+        "capability_role",
+        "when",
+        "certified_scope",
+        "source_skill",
+    ):
         values.append(str(card.get(field) or ""))
     for field in ("inputs", "outputs", "stop_if", "loops"):
         values.extend(str(value) for value in card.get(field) or [])

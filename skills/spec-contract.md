@@ -277,6 +277,8 @@ shorten/merge, await material, or reshoot before rendering.
         "gate_status is fail or expected artifact is missing"
       ],
       "capability_id": "cap.spec-contract.boundary-smoke.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L0"
       ],
@@ -295,6 +297,8 @@ shorten/merge, await material, or reshoot before rendering.
         "timeline/build invariant fails"
       ],
       "capability_id": "cap.spec-contract.stage4-build-smoke.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L0"
       ],

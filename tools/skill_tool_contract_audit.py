@@ -17,8 +17,10 @@ from video_pipeline_core.skill_tool_contract import (
     load_capability_consumers,
     load_contracts,
     normalize_tool_ref,
+    projected_command_ref,
     suggest_capability_id,
     validate_contract_schema,
+    validate_retirement_delta,
 )
 
 
@@ -87,19 +89,24 @@ def discover_python_tools(tools_dir: Path) -> list[str]:
 
 def discover_command_sets(skills_dir: Path) -> tuple[set[str], set[str]]:
     """Use the live CLI/catalog surface, with deterministic fixture overrides."""
-    context_path = skills_dir.parent / "audit_context.json"
-    if context_path.exists():
-        context = json.loads(context_path.read_text(encoding="utf-8"))
-        return (
-            {normalize_tool_ref(value) for value in context.get("dispatch_commands", [])},
-            {normalize_tool_ref(value) for value in context.get("catalog_commands", [])},
-        )
+    context = load_audit_context(skills_dir)
     from video_tools import VIDEO_TOOLS_DISPATCH, build_video_tools_command_manifest
 
     dispatch = {f"video_tools.py {name}" for name in VIDEO_TOOLS_DISPATCH}
     manifest = build_video_tools_command_manifest()
     catalog = {f"video_tools.py {name}" for name in (manifest.get("commands") or {})}
+    if "dispatch_commands" in context:
+        dispatch = {normalize_tool_ref(value) for value in context.get("dispatch_commands") or []}
+    if "catalog_commands" in context:
+        catalog = {normalize_tool_ref(value) for value in context.get("catalog_commands") or []}
     return dispatch, catalog
+
+
+def load_audit_context(skills_dir: Path) -> dict[str, Any]:
+    context_path = skills_dir.parent / "audit_context.json"
+    if not context_path.exists():
+        return {}
+    return json.loads(context_path.read_text(encoding="utf-8"))
 
 
 def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
@@ -107,6 +114,7 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
     capability_consumers, consumer_parse_errors = load_capability_consumers(skills_dir)
     python_tools = discover_python_tools(tools_dir)
     dispatch_commands, catalog_commands = discover_command_sets(skills_dir)
+    audit_context = load_audit_context(skills_dir)
     capability_errors = [*parse_errors, *consumer_parse_errors]
     capability_errors.extend(validate_contract_schema(contracts))
 
@@ -144,6 +152,12 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
                 "proposed_capability_id": suggest_capability_id(str(contract.get("skill") or ""), tool),
             })
     capability_id_proposals.sort(key=lambda item: (str(item.get("skill") or ""), str(item.get("tool") or "")))
+
+    retirement_delta_errors = validate_retirement_delta(
+        {str(value) for value in audit_context.get("retirement_pre_ids", [])},
+        {str(value) for value in audit_context.get("retirement_post_ids", [])},
+        [item for item in audit_context.get("retirement_rows", []) if isinstance(item, dict)],
+    )
 
     if unowned:
         capability_errors.extend(
@@ -187,11 +201,12 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
         ),
     )
     errors = [str(item.get("message") or item) for item in capability_errors]
+    errors.extend(str(item.get("message") or item) for item in retirement_delta_errors)
 
     return {
         "artifact_role": "skill_tool_contract_audit_report",
         "version": 1,
-        "ok": not capability_errors,
+        "ok": not capability_errors and not retirement_delta_errors,
         "skills_dir": str(skills_dir).replace("\\", "/"),
         "tools_dir": str(tools_dir).replace("\\", "/"),
         "contract_count": len(contracts),
@@ -220,12 +235,18 @@ def analyze(skills_dir: Path, tools_dir: Path) -> dict[str, Any]:
                     for item in contract.get("canonical_tools", []) or []
                     if isinstance(item, dict)
                 ],
+                "canonical_commands": [
+                    projected_command_ref(item)
+                    for item in contract.get("canonical_tools", []) or []
+                    if isinstance(item, dict)
+                ],
             }
             for contract in contracts
         ],
         "tool_ownership": {tool: sorted(set(owners)) for tool, owners in sorted(ownership.items())},
         "errors": errors,
         "capability_errors": capability_errors,
+        "retirement_delta_errors": retirement_delta_errors,
         "duplicate_capability_ids": [item for item in capability_errors if item.get("code") == "duplicate_capability_id"],
         "broken_tool_references": [item for item in capability_errors if item.get("code") == "missing_tool_reference"],
         "broken_command_references": [item for item in capability_errors if item.get("code", "").startswith("command_")],

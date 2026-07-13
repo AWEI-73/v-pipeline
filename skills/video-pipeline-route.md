@@ -33,6 +33,8 @@ This is the operator entry skill for the full Hermes Video Pipeline.
         "next action asks for repair or review"
       ],
       "capability_id": "cap.video-pipeline-route.pipeline-home.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L0",
         "L5"
@@ -52,6 +54,8 @@ This is the operator entry skill for the full Hermes Video Pipeline.
         "required_followup_questions remains unresolved"
       ],
       "capability_id": "cap.video-pipeline-route.video-intent-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L0",
         "L5"
@@ -72,6 +76,8 @@ This is the operator entry skill for the full Hermes Video Pipeline.
         "protected artifacts changed unexpectedly"
       ],
       "capability_id": "cap.video-pipeline-route.operator-flow-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L0",
         "L5"

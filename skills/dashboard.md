@@ -31,6 +31,8 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
         "server fails to bind or dashboard state cannot load"
       ],
       "capability_id": "cap.dashboard.dashboard-server.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L0"
       ],
@@ -50,6 +52,8 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
         "server fails to bind or workbench state cannot load"
       ],
       "capability_id": "cap.dashboard.workbench-server.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L0"
       ],

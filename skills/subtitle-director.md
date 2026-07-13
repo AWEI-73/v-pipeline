@@ -40,6 +40,8 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
         "preferred voiceover provider unavailable and fallback is not allowed"
       ],
       "capability_id": "cap.subtitle-director.subtitle-voiceover-handoff-accept.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L2"
       ],

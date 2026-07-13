@@ -44,6 +44,8 @@ material-map evidence.
         "final.mp4 exists"
       ],
       "capability_id": "cap.generated-material-producer.story-first-provider-happy-path.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L2"
       ],
@@ -64,6 +66,8 @@ material-map evidence.
         "candidate is treated as accepted material"
       ],
       "capability_id": "cap.generated-material-producer.generated-material-flow-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L2"
       ],
@@ -83,6 +87,8 @@ material-map evidence.
         "generated candidates skip material-map review"
       ],
       "capability_id": "cap.generated-material-producer.story-to-generated-material-e2e.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L2"
       ],

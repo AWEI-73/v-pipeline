@@ -16,7 +16,14 @@ from video_pipeline_core.skill_tool_contract import (
 )
 
 
-def _contract(skill, *, capability_id="cap.fixture.tool.v1", source="tools/example.py"):
+def _contract(
+    skill,
+    *,
+    capability_id="cap.fixture.tool.v1",
+    source="tools/example.py",
+    execution_class="deterministic",
+    capability_role="operation",
+):
     return {
         "version": 1,
         "skill": skill,
@@ -28,6 +35,8 @@ def _contract(skill, *, capability_id="cap.fixture.tool.v1", source="tools/examp
         "canonical_tools": [{
             "capability_id": capability_id,
             "tool": source,
+            "execution_class": execution_class,
+            "capability_role": capability_role,
             "loops": ["L3"],
             "maturity": "bounded",
             "certified_scope": "fixture scope",
@@ -203,6 +212,64 @@ class SkillToolContractParserTest(unittest.TestCase):
             python_tools={"tools/example.py", "tools/support.py", "tools/internal.py", "tools/diagnostic.py"},
         )
         self.assertEqual([], errors)
+
+
+class CapabilityAccountabilitySchemaUnitTest(unittest.TestCase):
+    def _contract(self, **overrides):
+        return _contract("fixture", **overrides)
+
+    def _contract_without_accountability_fields(self):
+        contract = self._contract()
+        contract["canonical_tools"][0].pop("execution_class")
+        contract["canonical_tools"][0].pop("capability_role")
+        return contract
+
+    def test_canonical_card_requires_execution_class_and_role(self):
+        errors = validate_contract_schema([self._contract_without_accountability_fields()])
+        self.assertEqual(
+            {e["code"] for e in errors},
+            {"missing_execution_class", "missing_capability_role"},
+        )
+
+    def test_invalid_execution_class_and_role_values_are_rejected(self):
+        errors = validate_contract_schema([
+            self._contract(execution_class="manual", capability_role="orchestrator")
+        ])
+        self.assertEqual(
+            {e["code"] for e in errors},
+            {"invalid_execution_class", "invalid_capability_role"},
+        )
+
+    def test_hybrid_adapter_is_rejected(self):
+        errors = validate_contract_schema([
+            self._contract(execution_class="hybrid", capability_role="adapter")
+        ])
+        self.assertIn("invalid_execution_class_role", {e["code"] for e in errors})
+
+    def test_allowed_execution_class_role_matrix_is_accepted(self):
+        valid_pairs = [
+            ("deterministic", "operation"),
+            ("hybrid", "operation"),
+            ("deterministic", "review"),
+            ("hybrid", "review"),
+            ("deterministic", "gate"),
+            ("hybrid", "gate"),
+            ("deterministic", "adapter"),
+        ]
+        for execution_class, capability_role in valid_pairs:
+            with self.subTest(
+                execution_class=execution_class,
+                capability_role=capability_role,
+            ):
+                self.assertEqual(
+                    [],
+                    validate_contract_schema([
+                        self._contract(
+                            execution_class=execution_class,
+                            capability_role=capability_role,
+                        )
+                    ]),
+                )
 
 
 if __name__ == "__main__":

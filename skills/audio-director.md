@@ -37,6 +37,8 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
         "voiceover_ready=false and BUILD requires narration audio"
       ],
       "capability_id": "cap.audio-director.voiceover-provider-plan.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L3"
       ],
@@ -62,6 +64,8 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
         "voiceover_ready=false and BUILD requires narration audio"
       ],
       "capability_id": "cap.audio-director.voxcpm-voiceover-provider.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L3"
       ],
@@ -83,6 +87,8 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
         "runtime is treated as usable without checking"
       ],
       "capability_id": "cap.audio-director.voxcpm-runtime-check.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L3"
       ],
@@ -108,6 +114,8 @@ description: Use when Hermes needs TTS, voiceover timing, approved music mixing,
         "audio_file missing"
       ],
       "capability_id": "cap.audio-director.audio-mix-plan-execute.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L3"
       ],

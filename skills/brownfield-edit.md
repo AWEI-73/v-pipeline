@@ -35,6 +35,8 @@ already exists. It is not the canonical story/material pipeline.
         "draft references stale material or canonical artifact directly"
       ],
       "capability_id": "cap.brownfield-edit.workbench-handoff.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L4"
       ],
@@ -54,6 +56,8 @@ already exists. It is not the canonical story/material pipeline.
         "patch changes canonical truth without review"
       ],
       "capability_id": "cap.brownfield-edit.workbench-patch-to-contract.v1",
+      "execution_class": "deterministic",
+      "capability_role": "adapter",
       "loops": [
         "L4"
       ],
@@ -74,6 +78,8 @@ already exists. It is not the canonical story/material pipeline.
         "caller expects final.mp4 or canonical delivery"
       ],
       "capability_id": "cap.brownfield-edit.workbench-draft-rerender.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L4"
       ],

@@ -2,13 +2,45 @@ from pathlib import Path
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
+
+from video_pipeline_core.skill_tool_contract import (
+    ALLOWED_CLASS_ROLE,
+    CAPABILITY_ROLES,
+    EXECUTION_CLASSES,
+    load_contracts,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SkillToolContractsTest(unittest.TestCase):
+    def test_real_canonical_cards_have_allowed_accountability_pair(self):
+        contracts, parse_errors = load_contracts(ROOT / "skills")
+        self.assertEqual([], parse_errors)
+
+        canonical_cards = [
+            (contract, entry)
+            for contract in contracts
+            for entry in contract.get("canonical_tools", [])
+            if isinstance(entry, dict)
+        ]
+        self.assertTrue(canonical_cards)
+        for contract, entry in canonical_cards:
+            capability_id = entry.get("capability_id")
+            with self.subTest(
+                skill=contract.get("skill"), capability_id=capability_id
+            ):
+                self.assertIn("execution_class", entry)
+                self.assertIn("capability_role", entry)
+                execution_class = entry.get("execution_class")
+                capability_role = entry.get("capability_role")
+                self.assertIn(execution_class, EXECUTION_CLASSES)
+                self.assertIn(capability_role, CAPABILITY_ROLES)
+                self.assertIn(execution_class, ALLOWED_CLASS_ROLE[capability_role])
+
     def test_audit_reports_clean_skill_tool_contracts(self):
         completed = subprocess.run(
             [
@@ -77,6 +109,128 @@ class SkillToolContractsTest(unittest.TestCase):
         self.assertIn("tools/verified_preview_review_decision.py", material_skill)
         self.assertIn("tools/promote_verified_preview.py", material_skill)
         self.assertIn("workbench_revision_request.json", runbook)
+
+    def test_synthetic_audit_reports_missing_accountability_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skills = root / "skills"
+            tools = root / "tools"
+            skills.mkdir()
+            tools.mkdir()
+            (tools / "voiceover_provider_plan.py").write_text("# fixture\n", encoding="utf-8")
+            contract = {
+                "version": 1,
+                "skill": "voiceover-provider",
+                "stage_owner": "voiceover_provider_plan",
+                "capability_namespace": "cap.voiceover.*",
+                "capability_lookup_owner": "voiceover-provider",
+                "triggers": ["voiceover"],
+                "forbidden_tools": [],
+                "canonical_tools": [{
+                    "capability_id": "cap.voiceover.voiceover-provider-plan.v1",
+                    "tool": "tools/voiceover_provider_plan.py",
+                    "loops": ["L2"],
+                    "maturity": "bounded",
+                    "certified_scope": "synthetic provider planning fixture",
+                    "when": "plan provider selection",
+                    "inputs": ["voiceover_request.json"],
+                    "outputs": ["voiceover_provider_plan.json"],
+                    "stop_if": ["request is invalid"],
+                }],
+            }
+            skills.joinpath("voiceover-provider.md").write_text(
+                "<!-- TOOL_CONTRACT_START -->\n"
+                + json.dumps(contract, ensure_ascii=False)
+                + "\n<!-- TOOL_CONTRACT_END -->\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "skill_tool_contract_audit.py"),
+                    "--skills-dir",
+                    str(skills),
+                    "--tools-dir",
+                    str(tools),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(1, completed.returncode, completed.stdout + completed.stderr)
+            report = json.loads(completed.stdout)
+            self.assertEqual(
+                {"missing_execution_class", "missing_capability_role"},
+                {item["code"] for item in report["capability_errors"]},
+            )
+
+    def test_retirement_only_audit_context_keeps_live_command_discovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skills = root / "skills"
+            tools = root / "tools"
+            skills.mkdir()
+            tools.mkdir()
+            contract = {
+                "version": 1,
+                "skill": "dispatch-capabilities-fixture",
+                "stage_owner": "dispatch_capabilities_fixture",
+                "capability_namespace": "cap.fixture.*",
+                "capability_lookup_owner": "dispatch-capabilities-fixture",
+                "triggers": ["fixture"],
+                "forbidden_tools": [],
+                "canonical_tools": [{
+                    "capability_id": "cap.fixture.dispatch-capabilities.v1",
+                    "tool": "python .\\video_tools.py dispatch-capabilities",
+                    "execution_class": "deterministic",
+                    "capability_role": "operation",
+                    "loops": ["L3"],
+                    "maturity": "bounded",
+                    "certified_scope": "retirement-only context should not blank live command discovery",
+                    "when": "query the live capability dispatch surface",
+                    "inputs": ["capability_query.json"],
+                    "outputs": ["capability_query_result.json"],
+                    "stop_if": ["selector is invalid"],
+                }],
+            }
+            skills.joinpath("dispatch-capabilities-fixture.md").write_text(
+                "<!-- TOOL_CONTRACT_START -->\n"
+                + json.dumps(contract, ensure_ascii=False)
+                + "\n<!-- TOOL_CONTRACT_END -->\n",
+                encoding="utf-8",
+            )
+            root.joinpath("audit_context.json").write_text(
+                json.dumps({
+                    "retirement_pre_ids": ["cap.fixture.dispatch-capabilities.v1"],
+                    "retirement_post_ids": ["cap.fixture.dispatch-capabilities.v1"],
+                    "retirement_rows": [],
+                }, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "skill_tool_contract_audit.py"),
+                    "--skills-dir",
+                    str(skills),
+                    "--tools-dir",
+                    str(tools),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(
+                0,
+                completed.returncode,
+                completed.stdout + completed.stderr,
+            )
+            report = json.loads(completed.stdout)
+            self.assertTrue(report["ok"], report)
+            self.assertEqual([], report["broken_command_references"])
+            self.assertEqual([], report["retirement_delta_errors"])
 
 
 if __name__ == "__main__":

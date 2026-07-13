@@ -36,6 +36,8 @@ description: Use for bounded music, song, BGM, soundtrack mood, section audio so
         "candidate is reference_only for delivery"
       ],
       "capability_id": "cap.soundtrack-arranger.soundtrack-arranger.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L3"
       ],
@@ -60,6 +62,8 @@ description: Use for bounded music, song, BGM, soundtrack mood, section audio so
         "selected music has no soundtrack_probe_report or section_fit"
       ],
       "capability_id": "cap.soundtrack-arranger.soundtrack-flow-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L3"
       ],
@@ -79,6 +83,8 @@ description: Use for bounded music, song, BGM, soundtrack mood, section audio so
         "sections, editing_fit, or required section_fit are missing"
       ],
       "capability_id": "cap.soundtrack-arranger.soundtrack-probe.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L3"
       ],

@@ -30,6 +30,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "delivery evidence missing or hard gate fails"
       ],
       "capability_id": "cap.verify.stage5-final-review-smoke.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L5"
       ],
@@ -48,6 +50,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "reviewer blocks or missing review artifact"
       ],
       "capability_id": "cap.verify.reviewer-flow-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L5"
       ],
@@ -66,6 +70,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "delivery gate blocks or required evidence is missing"
       ],
       "capability_id": "cap.verify.write-delivery-gate-report.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L5"
       ],
@@ -90,6 +96,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "visual or audio evidence fails"
       ],
       "capability_id": "cap.verify.final-product-verify.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
       "loops": [
         "L5"
       ],

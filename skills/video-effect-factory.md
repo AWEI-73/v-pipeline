@@ -34,6 +34,8 @@ This is the upper route for designed effects in Hermes.
         "parameter_status=candidate_parameters and no review is supplied"
       ],
       "capability_id": "cap.video-effect-factory.visual-technique-plan.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L4"
       ],
@@ -57,6 +59,8 @@ This is the upper route for designed effects in Hermes.
         "selected concept conflicts with material truth or requires unsupported renderer controls"
       ],
       "capability_id": "cap.video-effect-factory.effect-design-concept.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L4"
       ],
@@ -75,6 +79,8 @@ This is the upper route for designed effects in Hermes.
         "decision is partial/probe_required/reroute_material/reroute_editing/unsupported"
       ],
       "capability_id": "cap.video-effect-factory.effect-capability-review.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L4"
       ],
@@ -97,6 +103,8 @@ This is the upper route for designed effects in Hermes.
         "presentation feel"
       ],
       "capability_id": "cap.video-effect-factory.effect-design-review.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L4"
       ],
@@ -116,6 +124,8 @@ This is the upper route for designed effects in Hermes.
         "review evidence is missing or not accepted"
       ],
       "capability_id": "cap.video-effect-factory.effect-dictionary-promote.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
       "loops": [
         "L4"
       ],
@@ -135,6 +145,8 @@ This is the upper route for designed effects in Hermes.
         "required effect lacks review evidence"
       ],
       "capability_id": "cap.video-effect-factory.effect-factory-boundary-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L4"
       ],
@@ -158,6 +170,8 @@ This is the upper route for designed effects in Hermes.
         "remotion_effect_review evidence is missing"
       ],
       "capability_id": "cap.video-effect-factory.effect-factory-route-acceptance.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
       "loops": [
         "L4"
       ],

@@ -14,7 +14,13 @@ from video_pipeline_core.capability_catalog import build_catalog, load_live_cata
 import video_tools
 
 
-def _contract(tool="tools/audio_mix_plan_execute.py", capability_id="cap.audio-director.audio-mix-plan-execute.v1", when="execute speech ducking"):
+def _contract(
+    tool="tools/audio_mix_plan_execute.py",
+    capability_id="cap.audio-director.audio-mix-plan-execute.v1",
+    when="execute speech ducking",
+    execution_class="deterministic",
+    capability_role="operation",
+):
     return {
         "_source": "skills/audio-director.md",
         "version": 1,
@@ -27,6 +33,8 @@ def _contract(tool="tools/audio_mix_plan_execute.py", capability_id="cap.audio-d
         "canonical_tools": [{
             "capability_id": capability_id,
             "tool": tool,
+            "execution_class": execution_class,
+            "capability_role": capability_role,
             "loops": ["L3"],
             "maturity": "bounded",
             "certified_scope": "Canon 67 39s speech-aware preview mix",
@@ -164,6 +172,63 @@ class DispatchCapabilitiesTest(unittest.TestCase):
             self.assertEqual(1, code)
             self.assertEqual("", stdout.getvalue())
             self.assertEqual("capability query: no matches\n", stderr.getvalue())
+
+
+class CapabilityCatalogAccountabilityUnitTest(unittest.TestCase):
+    def test_live_card_projects_normalized_command_and_accountability_fields(self):
+        source_entry = {
+            "capability_id": "cap.voiceover.voiceover-provider-plan.v1",
+            "tool": "python .\\video_tools.py voiceover-provider-plan",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+            "loops": ["L2"],
+            "maturity": "bounded",
+            "certified_scope": "synthetic provider planning fixture",
+            "when": "plan provider selection",
+            "inputs": ["voiceover_request.json"],
+            "outputs": ["voiceover_provider_plan.json"],
+            "stop_if": ["request is invalid"],
+        }
+        contract = {
+            "_source": "skills/voiceover-provider.md",
+            "version": 1,
+            "skill": "voiceover-provider",
+            "stage_owner": "voiceover_provider_plan",
+            "capability_namespace": "cap.voiceover.*",
+            "capability_lookup_owner": "voiceover-provider",
+            "triggers": ["voiceover"],
+            "forbidden_tools": [],
+            "canonical_tools": [source_entry],
+        }
+
+        catalog = build_catalog([contract])
+        self.assertTrue(catalog["ok"], catalog)
+        card = catalog["cards"][0]
+        self.assertEqual(card["command"], "video_tools.py voiceover-provider-plan")
+        self.assertEqual(card["execution_class"], "deterministic")
+        self.assertEqual(card["capability_role"], "operation")
+        self.assertNotIn("command", source_entry)
+
+    def test_query_results_expose_projected_accountability_fields(self):
+        catalog = build_catalog([
+            _contract(
+                tool="python .\\video_tools.py voiceover-provider-plan",
+                capability_id="cap.voiceover.voiceover-provider-plan.v1",
+                when="plan provider selection",
+                execution_class="deterministic",
+                capability_role="operation",
+            )
+        ])
+        result = query_catalog(
+            catalog,
+            selector="id",
+            value="cap.voiceover.voiceover-provider-plan.v1",
+        )
+        self.assertTrue(result["ok"], result)
+        card = result["results"][0]
+        self.assertEqual(card["command"], "video_tools.py voiceover-provider-plan")
+        self.assertEqual(card["execution_class"], "deterministic")
+        self.assertEqual(card["capability_role"], "operation")
 
 
 if __name__ == "__main__":
