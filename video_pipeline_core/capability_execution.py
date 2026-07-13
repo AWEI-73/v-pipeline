@@ -287,21 +287,17 @@ def _append_duplicate_errors(root: Path, records: list[dict], selected: dict, er
         if not isinstance(value, str):
             continue
         if field == "work_order_path":
-            try:
-                value = normalize_repo_path(root, value)
-            except ValueError:
+            value = _lexical_path_identity(value)
+            if value is None:
                 continue
-            value = value.casefold()
         group = []
         for record in records:
             other = record.get("contract") or {}
             other_value = other.get(field)
             if field == "work_order_path" and isinstance(other_value, str):
-                try:
-                    other_value = normalize_repo_path(root, other_value)
-                except ValueError:
+                other_value = _lexical_path_identity(other_value)
+                if other_value is None:
                     continue
-                other_value = other_value.casefold()
             if other_value == value:
                 group.append(record)
         if len(group) > 1:
@@ -309,6 +305,16 @@ def _append_duplicate_errors(root: Path, records: list[dict], selected: dict, er
             versions = {item.get("contract", {}).get("accountability_contract_version") for item in group}
             if versions != {1}:
                 errors.append(_error("contract_version_unsupported", selected["path"], "duplicate companion group contains an unsupported version"))
+
+
+def _lexical_path_identity(raw: str) -> str | None:
+    """Return a filesystem-independent identity for a portable POSIX path."""
+    if not isinstance(raw, str) or not raw or "\\" in raw or raw.startswith(("/", "//")) or _DRIVE_RE.match(raw):
+        return None
+    parts = raw.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return "/".join(parts).casefold()
 
 
 def _validate_manifest(root: Path, manifest: Any, location: str, errors: list[dict[str, str]]) -> None:

@@ -75,6 +75,9 @@ class ContractActivationTest(unittest.TestCase):
 
     def test_case_variant_work_order_paths_are_duplicate_on_windows(self):
         with git_repository() as root:
+            work_order = root / "docs/Work.md"
+            work_order.parent.mkdir(parents=True, exist_ok=True)
+            work_order.write_text("real work order\n", encoding="utf-8")
             first, _ = commit_companion(root, "first", work_order_path="docs/Work.md", run_root=".tmp/first")
             write_companion(root, "second", contract_for("second", ".tmp/second", work_order_path="docs/work.md"))
             commit_all(root, "case variant companions")
