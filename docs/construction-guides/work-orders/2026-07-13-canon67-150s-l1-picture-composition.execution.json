@@ -24,11 +24,11 @@
   "initial_owner_zone_manifest": [
     {
       "path": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
-      "sha256": "4955f19dce9f4f887a77cce59263d9ea29306b66d701487cbaba345ebb5eae5f"
+      "sha256": "0f0e3c8c228bcb02f069dd18bc4e59aebbc38647ee80da1f330baddb34f88c7d"
     },
     {
       "path": "HANDOFF_CURRENT.md",
-      "sha256": "a8128edd1fc680104fdf2160109ed62c359ca55520cdc001cd65c471303ade88"
+      "sha256": "a8824d21f2680949f450a3d96b2431c02a74bd20e9d838bddd23672b7ff56703"
     }
   ],
   "steps": [
