@@ -82,11 +82,18 @@ These are forward-growth risks. Historical artifacts do not need migration.
    unregistered, out of scope, or actor-incompatible.
 10. Apply the contract only to new runs with a committed version-1 execution
     companion.
+11. Remove mechanisms made redundant by this project when evidence proves they
+    have no live consumer and no required legacy-reader duty; quarantine
+    misleading-but-required compatibility surfaces as explicit read-only
+    legacy instead of leaving them apparently active.
 
 ## 4. Non-Goals
 
 - No historical artifact backfill.
-- No deletion or mass rewrite of historical work orders.
+- No deletion or mass rewrite of historical work orders or evidence.
+- No repository-wide speculative dead-code cleanup. Retirement is limited to
+  surfaces touched or made redundant by this project and requires the evidence
+  contract in section 12.
 - No central route orchestrator, persistent daemon, event bus, database, or
   append-only journal engine.
 - No automatic creative approval or final delivery claim.
@@ -914,6 +921,42 @@ New tools may be developed red-first inside an authorized owner zone, but the
 campaign cannot close while the audit reports them as orphaned. A waiver cannot
 turn an orphan into PASS.
 
+### 12.1 Evidence-based retirement of obsolete or misleading surfaces
+
+This project may delete an old mechanism instead of preserving it indefinitely
+when the new entry/accountability path makes it redundant. Deletion is not
+authorized by age, naming, or intuition. Every touched candidate receives one
+of three outcomes:
+
+| outcome | Required condition |
+| --- | --- |
+| `delete` | No live code/command/Skill/doc consumer, no active Capability or Director reference, no required legacy-reader duty, and focused tests stay green after removal. |
+| `legacy_read_only` | New runs must not produce or route through it, but historical artifacts still require it for reading or validation. It is marked `legacy`, removed from active consumer lookup, and cannot satisfy strict closure. |
+| `keep` | At least one named live consumer, public compatibility duty, or unresolved dynamic use remains. The evidence names it; uncertainty never authorizes deletion. |
+
+The retirement audit is bounded to surfaces modified, replaced, or made
+redundant by Phases A-C. For each candidate it checks:
+
+1. Codebase Memory callers/callees where indexed, plus `rg` for CLI strings,
+   dynamic imports, configuration, error literals, and non-code references.
+2. Skill `TOOL_CONTRACT`, Capability Catalog, command catalog, Director
+   consumer blocks, Skill index, and branch/owner registration.
+3. RUNBOOK/HANDOFF/START_HERE/docs INDEX and active work orders/specs.
+4. Focused tests, integration fixtures, Workbench readers, and legacy artifact
+   validation paths.
+5. Whether historical data needs a reader even though new production is
+   forbidden.
+
+Removal is atomic: code/command registration, active documentation, ownership,
+tests, and replacement references change in the same scoped commit. It may not
+leave a silent alias, compatibility shim, stale next action, dead Capability
+ID, or old entry marker that makes the removed path appear usable. Git history
+is the archive; this design does not create a tombstone registry.
+
+The implementation report contains a compact retirement table with candidate,
+outcome, live-consumer evidence, legacy-reader evidence, changed paths, and
+verification. `UNKNOWN` results in `keep`, not deletion.
+
 ## 13. Workbench Boundary
 
 Workbench remains the human contract-adjustment surface. This project does not
@@ -1011,12 +1054,16 @@ Require tests for:
 - valid Capability execution classes and roles;
 - live query fields and deterministic output;
 - unowned tool, duplicate ID, broken Director reference, and command mismatch;
+- an active reference to a deleted/legacy-only surface, a retired command still
+  exposed by the command catalog, and a misleading old entry marker;
+- retirement classification that attempts `delete` with a live consumer,
+  required legacy reader, or UNKNOWN evidence;
 - legacy cards/traces remain readable where explicitly supported.
 
 Pinned command:
 
 ```powershell
-C:/Users/user/miniconda3/python.exe -m unittest tests.test_pipeline_skill_boundaries tests.test_doc_reference_hygiene tests.test_interactive_skill_flow_docs tests.test_skill_index -v
+C:/Users/user/miniconda3/python.exe -m unittest tests.test_pipeline_skill_boundaries tests.test_doc_reference_hygiene tests.test_interactive_skill_flow_docs tests.test_skill_index tests.test_accountability_retirement -v
 ```
 
 Capability schema/catalog command:
@@ -1226,17 +1273,23 @@ shared file concurrently.
      `doc_reference_hygiene`, and their tests;
    - records pre-edit hashes for currently dirty authority files and
      reconciles them intentionally rather than staging unrelated content.
+   - classifies and atomically removes or demotes only duplicate entry/current-
+     state mechanisms made misleading by the single-entry change.
 2. **Phase B capability-schema worker — catalog authority**
    - is the sole writer for the 11 Domain Skill `TOOL_CONTRACT` blocks,
      shared Skill parser/catalog/audit/query code, command catalog, and their
      focused tests;
    - Phase A does not edit these files while Phase B is active.
+   - removes stale aliases/active references only after the section-12
+     retirement evidence proves no live consumer or legacy-reader duty.
 3. **Phase C runtime worker — execution authority**
    - owns the one new shared capability-execution core module,
      `video_tools.py`, `no_skip_execution_trace`, bounded closure integration,
      and their tests;
    - it does not edit Domain Skills, entry documents, or Workbench production
      code.
+   - may retire a superseded runtime/accountability helper only when the new
+     path is green and the bounded retirement audit classifies it `delete`.
 4. **Phase D integrator then evidence worker — read-only production consumer**
    - the integrator authors and commits the work-order companion before
      dispatch;
@@ -1256,12 +1309,17 @@ creative taste, final delivery, or automatic loop selection.
 - add the HANDOFF state block;
 - extend doc hygiene and entry tests;
 - remove duplicated volatile state from RUNBOOK and docs INDEX.
+- retire misleading duplicate entry/current-state surfaces in the same commit
+  when their bounded retirement evidence is `delete`; otherwise mark them
+  explicitly non-authoritative/read-only.
 
 ### Phase B - Static capability accountability
 
 - add execution class/role to canonical cards;
 - extend shared parser/catalog/query/audit;
 - keep all 51 current capabilities discoverable and owned.
+- remove only proven-dead aliases or active legacy references; preserve named
+  historical readers as `legacy_read_only`.
 
 ### Phase C - Forward-only runtime accountability
 
@@ -1270,6 +1328,9 @@ creative taste, final delivery, or automatic loop selection.
   attempt receipts, run-bound decision sidecars, and derived trace v2;
 - extend no-skip closure and gate-purity checks;
 - preserve trace v1/legacy reads.
+- retire only helpers actually superseded by the new executor/closure path and
+  proven consumer-free; do not delete route runners merely because they look
+  old.
 
 ### Phase D - Real bounded forward test
 
@@ -1311,10 +1372,15 @@ The design is implemented only when all are true:
 12. The closure meta-gate cannot require or consume its own receipt/decision.
 13. Missing, stale, copied, skipped, or unplanned evidence blocks closure.
 14. Legacy traces and Workbench artifacts remain readable and unchanged.
-15. A fresh bounded technical run invokes the two registered fixture
+15. Every touched obsolete/misleading candidate has a retirement-table outcome;
+    deleted surfaces have zero active references and no legacy-reader duty,
+    while `legacy_read_only` surfaces cannot be dispatched by a strict run.
+16. No removed command, Capability ID, entry marker, next action, or Skill
+    consumer reference remains discoverable as active.
+17. A fresh bounded technical run invokes the two registered fixture
     capabilities and reaches the correct owner gate without requiring a
     creative verdict.
-16. The pinned focused, compatibility, real-audit, integrity, and full-suite
+18. The pinned focused, compatibility, real-audit, integrity, and full-suite
     checks pass.
 
 ## 20. Explicit Architecture Rejections
@@ -1327,6 +1393,10 @@ Reject any implementation that:
 - lets a gate call hidden helpers to repair its own inputs;
 - requires editing every tool to emit receipts;
 - backfills historical runs;
+- deletes an old-looking surface without proving zero live consumers and zero
+  required legacy-reader duty;
+- keeps a superseded path apparently active through a silent alias, stale
+  marker, compatibility shim, or unresolved next action;
 - places volatile campaign state in RUNBOOK or docs INDEX;
 - treats agent attestation as proof of creative correctness;
 - treats objective verification as owner taste;
@@ -1339,7 +1409,9 @@ After this design is implemented, a new agent can begin at one visible entry,
 recover current state, query the registered factory, execute only authorized
 capabilities, leave evidence of every required step, preserve the boundary
 between tool/agent/gate/owner work, and fail closed when anything is skipped or
-fabricated.
+fabricated. Mechanisms superseded by that path are either removed with
+consumer evidence or visibly confined to read-only legacy compatibility, so a
+new agent is not routed into a decaying half-active path.
 
 The system still permits failure, uncertainty, owner revision, and creative
 disagreement. What it no longer permits is an unsupported completion claim.
