@@ -9,14 +9,62 @@ from video_pipeline_core.skill_tool_contract import (
     ALLOWED_CLASS_ROLE,
     CAPABILITY_ROLES,
     EXECUTION_CLASSES,
+    audit_repository_contracts,
     load_contracts,
 )
+from video_pipeline_core.capability_catalog import build_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SkillToolContractsTest(unittest.TestCase):
+    def test_real_direct_tool_cards_have_registered_tool_path_commands(self):
+        contracts, parse_errors = load_contracts(ROOT / "skills")
+        self.assertEqual([], parse_errors)
+
+        catalog = build_catalog(contracts)
+        self.assertTrue(catalog["ok"], catalog)
+        direct_cards = [
+            card for card in catalog["cards"] if card["tool"].startswith("tools/")
+        ]
+        self.assertTrue(direct_cards)
+        for card in direct_cards:
+            with self.subTest(capability_id=card["capability_id"]):
+                self.assertEqual(card["tool"], card["command"])
+
+    def test_direct_tool_identity_does_not_use_dispatch_or_catalog_command_sets(self):
+        contract = {
+            "_source": "skills/direct-fixture.md",
+            "version": 1,
+            "skill": "direct-fixture",
+            "stage_owner": "direct_fixture",
+            "capability_namespace": "cap.direct-fixture.*",
+            "capability_lookup_owner": "direct-fixture",
+            "triggers": ["fixture"],
+            "forbidden_tools": [],
+            "canonical_tools": [{
+                "capability_id": "cap.direct-fixture.tool.v1",
+                "tool": "tools/direct_fixture.py",
+                "execution_class": "deterministic",
+                "capability_role": "operation",
+                "loops": ["L3"],
+                "maturity": "bounded",
+                "certified_scope": "direct fixture",
+            }],
+        }
+
+        errors = audit_repository_contracts(
+            [contract],
+            python_tools=["tools/direct_fixture.py"],
+            dispatch_commands=[],
+            catalog_commands=[],
+        )
+
+        self.assertEqual([], [item for item in errors if item["code"] in {
+            "command_not_dispatched", "command_not_cataloged"
+        }])
+
     def test_real_canonical_cards_have_allowed_accountability_pair(self):
         contracts, parse_errors = load_contracts(ROOT / "skills")
         self.assertEqual([], parse_errors)

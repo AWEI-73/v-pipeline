@@ -140,6 +140,44 @@ class ContractActivationTest(unittest.TestCase):
 
 
 class ExecutionContractSchemaTest(unittest.TestCase):
+    def test_registered_direct_tool_binds_argv_prefix_and_rejects_another_tool(self):
+        contract = contract_for("direct-prefix", ".tmp/direct-prefix")
+        contract["steps"][0]["command_argv"] = [
+            "{python}", "tools/audio_mix_plan_execute.py", "--plan", "fixture.json"
+        ]
+        catalog = {"ok": True, "cards": [{
+            "capability_id": "cap.example.operation.v1",
+            "tool": "tools/audio_mix_plan_execute.py",
+            "command": "tools/audio_mix_plan_execute.py",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+        }]}
+
+        self.assertEqual([], validate_execution_contract(Path.cwd(), contract, catalog))
+
+        contract["steps"][0]["command_argv"][1] = "tools/material_rough_cut.py"
+        errors = validate_execution_contract(Path.cwd(), contract, catalog)
+        self.assertIn("contract_command_argv_mismatch", error_codes({"errors": errors}))
+
+    def test_registered_video_tools_command_binds_subcommand_and_allows_frozen_tail(self):
+        contract = contract_for("video-tools-prefix", ".tmp/video-tools-prefix")
+        contract["steps"][0]["command_argv"] = [
+            "{python}", "video_tools.py", "material-rough-cut", "--fixture", "value"
+        ]
+        catalog = {"ok": True, "cards": [{
+            "capability_id": "cap.example.operation.v1",
+            "tool": "video_tools.py material-rough-cut",
+            "command": "video_tools.py material-rough-cut",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+        }]}
+
+        self.assertEqual([], validate_execution_contract(Path.cwd(), contract, catalog))
+
+        contract["steps"][0]["command_argv"][2] = "audio-mix-plan-execute"
+        errors = validate_execution_contract(Path.cwd(), contract, catalog)
+        self.assertIn("contract_command_argv_mismatch", error_codes({"errors": errors}))
+
     def test_valid_contract_is_accepted_without_route_selection(self):
         contract = contract_for("valid", ".tmp/valid")
         catalog = {"ok": True, "cards": [{

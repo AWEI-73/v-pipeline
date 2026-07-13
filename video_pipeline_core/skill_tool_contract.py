@@ -197,9 +197,16 @@ def projected_command_ref(entry: dict[str, Any]) -> str:
     parts = normalized.split()
     if len(parts) >= 2 and Path(parts[0]).name == "video_tools.py":
         return f"video_tools.py {parts[1]}"
+    if parts and parts[0].startswith("tools/") and Path(parts[0]).suffix == ".py":
+        return parts[0]
     if entry.get("command") is not None:
         return normalized
     return ""
+
+
+def is_video_tools_command(value: Any) -> bool:
+    parts = normalize_tool_ref(value).split()
+    return len(parts) >= 2 and Path(parts[0]).name == "video_tools.py"
 
 
 def _error_sort_key(item: dict[str, Any]) -> tuple[str, str, str, str, str]:
@@ -463,9 +470,9 @@ def audit_repository_contracts(
                 if entry.get("_section") == "canonical_tools":
                     canonical_ids[str(capability_id)] = (contract, entry)
             command = projected_command_ref(entry)
-            if command and command not in dispatch_commands:
+            if command and is_video_tools_command(command) and command not in dispatch_commands:
                 errors.append(_error("command_not_dispatched", contract, entry, "command is not present in dispatch command set"))
-            if command and command not in catalog_commands:
+            if command and is_video_tools_command(command) and command not in catalog_commands:
                 errors.append(_error("command_not_cataloged", contract, entry, "command is not present in catalog command set"))
     for tool in sorted(python_tools - set(ownership)):
         errors.append(_error("unowned_python_tool", {"_source": "tools", "skill": None}, {"tool": tool}, "python tool is not owned by any Skill contract"))

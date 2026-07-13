@@ -1026,11 +1026,31 @@ def _validate_step(root: Path, step: dict, location: str, card: dict | None, err
             if "{" in item or "}" in item:
                 if not (index == 0 and item == "{python}"):
                     errors.append(_error("contract_command_argv_invalid", location + f"/command_argv/{index}", "only argv[0] may equal {python}"))
-        if card and isinstance(card.get("command"), str) and card.get("command").strip():
-            expected = [sys.executable, *shlex.split(card["command"])]
-            actual = [sys.executable if item == "{python}" else item for item in argv]
-            if actual != expected:
-                errors.append(_error("contract_command_argv_mismatch", location + "/command_argv", "command_argv must match the registered capability command"))
+        if card is not None:
+            registered_command = card.get("command")
+            if not isinstance(registered_command, str) or not registered_command.strip():
+                errors.append(_error(
+                    "contract_registered_command_missing",
+                    location + "/command_argv",
+                    "registered capability command must be non-empty",
+                ))
+            else:
+                try:
+                    expected = [sys.executable, *shlex.split(registered_command)]
+                except ValueError:
+                    errors.append(_error(
+                        "contract_registered_command_invalid",
+                        location + "/command_argv",
+                        "registered capability command must be a valid argv prefix",
+                    ))
+                else:
+                    actual = [sys.executable if item == "{python}" else item for item in argv]
+                    if actual[:len(expected)] != expected:
+                        errors.append(_error(
+                            "contract_command_argv_mismatch",
+                            location + "/command_argv",
+                            "command_argv must start with the registered capability command",
+                        ))
     for field in ("timeout_ms", "max_attempts"):
         if not isinstance(step.get(field), int) or isinstance(step.get(field), bool) or step[field] <= 0:
             errors.append(_error("contract_step_invalid", location + f"/{field}", f"{field} must be a positive integer"))
