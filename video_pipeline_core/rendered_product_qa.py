@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -121,6 +122,61 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _audio_contract_evidence(
+    root: Path, requested: str | Path | None
+) -> tuple[dict[str, Any], str | None]:
+    evidence: dict[str, Any] = {
+        "expectation": "required",
+        "contract_path": None,
+        "contract_sha256": None,
+        "picture_only": None,
+        "audio_policy": None,
+    }
+    if requested is None:
+        return evidence, None
+
+    raw_path = Path(requested)
+    if raw_path.is_absolute():
+        candidate = raw_path
+    else:
+        cwd_candidate = Path.cwd() / raw_path
+        candidate = cwd_candidate if cwd_candidate.exists() else Path(root) / raw_path
+    resolved_root = root.resolve()
+    resolved_candidate = candidate.resolve()
+    try:
+        resolved_candidate.relative_to(resolved_root)
+    except ValueError:
+        evidence["contract_path"] = str(requested)
+        evidence["expectation"] = "invalid"
+        return evidence, "audio contract must be readable and located within the run root"
+
+    evidence["contract_path"] = _rel(root, resolved_candidate)
+    if resolved_candidate.suffix.casefold() != ".json" or not resolved_candidate.is_file():
+        evidence["expectation"] = "invalid"
+        return evidence, "audio contract must be an existing JSON file"
+
+    try:
+        raw_bytes = resolved_candidate.read_bytes()
+        evidence["contract_sha256"] = hashlib.sha256(raw_bytes).hexdigest()
+        payload = json.loads(raw_bytes.decode("utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        evidence["expectation"] = "invalid"
+        return evidence, "audio contract is not readable JSON"
+
+    if not isinstance(payload, dict):
+        evidence["expectation"] = "invalid"
+        return evidence, "audio contract JSON must be an object"
+
+    evidence["picture_only"] = payload.get("picture_only")
+    evidence["audio_policy"] = payload.get("audio_policy")
+    if payload.get("picture_only") is True and payload.get("audio_policy") == "silent_no_source_audio":
+        evidence["expectation"] = "forbidden"
+        return evidence, None
+
+    evidence["expectation"] = "invalid"
+    return evidence, "audio contract does not declare the recognized silent picture-only policy"
+
+
 def _has_rendered_evidence(payload: dict[str, Any] | None) -> bool:
     if not payload:
         return False
@@ -159,6 +215,7 @@ def build_rendered_product_qa(
     run: str | Path,
     out_dir: str | Path,
     *,
+    audio_contract: str | Path | None = None,
     probe_func: Callable[[Path], dict[str, Any]] = probe_video,
     sampler_func: Callable[[Path, Path], dict[str, Any]] = sample_frames,
 ) -> dict[str, Any]:
@@ -168,6 +225,9 @@ def build_rendered_product_qa(
     blocking: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     candidate = find_rendered_candidate(root)
+    audio_evidence, audio_error = _audio_contract_evidence(root, audio_contract)
+    if audio_error:
+        blocking.append(_block("invalid_audio_contract", audio_error, audio_evidence["contract_path"]))
     probe: dict[str, Any] | None = None
     sampled: dict[str, Any] = {"ok": False, "frames": [], "contact_sheet": None}
 
@@ -182,8 +242,10 @@ def build_rendered_product_qa(
             blocking.append(_block("ffprobe_failed", "ffprobe could not inspect rendered candidate", _rel(root, candidate)))
         if probe.get("ok") and not has_video:
             blocking.append(_block("missing_video_stream", "rendered candidate lacks a video stream", _rel(root, candidate)))
-        if probe.get("ok") and not has_audio:
+        if probe.get("ok") and not has_audio and not audio_error and audio_evidence["expectation"] == "required":
             blocking.append(_block("missing_audio_stream", "rendered candidate lacks an audio stream", _rel(root, candidate)))
+        if probe.get("ok") and has_audio and not audio_error and audio_evidence["expectation"] == "forbidden":
+            blocking.append(_block("unexpected_audio_stream", "rendered candidate contains an unexpected audio stream", _rel(root, candidate)))
         if probe.get("ok") and float(probe.get("duration_sec") or 0) <= 0:
             blocking.append(_block("invalid_duration", "rendered candidate duration is not positive", _rel(root, candidate)))
         sampled = sampler_func(candidate, out)
@@ -226,6 +288,7 @@ def build_rendered_product_qa(
         "pass": not blocking,
         "blocking": blocking,
         "warnings": warnings,
+        "audio_contract": audio_evidence,
         "ffprobe": probe,
         "frame_evidence": frames,
         "sampled_frames": frames,
@@ -238,8 +301,21 @@ def build_rendered_product_qa(
     }
 
 
-def write_rendered_product_qa(run: str | Path, out_dir: str | Path) -> dict[str, Any]:
-    result = build_rendered_product_qa(run, out_dir)
+def write_rendered_product_qa(
+    run: str | Path,
+    out_dir: str | Path,
+    *,
+    audio_contract: str | Path | None = None,
+    probe_func: Callable[[Path], dict[str, Any]] = probe_video,
+    sampler_func: Callable[[Path, Path], dict[str, Any]] = sample_frames,
+) -> dict[str, Any]:
+    result = build_rendered_product_qa(
+        run,
+        out_dir,
+        audio_contract=audio_contract,
+        probe_func=probe_func,
+        sampler_func=sampler_func,
+    )
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "rendered_product_qa.json").write_text(

@@ -18,10 +18,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", required=True, help="Run folder to inspect")
     parser.add_argument("--out-dir", required=True, help="Directory for rendered_product_qa.json and frame evidence")
+    parser.add_argument(
+        "--audio-contract",
+        help="Readable JSON audio contract located within the run root",
+    )
     parser.add_argument("--json", action="store_true", help="Print rendered product QA JSON")
     args = parser.parse_args()
 
-    result = write_rendered_product_qa(args.run, args.out_dir)
+    result = write_rendered_product_qa(args.run, args.out_dir, audio_contract=args.audio_contract)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
