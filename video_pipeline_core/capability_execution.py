@@ -38,7 +38,7 @@ def canonical_json_bytes(payload: dict, *, self_hash_field: str | None = None) -
     value = dict(payload)
     if self_hash_field is not None:
         value.pop(self_hash_field, None)
-    return (json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+    return (json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
 
 
 def hash_file(path: Path) -> str:
@@ -291,6 +291,7 @@ def _append_duplicate_errors(root: Path, records: list[dict], selected: dict, er
                 value = normalize_repo_path(root, value)
             except ValueError:
                 continue
+            value = value.casefold()
         group = []
         for record in records:
             other = record.get("contract") or {}
@@ -300,6 +301,7 @@ def _append_duplicate_errors(root: Path, records: list[dict], selected: dict, er
                     other_value = normalize_repo_path(root, other_value)
                 except ValueError:
                     continue
+                other_value = other_value.casefold()
             if other_value == value:
                 group.append(record)
         if len(group) > 1:
@@ -375,9 +377,23 @@ def _validate_step(root: Path, step: dict, location: str, card: dict | None, err
             errors.append(_error("contract_step_invalid", location + f"/{field}", f"{field} must be a list"))
     for index, output in enumerate(step.get("required_outputs") or []):
         _validate_declared_path(root, output, location + f"/required_outputs/{index}", errors)
+    inputs = step.get("inputs")
+    if isinstance(inputs, list):
+        for index, item in enumerate(inputs):
+            _validate_step_input(root, item, location + f"/inputs/{index}", errors)
     for index, retry_class in enumerate(step.get("allowed_retry_failure_classes") or []):
         if not isinstance(retry_class, str) or not retry_class.startswith("LOCAL_"):
             errors.append(_error("contract_retry_invalid", location + f"/allowed_retry_failure_classes/{index}", "only LOCAL_* failure classes are retryable"))
+
+
+def _validate_step_input(root: Path, item: Any, location: str, errors: list[dict[str, str]]) -> None:
+    if not isinstance(item, dict):
+        errors.append(_error("contract_step_input_invalid", location, "input must be an object"))
+        return
+    _validate_declared_path(root, item.get("path"), location + "/path", errors)
+    digest = item.get("sha256")
+    if not isinstance(digest, str) or not _SHA256_RE.fullmatch(digest):
+        errors.append(_error("contract_step_input_invalid", location + "/sha256", "input sha256 must be 64 lowercase hexadecimal characters"))
 
 
 def _validate_step_references(steps: list, step_ids: set[str], errors: list[dict[str, str]]) -> None:

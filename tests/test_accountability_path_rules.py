@@ -1,6 +1,8 @@
 import hashlib
 import json
+import math
 import os
+import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -30,6 +32,12 @@ class CanonicalJsonAndPathRulesTest(unittest.TestCase):
             b'{"nested":{"sha256":"keep"},"value":1}\n',
             canonical_json_bytes(payload, self_hash_field="sha256"),
         )
+
+    def test_canonical_json_rejects_non_finite_numbers(self):
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    canonical_json_bytes({"value": value})
 
     def test_hash_file_is_stable_sha256(self):
         with TemporaryDirectory() as tmp:
@@ -65,7 +73,7 @@ class CanonicalJsonAndPathRulesTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 normalize_repo_path(root, "owner/artifact.json")
 
-    def test_normalize_repo_path_rejects_symlink_escape(self):
+    def test_normalize_repo_path_rejects_reparse_point_escape(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             outside = Path(tmp) / "outside"
@@ -73,10 +81,21 @@ class CanonicalJsonAndPathRulesTest(unittest.TestCase):
             outside.mkdir()
             (outside / "secret.json").write_text("secret", encoding="utf-8")
             link = root / "link"
+            unavailable = []
             try:
                 os.symlink(outside, link, target_is_directory=True)
-            except (OSError, NotImplementedError):
-                self.skipTest("symlink creation is not available")
+            except (OSError, NotImplementedError) as exc:
+                unavailable.append(f"symlink unavailable: {exc}")
+                junction = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if junction.returncode:
+                    detail = junction.stderr.strip() or junction.stdout.strip() or f"exit {junction.returncode}"
+                    unavailable.append(f"junction unavailable: {detail}")
+                    self.skipTest("; ".join(unavailable))
 
             with self.assertRaises(ValueError):
                 normalize_repo_path(root, "link/secret.json")

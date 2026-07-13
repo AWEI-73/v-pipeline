@@ -73,6 +73,16 @@ class ContractActivationTest(unittest.TestCase):
 
             self.assertEqual(["contract_duplicate_work_order_id", "contract_duplicate_work_order_path"], error_codes(result))
 
+    def test_case_variant_work_order_paths_are_duplicate_on_windows(self):
+        with git_repository() as root:
+            first, _ = commit_companion(root, "first", work_order_path="docs/Work.md", run_root=".tmp/first")
+            write_companion(root, "second", contract_for("second", ".tmp/second", work_order_path="docs/work.md"))
+            commit_all(root, "case variant companions")
+
+            result = resolve_strict_contract(root, root / ".tmp/first", first)
+
+            self.assertEqual(["contract_duplicate_work_order_path"], error_codes(result))
+
     def test_conflicting_versions_in_one_identity_group_are_rejected(self):
         with git_repository() as root:
             first, _ = commit_companion(root, "first", work_order_id="same-id", run_root=".tmp/first", version=1)
@@ -146,6 +156,40 @@ class ExecutionContractSchemaTest(unittest.TestCase):
         self.assertEqual(errors, sorted(errors, key=lambda item: (item["code"], item["path"], item["message"])))
         self.assertIn("contract_command_argv_invalid", error_codes({"errors": errors}))
         self.assertIn("contract_step_id_duplicate", error_codes({"errors": errors}))
+
+    def test_step_inputs_require_object_canonical_path_and_sha256(self):
+        contract = contract_for("invalid-inputs", ".tmp/invalid-inputs")
+        contract["steps"][0]["inputs"] = [
+            "not-an-object",
+            {"path": "evidence/source.json"},
+            {"path": "../escape.json", "sha256": "a" * 64},
+            {"path": "evidence\\source.json", "sha256": "a" * 64},
+            {"path": "/absolute.json", "sha256": "a" * 64},
+            {"path": "evidence/source.json", "sha256": "A" * 64},
+        ]
+
+        errors = validate_execution_contract(Path.cwd(), contract, {
+            "ok": True,
+            "cards": [{
+                "capability_id": "cap.example.operation.v1",
+                "command": "tools/example.py --run .tmp/invalid-inputs",
+                "execution_class": "deterministic",
+                "capability_role": "operation",
+            }],
+        })
+
+        self.assertEqual(errors, sorted(errors, key=lambda item: (item["code"], item["path"], item["message"])))
+        self.assertEqual(
+            [
+                ("contract_path_invalid", "steps/0/inputs/2/path"),
+                ("contract_path_invalid", "steps/0/inputs/3/path"),
+                ("contract_path_invalid", "steps/0/inputs/4/path"),
+                ("contract_step_input_invalid", "steps/0/inputs/0"),
+                ("contract_step_input_invalid", "steps/0/inputs/1/sha256"),
+                ("contract_step_input_invalid", "steps/0/inputs/5/sha256"),
+            ],
+            [(item["code"], item["path"]) for item in errors],
+        )
 
 
 def git_repository():
