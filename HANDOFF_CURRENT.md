@@ -37,7 +37,6 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-   "path": ".tmp/canon67_540s_route_acceptance/all_segment_editorial_review/owner_review_index.md",
     "path": ".tmp/canon67_540s_route_acceptance/integrator_acceptance_v1/reviewer_findings.md",
     "sha256": "4154d4ffce4a8d33c5ae70ac9ce717ef663be0a572e886ace33b2a016e01ae43"
   }
