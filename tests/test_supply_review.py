@@ -40,6 +40,7 @@ class SupplyReviewTest(unittest.TestCase):
                 json.dumps(_map("v1", "video", 3), ensure_ascii=False),
                 encoding="utf-8-sig",
             )
+            output_path = root / "supply_review.json"
 
             proc = subprocess.run(
                 [
@@ -49,6 +50,8 @@ class SupplyReviewTest(unittest.TestCase):
                     str(contract_path),
                     "--maps-dir",
                     str(maps_dir),
+                    "--out",
+                    str(output_path),
                 ],
                 cwd=repo,
                 text=True,
@@ -59,6 +62,10 @@ class SupplyReviewTest(unittest.TestCase):
 
             self.assertEqual(proc.returncode, 0, proc.stderr)
             payload = json.loads(proc.stdout)
+            self.assertTrue(output_path.is_file())
+            output_payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(output_payload, payload)
+            self.assertEqual(output_payload["segments"][0]["feasibility"], "ok")
             self.assertEqual(payload["segments"][0]["feasibility"], "ok")
 
     def test_coverage_fallback_counts_positive_pick_as_one_window(self):
