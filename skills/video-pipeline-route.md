@@ -35,10 +35,7 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "capability_id": "cap.video-pipeline-route.pipeline-home.v1",
       "execution_class": "deterministic",
       "capability_role": "review",
-      "loops": [
-        "L0",
-        "L5"
-      ],
+      "loops": [],
       "maturity": "experimental"
     },
     {
@@ -56,10 +53,7 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "capability_id": "cap.video-pipeline-route.video-intent-acceptance.v1",
       "execution_class": "deterministic",
       "capability_role": "gate",
-      "loops": [
-        "L0",
-        "L5"
-      ],
+      "loops": [],
       "maturity": "experimental"
     },
     {
@@ -78,10 +72,30 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "capability_id": "cap.video-pipeline-route.operator-flow-acceptance.v1",
       "execution_class": "deterministic",
       "capability_role": "gate",
-      "loops": [
-        "L0",
-        "L5"
+      "loops": [],
+      "maturity": "experimental"
+    },
+    {
+      "tool": "tools/global_editorial_state.py",
+      "when": "建立、驗證與前進 immutable global editorial state revision，讓 worker context 帶著 hash-bound state",
+      "inputs": [
+        "seed or Canon 67 source artifacts",
+        "base state and accepted delta"
       ],
+      "outputs": [
+        "revision state JSON",
+        "transition receipt JSON",
+        "stable validation result"
+      ],
+      "stop_if": [
+        "base state hash is stale",
+        "receipt or source hash does not match",
+        "worker context is pinned to a different revision"
+      ],
+      "capability_id": "cap.video-pipeline-route.global-editorial-state.v1",
+      "execution_class": "deterministic",
+      "capability_role": "adapter",
+      "loops": [],
       "maturity": "experimental"
     }
   ],
