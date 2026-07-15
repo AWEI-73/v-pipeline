@@ -63,11 +63,15 @@ class EntryContractBehaviorTest(unittest.TestCase):
   "active_skill": null,
   "active_run_root": ".tmp/fixture",
   "authoritative_state_artifact": ".tmp/fixture/state.json",
-  "authoritative_state_field": "state",
+  "authoritative_state_sha256": "107eec86867d714bdd944cbba6a96cb2aac5430918fa66d96233770730734985",
+  "authoritative_state_field": "revision_id",
+  "campaign_status_artifact": ".tmp/fixture/campaign_status.json",
+  "campaign_status_field": "state",
   "next_actions": ["continue_fixture"],
   "do_not_do": ["claim_delivery"],
   "human_creative_approval": false,
-  "final_delivery_claimed": false
+  "final_delivery_claimed": false,
+  "review_packet": null
 }"""
 
     def _write(self, root: Path, rel: str, text: str) -> None:
@@ -89,6 +93,7 @@ class EntryContractBehaviorTest(unittest.TestCase):
         index: str | None = None,
         state_payload: dict[str, object] | None = None,
         write_state_artifact: bool = True,
+        campaign_state: str | None = None,
     ) -> Path:
         tmp = TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -123,12 +128,18 @@ class EntryContractBehaviorTest(unittest.TestCase):
         self._write(root, "docs/construction-guides/work-orders/fixture.md", "# fixture\n")
         if write_state_artifact:
             if state_payload is None:
-                state_payload = {"state": "ACTIVE"}
+                state_payload = {"revision_id": 9}
+            state_text = json.dumps(state_payload, ensure_ascii=False, indent=2) + "\n"
             self._write(
                 root,
                 ".tmp/fixture/state.json",
-                json.dumps(state_payload, ensure_ascii=False, indent=2) + "\n",
+                state_text,
             )
+        self._write(
+            root,
+            ".tmp/fixture/campaign_status.json",
+            json.dumps({"state": campaign_state or "ACTIVE"}, ensure_ascii=False, indent=2) + "\n",
+        )
         return root
 
     def test_entry_contract_accepts_valid_exact_markers_and_handoff_block(self):
@@ -332,13 +343,88 @@ class EntryContractBehaviorTest(unittest.TestCase):
 
         self.assertIn("handoff_state_authority_missing", report["errors"])
 
-    def test_entry_contract_rejects_state_mismatch_against_authoritative_json(self):
+    def test_entry_contract_rejects_authoritative_state_hash_mismatch(self):
         from video_pipeline_core.doc_reference_hygiene import evaluate_entry_contract
 
-        root = self._entry_fixture(state_payload={"state": "WAITING_OWNER_REVIEW"})
+        payload = json.loads(self.VALID_HANDOFF_JSON)
+        payload["authoritative_state_sha256"] = "0" * 64
+        root = self._entry_fixture(
+            handoff=(
+                "<!-- DOCUMENT_ROLE: CURRENT_HANDOFF -->\n"
+                + self._handoff_block(json.dumps(payload, ensure_ascii=False, indent=2))
+            )
+        )
         report = evaluate_entry_contract(root)
 
-        self.assertIn("handoff_state_mismatch", report["errors"])
+        self.assertIn("handoff_state_authority_hash_mismatch", report["errors"])
+
+    def test_entry_contract_accepts_authoritative_revision_independent_of_lifecycle_state(self):
+        from video_pipeline_core.doc_reference_hygiene import evaluate_entry_contract
+
+        root = self._entry_fixture()
+        report = evaluate_entry_contract(root)
+
+        self.assertTrue(report["ok"], report)
+        self.assertEqual("revision_id", report["handoff"]["authoritative_state_field"])
+
+    def test_entry_contract_rejects_campaign_state_mismatch(self):
+        from video_pipeline_core.doc_reference_hygiene import evaluate_entry_contract
+
+        root = self._entry_fixture(campaign_state="WAITING_OWNER_REVIEW")
+        report = evaluate_entry_contract(root)
+
+        self.assertIn("handoff_campaign_state_mismatch", report["errors"])
+
+    def test_entry_contract_rejects_review_packet_hash_mismatch(self):
+        from video_pipeline_core.doc_reference_hygiene import evaluate_entry_contract
+
+        payload = json.loads(self.VALID_HANDOFF_JSON)
+        payload["review_packet"] = {
+            "path": ".tmp/fixture/review.md",
+            "sha256": "0" * 64,
+        }
+        root = self._entry_fixture(
+            handoff=(
+                "<!-- DOCUMENT_ROLE: CURRENT_HANDOFF -->\n"
+                + self._handoff_block(json.dumps(payload, ensure_ascii=False, indent=2))
+            )
+        )
+        self._write(root, ".tmp/fixture/review.md", "review packet\n")
+        report = evaluate_entry_contract(root)
+
+        self.assertIn("handoff_review_packet_hash_mismatch", report["errors"])
+
+    def test_entry_contract_accepts_legacy_idle_handoff_without_extension_keys(self):
+        from video_pipeline_core.doc_reference_hygiene import evaluate_entry_contract
+
+        payload = json.loads(self.VALID_HANDOFF_JSON)
+        for key in (
+            "authoritative_state_sha256",
+            "campaign_status_artifact",
+            "campaign_status_field",
+            "review_packet",
+        ):
+            payload.pop(key)
+        payload.update(
+            {
+                "state": "IDLE",
+                "active_work_order": None,
+                "active_spec": None,
+                "active_skill": None,
+                "active_run_root": None,
+                "authoritative_state_artifact": None,
+                "authoritative_state_field": None,
+            }
+        )
+        root = self._entry_fixture(
+            handoff=(
+                "<!-- DOCUMENT_ROLE: CURRENT_HANDOFF -->\n"
+                + self._handoff_block(json.dumps(payload, ensure_ascii=False, indent=2))
+            )
+        )
+        report = evaluate_entry_contract(root)
+
+        self.assertTrue(report["ok"], report)
 
     def test_current_doc_reference_hygiene_includes_entry_contract_results(self):
         from video_pipeline_core.doc_reference_hygiene import evaluate_current_doc_reference_hygiene

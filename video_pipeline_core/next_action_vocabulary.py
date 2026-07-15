@@ -114,6 +114,7 @@ NEXT_ACTION_VOCABULARY: frozenset[str] = frozenset(
         "return_to_build_with_final_audio",
         "return_to_effect_factory",
         "return_to_material_map",
+        "return_to_material_revision",
         "return_to_soundtrack_arranger",
         "return_to_structure_contract",
         "return_to_subtitle_voiceover",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from pathlib import Path
 from typing import Iterable
@@ -49,12 +50,23 @@ HANDOFF_ALLOWED_KEYS = {
     "active_skill",
     "active_run_root",
     "authoritative_state_artifact",
+    "authoritative_state_sha256",
     "authoritative_state_field",
+    "campaign_status_artifact",
+    "campaign_status_field",
     "next_actions",
     "do_not_do",
     "human_creative_approval",
     "final_delivery_claimed",
+    "review_packet",
 }
+HANDOFF_EXTENSION_KEYS = {
+    "authoritative_state_sha256",
+    "campaign_status_artifact",
+    "campaign_status_field",
+    "review_packet",
+}
+HANDOFF_LEGACY_KEYS = HANDOFF_ALLOWED_KEYS - HANDOFF_EXTENSION_KEYS
 HANDOFF_PATH_FIELDS = (
     "active_work_order",
     "active_spec",
@@ -64,6 +76,8 @@ HANDOFF_PATH_FIELDS = (
 HANDOFF_IDLE_NULL_FIELDS = HANDOFF_PATH_FIELDS + (
     "authoritative_state_artifact",
     "authoritative_state_field",
+    "campaign_status_artifact",
+    "campaign_status_field",
 )
 MACHINE_KEYS_OUTSIDE_HANDOFF = ("active_work_order", "authoritative_state_artifact", "ACTIVE_WORK_ORDER")
 
@@ -116,7 +130,10 @@ def parse_handoff_state(text: str) -> tuple[dict[str, object] | None, list[str]]
     errors.update(f"handoff_unknown_key:{key}" for key in unknown_keys)
 
     missing_keys = HANDOFF_ALLOWED_KEYS - set(payload)
-    if missing_keys:
+    legacy_idle = payload.get("state") == "IDLE" and not (
+        missing_keys - HANDOFF_EXTENSION_KEYS
+    )
+    if missing_keys and not legacy_idle:
         errors.add("handoff_json_invalid")
 
     if payload.get("artifact_role") != "current_handoff_state":
@@ -195,28 +212,59 @@ def evaluate_entry_contract(repo_root: str | Path) -> dict[str, object]:
                 if handoff.get(field) is not None and (resolved is None or not resolved.exists()):
                     errors.add(f"handoff_path_missing:{field}")
 
-            authoritative_artifact = handoff.get("authoritative_state_artifact")
-            authoritative_field = handoff.get("authoritative_state_field")
-            authoritative_path = _resolve_repo_path(root, authoritative_artifact)
-            if authoritative_path is None or not isinstance(authoritative_field, str) or not authoritative_field:
-                errors.add("handoff_state_authority_missing")
-            elif not authoritative_path.exists():
-                errors.add("handoff_state_authority_missing")
-            else:
-                try:
-                    authority_payload = json.loads(authoritative_path.read_text(encoding="utf-8"))
-                except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            if handoff.get("state") != "IDLE":
+                authoritative_artifact = handoff.get("authoritative_state_artifact")
+                authoritative_field = handoff.get("authoritative_state_field")
+                authoritative_path = _resolve_repo_path(root, authoritative_artifact)
+                if authoritative_path is None or not isinstance(authoritative_field, str) or not authoritative_field:
+                    errors.add("handoff_state_authority_missing")
+                elif not authoritative_path.exists():
                     errors.add("handoff_state_authority_missing")
                 else:
-                    authoritative_value = (
-                        authority_payload.get(authoritative_field)
-                        if isinstance(authority_payload, dict)
-                        else None
-                    )
-                    if not isinstance(authoritative_value, str):
+                    try:
+                        authority_bytes = authoritative_path.read_bytes()
+                        authority_payload = json.loads(authority_bytes.decode("utf-8"))
+                    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                         errors.add("handoff_state_authority_missing")
-                    elif authoritative_value != state:
-                        errors.add("handoff_state_mismatch")
+                    else:
+                        if not isinstance(authority_payload, dict) or authoritative_field not in authority_payload:
+                            errors.add("handoff_state_authority_missing")
+                        expected_hash = handoff.get("authoritative_state_sha256")
+                        if not isinstance(expected_hash, str) or not expected_hash:
+                            errors.add("handoff_state_authority_hash_missing")
+                        elif hashlib.sha256(authority_bytes).hexdigest() != expected_hash:
+                            errors.add("handoff_state_authority_hash_mismatch")
+
+                campaign_artifact = handoff.get("campaign_status_artifact")
+                campaign_field = handoff.get("campaign_status_field")
+                campaign_path = _resolve_repo_path(root, campaign_artifact)
+                if campaign_path is None or not isinstance(campaign_field, str) or not campaign_field:
+                    errors.add("handoff_campaign_state_missing")
+                elif not campaign_path.exists():
+                    errors.add("handoff_campaign_state_missing")
+                else:
+                    try:
+                        campaign_payload = json.loads(campaign_path.read_text(encoding="utf-8"))
+                    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                        campaign_payload = None
+                    if not isinstance(campaign_payload, dict) or campaign_field not in campaign_payload:
+                        errors.add("handoff_campaign_state_missing")
+                    elif campaign_payload[campaign_field] != state:
+                        errors.add("handoff_campaign_state_mismatch")
+
+                review_packet = handoff.get("review_packet")
+                if review_packet is not None:
+                    if not isinstance(review_packet, dict):
+                        errors.add("handoff_review_packet_invalid")
+                    else:
+                        review_path = _resolve_repo_path(root, review_packet.get("path"))
+                        review_hash = review_packet.get("sha256")
+                        if review_path is None or not isinstance(review_hash, str) or not review_hash:
+                            errors.add("handoff_review_packet_missing")
+                        elif not review_path.exists():
+                            errors.add("handoff_review_packet_missing")
+                        elif hashlib.sha256(review_path.read_bytes()).hexdigest() != review_hash:
+                            errors.add("handoff_review_packet_hash_mismatch")
 
     return {
         "artifact_role": "entry_contract_report",
