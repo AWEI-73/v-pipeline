@@ -519,7 +519,10 @@ pending Task 6 acceptance. `human_creative_approval=false` and
 Task 6 completed without a second full suite:
 
 - `hydrated_same_machine_worktree=PASS`.
-- Primary HEAD and the detached sibling HEAD are both `ea1531ec`.
+- Task 6 acceptance ran with primary HEAD and detached sibling HEAD both at
+  `ea1531ec`. The final primary HEAD is `33175cb9`; the sibling remains clean at
+  the accepted `ea1531ec`, and the only later primary delta is this formal
+  completion documentation.
 - Sibling path: `C:\Users\user\Desktop\video_pipeline.clean-acceptance`.
 - Primary and sibling `git status --porcelain=v1 --untracked-files=all` are
   empty; both root `supply_review.json` checks are absent and the path is not
