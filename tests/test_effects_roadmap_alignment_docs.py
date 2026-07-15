@@ -13,7 +13,7 @@ class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
     def test_roadmap_promotes_effects_to_active_next_phase(self):
         text = read("roadmap.md")
         for expected in [
-            "Next Phase ??Effects / Brownfield Edit / Node14",
+            "Next Phase — Effects / Brownfield Edit / Node14",
             "Status: active next development direction.",
             "FX0 Effects Status Cleanup",
             "FX1 Effect Asset Spec",

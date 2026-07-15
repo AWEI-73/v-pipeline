@@ -1,12 +1,12 @@
-﻿---
-title: Hermes Video Pipeline ??Canonical Roadmap
+---
+title: Hermes Video Pipeline —Canonical Roadmap
 type: project
 status: active
 updated: 2026-06-25
 tags: [project, video, pipeline, roadmap, agent-workflow]
 ---
 
-# Hermes Video Pipeline ??Canonical Roadmap
+# Hermes Video Pipeline —Canonical Roadmap
 
 This file is now the **current-state roadmap and navigation index**. Long-form
 implementation history was moved out to `docs/archive/roadmap-history/` so agents do not
@@ -306,20 +306,20 @@ Target first increment:
 - `SSB1 Story Soul Blueprint Skill`
 - Design reference: `docs/story-soul-blueprint-skills.md`
 
-### VIP Video Intent Planner ??Upstream Role Generalization
+### VIP Video Intent Planner —Upstream Role Generalization
 
 Status: design accepted 2026-06-21
 (`docs/archive/decisions/2026-06-21-vip0-video-intent-planner-artifact.md`). Stage 0
 input-state / entry-path split is solidified in VIP0. The per-type planners
 below are planned, not yet built.
 
-Problem: the most upstream role is still story-centric ??`story-soul-blueprint`
+Problem: the most upstream role is still story-centric —`story-soul-blueprint`
 assumes a narrative/fiction author. Real requests are broader (teaching cuts,
 event recaps, personal memory films, brand shorts). The upstream role should be a
 **video intent planner / narrative-intent designer**, not always a fiction
 writer, and should branch to a type-appropriate planner.
 
-This generalizes ??does not replace ??the pipeline. Everything below the planner
+This generalizes —does not replace —the pipeline. Everything below the planner
 is unchanged:
 
 ```text
@@ -334,9 +334,9 @@ video-intent-planner
 
 Two intake sources (both already named in the design):
 
-1. facts extracted from material ??who appears, which scenes, which actions,
+1. facts extracted from material —who appears, which scenes, which actions,
    which events, what usable emotion/shots exist.
-2. interactive supplement ??who these people are, what matters most, for whom,
+2. interactive supplement —who these people are, what matters most, for whom,
    intended effect (move | teach | commemorate | sell | persuade), what must
    not be used.
 
@@ -344,7 +344,7 @@ Video type detection (Stage 0.5, after availability):
 `storybook | teaching | personal-memory | graduation-event | brand-product |
 documentary | music-video`.
 
-Per-type planner outputs ??each is a bounded skill; only the story branch exists
+Per-type planner outputs —each is a bounded skill; only the story branch exists
 today:
 
 | Type | Planner skill | Produces | Built |
@@ -354,9 +354,9 @@ today:
 | personal-memory | `memory-story-planner` (new) | people & relationships, key events, timeline, memory anchors, intended feeling | no |
 | graduation / event | `event-recap-planner` (new) | training journey, shared memories, representative sessions, climax, departure/completion feel | no |
 | brand / product | `brand-short-planner` (later) | message, audience, value prop, proof points, CTA | no |
-| documentary / music-video | (later) | ??| no |
+| documentary / music-video | (later) | —| no |
 
-Bounded increments ??build in route priority, not all at once:
+Bounded increments —build in route priority, not all at once:
 
 - **VIP0 Naming + entry skill.** **Implemented 2026-06-21.** Add
   `video-intent-planner` (a.k.a. `video-brief-interview`) as the named upstream
@@ -378,7 +378,7 @@ Bounded increments ??build in route priority, not all at once:
   recordings produce `material_needs` with chapter order + key points, routed
   existing-material-first, generation not defaulted; one real teaching-case E2E.
 - **VIP2 event-recap-planner.** The graduation/67th route. Acceptance: wired into
-  the 67th harness so `soul_intent_segments` goes 0 -> N ??this closes the
+  the 67th harness so `soul_intent_segments` goes 0 -> N —this closes the
   `soul_intent_empty` diagnosis recorded in the Quality Stabilization row 4.
 - **VIP3 memory-story-planner.** Personal video. Deferred until teaching + event
   prove the non-fiction planner pattern.
@@ -394,7 +394,7 @@ Discipline / boundaries (from the decision doc and review session):
 - A type is not "shipped" until its reference / skill / prompt is written to the
   same spec quality as `story-soul-blueprint`.
 
-### Open Threads ??2026-06-20/21 Review Session
+### Open Threads —2026-06-20/21 Review Session
 
 Captured so they are not lost; not yet scheduled increments.
 
@@ -538,7 +538,7 @@ Boundary:
   artifact shape and minimum story logic; it is not a substitute for a human or
   high-end writer model improving the prose.
 
-### SSB1?MP End-To-End Acceptance
+### SSB1 — End-To-End Acceptance
 
 Status: implemented / accepted for contract-chain proof.
 
@@ -835,7 +835,7 @@ Acceptance harness update:
 - Post-generation delta: `thin=2`.
 - Post-review delta: `covered=2`, `thin=0`.
 
-## Next Phase ??Effects / Brownfield Edit / Node14
+## Next Phase — Effects / Brownfield Edit / Node14
 
 Status: active next development direction.
 
@@ -1092,7 +1092,7 @@ Deferred inside effects:
 - automatic Remotion output promotion into canonical delivery without review;
 - full Audio Graph V2.
 
-## Stable Foundations ??Do Not Reopen Without Evidence
+## Stable Foundations —Do Not Reopen Without Evidence
 
 These areas are considered settled unless a fresh run proves a contract bug:
 

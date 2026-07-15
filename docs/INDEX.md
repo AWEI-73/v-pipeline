@@ -1,6 +1,6 @@
 <!-- DOCUMENT_ROLE: MAP -->
 
-# Docs Index ??canonical map (2026-06-25)
+# Docs Index —canonical map (2026-06-25)
 
 One page that says what is current and what is historical, so old/new no longer mix.
 
@@ -53,10 +53,10 @@ Current document layers:
 
 ## Legacy Entry Notes
 
-1. `README.md` ??what this project is.
-2. `roadmap.md` ??canonical current roadmap and navigation index.
-3. `HANDOFF_CURRENT.md` ??clean resume anchor for the next agent.
-4. `RUNBOOK.md` ??how to run the pipeline on Windows.
+1. `README.md` —what this project is.
+2. `roadmap.md` —canonical current roadmap and navigation index.
+3. `HANDOFF_CURRENT.md` —clean resume anchor for the next agent.
+4. `RUNBOOK.md` —how to run the pipeline on Windows.
 
 ## Editorial "soul" layer (front of pipeline)
 
@@ -65,38 +65,38 @@ Current document layers:
   off to material-map lifecycle or upstream story route without starting
   type-specific templates.
 
-- `docs/story-soul-blueprint-skills.md` ??planned upstream creative skill layer:
+- `docs/story-soul-blueprint-skills.md` —planned upstream creative skill layer:
   story world, narrative device, screenplay beats, director shot/material prompt
   compiler. This is the next consolidation target before more runtime features.
-- Skill: `skills/story-soul-blueprint.md` ??SSB1 executable baseline that
+- Skill: `skills/story-soul-blueprint.md` —SSB1 executable baseline that
   compiles project briefs into story_world, creative_concept, screenplay_beats,
   director_shot_plan, material_needs, generation_manifest, and review checklist.
-- Skill: `skills/material-generation-fallback.md` ??MGF1 rescue layer that turns
+- Skill: `skills/material-generation-fallback.md` —MGF1 rescue layer that turns
   fresh `material_delta` missing/thin needs into provider-neutral generation jobs;
   generated assets return through material-map review as candidates.
 - Skill: `skills/curator.md` -- material curator support skill. It adds
   scene-level visual family, angle/scale, duplicate/reject, and diversity review
   evidence before material delta and rough-cut decisions.
-- Skill: `skills/generated-material-producer.md` ??executes MGF1 jobs into
+- Skill: `skills/generated-material-producer.md` —executes MGF1 jobs into
   generated files, manifests, candidate material maps, quality review, and
   explicit candidate promotion review.
 - Skill: `skills/shooting-brief.md` -- material gap brief route. It converts
   `material_delta.json` missing/thin needs into `material_gap_brief.json`,
   `shooting_brief.md`, generated-material jobs, stock retrieval jobs, rewrite
   tasks, or waiver tasks before material-map re-review.
-- Harness: `tools/generated_material_flow_acceptance.py` ??replays two
+- Harness: `tools/generated_material_flow_acceptance.py` —replays two
   generated comic-style cases from empty material through candidate material maps
   and quality review.
-- Harness: `tools/story_to_generated_material_e2e.py` ??runs project brief
+- Harness: `tools/story_to_generated_material_e2e.py` —runs project brief
   through SSB1, generated fallback, generated material production, explicit
   review, and fresh delta coverage.
-- `docs/editorial-layer.md` ??**read first**; consolidated conceptual map.
-- `docs/narrative-blueprint-spec.md` ??WHY: prose thesis + ordered beats (gate).
-- `docs/editing-intent-sequence-grammar-spec.md` ??HOW-structure: cut/hold reasons, shot_slots.
-- `docs/material-treatment-grammar-spec.md` ??HOW-material: content_pattern ??treatment ??count ??lanes.
-- `docs/imagery-to-edit-lexicon-spec.md` ??the deterministic ?情?num translation table.
+- `docs/editorial-layer.md` —**read first**; consolidated conceptual map.
+- `docs/narrative-blueprint-spec.md` —WHY: prose thesis + ordered beats (gate).
+- `docs/editing-intent-sequence-grammar-spec.md` —HOW-structure: cut/hold reasons, shot_slots.
+- `docs/material-treatment-grammar-spec.md` —HOW-material: content_pattern —treatment —count —lanes.
+- `docs/imagery-to-edit-lexicon-spec.md` —the deterministic imagery→enum translation table.
 - Skill: `skills/blueprint-interview.md` (elicit soulful blueprint).
-- Code: `video_pipeline_core/blueprint_to_contract.py` (compile decisions.json ??contract);
+- Code: `video_pipeline_core/blueprint_to_contract.py` (compile decisions.json —contract);
   CLI `video_tools.py blueprint-to-contract`. Gold example: `examples/blueprint_gold_66/`.
 
 ## Build / runtime / infra (current)
@@ -111,7 +111,7 @@ Current document layers:
 - `docs/video-pipeline-end-to-end-line.md` -- one-page narrative line from
   Video Intent Planner through material truth, BUILD, verify, Workbench /
   Brownfield return loops, and delivery.
-- `docs/canonical-video-pipeline-route.md` ??canonical end-to-end route map:
+- `docs/canonical-video-pipeline-route.md` —canonical end-to-end route map:
   stable stage order, skill-to-tool mapping, artifact ownership, gates, legacy
   node aliases, and template-route plan. Read this before changing flow or node
   names.
@@ -153,7 +153,7 @@ Current document layers:
   Stage 0 `video_intent.json` ownership: `input_state`, `entry_path`,
   material-first, structure-first, needs-context, legacy compatibility, and
   generated-material fallback boundaries.
-- `docs/material-map-lifecycle.md` ??canonical summary of the completed
+- `docs/material-map-lifecycle.md` —canonical summary of the completed
   M6 material-map lifecycle: needs, satisfies edges, delta, revision, lifecycle
   stage machine, build handoff, and current boundaries.
 - `docs/effect-factory-route.md` -- designed-effects side branch. The main
@@ -162,18 +162,18 @@ Current document layers:
   photo-wall treatment, or stylized effect asset. It integrates
   `skills/video-effect-factory.md` with `skills/remotion-effect-worker.md`
   without replacing the worker or owning `final.mp4`.
-- `docs/build-tool-runner-spec.md` ??BUILD runner tool selection + P1 audit pack.
-- `docs/video-autopilot-tool-integration-spec.md` ??editing/VERIFY tool integration.
-- `docs/capcut-pipeline-integration-design.md` ??optional CapCut finishing backend.
+- `docs/build-tool-runner-spec.md` —BUILD runner tool selection + P1 audit pack.
+- `docs/video-autopilot-tool-integration-spec.md` —editing/VERIFY tool integration.
+- `docs/capcut-pipeline-integration-design.md` —optional CapCut finishing backend.
 - Skill: `skills/capcut-assisted-finishing.md` -- verified bounded CapCut
   effect/music/export route that returns every candidate to Stage 7 Verify.
-- `docs/dashboard-node-skill-output-spec.md` ??dashboard / node / output contract.
-- `docs/windows-native-migration-spec.md` ??Windows migration record (migration complete).
-- `docs/SYSTEM-DESIGN.md` ??self-contained node/skill/tool architecture brief
+- `docs/dashboard-node-skill-output-spec.md` —dashboard / node / output contract.
+- `docs/windows-native-migration-spec.md` —Windows migration record (migration complete).
+- `docs/SYSTEM-DESIGN.md` —self-contained node/skill/tool architecture brief
   (honest status grading: proven / thin / scaffold / known gaps). Share-ready.
-- `docs/reference-repos-map.md` ??external reference repos: what to take, license limits,
+- `docs/reference-repos-map.md` —external reference repos: what to take, license limits,
   integration triggers (ai-media-generator / NarratoAI). Do not re-evaluate; read this.
-- `docs/archive/decisions/2026-06-16-native-preview-engine.md` ??Workbench preview/edit
+- `docs/archive/decisions/2026-06-16-native-preview-engine.md` —Workbench preview/edit
   middle layer: material-composition preview, draft patch artifacts, contract
   sync boundary, and Dashboard/Workbench separation.
 - `docs/archive/decisions/2026-06-17-frontend-stability-and-modularization.md` --
@@ -263,13 +263,13 @@ explicitly points to that construction area.
 
 ## Working conventions (read before contributing)
 
-- `docs/archive/decisions/2026-06-14-working-loop-and-tdd-evidence.md` ??the
-  Claude?odex loop, the TDD-green-is-the-only-evidence rule, and validator
+- `docs/archive/decisions/2026-06-14-working-loop-and-tdd-evidence.md` —the
+  Claude↔Codex loop, the TDD-green-is-the-only-evidence rule, and validator
   discipline. Shared source of truth for how work is done here.
 
 ## Decision log (append-only history)
 
-`docs/archive/decisions/` ??one file per significant decision. Most recent:
+`docs/archive/decisions/` —one file per significant decision. Most recent:
 `2026-06-21-video-intent-material-availability-split.md`,
 `2026-06-20-soul-passthrough-build-ranking.md`,
 `2026-06-20-canonical-route-solidification-review.md`,
@@ -293,7 +293,7 @@ explicitly points to that construction area.
 Material-map current summary lives in `docs/material-map-lifecycle.md`.
 Pre-split roadmap snapshots are local history only and are not part of the public MVP tree.
 
-## Design notes (still referenced by skills ??keep)
+## Design notes (still referenced by skills —keep)
 
 `design/ffmpeg-pitfalls-reference.md`, `design/skill-interface-contracts.md`,
 `design/tool-verification-log.md`,

@@ -1,4 +1,4 @@
-﻿# Canonical Video Pipeline Route
+# Canonical Video Pipeline Route
 
 Date: 2026-06-25
 Status: v1 accepted / keep as route map before broad node renaming
@@ -120,7 +120,7 @@ The intake must decide:
 - `needs-context`: the brief is too vague to choose a handoff. Ask focused
   questions before Story Soul, Material Truth, or BUILD.
 
-This rule prevents a pure teaching video or personal蝝??芾摩 from being forced
+This rule prevents a pure teaching video or personal-material edit from being forced
 through a generated storybook route, and prevents a zero-material storybook from
 pretending existing footage exists.
 

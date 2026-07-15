@@ -1,4 +1,4 @@
-﻿# BA1 ??BUILD Alignment Audit
+# BA1 —BUILD Alignment Audit
 
 Date: 2026-06-14
 Type: bounded documentation audit (no new feature, no new quality audit, no
@@ -8,28 +8,28 @@ renderer rewrite). Grounded in call-site grep, not memory.
 output today, vs. which are stored-but-unconsumed? This tells us where new BUILD
 work has leverage and prevents claiming "active" without a real consumer.
 
-Status values: `active` (real BUILD/render consumer + evidence) 繚 `partial`
-(consumed only on some paths or planning-only) 繚 `declared_only` (stored, no
-BUILD consumer yet) 繚 `missing` 繚 `deprecated`.
+Status values: `active` (real BUILD/render consumer + evidence) · `partial`
+(consumed only on some paths or planning-only) · `declared_only` (stored, no
+BUILD consumer yet) · `missing` · `deprecated`.
 
 ## How to read this
 
-Three layers, kept separate on purpose ??a planning gate is NOT a BUILD
+Three layers, kept separate on purpose —a planning gate is NOT a BUILD
 capability, and a VERIFY check creates nothing:
 
-- **A. Pre-BUILD gates** ??run before BUILD; they accept/shorten/block the SPEC.
+- **A. Pre-BUILD gates** —run before BUILD; they accept/shorten/block the SPEC.
   They change the *input* to BUILD, never emit timeline/render themselves.
 
 > Node-registry node "14" is a **flow-grouping / scaffold label**, not a BUILD
 > consumer. The actual motion-graphics BUILD consumer is the `contract_adapter`
 > build path calling `motion_graphics`. Do not cite Node 14 as the consumer.
 
-- **B. BUILD capabilities** ??consumed during BUILD; they change the actual
+- **B. BUILD capabilities** —consumed during BUILD; they change the actual
   timeline and/or rendered output.
-- **C. VERIFY audits** ??inspect the result; they create no edit and choose no
+- **C. VERIFY audits** —inspect the result; they create no edit and choose no
   replacement.
 
-### A. Pre-BUILD gates (planning layer ??not BUILD capabilities)
+### A. Pre-BUILD gates (planning layer —not BUILD capabilities)
 
 | Gate | Declared source | Tool | Where it runs | Effect on BUILD | Status |
 |---|---|---|---|---|---|
@@ -55,24 +55,24 @@ capability, and a VERIFY check creates nothing:
 | SFX punctuation | `sfx.ASSET_COUNTS` + `sfx_plan` | `sfx-mix` | `video_pipeline` audio mix | `sfx_plan.json` cues | cues in final_audio | active |
 | Music structure / climax align | `music_structure` sections | `music_alignment` | `video_pipeline` bgm offset | `music_alignment_plan.json` | bgm offset in render | active |
 | J/L cut + speech-tail + motion snap | edit_artifacts / vt_audio | `snap_render_plan_to_motion`, jl/tail | `video_pipeline`, `mv_cut` | adjusted extract starts | rendered seams | active |
-| Window retrieval (map-based) | M2 `material_retrieval` | `plan_ranked_windows`, `plan_sound_bite` | `mv_cut._plan_local_segment` ??**default** local path whenever a valid material map exists (MR1; no longer gated on clip_list picks), honest matched/live fallback | ranked slots w/ scene_id+window evidence + `retrieval_path` trace; known bad `avoid_ranges`/`bad_ranges` are skipped with lower-ranked clean-window backfill; if every candidate is bad, BUILD emits a least-bad slot with `window_quality_fallback=true` instead of silently starving the segment | rendered map-ranked windows (`test_map_retrieval_wiring` G + bad-window backfill E2E) | active; shot-aware bad-window avoidance complete |
-| motion_graphics: ffmpeg_libass | `build_profile.motion_graphics_backend` | `motion_graphics.py` | **contract_adapter build path ??motion_graphics render/composite** (when render_profile ??light_effects/motion_graphics) | `motion_graphics_render_plan.json` | rendered overlays | active |
+| Window retrieval (map-based) | M2 `material_retrieval` | `plan_ranked_windows`, `plan_sound_bite` | `mv_cut._plan_local_segment` —**default** local path whenever a valid material map exists (MR1; no longer gated on clip_list picks), honest matched/live fallback | ranked slots w/ scene_id+window evidence + `retrieval_path` trace; known bad `avoid_ranges`/`bad_ranges` are skipped with lower-ranked clean-window backfill; if every candidate is bad, BUILD emits a least-bad slot with `window_quality_fallback=true` instead of silently starving the segment | rendered map-ranked windows (`test_map_retrieval_wiring` G + bad-window backfill E2E) | active; shot-aware bad-window avoidance complete |
+| motion_graphics: ffmpeg_libass | `build_profile.motion_graphics_backend` | `motion_graphics.py` | **contract_adapter build path —motion_graphics render/composite** (when render_profile —light_effects/motion_graphics) | `motion_graphics_render_plan.json` | rendered overlays | active |
 | motion_graphics: html_playwright | build_profile | `motion_graphics.py` | contract_adapter build path (one recipe) | render plan | rendered frames | partial |
-| motion_graphics: remotion | build_profile enum | ??| none | ??| ??| declared_only |
+| motion_graphics: remotion | build_profile enum | —| none | —| —| declared_only |
 | Remotion effect adapter draft route | `effect_revision_request` + `effect_intent_plan` | `remotion-prompt-pack`, `remotion-worker-smoke`, `remotion-worker-outputs`, `remotion-composite-draft` | Brownfield/Workbench draft review path; **not** canonical `contract-run` renderer | prompt pack + worker review + accepted review lineage | non-canonical composite draft; `final.mp4` untouched | active (draft-only adapter E2E complete) |
 | CapCut finishing | capcut_backend | draft manifest | Node 13 sub-state | draft JSON | GUI export (human gate) | partial |
-| Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | ??| ??| declared_only |
-| Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | ??| ??| declared_only |
-| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | `visual-diversity-review` Agent verdict application | `material_retrieval` select_diverse_ranked_scenes | stored on scenes with review lineage | ??| active (only visual_family, angle_scale, asset_type consumed) |
-| VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | ??| active (evidence only) |
-| VD1.1 family vocabulary | `visual_family_vocabulary` | `visual-family-normalize` | none (does not block build/delivery) | normalized review with lineage | ??| active (evidence prep / VD2 prerequisite) |
+| Material needs + satisfies edge | M6a `material_needs` | `validate-needs` | none (contract/lineage only) | —| —| declared_only |
+| Project material map | MM1 `project_material_map` | `project-material-map` | none yet (read model for agents/UI) | —| —| declared_only |
+| VD0 shallow labels (`visual_family`/`angle_scale`/`action_family`/`subject`) | VD0 contract | `visual-diversity-review` Agent verdict application | `material_retrieval` select_diverse_ranked_scenes | stored on scenes with review lineage | —| active (only visual_family, angle_scale, asset_type consumed) |
+| VD1 label coverage evidence | project material map | `visual-diversity-coverage` | none (evidence gate before VD2) | `visual_diversity_coverage.json` | —| active (evidence only) |
+| VD1.1 family vocabulary | `visual_family_vocabulary` | `visual-family-normalize` | none (does not block build/delivery) | normalized review with lineage | —| active (evidence prep / VD2 prerequisite) |
 | VD2 visual diversity soft selection | VD0 contract + project map | `plan_ranked_windows` select_diverse_ranked_scenes | `mv_cut._plan_local_segment` | prioritized diversity selection | rendered diversified slots | active |
 | BSA1 soul-aware soft selection | `story_soul` + segment `core` soul fields + `director_intent` | `blueprint_to_contract.compile_contract`; `material_retrieval.rank_scenes`; `srp_real67_fuller_replay.soul_selection_diff` | `mv_cut._plan_local_segment` through map-ranked retrieval | `score_breakdown.soul` on ranked slots; on/off diff records flip count or zero-flip reason | focused retrieval + fuller-replay tests; soft evidence only | active (never admits zero-base evidence; effectiveness must be read from on/off diff) |
 | SRP1 Segment Sequence Recipe Planner | approved slots | `plan_segment_sequence` | `mv_cut` run_mv loop | auto-planned beats and trace keys on slots | rendered auto-sequence | active |
 | SRP2 Opening / Hook Auto Planner | approved story-plan slots | `plan_opening_recipe` | `mv_cut` run_mv (post story-plan; reuses BR1 `compile_opening_sequence`) | auto opening clips prepended + `opening_recipe_source=auto` trace/lineage | rendered auto opening before story | active |
 | SRP3 Story Arc / Emotional Progression Planner | script segment order + manual metadata | `plan_story_arc` / `apply_story_arc_hints` | `mv_cut` run_mv (BEFORE `allocate_segments`) | arc_role/intensity/pace/weight hints shift relative allocation; `arc_role`/`story_arc_source=auto` trace on story slots & per_seg | climax story duration > setup (true render) | active |
 
-### C. VERIFY audits (inspect only ??not BUILD capabilities)
+### C. VERIFY audits (inspect only —not BUILD capabilities)
 
 | Audit | Declared source | Tool | Tier | Effect | Status |
 |---|---|---|---|---|---|
@@ -99,22 +99,22 @@ capability, and a VERIFY check creates nothing:
   `action_family` and `subject` are stored but not yet used.
 - **Photo map-ranked renderability is active/complete.** Photo assets (where `asset_type == "photo"`) are renderable in map-ranked window planning, using the segment's allocated `clip_dur` as their design duration (independent of the source video window bounds).
 - **SRP1 Segment Sequence Recipe Planner is active/complete.** Local segments with at least 2 approved map-ranked slots and no manual beat recipe are automatically planned into a sequence (e.g. context -> payoff) preserving window integrity, and rendering a true sequential movie.
-- **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only. Candidates are deduplicated by `scene_id` (same source + different window stays distinct). Selection is correctness-first and greedy by retrieval_score tier ??a lower-score shot never outranks a higher one ??with same-tier soft role preferences actually applied: hook prefers close>medium>wide, context prefers an unused `visual_family` then wide>medium>close, title base prefers an unused scene_id / different family (video-over-photo and deterministic scene_id as final tie-breaks; missing family/scale degrades deterministically). Only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded); title text comes only from explicit script fields; evidence/window/photo lineage is preserved; the original story plan is left intact (opening prepended, slot_index reindexed); and VD2/SRP1 shared history is not polluted. When the build declares `target_sec`, the auto opening is duration-budgeted against the whole-film target (drop extra context -> title -> shorten hook -> fallback) so it never pushes the plan past `target_sec`; approved story slots are never trimmed and manual openings are exempt. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
+- **SRP2 Opening / Hook Auto Planner is active/complete.** When a build has no manual `script["opening_recipe"]`, a shallow deterministic opening (hook -> context_montage -> title_reveal -> story_entry, scaled to the qualified-candidate count) is planned from the already-approved story-plan slots and prepended via the existing BR1 compiler. It is a re-use of approved shots only. Candidates are deduplicated by `scene_id` (same source + different window stays distinct). Selection is correctness-first and greedy by retrieval_score tier —a lower-score shot never outranks a higher one —with same-tier soft role preferences actually applied: hook prefers close>medium>wide, context prefers an unused `visual_family` then wide>medium>close, title base prefers an unused scene_id / different family (video-over-photo and deterministic scene_id as final tie-breaks; missing family/scale degrades deterministically). Only approved scene_id-bearing slots are eligible (GAP / source_speech / keep_audio / hold / fallback-only / illegal-window excluded); title text comes only from explicit script fields; evidence/window/photo lineage is preserved; the original story plan is left intact (opening prepended, slot_index reindexed); and VD2/SRP1 shared history is not polluted. When the build declares `target_sec`, the auto opening is duration-budgeted against the whole-film target (drop extra context -> title -> shorten hook -> fallback) so it never pushes the plan past `target_sec`; approved story slots are never trimmed and manual openings are exempt. A manual opening recipe always wins. It is NOT story understanding or aesthetic direction.
 - **Quality proxies (M5a/M5b) are VERIFY-only by design** (tier-2 warn). Correct
   per the gate policy; they must not be counted as BUILD capabilities.
 - **SRP3 Story Arc Planner is active/complete (shallow, deterministic).** When a
-  build has ?? eligible segments and is not disabled, `plan_story_arc` assigns
+  build has three or more eligible segments and is not disabled, `plan_story_arc` assigns
   arc roles from segment ORDER + manual metadata (NOT semantic understanding) and
   `apply_story_arc_hints` nudges per-segment intensity/pace/weight hints into the
-  existing `allocate_segments` BEFORE allocation. It only re-weights ??it does not
+  existing `allocate_segments` BEFORE allocation. It only re-weights —it does not
   re-pick material, touch the material map, change correctness ranking, or
-  reorder/drop/?ewrite segments. Manual `arc_role`/`pace`/`weight`/`intensity`/
+  reorder/drop/rewrite segments. Manual `arc_role`/`pace`/`weight`/`intensity`/
   `requested_duration_sec` always win. Hardened contract (2026-06-16): a manual
   `arc_role` segment derives NOTHING (no auto weight/pace/intensity/source, never
   relabeled auto); duration-protected segments (hold/hold_reason/source_speech/
   keep_audio/diegetic/duck) never get auto weight or pace even at progression/
   climax; manual intensity is never given a conflicting auto value; segment
-  identity is fail-closed (missing/blank/None/non-unique ??not_applicable, no
+  identity is fail-closed (missing/blank/None/non-unique —not_applicable, no
   segment_index fallback); and every auto-applied field is recorded in
   `story_arc_applied_fields`. Total story duration and `target_sec` are preserved
   (climax outweighs setup). It adds one backward-compatible result key
@@ -122,26 +122,26 @@ capability, and a VERIFY check creates nothing:
   is never arc-tagged.
 - **Controlled SRP acceptance replay confirms the BUILD thickness is real and
   attributable.** `tools/srp_acceptance_replay.py` drives `run_mv` over one
-  controlled Gemini photo set (7 needs + 3 distractors) twice ??baseline (VD2/
+  controlled Gemini photo set (7 needs + 3 distractors) twice —baseline (VD2/
   SRP1/SRP2/SRP3 off via minimal disable flags, map-ranked + photo renderability
-  kept) and enhanced (all on) ??plus four planning-only single-capability
+  kept) and enhanced (all on) —plus four planning-only single-capability
   isolation runs for honest attribution. Real ffmpeg renders both `final.mp4`.
   On this material the enhanced timeline differs from baseline and each capability
   is independently attributable: VD2 changes per-chapter selection (consecutive
-  same-family runs 7??), SRP1 adds beat sequences in every chapter, SRP2 prepends
+  same-family runs 7→0), SRP1 adds beat sequences in every chapter, SRP2 prepends
   an opening, and SRP3 makes the climax chapter longer than setup (3.6s vs 2.5s)
   while preserving total duration / `target_sec`. Every declared manifest image is
   fail-closed (a missing/empty/unreadable declared image blocks the run). The
-  harness does NOT claim distractors are excluded ??a distractor's subject terms
-  can still overlap a segment query ??so the report instead DISCLOSES distractor
+  harness does NOT claim distractors are excluded —a distractor's subject terms
+  can still overlap a segment query —so the report instead DISCLOSES distractor
   usage; on this set both cuts selected the duplicate-assembly and bad-group
   distractors (BUILD-time VD2 does not dedup/reject distractors; that is the
   VERIFY-side `semantic_novelty_audit`'s job). Render content is verified at the
   SLOT level: each acceptance `run_mv` uses an isolated `mat_dir` (fixing a shared-
   temp `mvseg_<slot_index>` collision that previously spliced foreign red/blue
   color clips into the concat), and the replay BLOCKS unless every plan slot's
-  mid-frame is non-monochrome (solid card ??per-channel spatial stdev ~0) AND
-  correlates with that slot's own source photo (`slot_render_checks`) ??preventing
+  mid-frame is non-monochrome (solid card —per-channel spatial stdev ~0) AND
+  correlates with that slot's own source photo (`slot_render_checks`) —preventing
   a "timeline ok but render faked (color card)" pass. The disable flags
   (`disable_visual_diversity` / `disable_auto_sequence` / `disable_auto_opening` /
   `story_arc:false`) are minimal, backward-compatible controls (default = existing
@@ -181,55 +181,55 @@ capability, and a VERIFY check creates nothing:
   `_apply_opening_bookend`, `_apply_ending_bookend`, `_finalize_timeline`) with
   explicit inputs/returns and no module-global state. This is a zero-behavior /
   zero-schema / zero-API change refactor establishing the runtime planning
-  boundaries needed before SRP3 ??it adds no BUILD capability and is NOT a new
-  Pipeline framework. Audio Graph V2, test tier-ing, and VERIFY?UILD remain
+  boundaries needed before SRP3 —it adds no BUILD capability and is NOT a new
+  Pipeline framework. Audio Graph V2, test tier-ing, and VERIFY→BUILD remain
   deferred.
 
 ## Smallest high-value BUILD gaps (ranked)
 
-1. **BR1 Opening / Hook sequence builder** ??highest viewer-perceived leverage;
+1. **BR1 Opening / Hook sequence builder** —highest viewer-perceived leverage;
    the student-case review's biggest miss was a flat opener. Consumes existing
-   active grammar (transitions/treatments/attention budget) ??no new evidence
+   active grammar (transitions/treatments/attention budget) —no new evidence
    layer required, so it can ship before VD2.
-2. **VD2 BUILD soft-ranking on `visual_family`** ??complete (VD2a, 2026-06-15):
+2. **VD2 BUILD soft-ranking on `visual_family`** —complete (VD2a, 2026-06-15):
    turns the `visual_family`, `angle_scale`, and `asset_type` labels into actual shot ordering (correctness-first, diversity as bonus).
-3. ~~**Promote M2 window retrieval from `partial` to `active`**~~ ??DONE (MR1,
+3. ~~**Promote M2 window retrieval from `partial` to `active`**~~ —DONE (MR1,
    2026-06-14): the map-based path is now the default local selection when a
    valid material map exists, with honest matched/live fallback.
-4. **Photo map-ranked renderability** ??complete (2026-06-15): supports rendering of photo assets in map-ranked window planning by mapping them to design duration instead of physical video time window bounds.
-5. **SRP1 Segment Sequence Recipe Planner** ??complete (2026-06-15): automatically plans sequence recipes for eligible segments using only the approved slots, changing both the timeline and true render.
+4. **Photo map-ranked renderability** —complete (2026-06-15): supports rendering of photo assets in map-ranked window planning by mapping them to design duration instead of physical video time window bounds.
+5. **SRP1 Segment Sequence Recipe Planner** —complete (2026-06-15): automatically plans sequence recipes for eligible segments using only the approved slots, changing both the timeline and true render.
 
 These are scope notes for later rounds. BA1 itself adds no feature.
 
-## NPE1 ??Native Preview Engine (2026-06-16)
+## NPE1 —Native Preview Engine (2026-06-16)
 
 New **interactive preview middle-layer**, deliberately outside the BUILD A/B/C
 layering above: it neither gates the SPEC, nor renders, nor audits the result.
-It is a fourth, side-car layer ??*editorial proposal* ??that reads canonical
+It is a fourth, side-car layer —*editorial proposal* —that reads canonical
 artifacts read-only and emits only a `timeline_patch.json` proposal.
 
-- `preview_timeline.json` (`tools/preview_timeline.py`) ??`declared_only` w.r.t.
+- `preview_timeline.json` (`tools/preview_timeline.py`) —`declared_only` w.r.t.
   BUILD: it changes no timeline and no render; it is a browser-facing projection
   of existing artifacts for interactive preview.
-- `timeline_patch.json` (`tools/timeline_patch.py`) ??`declared_only` w.r.t.
+- `timeline_patch.json` (`tools/timeline_patch.py`) —`declared_only` w.r.t.
   BUILD today. It is *not* yet a BUILD consumer: applying a patch produces
   `patched_draft_timeline.json` only. Re-entry into the canonical BUILD chain is
   intentionally deferred, so do **not** cite the workbench as a BUILD capability.
-- `tools/workbench_server.py` ??write-limited server, separate from the read-only
+- `tools/workbench_server.py` —write-limited server, separate from the read-only
   Review Dashboard; canonical artifacts are write-blocked.
 
 Canonical render remains ffmpeg. See
 `docs/archive/decisions/2026-06-16-native-preview-engine.md`.
 
-## NPE3 ??Workbench patch ??pipeline contract draft sync (2026-06-17)
+## NPE3 —Workbench patch —pipeline contract draft sync (2026-06-17)
 
 Side-car layer, same as NPE1/NPE2: it neither gates the SPEC, nor renders, nor
 audits. It converts a workbench `timeline_patch` into a **draft** proposal.
 
-- `workbench_contract_patch.json` (`tools/workbench_patch_to_contract.py`) ??  `declared_only` w.r.t. BUILD. It is a *proposal* describing desired contract
+- `workbench_contract_patch.json` (`tools/workbench_patch_to_contract.py`) —  `declared_only` w.r.t. BUILD. It is a *proposal* describing desired contract
   changes (segment duration suggestion, material window override); it is **not**
   applied to `segment_contract.json` and changes no BUILD output by itself. The
-  Agent / ffmpeg pipeline may later consume the draft and rebuild ??that
+  Agent / ffmpeg pipeline may later consume the draft and rebuild —that
   re-entry is intentionally out of scope here.
 - `move_clip` never rewrites segment order; cross-segment moves are diagnosed
   `unsupported_for_contract_sync`. `slot_index` is a stable identity.
@@ -241,20 +241,20 @@ Do **not** cite the workbench as a BUILD capability: it produces drafts/patches
 only. Canonical render remains ffmpeg. See
 `docs/archive/decisions/2026-06-16-native-preview-engine.md`.
 
-## NPE4 ??Lightweight editorial runtime tracks (2026-06-17)
+## NPE4 —Lightweight editorial runtime tracks (2026-06-17)
 
-Same side-car layer as NPE1??: previews + edits, never renders, never writes
+Same side-car layer as NPE1—: previews + edits, never renders, never writes
 canonical. Adds three more **intent/marker** draft contracts, all `declared_only`
 w.r.t. BUILD (they change no rendered output by themselves):
 
-- `subtitle_patch.json` (`subtitle_patch.py`) ??subtitle text/timing draft; the
+- `subtitle_patch.json` (`subtitle_patch.py`) —subtitle text/timing draft; the
   source SRT is never rewritten.
-- `audio_cue_patch.json` (`audio_cue_patch.py`) ??sound-effect cue markers; a
+- `audio_cue_patch.json` (`audio_cue_patch.py`) —sound-effect cue markers; a
   marker layer, **not** a mixer / audio renderer.
-- `effect_patch.json` (`effect_patch.py`) ??effect-intent presets. **Intent only**;
+- `effect_patch.json` (`effect_patch.py`) —effect-intent presets. **Intent only**;
   Node14 consumption is deferred and no effect is rendered. Do not cite it as a
   BUILD effect capability.
-- `workbench_handoff.json` (`workbench_handoff.py`) ??index + per-layer edit
+- `workbench_handoff.json` (`workbench_handoff.py`) —index + per-layer edit
   counts for the Agent; `save-all` writes track patches atomically.
 
 Boundary unchanged: official delivery runs the Agent / FFmpeg / Node14 pipeline
@@ -262,7 +262,7 @@ on the drafts; the Workbench never produces canonical output and does not
 guarantee pixel-perfect preview. See
 `docs/archive/decisions/2026-06-16-native-preview-engine.md`.
 
-## NPE6 ??Workbench preview proxy cache (2026-06-17)
+## NPE6 —Workbench preview proxy cache (2026-06-17)
 
 Side-car preview performance only. `tools/workbench_proxy.py` creates derived,
 trimmed MP4 proxies under `<root>/workbench_proxy/`; `/api/workbench/proxies`
@@ -270,7 +270,7 @@ returns a manifest and the frontend uses those proxies for monitor playback when
 available. This reduces `.MOV` seek/load stalls for short clips. It does not
 change selection, timeline contracts, material maps, delivery gates, or final
 rendering. Failed/missing proxies fall back to original media.
-## EF1 ??Effect assets in the material map (2026-06-17)
+## EF1 —Effect assets in the material map (2026-06-17)
 
 Contract groundwork only. Project material maps may carry non-main-timeline
 assets such as `asset_type: effect_overlay`, `motion_asset`, and `sfx` so the
@@ -287,7 +287,7 @@ effect overlays. These assets are **library assets**, not ordinary story shots:
   official effect consumption remains deferred to a future renderer/Node14
   integration.
 
-## EF2 ??Workbench effect asset selection (2026-06-17)
+## EF2 —Workbench effect asset selection (2026-06-17)
 
 Workbench now receives `preview_timeline.effect_assets`, a projection of
 `project_material_map.assets[]` where `asset_type` is `effect_overlay` or
@@ -297,7 +297,7 @@ an effect intent marker; saved `effect_patch.json` preserves `asset_id`.
 Boundary remains unchanged: this is an Agent-readable draft/intent bridge. It
 does not composite the effect asset into `final.mp4`, does not change canonical
 material maps, and does not turn the preview into a pixel-perfect renderer.
-# 2026-06-17 ??EF3 Workbench Effect Export Renderer
+# 2026-06-17 —EF3 Workbench Effect Export Renderer
 
 Status: active for Workbench export only. Supported `effect_patch.json` presets
 (`flash`, `title_reveal`, `caption_emphasis`) can be rendered into
@@ -305,7 +305,7 @@ Status: active for Workbench export only. Supported `effect_patch.json` presets
 lightweight review/export aid and does not change canonical BUILD output,
 delivery gates, material-map contracts, Node 14, Dashboard, or effect asset
 selection policy. Unsupported presets remain explicit skipped intents.
-# 2026-06-17 ??EF4 Workbench Material Browser
+# 2026-06-17 —EF4 Workbench Material Browser
 
 Status: active as read-only review UI. Workbench now consumes
 `preview_timeline.material_assets`, a projection of main visual assets from the
@@ -313,7 +313,7 @@ project material map, and exposes search/family filtering beside the preview
 timeline. This supports human/Agent review of available material without
 changing timeline selection, material-map schema, or pipeline contracts. Drag
 replacement and material-map editing remain separate future increments.
-# 2026-06-17 ??EF5 Dashboard Workbench Entrypoint
+# 2026-06-17 —EF5 Dashboard Workbench Entrypoint
 
 Status: active. The read-only Review Dashboard exposes a Workbench entrypoint
 through `/api/artifacts.workbench` and a header button. This deliberately links
