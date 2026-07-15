@@ -47,7 +47,7 @@ material-map evidence.
       "execution_class": "deterministic",
       "capability_role": "operation",
       "loops": [
-        "L2"
+        "L0"
       ],
       "maturity": "experimental"
     },
@@ -69,7 +69,7 @@ material-map evidence.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L2"
+        "L0"
       ],
       "maturity": "experimental"
     },
@@ -90,7 +90,7 @@ material-map evidence.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L2"
+        "L0"
       ],
       "maturity": "experimental"
     }

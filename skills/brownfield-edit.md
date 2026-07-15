@@ -38,7 +38,7 @@ already exists. It is not the canonical story/material pipeline.
       "execution_class": "deterministic",
       "capability_role": "review",
       "loops": [
-        "L4"
+        "L5"
       ],
       "maturity": "experimental"
     },
@@ -59,7 +59,7 @@ already exists. It is not the canonical story/material pipeline.
       "execution_class": "deterministic",
       "capability_role": "adapter",
       "loops": [
-        "L4"
+        "L5"
       ],
       "maturity": "experimental"
     },
@@ -81,7 +81,7 @@ already exists. It is not the canonical story/material pipeline.
       "execution_class": "deterministic",
       "capability_role": "review",
       "loops": [
-        "L4"
+        "L5"
       ],
       "maturity": "experimental"
     }

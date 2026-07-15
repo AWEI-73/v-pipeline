@@ -9,10 +9,11 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/audio-director.md` | soundtrack-arranger, subtitle-voiceover | audio / voice shared | Designs audio, voiceover, ducking, and narration handoff decisions. |
 | `skills/blueprint-interview.md` | main-pipeline | upstream story | Elicits story/world/character structure before contract compile. |
 | `skills/brownfield-edit.md` | workbench-brownfield | workbench patch | Handles bounded edits to drafts without rewriting canonical truth. |
+| `skills/capcut-assisted-finishing.md` | main-pipeline | Stage 6/9 finishing backend | Applies bounded CapCut effects/music/export after reviewed truth and returns the candidate to Stage 7 Verify. |
 | `skills/curator.md` | material-map | material curation | Selects and reviews material candidates for segment needs. |
 | `skills/dashboard.md` | workbench-brownfield | dashboard/workbench | Presents run state, artifacts, and review surfaces for operators. |
 | `skills/director.md` | film-canon-product-route | production SPEC | Owns production intent, segment logic, and director-level revisions. |
-| `skills/editing-loop-director.md` | main-pipeline | editing loop front door | Runs the interactive L0-L5 editing loops (propose, owner verdict, apply, verify) over existing capability libraries. |
+| `skills/editing-loop-director.md` | main-pipeline | Stage 3-9 editing method overlay | Guides L0-L5 proposals, owner verdicts, applies, and reviews without owning the Stage cursor or canonical render. |
 | `skills/editor.md` | main-pipeline | build/edit | Converts approved contracts into edit/timeline decisions. |
 | `skills/effects-director.md` | effect-factory | effect direction | Translates desired visual mood into effect direction and constraints. |
 | `skills/gap-analyzer.md` | main-pipeline | upstream story | Identifies narrative/material gaps before build handoff. |

@@ -37,7 +37,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "operation",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -62,7 +62,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "operation",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -82,7 +82,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -106,7 +106,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -127,7 +127,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "operation",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -148,7 +148,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     },
@@ -173,7 +173,7 @@ This is the upper route for designed effects in Hermes.
       "execution_class": "deterministic",
       "capability_role": "gate",
       "loops": [
-        "L4"
+        "L2"
       ],
       "maturity": "experimental"
     }

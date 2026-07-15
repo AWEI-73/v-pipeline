@@ -4,7 +4,7 @@
 
 狀態：**ACCEPTED — 唯一權威產品規格**
 
-適用範圍：Hermes 的 agent-driven 剪輯前門
+適用範圍：Hermes Stage 3–9 的 agent-driven 剪輯方法層
 
 前置裁決：既有 route/orchestrator 凍結運作、不拆除、不再擴建為剪輯前門
 
@@ -22,12 +22,14 @@
 Product Spec。Skill 若落後，應更新 Skill 的成熟度或操作段落，而不是讓
 執行者猜哪份文件有效。
 
-## 1. 產品定位：LOOP 驅動 V Pipeline
+## 1. 產品定位：Stage 主幹承載 LOOP 方法
 
-Editing Loop 是**導演／控制層**；V Pipeline 是**能力與執行層**。
+**Stage owns lifecycle; Loop owns editing method.** Stage 0–10 是唯一生命週期
+控制層；Editing Loop 是 Orchestrator 在相關 Stage 內使用的導演／方法層；
+V Pipeline 是能力與執行層。RUNBOOK 仍是唯一操作入口。
 
 ```text
-approved intent / script / canon
+approved Stage 0 intent + Stage 1 story + Stage 2 director contract
             ↓
 Editing Loop Director Skill＋當班 agent
   判斷目前問題、提出方案、引用證據、等待 owner gate
@@ -44,11 +46,27 @@ LOOP 不重做 renderer、ASR、effect factory、soundtrack、subtitle 或 QA；
 只以有證據的順序呼叫現有 public capabilities。八支線及主線繼續提供
 能力，但不負責全局創意編排。
 
+### Stage / LOOP 固定對照
+
+| Pipeline hook | LOOP |
+|---|---|
+| S0–S2 | 固定 intent、story spine、director/segment contract；不進 L1 compose |
+| S3–S4 | L0 material immersion／coverage finding |
+| S5 | L1 picture、L2 effects、L3 audio、L4 text 的 compile-only planning；`COMPILED / NOT_RENDERED` |
+| Stage 6 | 唯一 canonical render owner；LOOP 不自行推進 Stage |
+| S7–S8 | L5 objective／agent／owner review |
+| S9 | finding-targeted L0–L4，完成後回 S5–S7 |
+| S10 | owner＋delivery gate |
+
+greenfield whole-video／long-form 進 L1 前必須具備 approved S0、S1 與 S2
+契約。material-first 可先走 L0，但不得略過 S1/S2 直接 compose；brownfield
+由既有 candidate 的 L5 finding 經 S9 回派。
+
 ### 責任邊界
 
 | 元件 | 擁有 | 不得擁有 |
 |---|---|---|
-| `editing-loop-director` Skill | 迴圈形狀、品味 doctrine、證據要求、能力呼叫順序、ASK/SHOW/DECIDE | durable state、隱藏寫入、交付批准 |
+| `editing-loop-director` Skill | 迴圈形狀、品味 doctrine、證據要求、能力呼叫順序、ASK/SHOW/DECIDE | Stage cursor、canonical render 授權、durable state、隱藏寫入、交付批准 |
 | 當班 agent | 感知、提案、經授權的創意決策、組裝與證據解讀 | 越過 owner gate、自主連跑多輪 |
 | V Pipeline capabilities | 確定性轉換、compose、render、audit、verify | 全局品味、偷偷選 route |
 | 薄 helper／adapter | 經實證反覆出現的確定性機械工作 | 流程、品味、新狀態機 |
@@ -103,21 +121,34 @@ carried context＋relevant evidence
 
 | LOOP | 責任 | 驅動的既有 V Pipeline 能力 | 成熟度 |
 |---|---|---|---|
-| L0 素材沉浸 | 感知、標籤、selects、盲區 | perception-field、material wall/map、ASR、visual diversity | PILOTED |
-| L1 Picture | 選材、順序、時長、節奏、picture lock | beat-cut composer、opening sequence、edit decision compile/render | **CERTIFIED（f1）** |
-| L2 Effects | 標題、章卡、轉場、圖像處理 | effect factory、Remotion worker、motion graphics、lifecycle QA | DOCTRINE |
+| L0 素材沉浸 | 感知、標籤、selects、盲區 | perception-field、material wall/map、ASR、visual diversity | **CERTIFIED（Canon 67／訪談 selects／clean-blind first-of-kind）** |
+| L1 Picture | 選材、順序、時長、節奏、picture lock | beat-cut composer、opening sequence、edit decision compile；S6 核准後由工廠 render | **CERTIFIED（f1）** |
+| L2 Effects | 標題、章卡、轉場、圖像處理 | effect factory、Remotion worker、motion graphics、lifecycle QA | **CERTIFIED（Canon 67／44s／opening_title_text lifecycle／first-of-kind）** |
 | L3 Audio | 音樂、原音、SFX、ducking、混音 | soundtrack、mix-audio、sfx-mix、loudness/audio handoff | DOCTRINE |
 | L4 Text | approved text、字幕、字卡正確性 | subtitle chain、caption audit、title cards、ASR draft | DOCTRINE |
 | L5 Review | 客觀檢查、感知審查、品味 finding、owner verdict | rendered QA、final verify、black frame、fatigue、caption、perception、blueprint checklist | **CERTIFIED（Canon 67／44s／review-only）** |
+
+L0 的 `L0_CLEAN_BLIND_CERTIFIED` 僅表示 fresh agent 在封印前未讀舊答案，
+能從 Canon 67 真實素材獨立提出功能相近的訪談＋cutaway selects，且 access log、
+封印鏈與六個 raw hashes 通過 integrator 複驗。它不認證選材品味、picture lock、
+語音內容、素材權利、完整影片、creative approval 或 delivery。Durable evidence:
+`docs/pilots/2026-07-11-editing-loop-l0-clean-blind-first-of-kind-evidence.md`。
 
 L1 的 CERTIFIED 僅表示「有界、單一 picture 修訂」的 Skill
 reproducibility 已通過；不等於完整影片、其他 LOOP 或 creative delivery
 已批准。
 
+L2 的 CERTIFIED 僅表示 Canon 67 `candidate_l2` 44 秒
+`opening_title_text` lifecycle first-of-kind 已由 owner 通過；範圍只有
+`3.5s / 9.0s / 11.0s` 的標題顯示行為。它不認證其他 effect、整片品質、
+picture lock、audio/text、creative approval 或 delivery。Durable evidence:
+`docs/pilots/2026-07-11-editing-loop-l2-first-of-kind-evidence.md`。
+
 L5 的 CERTIFIED 僅表示 Canon 67 `candidate_v2` 44 秒 review-only
 first-of-kind 已由 owner/integrator 認證可重現；candidate creative quality
 仍為 UNKNOWN，且不等於整片審查、其他 LOOP、creative approval 或 delivery。
-三個 L5 findings 仍為 open，h01/h02 仍須另開 TDD plan。Durable evidence:
+`l5_f01` 已由上述 bounded L2 lifecycle repair 解決；`l5_f02` 與 `l5_f03`
+仍為 open，h01/h02 仍須另開 TDD plan。Durable evidence:
 `docs/pilots/2026-07-10-editing-loop-l5-first-of-kind-evidence.md`。
 
 ## 4. 跨 LOOP 的可攜 context
@@ -145,7 +176,8 @@ Evidence ref 的最小形狀：
 
 ## 5. L5 Review Loop 的最小設計
 
-L5 第一版不建立新 reviewer engine；它組合現有能力：
+L5 第一版不建立新 reviewer engine；它只在 fresh rendered candidate 存在後
+組合現有能力，no-render preflight 不得宣稱 L5 PASS：
 
 ```text
 fresh rendered candidate
@@ -218,7 +250,8 @@ checklist 產生第一份有座標的 review findings，交 owner 裁決。
 ### Phase 2 — 由真實 finding 開挖對應 LOOP
 
 不先製造假缺口：L5 的第一個有效 finding 屬於哪層，就先認證哪層。
-Picture 已認證；Effects、Audio、Text 各需一次 first-of-kind。
+Picture 已認證；Effects 的 Canon 67 title-lifecycle narrow scope 已認證；
+Audio、Text 各需一次 first-of-kind。
 
 ### Phase 3 — 44 秒整合飛行
 
@@ -276,13 +309,10 @@ ASR-draft→owner-approved-script→caption 流程；44 秒純音樂切片不能
 
 ## 10. 目前下一步
 
-L5 Review Loop first-of-kind 已完成並封存。下一個 bounded construction
-decision 是為 `h01`／`h02` 各寫一個 focused TDD repair plan，修復既有
-audit 與正式 timeline contract 的相容性；本規格本身不授權直接改 code。
-
-相容性證據轉綠後，建議以 `l5_f01` 進行 L2 Effects first-of-kind：只修
-title lifecycle 的 approved-script mismatch。`l5_f02` 保持 open taste
-finding，`l5_f03` 保持 open L1 picture finding；不得順手合併施工。
+L5 Review Loop first-of-kind、h01/h02 相容性修復，以及 bounded L2
+title-lifecycle first-of-kind 均已封存。L2 僅解決 `l5_f01` 的
+`opening_title_text` lifecycle mismatch；`l5_f02` 保持 open taste finding，
+`l5_f03` 保持 open L1 picture finding；不得順手合併施工。
 
 後續仍不建立 orchestrator、常駐 driver、timeline v2、journal、正式
 finding registry 或自動回派引擎，除非 §8 的獨立觸發事件發生。

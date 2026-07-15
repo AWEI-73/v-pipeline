@@ -43,7 +43,7 @@ description: 字幕師 Skill。讀音控師輸出的 tts_timing.json，生成 ph
       "execution_class": "deterministic",
       "capability_role": "operation",
       "loops": [
-        "L2"
+        "L4"
       ],
       "maturity": "experimental"
     }

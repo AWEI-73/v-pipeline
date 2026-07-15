@@ -9,36 +9,58 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-13T23:18:02+08:00",
-  "state": "L1_WORK_ORDER_READY_FOR_LUNA",
-  "active_work_order": "docs/construction-guides/work-orders/2026-07-13-canon67-150s-l1-picture-composition.md",
-  "active_spec": "docs/superpowers/specs/2026-07-13-canon67-150s-picture-first-longform-design.md",
-  "active_skill": "skills/editing-loop-director.md",
-  "active_run_root": ".tmp/canon67_150s_picture_first_longform/l1_picture_candidate",
-  "authoritative_state_artifact": ".tmp/canon67_150s_picture_first_longform/campaign_status.json",
-  "authoritative_state_field": "state",
+  "updated_at": "2026-07-15T15:45:00+08:00",
+  "state": "WAITING_INTEGRATOR_CANON67_ALL_SEGMENT_EDITORIAL_REVIEW",
+  "active_work_order": "docs/construction-guides/work-orders/2026-07-15-canon67-all-segment-editorial-calibration-long-task.md",
+  "active_spec": ".tmp/canon67_540s_route_acceptance/stage1/story_soul_blueprint.json",
+  "active_skill": "skills/video-pipeline-route.md",
+  "active_run_root": ".tmp/canon67_540s_route_acceptance",
+  "authoritative_state_artifact": ".tmp/canon67_540s_route_acceptance/accepted_chain/revision_0009.json",
+  "authoritative_state_sha256": "fa341915cd45a5fe1670522b95b8a45bb94314c8835ece6d0107d196a74839a4",
+  "authoritative_state_field": "revision_id",
+  "campaign_status_artifact": ".tmp/canon67_540s_route_acceptance/campaign_status.json",
+  "campaign_status_field": "state",
   "next_actions": [
-    "launch_one_fresh_luna_session_with_the_l1_dispatch_prompt",
-    "execute_the_committed_l1_work_order_and_execution_companion",
-    "stop_at_WAITING_OWNER_150S_FINAL_PICTURE_VERDICT"
+    "integrator_review_canon67_all_segment_editorial_state",
+    "owner_review_canon67_all_segment_editorial_packet"
   ],
   "do_not_do": [
+    "do_not_reuse_canon68_proxy_coverage_as_pass_evidence",
+    "do_not_use_reference_or_canon66_media_as_source",
+    "do_not_render_before_material_delta_and_stage5_compile",
+    "do_not_claim_creative_quality",
     "do_not_claim_final_delivery",
+    "do_not_claim_picture_lock",
+    "do_not_claim_render_permission",
     "do_not_set_human_creative_approval"
   ],
   "human_creative_approval": false,
-  "final_delivery_claimed": false
+  "final_delivery_claimed": false,
+  "review_packet": {
+    "path": ".tmp/canon67_540s_route_acceptance/all_segment_editorial_review/owner_review_index.md",
+    "sha256": "39494746c338adb590d4b6455505fadbce85909fbaaf6559abed3ad6cccde594"
+  }
 }
 <!-- HANDOFF_STATE_END -->
 
-## Current Work In Flight
+## Historical / Superseded Work In Flight Context
 
-- Active campaign: Canon 67 150-second picture-first L1 composition.
-- L0 evidence and a 42-clip, 150.0-second proposal are complete: three 50.0s
-  sections, with still-pixel and multi-timepoint video evidence recorded.
-- L0 v2 strict closure and independent integrator review are PASS. The L1 work
-  order and execution companion are committed and ready for one fresh Luna
-  session. The accepted proposal contains 42 unique clip IDs over three
-  50-second sections. No L1 candidate render, owner taste verdict, human
-  creative approval, or delivery claim exists.
+- The accepted 540-second, three-act, ten-beat story design has been retargeted
+  from a future Canon 68 collection design to a Canon 67 candidate-production run.
+  The story itself was not expanded or rewritten.
+- Canon 67 raw material under `C:/Users/user/Downloads/微電影素材/_整理後`
+  is now the primary source for this run. Every factual use still requires a
+  fresh Material Map entry and source-hash evidence.
+- Final/reference films, Canon 66 material, generated identity/event proof, and
+  prior candidates are excluded as source evidence by
+  `.tmp/canon67_540s_route_acceptance/stage0/source_policy.json`.
+- The run must produce a real 540-second candidate film while proving legal
+  Stage 0–10 and L0–L5 handoffs. Missing story proof must use formal fallback,
+  collection, generation-as-support, or script revision rather than a fake PASS.
+- Stage 4 is the current cursor. The expanded Material Map contains 81 source-
+  hash-bound assets, 79 accepted need edges, and 55 independently hash-matched
+  selected assets. The fresh delta is 14 covered / 4 thin / 2 optional missing,
+  and its canonical lifecycle is `build_ready` with no waivers.
+- BUILD is now allowed. Canonical render remains disabled until Stage 5 compiles
+  the layered picture/audio/text/effect decisions and their review captions.
 - Human creative approval and final delivery remain explicitly unclaimed.

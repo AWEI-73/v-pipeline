@@ -62,6 +62,38 @@ Entry skill selection follows the same router: whole-video requests use the
 video pipeline route skill first, material-first work uses Material Map through
 the route, and draft edits use the Workbench/Brownfield path.
 
+## Stage And Editing Loop Authority
+
+**Stage owns lifecycle; Loop owns editing method.** The Stage 0-10 spine is the
+only authority for the current cursor, BUILD eligibility, canonical render,
+Verify, Brownfield return, and Delivery. `editing-loop-director` is a method
+overlay used by the orchestrating agent after the required upstream truth is
+available; it never advances the Stage cursor or promotes delivery by itself.
+
+| Stage hook | Editing method |
+|---|---|
+| S0-S2 | Fix intent, story spine, and director/segment contract before whole-video composition. |
+| S3 | Use L0 for material immersion and evidence-backed selects. |
+| S4 | Use L0 findings at the coverage/decision gate. |
+| S5 | Compile L1 picture, L2 effects, L3 audio, and L4 text decisions without claiming a canonical render. |
+| S6 | The registered factory performs the only canonical render. |
+| S7-S8 | Use L5 for objective Verify plus agent/human review. |
+| S9 | Route a finding to its targeted L0-L4 method, then return through S5-S7. |
+| S10 | Delivery remains an owner and delivery-gate decision. |
+
+Stage 6 is the only canonical render owner. S6 consumes the compiled picture,
+effects, audio, and text decisions; an editing loop may create bounded previews
+for judgment, but it cannot promote them to the canonical candidate.
+
+When a reviewed candidate needs an interactive high-quality effect/music pass,
+use `skills/capcut-assisted-finishing.md` as the optional Stage 6 backend or
+Stage 9 finishing route. It must return the exported candidate to Stage 7
+Verify; CapCut does not own story, picture, text, legal approval, or delivery.
+
+`dispatch-capabilities --loop L0..L5` is a method lookup, not a Stage router.
+Capabilities with no Editing Loop role keep an empty `loops` list and remain
+discoverable by capability ID, owner, or query.
+
 Router table fields are: User says, Entry skill, First safe action, and
 Stop condition.
 

@@ -31,6 +31,14 @@ cards, symbolic inserts, or missing non-proof bridge visuals. In story-first
 generated routes, generated assets may be primary visual candidates, but they
 still return through material-map review before satisfying coverage.
 
+An existing-material-first project that needs a fail-closed truth boundary may
+declare `generated_material_policy` in `material_needs.json`. When present, the
+public generation fallback planner enforces its `default_allowed` and
+`allowed_only_when` fields against each need. Disallowed missing/thin needs are
+reported in `blocked_needs[]` and return to material revision; they do not become
+provider jobs. Projects without this optional policy keep the established
+story-first behavior for backward compatibility.
+
 ## Canonical Artifacts
 
 - `material_needs.json` ??required material demand, stable `need_id`, fallback
@@ -177,6 +185,10 @@ Relationship boundaries:
 - `generated-material-producer` can fill missing/thin needs, but generated
   assets return to material-map as `candidate` evidence and require review
   before they can satisfy delta.
+- `material-generation-fallback` must honor an explicit per-project generation
+  policy before provider dispatch. `generated_allowed=false`, a missing opt-in
+  under `default_allowed=false`, or a mismatched proof type creates a blocked
+  need rather than a generation job.
 - `shooting-brief` converts missing/thin needs into executable gap tasks. It
   does not satisfy coverage; it creates the handoff for collect/reshoot,
   generation, retrieval, rewrite, or waiver. Resulting files must return through

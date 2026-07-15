@@ -17,6 +17,9 @@ Top-level project references:
 - `README.md` -- what this project is.
 - `roadmap.md` -- product and engineering roadmap.
 - `HANDOFF_CURRENT.md` -- clean resume anchor for the next agent.
+- `docs/hermes-v-pipeline-honest-capability-map.md` -- evidence-backed snapshot
+  of Hermes architecture, real capabilities, maturity, limits, and technical
+  debt; descriptive only, not a route authority.
 
 Current document layers:
 
@@ -162,6 +165,8 @@ Current document layers:
 - `docs/build-tool-runner-spec.md` ??BUILD runner tool selection + P1 audit pack.
 - `docs/video-autopilot-tool-integration-spec.md` ??editing/VERIFY tool integration.
 - `docs/capcut-pipeline-integration-design.md` ??optional CapCut finishing backend.
+- Skill: `skills/capcut-assisted-finishing.md` -- verified bounded CapCut
+  effect/music/export route that returns every candidate to Stage 7 Verify.
 - `docs/dashboard-node-skill-output-spec.md` ??dashboard / node / output contract.
 - `docs/windows-native-migration-spec.md` ??Windows migration record (migration complete).
 - `docs/SYSTEM-DESIGN.md` ??self-contained node/skill/tool architecture brief

@@ -34,7 +34,8 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
       "execution_class": "deterministic",
       "capability_role": "review",
       "loops": [
-        "L0"
+        "L0",
+        "L5"
       ],
       "maturity": "experimental"
     },
@@ -55,7 +56,8 @@ description: Pipeline 監控 / review Dashboard。讀 route state.json 與 artif
       "execution_class": "deterministic",
       "capability_role": "review",
       "loops": [
-        "L0"
+        "L0",
+        "L5"
       ],
       "maturity": "experimental"
     }

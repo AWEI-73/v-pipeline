@@ -69,6 +69,34 @@ Each `generation_jobs[]` item must carry:
 Generated material must re-enter the material-map lifecycle as candidate
 evidence. It must never bypass review or become accepted automatically.
 
+## Optional Fail-Closed Policy
+
+Existing-material-first documentary projects may add this to
+`material_needs.json`:
+
+```json
+{
+  "generated_material_policy": {
+    "default_allowed": false,
+    "allowed_only_when": {
+      "generated_allowed": true,
+      "proof_type": "support_only"
+    }
+  }
+}
+```
+
+When the policy exists, each missing/thin need must explicitly satisfy every
+condition before a generation job is created. Disallowed needs appear in
+`blocked_needs[]` with `next_action=return_to_material_revision`. Do not change
+their proof type or add an opt-in merely to clear the gate. Collect/reshoot,
+choose real equivalent evidence, rewrite, shorten, or obtain an owner-approved
+omission instead.
+
+The policy is optional so established story-first generated routes remain
+compatible. Absence of the policy must not be inferred as permission for a
+documentary project; the upstream contract owns whether the policy is required.
+
 ## Standard Flow
 
 ```text

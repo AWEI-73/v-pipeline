@@ -279,9 +279,7 @@ shorten/merge, await material, or reshoot before rendering.
       "capability_id": "cap.spec-contract.boundary-smoke.v1",
       "execution_class": "deterministic",
       "capability_role": "gate",
-      "loops": [
-        "L0"
-      ],
+      "loops": [],
       "maturity": "experimental"
     },
     {
@@ -299,9 +297,7 @@ shorten/merge, await material, or reshoot before rendering.
       "capability_id": "cap.spec-contract.stage4-build-smoke.v1",
       "execution_class": "deterministic",
       "capability_role": "gate",
-      "loops": [
-        "L0"
-      ],
+      "loops": [],
       "maturity": "experimental"
     }
   ],
