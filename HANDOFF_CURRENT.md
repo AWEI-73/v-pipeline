@@ -9,8 +9,8 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-15T15:45:00+08:00",
-  "state": "WAITING_INTEGRATOR_CANON67_ALL_SEGMENT_EDITORIAL_REVIEW",
+  "updated_at": "2026-07-15T22:35:09+08:00",
+  "state": "WAITING_OWNER_CANON67_ALL_SEGMENT_EDITORIAL_REVIEW",
   "active_work_order": "docs/construction-guides/work-orders/2026-07-15-canon67-all-segment-editorial-calibration-long-task.md",
   "active_spec": ".tmp/canon67_540s_route_acceptance/stage1/story_soul_blueprint.json",
   "active_skill": "skills/video-pipeline-route.md",
@@ -37,8 +37,9 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_540s_route_acceptance/all_segment_editorial_review/owner_review_index.md",
-    "sha256": "39494746c338adb590d4b6455505fadbce85909fbaaf6559abed3ad6cccde594"
+   "path": ".tmp/canon67_540s_route_acceptance/all_segment_editorial_review/owner_review_index.md",
+    "path": ".tmp/canon67_540s_route_acceptance/integrator_acceptance_v1/reviewer_findings.md",
+    "sha256": "4154d4ffce4a8d33c5ae70ac9ce717ef663be0a572e886ace33b2a016e01ae43"
   }
 }
 <!-- HANDOFF_STATE_END -->
