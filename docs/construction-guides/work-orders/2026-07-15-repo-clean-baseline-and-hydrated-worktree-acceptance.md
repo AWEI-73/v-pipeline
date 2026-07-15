@@ -513,3 +513,36 @@ The bounded producer repair is complete before Task 6 hydration:
 The required status remains `WAITING_INTEGRATOR_REPO_CLEAN_BASELINE_REVIEW`
 pending Task 6 acceptance. `human_creative_approval=false` and
 `final_delivery_claimed=false`.
+
+## 12.2. Final Completion — Task 6 Hydrated Sibling Acceptance
+
+Task 6 completed without a second full suite:
+
+- `hydrated_same_machine_worktree=PASS`.
+- Primary HEAD and the detached sibling HEAD are both `ea1531ec`.
+- Sibling path: `C:\Users\user\Desktop\video_pipeline.clean-acceptance`.
+- Primary and sibling `git status --porcelain=v1 --untracked-files=all` are
+  empty; both root `supply_review.json` checks are absent and the path is not
+  Git-tracked. `git diff --check` exits 0 in both worktrees.
+- Hydration manifests are present at
+  `.tmp/repo_clean_baseline_acceptance/hydration_manifest.json` in both
+  worktrees. Five targets were copied once from primary and all target byte/hash
+  checks match: `.env`, the active story blueprint, `accepted_chain/revision_0009.json`,
+  `campaign_status.json`, and the integrator review packet. No media, renders,
+  deliveries, other `.tmp` artifacts, caches, or reference repositories were
+  copied. Runtime `__pycache__` remains ignored and untouched.
+- Sibling changed-module and focused acceptance run: 138 tests, exit 0
+  (12 `tests.test_supply_review` tests plus 126 cleanup-focused tests).
+- Sibling document hygiene: 37 classified documents, entry contract PASS, zero
+  errors. Skill/tool audit: 110/110 Python tools owned, zero errors. Product
+  artifact audit: 37 artifacts, zero errors/warnings. Pipeline interface audit:
+  16 interfaces, zero errors/warnings. Strict preflight: `strict_pass=true`,
+  status `ok`, zero warnings.
+- `full_suite_verified_head=b80e2ab0` remains the only full-suite evidence.
+  `post_suite_delta=test_only_output_isolation`; no full suite was run after that
+  head. `changed_test_module=PASS`; `root_artifact_absent=true`.
+- `source_only_active_campaign_portability=UNKNOWN` remains explicit because
+  this acceptance proves only a same-machine hydrated worktree.
+
+Final status: `WAITING_INTEGRATOR_REPO_CLEAN_BASELINE_REVIEW`.
+`human_creative_approval=false`; `final_delivery_claimed=false`.
