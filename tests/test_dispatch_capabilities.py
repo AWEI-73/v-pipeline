@@ -123,6 +123,41 @@ class DispatchCapabilitiesTest(unittest.TestCase):
             [item["capability_id"] for item in result["results"]],
         )
 
+    def test_live_loop_tags_match_editing_loop_director_semantics(self):
+        root = Path(__file__).resolve().parents[1]
+        catalog = load_live_catalog(root / "skills")
+        self.assertTrue(catalog["ok"], catalog)
+        cards = {card["capability_id"]: card for card in catalog["cards"]}
+
+        expected = {
+            "cap.material-map.material-understanding-matrix.v1": ["L0"],
+            "cap.material-map.material-wall-verdict-draft.v1": ["L0"],
+            "cap.material-map.material-rough-cut.v1": ["L1"],
+            "cap.material-map.rough-cut-plan-execute.v1": ["L1"],
+            "cap.generated-material-producer.generated-material-flow-acceptance.v1": ["L0"],
+            "cap.video-effect-factory.effect-design-concept.v1": ["L2"],
+            "cap.audio-director.audio-mix-plan-execute.v1": ["L3"],
+            "cap.soundtrack-arranger.soundtrack-arranger.v1": ["L3"],
+            "cap.subtitle-director.subtitle-voiceover-handoff-accept.v1": ["L4"],
+            "cap.verify.final-product-verify.v1": ["L5"],
+            "cap.brownfield-edit.workbench-handoff.v1": ["L5"],
+            "cap.video-pipeline-route.pipeline-home.v1": [],
+            "cap.spec-contract.stage4-build-smoke.v1": [],
+        }
+        for capability_id, loops in expected.items():
+            self.assertEqual(loops, cards[capability_id]["loops"], capability_id)
+
+        for card in cards.values():
+            capability_id = card["capability_id"]
+            if capability_id.startswith("cap.video-effect-factory."):
+                self.assertEqual(["L2"], card["loops"], capability_id)
+            if capability_id.startswith("cap.generated-material-producer."):
+                self.assertEqual(["L0"], card["loops"], capability_id)
+            if capability_id.startswith("cap.subtitle-director."):
+                self.assertEqual(["L4"], card["loops"], capability_id)
+            if capability_id.startswith("cap.video-pipeline-route."):
+                self.assertEqual([], card["loops"], capability_id)
+
     def test_cli_no_match_with_json_output_returns_one(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

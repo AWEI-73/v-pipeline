@@ -4,12 +4,54 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .picture_plan_retrieval_gate import build_retrieval_ranking_report
+
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     data = json.loads(path.read_text(encoding="utf-8-sig"))
     return data if isinstance(data, dict) else None
+
+
+def _enforce_picture_plan_retrieval_gate(root: Path) -> None:
+    """Fail closed for long-form Stage 5 plans that bypass material retrieval."""
+    picture_path = root / "stage5" / "l1_picture_plan.json"
+    if not picture_path.is_file():
+        return
+    picture = _load_json(picture_path) or {}
+    evidence = picture.get("retrieval_evidence")
+    if not isinstance(evidence, Mapping):
+        raise ValueError("picture_plan_retrieval_gate: missing retrieval_evidence")
+    map_ref = evidence.get("project_material_map_ref")
+    report_ref = evidence.get("ranking_report_ref")
+    if not isinstance(map_ref, str) or not map_ref.strip():
+        raise ValueError("picture_plan_retrieval_gate: missing project_material_map_ref")
+    if not isinstance(report_ref, str) or not report_ref.strip():
+        raise ValueError("picture_plan_retrieval_gate: missing ranking_report_ref")
+    map_path = Path(map_ref)
+    if not map_path.is_absolute():
+        map_path = root / map_path
+    report_path = Path(report_ref)
+    if not report_path.is_absolute():
+        report_path = root / report_path
+    contract_path = root / "stage2" / "segment_contract.json"
+    project_map = _load_json(map_path)
+    contract = _load_json(contract_path)
+    if project_map is None or contract is None:
+        raise ValueError("picture_plan_retrieval_gate: missing project map or segment contract")
+    report = _load_json(report_path)
+    fresh = build_retrieval_ranking_report(
+        picture_plan=picture,
+        segment_contract=contract,
+        project_map=project_map,
+        project_map_path=map_path,
+        picture_plan_path=picture_path,
+    )
+    if (not isinstance(report, Mapping) or report.get("ok") is not True
+            or fresh.get("ok") is not True
+            or report.get("picture_plan_sha256") != fresh.get("picture_plan_sha256")):
+        raise ValueError("picture_plan_retrieval_gate: ranking report is absent, stale, or not PASS")
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -190,6 +232,7 @@ def _deferred(owner: str, reason: str) -> dict[str, Any]:
 
 def compile_edit_decision_plan(run_dir: str | Path) -> dict[str, Any]:
     root = Path(run_dir)
+    _enforce_picture_plan_retrieval_gate(root)
     rough_cut = _load_json(root / "rough_cut_plan.json") or _load_json(root / "preview_rough_cut_plan.json")
     audio_handoff = _load_json(root / "audio_director_handoff.json")
     effect_handoff = _load_json(root / "effect_handoff.json") or _load_json(root / "remotion_effect_handoff.json")

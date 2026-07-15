@@ -96,7 +96,15 @@ def _skeleton():
         "materials": {
             "videos": [{"id": "V1", "path": "old.mp4", "duration": 1_000_000,
                         "type": "video", "width": 1920, "height": 1080,
-                        "material_name": "old"}],
+                        "material_name": "old",
+                        # A real captured skeleton may be backed by an online
+                        # catalogue item.  The writer must not leak this identity
+                        # into newly bound local files.
+                        "source": 1, "source_platform": 13,
+                        "category_id": "3917571", "category_name": "熱門",
+                        "material_id": "7269680986139544838",
+                        "request_id": "remote-request",
+                        "check_flag": 62978047, "is_copyright": True}],
             "speeds": [{"id": "SP1", "type": "speed", "speed": 1.0}],
             "canvases": [{"id": "CV1", "type": "canvas_color"}],
             "sound_channel_mappings": [{"id": "SC1"}],
@@ -140,6 +148,27 @@ class CapcutDraftWriterTest(unittest.TestCase):
         self.assertEqual(draft["duration"], 5_000_000)
         self.assertEqual(draft["name"], "coffee")
 
+    def test_local_video_binding_drops_remote_catalogue_identity(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        material = draft["materials"]["videos"][0]
+        self.assertEqual(material["path"], "a.mp4")
+        self.assertEqual(material["source"], 0)
+        self.assertEqual(material["source_platform"], 0)
+        self.assertEqual(material["check_flag"], 1)
+        self.assertFalse(material["is_copyright"])
+        self.assertEqual(material["local_material_id"], material["id"])
+        for key in (
+            "category_id",
+            "category_name",
+            "material_id",
+            "origin_material_id",
+            "request_id",
+            "resource_id",
+            "team_id",
+            "formula_id",
+        ):
+            self.assertNotIn(key, material)
+
     def test_extra_material_refs_are_cloned_unique(self):
         draft = cc.build_capcut_draft(_skeleton(), _timeline())
         segs = draft["tracks"][0]["segments"]
@@ -180,7 +209,26 @@ class CapcutDraftWriterTest(unittest.TestCase):
         self.assertEqual(seg["volume"], 0.35)
         material = next(m for m in draft["materials"]["audios"] if m["id"] == seg["material_id"])
         self.assertEqual(material["path"], "bgm.mp3")
-        self.assertEqual(material["type"], "audio")
+        self.assertEqual(material["type"], "extract_music")
+
+    def test_audio_track_uses_capcut_8_desktop_shape(self):
+        draft = cc.build_capcut_draft(_skeleton(), _timeline())
+        audio_track = next(t for t in draft["tracks"] if t["type"] == "audio")
+        seg = audio_track["segments"][0]
+        material = next(m for m in draft["materials"]["audios"] if m["id"] == seg["material_id"])
+        self.assertEqual(material["category_name"], "local")
+        self.assertEqual(material["copyright_limit_type"], "none")
+        self.assertEqual(seg["render_timerange"], {"start": 0, "duration": 0})
+        self.assertEqual(seg["source"], "segmentsourcenormal")
+        self.assertEqual(len(seg["extra_material_refs"]), 5)
+        all_ids = {
+            m["id"]
+            for items in draft["materials"].values()
+            if isinstance(items, list)
+            for m in items
+            if isinstance(m, dict) and m.get("id")
+        }
+        self.assertTrue(set(seg["extra_material_refs"]) <= all_ids)
 
     def test_write_draft_project_round_trip(self):
         with tempfile.TemporaryDirectory() as d:

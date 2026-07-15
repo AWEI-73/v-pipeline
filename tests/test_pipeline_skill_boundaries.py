@@ -268,6 +268,57 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
         self.assertFalse(consumer["human_creative_approval"])
         self.assertFalse(consumer["final_delivery_claimed"])
 
+    def test_stage_spine_and_editing_loops_have_distinct_authority(self):
+        runbook = read("RUNBOOK.md")
+        skill = read("skills/editing-loop-director.md")
+        spec = read("docs/construction-guides/2026-07-10-editing-loop-product-spec.md")
+
+        for text in (runbook, skill, spec):
+            self.assertIn("Stage owns lifecycle", text)
+            self.assertIn("Loop owns editing method", text)
+            self.assertIn("Stage 6", text)
+            self.assertIn("canonical render", text)
+
+        for expected in [
+            "S3 → L0",
+            "S5 → L1 / L2 / L3 / L4",
+            "S7 / S8 → L5",
+            "S9 → finding-targeted L0–L4",
+            "COMPILED / NOT_RENDERED",
+            "L1 does not own canonical render",
+        ]:
+            self.assertIn(expected, skill)
+
+    def test_longform_greenfield_requires_story_and_director_contract_before_l1(self):
+        skill = read("skills/editing-loop-director.md")
+        for expected in [
+            "greenfield whole-video or long-form",
+            "video_intent.json",
+            "story_soul_blueprint.json",
+            "director_shot_plan.json",
+            "segment_contract.json",
+            "material-first L0 exception",
+            "must return to S1 / S2 before L1",
+            "brownfield entry",
+        ]:
+            self.assertIn(expected, skill)
+
+    def test_editing_loop_consumer_declares_every_domain_it_routes(self):
+        consumers, parse_errors = load_capability_consumers(ROOT / "skills")
+        self.assertEqual([], parse_errors)
+        consumer = next(item for item in consumers if item["consumer"] == "editing-loop-director")
+        for namespace in [
+            "cap.audio-director.*",
+            "cap.brownfield-edit.*",
+            "cap.generated-material-producer.*",
+            "cap.material-map.*",
+            "cap.soundtrack-arranger.*",
+            "cap.subtitle-director.*",
+            "cap.video-effect-factory.*",
+            "cap.verify.*",
+        ]:
+            self.assertIn(namespace, consumer["active_namespaces"])
+
     def test_authority_surfaces_publish_exact_entry_markers(self):
         expected_markers = {
             "AGENTS.md": ["<!-- OPERATIONAL_ENTRY_POINTER: RUNBOOK.md -->"],

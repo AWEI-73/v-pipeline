@@ -8,6 +8,7 @@ import re
 import subprocess
 import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from pathlib import Path
 
 from .asset_paths import to_asset_ref
 
@@ -74,6 +75,33 @@ def _duration(entry):
     return float(entry.get("duration_sec") or metadata.get("duration_sec") or 0)
 
 
+def _source_hash(entry):
+    """Return a declared source binding without hashing media during map construction."""
+    metadata = entry.get("metadata") or {}
+    value = (
+        entry.get("source_hash")
+        or entry.get("sha256")
+        or metadata.get("source_hash")
+        or metadata.get("sha256")
+    )
+    return str(value).strip().lower() if value else None
+
+
+def _filename_prior(source, entry):
+    """Return a weak filename/folder prior; never treat it as observed truth."""
+    path = Path(str(source or ""))
+    tags = entry.get("tags_from_path") or []
+    values = [path.stem, path.parent.name]
+    if isinstance(tags, list):
+        values.extend(str(tag) for tag in tags if str(tag).strip())
+    return {
+        "filename": path.name,
+        "folder": path.parent.name,
+        "text": " / ".join(value for value in values if value),
+        "basis": "filename_folder_prior_only",
+    }
+
+
 def build_asset_map(entry, *, shot_detector=None, motion_detector=None, speech_detector=None,
                     transcript_detector=None):
     """Build one asset map. Injectable detectors keep the planning logic testable."""
@@ -116,7 +144,7 @@ def build_asset_map(entry, *, shot_detector=None, motion_detector=None, speech_d
                     if text:
                         run["text"] = str(text)
 
-    return {
+    result = {
         "artifact_role": "material_map",
         "version": 1,
         "asset_id": asset_id,
@@ -126,6 +154,11 @@ def build_asset_map(entry, *, shot_detector=None, motion_detector=None, speech_d
         "scenes": scenes,
         "speech": speech,
     }
+    source_hash = _source_hash(entry)
+    if source_hash:
+        result["source_hash"] = source_hash
+    result["filename_prior"] = _filename_prior(source, entry)
+    return result
 
 
 def build_fast_asset_map(entry):
@@ -152,7 +185,7 @@ def build_fast_asset_map(entry):
             "motion_peaks": [],
             "map_mode": "fast",
         }]
-    return {
+    result = {
         "artifact_role": "material_map",
         "version": 1,
         "asset_id": asset_id,
@@ -163,12 +196,27 @@ def build_fast_asset_map(entry):
         "scenes": scenes,
         "speech": [],
     }
+    source_hash = _source_hash(entry)
+    if source_hash:
+        result["source_hash"] = source_hash
+    result["filename_prior"] = _filename_prior(source, entry)
+    return result
 
 
 def apply_scene_review_verdict(material_map, verdict):
-    """Apply agent/VLM scene captions without requiring a model dependency."""
+    """Apply reviewed scene truth and its provenance without a model dependency.
+
+    Filename/folder hints may help a reviewer find a scene, but only this
+    reviewed payload becomes persistent material truth. Story assignment stays
+    separate from observed content so later campaigns can reuse the same pool.
+    """
     scenes = material_map.get("scenes") or []
     shallow_labels = ("visual_family", "angle_scale", "action_family", "subject")
+    semantic_labels = (
+        "observed_content", "assigned_story_function", "support_subtype",
+    )
+    default_reviewer = verdict.get("reviewer")
+    default_at = verdict.get("at")
     for item in verdict.get("scenes") or []:
         index = item.get("scene_index")
         if not isinstance(index, int) or index < 0 or index >= len(scenes):
@@ -182,6 +230,52 @@ def apply_scene_review_verdict(material_map, verdict):
         for field in shallow_labels:
             if item.get(field):
                 scenes[index][field] = str(item[field]).strip()
+        for field in semantic_labels:
+            if item.get(field):
+                scenes[index][field] = str(item[field]).strip()
+        if "direct_story_evidence" in item:
+            scenes[index]["direct_story_evidence"] = bool(item["direct_story_evidence"])
+
+        evidence = [
+            str(value).strip()
+            for value in (item.get("visual_evidence") or [])
+            if isinstance(value, str) and value.strip()
+        ]
+        state = item.get("prior_disposition") or item.get("review_state")
+        if state is not None:
+            state = str(state).strip().lower()
+            if state not in {"observed", "confirmed", "corrected"}:
+                raise ValueError(
+                    "scene review state must be observed, confirmed, or corrected")
+        confidence = item.get("confidence")
+        if confidence is not None:
+            try:
+                confidence = float(confidence)
+            except (TypeError, ValueError):
+                raise ValueError("scene review confidence must be a number from 0 to 1") from None
+            if not 0.0 <= confidence <= 1.0:
+                raise ValueError("scene review confidence must be a number from 0 to 1")
+
+        has_review = bool(
+            state or confidence is not None or evidence
+            or item.get("evidence_basis") or item.get("reviewer") or default_reviewer
+        )
+        if has_review:
+            review = dict(scenes[index].get("review") or {})
+            review["state"] = state or review.get("state") or "observed"
+            reviewer = item.get("reviewer") or default_reviewer
+            at = item.get("at") or default_at
+            if reviewer:
+                review["reviewer"] = str(reviewer).strip()
+            if at:
+                review["at"] = str(at).strip()
+            if confidence is not None:
+                review["confidence"] = confidence
+            if item.get("evidence_basis"):
+                review["evidence_basis"] = str(item["evidence_basis"]).strip()
+            if evidence:
+                review["visual_evidence"] = evidence
+            scenes[index]["review"] = review
     return material_map
 
 

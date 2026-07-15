@@ -54,6 +54,7 @@ class MaterialMapTest(unittest.TestCase):
             "id": "clip-a",
             "type": "video",
             "path": "clip-a.mp4",
+            "source_hash": "a" * 64,
             "metadata": {"duration_sec": 10},
         }
 
@@ -67,6 +68,7 @@ class MaterialMapTest(unittest.TestCase):
         )
 
         self.assertEqual(result["asset_id"], "clip-a")
+        self.assertEqual(result["source_hash"], "a" * 64)
         self.assertEqual(len(result["scenes"]), 2)
         self.assertEqual(result["scenes"][0]["midpoint"], 2.0)
         self.assertEqual(result["scenes"][0]["motion_peaks"], [1.5])
@@ -83,12 +85,13 @@ class MaterialMapTest(unittest.TestCase):
             "id": "clip-fast",
             "type": "video",
             "path": "clip-fast.mp4",
-            "metadata": {"duration_sec": 42},
+            "metadata": {"duration_sec": 42, "sha256": "b" * 64},
         }
 
         result = material_map.build_fast_asset_map(entry)
 
         self.assertEqual(result["asset_id"], "clip-fast")
+        self.assertEqual(result["source_hash"], "b" * 64)
         self.assertEqual(result["map_mode"], "fast")
         self.assertEqual(result["duration_sec"], 42.0)
         self.assertEqual(result["scenes"], [{
@@ -148,6 +151,40 @@ class MaterialMapTest(unittest.TestCase):
         self.assertEqual(scene["action_family"], "standing_muster")
         self.assertEqual(scene["subject"], "students")
         self.assertNotIn("media_type", scene)
+
+    def test_scene_review_persists_semantic_labels_and_review_provenance(self):
+        payload = material_map.build_fast_asset_map({
+            "id": "clip-a",
+            "type": "video",
+            "path": "training/clip-a.mp4",
+            "duration_sec": 8,
+        })
+
+        updated = material_map.apply_scene_review_verdict(payload, {
+            "reviewer": "agent:director",
+            "at": "2026-07-14T12:00:00+08:00",
+            "scenes": [{
+                "scene_index": 0,
+                "caption": "trainees pull cable together",
+                "observed_content": "three trainees pull a cable under supervision",
+                "assigned_story_function": "teamwork_progression",
+                "direct_story_evidence": True,
+                "prior_disposition": "corrected",
+                "confidence": 0.86,
+                "evidence_basis": "reviewed_frames",
+                "visual_evidence": ["contact_sheet cell 04"],
+            }],
+        })
+
+        scene = updated["scenes"][0]
+        self.assertEqual(scene["observed_content"],
+                         "three trainees pull a cable under supervision")
+        self.assertEqual(scene["assigned_story_function"], "teamwork_progression")
+        self.assertTrue(scene["direct_story_evidence"])
+        self.assertEqual(scene["review"]["state"], "corrected")
+        self.assertEqual(scene["review"]["confidence"], 0.86)
+        self.assertEqual(scene["review"]["reviewer"], "agent:director")
+        self.assertEqual(scene["review"]["visual_evidence"], ["contact_sheet cell 04"])
 
     def test_opt_in_transcript_detector_only_transcribes_speech_runs(self):
         entry = {

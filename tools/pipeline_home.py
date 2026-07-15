@@ -1189,6 +1189,9 @@ def _stage0_subtitle_voiceover_gap_summary(root: Path):
     intent_path, intent = _find_json(root, "video_intent.json")
     if not intent:
         return None
+    current_stage = _declared_current_stage(root)
+    if current_stage is not None and current_stage < 5:
+        return None
     contract = intent.get("subtitle_voiceover_contract")
     if not isinstance(contract, dict):
         return None
@@ -1273,9 +1276,33 @@ def _deferred_build_allowed(contract: Any) -> bool:
     return all(str(contract.get(key) or "").strip() for key in required)
 
 
+def _declared_current_stage(root: Path, segment_contract: dict[str, Any] | None = None) -> int | None:
+    """Return an explicit Stage 0-10 cursor without guessing from artifacts."""
+    _status_path, status = _find_json(root, "campaign_status.json")
+    values: list[Any] = []
+    if isinstance(status, dict):
+        values.append(status.get("current_stage"))
+    if isinstance(segment_contract, dict):
+        run_config = segment_contract.get("run_config")
+        if isinstance(run_config, dict):
+            values.append(run_config.get("current_stage"))
+    for value in values:
+        if isinstance(value, bool) or value is None:
+            continue
+        if isinstance(value, (int, float)):
+            return int(value)
+        text = str(value).strip()
+        if text.isdigit():
+            return int(text)
+    return None
+
+
 def _build_eligibility_summary(root: Path):
     contract_path, segment_contract = _find_json(root, "segment_contract.json")
     if not isinstance(segment_contract, dict):
+        return None
+    current_stage = _declared_current_stage(root, segment_contract)
+    if current_stage is not None and current_stage < 5:
         return None
     read, contracts = _stage0_child_contracts_for_build(root)
     if not contracts:
@@ -1753,6 +1780,9 @@ def _build_summary(root: Path):
 
     contract_path, contract = _find_json(root, "segment_contract.json")
     if contract:
+        current_stage = _declared_current_stage(root, contract)
+        if current_stage is not None and current_stage < 5:
+            return None
         return _contract(
             "run",
             "stage4_dry_build",
@@ -1947,6 +1977,8 @@ def _one_source_dialogue_preview_summary(root: Path):
 
 def _story_summary(root: Path):
     story_path, story = _find_json(root, "story_world.json")
+    if not story:
+        story_path, story = _find_json(root, "story_soul_blueprint.json")
     beats_path, beats = _find_json(root, "screenplay_beats.json")
     needs_path, needs = _find_json(root, "material_needs.json")
     if story and beats and needs:

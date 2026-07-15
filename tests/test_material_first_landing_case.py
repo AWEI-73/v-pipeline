@@ -156,6 +156,27 @@ class MaterialFirstLandingCaseTest(unittest.TestCase):
             rough = json.loads((run_dir / "rough_cut_plan.json").read_text(encoding="utf-8"))
             self.assertFalse(any("corrupt.mp4" in clip.get("source_path", "") for clip in rough["clips"]))
 
+    def test_source_folder_case_rejects_photo_that_current_decoder_cannot_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _jpg(source / "opening" / "opening.jpg", "red")
+            _jpg(source / "training" / "training.jpg", "green")
+            _jpg(source / "closing" / "closing.jpg", "blue")
+            (source / "training" / "unsupported.heic").write_bytes(b"not decoder-supported image data")
+            run_dir = root / "run"
+
+            result = run_material_first_landing_case(run_dir, source_dir=source, max_assets=5)
+
+            self.assertTrue(result["ok"], result)
+            materials = json.loads((run_dir / "materials_db.json").read_text(encoding="utf-8"))
+            rejected = materials.get("rejects") or []
+            unsupported = [item for item in rejected if "unsupported.heic" in item["path"]]
+            self.assertEqual(len(unsupported), 1)
+            self.assertEqual(unsupported[0]["reason"], "invalid_media")
+            self.assertIn("image decoder", unsupported[0]["detail"])
+            self.assertFalse(any("unsupported.heic" in item["path"] for item in materials["files"]))
+
     def test_source_folder_case_applies_material_wall_verdict_before_mapping(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

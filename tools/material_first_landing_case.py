@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from PIL import Image, UnidentifiedImageError
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.boundary_smoke import run_boundary  # noqa: E402
@@ -136,15 +138,26 @@ def _probe_video_duration(path: Path) -> tuple[float | None, str | None]:
 
 
 def _media_probe_reject(path: Path) -> dict | None:
-    if path.suffix.lower() not in VIDEO_EXTS:
+    suffix = path.suffix.lower()
+    if suffix in PHOTO_EXTS:
+        try:
+            with Image.open(path) as image:
+                image.verify()
+        except (UnidentifiedImageError, OSError) as exc:
+            return {
+                "path": str(path),
+                "reason": "invalid_media",
+                "detail": f"image decoder cannot open source: {type(exc).__name__}: {exc}",
+            }
         return None
-    duration, error = _probe_video_duration(path)
-    if duration is None:
-        return {
-            "path": str(path),
-            "reason": "invalid_media",
-            "detail": error,
-        }
+    if suffix in VIDEO_EXTS:
+        duration, error = _probe_video_duration(path)
+        if duration is None:
+            return {
+                "path": str(path),
+                "reason": "invalid_media",
+                "detail": error,
+            }
     return None
 
 

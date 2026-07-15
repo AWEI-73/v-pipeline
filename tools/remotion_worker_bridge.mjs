@@ -283,6 +283,7 @@ const genericFilmGrainLayer = genericLayerByType("film_grain");
 const genericImageLayoutLayer = genericLayerByType("image_layout");
 const genericLogo3dMotionLayer = genericLayerByType("logo_3d_motion");
 const genericRadialCurrentLayer = genericLayerByType("radial_current");
+const genericSilkStreamLayer = genericLayerByType("silk_stream");
 const isGenericRemotionEffect = String(effectBuildSpec.component || "") === "GenericRemotionEffect";
 const isGenericInkSpread = isGenericRemotionEffect
   && Boolean(genericInkMaskLayer)
@@ -437,6 +438,46 @@ const holdAfterFullWallFrames = Math.max(
   0,
   Math.round(Number(effectBuildSpec.hold_after_full_wall_sec ?? effectBuildSpec.holdAfterFullWallSec ?? (memoryPacing === "slow" ? 2.0 : 0.8)) * JOB.fps),
 );
+const memoryPhaseSchedule = Array.isArray(effectBuildSpec.phase_schedule)
+  ? effectBuildSpec.phase_schedule
+  : (Array.isArray(effectBuildSpec.phaseSchedule) ? effectBuildSpec.phaseSchedule : []);
+const memoryPhaseBounds = (phaseId, fallbackStartSec, fallbackEndSec) => {
+  const phase = memoryPhaseSchedule.find((item) => String(item?.phase_id || item?.phaseId || "") === phaseId) || null;
+  const rawStartSec = phase?.start_sec ?? phase?.startSec;
+  const rawEndSec = phase?.end_sec ?? phase?.endSec;
+  const startSec = Number.isFinite(Number(rawStartSec)) ? Math.max(0, Number(rawStartSec)) : fallbackStartSec;
+  const endSec = Number.isFinite(Number(rawEndSec)) ? Math.max(startSec, Number(rawEndSec)) : fallbackEndSec;
+  return { startSec, endSec };
+};
+const memoryEnterPhase = memoryPhaseBounds("enter", 0, 8);
+const memoryAccumulatePhase = memoryPhaseBounds("accumulate", 8, 20);
+const memoryConvergePhase = memoryPhaseBounds("converge", 20, 32);
+const memoryFinalHoldPhase = memoryPhaseBounds("final_hold", 32, JOB.durationFrames / JOB.fps);
+const memoryConvergeStartFrame = Math.max(0, Math.round(memoryConvergePhase.startSec * JOB.fps));
+const memoryConvergeEndFrame = Math.max(memoryConvergeStartFrame + 1, Math.round(memoryConvergePhase.endSec * JOB.fps));
+const memoryFinalHoldStartFrame = Math.max(0, Math.round(memoryFinalHoldPhase.startSec * JOB.fps));
+const memoryFinalHoldEndFrame = Math.max(memoryFinalHoldStartFrame + 1, Math.round(memoryFinalHoldPhase.endSec * JOB.fps));
+const memoryFinalPhotoRef = String(effectBuildSpec.final_group_photo_ref || effectBuildSpec.finalGroupPhotoRef || "");
+const memoryFinalHero = memoryFinalPhotoRef
+  ? orderedCollageMediaRefs.find((media) => media.refId === memoryFinalPhotoRef) || null
+  : null;
+const memoryFinalHeroIndex = memoryFinalHero
+  ? orderedCollageMediaRefs.findIndex((media) => media.refId === memoryFinalPhotoRef)
+  : -1;
+const memoryHasFinalPhotoPlan = Boolean(memoryFinalHero && memoryFinalHeroIndex >= 0);
+const memoryFinalCopy = effectBuildSpec.final_copy && typeof effectBuildSpec.final_copy === "object"
+  ? effectBuildSpec.final_copy
+  : (effectBuildSpec.finalCopy && typeof effectBuildSpec.finalCopy === "object" ? effectBuildSpec.finalCopy : null);
+const memoryHasFinalCopy = Boolean(memoryFinalCopy && (memoryFinalCopy.line_1 || memoryFinalCopy.line1 || memoryFinalCopy.line_2 || memoryFinalCopy.line2));
+const memoryFinalCopyLine1 = String(memoryFinalCopy?.line_1 || memoryFinalCopy?.line1 || JOB.label);
+const memoryFinalCopyLine2 = String(memoryFinalCopy?.line_2 || memoryFinalCopy?.line2 || JOB.subtitle);
+const finalCopyStartFrame = memoryHasFinalCopy
+  ? Math.max(0, Math.round(Number(memoryFinalCopy.start_sec ?? memoryFinalCopy.startSec ?? memoryFinalHoldPhase.startSec) * JOB.fps))
+  : 0;
+const finalCopyEndFrame = memoryHasFinalCopy
+  ? Math.max(finalCopyStartFrame + 1, Math.round(Number(memoryFinalCopy.end_sec ?? memoryFinalCopy.endSec ?? memoryFinalHoldPhase.endSec) * JOB.fps))
+  : JOB.durationFrames;
+const memoryCaptionNone = effectBuildSpec.caption_mode === "none";
 const memoryWallMaxItems = Math.min(
   JOB.collageMediaRefs.length,
   memoryDensity === "low" ? 5 : (memoryDensity === "medium" ? 6 : 8),
@@ -537,6 +578,24 @@ const HermesEffectOverlay = ({ preview = false }) => {
     { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.in(Easing.cubic) },
   );
   const opacity = clamp(enter * exit);
+  const memoryConvergeProgress = memoryHasFinalPhotoPlan
+    ? interpolate(frame, [memoryConvergeStartFrame, memoryConvergeEndFrame], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.inOut(Easing.cubic),
+      })
+    : 0;
+  const memoryFinalHoldActive = memoryHasFinalPhotoPlan
+    && frame >= memoryFinalHoldStartFrame
+    && frame < memoryFinalHoldEndFrame;
+  const memoryFinalCopyFadeFrames = Math.min(18, Math.max(1, Math.round((finalCopyEndFrame - finalCopyStartFrame) * 0.18)));
+  const memoryFinalCopyTextOpacity = memoryHasFinalCopy
+    ? interpolate(frame, [finalCopyStartFrame, finalCopyStartFrame + memoryFinalCopyFadeFrames, Math.max(finalCopyStartFrame + memoryFinalCopyFadeFrames, finalCopyEndFrame - memoryFinalCopyFadeFrames), finalCopyEndFrame], [0, 1, 1, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.inOut(Easing.cubic),
+      })
+    : 1;
   const genericProgress = clamp(frame / Math.max(1, JOB.durationFrames - 1));
   const genericInkRevealSec = Number(genericInkMaskLayer?.params?.reveal_sec ?? genericInkMaskLayer?.params?.revealSec ?? 3.2);
   const genericInkRevealFrame = Math.max(1, Math.round(genericInkRevealSec * JOB.fps));
@@ -559,6 +618,136 @@ const HermesEffectOverlay = ({ preview = false }) => {
     const offset = (index - 2) * 96;
     return "M " + (360 + index * 180) + " 130 L " + (500 + offset) + " 360 L " + (455 + index * 120) + " 520 L " + (640 + offset) + " 760 L " + (590 + index * 130) + " 940";
   });
+  const genericSilkRibbonCount = genericSilkStreamLayer
+    ? Math.max(2, Math.min(6, Number(genericSilkStreamLayer?.params?.ribbon_count ?? genericSilkStreamLayer?.params?.ribbonCount ?? 3)))
+    : 0;
+  const genericSilkParticleCount = genericSilkStreamLayer
+    ? Math.max(48, Math.min(320, Number(genericSilkStreamLayer?.params?.particle_count ?? genericSilkStreamLayer?.params?.particleCount ?? 220)))
+    : 0;
+  const genericSilkFlowStyle = String(genericSilkStreamLayer?.params?.flow_style || genericSilkStreamLayer?.params?.flowStyle || "silk_sweep");
+  const genericSilkFlowMultiplier = genericSilkFlowStyle.includes("fast") ? 1.55 : (genericSilkFlowStyle.includes("slow") ? 0.72 : 1.0);
+  const cubicPoint = (p0, p1, p2, p3, t) => {
+    const u = 1 - t;
+    return {
+      x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+      y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+    };
+  };
+  const genericSilkStreamPaths = Array.from({ length: genericSilkRibbonCount }, (_, index) => {
+    const phase = frame * 0.035 * genericSilkFlowMultiplier + index * 1.31;
+    const blue = index % 2 === 0;
+    const lane = index % 3;
+    const yBias = lane === 0 ? 0 : (lane === 1 ? 110 : -90);
+    const p0 = { x: -160, y: (blue ? 720 : 320) + yBias + Math.sin(phase) * 82 };
+    const p1 = { x: 240, y: (blue ? 260 : 580) + yBias + Math.sin(phase + 0.7) * 135 };
+    const p2 = { x: 610, y: (blue ? 820 : 120) + yBias + Math.sin(phase + 1.1) * 150 };
+    const p3 = { x: 980, y: 520 + yBias * 0.46 + Math.sin(phase + 1.7) * 108 };
+    const p4 = { x: 1320, y: (blue ? 180 : 820) + yBias + Math.sin(phase + 2.1) * 145 };
+    const p5 = { x: 1700, y: (blue ? 760 : 260) + yBias + Math.sin(phase + 2.8) * 120 };
+    const p6 = { x: 2080, y: (blue ? 330 : 590) + yBias + Math.sin(phase + 3.4) * 100 };
+    const segments = [[p0, p1, p2, p3], [p3, p4, p5, p6]];
+    const d = "M " + p0.x.toFixed(1) + " " + p0.y.toFixed(1)
+      + " C " + p1.x.toFixed(1) + " " + p1.y.toFixed(1) + ", " + p2.x.toFixed(1) + " " + p2.y.toFixed(1) + ", " + p3.x.toFixed(1) + " " + p3.y.toFixed(1)
+      + " C " + p4.x.toFixed(1) + " " + p4.y.toFixed(1) + ", " + p5.x.toFixed(1) + " " + p5.y.toFixed(1) + ", " + p6.x.toFixed(1) + " " + p6.y.toFixed(1);
+    return {
+      id: index,
+      d,
+      segments,
+      color: blue ? "rgba(76,200,255,.94)" : "rgba(255,72,112,.94)",
+      core: blue ? "rgba(186,244,255,.96)" : "rgba(255,206,220,.96)",
+      width: 4.4 + (index % 3) * 1.1,
+      opacity: 0.68 + (index % 3) * 0.08,
+      dash: 420 + (index % 2) * 160,
+      speed: 1.2 + (index % 4) * 0.24,
+    };
+  });
+  const genericSilkParticles = genericSilkStreamPaths.length
+    ? Array.from({ length: genericSilkParticleCount }, (_, index) => {
+        const ribbon = genericSilkStreamPaths[index % genericSilkStreamPaths.length];
+        const travel = (index / Math.max(1, genericSilkParticleCount) * 0.96 + frame * 0.0022 * genericSilkFlowMultiplier + (index % 11) * 0.006) % 1;
+        const segmentIndex = travel < 0.5 ? 0 : 1;
+        const localT = segmentIndex === 0 ? travel * 2 : (travel - 0.5) * 2;
+        const point = cubicPoint(
+          ribbon.segments[segmentIndex][0],
+          ribbon.segments[segmentIndex][1],
+          ribbon.segments[segmentIndex][2],
+          ribbon.segments[segmentIndex][3],
+          localT,
+        );
+        const jitter = Math.sin(index * 4.71 + frame * 0.11) * (2.5 + (index % 5) * 1.4);
+        return {
+          id: index,
+          x: point.x + jitter,
+          y: point.y + Math.cos(index * 2.37 + frame * 0.08) * (3 + (index % 7) * 1.6),
+          radius: 1.2 + (index % 5) * 0.72,
+          opacity: 0.22 + (index % 9) * 0.065,
+          color: ribbon.core,
+        };
+      })
+    : [];
+  const genericSilkMarkStartFrame = Math.round(Number(genericSilkStreamLayer?.params?.mark_start_sec ?? genericSilkStreamLayer?.params?.markStartSec ?? 1.8) * JOB.fps);
+  const genericSilkMarkInEndFrame = Math.round(Number(genericSilkStreamLayer?.params?.mark_in_end_sec ?? genericSilkStreamLayer?.params?.markInEndSec ?? 3.1) * JOB.fps);
+  const genericSilkMarkOutStartFrame = Math.round(Number(genericSilkStreamLayer?.params?.mark_out_start_sec ?? genericSilkStreamLayer?.params?.markOutStartSec ?? 4.4) * JOB.fps);
+  const genericSilkMarkOutEndFrame = Math.round(Number(genericSilkStreamLayer?.params?.mark_out_end_sec ?? genericSilkStreamLayer?.params?.markOutEndSec ?? 5.4) * JOB.fps);
+  const genericSilkMarkIn = genericSilkStreamLayer
+    ? interpolate(frame, [genericSilkMarkStartFrame, Math.max(genericSilkMarkStartFrame + 1, genericSilkMarkInEndFrame)], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+      })
+    : 0;
+  const genericSilkMarkOut = genericSilkStreamLayer
+    ? interpolate(frame, [genericSilkMarkOutStartFrame, Math.max(genericSilkMarkOutStartFrame + 1, genericSilkMarkOutEndFrame)], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+        easing: Easing.inOut(Easing.cubic),
+      })
+    : 0;
+  const genericSilkMarkProgress = genericSilkStreamLayer ? genericSilkMarkIn * (1 - genericSilkMarkOut) : 0;
+  const genericSilkMarkPoints = genericSilkStreamLayer
+    ? (() => {
+        const points = [];
+        const addSegment = (a, b, count) => {
+          for (let index = 0; index < count; index += 1) {
+            const t = index / Math.max(1, count - 1);
+            points.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+          }
+        };
+        addSegment({ x: 890, y: 438 }, { x: 846, y: 492 }, 26);
+        addSegment({ x: 846, y: 492 }, { x: 830, y: 574 }, 26);
+        addSegment({ x: 830, y: 574 }, { x: 850, y: 646 }, 22);
+        addSegment({ x: 850, y: 646 }, { x: 915, y: 678 }, 22);
+        addSegment({ x: 915, y: 678 }, { x: 980, y: 636 }, 22);
+        addSegment({ x: 980, y: 636 }, { x: 986, y: 580 }, 18);
+        addSegment({ x: 986, y: 580 }, { x: 948, y: 548 }, 18);
+        addSegment({ x: 948, y: 548 }, { x: 878, y: 558 }, 20);
+        addSegment({ x: 1040, y: 450 }, { x: 1148, y: 450 }, 28);
+        addSegment({ x: 1148, y: 450 }, { x: 1182, y: 492 }, 18);
+        addSegment({ x: 1182, y: 492 }, { x: 1040, y: 650 }, 44);
+        addSegment({ x: 1040, y: 650 }, { x: 1192, y: 650 }, 38);
+        return points;
+      })()
+    : [];
+  const genericSilkMarkParticles = genericSilkMarkPoints.length
+    ? genericSilkParticles.map((particle, index) => {
+        const targetIndex = Math.min(
+          genericSilkMarkPoints.length - 1,
+          Math.floor(index * genericSilkMarkPoints.length / Math.max(1, genericSilkParticles.length)),
+        );
+        const target = genericSilkMarkPoints[targetIndex];
+        const targetJitter = 1.6 + (index % 5) * 0.55;
+        const targetX = target.x + Math.sin(index * 1.41 + frame * 0.06) * targetJitter;
+        const targetY = target.y + Math.cos(index * 1.83 + frame * 0.055) * targetJitter;
+        const progress = genericSilkMarkProgress;
+        return {
+          ...particle,
+          x: particle.x * (1 - progress) + targetX * progress,
+          y: particle.y * (1 - progress) + targetY * progress,
+          radius: particle.radius + progress * 0.62,
+          opacity: Math.min(0.94, particle.opacity + progress * 0.28),
+        };
+      })
+    : genericSilkParticles;
   const genericCurrentFadeOutStartFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_out_start_sec ?? genericRadialCurrentLayer?.params?.fadeOutStartSec ?? JOB.durationFrames / JOB.fps * 0.68) * JOB.fps);
   const genericCurrentFadeOutEndFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_out_end_sec ?? genericRadialCurrentLayer?.params?.fadeOutEndSec ?? JOB.durationFrames / JOB.fps * 0.96) * JOB.fps);
   const genericCurrentFadeInStartFrame = Math.round(Number(genericRadialCurrentLayer?.params?.fade_in_start_sec ?? genericRadialCurrentLayer?.params?.fadeInStartSec ?? 0.0) * JOB.fps);
@@ -903,7 +1092,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
           />
         </AbsoluteFill>
       ) : null}
-      {isGenericRemotionEffect && (genericElectricArcLayer || genericCrackLineLayer || genericGlyphStreamLayer || genericParticleLayer || genericLightOverlayLayer || genericFilmGrainLayer || genericImageLayoutLayer || genericLogo3dMotionLayer || genericRadialCurrentLayer) ? (
+      {isGenericRemotionEffect && (genericElectricArcLayer || genericCrackLineLayer || genericGlyphStreamLayer || genericParticleLayer || genericLightOverlayLayer || genericFilmGrainLayer || genericImageLayoutLayer || genericLogo3dMotionLayer || genericRadialCurrentLayer || genericSilkStreamLayer) ? (
         <AbsoluteFill
           className="genericCameraMotionLayer"
           style={{
@@ -1094,6 +1283,89 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
               })}
             </AbsoluteFill>
           ) : null}
+          {genericSilkStreamLayer ? (
+            <AbsoluteFill
+              className="genericSilkStreamLayer"
+              style={{
+                background: preview
+                  ? "radial-gradient(ellipse at 48% 52%, rgba(18,48,74,.42), rgba(0,0,0,0) 46%), linear-gradient(180deg, rgba(1,2,8,.96), rgba(0,0,0,.98))"
+                  : "transparent",
+                mixBlendMode: "screen",
+                pointerEvents: "none",
+                opacity: opacity,
+              }}
+            >
+              <svg
+                viewBox="0 0 1920 1080"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+              >
+                <defs>
+                  <filter id="genericSilkBlur" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="12" />
+                  </filter>
+                  <filter id="genericSilkCoreGlow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="2.6" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                {genericSilkStreamPaths.map((ribbon) => (
+                  <g key={"generic-silk-ribbon-" + ribbon.id} style={{ opacity: ribbon.opacity * (1 - genericSilkMarkProgress * 0.68) }}>
+                    <path
+                      d={ribbon.d}
+                      fill="none"
+                      stroke={ribbon.color}
+                      strokeWidth={ribbon.width + 38}
+                      strokeLinecap="round"
+                      opacity={0.34}
+                      filter="url(#genericSilkBlur)"
+                    />
+                    <path
+                      d={ribbon.d}
+                      fill="none"
+                      stroke={ribbon.color}
+                      strokeWidth={ribbon.width + 7}
+                      strokeLinecap="round"
+                      opacity={0.46}
+                      filter="url(#genericSilkCoreGlow)"
+                    />
+                    <path
+                      d={ribbon.d}
+                      fill="none"
+                      stroke={ribbon.color}
+                      strokeWidth={ribbon.width}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="url(#genericSilkCoreGlow)"
+                    />
+                    <path
+                      d={ribbon.d}
+                      fill="none"
+                      stroke={ribbon.core}
+                      strokeWidth={1.6}
+                      strokeLinecap="round"
+                      strokeDasharray="18 30"
+                      strokeDashoffset={(-frame * ribbon.speed * 18).toFixed(2)}
+                      opacity={0.72}
+                    />
+                  </g>
+                ))}
+                {genericSilkMarkParticles.map((particle) => (
+                  <circle
+                    key={"generic-silk-particle-" + particle.id}
+                    cx={particle.x.toFixed(2)}
+                    cy={particle.y.toFixed(2)}
+                    r={particle.radius.toFixed(2)}
+                    fill={particle.color}
+                    opacity={particle.opacity}
+                    filter="url(#genericSilkCoreGlow)"
+                  />
+                ))}
+              </svg>
+            </AbsoluteFill>
+          ) : null}
           {genericElectricArcLayer ? (
             <svg
               className="genericElectricArcLayer"
@@ -1256,7 +1528,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
                 fontWeight: 900,
                 letterSpacing: 0,
                 textShadow: "0 7px 34px rgba(0,0,0,.68)",
-                opacity,
+                opacity: opacity * (1 - genericSilkMarkProgress),
               }}
             >
               {String(genericTextLayer?.params?.content || JOB.label)}
@@ -1918,6 +2190,26 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
           >
             {orderedCollageMediaRefs.slice(0, memoryWallMaxItems).map((media, index) => {
               const slot = memoryWallSlots[index % memoryWallSlots.length];
+              const isMemoryFinalPhoto = memoryHasFinalPhotoPlan && media.refId === memoryFinalPhotoRef;
+              const memoryCardVisibility = memoryHasFinalPhotoPlan && !isMemoryFinalPhoto
+                ? 1 - memoryConvergeProgress
+                : 1;
+              const memoryHeroProgress = isMemoryFinalPhoto ? memoryConvergeProgress : 0;
+              const memoryCardLeft = isMemoryFinalPhoto
+                ? interpolate(memoryHeroProgress, [0, 1], [slot.left, Math.max(0, (width - 1240) / 2)], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+                : slot.left;
+              const memoryCardTop = isMemoryFinalPhoto
+                ? interpolate(memoryHeroProgress, [0, 1], [slot.top, Math.max(0, (height - 700) / 2)], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+                : slot.top;
+              const memoryCardWidth = isMemoryFinalPhoto
+                ? interpolate(memoryHeroProgress, [0, 1], [slot.width, 1240], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+                : slot.width;
+              const memoryCardHeight = isMemoryFinalPhoto
+                ? interpolate(memoryHeroProgress, [0, 1], [slot.height, 700], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+                : slot.height;
+              const memoryCardRotate = isMemoryFinalPhoto
+                ? interpolate(memoryHeroProgress, [0, 1], [slot.rotate, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+                : slot.rotate;
               const revealStart = memoryRevealMode === "one_by_one" ? index * memoryRevealIntervalFrames : Math.round(index * 0.18 * memoryRevealIntervalFrames);
               const revealEnd = revealStart + Math.round(memoryRevealIntervalFrames * 0.7);
               const cardIn = interpolate(frame, [revealStart, revealEnd], [0, 1], {
@@ -1936,13 +2228,13 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
                   className="memoryWallCard"
                   style={{
                     position: "absolute",
-                    left: slot.left,
-                    top: slot.top,
-                    width: slot.width,
-                    height: slot.height,
+                    left: memoryCardLeft,
+                    top: memoryCardTop,
+                    width: memoryCardWidth,
+                    height: memoryCardHeight,
                     transform:
-                      "translateY(" + ((1 - cardIn) * 36 + photoDrift * 0.18) + "px) rotate(" + slot.rotate + "deg) scale(" + (0.94 + cardIn * 0.06) + ")",
-                    opacity: opacity * cardIn,
+                      "translateY(" + ((1 - cardIn) * 36 + photoDrift * 0.18) + "px) rotate(" + memoryCardRotate + "deg) scale(" + (0.94 + cardIn * 0.06 + memoryHeroProgress * 0.04) + ")",
+                    opacity: opacity * cardIn * memoryCardVisibility,
                     border: "2px solid rgba(255,255,255,.78)",
                     background: "rgba(255,255,255,.10)",
                     boxShadow: "0 26px 74px rgba(0,0,0,.58), 0 0 0 8px rgba(255,255,255,.025)",
@@ -1955,12 +2247,13 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
                       style={{
                         width: "100%",
                         height: "100%",
-                        objectFit: "cover",
+                        objectFit: memoryHasFinalPhotoPlan ? "contain" : "cover",
+                        background: memoryHasFinalPhotoPlan ? "rgba(0,0,0,.72)" : "transparent",
                         filter: "saturate(1.02) contrast(1.05) brightness(1.08)",
                       }}
                     />
                   ) : null}
-                  {effectBuildSpec.caption_mode === "minimal" && media.label ? (
+                  {!memoryCaptionNone && effectBuildSpec.caption_mode === "minimal" && media.label ? (
                     <div
                       className="minimalCaption"
                       style={{
@@ -1989,7 +2282,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
               style={{
                 background:
                   "radial-gradient(circle at 42% 26%, rgba(255,211,106,.20), rgba(255,211,106,.05) 34%, rgba(0,0,0,0) 62%)",
-                opacity: opacity * 0.76,
+                opacity: opacity * 0.76 * (memoryFinalHoldActive ? 0 : 1),
                 mixBlendMode: "screen",
               }}
             />
@@ -2004,7 +2297,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
               height: 4,
               borderRadius: 999,
               background: "linear-gradient(90deg, " + JOB.accentColor + ", rgba(255,255,255,.62), rgba(255,255,255,0))",
-              opacity: opacity * 0.74,
+              opacity: opacity * 0.74 * (memoryFinalHoldActive ? 0 : 1),
             }}
           />
         </AbsoluteFill>
@@ -2242,7 +2535,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
           fontWeight: isTraining67 ? 900 : 700,
           letterSpacing: 0.4,
           textShadow: labelShadow,
-          opacity: suppressStoryToMvBaseText ? 0 : ((preview || JOB.showTextInRender) ? opacity : 0),
+          opacity: suppressStoryToMvBaseText ? 0 : (isMemoryPhotoWall && memoryHasFinalCopy ? opacity * memoryFinalCopyTextOpacity : ((preview || JOB.showTextInRender) ? opacity : 0)),
         }}
       >
         {isYellowSubtitleBar && JOB.speakerName ? (
@@ -2250,7 +2543,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
             {JOB.speakerName}
           </span>
         ) : null}
-        {JOB.label}
+        {isMemoryPhotoWall && memoryHasFinalCopy ? memoryFinalCopyLine1 : JOB.label}
         {isCinematicOpening ? (
           <div
             className="cinematicTitleUnderline"
@@ -2275,7 +2568,7 @@ const genericTextSafeArea = String(genericTextLayer?.params?.safe_area || generi
               textShadow: isCleanWhiteQuote ? "none" : "0 3px 12px rgba(0,0,0,.72)",
             }}
           >
-            {JOB.subtitle}
+            {isMemoryPhotoWall && memoryHasFinalCopy ? memoryFinalCopyLine2 : JOB.subtitle}
           </div>
         ) : null}
       </div>

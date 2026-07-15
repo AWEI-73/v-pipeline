@@ -97,14 +97,19 @@ def build_project_material_map(material_maps, *, needs=None):
                 captioned += 1
             if _scene_has_vd0_label(scene):
                 labeled += 1
-        assets.append({
+        asset = {
             "asset_id": asset_id,
             "asset_type": material_map.get("asset_type"),
             "source": material_map.get("source"),
             "duration_sec": material_map.get("duration_sec"),
             "scenes": scenes,            # verbatim evidence + lineage preserved
             "speech": material_map.get("speech") or [],
-        })
+        }
+        if material_map.get("source_hash"):
+            asset["source_hash"] = material_map["source_hash"]
+        if material_map.get("filename_prior"):
+            asset["filename_prior"] = material_map["filename_prior"]
+        assets.append(asset)
 
     summary = summarize_satisfaction(material_maps)
     satisfaction_summary = {nid: summary[nid] for nid in sorted(summary)}
@@ -180,14 +185,19 @@ def expand_project_material_map(source):
                 scenes = asset.get("scenes") or []
                 for index, scene in enumerate(scenes):
                     _validate_scene_shape(asset_id, index, scene)
-                maps.append({
+                material_map = {
                     "asset_id": asset_id,
                     "asset_type": asset.get("asset_type"),
                     "source": src,
                     "duration_sec": asset.get("duration_sec"),
                     "scenes": scenes,                 # verbatim — no re-derivation
                     "speech": asset.get("speech") or [],
-                })
+                }
+                if asset.get("source_hash"):
+                    material_map["source_hash"] = asset["source_hash"]
+                if asset.get("filename_prior"):
+                    material_map["filename_prior"] = asset["filename_prior"]
+                maps.append(material_map)
             return maps
         if role is not None and role != "material_map":
             raise ValueError(

@@ -51,6 +51,11 @@ GENERIC_LAYER_MANIFEST: dict[str, dict[str, Any]] = {
         "worker_supported": True,
         "renderer_marker": "genericRadialCurrentLayer",
     },
+    "silk_stream": {
+        "purpose": "flowing silk-like ribbons with luminous cores and particles carried along the curves",
+        "worker_supported": True,
+        "renderer_marker": "genericSilkStreamLayer",
+    },
     "light_overlay": {
         "purpose": "glow, wash, flare, or accent light plates",
         "worker_supported": True,

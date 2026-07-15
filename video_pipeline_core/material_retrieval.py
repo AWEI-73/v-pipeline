@@ -24,6 +24,14 @@ def _text_score(query, caption):
     return 1 if q_terms & c_terms else 0
 
 
+def _filename_prior_score(query, material_map, scene):
+    """Score filename/folder hints weakly, without admitting a scene alone."""
+    prior = scene.get("filename_prior") or material_map.get("filename_prior") or {}
+    if isinstance(prior, dict):
+        prior = prior.get("text") or ""
+    return _text_score(query, prior)
+
+
 def _function_score(segment, scene):
     required = set((segment.get("sequence_grammar") or {}).get("required_functions") or [])
     available = set(scene.get("functions") or [])
@@ -110,6 +118,32 @@ def _need_score(segment, material_map, scene):
     return 4 if expected and actual and str(actual) in expected else 0
 
 
+def _evidence_quality_score(scene):
+    """Score reviewed evidence quality without admitting a scene by itself."""
+    score = 0.0
+    if scene.get("direct_story_evidence") is True:
+        score += 4.0
+    if str(scene.get("assigned_story_function") or scene.get("story_function") or "").strip():
+        score += 2.0
+
+    review = scene.get("review") or {}
+    if review.get("visual_evidence") or scene.get("visual_evidence") or scene.get("evidence_refs"):
+        score += 1.0
+
+    confidence = review.get("confidence", scene.get("confidence"))
+    try:
+        confidence = max(0.0, min(1.0, float(confidence)))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    score += 2.0 * confidence
+
+    if str(scene.get("support_subtype") or "").strip().lower() in {
+        "support_only", "unresolved", "unresolved_cutaway",
+    }:
+        score -= 0.5
+    return round(score, 3)
+
+
 def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
     """Rank evidenced scenes; external rankers may rerank but not admit zero-fit scenes."""
     query = (segment.get("material_fit") or {}).get("visual_desc") or segment.get("visual_desc")
@@ -129,10 +163,15 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
             breakdown = {
                 "need": _need_score(segment, material_map, scene),
                 "text": _text_score(query, scene.get("caption")),
+                "name_prior": _filename_prior_score(query, material_map, scene),
                 "function": _function_score(segment, scene),
                 "pace": _pace_score(segment, scene),
+                "evidence_quality": _evidence_quality_score(scene),
             }
-            base_score = sum(breakdown.values())
+            base_score = sum(
+                value for key, value in breakdown.items()
+                if key not in {"name_prior", "evidence_quality"}
+            )
             if base_score <= 0:
                 continue
             if query and breakdown["text"] <= 0 and breakdown["need"] <= 0:
@@ -143,6 +182,8 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
             ranked.append({
                 "asset_id": material_map.get("asset_id"),
                 "source": material_map.get("source"),
+                "source_hash": material_map.get("source_hash"),
+                "filename_prior": material_map.get("filename_prior"),
                 "scene_index": index,
                 "scene_id": f"{material_map.get('asset_id')}:{index}",
                 "start": float(scene.get("start") or 0),

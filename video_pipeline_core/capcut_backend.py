@@ -105,23 +105,200 @@ def _append_audio_tracks(draft, timeline):
             continue
         material_id = _new_id()
         duration = _us(item.get("duration_sec"))
+        source_duration = _us(item.get("source_duration_sec") or item.get("duration_sec"))
         audio_materials.append({
             "id": material_id,
-            "type": "audio",
+            # CapCut 8.x writes imported local music as ``extract_music``.
+            # A thinner ``type=audio`` record is valid JSON but is silently
+            # ignored by the desktop timeline.
+            "unique_id": "",
+            "type": "extract_music",
             "path": str(source_path).replace("\\", "/"),
-            "duration": duration,
+            "duration": source_duration,
             "name": Path(source_path).name,
+            "category_name": "local",
+            "wave_points": [],
+            "music_id": _new_id().lower(),
+            "app_id": 0,
+            "text_id": "",
+            "tone_type": "",
+            "source_platform": 0,
+            "video_id": "",
+            "effect_id": "",
+            "resource_id": "",
+            "third_resource_id": "",
+            "category_id": "",
+            "intensifies_path": "",
+            "formula_id": "",
+            "check_flag": 1,
+            "team_id": "",
+            "local_material_id": _new_id().lower(),
+            "tone_speaker": "",
+            "mock_tone_speaker": "",
+            "tone_effect_id": "",
+            "tone_effect_name": "",
+            "tone_platform": "",
+            "cloned_model_type": "",
+            "tone_category_id": "",
+            "tone_category_name": "",
+            "tone_second_category_id": "",
+            "tone_second_category_name": "",
+            "tone_emotion_name_key": "",
+            "tone_emotion_style": "",
+            "tone_emotion_role": "",
+            "tone_emotion_selection": "",
+            "tone_emotion_scale": 0.0,
+            "moyin_emotion": "",
+            "request_id": "",
+            "query": "",
+            "search_id": "",
+            "sound_separate_type": "",
+            "is_text_edit_overdub": False,
+            "is_ugc": False,
+            "is_ai_clone_tone": False,
+            "is_ai_clone_tone_post": False,
+            "source_from": "",
+            "copyright_limit_type": "none",
+            "aigc_history_id": "",
+            "aigc_item_id": "",
+            "music_source": "",
+            "pgc_id": "",
+            "pgc_name": "",
+            "similiar_music_info": {
+                "original_song_id": "",
+                "original_song_name": "",
+            },
+            "ai_music_type": 0,
+            "ai_music_enter_from": "",
+            "lyric_type": 0,
+            "tts_task_id": "",
+            "tts_generate_scene": "",
+            "ai_music_generate_scene": 0,
+            "tts_benefit_info": {
+                "benefit_type": "none",
+                "benefit_log_id": "",
+                "benefit_log_extra": "",
+                "benefit_amount": -1,
+            },
+        })
+        speed_id = _new_id()
+        placeholder_id = _new_id()
+        beats_id = _new_id()
+        channel_id = _new_id()
+        vocal_id = _new_id()
+        materials.setdefault("speeds", []).append({
+            "id": speed_id,
+            "type": "speed",
+            "mode": 0,
+            "speed": 1.0,
+            "curve_speed": None,
+        })
+        materials.setdefault("placeholder_infos", []).append({
+            "id": placeholder_id,
+            "type": "placeholder_info",
+            "meta_type": "none",
+            "res_path": "",
+            "res_text": "",
+            "error_path": "",
+            "error_text": "",
+        })
+        materials.setdefault("beats", []).append({
+            "id": beats_id,
+            "type": "beats",
+            "enable_ai_beats": False,
+            "gear": 404,
+            "gear_count": 0,
+            "mode": 404,
+            "user_beats": [],
+            "user_delete_ai_beats": None,
+            "ai_beats": {
+                "melody_url": "",
+                "melody_path": "",
+                "beats_url": "",
+                "beats_path": "",
+                "melody_percents": [0.0],
+                "beat_speed_infos": [],
+            },
+        })
+        materials.setdefault("sound_channel_mappings", []).append({
+            "id": channel_id,
+            "type": "",
+            "audio_channel_mapping": 0,
+            "is_config_open": False,
+        })
+        materials.setdefault("vocal_separations", []).append({
+            "id": vocal_id,
+            "type": "vocal_separation",
+            "choice": 0,
+            "removed_sounds": [],
+            "time_range": None,
+            "production_path": "",
+            "final_algorithm": "",
+            "enter_from": "",
         })
         segments.append({
             "id": _new_id(),
             "material_id": material_id,
-            "extra_material_refs": [],
+            "extra_material_refs": [
+                speed_id,
+                placeholder_id,
+                beats_id,
+                channel_id,
+                vocal_id,
+            ],
             "source_timerange": {"start": _us(item.get("source_in_sec")), "duration": duration},
             "target_timerange": {"start": _us(item.get("timeline_in_sec")), "duration": duration},
+            "render_timerange": {"start": 0, "duration": 0},
+            "desc": "",
+            "state": 0,
+            "speed": 1.0,
+            "is_loop": False,
+            "is_tone_modify": False,
+            "reverse": False,
+            "intensifies_audio": False,
+            "cartoon": False,
             "render_index": i,
             "volume": float(item.get("volume", 1.0)),
             "last_nonzero_volume": float(item.get("volume", 1.0)),
+            "clip": None,
+            "uniform_scale": None,
+            "keyframe_refs": [],
+            "enable_lut": False,
+            "enable_adjust": False,
+            "enable_hsl": False,
             "visible": True,
+            "group_id": "",
+            "enable_color_curves": True,
+            "enable_hsl_curves": True,
+            "track_render_index": i + 1,
+            "hdr_settings": None,
+            "enable_color_wheels": True,
+            "track_attribute": 0,
+            "is_placeholder": False,
+            "template_id": "",
+            "enable_smart_color_adjust": False,
+            "template_scene": "default",
+            "common_keyframes": [],
+            "caption_info": None,
+            "responsive_layout": {
+                "enable": False,
+                "target_follow": "",
+                "size_layout": 0,
+                "horizontal_pos_layout": 0,
+                "vertical_pos_layout": 0,
+            },
+            "enable_color_match_adjust": False,
+            "enable_color_correct_adjust": False,
+            "enable_adjust_mask": False,
+            "raw_segment_id": "",
+            "lyric_keyframes": None,
+            "enable_video_mask": True,
+            "digital_human_template_group_id": "",
+            "color_correct_alg_result": "",
+            "source": "segmentsourcenormal",
+            "enable_mask_stroke": False,
+            "enable_mask_shadow": False,
+            "enable_color_adjust_pro": False,
         })
     if segments:
         draft.setdefault("tracks", []).append({
@@ -130,8 +307,8 @@ def _append_audio_tracks(draft, timeline):
             "segments": segments,
             "flag": 0,
             "attribute": 0,
-            "name": "Pipeline Audio",
-            "is_default_name": False,
+            "name": "",
+            "is_default_name": True,
         })
 
 
@@ -178,6 +355,28 @@ def build_capcut_draft(skeleton, timeline, *, project_name=None):
         mat["path"] = (clip.get("source_path") or clip.get("file") or "").replace("\\", "/")
         mat["duration"] = dur
         mat["material_name"] = Path(mat["path"]).name if mat["path"] else mat.get("material_name", "")
+        # A skeleton captured from an online/template asset may carry CapCut's
+        # catalogue identity even after ``path`` is replaced.  CapCut 8.x then
+        # resolves that identity on open and silently rewrites the local path
+        # back to its cached online material.  Local source truth must therefore
+        # be explicit and must not inherit a remote product identity.
+        for remote_identity_key in (
+            "category_id",
+            "category_name",
+            "material_id",
+            "origin_material_id",
+            "request_id",
+            "resource_id",
+            "team_id",
+            "formula_id",
+        ):
+            mat.pop(remote_identity_key, None)
+        mat["source"] = 0
+        mat["source_platform"] = 0
+        mat["check_flag"] = 1
+        mat["is_copyright"] = False
+        mat["local_material_id"] = mat["id"]
+        mat["material_url"] = ""
         materials["videos"].append(mat)
 
         seg = copy.deepcopy(tmpl_seg)

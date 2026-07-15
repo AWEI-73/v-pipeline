@@ -110,6 +110,7 @@ def _director_plan():
                 "action_family": "writing_reflection",
                 "subject": "trainee hands writing internship report",
                 "media_preference": "generated_image",
+                "use_case": "photorealistic-natural",
                 "panel_count_min": 3,
                 "prompt": "trainee writing an internship report at a desk, helmet and notebook beside the page",
                 "negative_prompt": "text, watermark, fake logo, distorted hands",
@@ -142,6 +143,7 @@ class MaterialGenerationFallbackTest(unittest.TestCase):
         self.assertEqual(job["panel_count"], 3)
         self.assertEqual(job["source_type"], "generated")
         self.assertEqual(job["status"], "planned")
+        self.assertEqual(job["use_case"], "photorealistic-natural")
         self.assertEqual(job["material_map_return"]["initial_satisfies_status"], "candidate")
         self.assertIn("0.66%", job["prompt"])
         self.assertIn("internship report", job["prompt"])
@@ -183,6 +185,60 @@ class MaterialGenerationFallbackTest(unittest.TestCase):
             self.assertNotEqual(job.get("source_type"), "real_footage")
             self.assertNotEqual(job["material_map_return"]["initial_satisfies_status"], "accepted")
             self.assertTrue(job["honesty"]["must_not_claim_real_event"])
+
+    def test_explicit_policy_allows_only_opted_in_support_need(self):
+        needs = _needs()
+        needs["generated_material_policy"] = {
+            "default_allowed": False,
+            "allowed_only_when": {
+                "generated_allowed": True,
+                "proof_type": "support_only",
+            },
+        }
+        needs["needs"][0].update({
+            "generated_allowed": True,
+            "proof_type": "support_only",
+        })
+        needs["needs"][1].update({
+            "generated_allowed": False,
+            "proof_type": "relationship_proof",
+        })
+
+        result = plan_material_generation_fallback(
+            _delta(), material_needs=needs, director_shot_plan=_director_plan())
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            [job["need_id"] for job in result["generation_jobs"]],
+            ["nd_report_memory"],
+        )
+        self.assertEqual(result["summary"]["blocked"], 1)
+        self.assertEqual(result["blocked_needs"][0]["need_id"], "nd_daily_life")
+        self.assertEqual(
+            result["blocked_needs"][0]["reason"],
+            "generated_allowed_not_true",
+        )
+
+    def test_explicit_policy_default_false_blocks_undeclared_need(self):
+        needs = _needs()
+        needs["generated_material_policy"] = {
+            "default_allowed": False,
+            "allowed_only_when": {
+                "generated_allowed": True,
+                "proof_type": "support_only",
+            },
+        }
+
+        result = plan_material_generation_fallback(
+            _delta(), material_needs=needs, director_shot_plan=_director_plan())
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["generation_jobs"], [])
+        self.assertEqual(result["summary"]["blocked"], 2)
+        self.assertEqual(
+            {item["need_id"] for item in result["blocked_needs"]},
+            {"nd_report_memory", "nd_daily_life"},
+        )
 
     def test_invalid_needs_fails_without_jobs(self):
         needs = _needs()

@@ -42,6 +42,16 @@ class AggregationTest(unittest.TestCase):
         result = pmm.build_project_material_map([_asset_map("a", [scene])])
         self.assertEqual(result["assets"][0]["scenes"][0], scene)
 
+    def test_source_hash_binding_survives_aggregation_and_expansion(self):
+        source = _asset_map("a", [{"start": 0, "end": 3}])
+        source["source_hash"] = "c" * 64
+
+        project = pmm.build_project_material_map([source])
+        expanded = pmm.expand_project_material_map(project)
+
+        self.assertEqual(project["assets"][0]["source_hash"], "c" * 64)
+        self.assertEqual(expanded[0]["source_hash"], "c" * 64)
+
 
 class ReferenceIntegrityTest(unittest.TestCase):
     def _needs(self):

@@ -102,6 +102,21 @@ class GeneratedImageProviderPacketTest(unittest.TestCase):
             self.assertEqual(template["items"][0]["file"], first["target_file"])
             self.assertEqual(template["items"][0]["provider"], "codex_imagegen")
 
+    def test_job_can_override_storybook_use_case_for_photoreal_material(self):
+        fallback = _fallback()
+        fallback["generation_jobs"][0]["use_case"] = "photorealistic-natural"
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "packet"
+            result = build_generated_image_provider_packet(
+                fallback, out, style_profile=_style_profile(), providers=["codex_imagegen"])
+
+            self.assertTrue(result["ok"], result.get("errors"))
+            packet = json.loads(
+                (out / "generated_provider_packet.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("Use case: photorealistic-natural", packet["items"][0]["prompt"])
+            self.assertNotIn("Use case: illustration-story", packet["items"][0]["prompt"])
+
     def test_fails_closed_for_non_ok_fallback_or_no_real_provider(self):
         with tempfile.TemporaryDirectory() as td:
             bad = _fallback()

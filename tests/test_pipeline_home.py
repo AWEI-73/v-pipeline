@@ -708,6 +708,40 @@ class PipelineHomeTest(unittest.TestCase):
             self.assertEqual(summary["cursor"], "stage2_material_map")
             self.assertIn("material_needs.json", summary["read"])
 
+    def test_stage2_campaign_routes_story_soul_to_material_map_before_build_eligibility(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write(tmp, "campaign_status.json", {
+                "artifact_role": "stage0_10_route_acceptance_status",
+                "current_stage": 2,
+            })
+            _write(tmp, "stage0/video_intent.json", {
+                "artifact_role": "video_intent",
+                "entry_path": "whole-video-story-first-with-existing-material",
+                "subtitle_voiceover_contract": {
+                    "subtitle_required": True,
+                    "voiceover_required": False,
+                },
+            })
+            _write(tmp, "stage1/story_soul_blueprint.json", {
+                "artifact_role": "story_soul_blueprint",
+            })
+            _write(tmp, "stage1/screenplay_beats.json", {
+                "artifact_role": "screenplay_beats",
+            })
+            _write(tmp, "stage2/material_needs.json", {
+                "artifact_role": "material_needs",
+            })
+            _write(tmp, "stage2/segment_contract.json", {
+                "artifact_role": "segment_contract",
+                "run_config": {"current_stage": 2},
+            })
+
+            summary = summarize_run(tmp)
+
+            self.assertEqual(summary["mode"], "run")
+            self.assertEqual(summary["cursor"], "stage2_material_map")
+            self.assertIn("stage1/story_soul_blueprint.json", summary["read"])
+
     def test_material_wall_handoff_ready_routes_to_review_apply_with_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
             _write(tmp, "material_wall_handoff_report.json", {

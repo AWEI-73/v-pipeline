@@ -205,7 +205,7 @@ def _clean_quote_job(target_file="rendered.mov", preview_file="preview.mp4"):
     return job
 
 
-def _memory_photo_wall_job(target_file="rendered.mov", preview_file="preview.mp4"):
+def _memory_photo_wall_job(target_file="rendered.mov", preview_file="preview.mp4", v3_contract=False):
     job = _job(target_file, preview_file)
     job["component_family"] = "title_reveal"
     job["timing"]["duration_sec"] = 8.0
@@ -246,6 +246,35 @@ def _memory_photo_wall_job(target_file="rendered.mov", preview_file="preview.mp4
             {"ref_id": "mentor_photo", "path": "C:/tmp/mentor.jpg", "label": "mentor"},
         ],
     })
+    if v3_contract:
+        job["timing"]["duration_sec"] = 40.0
+        job["props"]["display_text"] = "最後一次，站成一個集體"
+        job["props"]["subtitle_text"] = "下一站，各自把責任接住"
+        job["props"]["duration_sec"] = 40.0
+        job["props"]["collage_media_refs"] = [
+            {"ref_id": "final_photo", "path": "C:/tmp/final.jpg", "label": "final"},
+            {"ref_id": "support_one", "path": "C:/tmp/support_one.jpg", "label": "support one"},
+            {"ref_id": "support_two", "path": "C:/tmp/support_two.jpg", "label": "support two"},
+            {"ref_id": "support_three", "path": "C:/tmp/support_three.jpg", "label": "support three"},
+            {"ref_id": "support_four", "path": "C:/tmp/support_four.jpg", "label": "support four"},
+        ]
+        job["props"]["prompt_parameters"]["effect_build_spec"].update({
+            "duration_sec": 40.0,
+            "caption_mode": "none",
+            "phase_schedule": [
+                {"phase_id": "enter", "start_sec": 0.0, "end_sec": 8.0},
+                {"phase_id": "accumulate", "start_sec": 8.0, "end_sec": 20.0},
+                {"phase_id": "converge", "start_sec": 20.0, "end_sec": 32.0},
+                {"phase_id": "final_hold", "start_sec": 32.0, "end_sec": 40.0},
+            ],
+            "final_group_photo_ref": "final_photo",
+            "final_copy": {
+                "line_1": "最後一次，站成一個集體",
+                "line_2": "下一站，各自把責任接住",
+                "start_sec": 32.0,
+                "end_sec": 40.0,
+            },
+        })
     return job
 
 
@@ -1361,6 +1390,51 @@ class RemotionWorkerBridgeTest(unittest.TestCase):
             text = Path(payload["entry"]).read_text(encoding="utf-8")
             self.assertIn("reviewed keyframe", text)
             self.assertIn("data:image/jpeg;base64,", text)
+
+    def test_memory_photo_wall_v3_contract_writes_phase_aware_final_hero_entry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            samples = []
+            for name in ("final.jpg", "support_one.jpg", "support_two.jpg", "support_three.jpg", "support_four.jpg"):
+                sample = root / name
+                sample.write_bytes(b"fake-jpeg-bytes")
+                samples.append(sample)
+            job_path = root / "job.json"
+            preview = root / "preview.mp4"
+            rendered = root / "rendered.mov"
+            project = root / "remotion_project"
+            job = _memory_photo_wall_job(str(rendered), str(preview), v3_contract=True)
+            for ref, sample in zip(job["props"]["collage_media_refs"], samples):
+                ref["path"] = str(sample)
+            job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+
+            proc = subprocess.run([
+                "node",
+                "tools/remotion_worker_bridge.mjs",
+                "--job-json", str(job_path),
+                "--preview-file", str(preview),
+                "--rendered-asset", str(rendered),
+                "--project-root", str(project),
+                "--write-entry-only",
+            ], cwd=ROOT, capture_output=True, text=True)
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            payload = json.loads(proc.stdout)
+            text = Path(payload["entry"]).read_text(encoding="utf-8")
+            for marker in (
+                "memoryPhaseSchedule",
+                "memoryConvergeProgress",
+                "memoryFinalPhotoRef",
+                "memoryFinalHero",
+                "finalCopyStartFrame",
+                "memoryFinalCopyTextOpacity",
+                "memoryCaptionNone",
+                "objectFit: memoryHasFinalPhotoPlan ? \"contain\" : \"cover\"",
+                "caption_mode === \"none\"",
+                "最後一次，站成一個集體",
+                "下一站，各自把責任接住",
+            ):
+                self.assertIn(marker, text)
 
     def test_generic_ink_spread_build_spec_writes_mask_and_texture_layers(self):
         with tempfile.TemporaryDirectory() as temp:

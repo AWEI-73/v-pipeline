@@ -175,6 +175,28 @@ class RenderableEvidenceTest(unittest.TestCase):
         self.assertEqual(delta["evidence"]["dropped_evidence"][0]["reason"],
                          "non_positive_length")
 
+    def test_zero_length_photo_scene_counts_as_renderable_still_evidence(self):
+        needs = _needs(("group portrait", 1, True, None))
+        nid = _first_id(needs)
+        maps = [{
+            "asset_id": "photo-a",
+            "asset_type": "photo",
+            "source": "a.jpg",
+            "scenes": [{
+                "start": 0.0,
+                "end": 0.0,
+                "kind": "still",
+                "satisfies": [{"need_id": nid, "status": "accepted"}],
+            }],
+        }]
+
+        result = md.compute_material_delta(needs, maps)
+
+        self.assertTrue(result["ok"], result["errors"])
+        self.assertEqual(result["deltas"][0]["outcome"], "covered")
+        self.assertEqual(result["deltas"][0]["evidence"]["accepted"], 1)
+        self.assertEqual(result["deltas"][0]["evidence"]["dropped_evidence"], [])
+
     def test_accepted_scene_missing_source_does_not_pass(self):
         needs = _needs(("hero", 1, True, None))
         nid = _first_id(needs)

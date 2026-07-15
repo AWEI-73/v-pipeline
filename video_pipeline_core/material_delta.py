@@ -18,8 +18,9 @@ Scope (increment 1 — confirmed bounded):
 
 Only BUILD-renderable evidence counts toward coverage: a satisfying scene whose
 source is missing or whose start/end is invalid/non-positive is recorded as
-``dropped_evidence`` and never makes a need `covered` (it cannot become a real
-window). Evidence is counted once per ``(need_id, asset_id, scene_index)``.
+``dropped_evidence`` and never makes a need `covered`. A declared still/photo is
+the exception: its canonical 0→0 evidence point is renderable for an assigned
+timeline hold. Evidence is counted once per ``(need_id, asset_id, scene_index)``.
 
 FUTURE pre-BUILD GATE CONTRACT (for whoever wires this in the next batch):
 a build may proceed only when BOTH ``delta.ok is True`` AND
@@ -90,24 +91,26 @@ def _generated_fingerprint(material_map, scene):
 
 
 def _scene_lookup(material_maps):
-    """{(asset_id, scene_index): (source, scene, generated_fingerprint)}."""
+    """{(asset_id, scene_index): (source, asset_type, scene, generated_fingerprint)}."""
     lookup = {}
     for material_map in material_maps or []:
         if not isinstance(material_map, dict):
             continue
         asset_id = material_map.get("asset_id")
         source = material_map.get("source")
+        asset_type = material_map.get("asset_type")
         for index, scene in enumerate(material_map.get("scenes") or []):
             scene_obj = scene if isinstance(scene, dict) else {}
             lookup[(asset_id, index)] = (
                 source,
+                asset_type,
                 scene_obj,
                 _generated_fingerprint(material_map, scene_obj),
             )
     return lookup
 
 
-def _renderable(source, scene):
+def _renderable(source, asset_type, scene):
     """A scene only counts toward coverage if it can become a real window:
     non-empty source + numeric start/end with positive length. Returns
     (ok, reason)."""
@@ -117,6 +120,13 @@ def _renderable(source, scene):
     for value in (start, end):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return False, "invalid_bounds"
+    if end > start:
+        return True, None
+    is_still = str(asset_type or scene.get("kind") or "").lower() in {
+        "photo", "image", "still", "jpg", "jpeg", "png", "webp", "heic"
+    }
+    if is_still and end == start:
+        return True, None
     if not (end > start):
         return False, "non_positive_length"
     return True, None
@@ -142,8 +152,8 @@ def _usable_counts(satisfied_by, lookup):
         if key not in lookup:
             dropped.append({**ref, "status": status, "reason": "scene_not_found"})
             continue
-        source, scene, fingerprint = lookup[key]
-        ok_render, reason = _renderable(source, scene)
+        source, asset_type, scene, fingerprint = lookup[key]
+        ok_render, reason = _renderable(source, asset_type, scene)
         if ok_render:
             if fingerprint and fingerprint in seen_generated_fingerprints:
                 dropped.append({**ref, "status": status, "reason": "duplicate_generated_asset"})

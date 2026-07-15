@@ -176,9 +176,10 @@ def _prompt(job: Mapping[str, Any], style: Mapping[str, Any],
     style_anchors = ", ".join(_merge_anchors(job.get("style_anchors"), style.get("style_anchors")))
     character_anchors = ", ".join(_merge_anchors(
         job.get("character_anchors"), style.get("character_anchors")))
+    use_case = _text(job.get("use_case"), "illustration-story")
 
     lines = [
-        "Use case: illustration-story",
+        f"Use case: {use_case}",
         "Asset type: generated material candidate for video pipeline",
         f"Primary request: {base_prompt or story or subject}",
         f"Story function: {story}",
@@ -214,6 +215,7 @@ def _packet_item(job: Mapping[str, Any], panel_index: int, panel_count: int, out
         "provider_candidates": providers,
         "preferred_provider": providers[0],
         "media_type": _text(job.get("media_type"), "generated_image"),
+        "use_case": _text(job.get("use_case"), "illustration-story"),
         "story_function": _text(job.get("story_function")),
         "panel_count": panel_count,
         "panel_variation": _panel_variation(panel_index, panel_count),

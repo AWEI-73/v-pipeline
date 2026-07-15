@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from .material_needs import apply_satisfaction_verdict, need_ids
+from .material_map import apply_scene_review_verdict
 from .project_material_map import build_project_material_map
 
 
@@ -126,7 +127,7 @@ def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy
                 raise ValueError(
                     f"decision {index} accepted edge cannot use evidence_basis=source_path_only")
         usable_range = _validated_usable_range(decision, scene, index)
-        grouped.setdefault(asset_id, []).append({
+        grouped_item = {
             "scene_index": scene_index,
             "satisfies": [{
                 "need_id": decision.get("need_id"),
@@ -137,7 +138,17 @@ def _group_decisions(asset_maps, verdict, *, skipped_assets=None, skipped_policy
                 "visual_evidence": visual_evidence,
                 "usable_range": usable_range,
             }],
-        })
+        }
+        for field in (
+            "caption", "bridge", "functions", "visual_family", "angle_scale",
+            "action_family", "subject", "observed_content",
+            "assigned_story_function", "direct_story_evidence", "support_subtype",
+            "prior_disposition", "review_state", "confidence", "evidence_basis",
+            "reviewer", "at", "visual_evidence",
+        ):
+            if field in decision:
+                grouped_item[field] = decision[field]
+        grouped.setdefault(asset_id, []).append(grouped_item)
     return grouped, ignored
 
 
@@ -168,6 +179,10 @@ def apply_review_to_maps(maps_dir, needs_path, verdict_path, out_path, *,
     for path, material_map in asset_maps:
         scenes = grouped.get(material_map["asset_id"], [])
         if scenes:
+            material_map = apply_scene_review_verdict(
+                material_map,
+                {"reviewer": reviewer, "at": at, "scenes": scenes},
+            )
             material_map = apply_satisfaction_verdict(
                 material_map,
                 {"reviewer": reviewer, "at": at, "scenes": scenes},
