@@ -22,6 +22,30 @@ format.
 - `examples/**`
 - `THIRD_PARTY_NOTICES.md`
 
+## Operational Entry Surfaces
+
+The packaged repository must preserve the existing entry hierarchy:
+
+1. `AGENTS.md` provides repository operating rules and points to `RUNBOOK.md`.
+2. `RUNBOOK.md` is the sole operational entry.
+3. `docs/START_HERE_VIDEO_PIPELINE.md` is orientation after the runbook.
+4. `HANDOFF_CURRENT.md` is the only live current-task pointer.
+5. `docs/INDEX.md` is discovery, not a competing operational entry.
+
+`roadmap.md` remains the current-state roadmap; it is not a replacement for
+the runbook or the live handoff.
+
+## Active State and Source-Only Packaging
+
+An active `HANDOFF_CURRENT.md` may refer to ignored project state under
+`.tmp/` or another local materialization root; that state is intentionally not
+part of the source-controlled distribution.
+
+A packaged or source-only release must provide an `IDLE` handoff template or
+a project-import/materialization mechanism before it claims to run an active
+campaign. This cleanup documents that boundary but does not implement the
+packaging mechanism.
+
 ## Exclude
 
 - `runs/`
