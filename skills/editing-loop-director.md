@@ -12,6 +12,59 @@ direct-cut from a fuzzy request。Stage owns lifecycle; Loop owns editing method
 本 skill 不選 Stage、不推進 `next_action`，只在 Orchestrator 已
 確認 Stage 與本輪授權後，提供 L0–L5 的剪輯方法。
 
+## Tool Contract
+
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "editing-loop-director",
+  "stage_owner": "editing_loop_method_overlay",
+  "triggers": [
+    "approved editorial intent and two bounded variants require a narrow blind semantic comparison",
+    "a Human owner needs a hash-bound proposed comparison delta without applying canonical state"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/editorial_comparison.py",
+      "when": "build or validate a blind A/B flag-only comparison packet, or write a Human-owned proposed delta",
+      "inputs": [
+        "two regular review artifacts",
+        "proposition and narrow rubric JSON",
+        "validated flag-only result and explicit Human verdict for proposed delta"
+      ],
+      "outputs": [
+        "reviewer/comparison_packet.json",
+        "reviewer/editorial_comparison_flags.template.json",
+        "owner/comparison_key.json",
+        "editorial_comparison_proposed_delta.json"
+      ],
+      "stop_if": [
+        "blind identity or authority leakage is detected",
+        "evidence, packet hash, owner key, or base-state hash is missing",
+        "the operation would apply canonical state, render, approve, or claim delivery"
+      ],
+      "capability_id": "cap.editing-loop-director.editorial-comparison.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
+    }
+  ],
+  "forbidden_tools": [
+    "Do not use the comparison adapter for every clip or every Loop",
+    "Do not emit creative PASS/FAIL, a global winner, approval, delivery, or state mutation",
+    "Do not expose maker rationale, chronology, backend, previous verdicts, or owner-only keys to the reviewer"
+  ],
+  "capability_namespace": "cap.editing-loop-director.*",
+  "capability_lookup_owner": "editing-loop-director"
+}
+<!-- TOOL_CONTRACT_END -->
+
+The comparison adapter is a bounded review tool owned here; the capability
+consumer block below remains the only external capability lookup surface.
+
 依 entry shape 套用不同門檻：
 
 - **greenfield whole-video or long-form**：進 L1 前必須同時解析並核准
@@ -250,6 +303,39 @@ quality（仍為 UNKNOWN）、整片品味、creative approval 或 delivery；
 授權 helper、normalizer、timeline v2、dirty matrix、curator route 或任何
 自動回派。Durable evidence:
 `docs/pilots/2026-07-10-editing-loop-l5-first-of-kind-evidence.md`。
+
+## 8A. Comparative semantic review（MVP，flag-only）
+
+只在高槓桿 editorial choice 使用：thesis、macro structure、segment order、
+material-family choice、ending 或 major revision。預設必須是 blind A/B；
+單一 proposal 只有在 Human 明文 waiver 後才可比對。製作者先產生兩個
+variant，fresh reviewer 只收到 neutral `slot_1`／`slot_2`、proposition、
+narrow rubric 與允許的 evidence refs。
+
+Reviewer 以 adversarial、窄問題、coordinate-backed 方法找出削弱或違反
+approved proposition 的地方，只輸出 `structural_candidate` 或 `taste`
+flags；不輸出 creative PASS/FAIL、全域 winner、approval 或 delivery。
+Human owner 才能做 `select_variant`、`revise_both` 或 `tie_keep_current`。
+
+每個 finding 必須使用以下 exact schema；`class` 只能是
+`structural_candidate | taste`，`evidence_refs` 必須是允許的非空 evidence
+reference list：
+
+```json
+{
+  "finding_id": "stable-finding-id",
+  "rubric_id": "packet-rubric-id",
+  "class": "structural_candidate | taste",
+  "statement": "one coordinate-backed observation",
+  "evidence_refs": ["slot_1#00:00-00:10"]
+}
+```
+
+接受的 Human decision 可以寫成 proposed editorial-state delta，但只能由
+既有 canonical global-editorial-state 路徑在另外授權後套用；本方法本身不
+修改 canonical state。過度比較每個 clip 或每個 Loop 是 process tax，禁止
+把此機制當成預設逐鏡審查。First-of-kind construction evidence 只見
+`docs/construction-guides/work-orders/2026-07-15-comparative-semantic-reviewer-mvp.md`。
 
 ## 9. 首次 forward-test：f1 reproducibility
 
