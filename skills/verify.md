@@ -105,11 +105,13 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
     },
     {
       "tool": "tools/timeline_review_packet.py",
-      "when": "after a rough cut or rendered candidate exists, build dense whole-timeline visual evidence and bind optional soundtrack/subtitle context for agent or human story review",
+      "when": "after a rough cut/rendered candidate exists, or when analyzing a finished reference film, build dense whole-timeline visual evidence and bind optional soundtrack/subtitle context for agent or human story review",
       "inputs": [
-        "rendered rough cut or candidate video",
+        "rendered rough cut, candidate, or reference film",
+        "review_subject_type: current_candidate | reference_film",
         "optional soundtrack_probe_report.json",
-        "optional subtitles.srt"
+        "optional subtitles.srt",
+        "text_authority whenever SRT is supplied: asr_draft | owner_approved | reference_transcript | ocr_inferred"
       ],
       "outputs": [
         "timeline_review_packet.json",
@@ -120,6 +122,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       ],
       "stop_if": [
         "video duration cannot be probed",
+        "review subject type is missing or invalid",
+        "SRT is supplied without explicit text authority, or text authority is supplied without SRT",
         "uniform wall coverage or page count mismatches",
         "bound soundtrack artifact has the wrong contract",
         "bound soundtrack duration does not match the reviewed video",
@@ -374,7 +378,8 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
 
 ## Uniform Timeline Review（橫向 Reviewer 支線）
 
-`tools/timeline_review_packet.py` 在 rough cut 或 rendered candidate 產生後，
+`tools/timeline_review_packet.py` 在 rough cut／rendered candidate 產生後，或要拆解
+finished reference film 時，
 以預設每 `0.5` 秒一格、每 `30` 秒一頁建立全片均勻時間牆。這是 S7/L5
 的主要「故事導航」證據面，可被章節預覽、整片候選與 Brownfield 修訂共同
 呼叫；它不擁有 Stage cursor、canonical render 或 delivery。
@@ -383,8 +388,10 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
 & "$env:USERPROFILE\miniconda3\python.exe" tools\timeline_review_packet.py `
   --video RUN_DIR\final.mp4 `
   --out-dir RUN_DIR\timeline_review `
+  --review-subject-type current_candidate `
   --soundtrack-probe RUN_DIR\soundtrack_probe_report.json `
   --srt RUN_DIR\subtitles.srt `
+  --text-authority owner_approved `
   --json
 ```
 
@@ -393,10 +400,18 @@ findings。牆負責全片故事結構、活動家族、非相鄰語意重複、
 生命週期與影音大方向；低信心位置進 `timeline_crop_request`，回原始影格、
 連續片段、ASR 或專用 QA 確認。
 
-輸出權限固定為 `candidate_findings_only`：LLM finding 可分成
+`review_subject_type=current_candidate` 的輸出權限固定為
+`candidate_findings_only`；`reference_film` 固定為
+`reference_observations_only`，不得把參考片觀察升成本片 FAIL 或 canonical
+mutation。LLM finding 可分成
 `objective / structural_candidate / taste`，但本支線不得把語意觀察轉成
 technical PASS、creative approval 或 delivery claim。沒有綁定 soundtrack
 probe 或 SRT 時，也不得宣稱音樂／字幕方向正確。
+
+綁定 SRT 時必填 `text_authority`，避免把 `asr_draft`、`owner_approved`、
+`reference_transcript` 或 `ocr_inferred` 混成同一種文字真相。Reviewer 看到
+的特效只能寫成 `effect_observations[]`；Owner／Integrator 另行裁決並建立
+effect contract 後，才准形成 Effect Factory request 或 handoff。
 
 
 ## Current visual-judgment policy

@@ -77,7 +77,7 @@ available; it never advances the Stage cursor or promotes delivery by itself.
 | S4 | Use L0 findings at the coverage/decision gate. |
 | S5 | Compile L1 picture, L2 effects, L3 audio, and L4 text decisions without claiming a canonical render. |
 | S6 | The registered factory performs the only canonical render. |
-| S7-S8 | Use L5 for objective Verify plus agent/human review. For a rendered rough cut or candidate, `tools/timeline_review_packet.py` is the cross-cutting whole-story review surface; its semantic output is candidate findings only. |
+| S7-S8 | Use L5 for objective Verify plus agent/human review. `tools/timeline_review_packet.py` is the cross-cutting whole-story review surface: declare `current_candidate` for candidate flags or `reference_film` for non-blocking reference observations. |
 | S9 | Route a finding to its targeted L0-L4 method, then return through S5-S7. |
 | S10 | Delivery remains an owner and delivery-gate decision. |
 

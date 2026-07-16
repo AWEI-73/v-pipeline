@@ -51,14 +51,17 @@ class TimelineReviewPacketTest(unittest.TestCase):
             packet = build_timeline_review_packet(
                 video,
                 root / "review",
+                review_subject_type="current_candidate",
                 duration_sec=61.0,
                 wall_renderer=self._fake_renderer,
                 soundtrack_probe_path=probe,
                 srt_path=srt,
+                text_authority="owner_approved",
             )
 
             self.assertEqual(packet["artifact_role"], "timeline_review_packet")
             self.assertEqual(packet["status"], "ready_for_agent_review")
+            self.assertEqual(packet["review_subject"]["type"], "current_candidate")
             self.assertEqual(packet["reviewer_contract"]["authority"], "candidate_findings_only")
             self.assertEqual(packet["uniform_timeline_wall"]["sample_count"], 122)
             self.assertEqual(packet["uniform_timeline_wall"]["page_count"], 3)
@@ -69,12 +72,16 @@ class TimelineReviewPacketTest(unittest.TestCase):
             self.assertEqual(packet["review_tracks"]["audio"]["beat_count"], 2)
             self.assertEqual(packet["review_tracks"]["audio"]["duration_binding"]["status"], "match")
             self.assertEqual(packet["review_tracks"]["subtitles"]["cue_count"], 2)
+            self.assertEqual(packet["review_tracks"]["subtitles"]["text_authority"], "owner_approved")
             self.assertEqual(packet["review_tracks"]["subtitles"]["cues"][1]["text"], "Second line")
             findings_template = json.loads(
                 (root / "review" / "timeline_reviewer_findings.template.json").read_text(encoding="utf-8")
             )
             self.assertEqual(findings_template["packet_sha256"], packet["packet_sha256"])
             self.assertEqual(findings_template["status"], "PENDING_AGENT_REVIEW")
+            self.assertEqual(findings_template["review_subject"]["type"], "current_candidate")
+            self.assertEqual(findings_template["effect_observations"], [])
+            self.assertNotIn("effect_requests", findings_template)
 
     def test_optional_tracks_remain_explicitly_unbound(self):
         from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
@@ -86,6 +93,7 @@ class TimelineReviewPacketTest(unittest.TestCase):
             packet = build_timeline_review_packet(
                 video,
                 root / "review",
+                review_subject_type="current_candidate",
                 duration_sec=4.0,
                 wall_renderer=self._fake_renderer,
             )
@@ -106,6 +114,7 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 build_timeline_review_packet(
                     video,
                     root / "review_bad",
+                    review_subject_type="current_candidate",
                     duration_sec=4.0,
                     wall_renderer=self._fake_renderer,
                     soundtrack_probe_path=bad_probe,
@@ -122,6 +131,7 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 build_timeline_review_packet(
                     video,
                     root / "review_wrong_duration",
+                    review_subject_type="current_candidate",
                     duration_sec=4.0,
                     wall_renderer=self._fake_renderer,
                     soundtrack_probe_path=wrong_duration_probe,
@@ -135,6 +145,82 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 build_timeline_review_packet(
                     video,
                     occupied,
+                    review_subject_type="current_candidate",
+                    duration_sec=4.0,
+                    wall_renderer=self._fake_renderer,
+                )
+
+    def test_reference_film_is_non_blocking_and_effects_remain_observations(self):
+        from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "reference.mp4"
+            video.write_bytes(b"reference")
+            packet = build_timeline_review_packet(
+                video,
+                root / "review",
+                review_subject_type="reference_film",
+                duration_sec=4.0,
+                wall_renderer=self._fake_renderer,
+            )
+            self.assertEqual(packet["review_subject"]["type"], "reference_film")
+            self.assertEqual(packet["review_subject"]["decision_effect"], "non_blocking_reference")
+            self.assertEqual(packet["reviewer_contract"]["authority"], "reference_observations_only")
+            self.assertFalse(packet["reviewer_contract"]["effect_boundary"]["effect_factory_handoff_allowed"])
+            self.assertIn(
+                "evidence_refs",
+                packet["reviewer_contract"]["effect_boundary"]["observation_schema"],
+            )
+            findings = json.loads(
+                (root / "review" / "timeline_reviewer_findings.template.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(findings["finding_effect"], "reference_observation")
+            self.assertEqual(findings["effect_observations"], [])
+            self.assertNotIn("effect_requests", findings)
+
+    def test_srt_requires_explicit_text_authority(self):
+        from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "candidate.mp4"
+            video.write_bytes(b"candidate")
+            srt = root / "subtitles.srt"
+            srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nDraft\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "timeline_review_text_authority_required"):
+                build_timeline_review_packet(
+                    video,
+                    root / "missing_authority",
+                    review_subject_type="current_candidate",
+                    duration_sec=4.0,
+                    wall_renderer=self._fake_renderer,
+                    srt_path=srt,
+                )
+            self.assertFalse((root / "missing_authority").exists())
+            with self.assertRaisesRegex(ValueError, "timeline_review_text_authority_without_srt"):
+                build_timeline_review_packet(
+                    video,
+                    root / "authority_without_srt",
+                    review_subject_type="current_candidate",
+                    text_authority="asr_draft",
+                    duration_sec=4.0,
+                    wall_renderer=self._fake_renderer,
+                )
+            self.assertFalse((root / "authority_without_srt").exists())
+
+    def test_rejects_unknown_review_subject_type(self):
+        from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "candidate.mp4"
+            video.write_bytes(b"candidate")
+            with self.assertRaisesRegex(ValueError, "timeline_review_subject_type_invalid"):
+                build_timeline_review_packet(
+                    video,
+                    root / "review",
+                    review_subject_type="delivery_candidate",
                     duration_sec=4.0,
                     wall_renderer=self._fake_renderer,
                 )
@@ -159,7 +245,11 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 capture_output=True,
                 check=True,
             )
-            packet = build_timeline_review_packet(video, root / "review")
+            packet = build_timeline_review_packet(
+                video,
+                root / "review",
+                review_subject_type="current_candidate",
+            )
             self.assertEqual(packet["uniform_timeline_wall"]["sample_count"], 8)
             self.assertEqual(packet["uniform_timeline_wall"]["page_count"], 1)
             wall = root / "review" / "walls" / "wall_30s_01.jpg"

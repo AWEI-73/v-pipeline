@@ -278,16 +278,20 @@ candidate creative quality、creative approval 或 delivery。Durable evidence:
 L5 只在 fresh rendered candidate 存在後成立；no-render plan preflight
 不能宣稱 L5 PASS。L5 是 V Pipeline 既有 review／verify capabilities 的組合，不是新的
 reviewer engine：客觀儀器（rendered QA/final verify/卡點/黑幀/響度/
-caption/lifecycle/fatigue）→ 全片低密度牆 → 可疑窗 `segment_strip`
+caption/lifecycle/fatigue）→ 全片均勻密集牆（預設 0.5 秒一格、30 秒一頁）→ 可疑窗 `segment_strip`
 密集條 → 對 blueprint rubric 逐題作答（每題附 stable ID/秒座標）→
 owner 品味 gate。
 
 首次試航的 findings packet 只能寫在 `.tmp` Owner Zone；在一次實跑證明
 格式摩擦前，不新增正式 artifact、normalizer、registry 或自動回派工具。
 Findings 最少記：`f<N>`、scope（stable IDs/time range）、class
-（objective|taste）、statement、evidence refs、owner_capability、
+（objective|structural_candidate|taste）、statement、evidence refs、owner_capability、
 proposed next LOOP、owner-verdict-required 與 status。L5 只提 finding，
 不得偷偷改 timeline；回派＝下一輪讀取該 finding，不是狀態機。
+
+成片 Reviewer 必須明示 `current_candidate` 或 `reference_film`；後者只能產生
+不阻斷的參考觀察。綁定字幕時必須攜帶文字權威，特效只寫 observation，
+不得從參考片或 candidate 的可見效果直接建立 Effect Factory request。
 
 **2026-07-11 first-of-kind 結果：PASS（scope 僅限 Canon 67
 `candidate_v2`／44 秒／review-only）。**Fresh worker 以四類 carried context

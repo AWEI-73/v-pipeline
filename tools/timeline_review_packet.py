@@ -16,21 +16,37 @@ from video_pipeline_core.timeline_review_packet import build_timeline_review_pac
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--video", required=True, help="rendered rough cut or candidate video")
+    parser.add_argument("--video", required=True, help="rendered rough cut, candidate, or reference film")
     parser.add_argument("--out-dir", required=True, dest="out_dir", help="fresh review packet output directory")
+    parser.add_argument(
+        "--review-subject-type",
+        required=True,
+        choices=["current_candidate", "reference_film"],
+        dest="review_subject_type",
+        help="declare whether observations apply to the current candidate or a non-blocking reference film",
+    )
     parser.add_argument("--interval-sec", type=float, default=0.5, dest="interval_sec")
     parser.add_argument("--wall-duration-sec", type=float, default=30.0, dest="wall_duration_sec")
     parser.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe")
     parser.add_argument("--srt", default=None, help="optional reviewed/draft SRT context")
+    parser.add_argument(
+        "--text-authority",
+        default=None,
+        choices=["asr_draft", "owner_approved", "reference_transcript", "ocr_inferred"],
+        dest="text_authority",
+        help="required provenance class whenever --srt is supplied",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     result = build_timeline_review_packet(
         args.video,
         args.out_dir,
+        review_subject_type=args.review_subject_type,
         interval_sec=args.interval_sec,
         wall_duration_sec=args.wall_duration_sec,
         soundtrack_probe_path=args.soundtrack_probe,
         srt_path=args.srt,
+        text_authority=args.text_authority,
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

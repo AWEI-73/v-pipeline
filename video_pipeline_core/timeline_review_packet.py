@@ -20,12 +20,14 @@ from .keyframe_grid import probe_duration
 from .platform_tools import resolve_ffmpeg
 
 
-VERSION = 1
+VERSION = 2
 DEFAULT_INTERVAL_SEC = 0.5
 DEFAULT_WALL_DURATION_SEC = 30.0
 DEFAULT_COLUMNS = 10
 DEFAULT_CELL_WIDTH = 320
 DEFAULT_CELL_HEIGHT = 180
+REVIEW_SUBJECT_TYPES = {"current_candidate", "reference_film"}
+TEXT_AUTHORITIES = {"asr_draft", "owner_approved", "reference_transcript", "ocr_inferred"}
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -224,13 +226,50 @@ def _audio_context(
     }
 
 
-def _subtitle_context(path: str | Path | None) -> dict[str, Any]:
+def _review_subject_context(review_subject_type: str) -> dict[str, Any]:
+    subject_type = str(review_subject_type or "").strip()
+    if subject_type not in REVIEW_SUBJECT_TYPES:
+        raise ValueError("timeline_review_subject_type_invalid")
+    if subject_type == "reference_film":
+        return {
+            "type": subject_type,
+            "decision_effect": "non_blocking_reference",
+            "review_authority": "reference_observations_only",
+            "finding_effect": "reference_observation",
+            "canonical_candidate_mutation_allowed": False,
+        }
+    return {
+        "type": subject_type,
+        "decision_effect": "candidate_review",
+        "review_authority": "candidate_findings_only",
+        "finding_effect": "candidate_flag",
+        "canonical_candidate_mutation_allowed": False,
+    }
+
+
+def _subtitle_context(
+    path: str | Path | None,
+    *,
+    text_authority: str | None,
+) -> dict[str, Any]:
     if path is None:
-        return {"status": "not_supplied", "limitations": ["No SRT was bound to this review packet."]}
+        if text_authority is not None:
+            raise ValueError("timeline_review_text_authority_without_srt")
+        return {
+            "status": "not_supplied",
+            "text_authority": None,
+            "limitations": ["No SRT was bound to this review packet."],
+        }
+    authority = str(text_authority or "").strip()
+    if not authority:
+        raise ValueError("timeline_review_text_authority_required")
+    if authority not in TEXT_AUTHORITIES:
+        raise ValueError("timeline_review_text_authority_invalid")
     srt_path = Path(path)
     cues = parse_srt(srt_path.read_text(encoding="utf-8-sig"))
     return {
         "status": "bound",
+        "text_authority": authority,
         "artifact_path": str(srt_path),
         "sha256": _sha256(srt_path),
         "cue_count": len(cues),
@@ -261,10 +300,12 @@ def build_timeline_review_packet(
     video_path: str | Path,
     out_dir: str | Path,
     *,
+    review_subject_type: str,
     interval_sec: float = DEFAULT_INTERVAL_SEC,
     wall_duration_sec: float = DEFAULT_WALL_DURATION_SEC,
     soundtrack_probe_path: str | Path | None = None,
     srt_path: str | Path | None = None,
+    text_authority: str | None = None,
     duration_sec: float | None = None,
     wall_renderer: Callable[..., list[Path]] | None = None,
 ) -> dict[str, Any]:
@@ -274,10 +315,11 @@ def build_timeline_review_packet(
     out = Path(out_dir)
     _guard_fresh_output(out)
     duration = float(duration_sec if duration_sec is not None else probe_duration(video))
+    review_subject = _review_subject_context(review_subject_type)
     # Validate bound context before the expensive wall render so a bad track
     # cannot leave a plausible-looking partial evidence root behind.
     audio_context = _audio_context(soundtrack_probe_path, expected_duration_sec=duration)
-    subtitle_context = _subtitle_context(srt_path)
+    subtitle_context = _subtitle_context(srt_path, text_authority=text_authority)
     out.mkdir(parents=True, exist_ok=True)
     walls_dir = out / "walls"
     walls_dir.mkdir(parents=True, exist_ok=True)
@@ -317,6 +359,7 @@ def build_timeline_review_packet(
         "artifact_role": "timeline_review_packet",
         "version": VERSION,
         "status": "ready_for_agent_review",
+        "review_subject": review_subject,
         "source": {
             "video_path": str(video),
             "sha256": source_sha,
@@ -337,9 +380,24 @@ def build_timeline_review_packet(
             "subtitles": subtitle_context,
         },
         "reviewer_contract": {
-            "authority": "candidate_findings_only",
+            "authority": review_subject["review_authority"],
+            "decision_effect": review_subject["decision_effect"],
             "required_inspection": "all_wall_pages",
             "finding_classes": ["objective", "structural_candidate", "taste"],
+            "effect_boundary": {
+                "review_output": "effect_observations_only",
+                "effect_factory_handoff_allowed": False,
+                "request_requires": "owner_or_integrator_verdict_and_separate_effect_contract",
+                "observation_schema": [
+                    "observation_id",
+                    "time_range",
+                    "story_role",
+                    "visible_primitives",
+                    "motion_evidence",
+                    "confidence",
+                    "evidence_refs",
+                ],
+            },
             "questions": [
                 "Where do the visible story chapters and activity families actually change?",
                 "Do non-adjacent sections repeat the same semantic event without a declared callback reason?",
@@ -352,6 +410,8 @@ def build_timeline_review_packet(
                 "delivery readiness",
                 "identity or exact technical-term truth from wall cells alone",
                 "music or subtitle correctness when the corresponding track evidence is not bound",
+                "candidate failure or canonical mutation from a reference-film observation",
+                "effect-factory request or handoff from a visible-effect observation alone",
             ],
         },
         "review_outputs": {
@@ -374,10 +434,14 @@ def build_timeline_review_packet(
         "status": "PENDING_AGENT_REVIEW",
         "packet_path": str(packet_path),
         "packet_sha256": packet_sha,
+        "review_subject": review_subject,
+        "finding_effect": review_subject["finding_effect"],
         "reviewer": {"type": None, "id": None},
         "inspection": {"all_walls_reviewed": False, "wall_ids": []},
         "chapter_candidates": [],
         "text_windows": [],
+        "effect_observations": [],
+        "effect_request_status": "NOT_AUTHORIZED",
         "findings": [],
         "overall": {
             "story_structure": "UNKNOWN",
