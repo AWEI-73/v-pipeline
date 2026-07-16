@@ -102,6 +102,36 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
         "L5"
       ],
       "maturity": "experimental"
+    },
+    {
+      "tool": "tools/timeline_review_packet.py",
+      "when": "after a rough cut or rendered candidate exists, build dense whole-timeline visual evidence and bind optional soundtrack/subtitle context for agent or human story review",
+      "inputs": [
+        "rendered rough cut or candidate video",
+        "optional soundtrack_probe_report.json",
+        "optional subtitles.srt"
+      ],
+      "outputs": [
+        "timeline_review_packet.json",
+        "wall_index.json",
+        "walls/wall_30s_*.jpg",
+        "timeline_reviewer_findings.template.json",
+        "timeline_crop_request.template.json"
+      ],
+      "stop_if": [
+        "video duration cannot be probed",
+        "uniform wall coverage or page count mismatches",
+        "bound soundtrack artifact has the wrong contract",
+        "bound soundtrack duration does not match the reviewed video",
+        "the output root already contains prior timeline-review evidence"
+      ],
+      "capability_id": "cap.verify.uniform-timeline-review.v1",
+      "execution_class": "deterministic",
+      "capability_role": "review",
+      "loops": [
+        "L5"
+      ],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
@@ -341,6 +371,32 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
   "capability_lookup_owner": "verify"
 }
 <!-- TOOL_CONTRACT_END -->
+
+## Uniform Timeline Review（橫向 Reviewer 支線）
+
+`tools/timeline_review_packet.py` 在 rough cut 或 rendered candidate 產生後，
+以預設每 `0.5` 秒一格、每 `30` 秒一頁建立全片均勻時間牆。這是 S7/L5
+的主要「故事導航」證據面，可被章節預覽、整片候選與 Brownfield 修訂共同
+呼叫；它不擁有 Stage cursor、canonical render 或 delivery。
+
+```powershell
+& "$env:USERPROFILE\miniconda3\python.exe" tools\timeline_review_packet.py `
+  --video RUN_DIR\final.mp4 `
+  --out-dir RUN_DIR\timeline_review `
+  --soundtrack-probe RUN_DIR\soundtrack_probe_report.json `
+  --srt RUN_DIR\subtitles.srt `
+  --json
+```
+
+Agent 必須查看 `wall_index.json` 列出的全部牆，再寫入由 template 衍生的
+findings。牆負責全片故事結構、活動家族、非相鄰語意重複、字卡／字幕
+生命週期與影音大方向；低信心位置進 `timeline_crop_request`，回原始影格、
+連續片段、ASR 或專用 QA 確認。
+
+輸出權限固定為 `candidate_findings_only`：LLM finding 可分成
+`objective / structural_candidate / taste`，但本支線不得把語意觀察轉成
+technical PASS、creative approval 或 delivery claim。沒有綁定 soundtrack
+probe 或 SRT 時，也不得宣稱音樂／字幕方向正確。
 
 
 ## Current visual-judgment policy

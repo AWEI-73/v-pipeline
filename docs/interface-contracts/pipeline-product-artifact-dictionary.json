@@ -1492,6 +1492,47 @@
       "canonical_write_policy": "handoff_only"
     },
     {
+      "artifact_name": "timeline_review_packet.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Provide a dense, uniformly sampled whole-timeline evidence packet for agent or human review of a rendered rough cut or candidate.",
+      "functional_parameters": [
+        {
+          "name": "uniform_timeline_wall",
+          "description": "Wall index, page paths, sampling interval, page duration, source binding, and complete-timeline coverage evidence."
+        },
+        {
+          "name": "review_tracks",
+          "description": "Optional bound soundtrack-probe and SRT context used to compare picture structure with music, speech, and subtitle timing."
+        },
+        {
+          "name": "reviewer_contract",
+          "description": "Required all-page inspection, narrow review questions, finding classes, and candidate-findings-only authority."
+        },
+        {
+          "name": "review_outputs",
+          "description": "Bound templates for timeline reviewer findings and targeted crop/continuous-playback requests."
+        }
+      ],
+      "semantic_inputs": [
+        "rendered rough cut or candidate video",
+        "optional soundtrack_probe_report.json",
+        "optional subtitles.srt"
+      ],
+      "downstream_consumers": [
+        "agent/human Reviewer Layer",
+        "L5 editing review",
+        "Brownfield/Workbench targeted revision",
+        "Verify evidence index"
+      ],
+      "review_focus": [
+        "All wall pages are inspected and cite stable time coordinates.",
+        "Story chapters, activity families, semantic repetition, subtitle lifecycle, and audio-picture direction are reviewed without overclaiming exact truth.",
+        "Low-confidence observations route to crop, continuous playback, ASR, dedicated QA, or human taste review.",
+        "Semantic findings remain flags and never create technical PASS, creative approval, or delivery readiness."
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
       "artifact_name": "story_to_material_map.json",
       "owner_branch": "film-canon-product-route",
       "purpose": "Mapping of story beats to source material used for render-facing visual selection.",
