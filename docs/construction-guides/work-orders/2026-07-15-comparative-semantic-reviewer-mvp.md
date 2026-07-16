@@ -1,10 +1,10 @@
 # Work Order: Comparative Semantic Reviewer MVP
 
-Date: 2026-07-15  
-Status: IMPLEMENTED — Phase A and binding closure PASS; maturity remains experimental  
-Recommended worker: Luna, high/maximum reasoning  
-Estimated size: medium-small, bounded workflow/tool work  
-Integrator: SOL / Codex  
+Date: 2026-07-15
+Status: IMPLEMENTED — Phase A and binding closure PASS; maturity remains experimental
+Recommended worker: Luna, high/maximum reasoning
+Estimated size: medium-small, bounded workflow/tool work
+Integrator: SOL / Codex
 
 ## 1. Goal
 
