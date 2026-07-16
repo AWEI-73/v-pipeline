@@ -114,6 +114,77 @@ def _speech_aware_plan(root: Path, music: Path, speech: Path, *, ducking=None):
 
 
 class AudioMixPlanExecutorTest(unittest.TestCase):
+    def test_speech_aware_nonzero_music_placement_preserves_volume_and_waveform(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "music.wav"
+            speech = root / "speech.wav"
+            _sine(music, 4.0)
+            _speech_tone(speech, shift=2.0, duration=6.0)
+            plan = {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "target_duration_sec": 6.0,
+                "ducking_policy": "speech_aware",
+                "ducking": {"duck_db": -18.0, "attack_ms": 80, "release_ms": 350},
+                "source_audio_policy": {"original_audio_policy": "preserve_speech"},
+                "sections": [
+                    {"section_id": "early_music", "start_sec": 0.0, "duration_sec": 2.0},
+                    {"section_id": "late_music", "start_sec": 2.0, "duration_sec": 4.0},
+                    {"section_id": "speech", "start_sec": 0.0, "duration_sec": 6.0},
+                ],
+                "tracks": [
+                    {
+                        "section_id": "early_music",
+                        "candidate_id": "early_bgm",
+                        "audio_file": str(music),
+                        "role": "music_bed",
+                        "ducking_policy": "speech_aware",
+                        "source_type": "licensed_library",
+                        "license_status": "accepted",
+                        "volume": 0.2,
+                    },
+                    {
+                        "section_id": "late_music",
+                        "candidate_id": "bgm",
+                        "audio_file": str(music),
+                        "role": "music_bed",
+                        "ducking_policy": "speech_aware",
+                        "source_type": "licensed_library",
+                        "license_status": "accepted",
+                        "volume": 0.2,
+                    },
+                    {
+                        "section_id": "speech",
+                        "candidate_id": "protected_speech",
+                        "audio_file": str(speech),
+                        "role": "source_speech",
+                        "ducking_policy": "preserve_original_audio",
+                        "source_type": "original_audio",
+                        "license_status": "source_original",
+                        "volume": 1.0,
+                    },
+                ],
+            }
+
+            with patch(
+                "video_pipeline_core.material_map.detect_speech_runs",
+                return_value=[
+                    {"start": 0.0, "end": 3.0, "kind": "silence"},
+                    {"start": 3.0, "end": 4.0, "kind": "speech"},
+                    {"start": 4.0, "end": 6.0, "kind": "silence"},
+                ],
+            ):
+                result = execute_audio_mix_plan(plan, acceptance={"ok": True}, out_dir=root)
+
+            self.assertTrue(result["ok"], result)
+            report = result["audio_mix_report"]
+            music_placement = next(item for item in report["placements"] if item["candidate_id"] == "bgm")
+            self.assertEqual(music_placement["start_sec"], 2.0)
+            self.assertEqual(music_placement["applied_volume"], 0.2)
+            self.assertTrue(music_placement["ducking_applied"])
+            self.assertTrue(report["protected_speech_waveform_check"]["pass"])
+
     def test_speech_aware_defaults_report_dynamic_rms_and_waveform_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

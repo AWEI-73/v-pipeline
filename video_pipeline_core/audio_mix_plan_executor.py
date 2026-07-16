@@ -638,14 +638,28 @@ def _apply_ducking_policy(
             active = [window for window in speech_windows if _overlaps(placement, window)]
             if not active:
                 continue
-            placement["applied_volume"] = 1.0
+            placement_start = _float_value(placement.get("start_sec"))
+            placement_duration = _float_value(placement.get("duration_sec"))
+            local_active = []
+            for window in active:
+                local_start = max(0.0, _float_value(window.get("start_sec")) - placement_start)
+                local_end = min(
+                    placement_duration,
+                    _float_value(window.get("end_sec")) - placement_start,
+                )
+                if local_end > local_start:
+                    local_active.append({"start_sec": local_start, "end_sec": local_end})
+            placement["applied_volume"] = round(
+                max(0.0, _float_value(placement.get("volume"), 1.0)),
+                3,
+            )
             placement["ducking_applied"] = True
             placement["ducking_mode"] = "speech_aware"
             placement["speech_windows"] = active
             placement["speech_aware_expression"] = _speech_aware_expression(
-                active,
+                local_active,
                 speech_config or SPEECH_AWARE_DEFAULTS,
-                timeline_duration or placement["start_sec"] + placement["duration_sec"],
+                placement_duration,
             )
             continue
         if not _is_duckable_music(placement):
@@ -1103,11 +1117,16 @@ def _mix_section_timeline(
             chain += f",afade=t=out:st={max(0.0, duration - fade_out):.3f}:d={fade_out:.3f}"
         if placement.get("ducking_mode") == "speech_aware":
             expression = placement.get("speech_aware_expression") or "1"
-            chain += f",volume={expression}:eval=frame"
+            volume = max(0.0, _float_value(placement.get("applied_volume"), 1.0))
+            chain += f",volume={volume:.8f}*({expression}):eval=frame"
         else:
             volume = max(0.0, _float_value(placement.get("applied_volume"), 1.0))
             chain += f",volume={volume:.3f}"
-        chain += f",adelay={delay_ms}:all=1[t{idx}]"
+        # Keep every placement input alive for the complete timeline.  Older
+        # ffmpeg builds renormalize `amix` whenever an input ends; without this
+        # padding, consecutive music placements change protected-speech gain
+        # even though their planned volume is constant.
+        chain += f",adelay={delay_ms}:all=1,apad=whole_dur={total_duration:.3f}[t{idx}]"
         filters.append(chain)
         mix_inputs.append(f"[t{idx}]")
 
