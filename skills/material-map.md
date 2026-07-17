@@ -1,6 +1,6 @@
 ---
 name: material-map
-description: 素材地圖生命週期 Skill。把討論/現有素材/補拍需求收斂成 material_needs → 盤點 → delta → 人工決策 → revised contract → BUILD handoff。M6d orchestration 層,只定義方法與決策責任;確定性的 validate/join/gate/revision 一律交給 Python 工具。
+description: 素材地圖生命週期 Skill。把討論/現有素材/補拍需求收斂成 material_needs → 盤點 → delta → 人工決策 → revised contract → BUILD handoff；大量素材池使用低 Token 的 coarse-to-deep 粗篩。M6d orchestration 層,只定義方法與決策責任;確定性的 validate/join/gate/revision 一律交給 Python 工具。
 ---
 
 # Material Map Lifecycle Skill
@@ -609,6 +609,46 @@ metadata, extensions, folder grouping, rough duplicate signals, and candidate
 video/audio presence. Use it to ask better questions and decide whether the
 next Material Map pass should scan all materials or only a reviewed subset. Do
 not mark needs covered from this summary alone.
+
+## Large-Pool Coarse-to-Deep Profile
+
+Use this agentic profile when a complete pool is larger than one bounded
+`material_understanding_matrix` pass or the user asks to minimize token cost.
+Do not create another route runner or deep-review every asset by default.
+
+1. Freeze the complete inventory, explicit reference exclusions, and source
+   hashes. Remove exact duplicates before visual review. Reuse prior review for
+   an unchanged source hash; do not ask an Agent to describe it again.
+2. Partition candidates by top-level folder and media type. Treat the folder
+   name as a retrieval prior only. Preserve every asset identity even when the
+   group is sampled.
+3. Build bounded matrix/contact-sheet batches of at most 24 assets. Start with
+   one still frame for photos and three spread frames for videos. Do not use a
+   0.5-second whole-source wall for raw-footage intake; reserve dense walls for
+   selected windows or rendered-film review. For HEIC/HEIF, use the matrix's
+   `heic_review_jpeg` proxy for review while keeping `source_photo` and the
+   original source hash as canonical identity.
+4. Review a representative spread from each apparent family plus filename,
+   duration, hash, and visual outliers. If the sample is inconsistent, mixed,
+   story-critical, or contradicts its folder prior, place the family in the
+   exception queue and expand review. Do not silently propagate a folder label.
+5. Record controlled fields, not essays: `observed_activity`, `people_or_class`,
+   `shot_scale`, `action_phase`, `course_label_candidate`, `confidence`,
+   `evidence_refs`, and `review_state`. Do not write one prose report per asset.
+6. Keep sampled-but-unconfirmed assets `provisional`. A provisional label
+   cannot satisfy a material need, emit a formal course label, or enter a
+   canonical picture plan. Only reviewed scene-to-need evidence can do that.
+7. Run ASR only for speech candidates or when spoken content affects selection.
+   Deep-review only exception-queue assets, story anchors, likely selected
+   windows, and identities/text that require verification.
+8. Finish the pass only when every candidate asset is accounted for as
+   `reviewed`, `provisional`, `deferred`, `excluded`, or `duplicate`. Persist
+   reviewed results in the Project Material Map so later runs process only new
+   or hash-changed assets.
+
+This profile is an L0 review method over existing registered tools. It does not
+certify visual truth, invent requirements, select the final story, or bypass the
+Material Map review/delta gates.
 
 ## Material Understanding Matrix
 

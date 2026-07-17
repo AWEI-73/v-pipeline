@@ -46,12 +46,20 @@ Non-goals:
 - Add a distinct evidence need for the cable-laying experience family.
 - Keep empty folder names as unresolved retrieval hints; never treat them as
   evidence.
+- Extend the existing Material Map Skill with a large-pool coarse-to-deep
+  profile: 24-asset bounded batches, representative-family review, an exception
+  queue, provisional labels, hash-based reuse and ASR only for speech candidates.
+- Convert HEIC/HEIF to a JPEG review proxy inside the understanding matrix while
+  retaining the original source path and identity as material truth.
 
 ## VERIFY
 
 - Real inventory read-back reports 306 total files, 214 images, 88 videos and 4
   other files.
 - HEIC/HEIF regression test fails before the patch and passes after it.
+- A real Canon 67 HEIC forward test produces a readable contact sheet through
+  `material_understanding_matrix.py` with `proxy_kind=heic_review_jpeg`, no
+  `photo_proxy_failed` risk and the original `source_photo` preserved.
 - `editorial_ambiguity.py validate` returns `ok=true`, 11 segments and 47
   evidence needs with no cross-artifact errors.
 - UTF-8/JSON/hash read-back passes for the Stage 2 v2 package.

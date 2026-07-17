@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -14,6 +15,44 @@ def _jpg(path: Path, color: str):
 
 
 class MaterialUnderstandingMatrixTest(unittest.TestCase):
+    def test_heic_photo_uses_bound_review_proxy(self):
+        from video_pipeline_core.material_understanding_matrix import build_material_understanding_matrix
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo = root / "experience" / "cable.HEIC"
+            photo.parent.mkdir(parents=True)
+            photo.write_bytes(b"fake heic")
+            db = {
+                "artifact_role": "materials_db",
+                "files": [{
+                    "id": "h001",
+                    "path": str(photo),
+                    "type": "photo",
+                    "tags_from_path": ["experience"],
+                }],
+            }
+
+            def fake_convert(source, out_path):
+                self.assertEqual(Path(source), photo)
+                _jpg(Path(out_path), "orange")
+                return str(out_path)
+
+            with patch(
+                "video_pipeline_core.material_understanding_matrix._convert_heic_photo",
+                side_effect=fake_convert,
+            ):
+                matrix = build_material_understanding_matrix(
+                    db,
+                    out_dir=root / "out",
+                )
+
+            visual = matrix["assets"][0]["visual_evidence"]
+            self.assertEqual(visual["source_photo"], str(photo))
+            self.assertEqual(visual["proxy_kind"], "heic_review_jpeg")
+            self.assertTrue(Path(visual["photo"]).is_file())
+            self.assertNotIn("photo_proxy_failed", matrix["assets"][0]["risk_flags"])
+
     def test_builds_matrix_without_claiming_material_truth(self):
         from video_pipeline_core.material_understanding_matrix import build_material_understanding_matrix
 

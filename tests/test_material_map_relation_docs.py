@@ -47,6 +47,20 @@ class MaterialMapRelationDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
 
+    def test_large_pool_profile_is_token_bounded_and_evidence_safe(self):
+        text = read("skills/material-map.md")
+        for expected in [
+            "Large-Pool Coarse-to-Deep Profile",
+            "Do not write one prose report per asset",
+            "unchanged source hash",
+            "provisional",
+            "exception queue",
+            "ASR only for speech candidates",
+            "heic_review_jpeg",
+            "cannot satisfy a material need",
+        ]:
+            self.assertIn(expected, text)
+
 
 if __name__ == "__main__":
     unittest.main()

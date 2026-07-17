@@ -7,6 +7,7 @@ mark needs covered or promote assets into BUILD by itself.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -136,6 +137,40 @@ def _extract_frame(source: str | Path, timestamp_sec: float, out_path: str | Pat
     return str(out)
 
 
+def _convert_heic_photo(source: str | Path, out_path: str | Path) -> str:
+    """Write a JPEG review proxy while preserving the HEIC as source truth."""
+    from PIL import Image, ImageOps
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+        with Image.open(source) as image:
+            review = ImageOps.exif_transpose(image).convert("RGB")
+            review.thumbnail((512, 4096))
+            review.save(out, "JPEG", quality=90)
+        return str(out)
+    except Exception as pillow_error:
+        converter = shutil.which("heif-convert")
+        if not converter:
+            raise RuntimeError("HEIC decoder unavailable") from pillow_error
+        proc = subprocess.run(
+            [converter, "--quiet", "-q", "90", str(source), str(out)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if proc.returncode != 0 or not out.is_file():
+            raise RuntimeError(proc.stderr or "heif-convert failed") from pillow_error
+        with Image.open(out) as image:
+            review = ImageOps.exif_transpose(image).convert("RGB")
+            review.thumbnail((512, 4096))
+            review.save(out, "JPEG", quality=90)
+    return str(out)
+
+
 def _audio_evidence(entry: Mapping[str, Any]) -> dict[str, Any]:
     media_type = _media_type(entry)
     if media_type != "video":
@@ -192,7 +227,20 @@ def _asset_entry(
         "evidence_level": "file_and_frame_observation",
     }
     if media_type == "photo":
-        visual["photo"] = path
+        suffix = Path(path).suffix.lower()
+        if suffix in {".heic", ".heif"} and path and Path(path).is_file():
+            proxy_path = (
+                out_dir / "material_understanding_frames" / asset_id / "photo_proxy.jpg"
+            )
+            visual["source_photo"] = path
+            visual["proxy_kind"] = "heic_review_jpeg"
+            try:
+                visual["photo"] = _convert_heic_photo(path, proxy_path)
+            except Exception as exc:
+                risk_flags.append("photo_proxy_failed")
+                visual["photo_proxy_error"] = str(exc)
+        else:
+            visual["photo"] = path
     elif media_type == "video" and path and Path(path).is_file():
         frames = []
         for index, ts in enumerate(_timestamps(duration, frame_budget), start=1):
