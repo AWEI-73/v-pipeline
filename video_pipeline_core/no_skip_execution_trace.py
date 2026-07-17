@@ -395,7 +395,7 @@ def write_strict_trace_audit(
     if not _is_within_path(accountability.resolve(strict=False), output_root):
         return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", [{"code": "strict_output_outside_accountability", "path": str(out_dir), "message": "strict closure output must remain under accountability root"}], [])
     catalog = load_live_catalog(root / "skills")
-    pending_terminal_step_ids = {
+    pending_terminal_step_id_set = {
         str(step.get("step_id"))
         for step in (contract.get("steps") or [])
         if isinstance(step, Mapping)
@@ -412,7 +412,7 @@ def write_strict_trace_audit(
         root,
         contract,
         catalog,
-        allow_pending_step_ids=pending_terminal_step_ids,
+        allow_pending_step_ids=pending_terminal_step_id_set,
     )
     decision_entries, decision_errors, owner_waiting = _strict_decision_entries(root, contract, context["reference"])
     lineage = validate_receipt_lineage(root, contract)
@@ -425,6 +425,26 @@ def write_strict_trace_audit(
     else:
         final_state = evidence.get("final_state") or "PASS"
     tool_entries = _strict_tool_entries(root, contract, catalog, evidence.get("tool_entries") or [])
+    ordered_step_ids = [
+        str(step.get("step_id"))
+        for step in (contract.get("steps") or [])
+        if isinstance(step, Mapping) and isinstance(step.get("step_id"), str)
+    ]
+    pending_terminal_step_ids = [
+        step_id for step_id in ordered_step_ids
+        if step_id in pending_terminal_step_id_set
+    ]
+    sealed_step_ids = [
+        str(entry.get("step_id"))
+        for entry in tool_entries
+        if isinstance(entry, Mapping) and isinstance(entry.get("step_id"), str)
+    ]
+    closure_coverage = {
+        "closure_scope": "pre_delivery" if pending_terminal_step_ids else "complete",
+        "sealed_through_step_id": sealed_step_ids[-1] if sealed_step_ids else None,
+        "sealed_step_ids": sealed_step_ids,
+        "pending_terminal_step_ids": pending_terminal_step_ids,
+    }
     gate_audit = audit_run_gate_authenticity(run_root)
     trace = {
         "artifact_role": "pipeline_execution_trace",
@@ -436,6 +456,7 @@ def write_strict_trace_audit(
         "tool_entries": tool_entries,
         "decision_entries": decision_entries,
         "lineage_summary": lineage_summary,
+        **closure_coverage,
         "human_creative_approval": False,
         "final_delivery_claimed": False,
     }
@@ -452,6 +473,7 @@ def write_strict_trace_audit(
         "tool_entries": tool_entries,
         "decision_entries": decision_entries,
         "lineage_summary": lineage_summary,
+        **closure_coverage,
         "human_creative_approval": False,
         "final_delivery_claimed": False,
         "gate_authenticity": gate_audit,
@@ -464,6 +486,7 @@ def write_strict_trace_audit(
         "contract_path": context["reference"]["contract_path"],
         "contract_sha256": context["reference"]["contract_sha256"],
         "lineage_summary": lineage_summary,
+        **closure_coverage,
         "errors": decision["errors"],
         "warnings": decision["warnings"],
     }

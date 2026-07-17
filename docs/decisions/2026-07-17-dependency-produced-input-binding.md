@@ -1,7 +1,7 @@
 # Decision: Bind dynamic step inputs through parent receipts
 
 Date: 2026-07-17
-Status: accepted
+Status: verified
 Scope: accountable capability execution contracts and Stage 2-to-10 lineage
 Superpowers phase: review
 
@@ -32,6 +32,9 @@ Direction:
 - The child receipt keeps the resolved digest in `input_hashes` and the exact
   parent receipt path/hash in `dependency_receipt_hashes`. No second lineage
   store is introduced.
+- A strict no-skip closure records the scope it actually sealed. When the
+  closure and delivery steps have not run yet, it is a `pre_delivery` closure,
+  not proof that the complete Stage 2-to-10 receipt DAG already exists.
 
 Non-goals:
 
@@ -39,6 +42,8 @@ Non-goals:
 - No mutable receipt, companion, or run repair.
 - No new orchestrator, renderer engine, route runner, or delivery authority.
 - No behavior change for legacy runs without a committed strict companion.
+- No rewrite of historical closure artifacts. Coverage semantics are additive
+  and apply to newly generated artifacts.
 
 ## DO
 
@@ -49,6 +54,10 @@ Files / modules:
 - `tests/test_capability_execution_receipts.py`
 - `tools/write_delivery_gate_report.py`
 - `tests/test_delivery_gate_report.py`
+- `video_pipeline_core/no_skip_execution_trace.py`
+- `video_pipeline_core/delivery_gate.py`
+- `tests/test_no_skip_execution_trace.py`
+- `tests/test_delivery_gate.py`
 - a new immutable Stage 2-to-10 execution companion and run root
 
 Function-level plan:
@@ -62,6 +71,9 @@ Function-level plan:
 - Preserve arbitrary external run-directory support in the legacy delivery
   gate. Strict companion discovery applies only to repository-portable run
   roots.
+- Emit and cross-check `closure_scope`, `sealed_through_step_id`,
+  `sealed_step_ids`, and `pending_terminal_step_ids` in the trace, decision,
+  closure audit, and delivery-gate lineage result.
 
 Data / interface changes:
 
@@ -87,6 +99,9 @@ failed `forward_v1` and `forward_v2` artifacts remain immutable historical
 evidence. The corrected proof uses a new work order companion and `forward_v3`
 run root.
 
+Legacy closure artifacts without coverage fields retain their behavior. New
+artifacts fail closed when trace, decision, and audit disagree about coverage.
+
 ## VERIFY
 
 Pre-checks:
@@ -108,6 +123,10 @@ Tests:
 - Strict in-repo delivery binding still requires current lineage closure.
 - A fresh 2-to-4-second Stage 2-to-10 fixture completes its full receipt DAG,
   four negative checks, focused suite, audits, and one final full suite.
+- A true-shape pre-delivery fixture proves that pending closure/delivery steps
+  are named explicitly and cannot be mistaken for already sealed receipts.
+- A coverage mismatch between closure artifacts is rejected by the delivery
+  gate.
 
 Manual checks:
 
@@ -122,6 +141,18 @@ Regression risks:
 - Breaking legacy delivery-gate runs outside the repository.
 - Quietly weakening strict runs when a dynamic input cannot be resolved.
 
+Verification results (2026-07-17):
+
+- Core closure and delivery-gate tests: 80 passed, exit 0.
+- Focused adjacent suite: 185 passed, exit 0.
+- Skill/tool ownership audit: 114/114 tools owned, exit 0.
+- Full suite, executed once: 2,890 tests, 1 skipped, exit 0,
+  705.677 seconds reported by unittest.
+- Raw full-suite stdout, stderr, exit code, and wall-clock evidence are retained
+  under
+  `.tmp/stage2_stage10_forward_lineage_closure/integrator_closure_20260717_v1/`.
+- `git diff --check`: exit 0.
+
 ## Decision Notes
 
 Accepted because:
@@ -135,6 +166,10 @@ Tradeoffs:
 The execution-contract schema becomes slightly richer, but avoids pre-render
 hash probing, companion churn, and duplicated lineage state.
 
+The closure schema also becomes slightly richer. This removes an ambiguous
+`PASS`: a pre-delivery seal can pass for its bounded scope without claiming
+that later S8/S10 receipts already exist.
+
 Open questions:
 
 None for this bounded closure. Transitive producer references remain
@@ -147,6 +182,8 @@ Related files:
 - `docs/construction-guides/work-orders/2026-07-17-stage2-stage10-forward-lineage-closure.md`
 - `.tmp/stage2_stage10_forward_lineage_closure/final/worker_report.md`
 - `video_pipeline_core/capability_execution.py`
+- `video_pipeline_core/no_skip_execution_trace.py`
+- `video_pipeline_core/delivery_gate.py`
 - `tools/write_delivery_gate_report.py`
 
 Related commits:

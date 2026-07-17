@@ -27,6 +27,19 @@ class NoSkipExecutionTraceTest(unittest.TestCase):
             skill_path = root / "skills/example.md"
             skill = json.loads(skill_path.read_text(encoding="utf-8").split("\n", 1)[1].rsplit("\n", 2)[0])
             skill["canonical_tools"].append({
+                "tool": "tools/no_skip_execution_trace.py",
+                "command": "tools/no_skip_execution_trace.py",
+                "when": "seal strict pre-delivery lineage",
+                "inputs": [],
+                "outputs": [".tmp/example/accountability/pipeline_execution_trace.json"],
+                "stop_if": [],
+                "capability_id": "cap.verify.no-skip-execution-trace.v1",
+                "execution_class": "deterministic",
+                "capability_role": "review",
+                "loops": ["L5"],
+                "maturity": "experimental",
+            })
+            skill["canonical_tools"].append({
                 "tool": "tools/child.py",
                 "command": "tools/child.py --out .tmp/example/delivery-output.txt",
                 "when": "run terminal delivery",
@@ -47,10 +60,33 @@ class NoSkipExecutionTraceTest(unittest.TestCase):
             companion = root / path
             contract = json.loads(companion.read_text(encoding="utf-8"))
             contract["steps"].append({
+                "step_id": "L8.closure",
+                "loop": "L5",
+                "capability_id": "cap.verify.no-skip-execution-trace.v1",
+                "depends_on": ["L2.child"],
+                "command_argv": [
+                    "{python}", "tools/no_skip_execution_trace.py",
+                    "--run", contract["run_root"],
+                    "--contract", path,
+                    "--out-dir", contract["accountability_root"],
+                    "--json",
+                ],
+                "timeout_ms": 1000,
+                "inputs": [],
+                "required_outputs": [
+                    contract["accountability_root"] + "/pipeline_execution_trace.json",
+                    contract["accountability_root"] + "/no_skip_contract_decision.json",
+                    contract["accountability_root"] + "/strict_accountability_closure_audit.json",
+                ],
+                "required_verifier_step_ids": [],
+                "max_attempts": 1,
+                "allowed_retry_failure_classes": [],
+            })
+            contract["steps"].append({
                 "step_id": "L10.delivery",
                 "loop": "L5",
                 "capability_id": "cap.verify.write-delivery-gate-report.v1",
-                "depends_on": ["L2.child"],
+                "depends_on": ["L8.closure"],
                 "command_argv": ["{python}", "tools/child.py", "--out", ".tmp/example/delivery-output.txt"],
                 "timeout_ms": 1000,
                 "inputs": [],
@@ -73,9 +109,13 @@ class NoSkipExecutionTraceTest(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual("PASS", result["final_state"])
         self.assertEqual(
-            ["L1.example", "L2.child", "L10.delivery"],
+            ["L1.example", "L2.child", "L8.closure", "L10.delivery"],
             result["lineage_summary"]["ordered_step_ids"],
         )
+        self.assertEqual("pre_delivery", result["closure_scope"])
+        self.assertEqual("L2.child", result["sealed_through_step_id"])
+        self.assertEqual(["L1.example", "L2.child"], result["sealed_step_ids"])
+        self.assertEqual(["L8.closure", "L10.delivery"], result["pending_terminal_step_ids"])
 
     def test_strict_cli_returns_zero_for_ok_waiting_owner_result(self):
         import tools.no_skip_execution_trace as no_skip_cli
@@ -119,6 +159,10 @@ class NoSkipExecutionTraceTest(unittest.TestCase):
             }, trace["lineage_summary"])
             self.assertEqual([], trace["tool_entries"][0]["depends_on_step_ids"])
             self.assertEqual({}, trace["tool_entries"][0]["dependency_receipt_hashes"])
+            self.assertEqual("complete", trace["closure_scope"])
+            self.assertEqual("L1.example", trace["sealed_through_step_id"])
+            self.assertEqual(["L1.example"], trace["sealed_step_ids"])
+            self.assertEqual([], trace["pending_terminal_step_ids"])
             self.assertFalse((root / contract["run_root"] / "pipeline_execution_trace.json").exists())
 
     def test_strict_agent_sidecar_binds_receipt_and_missing_owner_waits(self):

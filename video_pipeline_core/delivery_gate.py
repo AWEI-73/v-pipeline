@@ -185,6 +185,16 @@ def apply_strict_lineage_closure_to_gate(
             errors.append("decision and trace contract hashes differ")
         if decision.get("lineage_summary") != trace.get("lineage_summary"):
             errors.append("decision and trace lineage summaries differ")
+        coverage_fields = (
+            "closure_scope",
+            "sealed_through_step_id",
+            "sealed_step_ids",
+            "pending_terminal_step_ids",
+        )
+        if any(field in trace or field in decision for field in coverage_fields):
+            for field in coverage_fields:
+                if decision.get(field) != trace.get(field):
+                    errors.append(f"decision and trace {field} differ")
     if isinstance(closure, dict):
         if closure.get("ok") is not True:
             errors.append("strict closure audit is not PASS")
@@ -192,6 +202,34 @@ def apply_strict_lineage_closure_to_gate(
             errors.append("closure audit and trace lineage summaries differ")
         if isinstance(trace, dict) and closure.get("run_instance_id") != trace.get("run_instance_id"):
             errors.append("closure audit and trace run_instance_id differ")
+        coverage_fields = (
+            "closure_scope",
+            "sealed_through_step_id",
+            "sealed_step_ids",
+            "pending_terminal_step_ids",
+        )
+        if isinstance(trace, dict) and any(field in trace or field in closure for field in coverage_fields):
+            for field in coverage_fields:
+                if closure.get(field) != trace.get(field):
+                    errors.append(f"closure audit and trace {field} differ")
+    if isinstance(trace, dict) and "closure_scope" in trace:
+        closure_scope = trace.get("closure_scope")
+        sealed_step_ids = trace.get("sealed_step_ids")
+        pending_step_ids = trace.get("pending_terminal_step_ids")
+        if closure_scope not in {"complete", "pre_delivery"}:
+            errors.append("trace closure_scope is invalid")
+        if not isinstance(sealed_step_ids, list) or not all(isinstance(item, str) for item in sealed_step_ids):
+            errors.append("trace sealed_step_ids are invalid")
+            sealed_step_ids = []
+        if not isinstance(pending_step_ids, list) or not all(isinstance(item, str) for item in pending_step_ids):
+            errors.append("trace pending_terminal_step_ids are invalid")
+            pending_step_ids = []
+        if trace.get("sealed_through_step_id") != (sealed_step_ids[-1] if sealed_step_ids else None):
+            errors.append("trace sealed_through_step_id does not match sealed_step_ids")
+        if closure_scope == "pre_delivery" and not pending_step_ids:
+            errors.append("pre-delivery closure must declare pending terminal steps")
+        if closure_scope == "complete" and pending_step_ids:
+            errors.append("complete closure cannot declare pending terminal steps")
     if expected_contract_path and isinstance(trace, dict) and trace.get("work_order_execution_contract") != expected_contract_path:
         errors.append("trace contract path differs from committed companion")
     if expected_contract_sha256 and isinstance(trace, dict) and trace.get("work_order_execution_contract_sha256") != expected_contract_sha256:
@@ -217,6 +255,10 @@ def apply_strict_lineage_closure_to_gate(
         "root_step": lineage.get("root_step"),
         "leaf_step": lineage.get("leaf_step"),
         "ordered_step_ids": list(lineage.get("ordered_step_ids") or []),
+        "closure_scope": trace.get("closure_scope"),
+        "sealed_through_step_id": trace.get("sealed_through_step_id"),
+        "sealed_step_ids": list(trace.get("sealed_step_ids") or []),
+        "pending_terminal_step_ids": list(trace.get("pending_terminal_step_ids") or []),
         "run_instance_id": trace.get("run_instance_id"),
         "contract_path": trace.get("work_order_execution_contract"),
         "contract_sha256": trace.get("work_order_execution_contract_sha256"),

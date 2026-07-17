@@ -39,6 +39,10 @@ class DeliveryGateTest(unittest.TestCase):
                     "ordered_step_ids": ["L1.example", "L10.delivery"],
                     "closure_status": "PASS",
                 },
+                "closure_scope": "pre_delivery",
+                "sealed_through_step_id": "L1.example",
+                "sealed_step_ids": ["L1.example"],
+                "pending_terminal_step_ids": ["L10.delivery"],
             }
             decision = {
                 "artifact_role": "no_skip_contract_decision",
@@ -49,6 +53,10 @@ class DeliveryGateTest(unittest.TestCase):
                 "contract_path": "contract.json",
                 "contract_sha256": "a" * 64,
                 "lineage_summary": trace["lineage_summary"],
+                "closure_scope": trace["closure_scope"],
+                "sealed_through_step_id": trace["sealed_through_step_id"],
+                "sealed_step_ids": trace["sealed_step_ids"],
+                "pending_terminal_step_ids": trace["pending_terminal_step_ids"],
             }
             (accountability / "pipeline_execution_trace.json").write_text(json.dumps(trace), encoding="utf-8")
             (accountability / "no_skip_contract_decision.json").write_text(json.dumps(decision), encoding="utf-8")
@@ -58,6 +66,10 @@ class DeliveryGateTest(unittest.TestCase):
                     "ok": True,
                     "run_instance_id": "run-1",
                     "lineage_summary": trace["lineage_summary"],
+                    "closure_scope": trace["closure_scope"],
+                    "sealed_through_step_id": trace["sealed_through_step_id"],
+                    "sealed_step_ids": trace["sealed_step_ids"],
+                    "pending_terminal_step_ids": trace["pending_terminal_step_ids"],
                 }),
                 encoding="utf-8",
             )
@@ -68,6 +80,9 @@ class DeliveryGateTest(unittest.TestCase):
         self.assertEqual(gate["lineage_closure"]["run_instance_id"], "run-1")
         self.assertEqual(len(gate["lineage_closure"]["closure_sha256"]), 64)
         self.assertEqual(len(gate["lineage_closure"]["trace_sha256"]), 64)
+        self.assertEqual("pre_delivery", gate["lineage_closure"]["closure_scope"])
+        self.assertEqual("L1.example", gate["lineage_closure"]["sealed_through_step_id"])
+        self.assertEqual(["L10.delivery"], gate["lineage_closure"]["pending_terminal_step_ids"])
 
     def test_strict_lineage_closure_rejects_trace_contract_substitution(self):
         with TemporaryDirectory() as tmp:
@@ -104,6 +119,56 @@ class DeliveryGateTest(unittest.TestCase):
 
         self.assertFalse(gate["pass"])
         self.assertEqual(gate["blocking"][0]["rule"], "strict_lineage_closure_mismatch")
+
+    def test_strict_lineage_closure_rejects_coverage_scope_mismatch(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            accountability = root / "accountability"
+            accountability.mkdir()
+            coverage = {
+                "closure_scope": "pre_delivery",
+                "sealed_through_step_id": "L1.example",
+                "sealed_step_ids": ["L1.example"],
+                "pending_terminal_step_ids": ["L10.delivery"],
+            }
+            trace = {
+                "artifact_role": "pipeline_execution_trace",
+                "version": 2,
+                "run_instance_id": "run-1",
+                "work_order_execution_contract": "contract.json",
+                "work_order_execution_contract_sha256": "a" * 64,
+                "lineage_summary": {"closure_status": "PASS"},
+                **coverage,
+            }
+            decision = {
+                "artifact_role": "no_skip_contract_decision",
+                "version": 2,
+                "ok": True,
+                "final_state": "PASS",
+                "run_instance_id": "run-1",
+                "contract_path": "contract.json",
+                "contract_sha256": "a" * 64,
+                "lineage_summary": trace["lineage_summary"],
+                **coverage,
+            }
+            decision["pending_terminal_step_ids"] = []
+            closure = {
+                "artifact_role": "strict_accountability_closure_audit",
+                "ok": True,
+                "run_instance_id": "run-1",
+                "lineage_summary": trace["lineage_summary"],
+                **coverage,
+            }
+            (accountability / "pipeline_execution_trace.json").write_text(json.dumps(trace), encoding="utf-8")
+            (accountability / "no_skip_contract_decision.json").write_text(json.dumps(decision), encoding="utf-8")
+            (accountability / "strict_accountability_closure_audit.json").write_text(json.dumps(closure), encoding="utf-8")
+
+            gate = apply_strict_lineage_closure_to_gate(root, {"pass": True})
+
+        self.assertFalse(gate["pass"])
+        self.assertEqual("strict_lineage_closure_mismatch", gate["blocking"][0]["rule"])
+        self.assertIn("pending_terminal_step_ids differ", gate["blocking"][0]["message"])
+
     def test_failed_existing_audit_blocks_delivery(self):
         result = evaluate_delivery_gate({
             "verify_result": {"pass": True},
