@@ -131,9 +131,11 @@ class AccountableExecutionTest(unittest.TestCase):
                 "command_argv", "started_at", "completed_at", "duration_sec", "exit_code", "status",
                 "failure_class", "retryable", "input_hashes", "output_hashes", "changed_paths",
                 "pre_manifest_path", "pre_manifest_sha256", "post_manifest_path", "post_manifest_sha256",
-                "source_tool",
+                "source_tool", "depends_on_step_ids", "dependency_receipt_hashes",
             }, set(receipt))
             self.assertEqual("pass", receipt["status"])
+            self.assertEqual([], receipt["depends_on_step_ids"])
+            self.assertEqual({}, receipt["dependency_receipt_hashes"])
             self.assertEqual([sys.executable, "tools/child.py", "--out", ".tmp/example/output.txt"], receipt["command_argv"])
             self.assertRegex(receipt["output_hashes"][".tmp/example/output.txt"], r"^[0-9a-f]{64}$")
             self.assertRegex(receipt["input_hashes"]["inputs/source.txt"], r"^[0-9a-f]{64}$")
@@ -173,6 +175,34 @@ class AccountableExecutionTest(unittest.TestCase):
             self.assertEqual("stopped", result["status"])
             self.assertEqual(["STRUCTURAL_CHILD_CONTROL_WRITE"], [result["failure_class"]])
 
+    def test_declared_control_output_is_allowed_for_a_control_writer_step(self):
+        with execution_repository() as (root, path):
+            contract_path = root / path
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            contract["steps"][0]["command_argv"] = [
+                "{python}", "tools/child.py", "--out", ".tmp/example/accountability/declared.json",
+            ]
+            contract["steps"][0]["required_outputs"] = [
+                ".tmp/example/accountability/declared.json",
+            ]
+            contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+            skill_path = root / "skills/example.md"
+            skill = json.loads(skill_path.read_text(encoding="utf-8").split("\n", 1)[1].rsplit("\n", 2)[0])
+            skill["canonical_tools"][0]["command"] = "tools/child.py --out .tmp/example/accountability/declared.json"
+            skill_path.write_text(
+                "<!-- TOOL_CONTRACT_START -->\n" + json.dumps(skill, indent=2)
+                + "\n<!-- TOOL_CONTRACT_END -->\n",
+                encoding="utf-8",
+            )
+            commit_all(root, "declare control output fixture")
+            initialized = initialize_accountable_run(root, path)
+            self.assertTrue(initialized["ok"], initialized)
+
+            result = run_capability_step(root, path, "L1.example")
+
+            self.assertTrue(result["ok"], result)
+            self.assertTrue((root / ".tmp/example/accountability/declared.json").is_file())
+
     def test_process_uses_repo_cwd_and_shell_false(self):
         with execution_repository() as (root, path):
             initialize_accountable_run(root, path)
@@ -206,6 +236,88 @@ class AccountableExecutionTest(unittest.TestCase):
             self.assertEqual("fail", first["status"])
             self.assertFalse(second["ok"], second)
             self.assertEqual(["accountability_retry_not_allowed"], error_codes(second))
+
+    def test_child_receipt_records_exact_parent_receipt_path_and_hash(self):
+        with two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            parent = run_capability_step(root, path, "L1.example")
+            child = run_capability_step(root, path, "L2.child")
+
+            self.assertTrue(parent["ok"], parent)
+            self.assertTrue(child["ok"], child)
+            receipt = json.loads((root / child["receipt_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(["L1.example"], receipt["depends_on_step_ids"])
+            self.assertEqual(
+                {"L1.example": {"path": parent["receipt_path"], "sha256": parent["receipt_sha256"]}},
+                receipt["dependency_receipt_hashes"],
+            )
+
+    def test_missing_or_non_pass_parent_prevents_child_execution(self):
+        with two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            missing = run_capability_step(root, path, "L2.child")
+            self.assertFalse(missing["ok"], missing)
+            self.assertEqual(["accountability_dependency_missing"], error_codes(missing))
+
+        with two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            child = root / "tools/child.py"
+            child.write_text("raise SystemExit(3)\n", encoding="utf-8")
+            parent = run_capability_step(root, path, "L1.example")
+            blocked = run_capability_step(root, path, "L2.child")
+            self.assertFalse(parent["ok"], parent)
+            self.assertFalse(blocked["ok"], blocked)
+            self.assertEqual(["accountability_dependency_not_pass"], error_codes(blocked))
+
+    def test_strict_closure_rejects_tampered_parent_receipt_after_child_execution(self):
+        from video_pipeline_core.no_skip_execution_trace import write_strict_trace_audit
+
+        with two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            run_capability_step(root, path, "L1.example")
+            child = run_capability_step(root, path, "L2.child")
+            parent_path = root / ".tmp/example/accountability/receipts/L1.example/attempt-1.json"
+            parent = json.loads(parent_path.read_text(encoding="utf-8"))
+            parent["tampered_after_child"] = True
+            parent_path.write_text(json.dumps(parent, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            contract = load_execution_contract(root, path)
+
+            result = write_strict_trace_audit(root, path, root / contract["run_root"], root / contract["accountability_root"])
+
+            self.assertFalse(result["ok"], result)
+            self.assertIn("accountability_dependency_receipt_hash_mismatch", error_codes(result))
+            self.assertTrue((root / child["receipt_path"]).is_file())
+
+    def test_new_strict_run_fails_closed_when_child_dependency_fields_are_missing(self):
+        from video_pipeline_core.no_skip_execution_trace import write_strict_trace_audit
+
+        with two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            run_capability_step(root, path, "L1.example")
+            child = run_capability_step(root, path, "L2.child")
+            child_path = root / child["receipt_path"]
+            child_receipt = json.loads(child_path.read_text(encoding="utf-8"))
+            child_receipt.pop("depends_on_step_ids", None)
+            child_receipt.pop("dependency_receipt_hashes", None)
+            child_path.write_text(json.dumps(child_receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            contract = load_execution_contract(root, path)
+
+            result = write_strict_trace_audit(root, path, root / contract["run_root"], root / contract["accountability_root"])
+
+            self.assertFalse(result["ok"], result)
+            self.assertIn("accountability_dependency_receipt_hash_missing", error_codes(result))
+
+    def test_legacy_non_strict_run_remains_accepted_without_dependency_fields(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = resolve_legacy_run(root)
+            self.assertFalse(result["strict"])
+            self.assertEqual([], result["errors"])
+
+
+def resolve_legacy_run(root: Path):
+    from video_pipeline_core.capability_execution import resolve_strict_contract
+    return resolve_strict_contract(root, root / "legacy", None)
 
 
 def execution_repository():
@@ -287,6 +399,57 @@ class _ExecutionRepository:
 
 def error_codes(result):
     return [item["code"] for item in result.get("errors", [])]
+
+
+class _TwoStepExecutionRepository:
+    def __enter__(self):
+        self._context = execution_repository()
+        self.root, self.path = self._context.__enter__()
+        skill_path = self.root / "skills/example.md"
+        skill = json.loads(skill_path.read_text(encoding="utf-8").split("\n", 1)[1].rsplit("\n", 2)[0])
+        skill["canonical_tools"].append({
+            "tool": "tools/child.py",
+            "command": "tools/child.py --out .tmp/example/child-output.txt",
+            "when": "run child",
+            "inputs": [],
+            "outputs": [".tmp/example/child-output.txt"],
+            "stop_if": [],
+            "capability_id": "cap.example.child-two.v1",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+            "loops": ["L1"],
+            "maturity": "experimental",
+        })
+        skill_path.write_text(
+            "<!-- TOOL_CONTRACT_START -->\n" + json.dumps(skill, indent=2) +
+            "\n<!-- TOOL_CONTRACT_END -->\n",
+            encoding="utf-8",
+        )
+        companion = self.root / self.path
+        contract = json.loads(companion.read_text(encoding="utf-8"))
+        contract["steps"].append({
+            "step_id": "L2.child",
+            "loop": "L1",
+            "capability_id": "cap.example.child-two.v1",
+            "depends_on": ["L1.example"],
+            "command_argv": ["{python}", "tools/child.py", "--out", ".tmp/example/child-output.txt"],
+            "timeout_ms": 1000,
+            "inputs": [],
+            "required_outputs": [".tmp/example/child-output.txt"],
+            "required_verifier_step_ids": [],
+            "max_attempts": 1,
+            "allowed_retry_failure_classes": [],
+        })
+        companion.write_text(json.dumps(contract, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        commit_all(self.root, "add two-step receipt lineage fixture")
+        return self.root, self.path
+
+    def __exit__(self, *args):
+        return self._context.__exit__(*args)
+
+
+def two_step_execution_repository():
+    return _TwoStepExecutionRepository()
 
 
 if __name__ == "__main__":

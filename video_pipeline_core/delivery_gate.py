@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -117,6 +118,119 @@ BLOCKED_DELIVERY_MUSIC_SOURCE_TYPES = {
     "placeholder",
     "reference_only",
 }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def apply_strict_lineage_closure_to_gate(
+    root: str | Path,
+    gate: dict[str, Any],
+    *,
+    expected_contract_path: str | None = None,
+    expected_contract_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Bind the current strict no-skip closure to the delivery gate.
+
+    This is deliberately a binding/checking helper. It does not create a
+    second trace or recompute receipts; the strict no-skip writer remains the
+    sole producer of the lineage artifacts.
+    """
+    run_root = Path(root).resolve()
+    out = dict(gate)
+    blocking = list(out.get("blocking") or [])
+    accountability = run_root / "accountability"
+    decision_path = accountability / "no_skip_contract_decision.json"
+    trace_path = accountability / "pipeline_execution_trace.json"
+    closure_path = accountability / "strict_accountability_closure_audit.json"
+    required = (decision_path, trace_path, closure_path)
+    if not all(path.is_file() for path in required):
+        blocking.append({
+            "rule": "strict_lineage_closure_required",
+            "tier": 1,
+            "artifact": "accountability/no_skip_contract_decision.json",
+            "message": "strict delivery requires a current PASS no-skip decision and matching trace closure",
+            "next_action": "run_no_skip_execution_trace",
+        })
+        out["pass"] = False
+        out["blocking"] = blocking
+        out["next_action"] = "run_no_skip_execution_trace"
+        return out
+
+    decision = _load_json(decision_path)
+    trace = _load_json(trace_path)
+    closure = _load_json(closure_path)
+    errors: list[str] = []
+    if not isinstance(decision, dict) or decision.get("artifact_role") != "no_skip_contract_decision":
+        errors.append("decision artifact role is invalid")
+    if not isinstance(trace, dict) or trace.get("artifact_role") != "pipeline_execution_trace":
+        errors.append("trace artifact role is invalid")
+    if not isinstance(closure, dict) or closure.get("artifact_role") != "strict_accountability_closure_audit":
+        errors.append("closure artifact role is invalid")
+    if isinstance(decision, dict) and (decision.get("ok") is not True or decision.get("final_state") != "PASS"):
+        errors.append("no-skip decision is not current PASS")
+    if isinstance(trace, dict) and trace.get("lineage_summary", {}).get("closure_status") != "PASS":
+        errors.append("trace lineage closure is not PASS")
+    if isinstance(decision, dict) and isinstance(trace, dict):
+        if decision.get("run_instance_id") and decision.get("run_instance_id") != trace.get("run_instance_id"):
+            errors.append("decision and trace run_instance_id differ")
+        if decision.get("contract_path") and decision.get("contract_path") != trace.get("work_order_execution_contract"):
+            errors.append("decision and trace contract paths differ")
+        if decision.get("contract_sha256") and decision.get("contract_sha256") != trace.get("work_order_execution_contract_sha256"):
+            errors.append("decision and trace contract hashes differ")
+        if decision.get("lineage_summary") != trace.get("lineage_summary"):
+            errors.append("decision and trace lineage summaries differ")
+    if isinstance(closure, dict):
+        if closure.get("ok") is not True:
+            errors.append("strict closure audit is not PASS")
+        if isinstance(trace, dict) and closure.get("lineage_summary") != trace.get("lineage_summary"):
+            errors.append("closure audit and trace lineage summaries differ")
+        if isinstance(trace, dict) and closure.get("run_instance_id") != trace.get("run_instance_id"):
+            errors.append("closure audit and trace run_instance_id differ")
+    if expected_contract_path and isinstance(trace, dict) and trace.get("work_order_execution_contract") != expected_contract_path:
+        errors.append("trace contract path differs from committed companion")
+    if expected_contract_sha256 and isinstance(trace, dict) and trace.get("work_order_execution_contract_sha256") != expected_contract_sha256:
+        errors.append("trace contract hash differs from committed companion")
+
+    if errors:
+        blocking.append({
+            "rule": "strict_lineage_closure_mismatch",
+            "tier": 1,
+            "artifact": "accountability/pipeline_execution_trace.json",
+            "message": "; ".join(errors),
+            "next_action": "run_no_skip_execution_trace",
+        })
+        out["pass"] = False
+        out["blocking"] = blocking
+        out["next_action"] = "run_no_skip_execution_trace"
+        return out
+
+    lineage = dict(trace.get("lineage_summary") or {})
+    out["lineage_closure"] = {
+        "artifact_role": "delivery_lineage_closure",
+        "closure_status": "PASS",
+        "root_step": lineage.get("root_step"),
+        "leaf_step": lineage.get("leaf_step"),
+        "ordered_step_ids": list(lineage.get("ordered_step_ids") or []),
+        "run_instance_id": trace.get("run_instance_id"),
+        "contract_path": trace.get("work_order_execution_contract"),
+        "contract_sha256": trace.get("work_order_execution_contract_sha256"),
+        "closure_path": closure_path.relative_to(run_root).as_posix(),
+        "closure_sha256": _sha256_file(closure_path),
+        "trace_path": trace_path.relative_to(run_root).as_posix(),
+        "trace_sha256": _sha256_file(trace_path),
+        "decision_path": decision_path.relative_to(run_root).as_posix(),
+        "decision_sha256": _sha256_file(decision_path),
+    }
+    out["blocking"] = blocking
+    out["pass"] = bool(out.get("pass")) and not blocking
+    out["next_action"] = blocking[0].get("next_action") if blocking else None
+    return out
 
 
 def _validate_video_only_delivery_waiver(root: Path) -> tuple[dict[str, Any] | None, list[str]]:

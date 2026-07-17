@@ -18,6 +18,29 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
   ],
   "canonical_tools": [
     {
+      "tool": "tools/no_skip_execution_trace.py",
+      "when": "seal strict no-skip execution trace and validate the accountable receipt lineage before Stage 10",
+      "inputs": [
+        "committed execution companion",
+        "accountability run folder"
+      ],
+      "outputs": [
+        "pipeline_execution_trace.json",
+        "no_skip_contract_decision.json",
+        "strict_accountability_closure_audit.json"
+      ],
+      "stop_if": [
+        "execution trace is missing, stale, self-authored, or has a broken receipt edge",
+        "a parent receipt was substituted or hash-drifted"
+      ],
+      "capability_id": "cap.verify.no-skip-execution-trace.v1",
+      "execution_class": "deterministic",
+      "capability_role": "gate",
+      "loops": ["L5"],
+      "maturity": "bounded",
+      "certified_scope": "strict receipt lineage closure; no creative approval or delivery claim"
+    },
+    {
       "tool": "tools/stage5_final_review_smoke.py",
       "when": "驗證 final review / delivery gate 邊界，不重跑完整 render",
       "inputs": [
@@ -219,20 +242,6 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       ],
       "stop_if": [
         "plain-title opener, static shot, or missing payoff is found"
-      ]
-    },
-    {
-      "tool": "tools/no_skip_execution_trace.py",
-      "when": "Verify rendered rehearsal execution was not skipped or self-certified",
-      "inputs": [
-        "run folder",
-        "execution trace"
-      ],
-      "outputs": [
-        "no skip contract decision"
-      ],
-      "stop_if": [
-        "execution trace is missing, stale, or self-authored"
       ]
     },
     {

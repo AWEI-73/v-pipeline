@@ -1,0 +1,56 @@
+{
+  "artifact_role": "upstream_story_decision_packet",
+  "schema_version": 1,
+  "project_id": "stage2-stage10-lineage-fixture",
+  "stage0_intent_ref": {
+    "path": "project_brief.json",
+    "sha256": "623d2b85dfe11c36a0da413b683681b6fc771d8b14284a4ae82237981f096242"
+  },
+  "decision_mode": "ab_comparison",
+  "hypotheses": [
+    {
+      "hypothesis_id": "option_a",
+      "thesis": "A bounded rehearsal can preserve traceable evidence.",
+      "causal_promise": "input -> plan -> rendered candidate",
+      "material_assumptions": ["the fixture source is available"],
+      "sacrifices": ["creative polish"],
+      "evidence_refs": ["project_brief.json#goal"]
+    },
+    {
+      "hypothesis_id": "option_b",
+      "thesis": "A second bounded path remains reviewable.",
+      "causal_promise": "source -> verify -> delivery gate",
+      "material_assumptions": ["the fixture source is stable"],
+      "sacrifices": ["narrative breadth"],
+      "evidence_refs": ["project_brief.json#goal"]
+    }
+  ],
+  "selected_hypothesis_id": "option_a",
+  "decision_record": {
+    "decision": "use the evidence-led fixture path",
+    "decision_reason": "it keeps technical lineage inspectable",
+    "evidence_refs": ["project_brief.json#goal"],
+    "owner_or_agent": "owner",
+    "status": "accepted",
+    "remaining_unknowns": [],
+    "allowed_downstream_interpretation": "workers may execute the bounded technical path"
+  },
+  "narrative_contract": {
+    "subject": "the fixture source",
+    "audience_change": "from source to verified candidate",
+    "thesis": "A bounded rehearsal can preserve traceable evidence.",
+    "causal_arc": [
+      {
+        "beat_id": "beat_01",
+        "factual_claim": "the source is available",
+        "story_change": "the source becomes a candidate",
+        "entry_state": "source",
+        "exit_state": "candidate",
+        "evidence_refs": ["project_brief.json#goal"]
+      }
+    ]
+  },
+  "remaining_unknowns": [],
+  "retired_story_intents": [],
+  "deferred_due_to_material": []
+}

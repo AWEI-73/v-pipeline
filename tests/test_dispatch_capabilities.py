@@ -123,6 +123,21 @@ class DispatchCapabilitiesTest(unittest.TestCase):
             [item["capability_id"] for item in result["results"]],
         )
 
+    def test_stage5_stage6_and_no_skip_surfaces_are_live_canonical_cards(self):
+        root = Path(__file__).resolve().parents[1]
+        catalog = load_live_catalog(root / "skills")
+        self.assertTrue(catalog["ok"], catalog)
+        cards = {card["capability_id"]: card for card in catalog["cards"]}
+        expected = {
+            "cap.editor.stage5-compile-edit-decision.v1": "tools/compile_edit_decision_plan.py",
+            "cap.editor.stage6-render-edit-decision.v1": "tools/render_edit_decision.py",
+            "cap.verify.no-skip-execution-trace.v1": "tools/no_skip_execution_trace.py",
+        }
+        for capability_id, tool in expected.items():
+            with self.subTest(capability_id=capability_id):
+                self.assertIn(capability_id, cards)
+                self.assertEqual(tool, cards[capability_id]["tool"])
+
     def test_live_loop_tags_match_editing_loop_director_semantics(self):
         root = Path(__file__).resolve().parents[1]
         catalog = load_live_catalog(root / "skills")

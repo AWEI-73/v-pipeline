@@ -1,0 +1,44 @@
+{
+  "artifact_role": "segment_story_contract",
+  "schema_version": 1,
+  "project_id": "stage2-stage10-lineage-fixture",
+  "story_decision_ref": {
+    "path": "story_decision_packet.json",
+    "sha256": "5b399224e133e36f17efc299ee6337eb53bc640a3d0961c5bf2f6d39167147a8"
+  },
+  "stage2_status": "accepted",
+  "segments": [
+    {
+      "segment_id": "seg01",
+      "factual_claim": "the deterministic source is visible",
+      "story_change": "source becomes candidate",
+      "entry_state": "source",
+      "exit_state": "candidate",
+      "required_picture_roles": ["establish"],
+      "allowed_source_families": ["fixture"],
+      "forbidden_substitutions": ["unrelated material"],
+      "minimum_unique_windows": 1,
+      "duration_policy": {
+        "min_sec": 3,
+        "target_sec": 3,
+        "max_sec": 3,
+        "shorten_if_material_short": true
+      },
+      "transition_in": {"story_job": "open", "continuity_rule": "stable"},
+      "transition_out": {"story_job": "close", "continuity_rule": "stable"},
+      "title_card_role": "none",
+      "defer_or_shorten_rule": "shorten",
+      "review_question": "Is the source visible?",
+      "evidence_refs": ["project_brief.json#goal"],
+      "decision_record": {
+        "decision": "use the fixture source",
+        "decision_reason": "it is hash-bound",
+        "evidence_refs": ["project_brief.json#goal"],
+        "owner_or_agent": "owner",
+        "status": "accepted",
+        "remaining_unknowns": [],
+        "allowed_downstream_interpretation": "use only the fixture source"
+      }
+    }
+  ]
+}

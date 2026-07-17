@@ -1,0 +1,23 @@
+{
+  "artifact_role": "project_material_map",
+  "version": 1,
+  "route": "fixture",
+  "assets": [
+    {
+      "asset_id": "fixture-video",
+      "asset_type": "video",
+      "source": "tests/fixtures/stage2_stage10_lineage_v1/media/source.mp4",
+      "scenes": [
+        {
+          "scene_index": 0,
+          "start": 0,
+          "end": 3,
+          "caption": "deterministic fixture source",
+          "satisfies": [
+            {"need_id": "need_seg01_establish", "status": "accepted", "usable_range": {"start": 0, "end": 3}}
+          ]
+        }
+      ]
+    }
+  ]
+}

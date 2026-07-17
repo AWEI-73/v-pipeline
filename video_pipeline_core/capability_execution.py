@@ -244,7 +244,7 @@ def run_capability_step(repo_root: Path, contract_path: Path, step_id: str) -> d
     step = _find_step(contract, step_id)
     if step is None:
         return _failure("contract_step_not_found", step_id, "step_id is not present in the committed contract")
-    dependency_errors = _validate_dependency_receipts(root, contract, step)
+    dependency_errors, dependency_refs = _validate_dependency_receipts(root, contract, step)
     if dependency_errors:
         return {"ok": False, "errors": dependency_errors}
     input_hashes, input_errors = _hash_inputs(root, step)
@@ -280,6 +280,16 @@ def run_capability_step(repo_root: Path, contract_path: Path, step_id: str) -> d
         failure_class = "LOCAL_TIMEOUT"
     child_after = _snapshot_monitored_state(root, contract, scope="child_control", run_instance_id=None)
     child_errors = compare_manifest_chain(child_before, child_after)
+    declared_control_outputs = {
+        str(path).replace("\\", "/")
+        for path in (step.get("required_outputs") or [])
+        if isinstance(path, str) and path.startswith(f"{contract.get('accountability_root')}/")
+    }
+    if declared_control_outputs:
+        child_errors = [
+            error for error in child_errors
+            if error.get("path") not in declared_control_outputs
+        ]
     if child_errors:
         status = "stopped"
         failure_class = "STRUCTURAL_CHILD_CONTROL_WRITE"
@@ -318,6 +328,8 @@ def run_capability_step(repo_root: Path, contract_path: Path, step_id: str) -> d
         "status": status,
         "failure_class": failure_class,
         "retryable": retryable,
+        "depends_on_step_ids": list(step.get("depends_on") or []),
+        "dependency_receipt_hashes": dependency_refs,
         "input_hashes": input_hashes,
         "output_hashes": output_hashes,
         "changed_paths": changed_paths,
@@ -344,7 +356,13 @@ def run_capability_step(repo_root: Path, contract_path: Path, step_id: str) -> d
     }
 
 
-def validate_accountable_run_evidence(repo_root: Path, contract: dict, catalog: dict) -> dict:
+def validate_accountable_run_evidence(
+    repo_root: Path,
+    contract: dict,
+    catalog: dict,
+    *,
+    allow_pending_step_ids: set[str] | None = None,
+) -> dict:
     """Read strict evidence and return the closure-facing six-key result."""
     root = Path(repo_root).resolve()
     errors: list[dict[str, str]] = []
@@ -363,6 +381,8 @@ def validate_accountable_run_evidence(repo_root: Path, contract: dict, catalog: 
         receipt_dir = root / contract["accountability_root"] / "receipts" / str(step_id)
         numbers = _attempt_numbers(receipt_dir)
         if not numbers:
+            if allow_pending_step_ids and step_id in allow_pending_step_ids:
+                continue
             errors.append(_error("missing_required_step", str(step_id), "required step has no receipt"))
             continue
         receipt_path = receipt_dir / f"attempt-{max(numbers)}.json"
@@ -630,8 +650,13 @@ def _manifest_from_entries(entries: list, *, run_instance_id: str, scope: str) -
     }
 
 
-def _validate_dependency_receipts(root: Path, contract: dict, step: dict) -> list[dict[str, str]]:
+def _validate_dependency_receipts(
+    root: Path,
+    contract: dict,
+    step: dict,
+) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
     errors: list[dict[str, str]] = []
+    refs: dict[str, dict[str, str]] = {}
     for dependency in step.get("depends_on") or []:
         dependency_step = _find_step(contract, dependency)
         if dependency_step is None:
@@ -642,10 +667,205 @@ def _validate_dependency_receipts(root: Path, contract: dict, step: dict) -> lis
         if not numbers:
             errors.append(_error("accountability_dependency_missing", str(dependency), "dependency has no receipt"))
             continue
-        receipt = _read_json(receipt_dir / f"attempt-{max(numbers)}.json")
+        receipt_path = receipt_dir / f"attempt-{max(numbers)}.json"
+        receipt = _read_json(receipt_path)
         if receipt.get("status") != "pass":
             errors.append(_error("accountability_dependency_not_pass", str(dependency), "dependency receipt is not PASS"))
-    return _sorted_errors(errors)
+            continue
+        refs[str(dependency)] = {
+            "path": _relative_path(root, receipt_path),
+            "sha256": hash_file(receipt_path),
+        }
+    return _sorted_errors(errors), refs
+
+
+def dependency_lineage_summary(contract: dict) -> dict[str, Any]:
+    """Return the committed dependency order without inventing one."""
+    _errors, summary = _dependency_graph_analysis(contract.get("steps") if isinstance(contract, dict) else [])
+    return summary
+
+
+def validate_receipt_lineage(repo_root: Path, contract: dict) -> dict[str, Any]:
+    """Validate every committed receipt edge against the current parent receipt."""
+    root = Path(repo_root).resolve()
+    graph_errors, summary = _dependency_graph_analysis(contract.get("steps") if isinstance(contract, dict) else [])
+    errors = list(graph_errors)
+    context, context_errors = _execution_context(root, contract)
+    if context is None:
+        errors.extend(context_errors)
+        summary = dict(summary)
+        summary["closure_status"] = "FAIL"
+        return {"ok": False, "lineage_summary": summary, "errors": _sorted_errors(errors)}
+
+    reference = context["reference"]
+    for step in contract.get("steps") or []:
+        if not isinstance(step, dict) or not isinstance(step.get("step_id"), str):
+            continue
+        step_id = step["step_id"]
+        latest = _latest_receipt_for_step(root, contract, step_id)
+        if latest is None:
+            continue
+        receipt_path, receipt = latest
+        dependencies = list(step.get("depends_on") or [])
+        if receipt.get("run_instance_id") != reference.get("run_instance_id"):
+            errors.append(_error("accountability_receipt_wrong_run", _relative_path(root, receipt_path), "receipt belongs to a different accountable run"))
+        if (
+            receipt.get("contract_path") != reference.get("contract_path")
+            or receipt.get("contract_sha256") != reference.get("contract_sha256")
+        ):
+            errors.append(_error("accountability_receipt_wrong_contract", _relative_path(root, receipt_path), "receipt is bound to a different committed contract"))
+        if not dependencies:
+            continue
+        if "depends_on_step_ids" not in receipt or "dependency_receipt_hashes" not in receipt:
+            errors.append(_error("accountability_dependency_receipt_hash_missing", step_id, "strict child receipt is missing dependency receipt fields"))
+            continue
+        actual_dependencies = receipt.get("depends_on_step_ids")
+        dependency_refs = receipt.get("dependency_receipt_hashes")
+        if not isinstance(actual_dependencies, list) or actual_dependencies != dependencies:
+            errors.append(_error("accountability_dependency_receipt_edge_mismatch", step_id, "receipt dependency step IDs do not match the committed contract"))
+        if not isinstance(dependency_refs, dict) or set(dependency_refs) != set(dependencies):
+            errors.append(_error("accountability_dependency_receipt_edge_mismatch", step_id, "receipt dependency reference set does not match the committed contract"))
+            dependency_refs = dependency_refs if isinstance(dependency_refs, dict) else {}
+        for dependency in dependencies:
+            expected = _latest_receipt_for_step(root, contract, dependency)
+            if expected is None:
+                errors.append(_error("accountability_dependency_receipt_missing", dependency, "declared parent receipt is missing"))
+                continue
+            expected_path, expected_receipt = expected
+            ref = dependency_refs.get(dependency)
+            if not isinstance(ref, dict) or not isinstance(ref.get("path"), str) or not isinstance(ref.get("sha256"), str):
+                errors.append(_error("accountability_dependency_receipt_hash_missing", f"{step_id}/{dependency}", "dependency receipt ref requires path and sha256"))
+                continue
+            try:
+                actual_path = normalize_repo_path(root, ref["path"])
+            except ValueError:
+                errors.append(_error("accountability_dependency_receipt_substituted", f"{step_id}/{dependency}", "dependency receipt path is not a portable repository path"))
+                continue
+            expected_relative = _relative_path(root, expected_path)
+            if actual_path != expected_relative:
+                expected_parent = f"/receipts/{dependency}/attempt-"
+                code = "accountability_dependency_receipt_stale" if actual_path.replace("\\", "/").find(expected_parent) >= 0 else "accountability_dependency_receipt_substituted"
+                errors.append(_error(code, f"{step_id}/{dependency}", "dependency receipt path is not the latest committed parent receipt"))
+                continue
+            actual_path_obj = root / actual_path
+            if not actual_path_obj.is_file():
+                errors.append(_error("accountability_dependency_receipt_missing", actual_path, "dependency receipt path is missing"))
+                continue
+            actual_sha256 = hash_file(actual_path_obj)
+            if ref["sha256"] != actual_sha256:
+                errors.append(_error("accountability_dependency_receipt_hash_mismatch", actual_path, "dependency receipt SHA-256 does not match the current parent receipt"))
+            if expected_receipt.get("status") != "pass":
+                errors.append(_error("accountability_dependency_not_pass", dependency, "dependency receipt is not PASS"))
+            if expected_receipt.get("run_instance_id") != reference.get("run_instance_id"):
+                errors.append(_error("accountability_dependency_receipt_wrong_run", actual_path, "parent receipt belongs to a different accountable run"))
+            if (
+                expected_receipt.get("contract_path") != reference.get("contract_path")
+                or expected_receipt.get("contract_sha256") != reference.get("contract_sha256")
+            ):
+                errors.append(_error("accountability_dependency_receipt_wrong_contract", actual_path, "parent receipt belongs to a different committed contract"))
+            if expected_receipt.get("step_id") != dependency:
+                errors.append(_error("accountability_dependency_receipt_substituted", actual_path, "parent receipt step ID does not match the declared dependency"))
+    summary = dict(summary)
+    summary["closure_status"] = "PASS" if not errors else "FAIL"
+    return {"ok": not errors, "lineage_summary": summary, "errors": _sorted_errors(errors)}
+
+
+def _latest_receipt_for_step(root: Path, contract: dict, step_id: str | None) -> tuple[Path, dict] | None:
+    if not isinstance(step_id, str):
+        return None
+    directory = root / str(contract.get("accountability_root") or "") / "receipts" / step_id
+    numbers = _attempt_numbers(directory)
+    if not numbers:
+        return None
+    path = directory / f"attempt-{max(numbers)}.json"
+    if not path.is_file():
+        return None
+    return path, _read_json(path)
+
+
+def _dependency_graph_analysis(steps: Any) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    if not isinstance(steps, list):
+        return [], {"root_step": None, "leaf_step": None, "ordered_step_ids": [], "closure_status": "PASS"}
+    errors: list[dict[str, str]] = []
+    valid_steps = [step for step in steps if isinstance(step, dict) and isinstance(step.get("step_id"), str) and step.get("step_id")]
+    ordered_ids = [step["step_id"] for step in valid_steps]
+    known = set(ordered_ids)
+    index_by_id = {step_id: index for index, step_id in enumerate(ordered_ids)}
+    dependencies: dict[str, list[str]] = {step_id: [] for step_id in ordered_ids}
+    children: dict[str, list[str]] = {step_id: [] for step_id in ordered_ids}
+    for step in valid_steps:
+        step_id = step["step_id"]
+        raw_dependencies = step.get("depends_on") or []
+        if not isinstance(raw_dependencies, list):
+            continue
+        seen: set[str] = set()
+        for dependency in raw_dependencies:
+            if dependency in seen:
+                errors.append(_error("contract_dependency_duplicate", step_id, "dependency step IDs must be unique"))
+                continue
+            seen.add(dependency)
+            if dependency not in known:
+                continue
+            dependencies[step_id].append(dependency)
+            children[dependency].append(step_id)
+            if index_by_id[dependency] >= index_by_id[step_id]:
+                errors.append(_error("contract_dependency_order_invalid", step_id, "dependency must appear before its child in the committed contract"))
+
+    colors: dict[str, int] = {step_id: 0 for step_id in ordered_ids}
+    cycle_nodes: set[str] = set()
+
+    def visit(step_id: str) -> None:
+        if colors[step_id] == 1:
+            cycle_nodes.add(step_id)
+            return
+        if colors[step_id] == 2:
+            return
+        colors[step_id] = 1
+        for dependency in dependencies[step_id]:
+            visit(dependency)
+        colors[step_id] = 2
+
+    for step_id in ordered_ids:
+        visit(step_id)
+    if cycle_nodes:
+        for step_id in sorted(cycle_nodes):
+            errors.append(_error("contract_dependency_cycle", step_id, "dependency graph contains a cycle"))
+
+    roots = [step_id for step_id in ordered_ids if not dependencies[step_id]]
+    root_step = roots[0] if len(roots) == 1 else None
+    if not ordered_ids:
+        root_step = None
+    elif not roots:
+        errors.append(_error("contract_dependency_root_missing", "steps", "dependency graph has no root step"))
+    elif len(roots) != 1:
+        errors.append(_error("contract_dependency_root_count", "steps", "dependency graph must have exactly one root step"))
+        for step_id in roots[1:]:
+            errors.append(_error("contract_dependency_unreachable_step", step_id, "step is not reachable from the committed root"))
+
+    reachable: set[str] = set()
+    if root_step is not None:
+        stack = [root_step]
+        while stack:
+            current = stack.pop()
+            if current in reachable:
+                continue
+            reachable.add(current)
+            stack.extend(reversed(children[current]))
+    for step_id in ordered_ids:
+        if root_step is not None and step_id not in reachable:
+            errors.append(_error("contract_dependency_unreachable_step", step_id, "step is not reachable from the committed root"))
+
+    leaves = [step_id for step_id in ordered_ids if not children[step_id]]
+    leaf_step = leaves[0] if len(leaves) == 1 else None
+    if len(ordered_ids) > 1 and len(leaves) != 1:
+        errors.append(_error("contract_dependency_leaf_count", "steps", "dependency graph must have exactly one leaf step"))
+    summary = {
+        "root_step": root_step,
+        "leaf_step": leaf_step,
+        "ordered_step_ids": ordered_ids,
+        "closure_status": "PASS" if not errors else "FAIL",
+    }
+    return _sorted_errors(errors), summary
 
 
 def _hash_inputs(root: Path, step: dict) -> tuple[dict[str, str], list[dict[str, str]]]:
@@ -890,6 +1110,8 @@ def validate_execution_contract(repo_root: Path, contract: dict, catalog: dict) 
         _validate_step(root, step, location, card, errors)
 
     _validate_step_references(steps, step_ids, errors)
+    graph_errors, _graph_summary = _dependency_graph_analysis(steps)
+    errors.extend(graph_errors)
     _validate_decisions(root, contract.get("decision_requirements"), step_ids, cards, steps, errors)
     return _sorted_errors(errors)
 

@@ -1,0 +1,197 @@
+{
+  "artifact_role": "work_order_execution_contract",
+  "version": 1,
+  "accountability_contract_version": 1,
+  "work_order_id": "stage2-stage10-forward-lineage-closure",
+  "work_order_path": "docs/construction-guides/work-orders/2026-07-17-stage2-stage10-forward-lineage-closure.md",
+  "work_order_sha256": "0053ba174707065edaf7d8b9f930b69b33b8ab4a98540e325dae8442da4b6d68",
+  "run_root": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1",
+  "accountability_root": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability",
+  "initial_run_root_manifest": [
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accepted_inputs.json", "sha256": "a0d03a6f79436b30495475fd0f91ba112d56f78efed77b38c9ad5b589c923b22"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/audio_director_handoff.json", "sha256": "327c5ba7ce49d0d2b2a8f97a92c3daa0a318ea0002ac4a67a1431d3da6423fa2"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/audio_mix_report.json", "sha256": "8455b836abdc066bb6f600a967131a1d44934daf4e4bd70d3e7abe4a57094030"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/delivery_requirements.json", "sha256": "a0affc0a25763d6751c34dbc2bef58c3c9811b9028927575a6dc269a62fd0fa8"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/effect_handoff.json", "sha256": "c1e088f4fa1b9a3cb8825b10b73449ee755730e755c0301ef52c415b4da189a6"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/music_manifest.json", "sha256": "121031d1fc76856a68c253ae2d026960fc4dcb7ea2af673ea238dbaaab42d42a"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/opening_sequence.json", "sha256": "dfdeb3beed9121e51d6fb9c1c03e4facd61d06c8ddd6a8347de1669408cf434c"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/subtitle_voiceover_build_handoff.json", "sha256": "18fb5c79c64f97d39a6d77a7f1bfb26d6915d0fdaf8c2b4c3b79309d0a130a75"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/video_intent.json", "sha256": "8557d1e07a03a2f354709489eae21e08b70496224a383719c142c4e5b5685cf7"},
+    {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/video_only_delivery_waiver.json", "sha256": "adfac8003208fa6ae37b543ae56d93c46f5d89ce8b239595c5a229cb427a7627"}
+  ],
+  "initial_owner_zone_manifest": [],
+  "steps": [
+    {
+      "step_id": "S2.ambiguity-gate",
+      "loop": "L0",
+      "capability_id": "cap.editorial-ambiguity-loop.stage2-gate.v1",
+      "depends_on": [],
+      "command_argv": ["{python}", "tools/editorial_ambiguity.py", "validate", "--story-decision", "tests/fixtures/stage2_stage10_lineage_v1/story_decision_packet.json", "--segment-contract", "tests/fixtures/stage2_stage10_lineage_v1/segment_story_contract.json", "--evidence-map", "tests/fixtures/stage2_stage10_lineage_v1/evidence_need_map.json", "--out", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/stage2/stage2_ambiguity_gate_report.json", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/story_decision_packet.json", "sha256": "5b399224e133e36f17efc299ee6337eb53bc640a3d0961c5bf2f6d39167147a8"},
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/segment_story_contract.json", "sha256": "a583c8a0c1d2a657c5de5096f513d2ebf93cd99610f0346f52d956b550427054"},
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/evidence_need_map.json", "sha256": "f945d51e8d40b91ecc1a2f19d5272d65a0895a544c2ecfefc0bee177bdc0733f"}
+      ],
+      "required_outputs": [".tmp/stage2_stage10_forward_lineage_closure/forward_v1/stage2/stage2_ambiguity_gate_report.json"],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S3.material-plan",
+      "loop": "L1",
+      "capability_id": "cap.material-map.material-rough-cut.v1",
+      "depends_on": ["S2.ambiguity-gate"],
+      "command_argv": ["{python}", "tools/material_rough_cut.py", "--contract", "tests/fixtures/stage2_stage10_lineage_v1/material/segment_contract.json", "--project-map", "tests/fixtures/stage2_stage10_lineage_v1/material/project_material_map.json", "--out", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/rough_cut_plan.json", "--timeline-out", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/timeline_build.json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/material/segment_contract.json", "sha256": "8bfd5470b4fe7352715e5d1acbc8f4ff33fead373ba4d0c597cbcc9e99f8c313"},
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/material/project_material_map.json", "sha256": "ce943b82349f7be82705120406b459be5255a7f351beca04e38ef9d28bc9c716"}
+      ],
+      "required_outputs": [
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/rough_cut_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/timeline_build.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S5.compile",
+      "loop": "L1",
+      "capability_id": "cap.editor.stage5-compile-edit-decision.v1",
+      "depends_on": ["S3.material-plan"],
+      "command_argv": ["{python}", "tools/compile_edit_decision_plan.py", "--run", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/rough_cut_plan.json", "sha256": "edef565dc756c7a5bd2b3a32b8bbdad21c64475406d565d01c9c4c8f80654b4a"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/timeline_build.json", "sha256": "fa9dc9108d3a4e2adc7a169041538b6e284b0c1db739273b4d7d8914d042b346"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/opening_sequence.json", "sha256": "dfdeb3beed9121e51d6fb9c1c03e4facd61d06c8ddd6a8347de1669408cf434c"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/audio_director_handoff.json", "sha256": "327c5ba7ce49d0d2b2a8f97a92c3daa0a318ea0002ac4a67a1431d3da6423fa2"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/effect_handoff.json", "sha256": "c1e088f4fa1b9a3cb8825b10b73449ee755730e755c0301ef52c415b4da189a6"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/subtitle_voiceover_build_handoff.json", "sha256": "18fb5c79c64f97d39a6d77a7f1bfb26d6915d0fdaf8c2b4c3b79309d0a130a75"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/video_intent.json", "sha256": "8557d1e07a03a2f354709489eae21e08b70496224a383719c142c4e5b5685cf7"}
+      ],
+      "required_outputs": [
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/edit_decision_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/audio_decision_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/effect_decision_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/subtitle_voiceover_decision_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/build_handoff.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S6.render",
+      "loop": "L1",
+      "capability_id": "cap.editor.stage6-render-edit-decision.v1",
+      "depends_on": ["S5.compile"],
+      "command_argv": ["{python}", "tools/render_edit_decision.py", "--decision", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/edit_decision_plan.json", "--accepted-inputs", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accepted_inputs.json", "--run", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/edit_decision_plan.json", "sha256": "d0b1a5845d4225ef05f10d29e925079ba2ee76de3763303031f300df516dced0"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accepted_inputs.json", "sha256": "a0d03a6f79436b30495475fd0f91ba112d56f78efed77b38c9ad5b589c923b22"},
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/media/source.mp4", "sha256": "a50ea46f06d20c1ea164819e5efad2c706fcc9bf94a9e3329ea48061013ca517"},
+        {"path": "tests/fixtures/stage2_stage10_lineage_v1/media/music.wav", "sha256": "5ad5d91160acbae6589a3947fd2536642bb321702a845d0cff8d6377bef06022"}
+      ],
+      "required_outputs": [
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/assets/fixture-music.wav",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/assets/fixture-video.mp4",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/base_video.mp4",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/edit_decision_plan.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/timeline_build.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/render_input_manifest.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/render_command_manifest.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/render_handoff.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/segments/concat.txt",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/segments/segment_001.mp4",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/with_audio.mp4",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final.mp4"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S7.verify",
+      "loop": "L5",
+      "capability_id": "cap.verify.final-product-verify.v1",
+      "depends_on": ["S6.render"],
+      "command_argv": ["{python}", "tools/final_product_verify.py", "--video", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final.mp4", "--out-dir", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "--sample-count", "4", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final.mp4", "sha256": "0364b24f1f46de8d87a90445c88a76893985effbd5fe6df2bec061f92d2cca10"}
+      ],
+      "required_outputs": [
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final_product_verify_bundle.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/keyframe_grid.jpg",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/visual_audit.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final_audio.wav",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/soundtrack_probe_report.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S8.lineage-closure",
+      "loop": "L5",
+      "capability_id": "cap.verify.no-skip-execution-trace.v1",
+      "depends_on": ["S7.verify"],
+      "command_argv": ["{python}", "tools/no_skip_execution_trace.py", "--run", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "--contract", "docs/construction-guides/work-orders/2026-07-17-stage2-stage10-forward-lineage-closure.execution.json", "--out-dir", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/final_product_verify_bundle.json", "sha256": "272c44bee956c8b07eabbace6ffd2c049d3d8df6523851b2705bd2402c4482cf"}
+      ],
+      "required_outputs": [
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability/pipeline_execution_trace.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability/no_skip_contract_decision.json",
+        ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability/strict_accountability_closure_audit.json"
+      ],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    },
+    {
+      "step_id": "S10.delivery-gate",
+      "loop": "L5",
+      "capability_id": "cap.verify.write-delivery-gate-report.v1",
+      "depends_on": ["S8.lineage-closure"],
+      "command_argv": ["{python}", "tools/write_delivery_gate_report.py", "--run", ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "--json"],
+      "timeout_ms": 120000,
+      "inputs": [
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/delivery_requirements.json", "sha256": "a0affc0a25763d6751c34dbc2bef58c3c9811b9028927575a6dc269a62fd0fa8"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/video_only_delivery_waiver.json", "sha256": "adfac8003208fa6ae37b543ae56d93c46f5d89ce8b239595c5a229cb427a7627"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/music_manifest.json", "sha256": "121031d1fc76856a68c253ae2d026960fc4dcb7ea2af673ea238dbaaab42d42a"},
+        {"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/audio_mix_report.json", "sha256": "8455b836abdc066bb6f600a967131a1d44934daf4e4bd70d3e7abe4a57094030"}
+      ],
+      "required_outputs": [".tmp/stage2_stage10_forward_lineage_closure/forward_v1/delivery_gate.json"],
+      "required_verifier_step_ids": [],
+      "max_attempts": 1,
+      "allowed_retry_failure_classes": []
+    }
+  ],
+  "decision_requirements": [],
+  "allowed_owner_zones": [{"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "match": "directory_prefix"}],
+  "forbidden_paths": [
+    {"path": "RUNBOOK.md", "match": "exact"},
+    {"path": "HANDOFF_CURRENT.md", "match": "exact"}
+  ],
+  "protected_paths": [
+    {"path": "docs/construction-guides/work-orders/2026-07-17-stage2-stage10-forward-lineage-closure.md", "sha256": "0053ba174707065edaf7d8b9f930b69b33b8ab4a98540e325dae8442da4b6d68"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/project_brief.json", "sha256": "623d2b85dfe11c36a0da413b683681b6fc771d8b14284a4ae82237981f096242"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/story_decision_packet.json", "sha256": "5b399224e133e36f17efc299ee6337eb53bc640a3d0961c5bf2f6d39167147a8"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/segment_story_contract.json", "sha256": "a583c8a0c1d2a657c5de5096f513d2ebf93cd99610f0346f52d956b550427054"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/evidence_need_map.json", "sha256": "f945d51e8d40b91ecc1a2f19d5272d65a0895a544c2ecfefc0bee177bdc0733f"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/material/segment_contract.json", "sha256": "8bfd5470b4fe7352715e5d1acbc8f4ff33fead373ba4d0c597cbcc9e99f8c313"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/material/project_material_map.json", "sha256": "ce943b82349f7be82705120406b459be5255a7f351beca04e38ef9d28bc9c716"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/fixture_manifest.json", "sha256": "201cbadfb9b78e10834d5cd72b0df300c2a49f02b36a1cac2a172f79f8e5c309"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/media/source.mp4", "sha256": "a50ea46f06d20c1ea164819e5efad2c706fcc9bf94a9e3329ea48061013ca517"},
+    {"path": "tests/fixtures/stage2_stage10_lineage_v1/media/music.wav", "sha256": "5ad5d91160acbae6589a3947fd2536642bb321702a845d0cff8d6377bef06022"}
+  ],
+  "human_creative_approval": false,
+  "final_delivery_claimed": false
+}

@@ -14,9 +14,11 @@ if str(ROOT) not in sys.path:
 
 from video_pipeline_core.dashboard_state import load_dashboard_state
 from video_pipeline_core.delivery_gate import (
+    apply_strict_lineage_closure_to_gate,
     apply_video_only_delivery_waiver_to_gate,
     evaluate_complete_video_delivery,
 )
+from video_pipeline_core.capability_execution import resolve_strict_contract
 
 
 def _is_complete_delivery_run(root: Path) -> bool:
@@ -215,6 +217,28 @@ def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_ga
                 gate["blocking"] = blocking
                 gate["next_action"] = duration_block["next_action"]
         gate = apply_video_only_delivery_waiver_to_gate(root, gate)
+    activation = resolve_strict_contract(ROOT, root, None)
+    if activation.get("strict"):
+        if not activation.get("ok"):
+            gate = dict(gate)
+            blocking = list(gate.get("blocking") or [])
+            blocking.append({
+                "rule": "strict_contract_activation_invalid",
+                "tier": 1,
+                "artifact": activation.get("contract_path") or "accountability",
+                "message": "committed execution companion could not be resolved for strict delivery binding",
+                "next_action": "repair_execution_companion",
+            })
+            gate["pass"] = False
+            gate["blocking"] = blocking
+            gate["next_action"] = "repair_execution_companion"
+        else:
+            gate = apply_strict_lineage_closure_to_gate(
+                root,
+                gate,
+                expected_contract_path=activation.get("contract_path"),
+                expected_contract_sha256=activation.get("contract_sha256"),
+            )
     gate = dict(gate)
     gate["generated_by"] = "tools/write_delivery_gate_report.py"
     gate["report_source"] = report_source

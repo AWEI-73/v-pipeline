@@ -89,6 +89,18 @@ class SkillToolContractsTest(unittest.TestCase):
                 self.assertIn(capability_role, CAPABILITY_ROLES)
                 self.assertIn(execution_class, ALLOWED_CLASS_ROLE[capability_role])
 
+    def test_stage5_stage6_and_no_skip_tools_have_one_canonical_owner(self):
+        catalog = build_catalog(load_contracts(ROOT / "skills")[0])
+        self.assertTrue(catalog["ok"], catalog)
+        cards = {card["capability_id"]: card for card in catalog["cards"]}
+        for capability_id, tool in {
+            "cap.editor.stage5-compile-edit-decision.v1": "tools/compile_edit_decision_plan.py",
+            "cap.editor.stage6-render-edit-decision.v1": "tools/render_edit_decision.py",
+            "cap.verify.no-skip-execution-trace.v1": "tools/no_skip_execution_trace.py",
+        }.items():
+            with self.subTest(capability_id=capability_id):
+                self.assertEqual(tool, cards[capability_id]["tool"])
+
     def test_audit_reports_clean_skill_tool_contracts(self):
         completed = subprocess.run(
             [

@@ -3,6 +3,77 @@ name: editor
 description: 剪輯師 Skill。依 TTS 時長把每段素材剪到精確長度，scale 統一 1920x1080，concat 成 rough_cut.mp4；最終再把音軌 + 字幕合進去產出成片。只做檔案層級操作（不做內容理解，那是小編的事）。
 ---
 
+<!-- TOOL_CONTRACT_START -->
+{
+  "version": 1,
+  "skill": "editor",
+  "stage_owner": "editor_stage5_stage6_compile_and_render",
+  "capability_namespace": "cap.editor.*",
+  "capability_lookup_owner": "editor",
+  "triggers": [
+    "Stage 5 has an accepted rough-cut and branch handoff package to compile",
+    "Stage 6 needs the bounded existing edit-decision renderer exposed as a public capability"
+  ],
+  "forbidden_tools": [
+    "Do not reinterpret accepted selection, story, text, audio, or effect decisions",
+    "Do not claim human creative approval or delivery from technical rendering"
+  ],
+  "canonical_tools": [
+    {
+      "tool": "tools/compile_edit_decision_plan.py",
+      "when": "compile accepted rough-cut and branch handoffs into edit_decision_plan and build_handoff without rendering",
+      "inputs": [
+        "run folder with rough_cut_plan.json",
+        "accepted audio/effect/subtitle handoffs"
+      ],
+      "outputs": [
+        "edit_decision_plan.json",
+        "audio_decision_plan.json",
+        "effect_decision_plan.json",
+        "subtitle_voiceover_decision_plan.json",
+        "build_handoff.json"
+      ],
+      "stop_if": [
+        "required rough cut is missing",
+        "deferred branch handoffs remain unresolved"
+      ],
+      "capability_id": "cap.editor.stage5-compile-edit-decision.v1",
+      "execution_class": "deterministic",
+      "capability_role": "operation",
+      "loops": [],
+      "maturity": "bounded",
+      "certified_scope": "mechanical Stage 5 decision compilation; no render"
+    },
+    {
+      "tool": "tools/render_edit_decision.py",
+      "when": "render an accepted edit_decision_plan through video_pipeline_core.edit_decision_renderer",
+      "inputs": [
+        "edit_decision_plan.json",
+        "accepted_inputs.json",
+        "output run directory"
+      ],
+      "outputs": [
+        "final.mp4",
+        "render_input_manifest.json",
+        "render_command_manifest.json",
+        "render_handoff.json"
+      ],
+      "stop_if": [
+        "accepted JSON is invalid or unsupported by the existing renderer",
+        "an accepted source path or hash does not match"
+      ],
+      "capability_id": "cap.editor.stage6-render-edit-decision.v1",
+      "execution_class": "deterministic",
+      "capability_role": "adapter",
+      "loops": [],
+      "maturity": "bounded",
+      "certified_scope": "thin public adapter over the existing bounded edit-decision renderer"
+    }
+  ],
+  "supporting_tools": []
+}
+<!-- TOOL_CONTRACT_END -->
+
 # Editor Skill
 
 > **Canonical-first runtime(see roadmap.md):公開 SPEC 輸入 = `segment_contract.json`。**

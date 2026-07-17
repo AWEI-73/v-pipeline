@@ -4,11 +4,106 @@ import wave
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from video_pipeline_core.delivery_gate import evaluate_complete_video_delivery, evaluate_delivery_gate
+from video_pipeline_core.delivery_gate import (
+    apply_strict_lineage_closure_to_gate,
+    evaluate_complete_video_delivery,
+    evaluate_delivery_gate,
+)
 from tools.validate_pipeline_run_folder import validate_run_folder
 
 
 class DeliveryGateTest(unittest.TestCase):
+    def test_strict_lineage_closure_blocks_without_current_pass_no_skip(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gate = apply_strict_lineage_closure_to_gate(root, {"pass": True})
+
+        self.assertFalse(gate["pass"])
+        self.assertEqual(gate["blocking"][0]["rule"], "strict_lineage_closure_required")
+        self.assertEqual(gate["next_action"], "run_no_skip_execution_trace")
+
+    def test_strict_lineage_closure_binds_matching_trace_and_hashes(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            accountability = root / "accountability"
+            accountability.mkdir()
+            trace = {
+                "artifact_role": "pipeline_execution_trace",
+                "version": 2,
+                "run_instance_id": "run-1",
+                "work_order_execution_contract": "contract.json",
+                "work_order_execution_contract_sha256": "a" * 64,
+                "lineage_summary": {
+                    "root_step": "L1.example",
+                    "leaf_step": "L10.delivery",
+                    "ordered_step_ids": ["L1.example", "L10.delivery"],
+                    "closure_status": "PASS",
+                },
+            }
+            decision = {
+                "artifact_role": "no_skip_contract_decision",
+                "version": 2,
+                "ok": True,
+                "final_state": "PASS",
+                "run_instance_id": "run-1",
+                "contract_path": "contract.json",
+                "contract_sha256": "a" * 64,
+                "lineage_summary": trace["lineage_summary"],
+            }
+            (accountability / "pipeline_execution_trace.json").write_text(json.dumps(trace), encoding="utf-8")
+            (accountability / "no_skip_contract_decision.json").write_text(json.dumps(decision), encoding="utf-8")
+            (accountability / "strict_accountability_closure_audit.json").write_text(
+                json.dumps({
+                    "artifact_role": "strict_accountability_closure_audit",
+                    "ok": True,
+                    "run_instance_id": "run-1",
+                    "lineage_summary": trace["lineage_summary"],
+                }),
+                encoding="utf-8",
+            )
+            gate = apply_strict_lineage_closure_to_gate(root, {"pass": True})
+
+        self.assertTrue(gate["pass"])
+        self.assertEqual(gate["lineage_closure"]["closure_status"], "PASS")
+        self.assertEqual(gate["lineage_closure"]["run_instance_id"], "run-1")
+        self.assertEqual(len(gate["lineage_closure"]["closure_sha256"]), 64)
+        self.assertEqual(len(gate["lineage_closure"]["trace_sha256"]), 64)
+
+    def test_strict_lineage_closure_rejects_trace_contract_substitution(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            accountability = root / "accountability"
+            accountability.mkdir()
+            trace = {
+                "artifact_role": "pipeline_execution_trace",
+                "version": 2,
+                "run_instance_id": "run-1",
+                "work_order_execution_contract": "other-contract.json",
+                "work_order_execution_contract_sha256": "b" * 64,
+                "lineage_summary": {"closure_status": "PASS"},
+            }
+            decision = {
+                "artifact_role": "no_skip_contract_decision",
+                "version": 2,
+                "ok": True,
+                "final_state": "PASS",
+                "run_instance_id": "run-1",
+                "contract_path": "contract.json",
+                "contract_sha256": "a" * 64,
+                "lineage_summary": trace["lineage_summary"],
+            }
+            (accountability / "pipeline_execution_trace.json").write_text(json.dumps(trace), encoding="utf-8")
+            (accountability / "no_skip_contract_decision.json").write_text(json.dumps(decision), encoding="utf-8")
+            (accountability / "strict_accountability_closure_audit.json").write_text(json.dumps({"ok": True}), encoding="utf-8")
+            gate = apply_strict_lineage_closure_to_gate(
+                root,
+                {"pass": True},
+                expected_contract_path="contract.json",
+                expected_contract_sha256="a" * 64,
+            )
+
+        self.assertFalse(gate["pass"])
+        self.assertEqual(gate["blocking"][0]["rule"], "strict_lineage_closure_mismatch")
     def test_failed_existing_audit_blocks_delivery(self):
         result = evaluate_delivery_gate({
             "verify_result": {"pass": True},

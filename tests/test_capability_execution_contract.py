@@ -201,6 +201,41 @@ class ExecutionContractSchemaTest(unittest.TestCase):
         self.assertIn("contract_command_argv_invalid", error_codes({"errors": errors}))
         self.assertIn("contract_step_id_duplicate", error_codes({"errors": errors}))
 
+    def test_dependency_cycle_is_rejected_instead_of_sorted(self):
+        contract = contract_for("cycle", ".tmp/cycle")
+        contract["steps"][0]["depends_on"] = ["L2.example"]
+        second = dict(contract["steps"][0])
+        second["step_id"] = "L2.example"
+        second["depends_on"] = ["L1.example"]
+        contract["steps"].append(second)
+        catalog = {"ok": True, "cards": [{
+            "capability_id": "cap.example.operation.v1",
+            "command": "tools/example.py --run .tmp/cycle",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+        }]}
+
+        errors = validate_execution_contract(Path.cwd(), contract, catalog)
+
+        self.assertIn("contract_dependency_cycle", error_codes({"errors": errors}))
+
+    def test_disconnected_leaf_is_rejected_instead_of_silently_excluded(self):
+        contract = contract_for("disconnected", ".tmp/disconnected")
+        second = dict(contract["steps"][0])
+        second["step_id"] = "L2.example"
+        second["depends_on"] = []
+        contract["steps"].append(second)
+        catalog = {"ok": True, "cards": [{
+            "capability_id": "cap.example.operation.v1",
+            "command": "tools/example.py --run .tmp/disconnected",
+            "execution_class": "deterministic",
+            "capability_role": "operation",
+        }]}
+
+        errors = validate_execution_contract(Path.cwd(), contract, catalog)
+
+        self.assertIn("contract_dependency_unreachable_step", error_codes({"errors": errors}))
+
     def test_step_inputs_require_object_canonical_path_and_sha256(self):
         contract = contract_for("invalid-inputs", ".tmp/invalid-inputs")
         contract["steps"][0]["inputs"] = [

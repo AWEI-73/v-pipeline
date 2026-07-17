@@ -9,7 +9,7 @@ from video_pipeline_core.no_skip_execution_trace import (
     evaluate_no_skip_contract,
     write_strict_trace_audit,
 )
-from tests.test_capability_execution_receipts import execution_repository
+from tests.test_capability_execution_receipts import execution_repository, two_step_execution_repository
 from tests.test_capability_execution_contract import commit_all
 from video_pipeline_core.capability_execution import initialize_accountable_run, load_execution_contract, run_capability_step
 
@@ -22,6 +22,61 @@ def _write_json(root: Path, name: str, payload: dict) -> Path:
 
 
 class NoSkipExecutionTraceTest(unittest.TestCase):
+    def test_strict_closure_allows_the_terminal_delivery_step_to_follow_the_closure(self):
+        with two_step_execution_repository() as (root, path):
+            skill_path = root / "skills/example.md"
+            skill = json.loads(skill_path.read_text(encoding="utf-8").split("\n", 1)[1].rsplit("\n", 2)[0])
+            skill["canonical_tools"].append({
+                "tool": "tools/child.py",
+                "command": "tools/child.py --out .tmp/example/delivery-output.txt",
+                "when": "run terminal delivery",
+                "inputs": [],
+                "outputs": [".tmp/example/delivery-output.txt"],
+                "stop_if": [],
+                "capability_id": "cap.verify.write-delivery-gate-report.v1",
+                "execution_class": "deterministic",
+                "capability_role": "gate",
+                "loops": ["L5"],
+                "maturity": "experimental",
+            })
+            skill_path.write_text(
+                "<!-- TOOL_CONTRACT_START -->\n" + json.dumps(skill, indent=2)
+                + "\n<!-- TOOL_CONTRACT_END -->\n",
+                encoding="utf-8",
+            )
+            companion = root / path
+            contract = json.loads(companion.read_text(encoding="utf-8"))
+            contract["steps"].append({
+                "step_id": "L10.delivery",
+                "loop": "L5",
+                "capability_id": "cap.verify.write-delivery-gate-report.v1",
+                "depends_on": ["L2.child"],
+                "command_argv": ["{python}", "tools/child.py", "--out", ".tmp/example/delivery-output.txt"],
+                "timeout_ms": 1000,
+                "inputs": [],
+                "required_outputs": [".tmp/example/delivery-output.txt"],
+                "required_verifier_step_ids": [],
+                "max_attempts": 1,
+                "allowed_retry_failure_classes": [],
+            })
+            companion.write_text(json.dumps(contract, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            commit_all(root, "add terminal delivery fixture")
+            initialize_accountable_run(root, path)
+            self.assertTrue(run_capability_step(root, path, "L1.example")["ok"])
+            self.assertTrue(run_capability_step(root, path, "L2.child")["ok"])
+            loaded = load_execution_contract(root, path)
+
+            result = write_strict_trace_audit(
+                root, path, root / loaded["run_root"], root / loaded["accountability_root"]
+            )
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual("PASS", result["final_state"])
+        self.assertEqual(
+            ["L1.example", "L2.child", "L10.delivery"],
+            result["lineage_summary"]["ordered_step_ids"],
+        )
+
     def test_strict_cli_returns_zero_for_ok_waiting_owner_result(self):
         import tools.no_skip_execution_trace as no_skip_cli
 
@@ -56,6 +111,14 @@ class NoSkipExecutionTraceTest(unittest.TestCase):
             self.assertEqual(2, trace["version"])
             self.assertIn("tool_entries", trace)
             self.assertIn("decision_entries", trace)
+            self.assertEqual({
+                "root_step": "L1.example",
+                "leaf_step": "L1.example",
+                "ordered_step_ids": ["L1.example"],
+                "closure_status": "PASS",
+            }, trace["lineage_summary"])
+            self.assertEqual([], trace["tool_entries"][0]["depends_on_step_ids"])
+            self.assertEqual({}, trace["tool_entries"][0]["dependency_receipt_hashes"])
             self.assertFalse((root / contract["run_root"] / "pipeline_execution_trace.json").exists())
 
     def test_strict_agent_sidecar_binds_receipt_and_missing_owner_waits(self):

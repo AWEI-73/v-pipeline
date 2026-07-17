@@ -15,9 +15,11 @@ from .capability_execution import (
     _read_json,
     _relative_path,
     _sorted_errors,
+    dependency_lineage_summary,
     hash_file,
     load_execution_contract,
     resolve_strict_contract,
+    validate_receipt_lineage,
     validate_accountable_run_evidence,
 )
 
@@ -393,9 +395,26 @@ def write_strict_trace_audit(
     if not _is_within_path(accountability.resolve(strict=False), output_root):
         return _strict_result(False, "UNKNOWN_ACCOUNTABILITY", [{"code": "strict_output_outside_accountability", "path": str(out_dir), "message": "strict closure output must remain under accountability root"}], [])
     catalog = load_live_catalog(root / "skills")
-    evidence = validate_accountable_run_evidence(root, contract, catalog)
+    pending_terminal_step_ids = {
+        str(step.get("step_id"))
+        for step in (contract.get("steps") or [])
+        if isinstance(step, Mapping)
+        and step.get("capability_id") == "cap.verify.write-delivery-gate-report.v1"
+        and not _attempt_numbers(
+            root / str(contract.get("accountability_root") or "")
+            / "receipts" / str(step.get("step_id") or "")
+        )
+    }
+    evidence = validate_accountable_run_evidence(
+        root,
+        contract,
+        catalog,
+        allow_pending_step_ids=pending_terminal_step_ids,
+    )
     decision_entries, decision_errors, owner_waiting = _strict_decision_entries(root, contract, context["reference"])
-    errors = [*evidence.get("errors", []), *decision_errors]
+    lineage = validate_receipt_lineage(root, contract)
+    lineage_summary = lineage.get("lineage_summary") or dependency_lineage_summary(contract)
+    errors = [*evidence.get("errors", []), *decision_errors, *(lineage.get("errors") or [])]
     if errors:
         final_state = "UNKNOWN_ACCOUNTABILITY"
     elif owner_waiting:
@@ -413,6 +432,7 @@ def write_strict_trace_audit(
         "work_order_execution_contract_sha256": context["reference"]["contract_sha256"],
         "tool_entries": tool_entries,
         "decision_entries": decision_entries,
+        "lineage_summary": lineage_summary,
         "human_creative_approval": False,
         "final_delivery_claimed": False,
     }
@@ -421,10 +441,14 @@ def write_strict_trace_audit(
         "version": 2,
         "ok": not errors and bool(evidence.get("ok")),
         "final_state": final_state,
+        "run_instance_id": context["reference"]["run_instance_id"],
+        "contract_path": context["reference"]["contract_path"],
+        "contract_sha256": context["reference"]["contract_sha256"],
         "errors": _sorted_errors(errors),
         "warnings": evidence.get("warnings") or [],
         "tool_entries": tool_entries,
         "decision_entries": decision_entries,
+        "lineage_summary": lineage_summary,
         "human_creative_approval": False,
         "final_delivery_claimed": False,
         "gate_authenticity": gate_audit,
@@ -436,6 +460,7 @@ def write_strict_trace_audit(
         "run_instance_id": context["reference"]["run_instance_id"],
         "contract_path": context["reference"]["contract_path"],
         "contract_sha256": context["reference"]["contract_sha256"],
+        "lineage_summary": lineage_summary,
         "errors": decision["errors"],
         "warnings": decision["warnings"],
     }
@@ -478,6 +503,8 @@ def _strict_tool_entries(root: Path, contract: dict, catalog: dict, entries: lis
             "status": receipt.get("status"),
             "input_hashes": receipt.get("input_hashes") or {},
             "output_hashes": receipt.get("output_hashes") or {},
+            "depends_on_step_ids": receipt.get("depends_on_step_ids") or [],
+            "dependency_receipt_hashes": receipt.get("dependency_receipt_hashes") or {},
             "changed_paths": receipt.get("changed_paths") or [],
             "verify_refs": [],
             "source_tool": receipt.get("source_tool"),

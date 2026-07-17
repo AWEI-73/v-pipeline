@@ -26,6 +26,9 @@ class EditDecisionRendererTest(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
         return video, audio
 
+    def test_stage6_public_adapter_exists(self):
+        self.assertTrue((ROOT / "tools" / "render_edit_decision.py").is_file())
+
     def test_renders_canonical_decision_with_owned_manifest_and_streams(self):
         renderer = _renderer_module()
         self.assertIsNotNone(renderer, "canonical edit-decision renderer module is required")

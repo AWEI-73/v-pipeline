@@ -1,0 +1,28 @@
+{
+  "artifact_role": "evidence_need_map",
+  "schema_version": 1,
+  "project_id": "stage2-stage10-lineage-fixture",
+  "story_decision_ref": {
+    "path": "story_decision_packet.json",
+    "sha256": "5b399224e133e36f17efc299ee6337eb53bc640a3d0961c5bf2f6d39167147a8"
+  },
+  "segment_contract_ref": {
+    "path": "segment_story_contract.json",
+    "sha256": "a583c8a0c1d2a657c5de5096f513d2ebf93cd99610f0346f52d956b550427054"
+  },
+  "material_truth_status": "not_started",
+  "needs": [
+    {
+      "need_id": "need_seg01_establish",
+      "segment_id": "seg01",
+      "picture_role": "establish",
+      "factual_claim": "the deterministic source is visible",
+      "evidence_kind": "visual",
+      "required_observation": "the fixture source is visible",
+      "allowed_source_families": ["fixture"],
+      "forbidden_substitutions": ["unrelated material"],
+      "status": "needed",
+      "evidence_refs": []
+    }
+  ]
+}
