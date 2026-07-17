@@ -174,7 +174,15 @@
       "allowed_retry_failure_classes": []
     }
   ],
-  "decision_requirements": [],
+  "decision_requirements": [
+    {
+      "requirement_id": "fixture.material-plan-agent-evidence",
+      "actor_class": "agent",
+      "depends_on_step_ids": ["S3.material-plan"],
+      "evidence_path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1/accountability/attestations/fixture.material-plan-agent-evidence.json",
+      "missing_state": "UNKNOWN_AGENT_EVIDENCE"
+    }
+  ],
   "allowed_owner_zones": [{"path": ".tmp/stage2_stage10_forward_lineage_closure/forward_v1", "match": "directory_prefix"}],
   "forbidden_paths": [
     {"path": "RUNBOOK.md", "match": "exact"},
