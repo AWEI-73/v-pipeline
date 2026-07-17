@@ -104,18 +104,34 @@ def _allowed_material_map_ids(segment):
     return {str(value) for value in values}
 
 
-def _scene_need_id(material_map, scene):
+def _scene_need_bindings(material_map, scene):
+    values = []
     for status in ("accepted", "candidate"):
         for edge in scene.get("satisfies") or []:
             if edge.get("status") == status and edge.get("need_id"):
-                return edge["need_id"]
-    return scene.get("need_id") or material_map.get("need_id")
+                value = (str(edge["need_id"]), status)
+                if value not in values:
+                    values.append(value)
+    fallback = scene.get("need_id") or material_map.get("need_id")
+    if fallback and not any(value == str(fallback) for value, _ in values):
+        values.append((str(fallback), "candidate"))
+    return values
+
+
+def _matched_scene_need(segment, material_map, scene):
+    actual = _scene_need_bindings(material_map, scene)
+    expected = _expected_need_ids(segment)
+    if expected:
+        return next((binding for binding in actual if binding[0] in expected), None)
+    return actual[0] if actual else None
 
 
 def _need_score(segment, material_map, scene):
     expected = _expected_need_ids(segment)
-    actual = _scene_need_id(material_map, scene)
-    return 4 if expected and actual and str(actual) in expected else 0
+    binding = _matched_scene_need(segment, material_map, scene)
+    if not expected or not binding or binding[0] not in expected:
+        return 0
+    return 6 if binding[1] == "accepted" else 4
 
 
 def _evidence_quality_score(scene):
@@ -157,8 +173,9 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
         if allowed_asset_ids and asset_id not in allowed_asset_ids:
             continue
         for index, scene in enumerate(material_map.get("scenes") or []):
-            actual_need_id = _scene_need_id(material_map, scene)
-            if expected_need_ids and actual_need_id and str(actual_need_id) not in expected_need_ids:
+            need_binding = _matched_scene_need(segment, material_map, scene)
+            actual_need_id = need_binding[0] if need_binding else None
+            if expected_need_ids and not need_binding:
                 continue
             breakdown = {
                 "need": _need_score(segment, material_map, scene),
@@ -190,6 +207,7 @@ def rank_scenes(segment, material_maps, *, ranker=None, soul_ranking=True):
                 "end": float(scene.get("end") or 0),
                 "caption": scene.get("caption"),
                 "need_id": actual_need_id,
+                "need_status": need_binding[1] if need_binding else None,
                 "score_breakdown": breakdown,
                 "ranker_score": external,
                 "score": evidence_score + external,

@@ -6,6 +6,7 @@ and records how each picture-plan clip relates to the ranked candidates.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -100,6 +101,45 @@ def _clip_source_hash(clip: Mapping[str, Any]) -> str | None:
     return str(value).strip().lower() if value else None
 
 
+def _segment_need_ids(segment: Mapping[str, Any]) -> list[str]:
+    material_fit = segment.get("material_fit") or {}
+    values = []
+    for value in (segment.get("need_ref"), material_fit.get("need_ref")):
+        if isinstance(value, str) and value.strip() and value.strip() not in values:
+            values.append(value.strip())
+    for value in material_fit.get("need_refs") or []:
+        if isinstance(value, str) and value.strip() and value.strip() not in values:
+            values.append(value.strip())
+    return values
+
+
+def _clip_need_id(clip: Mapping[str, Any]) -> str | None:
+    value = clip.get("need_id")
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _role_specific_segment(segment: Mapping[str, Any], need_id: str | None) -> dict[str, Any]:
+    result = copy.deepcopy(dict(segment))
+    if not need_id:
+        return result
+    material_fit = dict(result.get("material_fit") or {})
+    material_fit["need_ref"] = need_id
+    material_fit["need_refs"] = [need_id]
+    role_queries = material_fit.get("role_queries") or result.get("role_queries") or {}
+    if isinstance(role_queries, Mapping):
+        query = role_queries.get(need_id)
+        if isinstance(query, str) and query.strip():
+            material_fit["visual_desc"] = query.strip()
+    result["material_fit"] = material_fit
+    return result
+
+
+def _append_unique_candidate(items: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
+    identity = (candidate.get("scene_id"), candidate.get("need_id"))
+    if not any((item.get("scene_id"), item.get("need_id")) == identity for item in items):
+        items.append(candidate)
+
+
 def build_retrieval_ranking_report(
     *,
     picture_plan: Mapping[str, Any],
@@ -150,13 +190,47 @@ def build_retrieval_ranking_report(
         if segment is None:
             errors.append(f"clip_{clip_index}_missing_segment:{segment_id}")
             continue
-        ranked = rank_scenes(segment, maps)
+        declared_need_ids = _segment_need_ids(segment)
+        multi_role = len(declared_need_ids) > 1
+        clip_id = clip.get("clip_id")
+        clip_need_id = _clip_need_id(clip)
+        if multi_role and not (isinstance(clip_id, str) and clip_id.strip()):
+            errors.append(f"clip_{clip_index}_missing_clip_id_for_multi_role_segment")
+        if multi_role and not clip_need_id:
+            errors.append(f"clip_{clip_index}_missing_need_id_for_multi_role_segment")
+        if multi_role and not _clip_source_hash(clip):
+            errors.append(f"clip_{clip_index}_missing_source_hash_for_multi_role_segment")
+        if multi_role and not (
+            isinstance(clip.get("selection_mode"), str)
+            and clip["selection_mode"].strip()
+        ):
+            errors.append(f"clip_{clip_index}_missing_selection_mode_for_multi_role_segment")
+        if clip_need_id and declared_need_ids and clip_need_id not in declared_need_ids:
+            errors.append(f"clip_{clip_index}_unknown_need_id:{clip_need_id}")
+            continue
+        if multi_role and not clip_need_id:
+            continue
+
+        ranked = rank_scenes(_role_specific_segment(segment, clip_need_id), maps)
         selected = _selected_candidate(clip, ranked)
         entry = segment_reports.setdefault(str(segment_id), {
             "segment": segment_id,
-            "candidates": [_candidate_view(item) for item in ranked[:effective_top_k]],
+            "candidates": [],
             "selections": [],
+            "roles": [],
         })
+        candidate_views = []
+        for item in ranked[:effective_top_k]:
+            candidate = _candidate_view(item)
+            candidate["need_id"] = item.get("need_id")
+            candidate_views.append(candidate)
+            _append_unique_candidate(entry["candidates"], candidate)
+        role_entry = {
+            "need_id": clip_need_id,
+            "candidates": candidate_views,
+            "selections": [],
+        }
+        entry["roles"].append(role_entry)
         if selected is None:
             errors.append(f"clip_{clip_index}_not_in_ranked_candidates:{clip.get('clip_id')}")
             continue
@@ -187,14 +261,18 @@ def build_retrieval_ranking_report(
         clip_hash = _clip_source_hash(clip)
         if map_hash and clip_hash and map_hash != clip_hash:
             errors.append(f"clip_{clip_index}_source_hash_mismatch:{clip.get('clip_id')}")
-        entry["selections"].append({
+        selection = {
             "clip_id": clip.get("clip_id"),
+            "need_id": clip_need_id or selected.get("need_id"),
+            "story_role": clip.get("story_role"),
             "scene_id": selected.get("scene_id"),
             "rank_position": rank_position,
             "selection_mode": mode,
             "selection_reason": reason,
             "source_hash_match": not (map_hash and clip_hash) or map_hash == clip_hash,
-        })
+        }
+        entry["selections"].append(selection)
+        role_entry["selections"].append(selection)
 
     if project_map_path and retrieval_evidence.get("project_material_map_sha256"):
         actual = _sha256(project_map_path)
@@ -204,7 +282,7 @@ def build_retrieval_ranking_report(
 
     report = {
         "artifact_role": "picture_plan_retrieval_ranking_report",
-        "version": 1,
+        "version": 2,
         "ok": not errors,
         "errors": errors,
         "top_k": effective_top_k,
@@ -225,4 +303,3 @@ def build_retrieval_ranking_report(
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
-

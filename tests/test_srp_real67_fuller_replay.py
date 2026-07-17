@@ -231,7 +231,8 @@ class TestSoulSelectionDiff(unittest.TestCase):
                  "satisfies": [{"need_id": "N01", "status": "accepted"}]}
             ]},
             {"asset_id": "weak", "source": "b.mp4", "asset_type": "video", "scenes": [
-                {"start": 0, "end": 5, "caption": "training courage"}
+                {"start": 0, "end": 5, "caption": "training courage",
+                 "satisfies": [{"need_id": "N01", "status": "candidate"}]}
             ]},
         ]}
 

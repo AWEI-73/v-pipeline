@@ -119,6 +119,47 @@ class MaterialRetrievalRepeatCapTest(unittest.TestCase):
         self.assertEqual([item["scene_id"] for item in selected], ["speech:0", "cutaway:0"])
         self.assertEqual(selected[1]["source_repeat_count"], 0)
 
+    def test_rank_scenes_matches_any_accepted_need_on_a_multi_role_scene(self):
+        material_map = self._map("memory", "memory.jpg", "birthday memory")
+        material_map["scenes"][0]["satisfies"] = [
+            {"need_id": "need_other_segment", "status": "accepted"},
+            {"need_id": "need_memory_entry", "status": "accepted"},
+        ]
+        segment = {
+            "segment": "ending",
+            "material_fit": {
+                "visual_desc": "memory entry",
+                "need_refs": ["need_memory_entry"],
+            },
+        }
+
+        ranked = material_retrieval.rank_scenes(segment, [material_map])
+
+        self.assertEqual(1, len(ranked))
+        self.assertEqual("need_memory_entry", ranked[0]["need_id"])
+
+    def test_rank_scenes_prefers_accepted_need_evidence_over_candidate_hint(self):
+        accepted = self._map("accepted", "accepted.mp4", "same visual evidence")
+        candidate = self._map("candidate", "candidate.mp4", "same visual evidence")
+        candidate["scenes"][0]["satisfies"][0]["status"] = "candidate"
+        segment = {
+            "segment": "discipline",
+            "material_fit": {
+                "visual_desc": "same visual evidence",
+                "need_refs": ["need_a"],
+            },
+        }
+
+        ranked = material_retrieval.rank_scenes(segment, [candidate, accepted])
+
+        self.assertEqual("accepted", ranked[0]["asset_id"])
+        self.assertEqual("accepted", ranked[0]["need_status"])
+        self.assertEqual("candidate", ranked[1]["need_status"])
+        self.assertGreater(
+            ranked[0]["score_breakdown"]["need"],
+            ranked[1]["score_breakdown"]["need"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

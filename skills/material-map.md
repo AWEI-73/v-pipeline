@@ -721,6 +721,18 @@ and evidence list. A filename/folder match is a weak prior for ranking, never
 visual truth or a substitute for review. No report, no L1 picture-plan pass;
 hand-authored clips without the evidence object are rejected closed.
 
+For a segment with more than one declared `need_ref`, every video clip must
+also carry a stable `clip_id` and its own `need_id` (a human-readable
+`story_role` may accompany it). The gate ranks that clip against candidates
+for the declared need, not against one segment-wide candidate list. A scene may
+legitimately satisfy several accepted needs; the ranker must match any accepted
+edge that belongs to the current clip role rather than silently using only the
+first edge. Missing role binding, a need not declared by the segment, or a clip
+ranked only for another role fails closed. Do not replace this evidence with a
+manual override merely to make a multi-role montage pass. An `accepted` need
+edge outranks an otherwise equivalent `candidate` hint; stable-ID ordering must
+not allow provisional hypotheses to crowd reviewed evidence out of Top-K.
+
 ## Material-First Happy Path Wrapper
 
 Before asking the pipeline to cut a 60-90 second preview or a 5 minute film,
