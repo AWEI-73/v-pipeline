@@ -9,8 +9,8 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-17T09:51:43+08:00",
-  "state": "WAITING_OWNER_CANON67_STAGE2_AMBIGUITY_PACKAGE",
+  "updated_at": "2026-07-17T15:38:46+08:00",
+  "state": "WAITING_OWNER_CANON67_STAGE2_AMBIGUITY_PACKAGE_REVIEW",
   "active_work_order": null,
   "active_spec": "docs/decisions/2026-07-17-progressive-editorial-ambiguity-loop.md",
   "active_skill": "skills/editorial-ambiguity-loop.md",
@@ -21,9 +21,9 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "orchestrator_rebuild_canon67_stage2_story_decision_segment_grammar_and_evidence_needs",
-    "owner_review_high_impact_story_and_segment_decisions",
-    "run_stage2_ambiguity_gate_before_any_stage3_resume"
+    "owner_review_overall_story_A07_conditional_rule_and_review_caption_titles",
+    "record_owner_verdict_without_setting_creative_or_delivery_flags",
+    "only_after_owner_acceptance_reissue_stage3_retrieval_and_picture_plan_work"
   ],
   "do_not_do": [
     "do_not_resume_the_retired_stage3_8_work_order_from_the_thin_stage2_state",
@@ -43,8 +43,8 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_editorial_reconstruction_v2/accepted/acceptance_manifest.json",
-    "sha256": "bef347cef1f14d452e2b5a4a950bb3b70bc0405cfc766d06dcc56311935e3f4e"
+    "path": ".tmp/canon67_editorial_reconstruction_v2/stage2_ambiguity_v1/owner_review_index.md",
+    "sha256": "cfcb47c8bc83f7f25d41795ee994af2139f8ffe9af34a919849f0a3cda63d9d2"
   }
 }
 <!-- HANDOFF_STATE_END -->
@@ -55,14 +55,12 @@ the current machine-readable work pointer.
   approved supervisor speech/subtitles, and roster deferral remain accepted
   inputs. Canon 67 source media and the reviewed Material Map remain the only
   factual source; reference-film and Canon 66 pixels stay excluded.
-- The attempted Stage 3 run proved that the accepted Stage 2 state was too thin:
-  it had segment labels and a causal direction, but no frozen per-segment
-  composition grammar or evidence-need mapping. The worker therefore guessed
-  new-to-old need mappings and changed accepted story jobs.
-- `skills/editorial-ambiguity-loop.md` now defines the additive fix. Canon 67
-  must produce hash-bound `story_decision_packet.json`,
-  `segment_story_contract.json`, and `evidence_need_map.json`, then pass
-  `tools/editorial_ambiguity.py validate` before Stage 3 may resume.
+- The former thin Stage 2 state has now been expanded into a hash-bound story
+  decision, eleven-segment composition grammar, and 46 picture/speech evidence
+  needs. The formal ambiguity gate passes decision completeness and binding.
+- That gate does not prove source-window availability or creative quality.
+  Owner review is still required for the overall story, the conditional A07
+  detail segment, and review-only chapter captions before Stage 3 may resume.
 - The old Stage 3–8 work order remains durable history but is no longer active.
   No worker owns Stage 3–8 until the new Stage 2 package receives owner review.
 - The Integrator retains product judgment and final acceptance. Rendering,
