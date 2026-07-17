@@ -9,11 +9,11 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-17T16:08:58+08:00",
-  "state": "WAITING_OWNER_CANON67_STAGE2_TAXONOMY_V2_REVIEW",
-  "active_work_order": null,
+  "updated_at": "2026-07-17T18:11:48+08:00",
+  "state": "WAITING_WORKER_CANON67_STAGE3_LARGE_POOL_MATERIAL_MAP",
+  "active_work_order": "docs/construction-guides/work-orders/2026-07-17-canon67-stage3-large-pool-material-truth.md",
   "active_spec": "docs/decisions/2026-07-17-canon67-complete-pool-course-taxonomy.md",
-  "active_skill": "skills/editorial-ambiguity-loop.md",
+  "active_skill": "skills/material-map.md",
   "active_run_root": ".tmp/canon67_editorial_reconstruction_v2",
   "authoritative_state_artifact": ".tmp/canon67_editorial_reconstruction_v2/accepted/accepted_editorial_state_v2.json",
   "authoritative_state_sha256": "2041e6b9c879aa7737defa0f3d86198836822860a2345b16d2742bf219af25e7",
@@ -21,9 +21,9 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "owner_review_three_layer_taxonomy_complete_pool_scope_and_empty_folder_rule",
-    "record_owner_verdict_without_setting_creative_or_delivery_flags",
-    "only_after_owner_acceptance_rebuild_stage3_material_map_from_283_candidate_media"
+    "run_stage3_complete_pool_intake_and_hash_bound_reuse",
+    "review_202_pending_candidates_with_bounded_walls_and_exception_queue",
+    "build_project_material_map_v2_and_stop_for_integrator_review"
   ],
   "do_not_do": [
     "do_not_resume_the_retired_stage3_8_work_order_from_the_thin_stage2_state",
@@ -45,8 +45,8 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_editorial_reconstruction_v2/stage2_ambiguity_v2/owner_review_index.md",
-    "sha256": "9541f8fdd621dc3dce053329635f8912eae703107b0e61dd257d9970fa1a333d"
+    "path": ".tmp/canon67_editorial_reconstruction_v2/stage2_ambiguity_v2/owner_verdict.json",
+    "sha256": "689019d65a9c89ed0915b5431a1d74f880d54b0faa6a456dd688f5d1ad890a20"
   }
 }
 <!-- HANDOFF_STATE_END -->
@@ -65,9 +65,9 @@ the current machine-readable work pointer.
   cards, visually verified course labels, and review-only plain captions. Empty
   folder names are retrieval hints, not facts.
 - That gate does not prove source-window availability or creative quality.
-  Owner review is still required for the taxonomy policy, complete-pool Stage 3
-  review, and empty-folder evidence rule before Stage 3 may resume.
-- The old Stage 3–8 work order remains durable history but is no longer active.
-  No worker owns Stage 3–8 until the new Stage 2 package receives owner review.
+  The owner accepted the three-level taxonomy policy, complete-pool Stage 3
+  review, and empty-folder-as-prior rule. Stage 3 is now authorized.
+- The old Stage 3–8 work order remains durable history and retired. The active
+  worker owns only complete-pool Stage 3 material truth; Stage 4–10 stay closed.
 - The Integrator retains product judgment and final acceptance. Rendering,
   finishing, upload, creative approval, and delivery are not authorized.
