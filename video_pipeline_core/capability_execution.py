@@ -244,10 +244,10 @@ def run_capability_step(repo_root: Path, contract_path: Path, step_id: str) -> d
     step = _find_step(contract, step_id)
     if step is None:
         return _failure("contract_step_not_found", step_id, "step_id is not present in the committed contract")
-    dependency_errors, dependency_refs = _validate_dependency_receipts(root, contract, step)
+    dependency_errors, dependency_refs, dependency_receipts = _validate_dependency_receipts(root, contract, step)
     if dependency_errors:
         return {"ok": False, "errors": dependency_errors}
-    input_hashes, input_errors = _hash_inputs(root, step)
+    input_hashes, input_errors = _hash_inputs(root, contract, step, dependency_receipts)
     if input_errors:
         return {"ok": False, "errors": input_errors}
     pre_manifest = _snapshot_monitored_state(root, contract, scope="production", run_instance_id=None)
@@ -654,9 +654,10 @@ def _validate_dependency_receipts(
     root: Path,
     contract: dict,
     step: dict,
-) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
+) -> tuple[list[dict[str, str]], dict[str, dict[str, str]], dict[str, dict[str, Any]]]:
     errors: list[dict[str, str]] = []
     refs: dict[str, dict[str, str]] = {}
+    receipts: dict[str, dict[str, Any]] = {}
     for dependency in step.get("depends_on") or []:
         dependency_step = _find_step(contract, dependency)
         if dependency_step is None:
@@ -676,7 +677,8 @@ def _validate_dependency_receipts(
             "path": _relative_path(root, receipt_path),
             "sha256": hash_file(receipt_path),
         }
-    return _sorted_errors(errors), refs
+        receipts[str(dependency)] = receipt
+    return _sorted_errors(errors), refs, receipts
 
 
 def dependency_lineage_summary(contract: dict) -> dict[str, Any]:
@@ -868,20 +870,50 @@ def _dependency_graph_analysis(steps: Any) -> tuple[list[dict[str, str]], dict[s
     return _sorted_errors(errors), summary
 
 
-def _hash_inputs(root: Path, step: dict) -> tuple[dict[str, str], list[dict[str, str]]]:
+def _hash_inputs(
+    root: Path,
+    contract: dict,
+    step: dict,
+    dependency_receipts: dict[str, dict[str, Any]],
+) -> tuple[dict[str, str], list[dict[str, str]]]:
     hashes: dict[str, str] = {}
     errors: list[dict[str, str]] = []
     for item in step.get("inputs") or []:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str):
             continue
-        path = root / item["path"]
+        input_path = item["path"]
+        path = root / input_path
+        producer = item.get("from_step_id")
+        if isinstance(producer, str) and producer:
+            parent_receipt = dependency_receipts.get(producer)
+            output_hashes = parent_receipt.get("output_hashes") if isinstance(parent_receipt, dict) else None
+            expected = output_hashes.get(input_path) if isinstance(output_hashes, dict) else None
+            if not isinstance(expected, str) or not _SHA256_RE.fullmatch(expected):
+                errors.append(_error(
+                    "accountability_dynamic_input_parent_output_missing",
+                    input_path,
+                    "selected parent PASS receipt does not contain the dynamic input output hash",
+                ))
+                continue
+            if not path.is_file():
+                errors.append(_error("accountability_dynamic_input_missing", input_path, "dependency-produced input is missing"))
+                continue
+            digest = hash_file(path)
+            hashes[input_path] = digest
+            if digest != expected:
+                errors.append(_error(
+                    "accountability_dynamic_input_hash_mismatch",
+                    input_path,
+                    "dependency-produced input differs from the selected parent receipt output hash",
+                ))
+            continue
         if not path.is_file():
-            errors.append(_error("accountability_input_missing", item["path"], "declared input is missing"))
+            errors.append(_error("accountability_input_missing", input_path, "declared input is missing"))
             continue
         digest = hash_file(path)
-        hashes[item["path"]] = digest
+        hashes[input_path] = digest
         if digest != item.get("sha256"):
-            errors.append(_error("accountability_input_hash_mismatch", item["path"], "declared input hash does not match"))
+            errors.append(_error("accountability_input_hash_mismatch", input_path, "declared input hash does not match"))
     return hashes, _sorted_errors(errors)
 
 
@@ -1110,6 +1142,7 @@ def validate_execution_contract(repo_root: Path, contract: dict, catalog: dict) 
         _validate_step(root, step, location, card, errors)
 
     _validate_step_references(steps, step_ids, errors)
+    _validate_dynamic_input_bindings(steps, errors)
     graph_errors, _graph_summary = _dependency_graph_analysis(steps)
     errors.extend(graph_errors)
     _validate_decisions(root, contract.get("decision_requirements"), step_ids, cards, steps, errors)
@@ -1295,9 +1328,55 @@ def _validate_step_input(root: Path, item: Any, location: str, errors: list[dict
         errors.append(_error("contract_step_input_invalid", location, "input must be an object"))
         return
     _validate_declared_path(root, item.get("path"), location + "/path", errors)
+    has_static_binding = "sha256" in item
+    has_dynamic_binding = "from_step_id" in item
+    if has_static_binding and has_dynamic_binding:
+        errors.append(_error("contract_step_input_invalid", location, "input must declare exactly one of sha256 or from_step_id"))
+        return
+    if not has_static_binding and not has_dynamic_binding:
+        errors.append(_error("contract_step_input_invalid", location + "/sha256", "input sha256 must be 64 lowercase hexadecimal characters"))
+        return
+    if has_dynamic_binding:
+        if not isinstance(item.get("from_step_id"), str) or not item.get("from_step_id"):
+            errors.append(_error("contract_step_input_invalid", location + "/from_step_id", "from_step_id must be a non-empty string"))
+        return
     digest = item.get("sha256")
     if not isinstance(digest, str) or not _SHA256_RE.fullmatch(digest):
         errors.append(_error("contract_step_input_invalid", location + "/sha256", "input sha256 must be 64 lowercase hexadecimal characters"))
+
+
+def _validate_dynamic_input_bindings(steps: list, errors: list[dict[str, str]]) -> None:
+    by_id = {
+        step.get("step_id"): step
+        for step in steps
+        if isinstance(step, dict) and isinstance(step.get("step_id"), str)
+    }
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        dependencies = step.get("depends_on") if isinstance(step.get("depends_on"), list) else []
+        for input_index, item in enumerate(step.get("inputs") or []):
+            if not isinstance(item, dict) or "from_step_id" not in item or "sha256" in item:
+                continue
+            producer = item.get("from_step_id")
+            if not isinstance(producer, str) or not producer:
+                continue
+            location = f"steps/{index}/inputs/{input_index}"
+            if producer not in dependencies:
+                errors.append(_error(
+                    "contract_dynamic_input_producer_invalid",
+                    location + "/from_step_id",
+                    "dynamic input producer must be a direct dependency",
+                ))
+                continue
+            producer_step = by_id.get(producer)
+            outputs = producer_step.get("required_outputs") if isinstance(producer_step, dict) else []
+            if item.get("path") not in outputs:
+                errors.append(_error(
+                    "contract_dynamic_input_output_invalid",
+                    location + "/path",
+                    "dynamic input path must be declared by the producer step required_outputs",
+                ))
 
 
 def _validate_step_references(steps: list, step_ids: set[str], errors: list[dict[str, str]]) -> None:

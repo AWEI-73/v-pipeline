@@ -25,6 +25,14 @@ def _is_complete_delivery_run(root: Path) -> bool:
     return (root / "delivery_requirements.json").is_file() or (root / "final.mp4").is_file()
 
 
+def _is_repo_run_root(root: Path) -> bool:
+    try:
+        root.resolve(strict=False).relative_to(ROOT.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def _load_json(path: Path) -> dict | None:
     try:
         raw = path.read_bytes()
@@ -174,7 +182,7 @@ def _preview_duration_target_block(root: Path) -> dict | None:
 
 
 def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_gate.json") -> dict:
-    root = Path(run_dir)
+    root = Path(run_dir).resolve(strict=False)
     if _is_complete_delivery_run(root):
         gate = evaluate_complete_video_delivery(root)
         report_source = "complete_video_delivery_gate"
@@ -217,7 +225,9 @@ def write_delivery_gate_report(run_dir: str | Path, out_name: str = "delivery_ga
                 gate["blocking"] = blocking
                 gate["next_action"] = duration_block["next_action"]
         gate = apply_video_only_delivery_waiver_to_gate(root, gate)
-    activation = resolve_strict_contract(ROOT, root, None)
+    activation = {"strict": False}
+    if _is_repo_run_root(root):
+        activation = resolve_strict_contract(ROOT, root, None)
     if activation.get("strict"):
         if not activation.get("ok"):
             gate = dict(gate)

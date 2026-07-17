@@ -1,0 +1,7 @@
+{
+  "artifact_role": "video_intent",
+  "version": 1,
+  "video_type": "technical_rehearsal",
+  "goal": "verify forward receipt lineage",
+  "route": "fixture"
+}

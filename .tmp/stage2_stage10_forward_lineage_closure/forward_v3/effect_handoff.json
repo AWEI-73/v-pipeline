@@ -1,0 +1,7 @@
+{
+  "artifact_role": "effect_handoff",
+  "version": 1,
+  "status": "accepted",
+  "accepted_assets": [],
+  "boundary": {"fixture": true}
+}

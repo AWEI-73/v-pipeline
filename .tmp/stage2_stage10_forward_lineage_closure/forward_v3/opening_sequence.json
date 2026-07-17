@@ -1,0 +1,7 @@
+{
+  "artifact_role": "opening_sequence",
+  "version": 1,
+  "settings": {"fps": 30, "resolution": "1920x1080"},
+  "overlays": [],
+  "transitions": []
+}

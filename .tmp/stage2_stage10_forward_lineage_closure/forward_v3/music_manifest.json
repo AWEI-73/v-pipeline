@@ -1,0 +1,12 @@
+{
+  "artifact_role": "music_manifest",
+  "version": 1,
+  "tracks": [
+    {
+      "asset_id": "fixture-music",
+      "source_type": "user_provided",
+      "source_file": "tests/fixtures/stage2_stage10_lineage_v1/media/music.wav",
+      "license_note": "bounded test fixture"
+    }
+  ]
+}

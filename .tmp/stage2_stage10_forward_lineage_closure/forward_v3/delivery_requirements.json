@@ -1,0 +1,13 @@
+{
+  "artifact_role": "delivery_requirements",
+  "version": 1,
+  "requires_audio": true,
+  "requires_narration": false,
+  "requires_music": true,
+  "requires_subtitles": false,
+  "requires_soundtrack_probe": true,
+  "requires_vocal_conflict_check": false,
+  "requires_frame_evidence": false,
+  "requires_effect_render_verification": false,
+  "preferred_voiceover_provider": "fixture"
+}

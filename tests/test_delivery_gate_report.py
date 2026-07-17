@@ -12,6 +12,20 @@ def _write(path: Path, payload: dict) -> None:
 
 
 class DeliveryGateReportCliTest(unittest.TestCase):
+    def test_external_temp_run_does_not_invoke_repo_strict_resolver(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            _write(run / "video_intent.json", {"artifact_role": "video_intent", "entry_path": "material-first"})
+            with patch(
+                "tools.write_delivery_gate_report.resolve_strict_contract",
+                side_effect=AssertionError("external temp root must use legacy delivery behavior"),
+            ):
+                from tools.write_delivery_gate_report import write_delivery_gate_report
+                gate = write_delivery_gate_report(run)
+
+            self.assertFalse(gate["pass"])
+            self.assertTrue((run / "delivery_gate.json").is_file())
+
     def test_complete_delivery_run_uses_complete_video_gate_not_dashboard_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)

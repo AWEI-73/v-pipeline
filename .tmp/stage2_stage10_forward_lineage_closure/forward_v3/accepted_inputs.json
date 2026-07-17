@@ -1,0 +1,24 @@
+{
+  "accepted_inputs": [
+    {
+      "asset_id": "fixture-video",
+      "kind": "video",
+      "accepted": true,
+      "source_path": "../../../tests/fixtures/stage2_stage10_lineage_v1/media/source.mp4",
+      "source_relative_path": "tests/fixtures/stage2_stage10_lineage_v1/media/source.mp4",
+      "source_sha256": "a50ea46f06d20c1ea164819e5efad2c706fcc9bf94a9e3329ea48061013ca517",
+      "catalog_artifact": "fixture_manifest.json",
+      "human_review_status": "technical_fixture"
+    },
+    {
+      "asset_id": "fixture-music",
+      "kind": "audio",
+      "accepted": true,
+      "source_path": "../../../tests/fixtures/stage2_stage10_lineage_v1/media/music.wav",
+      "source_relative_path": "tests/fixtures/stage2_stage10_lineage_v1/media/music.wav",
+      "source_sha256": "5ad5d91160acbae6589a3947fd2536642bb321702a845d0cff8d6377bef06022",
+      "catalog_artifact": "fixture_manifest.json",
+      "human_review_status": "technical_fixture"
+    }
+  ]
+}

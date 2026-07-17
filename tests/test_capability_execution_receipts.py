@@ -252,6 +252,59 @@ class AccountableExecutionTest(unittest.TestCase):
                 receipt["dependency_receipt_hashes"],
             )
 
+    def test_dynamic_input_receipt_records_parent_output_digest(self):
+        with dynamic_two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            parent = run_capability_step(root, path, "L1.example")
+            child = run_capability_step(root, path, "L2.child")
+
+            self.assertTrue(parent["ok"], parent)
+            self.assertTrue(child["ok"], child)
+            parent_receipt = json.loads((root / parent["receipt_path"]).read_text(encoding="utf-8"))
+            child_receipt = json.loads((root / child["receipt_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(
+                parent_receipt["output_hashes"][".tmp/example/output.txt"],
+                child_receipt["input_hashes"][".tmp/example/output.txt"],
+            )
+
+    def test_tampered_dynamic_output_blocks_child_before_launch(self):
+        with dynamic_two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            parent = run_capability_step(root, path, "L1.example")
+            (root / ".tmp/example/output.txt").write_text("tampered\n", encoding="utf-8")
+
+            child = run_capability_step(root, path, "L2.child")
+
+            self.assertTrue(parent["ok"], parent)
+            self.assertFalse(child["ok"], child)
+            self.assertEqual(["accountability_dynamic_input_hash_mismatch"], error_codes(child))
+            self.assertFalse((root / ".tmp/example/child-output.txt").exists())
+
+    def test_missing_parent_output_hash_is_distinct_from_missing_dynamic_file(self):
+        with dynamic_two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            parent = run_capability_step(root, path, "L1.example")
+            parent_path = root / parent["receipt_path"]
+            parent_receipt = json.loads(parent_path.read_text(encoding="utf-8"))
+            parent_receipt["output_hashes"] = {}
+            parent_path.write_text(json.dumps(parent_receipt, indent=2) + "\n", encoding="utf-8")
+
+            child = run_capability_step(root, path, "L2.child")
+
+            self.assertFalse(child["ok"], child)
+            self.assertEqual(["accountability_dynamic_input_parent_output_missing"], error_codes(child))
+
+        with dynamic_two_step_execution_repository() as (root, path):
+            initialize_accountable_run(root, path)
+            parent = run_capability_step(root, path, "L1.example")
+            (root / ".tmp/example/output.txt").unlink()
+
+            child = run_capability_step(root, path, "L2.child")
+
+            self.assertTrue(parent["ok"], parent)
+            self.assertFalse(child["ok"], child)
+            self.assertEqual(["accountability_dynamic_input_missing"], error_codes(child))
+
     def test_missing_or_non_pass_parent_prevents_child_execution(self):
         with two_step_execution_repository() as (root, path):
             initialize_accountable_run(root, path)
@@ -450,6 +503,25 @@ class _TwoStepExecutionRepository:
 
 def two_step_execution_repository():
     return _TwoStepExecutionRepository()
+
+
+class _DynamicTwoStepExecutionRepository(_TwoStepExecutionRepository):
+    def __enter__(self):
+        root, path = super().__enter__()
+        companion = root / path
+        contract = json.loads(companion.read_text(encoding="utf-8"))
+        contract["steps"][0]["required_outputs"] = [".tmp/example/output.txt"]
+        contract["steps"][1]["inputs"] = [{
+            "path": ".tmp/example/output.txt",
+            "from_step_id": "L1.example",
+        }]
+        companion.write_text(json.dumps(contract, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        commit_all(root, "add dynamic input binding fixture")
+        return root, path
+
+
+def dynamic_two_step_execution_repository():
+    return _DynamicTwoStepExecutionRepository()
 
 
 if __name__ == "__main__":

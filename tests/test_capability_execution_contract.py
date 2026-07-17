@@ -270,6 +270,54 @@ class ExecutionContractSchemaTest(unittest.TestCase):
             [(item["code"], item["path"]) for item in errors],
         )
 
+    def test_valid_direct_dependency_produced_input_is_accepted(self):
+        contract = dynamic_chain_contract_for()
+
+        errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+
+        self.assertEqual([], errors)
+
+    def test_dynamic_input_requires_exactly_one_binding_mode(self):
+        contract = dynamic_chain_contract_for()
+        child = contract["steps"][-1]
+
+        child["inputs"] = [{
+            "path": ".tmp/dynamic/parent.json",
+            "sha256": "a" * 64,
+            "from_step_id": "L2.middle",
+        }]
+        both_errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+        self.assertIn("contract_step_input_invalid", error_codes({"errors": both_errors}))
+
+        child["inputs"] = [{"path": ".tmp/dynamic/parent.json"}]
+        neither_errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+        self.assertIn("contract_step_input_invalid", error_codes({"errors": neither_errors}))
+
+    def test_dynamic_input_requires_direct_producer_and_declared_output(self):
+        contract = dynamic_chain_contract_for()
+        child = contract["steps"][-1]
+
+        child["inputs"] = [{
+            "path": ".tmp/dynamic/parent.json",
+            "from_step_id": "L1.example",
+        }]
+        indirect_errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+        self.assertIn("contract_dynamic_input_producer_invalid", error_codes({"errors": indirect_errors}))
+
+        child["inputs"] = [{
+            "path": ".tmp/dynamic/not-declared.json",
+            "from_step_id": "L2.middle",
+        }]
+        output_errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+        self.assertIn("contract_dynamic_input_output_invalid", error_codes({"errors": output_errors}))
+
+        child["inputs"] = [{
+            "path": ".tmp/dynamic/parent.json",
+            "from_step_id": "L9.unknown",
+        }]
+        unknown_errors = validate_execution_contract(Path.cwd(), contract, dynamic_catalog())
+        self.assertIn("contract_dynamic_input_producer_invalid", error_codes({"errors": unknown_errors}))
+
 
 class AccountabilityForwardFixtureTest(unittest.TestCase):
     def test_bare_audio_filename_resolves_to_declared_forward_v2_initial_input(self):
@@ -462,6 +510,32 @@ def contract_for(work_order_id, run_root, *, work_order_path=None, version=1, ex
         "final_delivery_claimed": False,
     }
     contract.update(extra or {})
+    return contract
+
+
+def dynamic_catalog():
+    return {"ok": True, "cards": [{
+        "capability_id": "cap.example.operation.v1",
+        "command": "tools/example.py --run .tmp/dynamic",
+        "execution_class": "deterministic",
+        "capability_role": "operation",
+    }]}
+
+
+def dynamic_chain_contract_for():
+    contract = contract_for("dynamic", ".tmp/dynamic")
+    parent = dict(contract["steps"][0])
+    parent["required_outputs"] = [".tmp/dynamic/parent.json"]
+    middle = dict(parent)
+    middle["step_id"] = "L2.middle"
+    middle["depends_on"] = ["L1.example"]
+    middle["required_outputs"] = [".tmp/dynamic/middle.json"]
+    child = dict(parent)
+    child["step_id"] = "L3.child"
+    child["depends_on"] = ["L2.middle"]
+    child["required_outputs"] = [".tmp/dynamic/child.json"]
+    child["inputs"] = [{"path": ".tmp/dynamic/middle.json", "from_step_id": "L2.middle"}]
+    contract["steps"] = [parent, middle, child]
     return contract
 
 
