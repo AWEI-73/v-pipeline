@@ -9,10 +9,10 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-17T15:38:46+08:00",
-  "state": "WAITING_OWNER_CANON67_STAGE2_AMBIGUITY_PACKAGE_REVIEW",
+  "updated_at": "2026-07-17T16:08:58+08:00",
+  "state": "WAITING_OWNER_CANON67_STAGE2_TAXONOMY_V2_REVIEW",
   "active_work_order": null,
-  "active_spec": "docs/decisions/2026-07-17-progressive-editorial-ambiguity-loop.md",
+  "active_spec": "docs/decisions/2026-07-17-canon67-complete-pool-course-taxonomy.md",
   "active_skill": "skills/editorial-ambiguity-loop.md",
   "active_run_root": ".tmp/canon67_editorial_reconstruction_v2",
   "authoritative_state_artifact": ".tmp/canon67_editorial_reconstruction_v2/accepted/accepted_editorial_state_v2.json",
@@ -21,13 +21,15 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "owner_review_overall_story_A07_conditional_rule_and_review_caption_titles",
+    "owner_review_three_layer_taxonomy_complete_pool_scope_and_empty_folder_rule",
     "record_owner_verdict_without_setting_creative_or_delivery_flags",
-    "only_after_owner_acceptance_reissue_stage3_retrieval_and_picture_plan_work"
+    "only_after_owner_acceptance_rebuild_stage3_material_map_from_283_candidate_media"
   ],
   "do_not_do": [
     "do_not_resume_the_retired_stage3_8_work_order_from_the_thin_stage2_state",
     "do_not_treat_segment_names_as_segment_composition_grammar",
+    "do_not_treat_the_81_asset_reviewed_subset_as_the_complete_material_pool",
+    "do_not_emit_formal_course_labels_from_empty_folder_names_without_visual_evidence",
     "do_not_let_stage3_reinterpret_story_jobs_or_need_ids",
     "do_not_reuse_old_385_second_picture_or_source_window_order",
     "do_not_use_reference_or_canon66_media_as_source",
@@ -43,8 +45,8 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_editorial_reconstruction_v2/stage2_ambiguity_v1/owner_review_index.md",
-    "sha256": "cfcb47c8bc83f7f25d41795ee994af2139f8ffe9af34a919849f0a3cda63d9d2"
+    "path": ".tmp/canon67_editorial_reconstruction_v2/stage2_ambiguity_v2/owner_review_index.md",
+    "sha256": "9541f8fdd621dc3dce053329635f8912eae703107b0e61dd257d9970fa1a333d"
   }
 }
 <!-- HANDOFF_STATE_END -->
@@ -53,14 +55,18 @@ the current machine-readable work pointer.
 
 - Owner's results-report skeleton, causal preference, truthful duration range,
   approved supervisor speech/subtitles, and roster deferral remain accepted
-  inputs. Canon 67 source media and the reviewed Material Map remain the only
-  factual source; reference-film and Canon 66 pixels stay excluded.
-- The former thin Stage 2 state has now been expanded into a hash-bound story
-  decision, eleven-segment composition grammar, and 46 picture/speech evidence
-  needs. The formal ambiguity gate passes decision completeness and binding.
+  inputs. Reference-film and Canon 66 pixels stay excluded.
+- The complete source inventory is 306 files. After 19 reference-only media and
+  four non-media files are excluded, 283 candidate media remain. The prior
+  81-asset Material Map is a reviewed subset; 202 candidate media still need
+  Stage 3 immersion and confirmation.
+- Stage 2 v2 carries an eleven-segment composition grammar, 47 picture/speech
+  evidence needs, and a three-level external-audience display policy: chapter
+  cards, visually verified course labels, and review-only plain captions. Empty
+  folder names are retrieval hints, not facts.
 - That gate does not prove source-window availability or creative quality.
-  Owner review is still required for the overall story, the conditional A07
-  detail segment, and review-only chapter captions before Stage 3 may resume.
+  Owner review is still required for the taxonomy policy, complete-pool Stage 3
+  review, and empty-folder evidence rule before Stage 3 may resume.
 - The old Stage 3–8 work order remains durable history but is no longer active.
   No worker owns Stage 3–8 until the new Stage 2 package receives owner review.
 - The Integrator retains product judgment and final acceptance. Rendering,

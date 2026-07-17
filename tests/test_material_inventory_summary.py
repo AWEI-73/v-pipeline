@@ -65,6 +65,21 @@ class MaterialInventorySummaryTest(unittest.TestCase):
             self.assertEqual(summary["counts"]["total_files"], 1)
             self.assertEqual(summary["counts"]["images"], 1)
 
+    def test_heic_and_heif_are_counted_as_images(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            _write(source / "experience" / "a.HEIC")
+            _write(source / "experience" / "b.heif")
+
+            summary = build_material_inventory_summary(source)
+
+            self.assertEqual(summary["counts"]["total_files"], 2)
+            self.assertEqual(summary["counts"]["images"], 2)
+            self.assertEqual(summary["counts"]["other"], 0)
+            folders = {item["folder"]: item for item in summary["folder_summary"]}
+            self.assertEqual(folders["experience"]["image_count"], 2)
+
     def test_cli_writes_summary_json(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
