@@ -192,7 +192,7 @@
     {"path": "HANDOFF_CURRENT.md", "match": "exact"}
   ],
   "protected_paths": [
-    {"path": "docs/construction-guides/work-orders/2026-07-17-stage2-stage10-dynamic-input-binding-continuation.md", "sha256": "0053ba174707065edaf7d8b9f930b69b33b8ab4a98540e325dae8442da4b6d68"},
+    {"path": "docs/construction-guides/work-orders/2026-07-17-stage2-stage10-dynamic-input-binding-continuation.md", "sha256": "fce314d4a7e5e832f5bddf140c7d658509d2047a2808beba24e54e1accb607f7"},
     {"path": "tests/fixtures/stage2_stage10_lineage_v1/project_brief.json", "sha256": "623d2b85dfe11c36a0da413b683681b6fc771d8b14284a4ae82237981f096242"},
     {"path": "tests/fixtures/stage2_stage10_lineage_v1/story_decision_packet.json", "sha256": "5b399224e133e36f17efc299ee6337eb53bc640a3d0961c5bf2f6d39167147a8"},
     {"path": "tests/fixtures/stage2_stage10_lineage_v1/segment_story_contract.json", "sha256": "a583c8a0c1d2a657c5de5096f513d2ebf93cd99610f0346f52d956b550427054"},
