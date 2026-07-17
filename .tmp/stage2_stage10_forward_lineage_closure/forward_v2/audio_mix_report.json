@@ -1,0 +1,12 @@
+{
+  "artifact_role": "audio_mix_report",
+  "version": 1,
+  "audio_stream_present": true,
+  "music_included": true,
+  "narration_included": false,
+  "delivery_allowed": true,
+  "peak_dbfs": -6.0,
+  "placements": [
+    {"asset_id": "fixture-music", "ducking_policy": "none", "ducking_applied": true}
+  ]
+}
