@@ -9,11 +9,11 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-18T00:39:32+08:00",
-  "state": "WAITING_STAGE4_CANON67_ROLE_BOUND_PAPER_EDIT_DISPATCH",
-  "active_work_order": null,
+  "updated_at": "2026-07-18T01:17:10+08:00",
+  "state": "WAITING_WORKER_CANON67_STAGE4_ROLE_BOUND_PAPER_EDIT",
+  "active_work_order": "docs/construction-guides/work-orders/2026-07-18-canon67-stage4-role-bound-paper-edit.md",
   "active_spec": "docs/decisions/2026-07-18-canon67-stage3-5-story-revision-and-role-bound-retrieval.md",
-  "active_skill": "skills/editor.md",
+  "active_skill": "skills/editing-loop-director.md",
   "active_run_root": ".tmp/canon67_editorial_reconstruction_v2",
   "authoritative_state_artifact": ".tmp/canon67_editorial_reconstruction_v2/accepted/accepted_story_revision_v3.json",
   "authoritative_state_sha256": "230432997756b877f7046133a049cddfa3f0cfa8b79472bf9864975217428e6e",
@@ -21,9 +21,9 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "construct_stage4_paper_edit_from_base_editorial_state_plus_accepted_story_revision_v3",
-    "bind_every_multi_role_picture_clip_to_stable_clip_id_and_need_id",
-    "validate_the_true_shape_picture_plan_with_project_material_map_v3_before_render"
+    "execute_the_active_stage4_role_bound_paper_edit_work_order",
+    "stop_at_the_no_render_owner_review_packet",
+    "return_to_integrator_for_picture_verdict_before_stage5"
   ],
   "do_not_do": [
     "do_not_rerun_or_rewatch_the_complete_283_asset_pool",
