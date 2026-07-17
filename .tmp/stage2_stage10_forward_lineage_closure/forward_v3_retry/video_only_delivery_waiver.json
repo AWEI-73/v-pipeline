@@ -1,0 +1,10 @@
+{
+  "artifact_role": "video_only_delivery_waiver",
+  "version": 1,
+  "scope": "video_only_delivery",
+  "reviewer": "technical-fixture",
+  "reason": "technical lineage acceptance intentionally omits creative narration",
+  "at": "2026-07-17T00:00:00Z",
+  "waives": ["narration", "subtitle"],
+  "limitations": ["technical rehearsal only", "human creative approval remains false"]
+}

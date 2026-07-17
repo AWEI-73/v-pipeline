@@ -1,0 +1,17 @@
+{
+  "artifact_role": "audio_director_handoff",
+  "version": 1,
+  "ready_for_audio_director": true,
+  "selected_audio_files": [
+    {
+      "candidate_id": "fixture-music",
+      "section_id": "fixture",
+      "audio_file": "fixture-music",
+      "source_type": "user_provided",
+      "license_note": "bounded test fixture",
+      "music_role": "underscoring",
+      "vocal_policy": "instrumental",
+      "ducking_policy": "none"
+    }
+  ]
+}

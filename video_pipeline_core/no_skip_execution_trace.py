@@ -399,7 +399,10 @@ def write_strict_trace_audit(
         str(step.get("step_id"))
         for step in (contract.get("steps") or [])
         if isinstance(step, Mapping)
-        and step.get("capability_id") == "cap.verify.write-delivery-gate-report.v1"
+        and step.get("capability_id") in {
+            "cap.verify.no-skip-execution-trace.v1",
+            "cap.verify.write-delivery-gate-report.v1",
+        }
         and not _attempt_numbers(
             root / str(contract.get("accountability_root") or "")
             / "receipts" / str(step.get("step_id") or "")
