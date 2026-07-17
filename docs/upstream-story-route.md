@@ -20,7 +20,20 @@ Role / Literary Lens
 ```
 
 It ends when the project has a validated `segment_contract.json` and
-`material_needs.json` that can enter Material Truth.
+`material_needs.json` that can enter Material Truth. For whole-video and
+long-form work, the route also uses `skills/editorial-ambiguity-loop.md` as a
+method overlay: it must freeze the accepted story decision, segment composition
+grammar, and evidence-need map before Material Truth interprets the request.
+
+This overlay does not add a seventh upstream stage. It runs across the existing
+Role/Blueprint/Story/Director/Compile owners using:
+
+```text
+propose -> compare -> verdict -> expand one level -> evidence check -> compact
+```
+
+The compact handoff preserves reasons and evidence; it removes repeated prose,
+not decision context.
 
 ## Why This Exists
 
@@ -199,6 +212,10 @@ Purpose: hand the upstream contract to Material Truth without ambiguity.
 
 Required handoff:
 
+- `story_decision_packet.json`;
+- `segment_story_contract.json`;
+- `evidence_need_map.json`;
+- `stage2_ambiguity_gate_report.json` with `ready_for_stage3=true`;
 - `segment_contract.json`;
 - `material_needs.json`;
 - optional `effect_intent_plan.json`;
@@ -290,6 +307,12 @@ Before Material Truth, confirm:
 
 - the project has a narrative device or explicit reason not to need one;
 - must-have beats are traceable;
+- route-changing and structural unknowns are resolved or explicitly deferred;
+- every segment states factual claim, story change, entry/exit state, required
+  picture roles, forbidden substitutions, and material-short fallback;
+- every required picture role maps to an observable evidence need;
+- the Stage 2 ambiguity gate passes without claiming material availability or
+  creative quality;
 - every material need has a purpose, count, and fallback;
 - generated routes have style/panel/prompt requirements;
 - `review_policy` is chosen or intentionally omitted;

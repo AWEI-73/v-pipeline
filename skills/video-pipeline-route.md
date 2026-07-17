@@ -489,7 +489,8 @@ Read `RUNBOOK.md` first for the semantic operation table. Then read
 `docs/canonical-video-pipeline-route.md` as the route definition. Use
 `docs/stage-boundary-matrix.md` when dispatching workers or deciding what a
 stage may write. When the project needs story quality before material work, read
-`docs/upstream-story-route.md`. When the project needs designed effect assets,
+`docs/upstream-story-route.md` and use `skills/editorial-ambiguity-loop.md` to
+make Stage 0–2 decisions and evidence needs portable. When the project needs designed effect assets,
 read `docs/effect-factory-route.md` and `skills/video-effect-factory.md`.
 
 ## Semantic Trigger Router
@@ -537,6 +538,14 @@ or refresh the Stage 0 package: `project_brief.json`, `interaction_log.md`, and
 `needs-context` with follow-up questions. After Stage 0, `pipeline_home.py must not remain unknown`;
 if it does, the worker has not produced a recognized
 handoff artifact yet.
+
+For whole-video and long-form routes, Stage 2 is not complete merely because
+`story_soul_blueprint.json` or a list of segment names exists. Before Stage 3,
+the orchestrator must use `skills/editorial-ambiguity-loop.md`, freeze
+`story_decision_packet.json`, `segment_story_contract.json`, and
+`evidence_need_map.json`, then obtain an exit-0
+`stage2_ambiguity_gate_report.json`. That report is a completeness/binding gate,
+not a creative-quality or material-availability PASS.
 
 When the user has footage but asks for a story-shaped video, `material-first owns the route before story structure`.
 Do not switch to upstream story just because the intended edit has a story arc.
@@ -750,6 +759,11 @@ Role / Literary Lens
 
 This route is documented in `docs/upstream-story-route.md`.
 
+Use `skills/editorial-ambiguity-loop.md` across these owners when the request is
+fuzzy or the director plan has not yet fixed segment composition grammar. It
+adds no new route stage: it progressively carries the Stage 0 intent through
+Story Soul into the Director/Spec handoff.
+
 Do not collapse these into one prompt if quality matters. The important split:
 
 - `Role / Literary Lens`: what kind of mind is writing the piece;
@@ -761,6 +775,8 @@ Do not collapse these into one prompt if quality matters. The important split:
 - `Contract Compile`: validated `segment_contract.json` and traceable
   `material_needs.json`;
 - `Material-Ready Handoff`: enter material map / delta, not BUILD directly.
+- Stage 0–2 ambiguity gate: accepted story decision + segment story grammar +
+  evidence needs are hash-bound before Material Truth workers interpret them.
 
 ## Intake Questions
 

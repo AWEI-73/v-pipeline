@@ -60,7 +60,10 @@ effect intent starts Effect Factory.
 
 Entry skill selection follows the same router: whole-video requests use the
 video pipeline route skill first, material-first work uses Material Map through
-the route, and draft edits use the Workbench/Brownfield path.
+the route, and draft edits use the Workbench/Brownfield path. For whole-video or
+long-form work, `skills/editorial-ambiguity-loop.md` is the Stage 0–2 method
+overlay that converts fuzzy intent into a story decision, segment grammar, and
+evidence needs; it is not a new route or Stage owner.
 
 ## Stage And Editing Loop Authority
 
@@ -72,7 +75,7 @@ available; it never advances the Stage cursor or promotes delivery by itself.
 
 | Stage hook | Editing method |
 |---|---|
-| S0-S2 | Fix intent, story spine, and director/segment contract before whole-video composition. |
+| S0-S2 | Use `editorial-ambiguity-loop` to fix intent, compare major story hypotheses, then bind segment composition grammar and evidence needs before whole-video composition. |
 | S3 | Use L0 for material immersion and evidence-backed selects. |
 | S4 | Use L0 findings at the coverage/decision gate. |
 | S5 | Compile L1 picture, L2 effects, L3 audio, and L4 text decisions without claiming a canonical render. |
@@ -121,6 +124,13 @@ Exact user phrase: export the final video.
 run has not entered the pipeline. For footage-backed story requests,
 `material-first remains the route`; the story skeleton follows material facts.
 Material Delta is a gate before BUILD/render.
+
+Stage 2 long-form completion requires these frozen, mutually hash-bound
+artifacts: `story_decision_packet.json`, `segment_story_contract.json`, and
+`evidence_need_map.json`. Run `tools/editorial_ambiguity.py validate`; only exit
+0 with `ready_for_stage3=true` permits Stage 3 retrieval. This gate proves
+decision completeness and binding only. It does not prove material coverage,
+story quality, creative approval, or delivery.
 
 Use the Decision tree before work that could cross branch boundaries. Material
 first work goes through Material Map and material delta. Existing draft edits go

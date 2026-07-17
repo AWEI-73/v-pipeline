@@ -189,6 +189,14 @@ mood ↔ style 對應建議：
 > `docs/imagery-to-edit-lexicon-spec.md`（意象→剪輯對照表）翻成 `segment_contract.json`。
 > 翻譯是決定論的，不是再創作——你是字典的執行者，不是第二個編劇。
 
+在翻成 canonical BUILD contract 前，whole-video／long-form 必須先依
+[`editorial-ambiguity-loop.md`](editorial-ambiguity-loop.md) 完成 Stage 2B/2C：
+每段先固定 `factual_claim`、`story_change`、entry/exit、
+`required_picture_roles`、允許家族、禁止替代、字卡角色、時長政策與
+evidence needs。`sequence_grammar.required_functions` 必須從這份已接受的段落語法
+翻譯，不得由 Stage 3 worker 看素材後自行發明。Stage 2 gate 未 PASS 就不執行
+`blueprint-to-contract` 或素材檢索。
+
 **鐵則（直接針對之前的失敗）：**
 
 ```
@@ -264,6 +272,8 @@ pace 三檔 fast|calm|hold→preferred_shot_sec / treatment）、`editing_gramma
 ## 與其他 Skill 的銜接
 
 - **上游**：編劇 [writer.md](writer.md)（內容欄位）。
+- **Stage 0–2 方法層**：[editorial-ambiguity-loop.md](editorial-ambiguity-loop.md)
+  （提案/比較/裁決/段落語法/evidence need；不取代導演或 Stage cursor）。
 - **執行下游**：小編 [curator.md](curator.md)（依 media_pref/layout/source 找素材）、特效師 [effects-director.md](effects-director.md)（套 style 轉場/調色/字卡/片頭尾）、音控師 [audio-director.md](audio-director.md)（依 bgm 混音 ducking）。
 - **規劃 meta**：高層 architecture-first 流程見 [video-workflow.md](video-workflow.md)；導演是其中「製作設計」那一步的專職落地。
 - 導演**不**自己挑單一素材、不調 ffmpeg 參數、不評分——那些是執行層與 VERIFY 的事。

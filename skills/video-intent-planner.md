@@ -244,9 +244,13 @@ subtitles, narration, voiceover, or source-audio preservation.
 ## Handoff
 
 - `material-first` -> run material map lifecycle first, then use map findings
-  to reduce ambiguity and build structure.
+  to reduce ambiguity and build structure. For a whole-video or long-form job,
+  return through `skills/editorial-ambiguity-loop.md` before Stage 3 so the
+  Material Map facts become story hypotheses, segment grammar, and evidence
+  needs instead of an activity catalogue.
 - `structure-first` -> run upstream structure route; if no material exists, run
-  initial material delta before generated material fallback.
+  `skills/editorial-ambiguity-loop.md` across Stage 1–2, then initial material
+  delta before generated material fallback.
 - `needs-context` -> ask follow-up questions before choosing a handoff.
 
 Stage 0 may record child intent contracts, but must not run child branches from

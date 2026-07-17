@@ -11,6 +11,11 @@ becoming a course list or asset list.
 Use it before material-map planning when the project needs a narrative device,
 emotional spine, or generated comic/photo story plan.
 
+When a whole-video request begins fuzzy or has more than one credible story
+shape, use `skills/editorial-ambiguity-loop.md` as the Stage 0–2 method overlay.
+This Skill still owns Story Soul content; the overlay owns only progressive
+clarification, decision evidence, and the Stage 2 handoff shape.
+
 ## Command
 
 ```powershell
@@ -70,6 +75,10 @@ must stop instead of writing generic content.
    `stage0_child_contracts.subtitle_voiceover` becomes subtitle/voiceover
    intent. These are constraints and handoffs, not permission to skip material
    truth or BUILD gates.
+10. Do not stop at beat names. Before Stage 3, expand the accepted causal arc
+    into `segment_story_contract.json` and `evidence_need_map.json` through
+    `editorial-ambiguity-loop`; every segment must declare its state change and
+    the picture roles needed to prove it.
 
 ## Good Output
 
@@ -140,8 +149,10 @@ neutral `effect_intent_plan.json` and `effect_asset_spec.json`.
 
 ```text
 story-soul-blueprint
+  -> editorial-ambiguity-loop hypothesis / verdict / causal expansion
   -> material_needs / director_shot_plan
   -> stage0_child_contracts preserved into Director Shot Plan when present
+  -> segment_story_contract + evidence_need_map + Stage 2 ambiguity gate
   -> story-soul-to-contract when the next owner is Segment Contract / Node 3
   -> effect-intent-plan when effect_intent exists
   -> material-map lifecycle

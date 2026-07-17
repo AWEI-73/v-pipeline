@@ -9,11 +9,11 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-17T01:06:50+08:00",
-  "state": "WAITING_WORKER_CANON67_EDITORIAL_RECONSTRUCTION_V2_STAGE3_8",
-  "active_work_order": "docs/construction-guides/work-orders/2026-07-17-canon67-editorial-reconstruction-v2-stage3-8.md",
-  "active_spec": ".tmp/canon67_editorial_reconstruction_v2/accepted/accepted_editorial_state_v2.json",
-  "active_skill": "skills/video-pipeline-route.md",
+  "updated_at": "2026-07-17T09:51:43+08:00",
+  "state": "WAITING_OWNER_CANON67_STAGE2_AMBIGUITY_PACKAGE",
+  "active_work_order": null,
+  "active_spec": "docs/decisions/2026-07-17-progressive-editorial-ambiguity-loop.md",
+  "active_skill": "skills/editorial-ambiguity-loop.md",
   "active_run_root": ".tmp/canon67_editorial_reconstruction_v2",
   "authoritative_state_artifact": ".tmp/canon67_editorial_reconstruction_v2/accepted/accepted_editorial_state_v2.json",
   "authoritative_state_sha256": "2041e6b9c879aa7737defa0f3d86198836822860a2345b16d2742bf219af25e7",
@@ -21,11 +21,14 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "worker_execute_registered_stage3_retrieval_and_ranked_windows",
-    "worker_compile_and_render_stage4_through_stage8_candidate",
-    "integrator_independently_review_candidate_and_eye_ear_heart_packet"
+    "orchestrator_rebuild_canon67_stage2_story_decision_segment_grammar_and_evidence_needs",
+    "owner_review_high_impact_story_and_segment_decisions",
+    "run_stage2_ambiguity_gate_before_any_stage3_resume"
   ],
   "do_not_do": [
+    "do_not_resume_the_retired_stage3_8_work_order_from_the_thin_stage2_state",
+    "do_not_treat_segment_names_as_segment_composition_grammar",
+    "do_not_let_stage3_reinterpret_story_jobs_or_need_ids",
     "do_not_reuse_old_385_second_picture_or_source_window_order",
     "do_not_use_reference_or_canon66_media_as_source",
     "do_not_bypass_retrieval_ranking_or_registered_public_tools",
@@ -48,17 +51,19 @@ the current machine-readable work pointer.
 
 ## Current Durable Context
 
-- Owner selected the results-report skeleton with the focused story option's
-  causal and repetition rules. The accepted evidence-supported range is
-  380–425 seconds; 540 seconds remains a ceiling, not a quota.
-- This is a real reconstruction. Revision 12 contributes only owner-confirmed
-  facts, the complete approved supervisor speech/subtitles, roster deferral and
-  the truthful ending boundary. Its old clip order, source-window order,
-  durations, picture plan and repeated BGM placement are retired.
-- Canon 67 source media and the reviewed Material Map are the only factual
-  source. Reference-film and Canon 66 pixels remain excluded.
-- The worker now owns bounded Stage 3–8 execution under the formal work order.
-  It must use ranked retrieval evidence, registered compile/render/Verify
-  surfaces, and a complete 0.5-second eye/ear/heart review packet.
-- The Integrator retains product judgment and final acceptance. Stage 9
-  finishing, upload, creative approval and delivery are not authorized.
+- Owner's results-report skeleton, causal preference, truthful duration range,
+  approved supervisor speech/subtitles, and roster deferral remain accepted
+  inputs. Canon 67 source media and the reviewed Material Map remain the only
+  factual source; reference-film and Canon 66 pixels stay excluded.
+- The attempted Stage 3 run proved that the accepted Stage 2 state was too thin:
+  it had segment labels and a causal direction, but no frozen per-segment
+  composition grammar or evidence-need mapping. The worker therefore guessed
+  new-to-old need mappings and changed accepted story jobs.
+- `skills/editorial-ambiguity-loop.md` now defines the additive fix. Canon 67
+  must produce hash-bound `story_decision_packet.json`,
+  `segment_story_contract.json`, and `evidence_need_map.json`, then pass
+  `tools/editorial_ambiguity.py validate` before Stage 3 may resume.
+- The old Stage 3–8 work order remains durable history but is no longer active.
+  No worker owns Stage 3–8 until the new Stage 2 package receives owner review.
+- The Integrator retains product judgment and final acceptance. Rendering,
+  finishing, upload, creative approval, and delivery are not authorized.
