@@ -117,6 +117,22 @@ material pool for mapping". It does not mean final picture selection.
    harness exposes one, wall-clock start, and both approval flags false. Never
    invent model identity or token counts.
 
+Observed preflight failure guard for the continuation:
+
+- the stopped attempt exhausted the inline Python f-string method before any
+  repository task or artifact began; that command-construction method is now
+  prohibited for this work order;
+- read known UTF-8 text paths with
+  `Get-Content -Raw -Encoding utf8 -LiteralPath <fixed-path>`;
+- compute frozen hashes with
+  `Get-FileHash -Algorithm SHA256 -LiteralPath <fixed-path>`;
+- use `rg --files` only to discover an unknown path, then operate on the fixed
+  literal path;
+- do not use `python -c`, Python f-strings, interpolated here-strings, or a
+  custom read helper during Task 0;
+- this is a change of method after a STRUCTURAL method failure, not a reset of
+  the same retry. Any new use of the prohibited method is a scope violation.
+
 PASS evidence: frozen audit and clean owner-zone initialization.
 FAIL: any frozen drift, missing source root, or attempted write outside the
 owner zone.
