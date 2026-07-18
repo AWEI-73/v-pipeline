@@ -275,6 +275,26 @@ class EditorialAmbiguityContractTest(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertIn("narrative_contract_incomplete", {e["code"] for e in report["errors"]})
 
+    def test_segment_need_reference_must_exist_in_evidence_map(self):
+        from video_pipeline_core.editorial_ambiguity import validate_package
+
+        with tempfile.TemporaryDirectory() as tmp:
+            story, segment, evidence = _valid_package(Path(tmp))
+            payload = json.loads(segment.read_text(encoding="utf-8"))
+            payload["segments"][0]["evidence_refs"].append("N_MISSING_REACTION")
+            _write(segment, payload)
+
+            evidence_payload = json.loads(evidence.read_text(encoding="utf-8"))
+            evidence_payload["segment_contract_ref"]["sha256"] = _sha256(segment)
+            _write(evidence, evidence_payload)
+
+            report = validate_package(story, segment, evidence)
+        self.assertFalse(report["ok"])
+        self.assertIn(
+            "segment_evidence_need_ref_missing",
+            {error["code"] for error in report["errors"]},
+        )
+
     def test_ab_comparison_requires_two_materially_distinct_options(self):
         from video_pipeline_core.editorial_ambiguity import validate_package
 

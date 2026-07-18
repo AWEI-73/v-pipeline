@@ -1,7 +1,7 @@
 # Work Order: Canon 67 grilling transfer v2
 
-Date: 2026-07-18  
-Owner: `main-pipeline` integrator  
+Date: 2026-07-18
+Owner: `main-pipeline` integrator
 Basis: `2026-07-18-canon67-grilling-stage3-5-transfer-test.md`
 
 ## Goal
@@ -38,6 +38,8 @@ and campaign state. Do not commit, stage, push, upload, or mutate source media.
 
 - Stage 2 validator: exit 0, `ready_for_stage3=true`.
 - No placeholder marker in required story, segment, or evidence text.
+- Every `N_*` reference in the segment contract resolves to an entry in the
+  evidence-need map; dangling need IDs fail closed.
 - Retrieval report: exit 0, adapter metadata present, selected clips in
   role-specific Top-K, zero overrides.
 - Focused tests: `tests.test_editorial_ambiguity` and

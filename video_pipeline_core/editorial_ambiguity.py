@@ -441,6 +441,33 @@ def _validate_evidence(
             )
 
 
+def _validate_segment_need_bindings(
+    contract: dict[str, Any],
+    evidence: dict[str, Any],
+    errors: list[dict[str, str]],
+) -> None:
+    """Reject dangling evidence-need IDs without treating file refs as need IDs."""
+
+    need_ids = {
+        need.get("need_id")
+        for need in evidence.get("needs") or []
+        if isinstance(need, dict) and _text(need.get("need_id"))
+    }
+    for index, segment in enumerate(contract.get("segments") or []):
+        if not isinstance(segment, dict):
+            continue
+        for ref in segment.get("evidence_refs") or []:
+            if not isinstance(ref, str) or not re.fullmatch(r"N_[A-Za-z0-9_:-]+", ref):
+                continue
+            if ref not in need_ids:
+                _error(
+                    errors,
+                    "segment_evidence_need_ref_missing",
+                    "segment_contract.segments[{}].evidence_refs".format(index),
+                    "segment references an evidence need absent from evidence_map.needs: " + ref,
+                )
+
+
 def validate_package(
     story_decision_path: Path,
     segment_contract_path: Path,
@@ -486,6 +513,7 @@ def validate_package(
     )
     segment_roles = _validate_segments(segment, errors)
     _validate_evidence(evidence, segment_roles, errors)
+    _validate_segment_need_bindings(segment, evidence, errors)
 
     ok = not errors
     return {

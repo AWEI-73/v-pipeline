@@ -262,6 +262,10 @@ Stage 0 可以保留未知，但 `required_followup_questions` 內的 route-chan
 | `evidence_refs` | 本段決策依據 |
 | `decision_record` | 七欄最小決策紀錄 |
 
+若 `evidence_refs` 使用 `N_*` 形式引用 Stage 2C 的 need ID，該 ID 必須實際存在於
+`evidence_need_map.needs[]`。這是跨 artifact 綁定，不是可忽略的註解；缺少時
+`tools/editorial_ambiguity.py` 必須 fail closed。
+
 一個段落若包含多個對外有意義的訓練／事件單元，另帶
 `content_taxonomy.training_units[]`。每個單元至少記錄 `unit_id`,
 `official_label`, `label_status`, `factual_purpose`, `story_function`,
