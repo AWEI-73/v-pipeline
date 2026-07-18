@@ -9,9 +9,9 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-18T01:17:10+08:00",
-  "state": "WAITING_WORKER_CANON67_STAGE4_ROLE_BOUND_PAPER_EDIT",
-  "active_work_order": "docs/construction-guides/work-orders/2026-07-18-canon67-stage4-role-bound-paper-edit.md",
+  "updated_at": "2026-07-18T16:30:00+08:00",
+  "state": "WAITING_WORKER_CANON67_STAGE4_STORYBOARD_REVIEW_REVISION_V2",
+  "active_work_order": "docs/construction-guides/work-orders/2026-07-18-canon67-stage4-storyboard-review-revision-v2.md",
   "active_spec": "docs/decisions/2026-07-18-canon67-stage3-5-story-revision-and-role-bound-retrieval.md",
   "active_skill": "skills/editing-loop-director.md",
   "active_run_root": ".tmp/canon67_editorial_reconstruction_v2",
@@ -21,9 +21,9 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "execute_the_active_stage4_role_bound_paper_edit_work_order",
-    "stop_at_the_no_render_owner_review_packet",
-    "return_to_integrator_for_picture_verdict_before_stage5"
+    "apply_the_accepted_timeline_reviewer_findings_as_revision_inputs",
+    "render_one_review_only_storyboard_v2_with_unit_labels_and_protected_speech",
+    "return_to_integrator_with_a_fresh_0_5_second_timeline_review_packet"
   ],
   "do_not_do": [
     "do_not_rerun_or_rewatch_the_complete_283_asset_pool",
@@ -46,8 +46,8 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_editorial_reconstruction_v2/stage3_5_targeted_gap_closure_v1/final/integrator_acceptance_v1.md",
-    "sha256": "d64d7f4343a5ffa52e2c6e384cb9f760875603e70d8c429e420f2f268c063426"
+    "path": ".tmp/canon67_editorial_reconstruction_v2/stage4_storyboard_v1/timeline_review_v1/integrator_story_findings.md",
+    "sha256": "bfa595ad654ef735eb094163f8fe9fc64635bff346341731729f2cac39f05325"
   }
 }
 <!-- HANDOFF_STATE_END -->
@@ -66,19 +66,19 @@ the current machine-readable work pointer.
   evidence needs, and a three-level external-audience display policy: chapter
   cards, visually verified course labels, and review-only plain captions. Empty
   folder names are retrieval hints, not facts.
-- Stage 3.5 story revisions are accepted for paper-edit construction: A02=12s,
-  A07=0s merged into A04/A05, A09=39.34s with bounded cue/cutaway policy,
-  A10=18s process-only, and A11=24s with two callbacks plus one final group
-  photo. The truthful Stage 4 target is 360.34 seconds before timing review.
+- Stage 3.5 story revisions remain the accepted source basis. A 315-second,
+  six-chapter review-only storyboard has since been rendered with the approved
+  39.34-second supervisor speech and 12/12 approved subtitles. Horizontal
+  review accepted the chain shape but found five structural revision inputs;
+  the paper edit is not picture-locked.
 - Multi-role retrieval is role-bound: every video clip carries a stable
   `clip_id` and `need_id`; scenes with multiple accepted edges are matched
   against the current role. Stage 4 must pass this gate before any render.
-- The one full-suite run reached 2,899 tests with one related legacy-fixture
-  failure. The fixture now carries the required candidate edge and the affected
-  42-test set passes; final-HEAD full-suite status remains UNKNOWN because the
-  suite was intentionally not run a second time.
-- The old Stage 3–8, complete-pool Stage 3, and Stage 3.5 work orders remain
-  durable history and retired. Stage 4 paper-edit dispatch is the only next
-  production action.
+- Current HEAD full-suite evidence is 2,906 tests PASS with one skipped. The
+  explicit silent-timeline audio policy and late-speech waveform verification
+  are committed at `b404ab9d`.
+- The old Stage 3–8, complete-pool Stage 3, Stage 3.5, and first Stage 4 paper
+  edit work orders remain durable history. The storyboard review revision v2
+  work order is the only next production action.
 - The Integrator retains product judgment and final acceptance. Rendering,
   finishing, upload, creative approval, and delivery are not authorized.
