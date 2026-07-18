@@ -1,6 +1,6 @@
 ---
 name: editorial-ambiguity-loop
-description: Use across Hermes Stage 0-2 when a whole-video request still has fuzzy story intent, multiple plausible structures, weak segment composition grammar, or no evidence-need map. Converts ambiguity into an evidence-carrying story decision, segment story contract, and evidence need map before Stage 3. It is a method overlay, not a Stage router or renderer.
+description: Use across Hermes Stage 0-2 when a whole-video request still has fuzzy story intent, multiple plausible structures, weak segment composition grammar, or no evidence-need map. Uses one-decision-at-a-time interaction to convert ambiguity into an evidence-carrying story decision, segment story contract, and evidence need map before Stage 3. It is a method overlay, not a Stage router or renderer.
 ---
 
 # Editorial Ambiguity Loop — 上游模糊消除
@@ -93,6 +93,66 @@ allowed_downstream_interpretation
 
 下游只讀 compact artifact 與其 evidence refs，不靠聊天記憶補洞。
 
+## Interactive grilling discipline
+
+本節借用 Matt Pocock `grilling`（MIT）的窄問題拆解精神，改寫成 Hermes
+Stage 0–2 的互動方法。它不是新 Stage，也不得建立新的 router、gate 或第四份
+canonical story artifact。
+
+### Ask decisions; inspect facts
+
+每次互動前先建立目前的決策樹，並自行讀取可得的 brief、素材名稱、Material Map、
+牆面、ASR、reference film 與既有 owner verdict。可由證據查得的事實由 Agent 查證，
+不要反問 owner。只有會改變目標、因果骨架、公開事實、素材授權或交付行為的選擇，
+才進 ASK / SHOW。
+
+每輪固定順序：
+
+```text
+enumerate unresolved branches
+  → inspect environment facts
+  → choose the highest-impact unresolved decision
+  → ask exactly one question
+  → wait for the answer
+  → persist the accepted decision
+  → recalculate dependent branches
+```
+
+一題只裁決一個主選擇，但可以列出它會填滿的多個欄位。問題必須包含：
+
+```json
+{
+  "question_id": "q_stage1_story_shape",
+  "branch_id": "story_shape",
+  "depends_on": ["audience", "factual_purpose"],
+  "fills": ["narrative_contract.thesis", "hypotheses[].causal_promise"],
+  "environment_facts": [
+    {"claim": "what the repo or material actually supports", "evidence_refs": ["path-or-id"]}
+  ],
+  "recommended_answer": "one concrete recommendation and why",
+  "alternatives": [
+    {"answer": "credible alternative", "tradeoff": "what it gains and loses"}
+  ],
+  "owner_answer": null,
+  "blocking_descendants": ["segment architecture", "evidence needs"]
+}
+```
+
+`recommended_answer` 是降低 owner 判斷成本，不是代替 ASK / SHOW 裁決。若 owner
+已明確委任某一類可逆決策，才可用 DECIDE，且仍要寫進 `decision_record`。
+
+### Persist without adding a layer
+
+每個答案先追加到既有 Stage 0 `interaction_log.md`，再把有效內容 compact 到既有的
+`story_decision_packet.json`、`segment_story_contract.json` 或
+`evidence_need_map.json`。聊天記錄不是真相；互動 log 是 provenance，也不是新的
+下游依賴。下一題只讀目前 compact state、未解 branch 與必要 evidence refs，不重讀
+整段歷史。
+
+只有 route-changing / structural branch 已解決，而且每個段落的 worker 資訊投影
+足以讓下游不靠猜測執行，互動才可結束。Local unknown 可以攜帶，但必須列入
+`remaining_unknowns`，不得用含糊文案假裝已決定。
+
 ### Canonical vocabulary
 
 不要自創近義 token。v1 固定值如下：
@@ -180,6 +240,30 @@ Stage 0 可以保留未知，但 `required_followup_questions` 內的 route-chan
 | `review_question` | owner 看 storyboard 時的一個可回答問題 |
 | `evidence_refs` | 本段決策依據 |
 | `decision_record` | 七欄最小決策紀錄 |
+
+一個段落若包含多個對外有意義的訓練／事件單元，另帶
+`content_taxonomy.training_units[]`。每個單元至少記錄 `unit_id`,
+`official_label`, `label_status`, `factual_purpose`, `story_function`,
+`required_picture_roles`, `allowed_source_families`, `coverage_status`,
+`unknowns`, `evidence_refs`。這讓「基礎訓練」不會被當成一個空泛大類，也不要求
+Stage 2 先選實際檔案。
+
+每個段落還要產生 `worker_information_projection`：
+
+```text
+required_context
+hard_constraints
+soft_guidance
+worker_discretion
+unknowns
+evidence_refs
+consumer_stage
+verification_target
+```
+
+投影的目的，是把足夠資訊交給 worker，同時保留可逆的剪輯空間。運鏡、裁切焦點、
+字卡角色、聲音優先級等若會改變故事理解，寫成 `hard_constraints` 或
+`soft_guidance`；純 renderer 參數仍留給 Stage 5/6，不在 Stage 2 寫死。
 
 `required_picture_roles` 是組合語法，不是鏡頭清單。例如技術微故事可用
 `establish → prep → action → correction → result`；訪談可用

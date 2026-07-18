@@ -97,6 +97,25 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
         )
         self.assertIn("stop at the declared owner gate.", text)
 
+    def test_editorial_ambiguity_loop_grills_one_decision_without_adding_a_route(self):
+        text = read("skills/editorial-ambiguity-loop.md")
+        for expected in [
+            "Interactive grilling discipline",
+            "Ask decisions; inspect facts",
+            "ask exactly one question",
+            '"question_id"',
+            '"branch_id"',
+            '"fills"',
+            '"environment_facts"',
+            '"recommended_answer"',
+            "interaction_log.md",
+            "worker_information_projection",
+            "content_taxonomy.training_units[]",
+        ]:
+            self.assertIn(expected, text)
+        self.assertIn("不得建立新的 router、gate", text)
+        self.assertIn("Stage 5/6", text)
+
 
 if __name__ == "__main__":
     unittest.main()
