@@ -62,6 +62,42 @@ def _project_map():
 
 
 class MaterialRoughCutTest(unittest.TestCase):
+    def test_zero_duration_merged_segment_is_recorded_as_noop_without_gap(self):
+        contract = {
+            "segments": [
+                {
+                    "segment": "A07_technical_detail",
+                    "resolved_target_duration_sec": 0,
+                    "merge_target": "A04_ground_cable_teamwork",
+                    "material_fit": {"need_refs": []},
+                },
+                {
+                    "segment": "A08_life_and_bonds",
+                    "target_duration_sec": 4,
+                    "material_fit": {"need_refs": ["nd_opening"]},
+                },
+            ]
+        }
+
+        plan = build_rough_cut_plan(contract, _project_map())
+
+        self.assertTrue(plan["ok"], plan)
+        self.assertEqual(plan["gap_count"], 0)
+        self.assertEqual(plan["clip_count"], 1)
+        self.assertEqual(plan["no_op_count"], 1)
+        self.assertEqual(
+            plan["no_op_segments"],
+            [
+                {
+                    "segment": "A07_technical_detail",
+                    "requested_duration_sec": 0.0,
+                    "reason": "zero_duration_segment",
+                    "merge_target": "A04_ground_cable_teamwork",
+                    "need_refs": [],
+                }
+            ],
+        )
+
     def test_opt_in_diversity_uses_ranked_material_map_and_protects_speech_anchor(self):
         contract = {
             "diversity_policy": {

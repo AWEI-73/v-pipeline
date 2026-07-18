@@ -20,8 +20,20 @@ def _need_refs(segment: dict) -> list[str]:
     return refs
 
 
+_REQUEST_DURATION_FIELDS = (
+    "requested_duration_sec",
+    "duration_sec",
+    "target_duration_sec",
+)
+
+_EXPLICIT_DURATION_FIELDS = (
+    *_REQUEST_DURATION_FIELDS,
+    "resolved_target_duration_sec",
+)
+
+
 def _requested_duration(segment: dict, default_clip_sec: float) -> float:
-    for key in ("requested_duration_sec", "duration_sec", "target_duration_sec"):
+    for key in _REQUEST_DURATION_FIELDS:
         try:
             value = float(segment.get(key) or 0)
         except (TypeError, ValueError):
@@ -29,6 +41,18 @@ def _requested_duration(segment: dict, default_clip_sec: float) -> float:
         if value > 0:
             return value
     return float(default_clip_sec)
+
+
+def _explicit_duration(segment: dict) -> float | None:
+    """Return an explicitly declared segment duration, including zero."""
+    for key in _EXPLICIT_DURATION_FIELDS:
+        if key not in segment or segment.get(key) is None:
+            continue
+        try:
+            return float(segment.get(key))
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _accepted_need_ids(scene: dict) -> set[str]:
@@ -163,6 +187,7 @@ def _timeline_from_clips(clips: list[dict]) -> dict:
 def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec: float = 3.0) -> dict:
     clips = []
     gaps = []
+    no_op_segments = []
     source_counts = {}
     diversity_policy = contract.get("diversity_policy")
     if diversity_policy is not None and not isinstance(diversity_policy, dict):
@@ -172,6 +197,18 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
     for index, segment in enumerate(contract.get("segments") or []):
         segment_id = segment.get("segment", index + 1)
         refs = _need_refs(segment)
+        explicit_duration = _explicit_duration(segment)
+        if explicit_duration == 0:
+            no_op = {
+                "segment": segment_id,
+                "requested_duration_sec": 0.0,
+                "reason": "zero_duration_segment",
+            }
+            if segment.get("merge_target") is not None:
+                no_op["merge_target"] = segment.get("merge_target")
+            no_op["need_refs"] = refs
+            no_op_segments.append(no_op)
+            continue
         if not refs:
             gaps.append({
                 "segment": segment_id,
@@ -311,6 +348,8 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
         "source_repetition": source_counts,
         "clips": clips,
         "gaps": gaps,
+        "no_op_count": len(no_op_segments),
+        "no_op_segments": no_op_segments,
     }
     plan["timeline_build"] = _timeline_from_clips(clips)
     return plan
