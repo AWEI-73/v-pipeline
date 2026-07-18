@@ -235,6 +235,7 @@ def build_rough_cut_plan(contract: dict, project_map: dict, *, default_clip_sec:
                     )
                     ranked.append({
                         **candidate,
+                        "need_id": need_id,
                         "scene_id": f"{candidate.get('asset_id')}:{candidate.get('scene_index')}",
                         "source": candidate.get("source"),
                         "start": start,

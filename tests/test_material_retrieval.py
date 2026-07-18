@@ -66,6 +66,25 @@ class MaterialRetrievalRepeatCapTest(unittest.TestCase):
 
         self.assertEqual([slot["source"] for slot in slots], ["same.mp4", "fresh.mp4"])
 
+    def test_source_cap_prefers_lower_score_fresh_source_before_fallback(self):
+        ranked = [
+            {"scene_id": "used:0", "source": "same.mp4", "score": 8,
+             "visual_family": "group", "angle_scale": "wide", "start": 0, "end": 8},
+            {"scene_id": "fresh:0", "source": "fresh.mp4", "score": 4,
+             "visual_family": "group", "angle_scale": "wide", "start": 0, "end": 4},
+        ]
+
+        selected = material_retrieval.select_diverse_ranked_scenes(
+            ranked,
+            [],
+            limit=1,
+            history=[{"source": "same.mp4"}],
+            max_source_repeats=1,
+        )
+
+        self.assertEqual([item["scene_id"] for item in selected], ["fresh:0"])
+        self.assertNotIn("diversity_fallback_reason", selected[0])
+
     def test_unique_visual_family_policy_prefers_eligible_cutaway_family(self):
         ranked = [
             {"scene_id": "a:0", "source": "a.mp4", "score": 5,

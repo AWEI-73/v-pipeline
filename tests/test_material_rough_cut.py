@@ -154,6 +154,10 @@ class MaterialRoughCutTest(unittest.TestCase):
         self.assertTrue(plan["ok"], plan)
         self.assertEqual([clip["scene_id"] for clip in plan["clips"]],
                          ["anchor:0", "cutaway-a:0", "cutaway-b:0"])
+        self.assertEqual(
+            [clip["need_id"] for clip in plan["clips"]],
+            ["nd_speech", "nd_cutaway", "nd_cutaway"],
+        )
         self.assertEqual(plan["source_repetition"]["speech.mp4"], 1)
         self.assertTrue(all("diversity_selection_reason" in clip for clip in plan["clips"][1:]))
         self.assertTrue(all("diversity_fallback_reason" not in clip for clip in plan["clips"]))

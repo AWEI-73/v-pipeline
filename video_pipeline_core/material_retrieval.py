@@ -334,7 +334,10 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             ]
             fallback_reason = None
             if source_cap is not None and not under_source_cap:
-                fallback_reason = "eligible_supply_exhausted"
+                # Do not repeat a higher-scoring source while a lower score tier
+                # still contains fresh supply. Leave this tier for the bounded
+                # fallback pass after all score tiers have been considered.
+                break
             tier_pool = under_source_cap or tier
             if require_unique_visual_family:
                 unique_family_pool = [
@@ -396,6 +399,22 @@ def select_diverse_ranked_scenes(ranked, material_maps, limit, history=None,
             if source and not _is_protected_speech_anchor(best_candidate):
                 source_counts[source] = source_counts.get(source, 0) + 1
             tier.remove(best_candidate)
+
+    if len(selected) < limit and source_cap is not None:
+        remaining = [candidate for tier in tiers for candidate in tier]
+        if remaining:
+            fallback = select_diverse_ranked_scenes(
+                remaining,
+                material_maps,
+                limit - len(selected),
+                history=[*(history or []), *selected],
+                diversity=diversity,
+                max_source_repeats=None,
+                require_unique_visual_family=require_unique_visual_family,
+            )
+            for candidate in fallback:
+                candidate["diversity_fallback_reason"] = "eligible_supply_exhausted"
+            selected.extend(fallback)
 
     return selected
 
