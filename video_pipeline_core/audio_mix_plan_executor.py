@@ -812,15 +812,47 @@ def _recovered_waveform_window_check(
         return values[index] * gain
 
     # The ffmpeg mixer's fixed input normalization is measured from the known
-    # source sum, then removed before evaluating the protected placement.
+    # source sum, then removed before evaluating the protected placement.  Use
+    # active placement windows instead of the first six timeline seconds: a
+    # legitimate interview may begin late in an otherwise silent preview.
     numerator = 0.0
     denominator = 0.0
-    for offset in range(0, min(len(output), int(6.0 * rate)), 16):
-        timeline_time = offset / rate
-        expected = sum(predicted_sample(placement, timeline_time) for placement in placements)
-        actual = output[offset]
-        numerator += expected * actual
-        denominator += expected * expected
+    sample_budget = max(1, int(6.0 * rate) // 16)
+    sampled = 0
+    placement_windows = sorted(
+        (
+            max(0.0, _float_value(placement.get("start_sec"))),
+            max(
+                0.0,
+                _float_value(placement.get("start_sec"))
+                + _float_value(placement.get("duration_sec")),
+            ),
+        )
+        for placement in placements
+        if abs(_float_value(placement.get("applied_volume"), 1.0)) > 1e-12
+    )
+    active_windows = [
+        (
+            max(0.0, _float_value(window.get("start_sec"))),
+            max(0.0, _float_value(window.get("end_sec"))),
+        )
+        for window in speech_windows
+        if _float_value(window.get("end_sec")) > _float_value(window.get("start_sec"))
+    ] or placement_windows
+    for window_start, window_end in active_windows:
+        first_offset = max(0, int(round(window_start * rate)))
+        last_offset = min(len(output), int(round(window_end * rate)))
+        for offset in range(first_offset, last_offset, 16):
+            timeline_time = offset / rate
+            expected = sum(predicted_sample(placement, timeline_time) for placement in placements)
+            actual = output[offset]
+            numerator += expected * actual
+            denominator += expected * expected
+            sampled += 1
+            if sampled >= sample_budget:
+                break
+        if sampled >= sample_budget:
+            break
     mix_scale = numerator / denominator if denominator > 1e-12 else 0.0
     if abs(mix_scale) <= 1e-12:
         return {"pass": False, "reason": "mix_scale_unavailable"}
@@ -974,6 +1006,8 @@ def _preview_contract_blocks(audio_mix_plan: Mapping[str, Any]) -> list[dict[str
 def _align_placements_to_duration(
     placements: list[dict[str, Any]],
     target_duration_sec: float,
+    *,
+    pad_to_target_duration: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if target_duration_sec <= 0 or not placements:
         total_duration = max(
@@ -993,6 +1027,15 @@ def _align_placements_to_duration(
         default=0.0,
     )
     if planned_duration < target_duration_sec - 0.001:
+        if pad_to_target_duration:
+            return placements, {
+                "decision": "padded_with_silence_to_target_duration",
+                "target_duration_sec": round(target_duration_sec, 3),
+                "planned_duration_sec": round(planned_duration, 3),
+                "output_duration_sec": round(target_duration_sec, 3),
+                "missing_duration_sec": round(target_duration_sec - planned_duration, 3),
+                "fade_out_applied": False,
+            }
         return placements, {
             "decision": "shorter_than_video_duration",
             "target_duration_sec": round(target_duration_sec, 3),
@@ -1075,11 +1118,13 @@ def _mix_section_timeline(
     ffmpeg: str,
     *,
     speech_aware: bool = False,
+    target_duration_sec: float | None = None,
 ) -> float:
-    total_duration = max(
+    planned_duration = max(
         placement["start_sec"] + placement["duration_sec"]
         for placement in placements
     )
+    total_duration = max(planned_duration, max(0.0, _float_value(target_duration_sec)))
     cmd = [
         ffmpeg,
         "-y",
@@ -1247,6 +1292,9 @@ def execute_audio_mix_plan(
         placements, duration_alignment = _align_placements_to_duration(
             placements,
             _target_duration(audio_mix_plan),
+            pad_to_target_duration=(
+                audio_mix_plan.get("silence_padding_policy") == "pad_to_target_duration"
+            ),
         )
         if speech_aware:
             ffprobe_for_detection = ffprobe or resolve_ffprobe()
@@ -1362,6 +1410,7 @@ def execute_audio_mix_plan(
             output_path,
             ffmpeg,
             speech_aware=speech_aware,
+            target_duration_sec=duration_alignment.get("output_duration_sec"),
         )
         mix_mode = "section_timeline"
     elif len(input_paths) == 1:

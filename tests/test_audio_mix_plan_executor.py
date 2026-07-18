@@ -560,6 +560,46 @@ class AudioMixPlanExecutorTest(unittest.TestCase):
             rules = {item["rule"] for item in payload["blocking"]}
             self.assertIn("audio_shorter_than_video_duration", rules)
 
+    def test_pads_late_protected_speech_with_silence_to_explicit_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            speech = root / "speech.wav"
+            _speech_tone(speech, duration=6.0)
+            plan = {
+                "artifact_role": "audio_mix_plan",
+                "ready_for_mix": True,
+                "target_duration_sec": 16.0,
+                "silence_padding_policy": "pad_to_target_duration",
+                "ducking_policy": "speech_aware",
+                "source_audio_policy": {"original_audio_policy": "preserve_speech"},
+                "sections": [
+                    {"section_id": "late_speech", "start_sec": 8.0, "duration_sec": 6.0},
+                ],
+                "tracks": [{
+                    "section_id": "late_speech",
+                    "candidate_id": "protected_speech",
+                    "audio_file": str(speech),
+                    "role": "source_speech",
+                    "ducking_policy": "preserve_original_audio",
+                    "source_type": "original_audio",
+                    "license_status": "source_original",
+                    "volume": 1.0,
+                }],
+            }
+
+            result = execute_audio_mix_plan(plan, out_dir=root)
+
+            self.assertTrue(result["ok"], result)
+            final_audio = root / "final_audio.wav"
+            self.assertAlmostEqual(_duration(final_audio), 16.0, delta=0.05)
+            payload = json.loads((root / "audio_mix_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                payload["duration_alignment"]["decision"],
+                "padded_with_silence_to_target_duration",
+            )
+            self.assertEqual(payload["duration_alignment"]["output_duration_sec"], 16.0)
+            self.assertTrue(payload["protected_speech_waveform_check"]["pass"])
+
     def test_ducks_music_when_section_preserves_voice(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:

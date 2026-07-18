@@ -260,6 +260,14 @@ Audio duration is governed by the video/timeline duration. When
 is not silently padded with dead air: write `audio_shorter_than_video_duration`
 and stop unless `duration_gap_waived=true` is explicitly present.
 
+For an intentional review timeline whose unscored regions must remain silent
+(for example, one protected interview late in a picture-first storyboard), use
+`silence_padding_policy: "pad_to_target_duration"`. This is an explicit mix
+instruction, not a duration waiver: the executor must render real silence to
+the declared target, report `padded_with_silence_to_target_duration`, and keep
+protected-speech waveform verification active. Do not use it to hide a missing
+music, narration, or required-audio decision.
+
 `tools/final_av_assemble.py` is a final glue helper only after visual BUILD and
 Audio Director are both complete. It may replace source-video audio with the
 accepted `final_audio.wav` and write `assembly_report.json`. It must not choose
