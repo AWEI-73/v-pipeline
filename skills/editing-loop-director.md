@@ -293,6 +293,14 @@ proposed next LOOP、owner-verdict-required 與 status。L5 只提 finding，
 不阻斷的參考觀察。綁定字幕時必須攜帶文字權威，特效只寫 observation，
 不得從參考片或 candidate 的可見效果直接建立 Effect Factory request。
 
+成片牆的**可見畫面優先於素材 ID、檔名、標籤與段落宣稱**。若畫面和
+Material Map／章節標籤矛盾，必須提出 objective
+`rendered_pixel_material_truth_mismatch`，不得用 metadata 替畫面合理化；
+來源身分另以 source hash／render binding 驗證。相鄰鏡頭若只是同事件、
+同角度、同資訊的重複且沒有建立→動作→結果等可見進展，提出
+`adjacent_low_information_semantic_repeat` structural candidate，交由 owner
+決定是否保留；它不是自動 FAIL。
+
 **2026-07-11 first-of-kind 結果：PASS（scope 僅限 Canon 67
 `candidate_v2`／44 秒／review-only）。**Fresh worker 以四類 carried context
 和既有 review/verify capabilities 產生 evidence-backed packet；owner/integrator

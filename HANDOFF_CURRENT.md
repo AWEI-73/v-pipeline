@@ -9,8 +9,8 @@ the current machine-readable work pointer.
 {
   "artifact_role": "current_handoff_state",
   "version": 1,
-  "updated_at": "2026-07-18T19:50:00+08:00",
-  "state": "WAITING_OWNER_CANON67_STAGE4_STORYBOARD_V2_VERDICT",
+  "updated_at": "2026-07-18T20:48:53+08:00",
+  "state": "WAITING_OWNER_CANON67_STAGE4_STORYBOARD_V3_VERDICT",
   "active_work_order": "docs/construction-guides/work-orders/2026-07-18-canon67-stage4-storyboard-review-revision-v2.md",
   "active_spec": "docs/decisions/2026-07-18-canon67-stage3-5-story-revision-and-role-bound-retrieval.md",
   "active_skill": "skills/editing-loop-director.md",
@@ -21,9 +21,9 @@ the current machine-readable work pointer.
   "campaign_status_artifact": ".tmp/canon67_editorial_reconstruction_v2/campaign_status.json",
   "campaign_status_field": "state",
   "next_actions": [
-    "owner_watches_the_315_second_storyboard_v2",
-    "owner_reviews_the_f01_to_f06_resolution_matrix",
-    "owner_returns_the_five_pending_story_and_finishing_decisions"
+    "owner_watches_the_315_second_storyboard_v3",
+    "owner_confirms_the_three_reported_visual_corrections",
+    "owner_returns_the_remaining_story_rhythm_and_finishing_verdict"
   ],
   "do_not_do": [
     "do_not_rerun_or_rewatch_the_complete_283_asset_pool",
@@ -46,8 +46,8 @@ the current machine-readable work pointer.
   "human_creative_approval": false,
   "final_delivery_claimed": false,
   "review_packet": {
-    "path": ".tmp/canon67_editorial_reconstruction_v2/stage4_storyboard_v2/review/timeline_review_v2/owner_review_index.md",
-    "sha256": "2e8b48ca58bf3326a960a15be796e46d5f0349c03853eff75298a6e7631d85ac"
+    "path": ".tmp/canon67_editorial_reconstruction_v2/stage4_storyboard_v3/review/owner_correction_closure.json",
+    "sha256": "1509abddef431b2bf1656a823470ef2615f618152631bfdb4345f88471f343a7"
   }
 }
 <!-- HANDOFF_STATE_END -->
@@ -66,20 +66,23 @@ the current machine-readable work pointer.
   evidence needs, and a three-level external-audience display policy: chapter
   cards, visually verified course labels, and review-only plain captions. Empty
   folder names are retrieval hints, not facts.
-- Stage 4 storyboard v2 is now a 315-second, six-chapter review candidate with
+- Stage 4 storyboard v3 is a 315.022-second, six-chapter review candidate with
   visible supported-unit labels, the approved 39.34-second supervisor speech,
-  and 12/12 unchanged subtitles. All 11 horizontal review walls were inspected.
-  F01–F04 are resolved in this candidate, F05 is structurally resolved with
-  owner taste pending, and F06 remains deferred to finishing. The paper edit is
-  not picture-locked.
+  and 12/12 unchanged subtitles. All 11 half-second timeline walls were
+  inspected. The reported cable near-repeat, blood-donation crane mismatch, and
+  ending crane mismatch are resolved. All 15 selected HEIC clips are now bound
+  to source-hashed Material Map review proxies; no stale `.converted` path is
+  present in the v3 timeline. Overall story rhythm and finishing taste remain
+  pending, and the paper edit is not picture-locked.
 - Multi-role retrieval is role-bound: every video clip carries a stable
   `clip_id` and `need_id`; scenes with multiple accepted edges are matched
   against the current role. Stage 4 must pass this gate before any render.
-- Current HEAD full-suite evidence is 2,906 tests PASS with one skipped. The
-  explicit silent-timeline audio policy and late-speech waveform verification
-  are committed at `b404ab9d`.
+- The last full-suite evidence is 2,906 tests PASS with one skipped at
+  `b404ab9d`; it is now STALE after the bounded HEIC-cache and timeline-review
+  contract patch. Focused evidence is authoritative until a later campaign
+  closure reruns the full suite.
 - The old Stage 3–8, complete-pool Stage 3, Stage 3.5, and prior Stage 4 work
   orders remain durable history. No worker construction is currently
-  authorized; the only next action is the owner's storyboard v2 verdict.
+  authorized; the only next action is the owner's storyboard v3 verdict.
 - The Integrator retains product judgment and final acceptance. Rendering,
   finishing, upload, creative approval, and delivery are not authorized.

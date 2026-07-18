@@ -4,12 +4,21 @@ ingest-meta / caption-meta / material-map / match-mv + classify_asset 等。
 import os
 import sys
 import json
+import hashlib
 import subprocess
 from .asset_paths import resolve_asset_ref, to_asset_ref
 from .vt_core import FFMPEG, FFPROBE, run, ToolError  # noqa: F401
 
 PHOTO_EXTS = {'.jpg', '.jpeg', '.png', '.heic', '.heif'}
 VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv'}
+
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _relativize_material_db_refs(db, run_dir):
@@ -281,8 +290,18 @@ def cmd_ingest_meta(args):
                 fid = f"f{fid_counter:04d}"
                 display = full
                 converted = None
+                converted_source_sha256 = None
                 if ext in {'.heic', '.heif'}:
-                    converted = os.path.join(cnv_dir, f"{fid}.jpg")
+                    # ``fid`` is an ingest-order identity, not a source identity.  A
+                    # reused work directory may assign the same fid to a different
+                    # source after files are added/removed.  Bind the derived cache
+                    # name to the source bytes so an old JPEG can never masquerade
+                    # as the current HEIC merely because ``fNNNN.jpg`` exists.
+                    converted_source_sha256 = _sha256_file(full)
+                    converted = os.path.join(
+                        cnv_dir,
+                        f"{fid}.{converted_source_sha256[:16]}.jpg",
+                    )
                     if not os.path.exists(converted):
                         if not _convert_heic(full, converted):
                             skipped.append({"path": full, "reason": "heic convert failed"})
@@ -297,6 +316,7 @@ def cmd_ingest_meta(args):
                     "type": "photo",
                     "format": ext.lstrip('.'),
                     "converted_to": converted,
+                    "converted_source_sha256": converted_source_sha256,
                     "tags_from_path": tags,
                     "size_bytes": os.path.getsize(full),
                     "metadata": exif,

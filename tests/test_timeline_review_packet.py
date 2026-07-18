@@ -74,6 +74,13 @@ class TimelineReviewPacketTest(unittest.TestCase):
             self.assertEqual(packet["review_tracks"]["subtitles"]["cue_count"], 2)
             self.assertEqual(packet["review_tracks"]["subtitles"]["text_authority"], "owner_approved")
             self.assertEqual(packet["review_tracks"]["subtitles"]["cues"][1]["text"], "Second line")
+            self.assertEqual(
+                packet["reviewer_contract"]["visible_evidence_precedence"][0],
+                "rendered_pixels_over_declared_metadata_for_visible_content",
+            )
+            questions = "\n".join(packet["reviewer_contract"]["questions"])
+            self.assertIn("adjacent shots", questions)
+            self.assertIn("rendered pixels contradict", questions)
             findings_template = json.loads(
                 (root / "review" / "timeline_reviewer_findings.template.json").read_text(encoding="utf-8")
             )

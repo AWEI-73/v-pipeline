@@ -11,6 +11,41 @@ from video_pipeline_core import curator
 
 
 class MaterialVisualReviewTest(unittest.TestCase):
+    def test_ingest_heic_cache_is_bound_to_source_bytes_not_only_fid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            source.mkdir()
+            heic = source / "a.heic"
+            heic.write_bytes(b"first-source")
+            db_path = root / "materials_db.json"
+            work_dir = root / "work"
+            converted_sources = []
+
+            def fake_convert(src, dst):
+                converted_sources.append(Path(src).read_bytes())
+                Path(dst).parent.mkdir(parents=True, exist_ok=True)
+                Path(dst).write_bytes(Path(src).read_bytes())
+                return True
+
+            args = types.SimpleNamespace(
+                src=str(source), out=str(db_path), work_dir=str(work_dir)
+            )
+            with patch("video_pipeline_core.curator._convert_heic", side_effect=fake_convert), \
+                    patch("video_pipeline_core.curator._exif_data", return_value={}):
+                curator.cmd_ingest_meta(args)
+                first = json.loads(db_path.read_text(encoding="utf-8"))["files"][0]
+                heic.write_bytes(b"second-source")
+                curator.cmd_ingest_meta(args)
+                second = json.loads(db_path.read_text(encoding="utf-8"))["files"][0]
+
+            self.assertNotEqual(first["converted_to"], second["converted_to"])
+            self.assertNotEqual(
+                first["converted_source_sha256"],
+                second["converted_source_sha256"],
+            )
+            self.assertEqual(converted_sources, [b"first-source", b"second-source"])
+
     def test_build_request_uses_montage_for_video_and_photo_as_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             calls = []

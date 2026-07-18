@@ -384,6 +384,14 @@ def build_timeline_review_packet(
             "decision_effect": review_subject["decision_effect"],
             "required_inspection": "all_wall_pages",
             "finding_classes": ["objective", "structural_candidate", "taste"],
+            "visible_evidence_precedence": [
+                "rendered_pixels_over_declared_metadata_for_visible_content",
+                "source_hash_binding_over_asset_id_or_filename_for_source_identity",
+            ],
+            "classification_rules": {
+                "rendered_pixel_material_truth_mismatch": "objective",
+                "adjacent_low_information_semantic_repeat": "structural_candidate",
+            },
             "effect_boundary": {
                 "review_output": "effect_observations_only",
                 "effect_factory_handoff_allowed": False,
@@ -400,7 +408,9 @@ def build_timeline_review_packet(
             },
             "questions": [
                 "Where do the visible story chapters and activity families actually change?",
+                "Do adjacent shots repeat the same event, angle, or information without a visible progression reason?",
                 "Do non-adjacent sections repeat the same semantic event without a declared callback reason?",
+                "Do rendered pixels contradict the declared asset, chapter, activity label, or Material Map truth? If so, treat the pixels as primary visible evidence and flag the contradiction rather than rationalizing it from metadata.",
                 "Do title/subtitle windows appear aligned with the visible chapter or speech context?",
                 "Do soundtrack sections, energy changes, speech starts, and visible picture transitions support or contradict each other?",
                 "Which time windows need source-frame crop, continuous playback, ASR, or human taste review?",
