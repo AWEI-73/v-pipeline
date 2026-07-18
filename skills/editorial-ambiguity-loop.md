@@ -141,6 +141,27 @@ enumerate unresolved branches
 `recommended_answer` 是降低 owner 判斷成本，不是代替 ASK / SHOW 裁決。若 owner
 已明確委任某一類可逆決策，才可用 DECIDE，且仍要寫進 `decision_record`。
 
+### Small-model emission preflight
+
+較小模型在送出問題前，必須逐項自檢；任何一項不符合就先修正問題，不得交給
+owner：
+
+- 實際只問一個主決策，不把片長、結構、風格等多題綁成一題；
+- `fills` 是非空的 canonical field-path array，不是「全片方向」等散文；
+- 每個 `environment_facts[]` 都同時有 `claim` 與非空 `evidence_refs`；
+- `alternatives[]` 每個選項都有 `answer` 與 `tradeoff`；
+- `recommended_answer` 明確說出推薦與理由，但 `owner_answer` 仍為 null；
+- 問題不能由 repo、素材、ASR、牆面或既有 verdict 直接查得；
+- 不提前展開後續問題，不在 owner 回答前產生完整劇本或下游契約。
+
+收到回答並 compact 時再檢查：
+
+- owner 原意與限制被保留，不能只留下模型改寫後的摘要；
+- 已接受的 branch 不得在 `remaining_unknowns` 被重新打開；
+- 可查但尚未查的事實標成 evidence task，不冒充 owner taste question；
+- hard constraints、可替換文字與 worker discretion 明確分開；
+- 不因 target duration 自動補故事、重複素材或宣稱 creative approval。
+
 ### Persist without adding a layer
 
 每個答案先追加到既有 Stage 0 `interaction_log.md`，再把有效內容 compact 到既有的

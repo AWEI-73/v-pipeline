@@ -111,6 +111,12 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
             "interaction_log.md",
             "worker_information_projection",
             "content_taxonomy.training_units[]",
+            "Small-model emission preflight",
+            "canonical field-path array",
+            "每個選項都有 `answer` 與 `tradeoff`",
+            "不能由 repo、素材、ASR、牆面或既有 verdict 直接查得",
+            "不得在 `remaining_unknowns` 被重新打開",
+            "hard constraints、可替換文字與 worker discretion 明確分開",
         ]:
             self.assertIn(expected, text)
         self.assertIn("不得建立新的 router、gate", text)
