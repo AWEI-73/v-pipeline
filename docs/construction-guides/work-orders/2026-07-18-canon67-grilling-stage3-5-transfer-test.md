@@ -116,8 +116,10 @@ schema/lineage readiness only, not creative approval.
 ## 5. Task B — Evidence-bound Stage 3 retrieval
 
 Use the accepted Material Map v3 and registered public retrieval/ranking
-surfaces. Do not re-review the full 283-asset pool and do not hand-pick around
-the ranker.
+surfaces. Pass the Stage 2 evidence map to the registered adapter:
+`tools/picture_plan_retrieval_report.py --evidence-map
+stage2/evidence_need_map.proposed.json`. Do not re-review the full 283-asset
+pool and do not hand-pick around the ranker.
 
 Create:
 
@@ -200,6 +202,8 @@ Also verify by read-back:
 - proposed timeline is contiguous and totals 380–410 seconds;
 - every selected source exists and source hash matches Material Map v3;
 - every picture clip is in its role-specific public Top-K with zero overrides;
+- retrieval read-back reports the Stage 2 adapter metadata and all selected
+  clips are proven by that adapter, not by a manually copied candidate list;
 - no exact or overlapping source window is reused without an explicit callback;
 - supervisor picture/audio is one continuous 39.34-second talking-head window
   with 12/12 caption bindings and no cutaway;
@@ -233,4 +237,3 @@ Keep:
 Legal success state:
 
 `WAITING_INTEGRATOR_CANON67_GRILLING_STAGE3_5_TRANSFER_REVIEW`
-

@@ -374,6 +374,12 @@ PASS 只證明：決策完整、重大未知已處理、段落語法與 evidence
 hash 沒漂移。它**不證明**素材真的存在、故事好看、剪輯成立、creative approval
 或 delivery。
 
+語意欄位不能用形狀合規的佔位句。Validator 會拒絕
+`owner-approved evidence statement`、`TBD`、`TODO`、`placeholder` 等泛用值；
+若 owner 決策尚未能寫成具體命題，Stage 2 應停在互動補問，而不是把空句送給
+Stage 3。`interaction_compaction_audit` 必須逐項列出「決策 → 實際下游欄位與值」；
+只列檔名或宣稱 `altered_meaning=false` 不構成證據。
+
 ## Handoff to Stage 3
 
 Stage 3 worker 收到的是三份 frozen artifact 與 gate report。它可以：
@@ -381,6 +387,12 @@ Stage 3 worker 收到的是三份 frozen artifact 與 gate report。它可以：
 - 依 need 檢索、rank、提名 source windows；
 - 回報 `verified`、`deferred_due_to_material` 或 retrieval failure；
 - 提議縮短／合併 segment。
+
+Stage 3 使用 `tools/picture_plan_retrieval_report.py` 時，若輸入來自本 skill 的
+Stage 2 package，必須一併傳入 `--evidence-map`。這個公開 adapter 會把
+`segment_id` 與每條 need 接到 retrieval surface 的 `segment`、
+`material_fit.need_refs`、`role_queries` 與 `visual_desc`；worker 不得自行建立
+另一份 crosswalk 或手排候選表。
 
 它不可以：
 

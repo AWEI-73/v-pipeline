@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,14 @@ MATERIAL_TRUTH_STATUSES = {"not_started", "inventory_only", "reviewed"}
 EVIDENCE_KINDS = {"visual", "speech", "text", "mixed"}
 NEED_STATUSES = {"needed", "available_unverified", "verified", "deferred_due_to_material"}
 MATERIAL_DEFER_REASONS = {"not_found", "not_present", "present_unusable", "excluded_by_policy"}
+
+# A non-empty string is not necessarily a carried decision. Small workers can
+# satisfy the shape contract with a generic sentence, so reject that before
+# the package becomes a Stage 3 story contract.
+_PLACEHOLDER_PATTERNS = (
+    re.compile(r"owner[- ]approved\s+evidence\s+statement", re.IGNORECASE),
+    re.compile(r"\b(?:tbd|todo|placeholder|fill\s+me|to\s+be\s+decided)\b", re.IGNORECASE),
+)
 
 DECISION_FIELDS = {
     "decision",
@@ -106,6 +115,15 @@ def _text(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _meaningful_text(value: Any) -> bool:
+    """Return true only when a required semantic field carries content."""
+
+    if not _text(value):
+        return False
+    text = str(value).strip()
+    return not any(pattern.search(text) for pattern in _PLACEHOLDER_PATTERNS)
+
+
 def _string_list(value: Any, *, allow_empty: bool = False) -> bool:
     return (
         isinstance(value, list)
@@ -173,7 +191,7 @@ def _validate_decision_record(
     if missing:
         _error(errors, "incomplete_decision_record", location, "missing: " + ",".join(missing))
     for field in ("decision", "decision_reason", "allowed_downstream_interpretation"):
-        if not _text(record.get(field)):
+        if not _meaningful_text(record.get(field)):
             _error(errors, "incomplete_decision_record", location + "." + field, "field must be non-empty")
     if not _string_list(record.get("evidence_refs"), allow_empty=False):
         _error(errors, "decision_without_evidence", location + ".evidence_refs", "accepted decision requires evidence refs")
@@ -218,7 +236,7 @@ def _validate_story(
             _error(errors, "invalid_hypothesis", location, "hypothesis must be an object")
             continue
         for field in ("hypothesis_id", "thesis", "causal_promise"):
-            if not _text(hypothesis.get(field)):
+            if not _meaningful_text(hypothesis.get(field)):
                 _error(errors, "incomplete_hypothesis", location + "." + field, "field must be non-empty")
         for field in ("material_assumptions", "sacrifices", "evidence_refs"):
             if not _string_list(hypothesis.get(field), allow_empty=False):
@@ -246,7 +264,7 @@ def _validate_story(
         _error(errors, "narrative_contract_missing", "story_decision.narrative_contract", "narrative contract is required")
     else:
         for field in ("subject", "audience_change", "thesis"):
-            if not _text(narrative.get(field)):
+            if not _meaningful_text(narrative.get(field)):
                 _error(errors, "narrative_contract_incomplete", "story_decision.narrative_contract." + field, "field must be non-empty")
         arc = narrative.get("causal_arc")
         if not isinstance(arc, list) or not arc:
@@ -259,7 +277,7 @@ def _validate_story(
                     _error(errors, "invalid_causal_beat", location, "causal beat must be an object")
                     continue
                 for field in ("beat_id", "factual_claim", "story_change", "entry_state", "exit_state"):
-                    if not _text(beat.get(field)):
+                    if not _meaningful_text(beat.get(field)):
                         _error(errors, "incomplete_causal_beat", location + "." + field, "field must be non-empty")
                 if not _string_list(beat.get("evidence_refs"), allow_empty=False):
                     _error(errors, "causal_beat_without_evidence", location + ".evidence_refs", "causal beat requires evidence refs")
@@ -278,7 +296,7 @@ def _validate_story(
                 _error(errors, "invalid_unknown", location, "unknown must be an object")
                 continue
             for field in ("unknown_id", "question", "owner_or_agent"):
-                if not _text(unknown.get(field)):
+                if not _meaningful_text(unknown.get(field)):
                     _error(errors, "invalid_unknown", location + "." + field, "field must be non-empty")
             if unknown.get("route_impact") not in UNKNOWN_IMPACTS:
                 _error(errors, "invalid_unknown_impact", location + ".route_impact", "invalid route impact")
@@ -317,7 +335,7 @@ def _validate_segments(
             "segment_id", "factual_claim", "story_change", "entry_state", "exit_state",
             "title_card_role", "defer_or_shorten_rule", "review_question",
         ):
-            if not _text(segment.get(field)):
+            if not _meaningful_text(segment.get(field)):
                 _error(errors, "incomplete_segment_contract", location + "." + field, "field must be non-empty")
         for field in ("required_picture_roles", "allowed_source_families", "forbidden_substitutions", "evidence_refs"):
             if not _string_list(segment.get(field), allow_empty=False):
@@ -375,7 +393,7 @@ def _validate_evidence(
         if missing:
             _error(errors, "incomplete_evidence_need", location, "missing: " + ",".join(missing))
         for field in ("need_id", "segment_id", "picture_role", "factual_claim", "required_observation"):
-            if not _text(need.get(field)):
+            if not _meaningful_text(need.get(field)):
                 _error(errors, "incomplete_evidence_need", location + "." + field, "field must be non-empty")
         for field in ("allowed_source_families", "forbidden_substitutions"):
             if not _string_list(need.get(field), allow_empty=False):

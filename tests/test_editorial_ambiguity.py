@@ -256,6 +256,25 @@ class EditorialAmbiguityContractTest(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertIn("unresolved_high_impact_unknown", {e["code"] for e in report["errors"]})
 
+    def test_placeholder_semantics_fail_closed_even_when_shape_is_complete(self):
+        from video_pipeline_core.editorial_ambiguity import validate_package
+
+        with tempfile.TemporaryDirectory() as tmp:
+            story, segment, evidence = _valid_package(Path(tmp))
+            payload = json.loads(story.read_text(encoding="utf-8"))
+            payload["narrative_contract"]["thesis"] = "owner-approved evidence statement"
+            _write(story, payload)
+            segment_payload = json.loads(segment.read_text(encoding="utf-8"))
+            segment_payload["story_decision_ref"]["sha256"] = _sha256(story)
+            _write(segment, segment_payload)
+            evidence_payload = json.loads(evidence.read_text(encoding="utf-8"))
+            evidence_payload["story_decision_ref"]["sha256"] = _sha256(story)
+            evidence_payload["segment_contract_ref"]["sha256"] = _sha256(segment)
+            _write(evidence, evidence_payload)
+            report = validate_package(story, segment, evidence)
+        self.assertFalse(report["ok"])
+        self.assertIn("narrative_contract_incomplete", {e["code"] for e in report["errors"]})
+
     def test_ab_comparison_requires_two_materially_distinct_options(self):
         from video_pipeline_core.editorial_ambiguity import validate_package
 

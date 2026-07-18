@@ -129,6 +129,38 @@ class PicturePlanRetrievalGateTest(unittest.TestCase):
         self.assertEqual(report["segments"][0]["candidates"][0]["scene_id"], "clip-a:0")
         self.assertEqual(report["segments"][0]["selections"][0]["rank_position"], 1)
 
+    def test_editorial_segment_id_and_evidence_needs_adapt_to_public_ranker(self):
+        contract = {
+            "artifact_role": "segment_story_contract",
+            "version": 1,
+            "segments": [{"segment_id": "seg01"}],
+        }
+        evidence = {
+            "artifact_role": "evidence_need_map",
+            "version": 1,
+            "needs": [{
+                "need_id": "need_teamwork",
+                "segment_id": "seg01",
+                "required_observation": "trainees pull electrical cable together",
+                "factual_claim": "the team pulls the cable",
+            }],
+        }
+        plan = self._plan()
+        plan["clips"][0]["segment_id"] = plan["clips"][0].pop("segment")
+        report = build_retrieval_ranking_report(
+            picture_plan=plan,
+            segment_contract=contract,
+            evidence_map=evidence,
+            project_map=_project_map(),
+            project_map_path=self.map_path,
+            picture_plan_path=self.picture_path,
+            report_path=self.report_path,
+            allow_declared_hash_placeholder=True,
+        )
+        self.assertTrue(report["ok"])
+        self.assertTrue(report["editorial_contract_adaptation"]["segment_aliases_applied"])
+        self.assertEqual(report["segments"][0]["selections"][0]["rank_position"], 1)
+
     def test_hand_arranged_plan_without_retrieval_evidence_fails_closed(self):
         plan = self._plan()
         plan.pop("retrieval_evidence")

@@ -113,6 +113,85 @@ def _segment_need_ids(segment: Mapping[str, Any]) -> list[str]:
     return values
 
 
+def _adapt_editorial_contract_for_retrieval(
+    segment_contract: Mapping[str, Any],
+    evidence_map: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
+    """Join the Stage 2 editorial schema to the public material ranker.
+
+    Stage 2 owns the stable ``segment_id`` and stores evidence needs as
+    separate records. The older retrieval surface consumes ``segment`` plus
+    ``material_fit``. This is the single public join; it never selects clips
+    or creates an override.
+    """
+
+    adapted = copy.deepcopy(dict(segment_contract))
+    errors: list[str] = []
+    needs_by_segment: dict[str, list[Mapping[str, Any]]] = {}
+    if evidence_map is not None:
+        needs = evidence_map.get("needs")
+        if not isinstance(needs, list):
+            errors.append("invalid_evidence_need_map:needs")
+        else:
+            for index, need in enumerate(needs):
+                if not isinstance(need, Mapping):
+                    errors.append(f"invalid_evidence_need_map:needs[{index}]")
+                    continue
+                segment_id = need.get("segment_id")
+                need_id = need.get("need_id")
+                if not isinstance(segment_id, str) or not segment_id.strip():
+                    errors.append(f"evidence_need_missing_segment_id:{index}")
+                    continue
+                if not isinstance(need_id, str) or not need_id.strip():
+                    errors.append(f"evidence_need_missing_need_id:{index}")
+                    continue
+                needs_by_segment.setdefault(segment_id.strip(), []).append(need)
+
+    segments: list[dict[str, Any]] = []
+    for index, raw_segment in enumerate(adapted.get("segments") or []):
+        if not isinstance(raw_segment, Mapping):
+            errors.append(f"invalid_segment:{index}")
+            continue
+        segment = dict(raw_segment)
+        segment_id = segment.get("segment") or segment.get("segment_id")
+        if not isinstance(segment_id, str) or not segment_id.strip():
+            errors.append(f"segment_missing_id:{index}")
+            continue
+        segment_id = segment_id.strip()
+        segment["segment"] = segment_id
+        material_fit = dict(segment.get("material_fit") or {})
+        related_needs = needs_by_segment.get(segment_id, [])
+        need_refs = _segment_need_ids(segment)
+        role_queries = dict(material_fit.get("role_queries") or {})
+        observations: list[str] = []
+        for need in related_needs:
+            need_id = str(need["need_id"]).strip()
+            if need_id not in need_refs:
+                need_refs.append(need_id)
+            observation = need.get("required_observation") or need.get("factual_claim")
+            if isinstance(observation, str) and observation.strip():
+                role_queries[need_id] = observation.strip()
+                observations.append(observation.strip())
+        if need_refs:
+            material_fit["need_refs"] = need_refs
+        if role_queries:
+            material_fit["role_queries"] = role_queries
+        if observations and not isinstance(material_fit.get("visual_desc"), str):
+            material_fit["visual_desc"] = " ; ".join(dict.fromkeys(observations))
+        segment["material_fit"] = material_fit
+        segments.append(segment)
+    adapted["segments"] = segments
+    metadata = {
+        "segment_aliases_applied": any(
+            isinstance(raw, Mapping) and "segment_id" in raw and "segment" not in raw
+            for raw in (segment_contract.get("segments") or [])
+        ),
+        "evidence_need_count": sum(len(items) for items in needs_by_segment.values()),
+        "segments_with_evidence_needs": len(needs_by_segment),
+    }
+    return adapted, errors, metadata
+
+
 def _clip_need_id(clip: Mapping[str, Any]) -> str | None:
     value = clip.get("need_id")
     return value.strip() if isinstance(value, str) and value.strip() else None
@@ -150,6 +229,7 @@ def build_retrieval_ranking_report(
     report_path: str | Path | None = None,
     top_k: int = 10,
     allow_declared_hash_placeholder: bool = False,
+    evidence_map: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a report and fail closed when the plan bypasses retrieval evidence.
 
@@ -159,6 +239,10 @@ def build_retrieval_ranking_report(
     evidence; they never satisfy this gate by themselves.
     """
     errors: list[str] = []
+    segment_contract, adaptation_errors, adaptation_metadata = _adapt_editorial_contract_for_retrieval(
+        segment_contract, evidence_map
+    )
+    errors.extend(adaptation_errors)
     retrieval_evidence = picture_plan.get("retrieval_evidence")
     if not isinstance(retrieval_evidence, Mapping):
         errors.append("missing_retrieval_evidence")
@@ -185,7 +269,7 @@ def build_retrieval_ranking_report(
     effective_top_k = max(1, int(top_k or 1))
 
     for clip_index, clip in enumerate(clips):
-        segment_id = clip.get("segment")
+        segment_id = clip.get("segment") or clip.get("segment_id")
         segment = segments.get(segment_id)
         if segment is None:
             errors.append(f"clip_{clip_index}_missing_segment:{segment_id}")
@@ -297,6 +381,7 @@ def build_retrieval_ranking_report(
             "selection_mode_counts": selection_modes,
             "override_count": sum(selection_modes.get(mode, 0) for mode in _OVERRIDE_MODES),
         },
+        "editorial_contract_adaptation": adaptation_metadata,
     }
     if report_path:
         out = Path(report_path)
