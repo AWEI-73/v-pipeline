@@ -920,7 +920,8 @@
         "RUNBOOK.md"
       ],
       "skills": [
-        "skills/verify.md"
+        "skills/verify.md",
+        "skills/editorial-reviewer.md"
       ],
       "entry_conditions": [
         "final candidate or preview candidate needs review",
@@ -965,7 +966,9 @@
         "pipeline_execution_trace.json",
         "gate_authenticity_audit.json",
         "rendered_product_qa.json",
-        "no_skip_contract_decision.json"
+        "no_skip_contract_decision.json",
+        "editorial_review.json",
+        "editorial_evidence_manifest.json"
       ],
       "handoff_outputs": [
         "workbench_revision_request.json",

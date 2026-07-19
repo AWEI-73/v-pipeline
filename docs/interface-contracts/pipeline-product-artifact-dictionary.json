@@ -1509,14 +1509,19 @@
           "description": "Required all-page inspection, narrow review questions, finding classes, and candidate-findings-only authority."
         },
         {
+          "name": "decision_context_and_write_contract",
+          "description": "Optional locked_truth context binding with exact source hash, plus reviewer_write_contract.json generated from the live reviewer registry and capability catalog."
+        },
+        {
           "name": "review_outputs",
-          "description": "Bound templates for timeline reviewer findings and targeted crop/continuous-playback requests."
+          "description": "Canonical editorial_review.template.json and targeted crop/continuous-playback requests."
         }
       ],
       "semantic_inputs": [
         "rendered rough cut or candidate video",
         "optional soundtrack_probe_report.json",
-        "optional subtitles.srt"
+        "optional subtitles.srt",
+        "optional decision context artifact with locked_truth"
       ],
       "downstream_consumers": [
         "agent/human Reviewer Layer",
@@ -1531,6 +1536,66 @@
         "Semantic findings remain flags and never create technical PASS, creative approval, or delivery readiness."
       ],
       "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "reviewer_write_contract.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Machine-readable reviewer write surface generated at packet-build time from the live reviewer registry and capability catalog.",
+      "functional_parameters": [
+        {
+          "name": "allowed_enums_and_routes",
+          "description": "Current v2 statuses, modes, lenses, finding classes, priorities, fixable scopes, routes, and live routing capability IDs."
+        },
+        {
+          "name": "validator_reference",
+          "description": "The live registered public reviewer-policy validator capability and executable command reference."
+        },
+        {
+          "name": "minimal_valid_example",
+          "description": "A no-finding editorial_review v2 payload that passes the public reviewer validator."
+        }
+      ],
+      "semantic_inputs": [
+        "reviewer_registry",
+        "live Skill capability catalog"
+      ],
+      "downstream_consumers": [
+        "editorial reviewer context",
+        "public reviewer-policy validator"
+      ],
+      "review_focus": [
+        "No hand-maintained second enum or capability-ID source is allowed.",
+        "Catalog or registry unavailability fails packet creation closed."
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "editorial_review.template.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Canonical valid editorial_review v2 starting payload for the one V Pipeline Editorial Reviewer identity.",
+      "functional_parameters": [
+        {
+          "name": "progression_and_findings",
+          "description": "Strengths, optional chapter_candidates, evidence gaps, requires_reopen findings, and one primary proposal plus at most one fallback."
+        },
+        {
+          "name": "no_existing_route",
+          "description": "A truthful no_existing_route proposal uses capability_id=null and no_route_reason without fabricated implementation or rerun fields."
+        }
+      ],
+      "semantic_inputs": [
+        "timeline_review_packet.json",
+        "reviewer_write_contract.json"
+      ],
+      "downstream_consumers": [
+        "public reviewer-policy validator",
+        "owner or integrator verdict"
+      ],
+      "review_focus": [
+        "Lock conflicts are preserved and require requires_reopen=true.",
+        "Human creative approval and final delivery claim remain false."
+      ],
+      "canonical_write_policy": "read_only"
     },
     {
       "artifact_name": "story_to_material_map.json",
@@ -1571,6 +1636,83 @@
         "Handoff references reviewed artifacts only.",
         "Constraints and forbidden writes remain explicit.",
         "Downstream owner can identify repair route without guessing."
+      ],
+      "canonical_write_policy": "handoff_only"
+    },
+    {
+      "artifact_name": "editorial_review.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Evidence-bound findings and bounded proposals from the single V Pipeline Editorial Reviewer.",
+      "functional_parameters": [
+        {
+          "name": "reviewer_identity_and_lenses",
+          "description": "reviewer_identity=editorial_reviewer with one or more existing reviewer_role rubric lenses."
+        },
+        {
+          "name": "subject_and_evidence_manifest",
+          "description": "Hash-bound subject, immutable evidence manifest, inspection scope, and explicit evidence gaps."
+        },
+        {
+          "name": "findings_and_proposals",
+          "description": "Observation/interpretation/consequence findings with bounded evidence refs and existing route/capability proposals."
+        },
+        {
+          "name": "authority_boundary",
+          "description": "Findings and proposals only; canonical mutation, repair, creative approval, and delivery claims are forbidden."
+        }
+      ],
+      "semantic_inputs": [
+        "timeline_review_packet.json",
+        "editorial_evidence_manifest.json",
+        "existing Verify and branch capability evidence"
+      ],
+      "downstream_consumers": [
+        "owner or integrator verdict",
+        "targeted existing Stage return route",
+        "Verify evidence index"
+      ],
+      "review_focus": [
+        "Does every material finding resolve to a manifest item, hash, and bounded time window?",
+        "Does each proposal use one existing route and registered capability, with at most one fallback?",
+        "Are clean, unknown, and taste-only outcomes represented without manufactured faults or machine creative PASS/FAIL?"
+      ],
+      "canonical_write_policy": "read_only"
+    },
+    {
+      "artifact_name": "editorial_evidence_manifest.json",
+      "owner_branch": "verify-delivery",
+      "purpose": "Immutable subject and evidence inventory used to reuse or invalidate bounded timeline review evidence.",
+      "functional_parameters": [
+        {
+          "name": "subject",
+          "description": "Path, artifact role, full SHA-256, duration, and media role."
+        },
+        {
+          "name": "stream_fingerprints",
+          "description": "Picture, audio, and subtitle fingerprints or explicit unbound state."
+        },
+        {
+          "name": "evidence_items",
+          "description": "Kind, path, SHA-256, generator capability, covered timeline window, source binding, and limitations."
+        },
+        {
+          "name": "reuse_policy",
+          "description": "Parent manifest, reused/regenerated/invalidation rules, and fail-closed mismatch policy."
+        }
+      ],
+      "semantic_inputs": [
+        "rendered candidate or reference film",
+        "wall_index.json",
+        "soundtrack_probe_report.json when bound",
+        "subtitles.srt when bound"
+      ],
+      "downstream_consumers": [
+        "editorial_review.json",
+        "targeted Verify or owner review"
+      ],
+      "review_focus": [
+        "Unknown or mismatched subject/hash state never silently reuses evidence.",
+        "Audio-only, subtitle-only, and bounded picture changes record exact reuse and invalidation scope."
       ],
       "canonical_write_policy": "handoff_only"
     }

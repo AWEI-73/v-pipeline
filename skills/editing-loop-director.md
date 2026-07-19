@@ -267,6 +267,12 @@ candidate creative quality、creative approval 或 delivery。Durable evidence:
 主導聲音基礎（music、dialogue 或 picture-led）。
 能力庫：mix-audio / sfx-mix / audio handoff acceptance / 響度 gate。
 
+正式致詞、訪談等「整段由同一說話事件主導」的段落，BGM 使用
+`speech_segment`：從核准的 source-speech placement 開始到結束維持同一
+低音量，只在段落首尾做 attack/release。不得用 VAD 逐句恢復音量，否則
+句間停頓會形成抽動。`speech_aware` 只留給時間軸上零散、非連續的旁白；
+兩者都必須保存 protected audio、時間窗與實際 ducking 證據。
+
 ## 7. L4 字【doctrine】
 
 文本 fail-closed：**唯一來源＝owner 批准的劇本檔**；感知轉錄、OCR、
@@ -300,6 +306,13 @@ Material Map／章節標籤矛盾，必須提出 objective
 同角度、同資訊的重複且沒有建立→動作→結果等可見進展，提出
 `adjacent_low_information_semantic_repeat` structural candidate，交由 owner
 決定是否保留；它不是自動 FAIL。
+
+全片牆還必須把章節標題、單元字幕與畫面家族做**橫向對照**：同一正規化
+單元名稱或同一事件家族若在不相鄰時間窗再次出現，必須有可引用的
+`repeat_reason`（callback、前後對照、建立→結果或刻意回環）；否則提出
+`non_adjacent_unit_repeat_without_progression` structural candidate。文字圖層的
+實際出現、完整顯示與消失時間必須回讀 rendered pixels，並與核准的
+lifecycle／readability target 比對；不能只證明 JSON 裡有字。
 
 **2026-07-11 first-of-kind 結果：PASS（scope 僅限 Canon 67
 `candidate_v2`／44 秒／review-only）。**Fresh worker 以四類 carried context

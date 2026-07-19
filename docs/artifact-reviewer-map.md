@@ -47,6 +47,35 @@ delivery readiness.
 Creative reviewers exist earlier so the pipeline does not faithfully build a
 weak story.
 
+## V Pipeline Editorial Reviewer
+
+The discoverable editorial surface is `skills/editorial-reviewer.md`. Runtime
+identity is one `editorial_reviewer`; the registered reviewer roles above remain
+rubric lenses and legacy artifact vocabulary, not separate agent dispatches.
+The reviewer reads persisted eye/ear/heart evidence first and writes only an
+evidence-bound `editorial_review` v2 finding/proposal artifact. It may return an
+empty finding list when strengths and evidence limitations are the truthful
+result. It must not repair, mutate canonical state, approve creative quality,
+or claim delivery.
+
+Every material finding binds to a subject SHA-256, an immutable
+`editorial_evidence_manifest.json` item, and a bounded time window. A finding
+uses one existing Stage return route and registered capability, with at most one
+fallback, and always requires an owner/integrator verdict. Unknown or mismatched
+subject/hash evidence fails closed; taste observations remain human-only and
+never become machine PASS/FAIL.
+
+Timeline packet construction may bind a real decision-context artifact. The
+packet copies only its `locked_truth` and declared `finishing_contract` or
+`audio_policy`, alongside the exact source path, artifact role, and SHA-256.
+The context must also bind the exact reviewed subject through
+`subject_binding.subject_sha256` or an existing handoff `input.sha256`; a
+missing or mismatched subject binding fails closed before wall generation.
+The same packet generates `reviewer_write_contract.json` from the live
+reviewer registry and capability catalog, then emits the canonical
+`editorial_review.template.json`; the historical timeline findings template is
+not an active output.
+
 ## Review Policy Levels
 
 Route/template config may declare:

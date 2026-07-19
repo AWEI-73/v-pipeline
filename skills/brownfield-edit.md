@@ -270,6 +270,27 @@ VERIFY gap / Workbench patch / effect gap
 The route is fast because it is local and bounded. It is not fast because it
 skips review.
 
+## Dirty-Layer Rule
+
+Classify the finding before rerunning anything:
+
+- rendered pixels contradict a unit label or Material Map truth: picture and
+  text/effect are dirty; preserve audio only when time boundaries and speech
+  placement are unchanged;
+- remove or replace a repeated clip with equal duration: picture is dirty;
+  audio/text may remain clean only after timecode read-back proves no shift;
+- change music color, gain or ducking: audio is dirty; picture stays clean;
+- when a formal speech/interview segment pumps between sentences, replace
+  activity-driven `speech_aware` with placement-driven `speech_segment` and
+  rerender only the audio layer; keep picture/text clean when timing is unchanged;
+- change only motif scope or a title lifecycle: effect/text is dirty; do not
+  reopen story or material truth.
+
+After the bounded rerun, return through Stage 7 and inspect a 0.5-second
+whole-timeline wall. A patch is not accepted merely because its local window
+looks correct; the wall must also show that the fix did not create a repeated
+unit, wrong label or out-of-scope motif elsewhere.
+
 ## Current Tool Mapping
 
 - Workbench draft validation: `workbench-handoff-validate`

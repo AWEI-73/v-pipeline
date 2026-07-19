@@ -28,6 +28,15 @@ def main() -> int:
     parser.add_argument("--interval-sec", type=float, default=0.5, dest="interval_sec")
     parser.add_argument("--wall-duration-sec", type=float, default=30.0, dest="wall_duration_sec")
     parser.add_argument("--soundtrack-probe", default=None, dest="soundtrack_probe")
+    parser.add_argument(
+        "--context",
+        default=None,
+        dest="context_path",
+        help=(
+            "optional JSON decision context containing locked_truth, declared finishing/audio blocks, "
+            "and an exact subject_binding.subject_sha256 or input.sha256 matching --video"
+        ),
+    )
     parser.add_argument("--srt", default=None, help="optional reviewed/draft SRT context")
     parser.add_argument(
         "--text-authority",
@@ -47,6 +56,7 @@ def main() -> int:
         soundtrack_probe_path=args.soundtrack_probe,
         srt_path=args.srt,
         text_authority=args.text_authority,
+        context_path=args.context_path,
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

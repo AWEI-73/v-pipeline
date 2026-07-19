@@ -108,6 +108,22 @@ handoff: native effects, music placement/mixing, visual preview, and export.
 Computer Use may operate those controls, but its clicks are execution evidence,
 not canonical truth.
 
+## Handoff Modes
+
+Choose exactly one mode and record it in the handoff:
+
+- `flattened_candidate`: provide one reviewed MP4 whose picture, audio and text
+  are already locked. CapCut may add only the named visual finishing operations
+  and export. Music, ducking or subtitle changes return upstream to Brownfield;
+  do not pretend the flattened file is an adjustable multitrack timeline.
+- `separated_stems`: provide a clean picture master, source-speech/dialogue
+  stem, music stem, optional SFX stem, approved SRT/text contract and effect
+  cue list. Every input carries path, SHA-256, duration and authority. Use this
+  mode when CapCut must adjust music, ducking or text presentation.
+
+Both modes must declare `return_route: S7_VERIFY`. CapCut never owns story,
+picture, approved text or delivery truth.
+
 For the Canon67 outcome-report family, retain the accepted A/B integration:
 
 - A is the institutional coverage and factual skeleton;
@@ -123,8 +139,14 @@ Before opening CapCut, record at least:
 - input path, SHA-256, duration, resolution and expected audio state;
 - `product_mode`, `soul_integration`, locked picture/text boundaries;
 - each effect cue: intent, target range, intensity and protected content;
+- each recurring motif: explicit `allowed_windows`,
+  `outside_scope_behavior: none`, and whether chapter-boundary reuse is
+  approved. Do not infer that an opening/ending motif belongs at every chapter;
 - each music cue: local/catalogue source, time range, gain, fades, dialogue
   ducking intent and license/delivery status;
+- continuous formal speech/interview cues must declare
+  `ducking_policy: speech_segment` and the full protected placement window;
+  do not automate gain recovery from sentence-level VAD gaps;
 - free-only/paid policy, expected export path and owner review questions.
 
 Missing story or picture truth returns to Stage 0-5. Missing effect design
@@ -151,6 +173,9 @@ Arranger. Do not solve these gaps by browsing randomly inside CapCut.
 8. Copy the candidate back into the Hermes run and execute Stage 7 rendered QA,
    final-product Verify, and perception coverage. Then request owner taste and
    legal verdicts. Only the canonical delivery route can promote it.
+9. Build the 0.5-second whole-timeline wall and verify every declared motif
+   window plus at least one excluded middle window. A correct draft JSON does
+   not prove the exported pixels obey the scope.
 
 ## CapCut 8.x Draft Rules Learned From The Forward Test
 
@@ -174,6 +199,8 @@ Stop and return a finding when:
 - the only available music lacks delivery-compatible rights evidence;
 - exact dialogue ducking, subtitle equality or multi-track timing cannot be
   evidenced from the exported candidate;
+- continuous-speech BGM rises between sentences instead of remaining a stable
+  low bed for the complete protected segment;
 - CapCut crashes, auto-save races with a draft patch, or export cannot be read
   back into Hermes;
 - Verify fails or the owner rejects the finishing taste.
@@ -185,7 +212,13 @@ Forward-tested on CapCut Desktop 8.9.1.3802 with one 40-second, 1920x1080,
 local instrumental track at -16.5 dB with a 2-second fade, local export, and
 successful Hermes rendered QA, final-product Verify and perception coverage.
 
+Also forward-tested on CapCut Desktop 9.0.0.3858 with one 315-second
+`flattened_candidate`: two bounded free film-frame windows (opening and ending
+only), local export, and a return through rendered QA, final-product Verify and
+a 0.5-second whole-timeline wall. The music, ducking, subtitles and factual
+labels were baked and verified upstream; this does not certify CapCut as their
+editor in flattened mode.
+
 This does **not** certify an unattended 540-second edit, native catalogue music,
 dialogue ducking, subtitle editing, multi-effect composition, cross-version UI
 stability, creative approval, music licensing or delivery.
-

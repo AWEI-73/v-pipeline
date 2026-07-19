@@ -132,15 +132,18 @@ description: Use when running or reviewing Hermes VERIFY and delivery gates: QA 
       "inputs": [
         "rendered rough cut, candidate, or reference film",
         "review_subject_type: current_candidate | reference_film",
+        "optional decision context JSON with locked_truth and declared finishing_contract/audio_policy",
         "optional soundtrack_probe_report.json",
         "optional subtitles.srt",
         "text_authority whenever SRT is supplied: asr_draft | owner_approved | reference_transcript | ocr_inferred"
       ],
       "outputs": [
         "timeline_review_packet.json",
+        "editorial_evidence_manifest.json",
+        "reviewer_write_contract.json",
         "wall_index.json",
         "walls/wall_30s_*.jpg",
-        "timeline_reviewer_findings.template.json",
+        "editorial_review.template.json",
         "timeline_crop_request.template.json"
       ],
       "stop_if": [
@@ -398,6 +401,7 @@ finished reference film 時，
   --video RUN_DIR\final.mp4 `
   --out-dir RUN_DIR\timeline_review `
   --review-subject-type current_candidate `
+  --context RUN_DIR\decision_context.json `
   --soundtrack-probe RUN_DIR\soundtrack_probe_report.json `
   --srt RUN_DIR\subtitles.srt `
   --text-authority owner_approved `
@@ -421,6 +425,25 @@ probe 或 SRT 時，也不得宣稱音樂／字幕方向正確。
 `reference_transcript` 或 `ocr_inferred` 混成同一種文字真相。Reviewer 看到
 的特效只能寫成 `effect_observations[]`；Owner／Integrator 另行裁決並建立
 effect contract 後，才准形成 Effect Factory request 或 handoff。
+
+## V Pipeline Editorial Reviewer entry
+
+For the unified editorial surface, read `skills/editorial-reviewer.md`. It is
+one `editorial_reviewer` identity using existing reviewer roles as rubric
+lenses; it does not dispatch one agent per lens. The reviewer consumes the
+persisted timeline packet and its `editorial_evidence_manifest.json` before
+requesting new evidence, and emits `editorial_review` findings/proposals only.
+
+The reviewer may record strengths, evidence gaps, or no material findings. It
+must bind material findings to subject hash, evidence-item hash, capability,
+and bounded time window. It may recommend one existing route/capability and at
+most one fallback, but never executes repair, mutates canonical state, grants
+creative approval, or claims delivery. `human_creative_approval=false` and
+`final_delivery_claimed=false` are mandatory.
+`full_context` reviews read bound locks before proposing fixes; `cold_start`
+reviews observe from the audience perspective first and classify against locks
+last. Wall inspection runs in one fresh/disposable reviewer context; the parent
+only validates and routes the immutable finding artifact.
 
 
 ## Current visual-judgment policy

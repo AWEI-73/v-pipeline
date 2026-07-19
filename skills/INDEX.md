@@ -16,6 +16,7 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/editing-loop-director.md` | main-pipeline | Stage 3-9 editing method overlay | Guides L0-L5 proposals, owner verdicts, applies, and reviews without owning the Stage cursor or canonical render. |
 | `skills/editor.md` | main-pipeline | build/edit | Converts approved contracts into edit/timeline decisions. |
 | `skills/editorial-ambiguity-loop.md` | main-pipeline | Stage 0-2 method overlay | Progressively removes story ambiguity into hash-bound decisions, segment grammar, and evidence needs before Stage 3. |
+| `skills/editorial-reviewer.md` | verify-delivery | unified editorial review | Uses one `editorial_reviewer` identity with existing reviewer roles as rubric lenses and writes evidence-bound findings/proposals only. |
 | `skills/effects-director.md` | effect-factory | effect direction | Translates desired visual mood into effect direction and constraints. |
 | `skills/gap-analyzer.md` | main-pipeline | upstream story | Identifies narrative/material gaps before build handoff. |
 | `skills/generated-material-producer.md` | material-map | generated material | Produces and imports reviewed generated material candidates. |

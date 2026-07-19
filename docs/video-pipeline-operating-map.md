@@ -108,6 +108,31 @@ effect contract authorizes Effect Factory work.
 
 See `docs/artifact-reviewer-map.md`.
 
+The unified V Pipeline Editorial Reviewer surface is `skills/editorial-reviewer.md`.
+It uses one runtime identity, `editorial_reviewer`; `literary_editor`,
+`story_director`, `material_producer`, `editorial_timeline`,
+`audio_subtitle_reviewer`, `effect_reviewer`, and other registered roles are
+rubric lenses only. The surface writes findings/proposals and preserves the
+existing Verify, Stage, canonical-render, and delivery ownership boundaries.
+
+Editorial review placement is bounded rather than mandatory at every Stage:
+
+| Stage | Review use |
+|---|---|
+| 0–2 | Major story choice or requested A/B comparison. |
+| 3 | Targeted Material Map audit, not full-pool reinspection. |
+| 4–5 | Paper-edit and story-structure review before expensive render. |
+| 6 | Candidate review only after build evidence exists. |
+| 7–8 | Primary eye/ear/heart timeline review plus deterministic Verify. |
+| 9 | Incremental review of the changed layer/window only. |
+| 10 | Process/artifact-integrity review, never creative self-approval. |
+
+The timeline packet remains the existing whole-story evidence surface. Its
+`editorial_evidence_manifest.json` records subject hashes, stream fingerprints
+or explicit unbound state, evidence-item hashes, generator capabilities, and
+bounded reuse/invalidation policy. A reviewer must route a finding to an
+existing return capability and wait for owner/integrator verdict.
+
 Command:
 
 ```powershell
