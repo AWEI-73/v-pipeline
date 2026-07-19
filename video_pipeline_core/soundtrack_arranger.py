@@ -337,7 +337,7 @@ def _base_sections(total_sec: int, text: str, speech_markers: list[str]) -> list
                     "music_role": "bgm",
                     "vocal_policy": "preserve_speech",
                     "energy_curve": "low",
-                    "ducking_policy": "duck_under_voice",
+                    "ducking_policy": "speech_segment",
                     "source_type": "licensed_library",
                     "license_status": "candidate_missing_license",
                     "handoff_to": "audio-director",
@@ -426,7 +426,11 @@ def _apply_stage0_soundtrack_contract(sections: list[dict[str, Any]], contract: 
                 "license_status": "candidate_missing_license",
             })
         if speech_preservation == "required" and item.get("music_role") == "bgm":
-            item["ducking_policy"] = ducking_policy
+            item["ducking_policy"] = (
+                "speech_segment"
+                if item.get("section_id") == "director_speech"
+                else ducking_policy
+            )
         adjusted.append(item)
     return adjusted
 
@@ -470,7 +474,7 @@ def _required_audio(section: Mapping[str, Any]) -> dict[str, Any]:
         "speech_preservation": (
             "required"
             if section.get("vocal_policy") == "preserve_speech"
-            or section.get("ducking_policy") in {"duck_under_voice", "preserve_original_audio"}
+            or section.get("ducking_policy") in {"duck_under_voice", "speech_segment", "preserve_original_audio"}
             else "not_required"
         ),
     }
@@ -608,7 +612,7 @@ def arrange_soundtrack(payload: Mapping[str, Any]) -> dict[str, Any]:
     elif any(not candidate["delivery_allowed"] for candidate in candidates):
         blocks.append("license_missing")
     if any(
-        section.get("vocal_policy") == "preserve_speech" and section.get("ducking_policy") not in {"duck_under_voice", "preserve_original_audio"}
+        section.get("vocal_policy") == "preserve_speech" and section.get("ducking_policy") not in {"duck_under_voice", "speech_segment", "preserve_original_audio"}
         for section in sections
     ):
         blocks.append("speech_policy_missing")

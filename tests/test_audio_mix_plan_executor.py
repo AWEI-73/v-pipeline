@@ -113,7 +113,53 @@ def _speech_aware_plan(root: Path, music: Path, speech: Path, *, ducking=None):
     }
 
 
+def _speech_segment_plan(root: Path, music: Path, speech: Path):
+    plan = _speech_aware_plan(root, music, speech)
+    plan["ducking_policy"] = "speech_segment"
+    plan["ducking"] = {
+        "duck_db": -18.0,
+        "attack_ms": 120,
+        "release_ms": 500,
+        "activity_source": "protected_audio_placement",
+    }
+    plan["tracks"][0]["ducking_policy"] = "speech_segment"
+    return plan
+
+
 class AudioMixPlanExecutorTest(unittest.TestCase):
+    def test_speech_segment_ducks_the_full_protected_placement_without_vad_pumping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            music = root / "music.wav"
+            speech = root / "speech.wav"
+            _sine(music, 6.0)
+            _speech_tone(speech)
+
+            with patch(
+                "video_pipeline_core.material_map.detect_speech_runs",
+                side_effect=AssertionError("segment ducking must not invoke VAD"),
+            ):
+                result = execute_audio_mix_plan(
+                    _speech_segment_plan(root, music, speech),
+                    acceptance={"ok": True},
+                    out_dir=root,
+                )
+
+            self.assertTrue(result["ok"], result)
+            report = result["audio_mix_report"]
+            self.assertEqual(report["ducking_mode"], "speech_segment")
+            self.assertEqual(report["ducking_parameters"]["activity_source"], "protected_audio_placement")
+            self.assertEqual(len(report["speech_windows"]), 1)
+            self.assertEqual(report["speech_windows"][0]["start_sec"], 0.0)
+            self.assertEqual(report["speech_windows"][0]["end_sec"], 6.0)
+            self.assertEqual(report["speech_recovery_windows"], [])
+            music_placement = next(item for item in report["placements"] if item["candidate_id"] == "bgm")
+            self.assertEqual(music_placement["ducking_mode"], "speech_segment")
+            self.assertTrue(music_placement["ducking_applied"])
+            self.assertEqual(report["ducking_level_evidence"]["measurement_status"], "pass")
+            self.assertIsNotNone(report["ducking_level_evidence"]["active_rms_dbfs"])
+            self.assertTrue(report["protected_speech_waveform_check"]["pass"])
+
     def test_speech_aware_nonzero_music_placement_preserves_volume_and_waveform(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

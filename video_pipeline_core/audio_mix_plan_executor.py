@@ -250,10 +250,23 @@ SPEECH_AWARE_KEYS = set(SPEECH_AWARE_DEFAULTS)
 SPEECH_PROTECTED_LOW_RATE_MIX_WEIGHT = 1.38
 
 
+def _requested_ducking_mode(
+    audio_mix_plan: Mapping[str, Any],
+    tracks: list[Mapping[str, Any]],
+) -> str | None:
+    policies = {
+        _clean(audio_mix_plan.get("ducking_policy")),
+        *(_clean(track.get("ducking_policy")) for track in tracks),
+    }
+    if "speech_segment" in policies:
+        return "speech_segment"
+    if "speech_aware" in policies:
+        return "speech_aware"
+    return None
+
+
 def _speech_aware_requested(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping[str, Any]]) -> bool:
-    return audio_mix_plan.get("ducking_policy") == "speech_aware" or any(
-        track.get("ducking_policy") == "speech_aware" for track in tracks
-    )
+    return _requested_ducking_mode(audio_mix_plan, tracks) is not None
 
 
 def _speech_protected_mix_weight(placement: Mapping[str, Any], speech_aware: bool) -> float:
@@ -267,7 +280,12 @@ def _speech_protected_mix_weight(placement: Mapping[str, Any], speech_aware: boo
     return SPEECH_PROTECTED_LOW_RATE_MIX_WEIGHT if sample_rate < 48000 else 1.0
 
 
-def _speech_aware_config(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _speech_aware_config(
+    audio_mix_plan: Mapping[str, Any],
+    tracks: list[Mapping[str, Any]],
+    *,
+    ducking_mode: str = "speech_aware",
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     raw = audio_mix_plan.get("ducking")
     errors: list[dict[str, Any]] = []
     if raw is None:
@@ -286,7 +304,10 @@ def _speech_aware_config(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping
     unknown = sorted(set(merged) - SPEECH_AWARE_KEYS)
     if unknown:
         errors.append({"rule": "speech_aware_invalid_contract", "field": "ducking", "unknown_keys": unknown, "message": "speech-aware ducking contains unknown keys"})
-    config = {**SPEECH_AWARE_DEFAULTS, **{key: merged[key] for key in SPEECH_AWARE_KEYS if key in merged}}
+    defaults = dict(SPEECH_AWARE_DEFAULTS)
+    if ducking_mode == "speech_segment":
+        defaults["activity_source"] = "protected_audio_placement"
+    config = {**defaults, **{key: merged[key] for key in SPEECH_AWARE_KEYS if key in merged}}
     for key in ("duck_db", "attack_ms", "release_ms"):
         value = config[key]
         if isinstance(value, bool):
@@ -305,8 +326,17 @@ def _speech_aware_config(audio_mix_plan: Mapping[str, Any], tracks: list[Mapping
         elif key == "release_ms" and not 1.0 <= number <= 10000.0:
             errors.append({"rule": "speech_aware_invalid_contract", "field": key, "message": "release_ms must be between 1 and 10000"})
         config[key] = int(number) if key != "duck_db" and number.is_integer() else number
-    if config["activity_source"] != "protected_audio_silencedetect":
-        errors.append({"rule": "speech_aware_invalid_contract", "field": "activity_source", "message": "activity_source must be protected_audio_silencedetect"})
+    expected_activity_source = (
+        "protected_audio_placement"
+        if ducking_mode == "speech_segment"
+        else "protected_audio_silencedetect"
+    )
+    if config["activity_source"] != expected_activity_source:
+        errors.append({
+            "rule": "speech_aware_invalid_contract",
+            "field": "activity_source",
+            "message": f"activity_source must be {expected_activity_source} for {ducking_mode}",
+        })
     return config, errors
 
 
@@ -620,6 +650,48 @@ def _derive_speech_aware_windows(
     return windows, protected, detector_evidence
 
 
+def _derive_speech_segment_windows(
+    placements: list[dict[str, Any]],
+    *,
+    timeline_duration: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Use the full protected placement as one stable music-bed window."""
+    protected = [item for item in placements if _is_voice_or_original_audio(item)]
+    windows: list[dict[str, Any]] = []
+    evidence: list[dict[str, Any]] = []
+    for placement in protected:
+        start = max(0.0, min(timeline_duration, _float_value(placement.get("start_sec"))))
+        end = max(
+            start,
+            min(
+                timeline_duration,
+                start + _float_value(placement.get("duration_sec")),
+            ),
+        )
+        if end <= start:
+            continue
+        source_start = _float_value(placement.get("source_offset_sec"))
+        window = {
+            "start_sec": round(start, 3),
+            "end_sec": round(end, 3),
+            "duration_sec": round(end - start, 3),
+            "protected_candidate_id": placement.get("candidate_id"),
+            "source_start_sec": round(source_start, 3),
+            "source_duration_sec": round(end - start, 3),
+        }
+        windows.append(window)
+        source_path = Path(placement["audio_file"])
+        evidence.append({
+            "protected_audio": str(source_path),
+            "protected_audio_sha256": sha256(source_path.read_bytes()).hexdigest().upper(),
+            "ok": True,
+            "activity_source": "protected_audio_placement",
+            "placement_window": window,
+        })
+    windows.sort(key=lambda item: (item["start_sec"], item["end_sec"]))
+    return windows, protected, evidence
+
+
 def _apply_ducking_policy(
     placements: list[dict[str, Any]],
     ducked_volume: float = 0.28,
@@ -631,7 +703,8 @@ def _apply_ducking_policy(
     protected_audio = [item for item in placements if _is_voice_or_original_audio(item)]
     for placement in placements:
         if placement.get("ducking_policy") != "duck_under_voice":
-            if placement.get("ducking_policy") != "speech_aware":
+            ducking_mode = placement.get("ducking_policy")
+            if ducking_mode not in {"speech_aware", "speech_segment"}:
                 continue
             if not _is_duckable_music(placement) or not speech_windows:
                 continue
@@ -654,13 +727,16 @@ def _apply_ducking_policy(
                 3,
             )
             placement["ducking_applied"] = True
-            placement["ducking_mode"] = "speech_aware"
+            placement["ducking_mode"] = ducking_mode
             placement["speech_windows"] = active
-            placement["speech_aware_expression"] = _speech_aware_expression(
+            expression = _speech_aware_expression(
                 local_active,
                 speech_config or SPEECH_AWARE_DEFAULTS,
                 placement_duration,
             )
+            placement["ducking_expression"] = expression
+            # Compatibility for existing reports and consumers.
+            placement["speech_aware_expression"] = expression
             continue
         if not _is_duckable_music(placement):
             continue
@@ -676,7 +752,14 @@ def _speech_aware_rms_evidence(
     recovery_windows: list[dict[str, float]],
     config: Mapping[str, Any],
 ) -> dict[str, Any]:
-    music = next((item for item in placements if item.get("ducking_mode") == "speech_aware"), None)
+    music = next(
+        (
+            item
+            for item in placements
+            if item.get("ducking_mode") in {"speech_aware", "speech_segment"}
+        ),
+        None,
+    )
     if music is None:
         return {
             "measurement_status": "not_applicable",
@@ -686,10 +769,14 @@ def _speech_aware_rms_evidence(
             "ramp_evidence": {"attack_monotonic": False, "release_monotonic": False},
         }
     active_measurements = []
+    music_start = _float_value(music.get("start_sec"))
+    music_end = music_start + _float_value(music.get("duration_sec"))
     for window in speech_windows:
+        if not _overlaps(music, window):
+            continue
         center = (_float_value(window.get("start_sec")) + _float_value(window.get("end_sec"))) / 2.0
-        start = max(_float_value(window.get("start_sec")) + 0.2, center - 0.2)
-        duration = min(0.4, _float_value(window.get("end_sec")) - start)
+        start = max(music_start, _float_value(window.get("start_sec")) + 0.2, center - 0.2)
+        duration = min(0.4, _float_value(window.get("end_sec")) - start, music_end - start)
         if duration <= 0:
             continue
         source_start = _float_value(music.get("source_offset_sec")) + start - _float_value(music.get("start_sec"))
@@ -708,8 +795,10 @@ def _speech_aware_rms_evidence(
         })
     recovery_measurements = []
     for window in recovery_windows:
-        start = _float_value(window.get("start_sec")) + 0.1
-        duration = min(0.4, _float_value(window.get("end_sec")) - start)
+        if not _overlaps(music, window):
+            continue
+        start = max(music_start, _float_value(window.get("start_sec"))) + 0.1
+        duration = min(0.4, _float_value(window.get("end_sec")) - start, music_end - start)
         if duration <= 0:
             continue
         source_start = _float_value(music.get("source_offset_sec")) + start - _float_value(music.get("start_sec"))
@@ -727,7 +816,14 @@ def _speech_aware_rms_evidence(
             "rms_dbfs": measured,
         })
     active_values = [item["rms_dbfs"] for item in active_measurements if item["rms_dbfs"] is not None]
-    recovery_values = [item["rms_dbfs"] for item in recovery_measurements if item["rms_dbfs"] is not None]
+    # Ignore effectively silent recovery samples.  Averaging dB values across
+    # a silent music intro and a valid post-speech bed creates a meaningless
+    # negative reduction even though the rendered envelope is correct.
+    recovery_values = [
+        item["rms_dbfs"]
+        for item in recovery_measurements
+        if item["rms_dbfs"] is not None and item["rms_dbfs"] > -90.0
+    ]
     active_rms = sum(active_values) / len(active_values) if active_values else None
     recovery_rms = sum(recovery_values) / len(recovery_values) if recovery_values else None
     attack_monotonic = True
@@ -807,7 +903,7 @@ def _recovered_waveform_window_check(
         if index < 0 or index >= len(values):
             return 0.0
         gain = _float_value(placement.get("applied_volume"), 1.0)
-        if placement.get("ducking_mode") == "speech_aware":
+        if placement.get("ducking_mode") in {"speech_aware", "speech_segment"}:
             gain *= _envelope_gain(timeline_time, speech_windows, config)
         return values[index] * gain
 
@@ -898,6 +994,8 @@ def _protected_speech_waveform_report(
     speech_windows: list[dict[str, Any]],
     speech_config: Mapping[str, Any],
     output_path: Path,
+    *,
+    require_activity_alignment: bool = True,
 ) -> dict[str, Any]:
     checks = []
     skipped = []
@@ -906,7 +1004,11 @@ def _protected_speech_waveform_report(
             window for window in speech_windows
             if window.get("protected_candidate_id") == placement.get("candidate_id")
         ]
-        alignment = _waveform_activity_alignment(Path(placement["audio_file"]), placement_windows)
+        alignment = (
+            _waveform_activity_alignment(Path(placement["audio_file"]), placement_windows)
+            if require_activity_alignment
+            else {"pass": True, "windows": []}
+        )
         for window in placement_windows:
             source_start = _float_value(window.get("source_start_sec"))
             timeline_start = _float_value(window.get("start_sec"))
@@ -1160,8 +1262,8 @@ def _mix_section_timeline(
             chain += f",afade=t=in:st=0:d={fade_in:.3f}"
         if fade_out > 0:
             chain += f",afade=t=out:st={max(0.0, duration - fade_out):.3f}:d={fade_out:.3f}"
-        if placement.get("ducking_mode") == "speech_aware":
-            expression = placement.get("speech_aware_expression") or "1"
+        if placement.get("ducking_mode") in {"speech_aware", "speech_segment"}:
+            expression = placement.get("ducking_expression") or placement.get("speech_aware_expression") or "1"
             volume = max(0.0, _float_value(placement.get("applied_volume"), 1.0))
             chain += f",volume={volume:.8f}*({expression}):eval=frame"
         else:
@@ -1245,10 +1347,15 @@ def execute_audio_mix_plan(
     blocking.extend(_preview_contract_blocks(audio_mix_plan))
 
     tracks = list(audio_mix_plan.get("tracks") or [])
-    speech_aware = _speech_aware_requested(audio_mix_plan, tracks)
+    ducking_mode = _requested_ducking_mode(audio_mix_plan, tracks)
+    speech_aware = ducking_mode is not None
     speech_config = SPEECH_AWARE_DEFAULTS.copy()
     if speech_aware:
-        speech_config, speech_contract_errors = _speech_aware_config(audio_mix_plan, tracks)
+        speech_config, speech_contract_errors = _speech_aware_config(
+            audio_mix_plan,
+            tracks,
+            ducking_mode=ducking_mode or "speech_aware",
+        )
         blocking.extend(speech_contract_errors)
     source_audio_policy = audio_mix_plan.get("source_audio_policy") if isinstance(audio_mix_plan.get("source_audio_policy"), Mapping) else {}
     if not tracks:
@@ -1269,7 +1376,7 @@ def execute_audio_mix_plan(
             continue
         resolved_track = {**dict(track), "audio_file": str(audio_path)}
         if speech_aware and _is_duckable_music(resolved_track) and not _clean(resolved_track.get("ducking_policy")):
-            resolved_track["ducking_policy"] = "speech_aware"
+            resolved_track["ducking_policy"] = ducking_mode
         resolved_tracks.append(resolved_track)
 
     sections = _plan_sections(audio_mix_plan)
@@ -1302,20 +1409,26 @@ def execute_audio_mix_plan(
                 (item["start_sec"] + item["duration_sec"] for item in placements),
                 default=_target_duration(audio_mix_plan),
             )
-            speech_windows, protected_placements, detector_evidence = _derive_speech_aware_windows(
-                placements,
-                ffprobe=ffprobe_for_detection,
-                timeline_duration=timeline_duration,
-            )
+            if ducking_mode == "speech_segment":
+                speech_windows, protected_placements, detector_evidence = _derive_speech_segment_windows(
+                    placements,
+                    timeline_duration=timeline_duration,
+                )
+            else:
+                speech_windows, protected_placements, detector_evidence = _derive_speech_aware_windows(
+                    placements,
+                    ffprobe=ffprobe_for_detection,
+                    timeline_duration=timeline_duration,
+                )
             if not protected_placements:
                 blocking.append({
-                    "rule": "speech_aware_protected_track_missing",
-                    "message": "speech-aware ducking requires a protected source_speech/preserve_original_audio placement",
+                    "rule": f"{ducking_mode}_protected_track_missing",
+                    "message": f"{ducking_mode} ducking requires a protected source_speech/preserve_original_audio placement",
                 })
             elif not speech_windows:
                 blocking.append({
-                    "rule": "speech_aware_detector_failed",
-                    "message": "speech-aware ducking requires non-empty speech activity from protected audio",
+                    "rule": f"{ducking_mode}_window_missing",
+                    "message": f"{ducking_mode} ducking requires a non-empty protected window",
                 })
             speech_recovery_windows = _recovery_windows(
                 speech_windows,
@@ -1378,7 +1491,7 @@ def execute_audio_mix_plan(
         }
         if speech_aware:
             report.update({
-                "ducking_mode": "speech_aware",
+                "ducking_mode": ducking_mode,
                 "ducking_parameters": dict(speech_config),
                 "speech_activity_evidence": detector_evidence,
                 "speech_windows": speech_windows,
@@ -1468,6 +1581,7 @@ def execute_audio_mix_plan(
         speech_windows,
         speech_config,
         output_path,
+        require_activity_alignment=ducking_mode == "speech_aware",
     ) if speech_aware else None
     if speech_aware and protected_waveform and not protected_waveform.get("pass"):
         blocking.append({
@@ -1499,12 +1613,12 @@ def execute_audio_mix_plan(
     }
     if speech_aware:
         report.update({
-            "ducking_mode": "speech_aware",
+            "ducking_mode": ducking_mode,
             "ducking_parameters": dict(speech_config),
             "speech_activity_evidence": detector_evidence,
             "speech_windows": speech_windows,
             "speech_recovery_windows": speech_recovery_windows,
-            "speech_aware_evidence": speech_evidence,
+            "ducking_level_evidence": speech_evidence,
             "protected_speech_waveform_check": protected_waveform,
             "protected_speech": {
                 "placements": [
@@ -1521,6 +1635,8 @@ def execute_audio_mix_plan(
                 "gain": protected_placements[0].get("applied_volume", 1.0) if protected_placements else None,
             },
         })
+        if ducking_mode == "speech_aware":
+            report["speech_aware_evidence"] = speech_evidence
     if blocking:
         report["ok"] = False
         report["blocking"] = blocking

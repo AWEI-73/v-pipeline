@@ -152,7 +152,7 @@ class SoundtrackArrangerTest(unittest.TestCase):
         self.assertEqual(sections["mv_climax"]["music_role"], "song")
         self.assertEqual(sections["mv_climax"]["energy_curve"], "high")
         self.assertEqual(sections["director_speech"]["vocal_policy"], "preserve_speech")
-        self.assertEqual(sections["director_speech"]["ducking_policy"], "duck_under_voice")
+        self.assertEqual(sections["director_speech"]["ducking_policy"], "speech_segment")
         self.assertEqual(sections["student_chants"]["ducking_policy"], "preserve_original_audio")
 
         self.assertEqual(
