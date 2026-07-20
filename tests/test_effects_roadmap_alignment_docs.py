@@ -10,37 +10,31 @@ def read(rel: str) -> str:
 
 
 class EffectsRoadmapAlignmentDocsTest(unittest.TestCase):
-    def test_roadmap_promotes_effects_to_active_next_phase(self):
+    def test_roadmap_is_compact_human_direction_not_effect_status_ledger(self):
         text = read("roadmap.md")
+        self.assertIn("<!-- DOCUMENT_ROLE: HUMAN_ROADMAP -->", text)
+        self.assertLess(len(text.splitlines()), 180)
         for expected in [
-            "Next Phase — Effects / Brownfield Edit / Node14",
-            "Status: active next development direction.",
+            "RUNBOOK.md",
+            "HANDOFF_CURRENT.md",
+            "docs/effect-factory-route.md",
+            "CapCut",
+            "Brownfield / finishing",
+        ]:
+            self.assertIn(expected, text)
+        self.assertNotIn("FX0 Effects Status Cleanup", text)
+
+    def test_detailed_effect_history_is_archived_not_live_roadmap(self):
+        text = read("docs/archive/roadmap-snapshots/2026-07-20-full-roadmap.md")
+        self.assertIn("Historical snapshot only", text)
+        for expected in [
             "FX0 Effects Status Cleanup",
             "FX1 Effect Asset Spec",
             "FX2 Effect Build Wiring",
             "FX3 Brownfield Edit / Node14 Revision Orchestration",
             "FX4 Remotion Prompt-Driven Adapter Boundary",
-            "delivery stays ffmpeg / `contract-run`",
-            "Remotion is installed and now has a bounded Brownfield/Node14 adapter",
-            "remotion_prompt_pack.json",
-            "remotion_worker_outputs.json",
-            "remotion_worker_bridge.mjs",
-            "remotion-composite-draft",
-            "Brownfield Edit is described as revision/effects orchestration",
         ]:
             self.assertIn(expected, text)
-        self.assertNotIn("- Node 14 advanced effects / Remotion-like final renderer.", text)
-
-    def test_generated_material_statuses_are_current(self):
-        text = read("roadmap.md")
-        for expected in [
-            "Status: implemented / accepted for provider-neutral generated-material fallback.",
-            "Status: implemented / accepted for offline and provider-output material flow.",
-            "Status: implemented / accepted for real image-provider handoff.",
-            "Status: implemented / accepted for generated candidate promotion.",
-        ]:
-            self.assertIn(expected, text)
-        self.assertNotIn("Status: in implementation / review.", text)
 
     def test_decision_and_index_record_effects_boundary(self):
         decision = read("docs/archive/decisions/2026-06-19-effects-node14-roadmap-alignment.md")

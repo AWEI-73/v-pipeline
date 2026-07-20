@@ -25,15 +25,21 @@ class PipelineMapTest(unittest.TestCase):
 
     def test_build_corpus_copies_active_docs_skills_and_tools(self):
         data = pipeline_map.build_map()
+        self.assertLessEqual(len(data["active_docs"]), 9)
+        self.assertNotIn("roadmap.md", data["active_docs"])
+        self.assertIn("HANDOFF_CURRENT.md", data["active_docs"])
         with tempfile.TemporaryDirectory() as tmp:
             corpus = pipeline_map.build_corpus(data, Path(tmp) / "mvp")
 
             self.assertTrue((corpus / "RUNBOOK.md").is_file())
-            self.assertTrue((corpus / "docs" / "repository-consolidation-map.md").is_file())
-            self.assertTrue((corpus / "docs" / "effect-factory-route.md").is_file())
+            self.assertTrue((corpus / "HANDOFF_CURRENT.md").is_file())
+            self.assertFalse((corpus / "roadmap.md").exists())
+            self.assertFalse((corpus / "docs" / "video-pipeline-operating-map.md").exists())
+            self.assertFalse((corpus / "docs" / "pipeline-decision-tree.md").exists())
             self.assertTrue((corpus / "skills" / "video-effect-factory.md").is_file())
             self.assertTrue((corpus / "skills" / "shooting-brief.md").is_file())
-            self.assertTrue((corpus / "dashboard" / "workbench_native" / "API_CONTRACT.md").is_file())
+            self.assertFalse((corpus / "dashboard" / "workbench_native" / "API_CONTRACT.md").exists())
+            self.assertTrue((pipeline_map.ROOT / "dashboard" / "workbench_native" / "API_CONTRACT.md").is_file())
             self.assertTrue((corpus / "tools" / "workbench_frontend_smoke.py").is_file())
             self.assertTrue((corpus / "tools" / "test_tiers.py").is_file())
             self.assertTrue((corpus / "tools" / "workbench_handoff.py").is_file())
@@ -75,7 +81,7 @@ class PipelineMapTest(unittest.TestCase):
         self.assertIn("audio_build_handoff.json", stage5["artifacts"])
         self.assertIn("effect_handoff.json", stage5["artifacts"])
         self.assertIn("subtitles.srt", stage5["artifacts"])
-        self.assertIn("docs/construction-guides/stage0-10-route-alignment-plan.md", data["active_docs"])
+        self.assertNotIn("docs/construction-guides/stage0-10-route-alignment-plan.md", data["active_docs"])
 
 
 if __name__ == "__main__":

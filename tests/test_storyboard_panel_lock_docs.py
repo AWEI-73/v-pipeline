@@ -18,11 +18,11 @@ class StoryboardPanelLockDocsTest(unittest.TestCase):
         self.assertIn("storyboard_panel_locked=true", text)
         self.assertIn("generate/request more panels", text)
 
-    def test_roadmap_records_auto_fill_vs_panel_locked_decision(self):
-        text = (ROOT / "roadmap.md").read_text(encoding="utf-8")
-        self.assertIn("GMP2.6 Storyboard Panel-Locked Rendering Boundary", text)
-        self.assertIn("Normal auto-fill remains correct", text)
-        self.assertIn("one generated panel owns one narration/story beat", text)
+    def test_archived_decision_records_auto_fill_vs_panel_locked_boundary(self):
+        text = (ROOT / "docs" / "archive" / "decisions" / "2026-06-19-storyboard-panel-lock.md").read_text(encoding="utf-8")
+        self.assertIn("Storyboard Panel-Lock", text)
+        self.assertIn("one panel per story beat", text)
+        self.assertIn("auto-fill accepted shots is allowed", text)
 
 
 if __name__ == "__main__":

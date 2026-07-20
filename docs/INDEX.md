@@ -15,7 +15,8 @@ Single operator entry:
 Top-level project references:
 
 - `README.md` -- what this project is.
-- `roadmap.md` -- product and engineering roadmap.
+- `roadmap.md` -- optional owner-facing product direction summary; not agent
+  run state or execution authority.
 - `HANDOFF_CURRENT.md` -- clean resume anchor for the next agent.
 - `docs/hermes-v-pipeline-honest-capability-map.md` -- evidence-backed snapshot
   of Hermes architecture, real capabilities, maturity, limits, and technical
@@ -27,9 +28,9 @@ Current document layers:
 |---|---|---|
 | Single operator entry | `RUNBOOK.md` | What to do next, what to read, which skill/tool to use, and when to stop. |
 | Concept orientation | `docs/START_HERE_VIDEO_PIPELINE.md` | Overall route vocabulary and conceptual map. |
-| Decision tree | `docs/pipeline-decision-tree.md` | Main route, branch choice, insertion points, stop gates, and return route. |
+| Decision tree | `docs/pipeline-decision-tree.md` | On-demand route diagnosis: branch choice, insertion points, stop gates, and return route. Do not preload. |
 | Branch contracts | `docs/branch-contract-registry.md`, `docs/branch-contract-registry.json` | Human and machine-readable branch ownership, allowed artifacts, stop gates, forbidden writes, and return routes. |
-| Stage/tool map | `docs/video-pipeline-operating-map.md` | Stage-to-skill/tool/artifact map. |
+| Stage/tool map | `docs/video-pipeline-operating-map.md` | On-demand Stage-to-skill/tool/artifact lookup. Do not preload. |
 | Closure hygiene | `tools/route_closure_integrity.py`, `tools/doc_reference_hygiene.py`, `tools/factory_improvement_loop.py` | Machine checks for route registration, top-level docs/reference classification, and structured improvement-loop backlog items. |
 | Canonical route | `docs/canonical-video-pipeline-route.md` | Official stage names, route semantics, and delivery requirements. |
 | Skill/tool ownership | `docs/stage-tool-simplification.md` | Skill ownership of Python tools and audit command. |
@@ -67,12 +68,13 @@ they are outputs, not navigation entries.
   Keep it as map context, not a current authority surface; use the RUNBOOK →
   HANDOFF chain for live work and stop at the declared owner gate.
 
-## Legacy Entry Notes
+## Entry Notes
 
-1. `README.md` —what this project is.
-2. `roadmap.md` —canonical current roadmap and navigation index.
-3. `HANDOFF_CURRENT.md` —clean resume anchor for the next agent.
-4. `RUNBOOK.md` —how to run the pipeline on Windows.
+1. `RUNBOOK.md` —sole operational entry and task router.
+2. `HANDOFF_CURRENT.md` —current machine-readable resume anchor.
+3. The relevant skill/contract selected by the runbook.
+4. `README.md`, `roadmap.md`, and this index are optional human orientation;
+   they are not agent boot order or live run authority.
 
 ## Editorial "soul" layer (front of pipeline)
 
@@ -241,9 +243,8 @@ they are outputs, not navigation entries.
 - `docs/workbench-dashboard-integration.md` -- current Dashboard/Workbench
   integration contract: Dashboard is read/review, Workbench is write-limited
   draft patching, backend remains official renderer.
-- `docs/repository-consolidation-map.md` -- repo-wide orientation map for
-  product surfaces, backend domains, artifact ownership, test families, and safe
-  consolidation order.
+- `docs/archive/roadmap-snapshots/2026-06-17-repository-consolidation-map.md` --
+  archived repo-wide orientation snapshot; historical only.
 - `docs/material-organization-policy.md` -- material-map-first policy for
   folders, projections, Workbench material browsing, and source-file movement.
 - `dashboard/README.md` -- operator-facing frontend entrypoints, safety rules,

@@ -24,3 +24,7 @@ authority. Current work orders stay under
 `docs/construction-guides/work-orders/`, and current operator guidance stays
 at `RUNBOOK.md`, `HANDOFF_CURRENT.md`, and the live docs/skills listed by
 `docs/INDEX.md`.
+
+The former long-form root roadmap is preserved under
+`docs/archive/roadmap-snapshots/`. The root `roadmap.md` is now a compact
+owner-facing summary and is intentionally excluded from the agent corpus.

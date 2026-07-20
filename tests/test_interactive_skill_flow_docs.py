@@ -64,11 +64,11 @@ class InteractiveSkillFlowDocsTest(unittest.TestCase):
             self.assertIn("material_first_boundary_acceptance_report.json", text, rel)
             self.assertIn("do not substitute `--source-dir`", text, rel)
 
-    def test_roadmap_and_index_point_to_isf1_decision(self):
+    def test_current_entry_and_index_keep_interactive_flow_discoverable(self):
         roadmap = read("roadmap.md")
         index = read("docs/INDEX.md")
-        self.assertIn("ISF1 Interactive Skill Flow", roadmap)
-        self.assertIn("2026-06-19-interactive-skill-flow.md", roadmap)
+        self.assertIn("Story / structure clarification", roadmap)
+        self.assertIn("RUNBOOK.md", roadmap)
         self.assertIn("2026-06-19-interactive-skill-flow.md", index)
 
     def test_start_here_is_orientation_only_not_an_operational_entry(self):

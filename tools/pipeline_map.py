@@ -22,28 +22,14 @@ BRANCH_CONTRACT_REGISTRY_PATH = ROOT / "docs" / "branch-contract-registry.json"
 
 
 ACTIVE_DOCS = [
-    "README.md",
-    "roadmap.md",
     "RUNBOOK.md",
+    "HANDOFF_CURRENT.md",
     "docs/START_HERE_VIDEO_PIPELINE.md",
     "docs/canonical-video-pipeline-route.md",
     "docs/branch-contract-registry.md",
     "docs/branch-contract-registry.json",
-    "docs/video-pipeline-operating-map.md",
     "docs/video-pipeline-end-to-end-line.md",
-    "docs/repository-consolidation-map.md",
-    "docs/material-map-lifecycle.md",
-    "docs/effect-factory-route.md",
-    "docs/soundtrack-arranger-route.md",
     "docs/stage-boundary-matrix.md",
-    "docs/construction-guides/stage0-10-route-alignment-plan.md",
-    "docs/upstream-story-route.md",
-    "docs/artifact-reviewer-map.md",
-    "docs/route-orchestrator-harness.md",
-    "docs/route-agent-runner-protocol.md",
-    "docs/workbench-dashboard-integration.md",
-    "dashboard/workbench_native/API_CONTRACT.md",
-    "docs/remotion_prompt_parameter_contract.md",
     "docs/INDEX.md",
 ]
 

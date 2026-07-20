@@ -74,14 +74,17 @@ class UpstreamRouteAlignmentDocsTest(unittest.TestCase):
         ]:
             self.assertIn(expected, producer)
 
-        roadmap = read("roadmap.md")
+        generated_route = "\n".join([
+            read("skills/generated-material-producer.md"),
+            read("skills/video-pipeline-route.md"),
+        ])
         for expected in [
-            "formal route acceptance requires explicit provider output mapping",
-            "newest `~/.codex/generated_images` session is allowed only",
+            "Prefer explicit provider output mapping for formal work",
+            "newest session fallback is allowed only for local smoke",
             "not for formal route acceptance",
             "final generated-material",
         ]:
-            self.assertIn(expected, roadmap)
+            self.assertIn(expected, generated_route)
 
     def test_material_map_and_generated_skills_define_route_boundaries(self):
         material_map = read("skills/material-map.md")

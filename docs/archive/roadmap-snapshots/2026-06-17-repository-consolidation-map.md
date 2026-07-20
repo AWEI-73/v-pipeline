@@ -1,7 +1,10 @@
 # Repository Consolidation Map
 
 Date: 2026-06-17
-Status: current orientation map
+Status: archived orientation snapshot
+
+> Historical only. Current agent routing starts at `RUNBOOK.md`; use
+> `docs/INDEX.md` for live document discovery.
 
 This document is the high-level map for agents working in this repository. It
 does not replace detailed contracts. It points to the right owner before a

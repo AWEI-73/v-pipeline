@@ -45,6 +45,11 @@ Document roles:
 | Non-UI consolidation | `docs/construction-guides/repo-consolidation-non-ui-plan.md` | Non-UI route consolidation. |
 | Historical archive | `docs/archive/` | History only, unless linked from a current doc. |
 
+Load one route-specific document only when the current task requires it. Do not
+preload `roadmap.md`, the decision tree, the operating map, and historical work
+orders together. The minimum agent boot package is this runbook,
+`HANDOFF_CURRENT.md`, and the one selected skill/contract.
+
 ## Semantic Entry Router
 
 Stage 0 package: `project_brief.json`, `interaction_log.md`, and
