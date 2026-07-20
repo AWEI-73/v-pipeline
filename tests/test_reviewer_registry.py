@@ -361,6 +361,74 @@ class ReviewerRegistryTest(unittest.TestCase):
             self.assertEqual(packet["review_policy"]["level"], "deep")
             self.assertIn("generated_material_art_director", packet["enabled_reviewers"])
 
+    def test_editorial_review_receipt_binds_validated_review_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            review_path = root / "review.json"
+            receipt_path = root / "receipt.json"
+            review = self._editorial_review()
+            review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            validation = reviewer_registry.validate_review_artifact(review)
+            self.assertTrue(validation["ok"], validation)
+            receipt = reviewer_registry.write_editorial_review_receipt(
+                review_path, validation, receipt_path
+            )
+            self.assertEqual(
+                reviewer_registry.sha256_file(review_path),
+                receipt["review"]["sha256"],
+            )
+            self.assertFalse(receipt["authority_flags"]["human_creative_approval"])
+            self.assertFalse(receipt["authority_flags"]["final_delivery_claimed"])
+            self.assertEqual(receipt_path, Path(receipt_path))
+
+    def test_editorial_review_receipt_rejects_declared_packet_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            packet_path = root / "packet.json"
+            packet_path.write_text('{"packet": true}\n', encoding="utf-8")
+            review = self._editorial_review()
+            review["packet_path"] = str(packet_path)
+            review["packet_sha256"] = "b" * 64
+            review_path = root / "review.json"
+            review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
+            validation = reviewer_registry.validate_review_artifact(review)
+            self.assertTrue(validation["ok"], validation)
+            with self.assertRaisesRegex(ValueError, "packet_sha256_mismatch"):
+                reviewer_registry.write_editorial_review_receipt(
+                    review_path, validation, root / "receipt.json"
+                )
+
+    def test_cli_validation_can_emit_review_receipt(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            review_path = root / "review.json"
+            receipt_path = root / "receipt.json"
+            review_path.write_text(
+                json.dumps(self._editorial_review(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "video_tools.py",
+                    "reviewer-policy",
+                    "--validate-review",
+                    str(review_path),
+                    "--receipt-out",
+                    str(receipt_path),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            output = json.loads(proc.stdout)
+            self.assertTrue(output["ok"], output)
+            self.assertEqual(str(receipt_path), output["receipt"]["path"])
+            self.assertTrue(receipt_path.is_file())
+
     def test_docs_and_command_manifest_reference_reviewer_policy(self):
         for rel in [
             "docs/artifact-reviewer-map.md",

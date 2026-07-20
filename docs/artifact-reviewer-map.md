@@ -12,11 +12,16 @@ Machine-readable registry:
 ```powershell
 python video_tools.py reviewer-policy --registry --out reviewer_registry.json
 python video_tools.py reviewer-policy --level deep --out reviewer_policy_packet.json
-python video_tools.py reviewer-policy --validate-review story_director_review.json
+python video_tools.py reviewer-policy --validate-review story_director_review.json --receipt-out editorial_review_receipt.json
 python video_tools.py reviewer-role-review --role story_director --project-brief project_brief.json --screenplay-beats screenplay_beats.json --material-needs material_needs.json --project-map reviewed_project_material_map.json --out story_director_review.json
 python video_tools.py reviewer-aggregate --review story_director_review.json --out reviewer_aggregation.json
 python video_tools.py reviewer-flow-acceptance --level deep --scenario all --artifact-dir reviewer_smoke
 ```
+
+When the review is accepted for routing, pass `--receipt-out` as shown above.
+The receipt records the exact review bytes that passed validation and rechecks
+declared packet/subject hashes when available; the receipt, not a chat claim,
+is the handoff evidence.
 
 The registry is implemented in `video_pipeline_core/reviewer_registry.py`.
 The deterministic role runner is implemented in
@@ -200,7 +205,7 @@ can be checked without invoking a renderer or an LLM:
 
 ```powershell
 python video_tools.py reviewer-role-review --role story_director --project-brief project_brief.json --screenplay-beats screenplay_beats.json --material-needs material_needs.json --project-map reviewed_project_material_map.json --out story_director_review.json
-python video_tools.py reviewer-policy --validate-review story_director_review.json
+python video_tools.py reviewer-policy --validate-review story_director_review.json --receipt-out editorial_review_receipt.json
 ```
 
 The runner writes an `artifact_review` and validates it through the same

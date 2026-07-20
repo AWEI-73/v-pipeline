@@ -44,6 +44,22 @@ Current document layers:
 | Generated maps | `docs/generated/` | Local machine-generated route maps and audits. Ignored by Git; regenerate when needed. |
 | Historical archive | `docs/archive/` | Decision history and old roadmap evidence; not a current source unless linked by a current doc. |
 
+## Retained history boundary
+
+The following folders are intentionally retained for reproducibility, but are
+not live route authority:
+
+- `docs/construction-guides/work-orders/` — work-order and execution history;
+  keep it searchable and do not treat an old stop state as current status.
+- `docs/decisions/`, `docs/pilots/`, and `docs/superpowers/` — design decisions,
+  pilot evidence, and implementation plans. A current route must be anchored by
+  `RUNBOOK.md`, `HANDOFF_CURRENT.md`, or a current contract before using them.
+- `docs/archive/` — superseded or pruned material. The archive index explains
+  why an item moved and what, if anything, replaced it.
+
+Generated maps under `docs/generated/` are machine-owned and ignored by Git;
+they are outputs, not navigation entries.
+
 ## Historical Continuation Links
 
 - Current Editing Loop continuation (historical campaign map link only):

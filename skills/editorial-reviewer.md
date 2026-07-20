@@ -31,7 +31,7 @@ Hermes V Pipeline is the legacy product alias only; new review artifacts use
   "canonical_tools": [
     {
       "tool": "video_tools.py reviewer-policy --validate-review",
-      "command": "video_tools.py reviewer-policy --validate-review",
+      "command": "video_tools.py reviewer-policy --validate-review REVIEW.json --receipt-out editorial_review_receipt.json",
       "when": "validate an editorial_review v2 artifact or an additive editorial_review block before routing it",
       "inputs": [
         "structured editorial review",
@@ -39,7 +39,8 @@ Hermes V Pipeline is the legacy product alias only; new review artifacts use
         "registered rubric lenses and capability IDs"
       ],
       "outputs": [
-        "validation result with errors or a valid findings/proposals artifact"
+        "validation result with errors or a valid findings/proposals artifact",
+        "hash-bound editorial_review_receipt.json when receipt-out is supplied"
       ],
       "stop_if": [
         "subject, evidence hash, evidence coordinate, rubric lens, route, or capability ID is unresolved",
@@ -152,3 +153,9 @@ Existing Verify tools remain owned by `skills/verify.md`. A finding routes to an
 existing Stage return route/capability and always sets
 `requires_owner_or_integrator_verdict=true`; the reviewer never executes that
 route.
+
+After the reviewer has finished writing its JSON, the parent/orchestrator runs
+the public validator with `--receipt-out`. The receipt hashes the exact review
+bytes that were validated and rechecks declared packet/subject hashes when
+those files are available. A chat message claiming a hash is not evidence; the
+receipt is the authoritative handoff for routing.

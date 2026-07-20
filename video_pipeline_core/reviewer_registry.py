@@ -8,6 +8,7 @@ evaluation principles agents should apply when producing review artifacts.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from pathlib import Path
 from typing import Any, Mapping
@@ -917,6 +918,109 @@ def validate_review_artifact(review: Mapping[str, Any]) -> dict[str, Any]:
         errors.append("findings must be a list")
 
     return {"ok": not errors, "errors": errors}
+
+
+def sha256_file(path: str | Path) -> str:
+    """Return the SHA-256 of a persisted artifact, after it is fully written."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _resolve_review_reference(raw_path: Any, *, review_path: Path) -> Path | None:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    candidate = Path(raw_path)
+    if candidate.is_file():
+        return candidate
+    if not candidate.is_absolute():
+        for base in (Path.cwd(), review_path.parent):
+            resolved = base / candidate
+            if resolved.is_file():
+                return resolved
+    return None
+
+
+def write_editorial_review_receipt(
+    review_path: str | Path,
+    validation: Mapping[str, Any],
+    out: str | Path,
+) -> dict[str, Any]:
+    """Persist a hash-bound receipt for a validated editorial review.
+
+    The receipt is intentionally additive: it does not mutate the review or
+    canonical state. It records the bytes actually validated, plus any packet
+    and subject rechecks that were available at the time of validation.
+    """
+    if not validation.get("ok"):
+        raise ValueError("cannot write a receipt for an invalid editorial review")
+    review_file = Path(review_path)
+    if not review_file.is_file():
+        raise ValueError(f"review artifact not found: {review_file}")
+    review = json.loads(review_file.read_text(encoding="utf-8-sig"))
+    receipt: dict[str, Any] = {
+        "artifact_role": "editorial_review_receipt",
+        "version": 1,
+        "validator_contract": validation.get("contract", "editorial_review_v2"),
+        "review": {
+            "path": str(review_file),
+            "sha256": sha256_file(review_file),
+        },
+        "validation": {
+            "ok": True,
+            "errors": list(validation.get("errors") or []),
+        },
+        "authority_flags": {
+            "human_creative_approval": bool(review.get("human_creative_approval", False)),
+            "final_delivery_claimed": bool(review.get("final_delivery_claimed", False)),
+        },
+    }
+
+    subject = review.get("subject")
+    if isinstance(subject, Mapping):
+        receipt["subject"] = {
+            "path": subject.get("path"),
+            "sha256": subject.get("sha256"),
+            "recheck": "not_available",
+        }
+        subject_file = _resolve_review_reference(subject.get("path"), review_path=review_file)
+        if subject_file is not None:
+            actual = sha256_file(subject_file)
+            receipt["subject"]["recheck"] = {
+                "path": str(subject_file),
+                "sha256": actual,
+                "matches_declared": actual == subject.get("sha256"),
+            }
+            if actual != subject.get("sha256"):
+                raise ValueError("subject_sha256_mismatch")
+
+    packet_path = review.get("packet_path")
+    packet_hash = review.get("packet_sha256")
+    if packet_path or packet_hash:
+        packet_file = _resolve_review_reference(packet_path, review_path=review_file)
+        packet_record: dict[str, Any] = {
+            "path": packet_path,
+            "sha256": packet_hash,
+            "recheck": "not_available",
+        }
+        if packet_file is None:
+            raise ValueError("packet_artifact_not_found")
+        actual = sha256_file(packet_file)
+        packet_record["recheck"] = {
+            "path": str(packet_file),
+            "sha256": actual,
+            "matches_declared": actual == packet_hash,
+        }
+        if packet_hash and actual != packet_hash:
+            raise ValueError("packet_sha256_mismatch")
+        receipt["packet"] = packet_record
+
+    out_file = Path(out)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return receipt
 
 
 def sign_review(

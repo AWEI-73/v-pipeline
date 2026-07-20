@@ -2958,6 +2958,27 @@ def cmd_reviewer_policy(args):
         if getattr(args, "validate_review", None):
             review = _load_json(args.validate_review)
             result = reviewer_registry.validate_review_artifact(review)
+            receipt_info = None
+            if result.get("ok") and getattr(args, "receipt_out", None):
+                try:
+                    reviewer_registry.write_editorial_review_receipt(
+                        args.validate_review,
+                        result,
+                        args.receipt_out,
+                    )
+                    receipt_info = {
+                        "path": str(Path(args.receipt_out)),
+                        "sha256": reviewer_registry.sha256_file(args.receipt_out),
+                    }
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    result = {
+                        "ok": False,
+                        "errors": [f"review receipt failed: {exc}"],
+                        "contract": result.get("contract", "editorial_review_v2"),
+                    }
+            if receipt_info is not None:
+                result = dict(result)
+                result["receipt"] = receipt_info
             text = json.dumps(result, ensure_ascii=False, indent=2)
             if getattr(args, "out", None):
                 Path(args.out).write_text(text, encoding="utf-8")
@@ -3687,6 +3708,8 @@ def main():
                       help="write the full reviewer registry instead of one policy packet")
     p_rp.add_argument("--validate-review", default=None, dest="validate_review",
                       help="validate an artifact_review JSON file")
+    p_rp.add_argument("--receipt-out", default=None, dest="receipt_out",
+                      help="after successful validation, persist a hash-bound editorial review receipt")
     p_rp.add_argument("--out", default=None, help="optional JSON output path")
 
     p_rfa = sub.add_parser("reviewer-flow-acceptance")
