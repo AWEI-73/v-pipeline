@@ -8,6 +8,39 @@ from unittest.mock import patch
 
 
 class SoundtrackProbeTest(unittest.TestCase):
+    def test_source_binding_hash_tracks_exact_file_bytes(self):
+        from video_pipeline_core.soundtrack_probe import build_soundtrack_probe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "song.mp3"
+            audio.write_bytes(b"first-bytes")
+
+            def fake_run(cmd, **kwargs):
+                class Result:
+                    returncode = 0
+                    stdout = json.dumps({
+                        "format": {"duration": "12.0"},
+                        "streams": [{"codec_type": "audio", "codec_name": "mp3", "duration": "12.0"}],
+                    }) if "ffprobe" in cmd[0] else ""
+                    stderr = ""
+                return Result()
+
+            with (
+                patch("video_pipeline_core.soundtrack_probe.subprocess.run", side_effect=fake_run),
+                patch("video_pipeline_core.soundtrack_probe._music_features", return_value={}),
+            ):
+                first = build_soundtrack_probe(audio)
+                audio.write_bytes(b"changed-bytes")
+                second = build_soundtrack_probe(audio)
+
+        self.assertEqual(first["source_binding"]["path"], str(audio))
+        self.assertEqual(first["source_binding"]["hash_method"], "sha256_file_bytes_v1")
+        self.assertNotEqual(
+            first["source_binding"]["sha256"],
+            second["source_binding"]["sha256"],
+        )
+
     def test_builds_basic_probe_report_from_ffmpeg_text_outputs(self):
         from video_pipeline_core.soundtrack_probe import build_soundtrack_probe
 
@@ -205,6 +238,8 @@ class SoundtrackProbeTest(unittest.TestCase):
         self.assertFalse(report["features"]["has_audio"])
         self.assertEqual(report["features"]["codec"], None)
         self.assertEqual(report["duration_sec"], 133.28)
+        self.assertEqual(report["source_binding"]["path"], str(video))
+        self.assertEqual(report["source_binding"]["hash_method"], "sha256_file_bytes_v1")
         self.assertEqual(report["editing_fit"]["speech_underlay"], "not_applicable")
         self.assertIn("no audio stream", " ".join(report["limitations"]).lower())
         music_features.assert_not_called()

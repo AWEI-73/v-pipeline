@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -61,6 +62,18 @@ def _audio_codec(probe: dict[str, Any]) -> str | None:
 
 def _has_audio_stream(probe: dict[str, Any]) -> bool:
     return _audio_codec(probe) is not None
+
+
+def _source_binding(path: Path) -> dict[str, str]:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {
+        "path": str(path),
+        "sha256": digest.hexdigest(),
+        "hash_method": "sha256_file_bytes_v1",
+    }
 
 
 def _volume_features(audio_path: Path, ffmpeg: str) -> dict[str, float | None]:
@@ -448,6 +461,7 @@ def build_soundtrack_probe(
             "version": 1,
             "pass": duration > 0,
             "audio_file": str(path),
+            "source_binding": _source_binding(path),
             "duration_sec": duration,
             "analysis_depth": "no_audio_stream",
             "features": {
@@ -530,6 +544,7 @@ def build_soundtrack_probe(
         "version": 1,
         "pass": passed,
         "audio_file": str(path),
+        "source_binding": _source_binding(path),
         "duration_sec": duration,
         "analysis_depth": analysis_depth,
         "features": features,

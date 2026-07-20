@@ -189,6 +189,51 @@ class ReviewerRegistryTest(unittest.TestCase):
         result = reviewer_registry.validate_editorial_review(self._editorial_review())
         self.assertTrue(result["ok"], result)
 
+    def test_exact_subject_binding_v1_fails_closed_and_legacy_v2_remains_valid(self):
+        subject_sha = "a" * 64
+        valid = self._editorial_review()
+        valid.update({
+            "binding_contract_version": 1,
+            "reviewed_subject_sha256": subject_sha,
+            "applies_to_candidate_sha256": subject_sha,
+            "subject_hash_method": "sha256_file_bytes_v1",
+        })
+        self.assertTrue(reviewer_registry.validate_editorial_review(valid)["ok"])
+        self.assertTrue(
+            reviewer_registry.validate_editorial_review(self._editorial_review())["ok"]
+        )
+
+        invalid_cases = {
+            "missing_reviewed": {"reviewed_subject_sha256": None},
+            "malformed_reviewed": {"reviewed_subject_sha256": "not-a-sha256"},
+            "missing_applicable": {"applies_to_candidate_sha256": None},
+            "malformed_applicable": {"applies_to_candidate_sha256": "not-a-sha256"},
+            "reviewed_subject_mismatch": {"reviewed_subject_sha256": "b" * 64},
+            "applicable_reviewed_mismatch": {"applies_to_candidate_sha256": "b" * 64},
+            "unsupported_hash_method": {"subject_hash_method": "sha256_text_v1"},
+        }
+        for name, change in invalid_cases.items():
+            with self.subTest(case=name):
+                candidate = dict(valid)
+                candidate.update(change)
+                if change.get("reviewed_subject_sha256") is None:
+                    candidate.pop("reviewed_subject_sha256", None)
+                if change.get("applies_to_candidate_sha256") is None:
+                    candidate.pop("applies_to_candidate_sha256", None)
+                result = reviewer_registry.validate_editorial_review(candidate)
+                self.assertFalse(result["ok"], result)
+
+    def test_reviewer_write_contract_declares_exact_subject_binding(self):
+        contract = reviewer_registry.build_reviewer_write_contract()
+        example = contract["minimal_valid_example"]
+        self.assertEqual(example["binding_contract_version"], 1)
+        self.assertEqual(example["reviewed_subject_sha256"], example["subject"]["sha256"])
+        self.assertEqual(
+            example["applies_to_candidate_sha256"],
+            example["reviewed_subject_sha256"],
+        )
+        self.assertEqual(example["subject_hash_method"], "sha256_file_bytes_v1")
+
     def test_core_closure_rejects_source_binding_and_fingerprint_gaps(self):
         mismatch = self._editorial_review()
         mismatch["evidence_manifest"]["evidence_items"][0]["source_binding"] = {
@@ -380,6 +425,35 @@ class ReviewerRegistryTest(unittest.TestCase):
             self.assertFalse(receipt["authority_flags"]["human_creative_approval"])
             self.assertFalse(receipt["authority_flags"]["final_delivery_claimed"])
             self.assertEqual(receipt_path, Path(receipt_path))
+
+    def test_editorial_review_receipt_copies_exact_subject_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            review_path = root / "review.json"
+            receipt_path = root / "receipt.json"
+            review = self._editorial_review()
+            review.update({
+                "binding_contract_version": 1,
+                "reviewed_subject_sha256": review["subject"]["sha256"],
+                "applies_to_candidate_sha256": review["subject"]["sha256"],
+                "subject_hash_method": "sha256_file_bytes_v1",
+            })
+            review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
+            validation = reviewer_registry.validate_review_artifact(review)
+            self.assertTrue(validation["ok"], validation)
+            receipt = reviewer_registry.write_editorial_review_receipt(
+                review_path, validation, receipt_path
+            )
+            self.assertEqual(receipt["binding_contract_version"], 1)
+            self.assertEqual(
+                receipt["reviewed_subject_sha256"],
+                review["reviewed_subject_sha256"],
+            )
+            self.assertEqual(
+                receipt["applies_to_candidate_sha256"],
+                review["applies_to_candidate_sha256"],
+            )
+            self.assertEqual(receipt["subject_hash_method"], "sha256_file_bytes_v1")
 
     def test_editorial_review_receipt_rejects_declared_packet_hash_mismatch(self):
         with tempfile.TemporaryDirectory() as td:

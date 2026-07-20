@@ -126,6 +126,18 @@ class SkillToolContractsTest(unittest.TestCase):
         self.assertEqual([], report["errors"])
         self.assertEqual([], report["unowned_python_tools"])
 
+    def test_editorial_reviewer_skill_states_minimal_exact_subject_binding(self):
+        skill = (ROOT / "skills" / "editorial-reviewer.md").read_text(encoding="utf-8")
+        for expected in [
+            "exact-candidate-bound",
+            "candidate SHA drift makes the old review stale",
+            "bound_exact_candidate",
+            "no carry-forward or delta reuse",
+            "finding/proposal authority only",
+            "never repairs",
+        ]:
+            self.assertIn(expected, skill)
+
     def test_stage_tool_simplification_doc_is_self_contained(self):
         text = (ROOT / "docs" / "stage-tool-simplification.md").read_text(encoding="utf-8")
         for expected in [

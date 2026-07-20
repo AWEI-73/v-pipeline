@@ -34,6 +34,7 @@ TEXT_AUTHORITIES = {"asr_draft", "owner_approved", "reference_transcript", "ocr_
 EVIDENCE_MANIFEST_ROLE = "editorial_evidence_manifest"
 EVIDENCE_MANIFEST_VERSION = 1
 TIMELINE_REVIEW_CAPABILITY_ID = "cap.verify.uniform-timeline-review.v1"
+SHA256_HASH_METHOD = "sha256_file_bytes_v1"
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -240,10 +241,12 @@ def _audio_context(
     path: str | Path | None,
     *,
     expected_duration_sec: float | None = None,
+    expected_candidate_sha256: str | None = None,
 ) -> dict[str, Any]:
     if path is None:
         return {
             "status": "not_supplied",
+            "candidate_binding_status": "unbound_not_supplied",
             "audio_stream_fingerprint": _unbound_fingerprint("soundtrack_probe_not_supplied"),
             "audio_probe_artifact_fingerprint": _unbound_fingerprint("soundtrack_probe_not_supplied"),
             "limitations": ["No soundtrack probe was bound to this review packet."],
@@ -273,14 +276,44 @@ def _audio_context(
             raise ValueError("soundtrack_probe_duration_mismatch")
     features = payload.get("features") if isinstance(payload.get("features"), Mapping) else {}
     beat_times = features.get("beat_times") if isinstance(features.get("beat_times"), list) else []
+    probe_source_binding = payload.get("source_binding")
+    probe_source_sha256 = (
+        probe_source_binding.get("sha256")
+        if isinstance(probe_source_binding, Mapping)
+        else None
+    )
+    probe_hash_method = (
+        probe_source_binding.get("hash_method")
+        if isinstance(probe_source_binding, Mapping)
+        else None
+    )
+    if (
+        not isinstance(probe_source_sha256, str)
+        or not _SHA256_RE.fullmatch(probe_source_sha256)
+        or probe_hash_method != SHA256_HASH_METHOD
+    ):
+        candidate_binding_status = "unbound_probe_source_binding_missing"
+    elif (
+        expected_candidate_sha256 is None
+        or probe_source_sha256.lower() != expected_candidate_sha256.lower()
+    ):
+        candidate_binding_status = "unbound_probe_source_mismatch"
+    else:
+        candidate_binding_status = "bound_exact_candidate"
     return {
         "status": "bound",
+        "candidate_binding_status": candidate_binding_status,
+        "probe_source_binding": dict(probe_source_binding) if isinstance(probe_source_binding, Mapping) else None,
         "artifact_path": str(probe_path),
         "sha256": _sha256(probe_path),
         "audio_stream_fingerprint": _unbound_fingerprint(
             "soundtrack_probe_json_is_not_audio_stream_fingerprint"
         ),
-        "audio_probe_artifact_fingerprint": {"status": "bound", "sha256": _sha256(probe_path)},
+        "audio_probe_artifact_fingerprint": {
+            "status": "bound",
+            "sha256": _sha256(probe_path),
+            "hash_method": SHA256_HASH_METHOD,
+        },
         "pass": payload.get("pass"),
         "duration_sec": payload.get("duration_sec"),
         "analysis_depth": payload.get("analysis_depth"),
@@ -396,10 +429,15 @@ def build_evidence_manifest(
         "path": str(video_path),
         "artifact_role": "timeline_review_subject",
         "sha256": source_sha256,
+        "hash_method": SHA256_HASH_METHOD,
         "duration_sec": round(float(duration_sec), 3),
         "media_role": review_subject_type,
     }
-    source_binding = {"subject_sha256": source_sha256, "subject_path": str(video_path)}
+    source_binding = {
+        "subject_sha256": source_sha256,
+        "subject_path": str(video_path),
+        "hash_method": SHA256_HASH_METHOD,
+    }
     evidence_items: list[dict[str, Any]] = []
     evidence_items.append({
         "evidence_id": "timeline_wall_index",
@@ -437,6 +475,7 @@ def build_evidence_manifest(
             "generator_capability": "cap.soundtrack-arranger.soundtrack-probe.v1",
             "covered_timeline_window": {"start_sec": 0.0, "end_sec": round(float(duration_sec), 3)},
             "source_binding": source_binding,
+            "candidate_binding_status": audio_context.get("candidate_binding_status"),
             "limitations": list(audio_context.get("limitations") or []),
         })
     if subtitle_context.get("status") == "bound":
@@ -669,7 +708,11 @@ def build_timeline_review_packet(
     reviewer_write_contract = build_reviewer_write_contract()
     # Validate bound context before the expensive wall render so a bad track
     # cannot leave a plausible-looking partial evidence root behind.
-    audio_context = _audio_context(soundtrack_probe_path, expected_duration_sec=duration)
+    audio_context = _audio_context(
+        soundtrack_probe_path,
+        expected_duration_sec=duration,
+        expected_candidate_sha256=source_sha,
+    )
     subtitle_context = _subtitle_context(srt_path, text_authority=text_authority)
     out.mkdir(parents=True, exist_ok=True)
     reviewer_write_contract_path = out / "reviewer_write_contract.json"
@@ -730,6 +773,7 @@ def build_timeline_review_packet(
         "source": {
             "video_path": str(video),
             "sha256": source_sha,
+            "hash_method": SHA256_HASH_METHOD,
             "duration_sec": round(duration, 3),
         },
         "subject": evidence_manifest["subject"],
@@ -770,6 +814,15 @@ def build_timeline_review_packet(
                 "rendered_pixels_over_declared_metadata_for_visible_content",
                 "source_hash_binding_over_asset_id_or_filename_for_source_identity",
             ],
+            "audio_binding": {
+                "field": "review_tracks.audio.candidate_binding_status",
+                "required_for_mix_ducking_music_claims": "bound_exact_candidate",
+                "unbound_statuses": [
+                    "unbound_probe_source_binding_missing",
+                    "unbound_probe_source_mismatch",
+                    "unbound_not_supplied",
+                ],
+            },
             "classification_rules": {
                 "rendered_pixel_material_truth_mismatch": "objective",
                 "adjacent_low_information_semantic_repeat": "structural_candidate",
@@ -833,6 +886,10 @@ def build_timeline_review_packet(
         "packet_sha256": packet_sha,
         "review_subject": review_subject,
         "subject": evidence_manifest["subject"],
+        "binding_contract_version": 1,
+        "reviewed_subject_sha256": source_sha,
+        "applies_to_candidate_sha256": source_sha,
+        "subject_hash_method": SHA256_HASH_METHOD,
         "evidence_manifest": evidence_manifest,
         "decision_context": decision_context,
         "decision_context_ref": packet["decision_context_ref"],

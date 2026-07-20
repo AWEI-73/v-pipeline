@@ -100,7 +100,130 @@ class TimelineReviewPacketTest(unittest.TestCase):
             self.assertEqual(findings_template["artifact_role"], "editorial_review")
             self.assertEqual(findings_template["status"], "ready_for_owner_verdict")
             self.assertEqual(findings_template["reviewer_identity"], "editorial_reviewer")
+            self.assertEqual(findings_template["binding_contract_version"], 1)
+            self.assertEqual(
+                findings_template["reviewed_subject_sha256"],
+                packet["subject"]["sha256"],
+            )
+            self.assertEqual(
+                findings_template["applies_to_candidate_sha256"],
+                findings_template["reviewed_subject_sha256"],
+            )
+            self.assertEqual(findings_template["subject_hash_method"], "sha256_file_bytes_v1")
             self.assertTrue((root / "review" / "reviewer_write_contract.json").is_file())
+
+    def test_audio_binding_requires_exact_probe_source_hash(self):
+        from video_pipeline_core.timeline_review_packet import _sha256, build_timeline_review_packet
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "candidate.mp4"
+            video.write_bytes(b"candidate")
+            candidate_sha = _sha256(video)
+
+            def write_probe(path, source_binding=None):
+                payload = {
+                    "artifact_role": "soundtrack_probe_report",
+                    "pass": True,
+                    "duration_sec": 4.0,
+                    "analysis_depth": "basic_ffmpeg",
+                    "features": {"has_audio": True, "beat_times": []},
+                }
+                if source_binding is not None:
+                    payload["source_binding"] = source_binding
+                path.write_text(json.dumps(payload), encoding="utf-8")
+
+            legacy_probe = root / "legacy_probe.json"
+            write_probe(legacy_probe)
+            legacy_packet = build_timeline_review_packet(
+                video,
+                root / "legacy_review",
+                review_subject_type="current_candidate",
+                duration_sec=4.0,
+                wall_renderer=self._fake_renderer,
+                soundtrack_probe_path=legacy_probe,
+            )
+            self.assertEqual(
+                legacy_packet["review_tracks"]["audio"]["candidate_binding_status"],
+                "unbound_probe_source_binding_missing",
+            )
+
+            mismatch_probe = root / "mismatch_probe.json"
+            write_probe(mismatch_probe, {
+                "path": str(video),
+                "sha256": "f" * 64,
+                "hash_method": "sha256_file_bytes_v1",
+            })
+            mismatch_packet = build_timeline_review_packet(
+                video,
+                root / "mismatch_review",
+                review_subject_type="current_candidate",
+                duration_sec=4.0,
+                wall_renderer=self._fake_renderer,
+                soundtrack_probe_path=mismatch_probe,
+            )
+            self.assertEqual(
+                mismatch_packet["review_tracks"]["audio"]["candidate_binding_status"],
+                "unbound_probe_source_mismatch",
+            )
+
+            exact_probe = root / "exact_probe.json"
+            write_probe(exact_probe, {
+                "path": str(video),
+                "sha256": candidate_sha,
+                "hash_method": "sha256_file_bytes_v1",
+            })
+            exact_packet = build_timeline_review_packet(
+                video,
+                root / "exact_review",
+                review_subject_type="current_candidate",
+                duration_sec=4.0,
+                wall_renderer=self._fake_renderer,
+                soundtrack_probe_path=exact_probe,
+            )
+            self.assertEqual(
+                exact_packet["review_tracks"]["audio"]["candidate_binding_status"],
+                "bound_exact_candidate",
+            )
+            self.assertEqual(exact_packet["source"]["hash_method"], "sha256_file_bytes_v1")
+            self.assertEqual(exact_packet["subject"]["hash_method"], "sha256_file_bytes_v1")
+            self.assertEqual(
+                exact_packet["evidence_manifest"]["subject"]["hash_method"],
+                "sha256_file_bytes_v1",
+            )
+            self.assertIn(
+                "bound_exact_candidate",
+                json.dumps(exact_packet["reviewer_contract"]),
+            )
+
+    def test_duration_match_alone_does_not_bind_audio(self):
+        from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            video = root / "candidate.mp4"
+            video.write_bytes(b"candidate")
+            probe = root / "duration_only_probe.json"
+            probe.write_text(json.dumps({
+                "artifact_role": "soundtrack_probe_report",
+                "pass": True,
+                "duration_sec": 4.0,
+                "features": {"has_audio": True, "beat_times": [1.0]},
+            }), encoding="utf-8")
+            packet = build_timeline_review_packet(
+                video,
+                root / "review",
+                review_subject_type="current_candidate",
+                duration_sec=4.0,
+                wall_renderer=self._fake_renderer,
+                soundtrack_probe_path=probe,
+            )
+
+        self.assertEqual(packet["review_tracks"]["audio"]["duration_binding"]["status"], "match")
+        self.assertEqual(
+            packet["review_tracks"]["audio"]["candidate_binding_status"],
+            "unbound_probe_source_binding_missing",
+        )
 
     def test_optional_tracks_remain_explicitly_unbound(self):
         from video_pipeline_core.timeline_review_packet import build_timeline_review_packet
@@ -117,6 +240,10 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 wall_renderer=self._fake_renderer,
             )
             self.assertEqual(packet["review_tracks"]["audio"]["status"], "not_supplied")
+            self.assertEqual(
+                packet["review_tracks"]["audio"]["candidate_binding_status"],
+                "unbound_not_supplied",
+            )
             self.assertEqual(packet["review_tracks"]["audio"]["audio_stream_fingerprint"]["status"], "unbound")
             self.assertEqual(packet["review_tracks"]["subtitles"]["status"], "not_supplied")
             self.assertTrue(packet["uniform_timeline_wall"]["coverage_pass"])

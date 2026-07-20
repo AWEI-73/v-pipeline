@@ -1,6 +1,6 @@
 ---
 name: editorial-reviewer
-description: Use for the single V Pipeline Editorial Reviewer surface when persisted eye/ear/heart evidence needs an evidence-bound finding or bounded proposal across existing rubric lenses. Do not use it to repair, render, approve creative quality, or claim delivery.
+description: Use for the single V Pipeline Editorial Reviewer surface when a candidate needs an exact-candidate-bound eye/ear/heart finding or bounded proposal across existing rubric lenses. Do not use it to repair, render, approve creative quality, or claim delivery.
 ---
 
 # V Pipeline Editorial Reviewer
@@ -25,7 +25,7 @@ Hermes V Pipeline is the legacy product alias only; new review artifacts use
   "stage_owner": "verify_delivery_gate",
   "triggers": [
     "a candidate or review packet needs one bounded eye/ear/heart editorial review",
-    "a persisted evidence packet can be reused or a bounded delta must be inspected",
+    "a fresh candidate packet needs exact-subject editorial inspection",
     "an owner needs an evidence-bound finding and existing-route proposal"
   ],
   "canonical_tools": [
@@ -97,8 +97,13 @@ Start from persisted evidence. A `timeline_review_packet.json` and its
 decision context is exact-subject bound, read `locked_truth` before proposing fixes in
 `full_context` mode. In `cold_start` mode, first record audience-visible
 observations without using the locks, then classify each finding against them
-before final output. A fresh review records the exact manifest items reused and
-regenerated; unknown or mismatched subject/hash state fails closed.
+before final output.
+
+Editorial Reviewer v1.1-minimal is exact-candidate-bound. A bound review carries
+`binding_contract_version=1`, `reviewed_subject_sha256`,
+`applies_to_candidate_sha256`, and `subject_hash_method=sha256_file_bytes_v1`.
+A candidate SHA drift makes the old review stale and requires a fresh review.
+There is no carry-forward or delta reuse in this slice.
 
 Timeline wall inspection uses one fresh/disposable reviewer context. That
 context returns only the immutable review artifact to the parent/orchestrator;
@@ -110,7 +115,7 @@ block on a legacy `artifact_review` version 1. It records:
 
 - `reviewer_identity=editorial_reviewer` and one or more existing
   `rubric_lenses`;
-- `full_context` or `cold_start` mode, subject binding, inspection scope,
+- `full_context` or `cold_start` mode, exact-subject binding, inspection scope,
   strengths, findings, and evidence gaps;
 - `human_creative_approval=false` and `final_delivery_claimed=false`;
 - `chapter_candidates[]` when present, with bounded windows, opening/ending
@@ -124,11 +129,13 @@ block on a legacy `artifact_review` version 1. It records:
 existing route is honest, use `route=no_existing_route`,
 `capability_id=null`, a non-empty `no_route_reason`, and the owner/integrator
 verdict requirement; do not invent an implementation or fake rerun gate.
+The reviewer has finding/proposal authority only and never repairs.
 
 The packet's `audio_probe_artifact_fingerprint` is the hash of the soundtrack
-probe JSON only. It is not an elementary-stream fingerprint. When no real
-picture/audio stream fingerprint exists, the packet keeps it explicitly
-`unbound` and reuse fails closed.
+probe JSON only. It is not an elementary-stream fingerprint. Audio, mix, and
+ducking findings require `bound_exact_candidate` in
+`review_tracks.audio.candidate_binding_status`; missing or mismatched source
+binding is unbound evidence.
 
 Empty `findings` is valid. A clean review should preserve strengths and state
 limitations instead of maximizing finding count. Structural candidates remain
@@ -146,7 +153,7 @@ This is a route-driven surface, not a mandatory stop at every Stage:
 | 4–5 | Paper-edit and story-structure review before expensive render. |
 | 6 | Candidate review only after build evidence exists. |
 | 7–8 | Primary eye/ear/heart timeline review plus deterministic Verify. |
-| 9 | Incremental review of the changed layer/window only. |
+| 9 | Fresh exact-candidate review after a changed candidate. |
 | 10 | Process and artifact-integrity review; never creative self-approval. |
 
 Existing Verify tools remain owned by `skills/verify.md`. A finding routes to an

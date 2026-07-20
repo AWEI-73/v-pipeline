@@ -25,6 +25,8 @@ VALID_GATE_STRENGTHS = {"advisory", "revise", "hard_gate", "delivery_gate"}
 
 EDITORIAL_REVIEWER_IDENTITY = "editorial_reviewer"
 EDITORIAL_REVIEW_VERSION = 2
+EDITORIAL_BINDING_CONTRACT_VERSION = 1
+SHA256_HASH_METHOD = "sha256_file_bytes_v1"
 EDITORIAL_REVIEW_ARTIFACT_ROLE = "editorial_review"
 EDITORIAL_REVIEW_AUTHORITY = "findings_and_proposals_only"
 EDITORIAL_REVIEW_MODES = {"full_context", "cold_start"}
@@ -392,6 +394,7 @@ def build_reviewer_write_contract() -> dict[str, Any]:
         "path": "candidate.mp4",
         "artifact_role": "timeline_review_subject",
         "sha256": "a" * 64,
+        "hash_method": SHA256_HASH_METHOD,
         "duration_sec": 1.0,
         "media_role": "current_candidate",
     }
@@ -409,7 +412,10 @@ def build_reviewer_write_contract() -> dict[str, Any]:
             "sha256": "b" * 64,
             "generator_capability": timeline_cards[0]["capability_id"],
             "covered_timeline_window": {"start_sec": 0.0, "end_sec": 1.0},
-            "source_binding": {"subject_sha256": minimal_subject["sha256"]},
+            "source_binding": {
+                "subject_sha256": minimal_subject["sha256"],
+                "hash_method": SHA256_HASH_METHOD,
+            },
             "limitations": ["navigation only"],
         }],
         "generated_at": "2026-01-01T00:00:00+00:00",
@@ -428,6 +434,10 @@ def build_reviewer_write_contract() -> dict[str, Any]:
         "authority": EDITORIAL_REVIEW_AUTHORITY,
         "forbidden_actions": sorted(EDITORIAL_REQUIRED_FORBIDDEN_ACTIONS),
         "subject": minimal_subject,
+        "binding_contract_version": EDITORIAL_BINDING_CONTRACT_VERSION,
+        "reviewed_subject_sha256": minimal_subject["sha256"],
+        "applies_to_candidate_sha256": minimal_subject["sha256"],
+        "subject_hash_method": SHA256_HASH_METHOD,
         "evidence_manifest": minimal_manifest,
         "inspection_scope": {"timeline_windows": [[0.0, 1.0]]},
         "not_inspected": [],
@@ -735,6 +745,44 @@ def _validate_proposed_fix(
     return errors
 
 
+def _validate_exact_subject_binding(
+    review: Mapping[str, Any],
+    subject: Any,
+) -> list[str]:
+    binding_version = review.get("binding_contract_version")
+    if binding_version is None:
+        return []
+    if binding_version != EDITORIAL_BINDING_CONTRACT_VERSION:
+        return [
+            "binding_contract_version must be 1 when exact-subject binding is supplied"
+        ]
+
+    errors: list[str] = []
+    reviewed_sha256 = review.get("reviewed_subject_sha256")
+    applicable_sha256 = review.get("applies_to_candidate_sha256")
+    if not _is_sha256(reviewed_sha256):
+        errors.append("reviewed_subject_sha256 must be a full SHA-256")
+    if not _is_sha256(applicable_sha256):
+        errors.append("applies_to_candidate_sha256 must be a full SHA-256")
+    if not _is_sha256(subject.get("sha256") if isinstance(subject, Mapping) else None):
+        errors.append("subject.sha256 must be a full SHA-256 for exact-subject binding")
+    if (
+        _is_sha256(reviewed_sha256)
+        and _is_sha256(subject.get("sha256") if isinstance(subject, Mapping) else None)
+        and reviewed_sha256.lower() != str(subject["sha256"]).lower()
+    ):
+        errors.append("reviewed_subject_sha256 must match subject.sha256")
+    if (
+        _is_sha256(reviewed_sha256)
+        and _is_sha256(applicable_sha256)
+        and applicable_sha256.lower() != reviewed_sha256.lower()
+    ):
+        errors.append("applies_to_candidate_sha256 must match reviewed_subject_sha256")
+    if review.get("subject_hash_method") != SHA256_HASH_METHOD:
+        errors.append("subject_hash_method must be sha256_file_bytes_v1")
+    return errors
+
+
 def validate_editorial_review(review: Mapping[str, Any]) -> dict[str, Any]:
     """Validate the additive V Pipeline Editorial Reviewer v2 contract."""
     errors: list[str] = []
@@ -769,6 +817,7 @@ def validate_editorial_review(review: Mapping[str, Any]) -> dict[str, Any]:
             errors.append(f"{key} must be a {'list' if expected is list else 'mapping'}")
     subject = review.get("subject")
     errors.extend(_validate_subject(subject))
+    errors.extend(_validate_exact_subject_binding(review, subject))
     manifest = review.get("evidence_manifest")
     manifest_errors, manifest_items = _validate_evidence_manifest(manifest, subject if isinstance(subject, Mapping) else {}, prefix="evidence_manifest")
     errors.extend(manifest_errors)
@@ -1016,6 +1065,15 @@ def write_editorial_review_receipt(
         if packet_hash and actual != packet_hash:
             raise ValueError("packet_sha256_mismatch")
         receipt["packet"] = packet_record
+
+    if review.get("binding_contract_version") == EDITORIAL_BINDING_CONTRACT_VERSION:
+        for key in (
+            "binding_contract_version",
+            "reviewed_subject_sha256",
+            "applies_to_candidate_sha256",
+            "subject_hash_method",
+        ):
+            receipt[key] = review[key]
 
     out_file = Path(out)
     out_file.parent.mkdir(parents=True, exist_ok=True)
