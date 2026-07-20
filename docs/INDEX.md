@@ -21,6 +21,8 @@ Top-level project references:
 - `docs/hermes-v-pipeline-honest-capability-map.md` -- evidence-backed snapshot
   of Hermes architecture, real capabilities, maturity, limits, and technical
   debt; descriptive only, not a route authority.
+- `docs/pilots/2026-07-20-canon67-first-longform-closure.md` -- compact durable
+  evidence for the first accepted long-form case closure; not a delivery claim.
 
 Current document layers:
 
