@@ -466,7 +466,7 @@ def build_evidence_manifest(
                 "Wall cells support story navigation, not exact identity or technical proof."
             ],
         })
-    if audio_context.get("status") == "bound":
+    if audio_context.get("candidate_binding_status") == "bound_exact_candidate":
         evidence_items.append({
             "evidence_id": "soundtrack_probe",
             "kind": "audio_probe",

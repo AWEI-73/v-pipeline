@@ -147,6 +147,11 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 legacy_packet["review_tracks"]["audio"]["candidate_binding_status"],
                 "unbound_probe_source_binding_missing",
             )
+            self.assertEqual(legacy_packet["review_tracks"]["audio"]["duration_sec"], 4.0)
+            self.assertNotIn(
+                "soundtrack_probe",
+                {item["evidence_id"] for item in legacy_packet["evidence_manifest"]["evidence_items"]},
+            )
 
             mismatch_probe = root / "mismatch_probe.json"
             write_probe(mismatch_probe, {
@@ -166,6 +171,11 @@ class TimelineReviewPacketTest(unittest.TestCase):
                 mismatch_packet["review_tracks"]["audio"]["candidate_binding_status"],
                 "unbound_probe_source_mismatch",
             )
+            self.assertTrue(mismatch_packet["review_tracks"]["audio"]["has_audio"])
+            self.assertNotIn(
+                "soundtrack_probe",
+                {item["evidence_id"] for item in mismatch_packet["evidence_manifest"]["evidence_items"]},
+            )
 
             exact_probe = root / "exact_probe.json"
             write_probe(exact_probe, {
@@ -184,6 +194,10 @@ class TimelineReviewPacketTest(unittest.TestCase):
             self.assertEqual(
                 exact_packet["review_tracks"]["audio"]["candidate_binding_status"],
                 "bound_exact_candidate",
+            )
+            self.assertIn(
+                "soundtrack_probe",
+                {item["evidence_id"] for item in exact_packet["evidence_manifest"]["evidence_items"]},
             )
             self.assertEqual(exact_packet["source"]["hash_method"], "sha256_file_bytes_v1")
             self.assertEqual(exact_packet["subject"]["hash_method"], "sha256_file_bytes_v1")
