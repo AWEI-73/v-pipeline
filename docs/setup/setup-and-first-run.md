@@ -145,9 +145,10 @@ a blank empty state; record that as first-run UX, not as a setup failure.
 For an agent-driven video request, point the coding agent at:
 
 ```text
-docs/START_HERE_VIDEO_PIPELINE.md
+RUNBOOK.md
 ```
 
-Then ask for a video. The agent should enter through
-`skills/video-pipeline.md`, inspect or create the current run state, and follow
-`runtime.py` / `state.json.next_action`.
+Then ask for a video. The agent should read `HANDOFF_CURRENT.md` second for
+live or IDLE state, optionally load `docs/START_HERE_VIDEO_PIPELINE.md` when
+route vocabulary is needed, and load `skills/video-pipeline.md` plus other
+route-specific skills on demand.

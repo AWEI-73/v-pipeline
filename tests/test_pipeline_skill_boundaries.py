@@ -356,6 +356,21 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
             re.compile(r"\b(?:WAITING|STOPPED|ACTIVE)(?:_[A-Z0-9]+)+\b"),
         )
 
+    def test_bounded_agent_freedom_stays_inside_existing_route_contract(self):
+        expected = [
+            "Fuzzy/new whole-video work still enters Stage 0 and canonical BUILD.",
+            "existing\nreviewed candidate with explicit locked and dirty layers",
+            "orchestrating agent may select existing\nregistered capabilities",
+            "Only dirty layers rerun",
+            "returns to Verify and Owner verdict",
+            "No direct whole-video hand\nstitching, protected-truth mutation, or delivery promotion is allowed.",
+        ]
+
+        for rel in ["RUNBOOK.md", "skills/video-pipeline.md"]:
+            text = read(rel)
+            for marker in expected:
+                self.assertIn(marker, text, rel)
+
 
 if __name__ == "__main__":
     unittest.main()

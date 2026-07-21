@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +9,35 @@ from pathlib import Path
 from tools import preflight
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 class PreflightTests(unittest.TestCase):
+    def test_direct_script_invocation_from_repo_root_without_pythonpath(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            env = os.environ.copy()
+            env.pop("PYTHONPATH", None)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "preflight.py"),
+                    "--json-out",
+                    str(tmp_path / "preflight.json"),
+                    "--summary-out",
+                    str(tmp_path / "preflight.txt"),
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue((tmp_path / "preflight.json").is_file())
+            self.assertTrue((tmp_path / "preflight.txt").is_file())
+
     def test_load_env_file_merges_dotenv_without_overriding_process_env(self):
         with tempfile.TemporaryDirectory() as tmp:
             env_file = Path(tmp) / ".env"

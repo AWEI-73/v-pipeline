@@ -3,10 +3,12 @@
 # Start Here: Hermes Video Pipeline
 
 Date: 2026-06-25
-Status: canonical entrypoint for agents and operators
+Status: optional orientation after the operational entry
 
-Read this first when you need to run, debug, or extend the video pipeline. This
-file is orientation only; `RUNBOOK.md` is the operational entry surface.
+Read `RUNBOOK.md` first when you need to run, debug, or extend the video
+pipeline, then read `HANDOFF_CURRENT.md` for live or IDLE state. This file is
+optional orientation loaded only when route vocabulary is needed; route-specific
+docs and skills are loaded on demand.
 
 ## Rule Zero
 
@@ -96,14 +98,14 @@ official pipeline changes.
 
 ## Read Order
 
-### Tier 1 - Required Reading
+### Tier 1 - Entry Order and Optional Orientation
 
-1. `docs/START_HERE_VIDEO_PIPELINE.md` -- this file.
-2. `RUNBOOK.md` -- current local command examples and Windows execution notes.
-3. `docs/pipeline-decision-tree.md` -- operator decision tree for the main route, branches, stop gates, and return loops.
-4. `docs/video-pipeline-operating-map.md` -- stage-by-stage operating manual: skills, tools, artifacts, gates, return routes.
-5. `docs/branch-contract-registry.json` -- machine-readable branch ownership contracts; route truth alongside the decision tree.
-6. `docs/interface-contracts/README.md` -- Pipeline branch interface API dictionary, audit, and soft discovery instructions.
+1. `RUNBOOK.md` -- sole operational entry and current local command examples.
+2. `HANDOFF_CURRENT.md` -- second read for live or IDLE state.
+3. `docs/START_HERE_VIDEO_PIPELINE.md` -- this optional route-vocabulary orientation.
+4. `docs/pipeline-decision-tree.md` -- load when the main route, branches, stop gates, or return loops are needed.
+5. `docs/video-pipeline-operating-map.md` -- load when stage-level tools, artifacts, or gates are needed.
+6. `docs/branch-contract-registry.json` and `docs/interface-contracts/README.md` -- load on demand for ownership or interface audits.
 
 ### Tier 2 - Read On Demand
 

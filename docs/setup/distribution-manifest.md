@@ -24,27 +24,26 @@ format.
 
 ## Operational Entry Surfaces
 
-The packaged repository must preserve the existing entry hierarchy:
+After extraction, the packaged repository must preserve this order:
 
-1. `AGENTS.md` provides repository operating rules and points to `RUNBOOK.md`.
-2. `RUNBOOK.md` is the sole operational entry.
-3. `docs/START_HERE_VIDEO_PIPELINE.md` is orientation after the runbook.
-4. `HANDOFF_CURRENT.md` is the only live current-task pointer.
+1. `RUNBOOK.md` is the sole operational entry.
+2. `HANDOFF_CURRENT.md` is read second for live or IDLE state.
+3. `docs/START_HERE_VIDEO_PIPELINE.md` is optional orientation when route vocabulary is needed.
+4. Route-specific docs and skills are loaded on demand.
 5. `docs/INDEX.md` is discovery, not a competing operational entry.
+
+`AGENTS.md` provides repository operating rules and points to `RUNBOOK.md`; it
+does not replace the operational order above.
 
 `roadmap.md` remains the current-state roadmap; it is not a replacement for
 the runbook or the live handoff.
 
 ## Active State and Source-Only Packaging
 
-An active `HANDOFF_CURRENT.md` may refer to ignored project state under
-`.tmp/` or another local materialization root; that state is intentionally not
-part of the source-controlled distribution.
-
-A packaged or source-only release must provide an `IDLE` handoff template or
-a project-import/materialization mechanism before it claims to run an active
-campaign. This cleanup documents that boundary but does not implement the
-packaging mechanism.
+The packaged source must carry an `IDLE` `HANDOFF_CURRENT.md` that does not
+depend on ignored project state, local absolute paths, or absent artifacts.
+Active project state is materialized outside the source distribution when an
+operator starts a bounded run.
 
 ## Exclude
 

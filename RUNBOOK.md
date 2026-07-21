@@ -12,11 +12,10 @@ first on PATH.
 
 ## Single Operator Entry
 
-`RUNBOOK.md` is the sole operational entry surface. Read
-`docs/START_HERE_VIDEO_PIPELINE.md` for route vocabulary and conceptual
-orientation, then use this runbook for operator routing and
-`HANDOFF_CURRENT.md` for the current bounded work order and machine-readable
-state pointer.
+`RUNBOOK.md` is the sole operational entry surface. Start here, then read
+`HANDOFF_CURRENT.md` second for live or IDLE state. Load
+`docs/START_HERE_VIDEO_PIPELINE.md` only when route vocabulary or conceptual
+orientation is needed; load route-specific docs and skills on demand.
 
 The active branch contract registry is `docs/branch-contract-registry.json`; it
 defines each branch owner, handoff artifacts, forbidden actions, and return
@@ -25,9 +24,9 @@ route. Stage 0-10 alignment construction links back to
 
 ## Current Work Pointer
 
-For any live campaign, resume, or stop/go decision, read `HANDOFF_CURRENT.md`.
-That handoff document names the active work order, the runtime state artifact,
-bounded next actions, and explicit do-not-do items. Historical campaign links
+For any live campaign, resume, or stop/go decision, read `HANDOFF_CURRENT.md`
+after this runbook. That handoff document names the active work order or IDLE
+state, bounded next actions, and explicit do-not-do items. Historical campaign links
 may remain elsewhere in the docs, but this runbook stays stable and does not
 carry live state tokens or current campaign payloads.
 
@@ -92,6 +91,15 @@ available; it never advances the Stage cursor or promotes delivery by itself.
 Stage 6 is the only canonical render owner. S6 consumes the compiled picture,
 effects, audio, and text decisions; an editing loop may create bounded previews
 for judgment, but it cannot promote them to the canonical candidate.
+
+## Bounded Agent Freedom
+
+Fuzzy/new whole-video work still enters Stage 0 and canonical BUILD. An existing
+reviewed candidate with explicit locked and dirty layers may use the
+Brownfield/finishing loop; the orchestrating agent may select existing
+registered capabilities inside that bounded contract. Only dirty layers rerun,
+then the result returns to Verify and Owner verdict. No direct whole-video hand
+stitching, protected-truth mutation, or delivery promotion is allowed.
 
 When a reviewed candidate needs an interactive high-quality effect/music pass,
 use `skills/capcut-assisted-finishing.md` as the optional Stage 6 backend or

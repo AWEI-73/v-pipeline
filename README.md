@@ -9,9 +9,9 @@ resume from `state.json.next_action` instead of improvising one-off edits.
 1. Install Windows prerequisites: Miniconda Python, ffmpeg, and Node.js.
 2. Install Python dependencies: `& "$env:USERPROFILE\miniconda3\python.exe" -m pip install -r requirements.txt`.
 3. Create `.env` from `.env.example` and fill local keys.
-4. Verify: `& "$env:USERPROFILE\miniconda3\python.exe" tools/preflight.py --strict`.
-5. For agents, enter through `RUNBOOK.md`; it routes to the current handoff and
-   only the documents needed for the task.
+4. Verify the clean-clone bootstrap: `& "$env:USERPROFILE\miniconda3\python.exe" tools/preflight.py`.
+5. For agents, enter through `RUNBOOK.md`; read `HANDOFF_CURRENT.md` second for
+   live or IDLE state, then load orientation and route documents only on demand.
 
 Detailed setup and first-run notes live in
 `docs/setup/setup-and-first-run.md`.
@@ -32,10 +32,11 @@ The full suite is the commit gate for construction work.
 
 ## Agent Entrypoint
 
-Agents must start with `RUNBOOK.md`, then read `HANDOFF_CURRENT.md` for live
-state. `docs/START_HERE_VIDEO_PIPELINE.md` is optional concept orientation, not
-an operational entry or an always-loaded document. Do not bypass the route with
-hand-run ffmpeg, ad hoc `video_tools.py` commands, or manual material stitching.
+Agents must start with `RUNBOOK.md`, then read `HANDOFF_CURRENT.md` for live or
+IDLE state. `docs/START_HERE_VIDEO_PIPELINE.md` is optional concept orientation,
+loaded only when route vocabulary is needed; route-specific docs and skills are
+loaded on demand. Do not bypass the route with hand-run ffmpeg, ad hoc
+`video_tools.py` commands, or manual material stitching.
 
 For a first video request, point the coding agent at `RUNBOOK.md` and ask for
 the video. The runbook selects the current route skill and handoff rather than
@@ -56,7 +57,7 @@ Stage 0 intent, material/generation handoff, explicit review, build, and verify.
 - `runtime.py` - unified resume/status/rerun driver.
 - `skills/` - agent role contracts.
 - `RUNBOOK.md` - sole operational entrypoint.
-- `HANDOFF_CURRENT.md` - current run/state pointer.
+- `HANDOFF_CURRENT.md` - second read for live or IDLE state.
 - `docs/START_HERE_VIDEO_PIPELINE.md` - optional route vocabulary orientation.
 - `docs/INDEX.md` - broader documentation map.
 - `docs/setup/` - bootstrap, first-run, and distribution notes.

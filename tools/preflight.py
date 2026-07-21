@@ -10,12 +10,14 @@ import sys
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
-from video_pipeline_core.env_loader import load_env_file
-
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JSON_OUT = REPO_ROOT / ".tmp" / "preflight.json"
 DEFAULT_SUMMARY_OUT = REPO_ROOT / ".tmp" / "preflight.txt"
+
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from video_pipeline_core.env_loader import load_env_file
 
 MIN_PYTHON = (3, 10)
 REQUIRED_MODULES = {
