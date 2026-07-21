@@ -6,9 +6,8 @@
 Date: 2026-07-03
 Status: Windows-local operator runbook
 
-Run commands from `C:\Users\user\Desktop\video_pipeline`. Use the miniconda
-Python explicitly for Python commands; do not rely on whichever `python` appears
-first on PATH.
+Run commands from the repository root. Use the miniconda Python explicitly for
+Python commands; do not rely on whichever `python` appears first on PATH.
 
 ## Single Operator Entry
 
