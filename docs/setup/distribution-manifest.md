@@ -17,7 +17,9 @@ format.
 - `video_pipeline_core/**`
 - `tools/**`
 - `skills/**`
+- `distribution/agent-skill/**`
 - `docs/**`, excluding archived docs listed below
+- `tests/**` release verification code, excluding generated media fixtures
 - `dashboard/**`
 - `examples/**`
 - `THIRD_PARTY_NOTICES.md`
