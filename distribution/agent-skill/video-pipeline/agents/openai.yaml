@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Pipeline Runtime"
+  short_description: "Locate and safely enter the video pipeline runtime"
+  default_prompt: "Use $video-pipeline to locate the repository runtime and begin a bounded video task safely."

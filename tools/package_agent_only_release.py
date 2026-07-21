@@ -41,7 +41,7 @@ INCLUDE_ROOTS = {
     "tests",
     "tools",
     "video_pipeline_core",
-    "distribution/agent-skill",
+    "distribution",
 }
 EXCLUDED_SEGMENTS = {
     ".agents",

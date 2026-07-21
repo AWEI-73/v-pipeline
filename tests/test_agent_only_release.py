@@ -33,6 +33,8 @@ class AgentOnlyReleaseTests(unittest.TestCase):
                 "tools/package_agent_only_release.py",
                 "tests/test_preflight.py",
                 "tests/test_agent_only_release.py",
+                "distribution/agent-skill/video-pipeline/SKILL.md",
+                "distribution/agent-skill/video-pipeline/agents/openai.yaml",
             ]:
                 self.assertIn(required, included)
 
