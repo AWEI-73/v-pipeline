@@ -115,6 +115,25 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       ]
     },
     {
+      "tool": "tools/package_agent_only_release.py",
+      "when": "建立 private Agent-only Technical Preview source package，供乾淨 workspace 驗收或私下移交",
+      "inputs": [
+        "clean committed repository root",
+        "empty output directory",
+        "optional zip output path"
+      ],
+      "outputs": [
+        "source-only package directory",
+        "release_manifest.json",
+        "optional deterministic zip"
+      ],
+      "stop_if": [
+        "HANDOFF_CURRENT.md is not IDLE or depends on excluded local state",
+        "output is non-empty",
+        "release surface contains excluded media, secrets, cache, or local run state"
+      ]
+    },
+    {
       "tool": "tools/canonical_route_acceptance.py",
       "when": "回歸 canonical route artifacts 與 route surface",
       "inputs": [
