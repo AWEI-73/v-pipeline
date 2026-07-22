@@ -80,6 +80,93 @@ class PipelineSkillBoundariesTest(unittest.TestCase):
         ]:
             self.assertIn(expected, text)
 
+    def test_fresh_agent_entry_authority_and_bounded_routes_are_unambiguous(self):
+        claude = read("CLAUDE.md")
+        start_here = read("docs/START_HERE_VIDEO_PIPELINE.md")
+        skill_index = read("skills/INDEX.md")
+        runtime_driver = read("skills/video-pipeline.md")
+        route = read("skills/video-pipeline-route.md")
+        runbook = read("RUNBOOK.md")
+
+        for text in [claude, start_here, skill_index, runtime_driver]:
+            self.assertIn("skills/video-pipeline-route.md", text)
+
+        for expected in ["RUNBOOK.md", "HANDOFF_CURRENT.md"]:
+            self.assertIn(expected, claude)
+        self.assertNotIn("then enter through\n`skills/video-pipeline.md`", claude)
+
+        self.assertNotIn(
+            "Every video production request enters through `skills/video-pipeline.md`",
+            start_here,
+        )
+        self.assertIn("compatibility runtime driver", runtime_driver)
+        self.assertIn("not the operator entry", runtime_driver)
+        self.assertNotIn("唯一入口", runtime_driver)
+        self.assertIn("compatibility runtime driver", skill_index)
+
+        for expected in [
+            "Stage 0 -> Material-first",
+            "entry_path=material-first",
+            "review this video",
+            "Editorial Reviewer",
+        ]:
+            self.assertIn(expected, route)
+
+        for pattern in [
+            r"Existing candidate/draft repair enters\s+Workbench / Brownfield first",
+            r"`runtime\.py rerun` is reserved for an active\s+canonical run",
+        ]:
+            self.assertRegex(route, re.compile(pattern))
+
+        self.assertRegex(
+            runbook,
+            re.compile(
+                r"Existing candidate/draft subtitle or volume\s+repair enters "
+                r"Workbench/Brownfield first"
+            ),
+        )
+
+    def test_compatibility_docs_do_not_compete_with_current_operator_routes(self):
+        runbook = read("RUNBOOK.md")
+        docs_index = read("docs/INDEX.md")
+        system_design = read("docs/SYSTEM-DESIGN.md")
+        material_replay = read("docs/runbooks/material-first-happy-path.md")
+        boundary = read("skills/pipeline-boundary.md")
+        audio = read("skills/audio-director.md")
+
+        for text in [runbook, material_replay]:
+            self.assertIn("validation-only golden fixture", text)
+            self.assertIn("not a user-job entry", text)
+        self.assertNotIn("## Official Replay Command", material_replay)
+
+        for expected in [
+            "Existing candidate/draft bounded patch",
+            "locked and dirty layers",
+        ]:
+            self.assertIn(expected, boundary)
+        self.assertRegex(
+            boundary,
+            re.compile(r"does\s+not require a new Stage 0 package"),
+        )
+
+        for expected in [
+            "Compatibility command: mix-audio (legacy)",
+            "tools/audio_mix_plan_execute.py",
+            "Do not split and concatenate media",
+        ]:
+            self.assertIn(expected, audio)
+        self.assertRegex(
+            audio,
+            re.compile(r"not the canonical\s+speech-aware repair route"),
+        )
+
+        self.assertNotIn("canonical operator entrypoint", docs_index)
+        self.assertIn("optional concept orientation", docs_index)
+        self.assertIn("video-pipeline-route", system_design)
+        self.assertIn("compatibility runtime driver", system_design)
+        self.assertNotIn("唯一強制入口", system_design)
+        self.assertNotRegex(system_design, re.compile(r"runtime\.py.*唯一入口"))
+
     def test_soundtrack_arranger_branch_is_documented(self):
         skill = read("skills/soundtrack-arranger.md")
         route = read("docs/soundtrack-arranger-route.md")

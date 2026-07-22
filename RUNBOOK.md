@@ -120,9 +120,10 @@ Entry Precedence:
 - Side-branch keywords are child intents. A bounded music/song/BGM intent may
   route to Soundtrack Arranger after the route context is known.
 - Subtitle or volume repair is not Soundtrack Arranger. A whole-video subtitle
-  intent is a Stage 0 child intent; subtitle repair on an existing draft belongs
-  to Brownfield/Workbench or Subtitle Director.
-  Exact route phrase: whole-video subtitle intent.
+  intent is a Stage 0 child intent. Existing candidate/draft subtitle or volume
+  repair enters Workbench/Brownfield first; Brownfield routes text work to
+  Subtitle Director and audio level/ducking work to Audio Director.
+  Exact route phrases: whole-video subtitle intent; subtitle repair.
 - Existing draft edits go through Workbench/Brownfield.
 - Generated candidate fallback is not the first move.
 
@@ -177,11 +178,13 @@ Material-first verified preview vocabulary:
 `promote_verified_preview.py`, and `workbench_revision_request.json`.
 `tools\run_artifact_index.py` remains part of the non-UI consolidation map.
 
-Material-first happy path operator runbook:
-`docs/runbooks/material-first-happy-path.md`. Use it for the current
-self-contained golden path replay and route state. Today that path is verified
-through `render_handoff.json` and `ready_for_render`; it does not claim
-`final.mp4` or complete-video delivery.
+Material-first golden fixture validation:
+`docs/runbooks/material-first-happy-path.md` documents a validation-only golden fixture,
+not a user-job entry. The current operator route is verified through
+`render_handoff.json` and `ready_for_render`; it does not claim `final.mp4` or
+complete-video delivery. The fixture replay may create its own tiny run-local
+`final.mp4` solely to validate downstream mechanics and must not be substituted
+for a user's material job.
 
 ## Miniconda Rule
 

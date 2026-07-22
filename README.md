@@ -2,7 +2,8 @@
 
 Hermes is an agent-first video pipeline. Agents enter through route documents,
 produce explicit JSON artifacts, build videos through deterministic tools, and
-resume from `state.json.next_action` instead of improvising one-off edits.
+resume existing canonical runs from their per-run cursor instead of improvising
+one-off edits.
 
 ## Quick Start
 

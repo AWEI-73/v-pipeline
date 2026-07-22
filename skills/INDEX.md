@@ -34,8 +34,8 @@ branch ids from `docs/branch-contract-registry.json`, plus `shared` and
 | `skills/verify.md` | verify-delivery | final verify | Verifies delivery evidence, gates, audits, and final handoff readiness. |
 | `skills/video-effect-factory.md` | effect-factory | effect planning | Plans effect contracts, capability translation, and worker handoff. |
 | `skills/video-intent-planner.md` | main-pipeline | stage0 / node 0 | Produces `video_intent.json` and route-changing follow-up questions. |
-| `skills/video-pipeline-route.md` | main-pipeline | route coordinator | Coordinates canonical route, branch handoffs, and next-action behavior. |
-| `skills/video-pipeline.md` | main-pipeline | entry orchestrator | Top-level entry skill for every video production request. |
+| `skills/video-pipeline-route.md` | main-pipeline | operator entry / route coordinator | Canonical operator router after `RUNBOOK.md` and `HANDOFF_CURRENT.md`; coordinates branch handoffs and next-action behavior. |
+| `skills/video-pipeline.md` | main-pipeline | compatibility runtime driver | Loaded only after the route coordinator selects an active canonical Node/runtime route; not an independent operator entry. |
 | `skills/video-workflow.md` | main-pipeline | stage0 / node 0 | Legacy workflow-oriented Stage 0 planner and run setup guide. |
 | `skills/writer.md` | main-pipeline | text layer | Writes narration, captions, and on-screen text for the contract. |
 

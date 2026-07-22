@@ -1,6 +1,6 @@
 ---
 name: video-pipeline
-description: 影片製作／剪輯的唯一入口與強制驅動點。當使用者要求製作、剪輯、產生任何影片時——「幫我做／剪一支影片」「make a video / edit video / produce a video」「產生影片」「結訓影片 / MV / 宣傳片 / 活動回顧 / 教學片 / 旁白影片」——必須先呼叫本技能,再開始任何工作。它驅動 runtime.py 走完 SPEC→BUILD→VERIFY 節點鏈(每個 node 都有 verify gate),讀 state.json 的 next_action 派工,並分流到 director / writer / curator / editor / audio-director / effects-director / verify / dashboard 等角色技能。不要繞過本技能直接手動跑 ffmpeg 或自行拼接素材。
+description: 已選定 canonical Node/runtime route 的 compatibility runtime driver。操作入口是 RUNBOOK.md → HANDOFF_CURRENT.md → skills/video-pipeline-route.md；只有 route coordinator 選中既有 runtime 路線後才載入本技能。它驅動 runtime.py 走完 SPEC→BUILD→VERIFY 節點鏈並讀取該 run 的 state.json.next_action；不得用於模糊新需求、既有 candidate 的 bounded patch 或 review-only 工作。
 ---
 Shared hard boundary: read `skills/pipeline-boundary.md`. Stage 0 entry lock
 applies before runtime, BUILD, Workbench, Brownfield, effects, or render. Do not direct-cut from a fuzzy request.
@@ -15,15 +15,17 @@ then the result returns to Verify and Owner verdict. No direct whole-video hand
 stitching, protected-truth mutation, or delivery promotion is allowed.
 
 
-# Video Pipeline — 影片製作的強制入口與編排驅動
+# Video Pipeline — Canonical Node Runtime Driver（Compatibility）
 
-這是「做／剪一支影片」的**唯一入口**。被要求製作或剪輯任何影片時,**先進這裡**,
-不要直接手動跑 ffmpeg、也不要從隨機素材拼貼開始。本技能不自己剪片——它**驅動**
-確定性引擎(`runtime.py`)走完節點鏈,並在每一步把工作派給對的角色技能。
+This is a compatibility runtime driver, not the operator entry. 操作入口固定為
+`RUNBOOK.md` → `HANDOFF_CURRENT.md` → `skills/video-pipeline-route.md`。只有 route
+coordinator 已選定 active canonical Node/runtime route 時才載入本技能。本技能不自己剪片——
+它驅動確定性引擎(`runtime.py`)走完節點鏈,並在每一步把工作派給對的角色技能。
 
 > 三條鐵則:
 > 1. **架構優先**:先收斂 SPEC,再 BUILD,最後 VERIFY。不要跳步。
-> 2. **state 驅動**:`state.json` 是單一真相,`runtime.py` 讀它的 `next_action` 決定下一棒。
+> 2. **run-local state 驅動**:選定 run 內的 `state.json` 是該 runtime 的游標,
+>    `runtime.py` 讀它的 `next_action` 決定下一棒；它不是 repo 的啟動入口。
 > 3. **每個 node 都有 verify gate**:不要靠感覺判斷「做完了」,看 gate 狀態。
 
 ---
@@ -32,13 +34,16 @@ stitching, protected-truth mutation, or delivery promotion is allowed.
 
 | 使用者說的 | 你要做的第一件事 |
 |---|---|
-| 模糊需求(「幫我做個結訓影片」) | 進 `video-workflow` 技能做**互動式模糊消除**,收齊 brief 欄位 |
-| 已有 `segment_contract.json` | 直接 `runtime.py run`,進 BUILD |
-| 「為什麼卡住 / 現在到哪」 | `runtime.py status`,讀 next_action |
-| 「改一下某段字幕／某段重剪」 | 走 Node 14 局部修正:`runtime.py rerun <node>`,別重跑整條 |
+| 模糊需求(「幫我做個結訓影片」) | 返回 `skills/video-pipeline-route.md`,先進 Stage 0；不要啟動 runtime |
+| 已有 accepted `segment_contract.json`,且 route 已選定 canonical Node run | `runtime.py run`,進 BUILD |
+| 「為什麼卡住 / 現在到哪」 | 先用 `tools/pipeline_home.py --run RUN_DIR --json`;只有被辨識為 Node runtime 才用 `runtime.py status` |
+| 既有 candidate「改字幕／BGM 音量／換一鏡」 | 返回 Workbench/Brownfield,再分派 Subtitle Director／Audio Director；不要 `rerun` |
+| 「只 review,不要改」 | 返回 Editorial Reviewer；不得啟動 runtime 或改 artifact |
+| active canonical run 的 Node 修復 | `runtime.py rerun <node>`；它會清除該 Node 與下游 artifacts,不可當 bounded patch |
 | 「先驗一下鏈接對不對(不要真 render)」 | `video_tools.py contract-dry-build`(離線,秒級) |
 
-> **新專案第一步永遠是 `python video_tools.py project-init <name>`**(建立專案目錄+
+> **只有 route 選定 canonical Node runtime 後**,才執行
+> `python video_tools.py project-init <name>`(建立專案目錄+
 > 修正 `.project/active.json` 指標)。跳過它直接 `runtime.py run` 會吃到舊的 active
 > 指標(可能被測試污染指向 Temp)。輸入檔放 `<project>/input/`:segment_contract.json、
 > brief.json、**editorial_design.json(靈魂政策,別漏)**、material_categories.json、
@@ -53,7 +58,7 @@ stitching, protected-truth mutation, or delivery promotion is allowed.
 
 | Node | 層 | 角色技能 | 產物 | verify gate |
 |---|---|---|---|---|
-| 0 | SPEC | `video-workflow` | `brief.json` | brief 存在 |
+| 0 | SPEC | `video-intent-planner` (`video-workflow` legacy compatibility) | `brief.json` / Stage 0 package | brief 存在 |
 | 3 | SPEC | `spec-contract` / `director` | `segment_contract.json` | segments 已定義 |
 | 2 | SPEC | `curator` / `gap-analyzer` | `material_coverage_map.json` | 覆蓋率(stock_first 可免) |
 | 4-7 | SPEC facets | `writer` / `audio-director` / `effects-director` / `director` / `curator` | contract 6 facets | facets + reasons 齊全 |
@@ -70,7 +75,7 @@ stitching, protected-truth mutation, or delivery promotion is allowed.
 
 ---
 
-## 驅動方式:runtime.py(唯一 driver)
+## 驅動方式:runtime.py(選定 Node route 的 driver)
 
 `runtime.py`(resume / status / rerun)是統一的 state 驅動執行器。
 (舊的 `route.py` 已於 2026-06-10 退役,功能全部併入 runtime。)
@@ -190,7 +195,9 @@ registry 內,`status` 看得到)。設計見
 
 ## ISF1 Interactive Skill Flow（流程固化，不是樣板固化）
 > ISF1 UTF-8 anchor: 流程固化，不是樣板固化。
-> 入口仍是 `video-pipeline`，模糊需求先交 `video-workflow` 釐清；
+> 操作入口仍是 `skills/video-pipeline-route.md`；本技能只在 route 選定
+> canonical Node/runtime driver 後啟用。模糊需求先交 Stage 0
+> `video-intent-planner`（`video-workflow` 僅為 legacy compatibility）釐清；
 > 故事厚度交 `story-soul-blueprint`，素材真實性與缺口交 `material-map`，
 > 缺素材才交 `generated-material-producer`。Workbench 只產 draft patch；
 > 正式狀態仍以 `state.json` / backend route 為準。
@@ -199,7 +206,7 @@ registry 內,`status` 看得到)。設計見
 
 | Phase | Owner skill / tool | 必要產物 | 停止條件 | 下一步條件 |
 |---|---|---|---|---|
-| 0 Intake | `video-workflow` | `project_brief.json` 或等價 brief | 目的、受眾、片長、素材來源、fallback 還不清楚 | brief 欄位足以判斷 script-first / material-first / hybrid |
+| 0 Intake | `video-intent-planner` (`video-workflow` legacy compatibility) | `project_brief.json`, `interaction_log.md`, `video_intent.json` | 目的、受眾、片長、素材來源、fallback 還不清楚 | Stage 0 package 足以判斷 structure-first / material-first / needs-context |
 | 1 Story soul | `story-soul-blueprint` | `story_world.json`, `creative_concept.json`, `screenplay_beats.json`, `director_shot_plan.json` | 沒有核心命題、敘事裝置、情緒弧線 | 每個 beat 有 story function、畫面需求、素材數量估計 |
 | 2 Material truth | `material-map` / M6 lifecycle | `material_needs.json`, `project_material_map.json`, `material_delta.json` | `await_material`, `await_map_review`, `revise:material(material_delta)` | delta 可解釋 covered/thin/missing 且可進 BUILD 或 revision |
 | 3 Generated fallback | `material-generation-fallback`, `generated-material-producer` | `material_generation_fallback.json`, `generated_provider_packet.json`, reviewed generated map | `wait_for_generated_provider`, `await_material_visual_review` | provider 輸出已 import/review，fresh delta 重算 |
@@ -209,7 +216,7 @@ registry 內,`status` 看得到)。設計見
 
 互動原則：
 
-- 模糊需求先進 `video-workflow`，不要直接塞進 runtime。
+- 模糊需求先返回 `video-pipeline-route` 並進 Stage 0，不要直接塞進 runtime。
 - 有故事感需求先進 `story-soul-blueprint`，不要只列課程項目。
 - 有素材/缺素材問題交給 `material-map`，不要讓 BUILD 偷拿不符合 need 的素材。
 - 沒素材但允許生成時，走 generated provider packet；模型產物仍要回 material-map review。

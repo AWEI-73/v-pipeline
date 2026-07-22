@@ -63,7 +63,8 @@ mode 推斷陷阱、**敷衍偵測**(全段 pacing 相同/描述複製貼上/佔
 
 | 類 | skill | 職責 |
 |---|---|---|
-| 入口 | **video-pipeline** | 唯一強制入口;驅動 runtime、讀 next_action 派工 |
+| 操作入口 | **video-pipeline-route** | `RUNBOOK.md` / `HANDOFF_CURRENT.md` 後的唯一 operator router；選擇 Stage、branch 與 owner |
+| Runtime 相容驅動 | video-pipeline | compatibility runtime driver；只在 route 選定 active canonical Node run 後驅動 runtime、讀 run-local next_action |
 | SPEC | video-workflow / blueprint-interview / spec-contract / director / writer / shooting-brief | 模糊消除→brief→敘事藍圖→合約;facet 各有擁有者 |
 | BUILD | curator / editor / audio-director / subtitle-director / effects-director / generative-director | 找料評分 / 組裝 / 配樂混音 / 字幕 / 特效 / 生成素材 |
 | 控制 | route / gap-analyzer / dashboard / verify | 派工表 / 缺口路由 / 人類可視化 / 驗收 |
@@ -74,8 +75,9 @@ skill 裡累積了**踩坑記錄**(每條都是真實事故+規避法),等於把
 
 ## 五、Tool 層(確定性引擎,Python)
 
-- **driver**:`runtime.py`(run/resume/status/rerun)——唯一入口,前代
-  `route.py` 已退役。`video_tools.py` 是 60+ 子命令的工具箱(可單獨呼叫)。
+- **driver**:`runtime.py`(run/resume/status/rerun)——選定 canonical Node route
+  內的 compatibility runtime driver，不是 operator entry；前代 `route.py`
+  已退役。`video_tools.py` 是 60+ 子命令的工具箱(可單獨呼叫)。
 - **兩條渲染鏈**(同一份 canonical contract 經 adapter 餵入):
   - **MV 鏈**(音樂驅動):節拍→切刀網格;brief 的 target_length 裁總長。
   - **narrative 鏈**(口白驅動):TTS 時長=時間軸 ground truth;素材配口白、

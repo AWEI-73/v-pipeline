@@ -429,7 +429,12 @@ python3 video_tools.py tts script.json \
 
 ---
 
-## 指令 2：mix-audio
+## Compatibility command: mix-audio (legacy)
+
+This command remains for legacy/simple full-track mixes. It is not the canonical
+speech-aware repair route. Current candidate repair must use an accepted
+`audio_mix_plan.json` and `tools/audio_mix_plan_execute.py`, including
+section-aware placement and speech ducking when required.
 
 ### 用法
 
@@ -457,8 +462,9 @@ python3 video_tools.py mix-audio \
 - 有人聲段：`0.08 ~ 0.12`（8–12%）
 - 純畫面段：`0.30 ~ 0.40`（30–40%）
 
-> 目前 mix-audio 是全片同音量，未做依「人聲有/無」的自動 ducking。  
-> 若劇本沒有大段純畫面（路線 A 大多是滿版人聲），這樣已經夠用。
+> Legacy `mix-audio` 是全片同音量，未做依「人聲有/無」的自動 ducking。
+> 它只能用於明確選定的 compatibility/simple-mix 情境，不得覆蓋目前的
+> speech-aware plan executor。
 
 ### 淡入淡出設定
 - 人聲：0.3s 淡入 / 1.0s 淡出
@@ -482,8 +488,10 @@ python3 video_tools.py mix-audio \
 ## 已知陷阱
 
 ### #21 BGM 音量
-語音段 BGM 超過 12% 會明顯蓋過人聲，但這套用 amix 全片混音不會自動分段調整。  
-**建議**：若有大段純畫面，先用 ffmpeg 切兩段分別混音再 concat。
+語音段 BGM 超過 12% 會明顯蓋過人聲，而 legacy `mix-audio` 的全片固定
+音量不能表達 section-aware ducking。**Do not split and concatenate media**
+as a current repair path. Use `tools/audio_mix_plan_execute.py` with accepted
+sections and speech-aware policy so timing and provenance remain bound.
 
 ### amix normalize 陷阱（本實作已修）
 ffmpeg `amix` 預設 `normalize=1`，會自動降低所有輸入避免爆音 → 結果人聲反而變小。  

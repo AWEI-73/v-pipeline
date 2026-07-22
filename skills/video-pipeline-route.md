@@ -522,11 +522,13 @@ Precedence: resume existing runs before new intake; whole-video requests go
 through Stage 0 before side branches; side-branch words such as music,
 transition, warm, hot-blooded, subtitle, effect, or cinematic are child intents
 unless the request is clearly bounded to that branch. Bounded music/song/BGM
-intent may enter Soundtrack Arranger; volume repair belongs to Audio Director or
-Brownfield/Workbench. Whole-video subtitle intent stays a child intent after
-Stage 0; subtitle repair on an existing draft belongs to Subtitle Director or
-Brownfield/Workbench. Generated candidate fallback happens after story/needs
-and material delta, not directly from a fuzzy idea.
+intent may enter Soundtrack Arranger. Existing candidate/draft repair enters
+Workbench / Brownfield first; Brownfield delegates volume/ducking work to Audio
+Director and subtitle work to Subtitle Director. Whole-video subtitle intent
+stays a child intent after Stage 0. `runtime.py rerun` is reserved for an active
+canonical run; it is not the entry for a bounded candidate patch. Generated
+candidate fallback happens after story/needs and material delta, not directly
+from a fuzzy idea.
 
 Stage 0 package is `project_brief.json`, `interaction_log.md`, and
 `video_intent.json`. `video_intent.json` must include `target_length` when the
@@ -537,10 +539,11 @@ write it in `required_followup_questions` and stop before branch work.
 |---|---|---|---|
 | "this run is stuck", "continue this run", "resume" | Resume existing run | read `pipeline_home.py --run RUN_DIR --json` | unknown run, repair cursor, unresolved gate/review |
 | "help me cut a video", "make a recap", "edit a graduation film" | Stage 0 Video Intent Planner | write/read the Stage 0 package: `project_brief.json`, `interaction_log.md`, `video_intent.json` | `required_followup_questions` is non-empty |
-| "I have footage", "use this folder", "existing materials" | Material-first | Material Map branch and material wall/review acceptance | material-first report is `repair:*` or missing needs |
+| "I have footage", "use this folder", "existing materials" | Stage 0 -> Material-first | write/read the Stage 0 package with `entry_path=material-first`, then enter Material Map wall/review acceptance | `required_followup_questions` is non-empty or material-first report is `repair:*` / missing needs |
 | "no footage", "I have a story/article/idea" | Structure-first | upstream story route, material needs, generated candidate fallback | generated assets are not reviewed |
 | "opening / transition / effect", "make it cinematic", "lightning/fire/hearts" | Effect Factory | `visual_technique_plan.json` and parameter review | unconfirmed candidate parameters |
-| "edit this draft", "change this rough cut", "swap a clip" | Workbench / Brownfield | validate draft patch, keep it non-canonical | patch would overwrite canonical truth |
+| "edit this draft", "change this rough cut", "swap a clip", "fix subtitles/BGM level" | Workbench / Brownfield | inspect the run, bind locked/dirty layers, then delegate text/audio work to the owning director; keep the patch non-canonical | patch would overwrite canonical truth or locked/dirty layers are unknown |
+| "review this video", "find problems only", "do not edit" | Editorial Reviewer | bind the exact subject and build/read timeline review evidence without mutation | subject hash/evidence is missing or stale |
 | "export final video", "render final.mp4" | Delivery gate | inspect `pipeline_home.py`, then only render if gates are green | any repair cursor, missing verification, or stale material |
 
 Do not turn a semantic trigger into a direct command. Translate the request into

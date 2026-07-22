@@ -121,9 +121,9 @@ they are outputs, not navigation entries.
 
 ## Build / runtime / infra (current)
 
-- `docs/START_HERE_VIDEO_PIPELINE.md` -- canonical operator entrypoint for
-  agents and humans: which document to read, which route to choose, and what not
-  to treat as truth.
+- `docs/START_HERE_VIDEO_PIPELINE.md` -- optional concept orientation for route
+  vocabulary and truth boundaries. The sole operator entry remains
+  `RUNBOOK.md` → `HANDOFF_CURRENT.md` → the selected route skill.
 - `docs/pipeline-decision-tree.md` -- operator decision tree for the main
   Stage 0-10 route, Material Map branch, Effect Factory branch, Audio
   Communication branch, and Review / Verify / Delivery Gate cross-cutting

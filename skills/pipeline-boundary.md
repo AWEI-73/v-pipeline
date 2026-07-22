@@ -7,13 +7,20 @@ Every pipeline branch must fail closed when these rules are not satisfied.
 
 Do not direct-cut from a fuzzy request.
 
-Before story, material map, generated fallback, Workbench, Brownfield, effects,
-Remotion, `contract-run`, or render work, create or verify the Stage 0 package:
+This lock applies to new, fuzzy, or whole-video intake. Before story, material
+map, generated fallback, effects, Remotion, `contract-run`, or render work for
+such an intake, create or verify the Stage 0 package:
 
 - `project_brief.json` or `brief/project_brief.json`
 - `project_brief.md` when user-facing summary is useful
 - `interaction_log.md`
 - `video_intent.json`
+
+Existing candidate/draft bounded patch is the explicit exception. When an exact
+candidate/run and its locked and dirty layers are already bound, the patch does
+not require a new Stage 0 package; read the existing route context and enter
+Workbench/Brownfield. If the candidate/run or layer boundary is unknown, fail
+closed and recover that context instead of inventing a new intake.
 
 `video_intent.json` must be produced by Video Intent Planner and must include
 `input_state`, `entry_path`, `route`, `video_type`, `audience`, `goal`,

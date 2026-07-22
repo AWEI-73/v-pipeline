@@ -1,12 +1,13 @@
 # Material-First Happy Path Runbook
 
 Date: 2026-07-05
-Status: verified through actual render; not complete-video delivery
+Status: validation fixture verified through actual render; not a user-job route
 
-Use this runbook when a user provides a material folder and the route should
-stabilize material truth before complete-video delivery work. This is the
-current operator-level happy path for the deterministic material-first golden
-fixture.
+This is a validation-only golden fixture, not a user-job entry. Use it to test
+the deterministic material-first machinery with tracked fixture inputs. For a
+real user material folder, start from `RUNBOOK.md` and
+`skills/video-pipeline-route.md`; do not substitute this replay command for the
+operator route.
 
 ## Current Verified Path
 
@@ -26,6 +27,10 @@ source intake
   -> ready_for_delivery_gate
 ```
 
+The `actual render` and `final.mp4` below belong only to the generated fixture
+run. They prove render mechanics; they do not authorize a real user job to skip
+Stage 0, material review, `render_handoff.json`, Verify, or owner delivery gates.
+
 This means the route has accepted source material into the run-local asset
 store, produced a material map and delta, created a review packet, accepted the
 review verdict, written `render_handoff.json`, rendered a run-local
@@ -42,7 +47,7 @@ final_mp4_absent=false
 final_mp4_ref=final.mp4
 ```
 
-## Official Replay Command
+## Validation Replay Command
 
 Run from `C:\Users\user\Desktop\video_pipeline`:
 

@@ -12,9 +12,10 @@ docs and skills are loaded on demand.
 
 ## Rule Zero
 
-Every video production request enters through `skills/video-pipeline.md`, which
-drives `runtime.py` (`resume` / `status` / `rerun`) and the
-`state.json.next_action` state machine.
+Every video request enters through `RUNBOOK.md`, `HANDOFF_CURRENT.md`, and the
+operator router `skills/video-pipeline-route.md`. The router may then select
+`skills/video-pipeline.md` as a compatibility runtime driver for an active
+canonical Node run; `state.json.next_action` is only that run's cursor.
 
 Never hand-run ffmpeg, `video_tools.py` subcommands, or manual material
 stitching as a substitute for the pipeline.
