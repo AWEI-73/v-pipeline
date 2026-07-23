@@ -20,10 +20,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 try:  # works as `tools.workbench_server` (tests) and as a script
     from tools import preview_timeline as pt
@@ -61,6 +66,7 @@ WRITABLE_OUTPUTS = {
     "subtitle_patch.json",
     "audio_cue_patch.json",
     "effect_patch.json",
+    "workbench_human_decision.json",
     "workbench_handoff.json",
     "workbench_review_report.json",
     "workbench_review_report.md",
@@ -100,7 +106,7 @@ _ALLOW_CACHE: Dict[str, set] = {}
 def _build_allowlist(root: Path, base_url: str) -> set:
     preview = pt.build_preview_timeline(str(root), base_url)
     allow = set()
-    for section in ("clips", "material_assets", "effect_assets"):
+    for section in ("clips", "material_assets", "effect_assets", "audio"):
         for item in preview.get(section, []) or []:
             sp = item.get("source_path")
             if sp:
@@ -108,6 +114,12 @@ def _build_allowlist(root: Path, base_url: str) -> set:
                     allow.add(os.path.normcase(str(Path(sp).resolve())))
                 except OSError:
                     pass
+    candidate = preview.get("candidate_video")
+    if isinstance(candidate, dict) and candidate.get("source_path"):
+        try:
+            allow.add(os.path.normcase(str(Path(candidate["source_path"]).resolve())))
+        except OSError:
+            pass
     for name in ("music.wav", "bgm.webm", "narration.wav", "voiceover.wav"):
         p = root / name
         if p.is_file():
@@ -142,7 +154,24 @@ def _is_under_proxy(resolved: str, root: Path) -> bool:
 
 
 def _can_preview(root: Path) -> bool:
-    return any((root / name).is_file() for name in ("draft_timeline.json", "timeline.json", "timeline.plan"))
+    if any((root / name).is_file() for name in (
+        "draft_timeline.json",
+        "preview_rough_cut_plan.json",
+        "rough_cut_plan.json",
+        "timeline.json",
+        "timeline_build.json",
+        "timeline.plan",
+    )):
+        return True
+    if (root / "workbench_project.json").is_file():
+        try:
+            preview = pt.build_preview_timeline(str(root), "")
+        except (OSError, TypeError, ValueError):
+            return False
+        return bool(preview.get("clips")) and not any(
+            item.get("level") == "error" for item in preview.get("diagnostics") or []
+        )
+    return False
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
@@ -504,8 +533,16 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             return
 
         provided = {k: body[k] for k, _ in self._SAVE_ALL_LAYERS if k in body and body[k]}
-        if not provided:
-            self._send_json(422, {"ok": False, "errors": ["no patches provided"]})
+        decision_context = body.get("decision_context")
+        if decision_context is not None and not isinstance(decision_context, dict):
+            self._send_json(422, {"ok": False, "errors": ["decision_context must be an object"]})
+            return
+        has_decision = isinstance(decision_context, dict) and (
+            decision_context.get("review_notes") or
+            decision_context.get("duration_policy") in {"target_with_tolerance", "fixed"}
+        )
+        if not provided and not has_decision:
+            self._send_json(422, {"ok": False, "errors": ["no patches or explicit decisions provided"]})
             return
 
         # validate-all first (atomic policy: nothing written unless all valid)
@@ -518,6 +555,22 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             self._send_json(422, {"ok": False, "errors": all_errors})
             return
 
+        preview = pt.build_preview_timeline(str(self.artifact_root), self.base_url)
+        try:
+            human_decision = wh.build_human_decision(
+                str(self.artifact_root),
+                preview=preview,
+                decision_context=decision_context,
+                provided_patches=provided,
+            )
+        except (OSError, ValueError) as exc:
+            self._send_json(422, {"ok": False, "errors": [str(exc)]})
+            return
+        decision_errors = wh.validate_human_decision(human_decision)
+        if decision_errors:
+            self._send_json(422, {"ok": False, "errors": {"workbench_human_decision": decision_errors}})
+            return
+
         written: List[str] = []
         for key, name in self._SAVE_ALL_LAYERS:
             if key not in provided:
@@ -527,6 +580,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 applied = tp.apply_patch(str(self.artifact_root), provided[key])
                 self._write_artifact("patched_draft_timeline.json", applied, written)
 
+        self._write_artifact("workbench_human_decision.json", human_decision, written)
         handoff = wh.build_handoff(str(self.artifact_root))
         self._write_artifact("workbench_handoff.json", handoff, written)
         self._send_json(200, {"ok": True, "written": written, "summary": handoff["summary"]})

@@ -12,6 +12,7 @@ from tools.preview_timeline import (
     path_to_url,
     seconds_to_frame,
 )
+from video_pipeline_core.workbench_project import build_workbench_project, write_workbench_project
 
 BASE_URL = "http://localhost:8770"
 
@@ -105,6 +106,103 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(v["timeline_start_sec"], 0.0)
         self.assertEqual(i["timeline_start_sec"], 3.5)
         self.assertEqual(preview["duration_sec"], 5.5)
+
+    def test_build_resolves_pipeline_artifacts_through_workbench_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            canonical = base / "canonical"
+            canonical.mkdir()
+            media = canonical / "clip.mp4"
+            media.write_bytes(b"clip")
+            audio = canonical / "final_audio.wav"
+            audio.write_bytes(b"audio")
+            timeline = canonical / "timeline_build.json"
+            _write(canonical, "timeline_build.json", {
+                "artifact_role": "timeline_view",
+                "clips": [{
+                    "id": "clip-1",
+                    "asset_id": "asset-1",
+                    "source": "clip.mp4",
+                    "source_type": "video",
+                    "in_seconds": 1.25,
+                    "out_seconds": 4.75,
+                    "target_duration_sec": 3.5,
+                    "timeline_in_sec": 0.0,
+                    "story_role": "arrival",
+                }],
+            })
+            material_map = canonical / "map.json"
+            material_map.write_text(json.dumps({
+                "artifact_role": "project_material_map",
+                "assets": [{
+                    "asset_id": "asset-1",
+                    "media_type": "video",
+                    "source": str(media),
+                    "duration_sec": 10.0,
+                }],
+            }), encoding="utf-8")
+            candidate = canonical / "final.mp4"
+            candidate.write_bytes(b"candidate")
+            subtitles = canonical / "approved.srt"
+            subtitles.write_text(
+                "1\n00:00:00,000 --> 00:00:02,000\nArrival\n",
+                encoding="utf-8",
+            )
+            audio_report = canonical / "audio_mix_report.json"
+            audio_report.write_text(json.dumps({
+                "artifact_role": "audio_mix_report",
+                "output_audio": "final_audio.wav",
+                "placements": [{"section_id": "opening", "start_sec": 0, "duration_sec": 3.5}],
+            }), encoding="utf-8")
+            project_root = base / "workbench"
+            manifest = build_workbench_project(
+                project_root=project_root,
+                project_id="linked",
+                display_name="Linked candidate",
+                artifact_paths={
+                    "timeline": timeline,
+                    "material_map": material_map,
+                    "candidate_video": candidate,
+                    "subtitles": subtitles,
+                    "audio_mix_report": audio_report,
+                },
+            )
+            write_workbench_project(project_root, manifest)
+
+            preview = build_preview_timeline(str(project_root), BASE_URL)
+
+        self.assertEqual(preview["source_artifact"], str(timeline.resolve()))
+        self.assertEqual(preview["duration_sec"], 3.5)
+        self.assertEqual(preview["clips"][0]["source_path"], str(media.resolve()))
+        self.assertEqual(preview["clips"][0]["source_start_sec"], 1.25)
+        self.assertEqual(preview["clips"][0]["source_duration_sec"], 3.5)
+        self.assertEqual(preview["clips"][0]["story_role"], "arrival")
+        self.assertEqual(preview["subtitles"][0]["text"], "Arrival")
+        self.assertEqual(preview["audio"][0]["source_path"], str(audio.resolve()))
+        self.assertEqual(preview["candidate_video"]["source_path"], str(candidate.resolve()))
+        self.assertEqual(preview["material_assets"][0]["asset_id"], "asset-1")
+        self.assertEqual(preview["material_assets"][0]["asset_type"], "video")
+
+    def test_invalid_workbench_project_does_not_fall_back_to_unbound_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            media = root / "clip.mp4"
+            media.write_bytes(b"clip")
+            _write(root, "timeline.json", {"plan": [{"source": str(media), "slot_dur": 1.0}]})
+            _write(root, "project_material_map.json", {"assets": [{"source": str(media)}]})
+            _write(root, "workbench_project.json", {
+                "artifact_role": "workbench_project",
+                "version": 1,
+                "project_id": "broken",
+                "display_name": "Broken",
+                "artifacts": {},
+                "policy": {"canonical_artifacts_read_only": True, "draft_write_root": "."},
+            })
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        self.assertEqual(preview["clips"], [])
+        self.assertIn("invalid_workbench_project", {d["code"] for d in preview["diagnostics"]})
 
     def test_preview_rough_cut_plan_wins_over_timeline_build(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -287,6 +385,36 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertEqual(assets[0]["scenes"][0]["end_sec"], 3.5)
         self.assertEqual(assets[0]["scenes"][0]["caption"], "training field")
 
+    def test_clip_inherits_unique_reviewed_material_semantics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_root(tmp)
+            timeline = json.loads((root / "timeline.json").read_text(encoding="utf-8"))
+            clip = timeline["plan"][0]
+            clip.pop("need_id", None)
+            clip.pop("caption", None)
+            clip["asset_id"] = "a0"
+            _write(root, "timeline.json", timeline)
+
+            project = json.loads((root / "project_material_map.json").read_text(encoding="utf-8"))
+            project["assets"][0]["scenes"] = [{
+                "index": 0,
+                "start": 0.0,
+                "end": 3.5,
+                "visual_family": "fog_sensory_encounter",
+                "action_family": "touch_experiment",
+                "caption": "hands meet cold fog",
+                "satisfies": [{"need_id": "N_TOUCH_TEST", "status": "accepted"}],
+            }]
+            _write(root, "project_material_map.json", project)
+
+            preview = build_preview_timeline(str(root), BASE_URL)
+
+        projected = preview["clips"][0]
+        self.assertEqual(projected["need_id"], "N_TOUCH_TEST")
+        self.assertEqual(projected["visual_family"], "fog_sensory_encounter")
+        self.assertEqual(projected["action_family"], "touch_experiment")
+        self.assertEqual(projected["caption"], "hands meet cold fog")
+
     def test_timeline_build_clips_are_projected_for_workbench(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -362,6 +490,13 @@ class PreviewTimelineBuildTest(unittest.TestCase):
         self.assertTrue(preview["audio"][0]["ducking_applied"])
         self.assertEqual(preview["audio"][0]["source_audio_policy"]["original_audio_policy"], "mixed")
         self.assertTrue(preview["audio"][0]["src_url"].startswith(BASE_URL))
+        self.assertEqual(preview["audio"][0]["lane"], "music")
+        self.assertEqual(preview["audio"][1]["lane"], "dialogue")
+        self.assertEqual(len(preview["tracks"]["music"]), 1)
+        self.assertEqual(len(preview["tracks"]["dialogue"]), 1)
+        self.assertEqual(preview["audio"][0]["mix_binding"], "composite_master")
+        self.assertFalse(preview["audio"][0]["independent_mix_editable"])
+        self.assertEqual(preview["audio"][0]["adjustment_route"], "audio-director")
 
     def test_audio_mix_report_accepts_repo_relative_output_audio_under_artifact_root(self):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:

@@ -9,6 +9,7 @@ from http.server import HTTPServer
 from pathlib import Path
 
 from tools.workbench_server import WorkbenchHandler, WRITABLE_OUTPUTS
+from video_pipeline_core.workbench_project import build_workbench_project, write_workbench_project
 
 
 def _write_json(path: Path, payload) -> None:
@@ -78,9 +79,18 @@ class WorkbenchServerTest(unittest.TestCase):
 
     def test_get_preview_timeline_and_workbench_html(self):
         html = urllib.request.urlopen(self.url("/workbench")).read().decode("utf-8")
-        self.assertIn("Hermes 影片剪輯工作檯", html)
-        self.assertIn("可用素材", html)
-        self.assertIn("特效", html)
+        self.assertIn("影片剪輯室", html)
+        self.assertIn("這支影片的素材", html)
+        self.assertIn("這一段想怎麼改？", html)
+        self.assertIn("畫面效果", html)
+        self.assertIn('data-quick-action="replace"', html)
+        self.assertIn('id="segment-navigator"', html)
+        self.assertIn('id="review-note"', html)
+        self.assertIn('id="duration-policy"', html)
+        self.assertIn('id="asset-placement-suggestions"', html)
+        self.assertIn('id="lane-dialogue"', html)
+        self.assertIn('id="lane-music"', html)
+        self.assertIn('id="lane-sfx"', html)
 
         payload = json.loads(urllib.request.urlopen(
             self.url("/api/workbench/preview-timeline")
@@ -154,6 +164,46 @@ class WorkbenchServerTest(unittest.TestCase):
         ).read().decode("utf-8"))
 
         self.assertTrue(payload["can_preview"])
+
+    def test_workbench_health_and_media_follow_pipeline_project_references(self):
+        linked = self.root / "linked"
+        linked.mkdir()
+        linked_media = linked / "clip.mp4"
+        linked_media.write_bytes(b"linked-media")
+        linked_timeline = linked / "timeline_build.json"
+        _write_json(linked_timeline, {
+            "clips": [{
+                "asset_id": "linked-1",
+                "source": str(linked_media),
+                "target_duration_sec": 2.0,
+            }],
+        })
+        linked_map = linked / "map.json"
+        _write_json(linked_map, {"assets": [{"asset_id": "linked-1", "source": str(linked_media)}]})
+        linked_final = linked / "final.mp4"
+        linked_final.write_bytes(b"final")
+        (self.root / "timeline.json").unlink()
+        (self.root / "project_material_map.json").unlink()
+        manifest = build_workbench_project(
+            project_root=self.root,
+            project_id="linked",
+            display_name="Linked",
+            artifact_paths={
+                "timeline": linked_timeline,
+                "material_map": linked_map,
+                "candidate_video": linked_final,
+            },
+        )
+        write_workbench_project(self.root, manifest)
+
+        health = json.loads(urllib.request.urlopen(
+            self.url("/api/workbench/health")
+        ).read().decode("utf-8"))
+        src = urllib.parse.quote(str(linked_media), safe="")
+        media = urllib.request.urlopen(self.url(f"/media?src={src}"))
+
+        self.assertTrue(health["can_preview"])
+        self.assertEqual(media.read(), b"linked-media")
 
     def test_media_serves_only_allowlisted_sources_with_range_support(self):
         src = urllib.parse.quote(str(self.media), safe="")
@@ -366,6 +416,28 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertIn("height: 32px;", track_lines)
         self.assertIn("overflow: hidden;", track_lines)
 
+    def test_pipeline_audio_and_effect_evidence_keep_timeline_positions(self):
+        script = (Path(__file__).resolve().parent.parent / "dashboard" /
+                  "workbench_native" / "workbench.js").read_text(encoding="utf-8")
+
+        self.assertIn('bg.style.left = ((a.start_sec || 0) * scale) + "px";', script)
+        self.assertIn('filter(function (e) { return e.marker_only; })', script)
+        self.assertIn('bg.className = "fx-marker fx-marker-readonly";', script)
+        self.assertIn('既有製作結果，唯讀', script)
+
+    def test_visible_toolbar_controls_have_real_handlers(self):
+        script = (Path(__file__).resolve().parent.parent / "dashboard" /
+                  "workbench_native" / "workbench.js").read_text(encoding="utf-8")
+
+        self.assertIn("els.btn_undo.onclick = undo;", script)
+        self.assertIn("els.btn_redo.onclick = redo;", script)
+        self.assertIn("els.aspect_ratio.onchange = function ()", script)
+        self.assertIn('els.monitor.setAttribute("data-aspect", state.aspectRatio);', script)
+        self.assertIn("function recommendedClipsForAsset", (
+            Path(__file__).resolve().parent.parent / "dashboard" /
+            "workbench_native" / "workbench_materials.js"
+        ).read_text(encoding="utf-8"))
+
     # ------------------------------------------------------------------ #
     # NPE4 editorial runtime tracks (save-all + boundaries)
     # ------------------------------------------------------------------ #
@@ -400,11 +472,19 @@ class WorkbenchServerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(set(result["written"]), {
             "timeline_patch.json", "patched_draft_timeline.json",
-            "audio_cue_patch.json", "effect_patch.json", "workbench_handoff.json"})
+            "audio_cue_patch.json", "effect_patch.json",
+            "workbench_human_decision.json", "workbench_handoff.json"})
         self.assertEqual(result["summary"]["audio_cues"], 1)
         self.assertEqual(result["summary"]["effect_intents"], 1)
         handoff = json.loads((self.root / "workbench_handoff.json").read_text(encoding="utf-8"))
         self.assertRegex(handoff["artifact_details"]["timeline_patch"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(handoff["route_back"][0]["owner"], "brownfield-edit")
+        decision = json.loads((self.root / "workbench_human_decision.json").read_text(encoding="utf-8"))
+        self.assertEqual(decision["subject"]["binding_status"], "bound_exact_timeline")
+        self.assertEqual(set(decision["patch_bindings"]), {
+            "timeline_patch", "audio_cue_patch", "effect_patch"})
+        self.assertFalse(decision["human_creative_approval"])
+        self.assertFalse(decision["final_delivery_claimed"])
 
     def test_N_save_all_invalid_layer_writes_nothing(self):
         payload = self._valid_save_all()
@@ -413,8 +493,37 @@ class WorkbenchServerTest(unittest.TestCase):
             urllib.request.urlopen(self._post("/api/workbench/save-all", payload))
         self.assertEqual(cm.exception.code, 422)
         for n in ("timeline_patch.json", "patched_draft_timeline.json",
-                  "audio_cue_patch.json", "effect_patch.json", "workbench_handoff.json"):
+                  "audio_cue_patch.json", "effect_patch.json",
+                  "workbench_human_decision.json", "workbench_handoff.json"):
             self.assertFalse((self.root / n).exists(), n)
+
+    def test_O_save_all_accepts_feedback_only_and_binds_exact_subject(self):
+        payload = {
+            "decision_context": {
+                "duration_policy": "flexible",
+                "review_notes": [{
+                    "note_id": "note-001",
+                    "scope": "segment",
+                    "category": "audio",
+                    "segment_id": 1,
+                    "slot_index": 0,
+                    "timeline_window": {"start_sec": 0.0, "end_sec": 2.0},
+                    "text": "人物說話期間，整段配樂維持低音量。",
+                }],
+            },
+        }
+        result = json.loads(urllib.request.urlopen(
+            self._post("/api/workbench/save-all", payload)).read().decode("utf-8"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["written"]), {
+            "workbench_human_decision.json", "workbench_handoff.json"})
+        decision = json.loads((self.root / "workbench_human_decision.json").read_text(encoding="utf-8"))
+        self.assertEqual(decision["review_notes"][0]["category"], "audio")
+        self.assertEqual(decision["review_notes"][0]["text"], "人物說話期間，整段配樂維持低音量。")
+        self.assertEqual(decision["patch_bindings"], {})
+        handoff = json.loads((self.root / "workbench_handoff.json").read_text(encoding="utf-8"))
+        self.assertEqual(handoff["summary"]["review_notes"], 1)
+        self.assertEqual(handoff["next_action"], "review_workbench_route_back")
 
     def test_P_canonical_unchanged_by_hash_after_save_all(self):
         before = {n: self._hash(n) for n in ("timeline.json", "project_material_map.json")}

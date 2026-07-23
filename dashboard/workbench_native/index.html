@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hermes 影片剪輯工作檯</title>
-  <link rel="stylesheet" href="/workbench/workbench.css" />
+  <title>影片剪輯室</title>
+  <link rel="stylesheet" href="/workbench/workbench.css?v=20260723-review-v3" />
 </head>
 <body>
   <header class="wb-header">
     <div class="header-left">
       <div class="wb-title">
-        <strong>Hermes 影片剪輯工作檯</strong>
+        <strong>影片剪輯室</strong>
+        <span class="wb-sub">邊看、邊選、邊調整</span>
       </div>
       <div class="undo-redo" aria-label="復原與重做">
         <button class="btn-icon" id="btn-undo" title="復原" type="button" disabled>
@@ -24,12 +25,12 @@
 
     <div class="header-mid">
       <label class="run-picker" for="run-selector">
-        <span>專案</span>
+        <span>正在編輯</span>
         <select id="run-selector" class="run-selector" title="選擇 run folder">
           <option value="">目前專案</option>
         </select>
       </label>
-      <select id="aspect-ratio" class="aspect-ratio-select" title="畫面比例">
+      <select id="aspect-ratio" class="aspect-ratio-select" title="預覽構圖比例，不改變正式輸出">
         <option value="16:9">16:9 橫式</option>
         <option value="9:16">9:16 直式</option>
         <option value="1:1">1:1 方形</option>
@@ -37,63 +38,64 @@
     </div>
 
     <div class="wb-badges" style="align-items: center;">
-      <!-- Four domain contract buttons -->
-      <button class="dico" id="dico-material" data-domain="material" title="素材契約" type="button" style="margin-right: 4px;">
+      <!-- Advanced domains stay available without leading the default experience. -->
+      <button class="dico" id="dico-material" data-domain="material" title="畫面設定" aria-label="畫面設定" type="button">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z" fill="currentColor"/></svg>
         <span class="dot dot-off" id="dot-material"></span>
       </button>
-      <button class="dico" id="dico-music" data-domain="music" title="音樂契約" type="button" style="margin-right: 4px;">
+      <button class="dico" id="dico-music" data-domain="music" title="音樂設定" aria-label="音樂設定" type="button">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" fill="currentColor"/></svg>
         <span class="dot dot-off" id="dot-music"></span>
       </button>
-      <button class="dico" id="dico-subtitle" data-domain="subtitle" title="字幕口白契約" type="button" style="margin-right: 4px;">
+      <button class="dico" id="dico-subtitle" data-domain="subtitle" title="字幕與口白" aria-label="字幕與口白" type="button">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4zm7 10a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V23h2v-3.06A9 9 0 0 0 21 11h-2z" fill="currentColor"/></svg>
         <span class="dot dot-off" id="dot-subtitle"></span>
       </button>
-      <button class="dico" id="dico-effect" data-domain="effect" title="特效契約" type="button" style="margin-right: 12px;">
+      <button class="dico" id="dico-effect" data-domain="effect" title="畫面效果" aria-label="畫面效果" type="button">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.8L23 18l-3.1 1.2L19 22l-.9-2.8L15 18l3.1-1.2L19 14z" fill="currentColor"/></svg>
         <span class="dot dot-off" id="dot-effect"></span>
       </button>
-      <button class="pipetoggle" id="btn-pipestrip" type="button" style="margin-right: 12px; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: none; color: inherit;">管線現況</button>
-      <button id="btn-save-all" type="button" style="margin-right: 12px; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; background: var(--accent); color: white; border: none; font-weight: 600;">儲存並交給 agent</button>
+      <button class="pipetoggle" id="btn-pipestrip" type="button">製作進度</button>
+      <button id="btn-save-all" class="primary-action" type="button">送出修改</button>
     </div>
   </header>
 
   <div class="pipestrip" id="pipestrip">
-    <div class="pstep st-todo" id="pstep-intent"><span>1. 意圖</span></div>
-    <div class="pstep st-todo" id="pstep-spec"><span>2. SPEC契約</span></div>
-    <div class="pstep st-todo" id="pstep-material"><span>3. 素材圖</span></div>
-    <div class="pstep st-todo" id="pstep-build"><span>4. BUILD</span></div>
-    <div class="pstep st-todo" id="pstep-verify"><span>5. VERIFY</span></div>
-    <div class="pstep st-todo" id="pstep-delivery"><span>6. 交付</span></div>
+    <div class="pstep st-todo" id="pstep-intent"><span>方向已確認</span></div>
+    <div class="pstep st-todo" id="pstep-spec"><span>剪輯規劃</span></div>
+    <div class="pstep st-todo" id="pstep-material"><span>素材已整理</span></div>
+    <div class="pstep st-todo" id="pstep-build"><span>影片製作</span></div>
+    <div class="pstep st-todo" id="pstep-verify"><span>品質檢查</span></div>
+    <div class="pstep st-todo" id="pstep-delivery"><span>完成交付</span></div>
   </div>
 
   <main class="wb-main-container">
     <div class="wb-content-layout">
       <aside class="wb-materials" id="drawer-media">
         <div class="materials-head">
-          <h2>可用素材</h2>
+          <h2>這支影片的素材</h2>
           <button id="btn-drawer" title="收合/展開素材區" type="button" style="padding: 2px 6px; cursor: pointer; border: 1px solid var(--line2); border-radius: 4px; background: none; color: inherit; display: flex; align-items: center; justify-content: center;">
             <svg viewBox="0 0 24 24" width="14" height="14" style="display: block;"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12l4.6-4.6z" fill="currentColor"/></svg>
           </button>
           <span id="material-map-summary" class="muted">載入中...</span>
         </div>
         <div class="search-box">
-          <input id="asset-search" class="asset-search" type="search" placeholder="搜尋素材 / 分類 / 需求" />
+          <input id="asset-search" class="asset-search" type="search" placeholder="搜尋畫面或活動" />
         </div>
         <select id="asset-family-filter" class="asset-family-filter">
-          <option value="">全部分類</option>
+          <option value="">所有分類</option>
         </select>
-        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" checked id="fit-only" style="margin:0;">只看符合契約的素材</label>
+        <label class="fit-filter"><input type="checkbox" checked id="fit-only">優先顯示適合這一段的畫面</label>
+        <div id="asset-placement-suggestions" class="asset-placement-suggestions" hidden></div>
         <div id="material-assets-list" class="material-assets-list"></div>
         <!-- 素材缺口:不上傳檔案,產生結構化請求交給 agent 走 material-map branch -->
-        <button id="btn-gap" type="button" style="margin-top: 10px; font-size: 12px; width: 100%; cursor: pointer; padding: 6px; border: 1px dashed var(--border); background: none; border-radius: 6px; color: inherit;">素材不夠?請 agent 補</button>
+        <button id="btn-gap" class="quiet-action" type="button">找不到適合的畫面？</button>
         <div id="gap-form" style="display: none; margin-top: 8px; border: 1px solid var(--border); padding: 8px; border-radius: 6px; background: var(--panel-2);">
           <div class="field" style="margin-bottom: 8px;">
-            <label style="display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px;">這段需要什麼畫面</label>
+            <label style="display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px;">描述你希望看到的畫面</label>
             <input type="text" id="in-gap-desc" placeholder="例: 得獎者上台的側面特寫" style="width: 100%; font-size: 12px;" />
           </div>
-          <button id="btn-copy-gap-req" type="button" style="width: 100%; font-size: 12px; padding: 6px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">產生補素材請求(複製給 agent)</button>
+          <button id="btn-copy-gap-req" type="button" style="width: 100%; font-size: 12px; padding: 8px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700;">複製需求</button>
         </div>
       </aside>
 
@@ -103,7 +105,7 @@
             <img id="stage-image" alt="" hidden />
             <video id="stage-video" hidden playsinline muted></video>
             <audio id="preview-audio" preload="metadata"></audio>
-            <div id="stage-empty" class="stage-empty">尚未載入可預覽片段</div>
+            <div id="stage-empty" class="stage-empty">從下方選一段，邊播邊改</div>
             <div id="effect-overlay" class="effect-overlay" hidden></div>
             <div id="effect-label" class="effect-label" hidden></div>
             <div id="subtitle-overlay" class="subtitle-overlay"></div>
@@ -113,50 +115,100 @@
         <div class="wb-transport">
           <button id="btn-play" type="button">播放</button>
           <button id="btn-pause" type="button" hidden>暫停</button>
-          <button id="btn-rewind" type="button">回到開頭</button>
+          <button id="btn-rewind" type="button">從頭看</button>
           <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
           <span id="time-label" class="time-label">0.00 / 0.00s</span>
+        </div>
+        <div class="segment-navigator-wrap">
+          <div class="segment-navigator-head">
+            <strong>逐段檢視</strong>
+            <span>選一段，再換畫面或留下指示</span>
+          </div>
+          <div id="segment-navigator" class="segment-navigator" aria-label="影片段落"></div>
         </div>
       </section>
 
       <section class="wb-inspector" id="inspector">
-        <h2>鏡頭契約</h2>
-        <div id="inspector-empty" class="muted">請選取影片軌上的片段，查看素材、時長與來源範圍。</div>
+        <p class="inspector-kicker">即時調整</p>
+        <h2>這一段想怎麼改？</h2>
+        <div class="interaction-card" aria-live="polite">
+          <strong id="interaction-context">先從下方時間軸選一段</strong>
+          <span id="interaction-hint">選取後可立即換畫面、調整長短，或處理字幕與音樂。</span>
+        </div>
+        <div class="quick-actions" aria-label="常用調整">
+          <button type="button" data-quick-action="replace">換個畫面</button>
+          <button type="button" data-quick-action="longer">停久一點</button>
+          <button type="button" data-quick-action="shorter">再短一點</button>
+          <button type="button" data-quick-action="subtitle">調整字幕</button>
+          <button type="button" data-quick-action="music">查看音樂</button>
+          <button type="button" data-quick-action="effect">建議效果</button>
+        </div>
+        <div class="review-compose">
+          <div class="review-compose-head">
+            <label for="review-note">給 Agent 的這段指示</label>
+            <select id="review-category" aria-label="回饋類型">
+              <option value="picture">畫面</option>
+              <option value="timing">節奏</option>
+              <option value="subtitle">字幕</option>
+              <option value="audio">聲音</option>
+              <option value="effect">效果</option>
+              <option value="story">故事</option>
+              <option value="overall">整體</option>
+            </select>
+          </div>
+          <textarea id="review-note" rows="3" placeholder="例：這裡保留原聲，配樂整段壓低；下一鏡換成操作特寫。"></textarea>
+          <button id="btn-add-review-note" type="button">加入本段回饋</button>
+          <div id="review-note-list" class="review-note-list" aria-live="polite"></div>
+        </div>
+        <label class="duration-policy" for="duration-policy">
+          <span>片長處理</span>
+          <select id="duration-policy">
+            <option value="flexible">內容優先，允許片長變動</option>
+            <option value="target_with_tolerance">盡量維持目前片長</option>
+            <option value="fixed">固定目前片長</option>
+          </select>
+        </label>
+        <div id="decision-summary" class="decision-summary">尚未加入回饋或調整</div>
+        <div id="inspector-empty" class="muted inspector-empty">播放影片，看到想改的地方就從「逐段檢視」選取。</div>
         <div id="inspector-body" hidden>
-          <dl class="meta-grid" id="inspector-meta"></dl>
           <div class="field">
-            <label>用多長(秒)</label>
+            <label>這個畫面停留幾秒</label>
             <input id="in-duration" type="number" step="0.1" min="0.1" />
           </div>
           <div class="field" id="field-source-start">
-            <label>從素材的哪裡開始(秒)</label>
+            <label>從原片第幾秒開始</label>
             <input id="in-source-start" type="number" step="0.1" min="0" />
           </div>
           <div class="field" id="field-source-duration">
-            <label>source_duration_sec</label>
+            <label>使用原片幾秒</label>
             <input id="in-source-duration" type="number" step="0.1" min="0.1" />
           </div>
           <div class="field-row">
-            <button id="btn-apply-clip" type="button">套用</button>
-            <button id="btn-replace-clip" type="button" title="用左側選取素材替換目前片段，只會儲存為 timeline_patch 草稿。">以選取素材替換</button>
-            <button id="btn-move-left" type="button">左移</button>
-            <button id="btn-move-right" type="button">右移</button>
+            <button id="btn-apply-clip" type="button">確認時間</button>
+            <button id="btn-replace-clip" type="button" title="用左側選取的素材換掉目前畫面">換成左側素材</button>
+            <button id="btn-move-left" type="button">往前放</button>
+            <button id="btn-move-right" type="button">往後放</button>
           </div>
+          <details class="clip-technical">
+            <summary>查看片段技術資訊</summary>
+            <dl class="meta-grid" id="inspector-meta"></dl>
+          </details>
         </div>
 
         <div id="track-inspector" hidden>
-          <h2 id="track-insp-title">軌道項目</h2>
-          <div class="field" id="tf-text"><label>text</label><input id="t-text" type="text" /></div>
-          <div class="field" id="tf-preset"><label>preset</label><select id="t-preset"></select></div>
-          <div class="field" id="tf-cuetype"><label>cue_type</label><select id="t-cuetype"></select></div>
-          <div class="field" id="tf-start"><label>start_sec</label><input id="t-start" type="number" step="0.1" min="0" /></div>
-          <div class="field" id="tf-duration"><label>duration_sec</label><input id="t-duration" type="number" step="0.1" min="0.1" /></div>
-          <div class="field" id="tf-time"><label>time_sec</label><input id="t-time" type="number" step="0.1" min="0" /></div>
+          <h2 id="track-insp-title">細部調整</h2>
+          <div class="field" id="tf-text"><label>字幕內容</label><input id="t-text" type="text" /></div>
+          <div class="field" id="tf-preset"><label>效果樣式</label><select id="t-preset"></select></div>
+          <div class="field" id="tf-cuetype"><label>聲音類型</label><select id="t-cuetype"></select></div>
+          <div class="field" id="tf-start"><label>開始時間</label><input id="t-start" type="number" step="0.1" min="0" /></div>
+          <div class="field" id="tf-duration"><label>持續時間</label><input id="t-duration" type="number" step="0.1" min="0.1" /></div>
+          <div class="field" id="tf-time"><label>出現時間</label><input id="t-time" type="number" step="0.1" min="0" /></div>
           <div class="field" id="tf-strength"><label>強度 1-5</label><input id="t-strength" type="number" step="1" min="1" max="5" /></div>
           <div class="field-row">
-            <button id="btn-apply-track" type="button">套用</button>
+            <button id="btn-apply-track" type="button">確認調整</button>
             <button id="btn-delete-track" type="button">刪除</button>
           </div>
+          <div id="track-insertions" class="track-insertions" hidden></div>
         </div>
         <div id="domain-inspector" hidden></div>
       </section>
@@ -164,75 +216,86 @@
       <aside class="wb-whitebox-panel" id="whitebox-panel" hidden aria-hidden="true">
         <div class="whitebox-head">
           <div>
-            <p class="whitebox-kicker">白盒檢視</p>
-            <h2 id="whitebox-title">管線資料</h2>
+            <p class="whitebox-kicker">進階資訊</p>
+            <h2 id="whitebox-title">製作細節</h2>
           </div>
           <button id="btn-whitebox-close" class="btn-icon" type="button" title="關閉白盒面板">×</button>
         </div>
         <div class="whitebox-tabs" aria-label="白盒模組">
-          <button type="button" data-whitebox-view="route">路線</button>
-          <button type="button" data-whitebox-view="material-map">素材地圖</button>
-          <button type="button" data-whitebox-view="artifacts">產物</button>
-          <button type="button" data-whitebox-view="verify">驗證</button>
+          <button type="button" data-whitebox-view="route">製作步驟</button>
+          <button type="button" data-whitebox-view="material-map">素材依據</button>
+          <button type="button" data-whitebox-view="artifacts">檔案紀錄</button>
+          <button type="button" data-whitebox-view="verify">檢查結果</button>
         </div>
         <div id="whitebox-body" class="whitebox-body">選擇節點後顯示資料。</div>
       </aside>
     </div>
   </main>
 
-  <details class="adv-tools" style="margin: 10px 16px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);">
-    <summary style="font-size: 12px; padding: 6px 12px; cursor: pointer; user-select: none; color: var(--muted); font-weight: 600;">進階工具</summary>
+  <details class="adv-tools">
+    <summary>進階調整：字幕、聲音與效果</summary>
     <div style="padding: 10px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px solid var(--border);">
-      <button id="btn-add-cue" type="button" title="在目前播放時間新增音效提示。">+ 音效提示 @ 播放點</button>
+      <button id="btn-add-cue" type="button" title="在目前播放時間新增音效提示。">在這裡加音效</button>
       <select id="effect-asset-select" title="選擇素材地圖中的特效素材">
         <option value="">選擇特效素材</option>
       </select>
-      <button id="btn-add-fx" type="button" title="在目前播放片段新增特效意圖。">+ 特效意圖到片段</button>
+      <button id="btn-add-fx" type="button" title="在目前播放片段新增畫面效果。">在這段加效果</button>
       <span style="color: var(--border); font-size: 14px;">|</span>
-      <button id="btn-download-patch" type="button">下載 patch</button>
-      <button id="btn-save-patch" type="button">儲存 patch 到資料夾</button>
-      <button id="btn-sync-contract" type="button" title="把時間軸 patch 轉成草稿合約，仍需後續 gate 驗證。">同步草稿合約</button>
+      <button id="btn-download-patch" type="button">下載調整紀錄</button>
+      <button id="btn-save-patch" type="button">儲存調整紀錄</button>
+      <button id="btn-sync-contract" type="button" title="把目前調整同步到草稿，不會覆蓋正式版本。">同步剪輯草稿</button>
     </div>
   </details>
 
-  <section class="wb-timeline">
-    <div class="timeline-scroll" id="timeline-scroll">
-      <div class="timeline-canvas" id="timeline-canvas">
-        <div class="timeline-ruler" id="timeline-ruler"></div>
-        <div class="track">
-          <span class="track-label">影片</span>
-          <div class="track-lane" id="lane-video"></div>
+  <details class="advanced-timeline-shell">
+    <summary>進階時間軸（需要精修時再開）</summary>
+    <section class="wb-timeline">
+      <div class="timeline-scroll" id="timeline-scroll">
+        <div class="timeline-canvas" id="timeline-canvas">
+          <div class="timeline-ruler" id="timeline-ruler"></div>
+          <div class="track">
+            <span class="track-label">畫面</span>
+            <div class="track-lane" id="lane-video"></div>
+          </div>
+          <div class="track">
+            <span class="track-label">字幕</span>
+            <div class="track-lane" id="lane-subtitle"></div>
+          </div>
+          <div class="track track-audio">
+            <span class="track-label">原聲／人聲</span>
+            <div class="track-lane" id="lane-dialogue"></div>
+          </div>
+          <div class="track track-audio">
+            <span class="track-label">配樂</span>
+            <div class="track-lane" id="lane-music"></div>
+          </div>
+          <div class="track track-audio">
+            <span class="track-label">音效</span>
+            <div class="track-lane" id="lane-sfx"></div>
+          </div>
+          <div class="track">
+            <span class="track-label">畫面效果</span>
+            <div class="track-lane" id="lane-effect"></div>
+          </div>
+          <div class="playhead" id="playhead"></div>
         </div>
-        <div class="track">
-          <span class="track-label">字幕</span>
-          <div class="track-lane" id="lane-subtitle"></div>
-        </div>
-        <div class="track">
-          <span class="track-label">音訊</span>
-          <div class="track-lane" id="lane-audio"></div>
-        </div>
-        <div class="track">
-          <span class="track-label">特效</span>
-          <div class="track-lane" id="lane-effect"></div>
-        </div>
-        <div class="playhead" id="playhead"></div>
       </div>
-    </div>
-  </section>
+    </section>
+  </details>
 
   <footer class="wb-footer">
     <div id="diagnostics" class="diagnostics"></div>
     <div class="footer-actions">
-      <span id="dirty-flag" class="muted">尚未儲存草稿</span>
-      <button id="btn-save-all-footer" type="button" title="一次儲存時間軸、字幕、音訊與特效 patch，並產生 workbench_handoff.json。">儲存全部並交接</button>
-      <button id="btn-export" type="button" title="可選：輸出 workbench_export.mp4，不會覆蓋 final.mp4。">輸出審閱影片</button>
+      <span id="dirty-flag" class="muted">目前沒有調整</span>
+      <button id="btn-save-all-footer" type="button" title="確認本次回饋與調整，交由系統處理並檢查下一版。">送出修改</button>
+      <button id="btn-export" type="button" title="輸出一支審閱用影片，不會覆蓋正式版本。">輸出預覽影片</button>
     </div>
   </footer>
 
-  <script src="/workbench/workbench_core.js"></script>
-  <script src="/workbench/workbench_api.js"></script>
-  <script src="/workbench/workbench_materials.js"></script>
-  <script src="/workbench/workbench.js"></script>
+  <script src="/workbench/workbench_core.js?v=20260723-review-v3"></script>
+  <script src="/workbench/workbench_api.js?v=20260723-review-v3"></script>
+  <script src="/workbench/workbench_materials.js?v=20260723-review-v3"></script>
+  <script src="/workbench/workbench.js?v=20260723-review-v3"></script>
   <script type="module">
     import { state as dashboardState } from "/src/state.js";
     import { fetchControlStatus } from "/src/api/controlApi.js";

@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 ARTIFACT_ROLE = "workbench_handoff"
 SCHEMA_VERSION = 1
+HUMAN_DECISION_ROLE = "workbench_human_decision"
+HUMAN_DECISION_VERSION = 1
 
 # draft artifact name -> handoff key
 DRAFT_ARTIFACTS = {
@@ -25,9 +28,30 @@ DRAFT_ARTIFACTS = {
     "subtitle_patch": "subtitle_patch.json",
     "audio_cue_patch": "audio_cue_patch.json",
     "effect_patch": "effect_patch.json",
+    "workbench_human_decision": "workbench_human_decision.json",
     "workbench_review_report": "workbench_review_report.json",
     "workbench_review_report_md": "workbench_review_report.md",
 }
+
+PATCH_ARTIFACTS = {
+    "timeline_patch": "timeline_patch.json",
+    "subtitle_patch": "subtitle_patch.json",
+    "audio_cue_patch": "audio_cue_patch.json",
+    "effect_patch": "effect_patch.json",
+}
+
+DECISION_CATEGORIES = {
+    "picture",
+    "timing",
+    "subtitle",
+    "audio",
+    "effect",
+    "story",
+    "overall",
+}
+
+DURATION_POLICIES = {"flexible", "target_with_tolerance", "fixed"}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 CANONICAL_ARTIFACTS = {
     "timeline.json",
@@ -58,6 +82,195 @@ def _artifact_detail(path: Path) -> Dict[str, Any]:
     }
 
 
+def _canonical_sha256(payload: Any) -> str:
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _written_payload_sha256(payload: Any) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _subject_binding(artifact_root: str, preview: Dict[str, Any]) -> Dict[str, Any]:
+    candidate = preview.get("candidate_video")
+    if isinstance(candidate, dict) and SHA256_RE.fullmatch(str(candidate.get("sha256") or "")):
+        return {
+            "subject_type": "current_candidate",
+            "path": str(candidate.get("source_path") or ""),
+            "sha256": candidate["sha256"],
+            "binding_status": "bound_exact_candidate",
+        }
+
+    source = preview.get("source_artifact")
+    path = Path(str(source)) if source else Path(artifact_root) / "timeline.json"
+    if not path.is_absolute():
+        path = Path(artifact_root) / path
+    if not path.is_file():
+        raise ValueError("workbench decision subject is missing")
+    return {
+        "subject_type": "draft_timeline",
+        "path": str(path.resolve()),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "binding_status": "bound_exact_timeline",
+    }
+
+
+def build_human_decision(
+    artifact_root: str,
+    *,
+    preview: Dict[str, Any],
+    decision_context: Optional[Dict[str, Any]],
+    provided_patches: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build one signed Human decision batch for the existing Brownfield route.
+
+    The signature is a content digest and exact-subject binding. It proves what
+    the local Workbench submitted; it is not an identity or creative-approval
+    credential.
+    """
+    context = decision_context if isinstance(decision_context, dict) else {}
+    notes: List[Dict[str, Any]] = []
+    for index, raw in enumerate(context.get("review_notes") or []):
+        if not isinstance(raw, dict):
+            continue
+        text = str(raw.get("text") or "").strip()
+        if not text:
+            continue
+        window = raw.get("timeline_window") if isinstance(raw.get("timeline_window"), dict) else {}
+        notes.append({
+            "note_id": str(raw.get("note_id") or f"note-{index + 1:03d}"),
+            "scope": "segment" if raw.get("scope") != "whole_video" else "whole_video",
+            "category": str(raw.get("category") or "overall"),
+            "segment_id": raw.get("segment_id"),
+            "slot_index": raw.get("slot_index"),
+            "timeline_window": {
+                "start_sec": float(window.get("start_sec") or 0.0),
+                "end_sec": float(window.get("end_sec") or 0.0),
+            },
+            "text": text,
+        })
+
+    duration_policy = str(context.get("duration_policy") or "flexible")
+    duration_contract: Dict[str, Any] = {"mode": duration_policy}
+    if duration_policy == "target_with_tolerance":
+        duration_contract["target_sec"] = float(context.get("target_duration_sec") or preview.get("duration_sec") or 0.0)
+        duration_contract["tolerance_sec"] = float(context.get("duration_tolerance_sec") or 2.0)
+    elif duration_policy == "fixed":
+        duration_contract["target_sec"] = float(context.get("target_duration_sec") or preview.get("duration_sec") or 0.0)
+        duration_contract["tolerance_sec"] = 0.0
+
+    patch_bindings = {
+        key: {
+            "path": PATCH_ARTIFACTS[key],
+            "sha256": _written_payload_sha256(payload),
+        }
+        for key, payload in sorted(provided_patches.items())
+        if key in PATCH_ARTIFACTS
+    }
+    assertion = {
+        "subject": _subject_binding(artifact_root, preview),
+        "decision_source": "workbench_explicit_submit",
+        "identity_assurance": "self_asserted_local_ui",
+        "duration_policy": duration_contract,
+        "review_notes": notes,
+        "patch_bindings": patch_bindings,
+    }
+    return {
+        "artifact_role": HUMAN_DECISION_ROLE,
+        "version": HUMAN_DECISION_VERSION,
+        **assertion,
+        "signature": {
+            "algorithm": "sha256_canonical_json_v1",
+            "digest": _canonical_sha256(assertion),
+        },
+        "human_creative_approval": False,
+        "final_delivery_claimed": False,
+        "must_not_claim": [
+            "cryptographic_human_identity",
+            "canonical_timeline_mutation",
+            "creative_approval",
+            "final_delivery",
+        ],
+    }
+
+
+def validate_human_decision(payload: Any) -> List[str]:
+    errors: List[str] = []
+    if not isinstance(payload, dict):
+        return ["human decision must be an object"]
+    if payload.get("artifact_role") != HUMAN_DECISION_ROLE:
+        errors.append(f"artifact_role must be {HUMAN_DECISION_ROLE}")
+    if payload.get("version") != HUMAN_DECISION_VERSION:
+        errors.append(f"version must be {HUMAN_DECISION_VERSION}")
+    if payload.get("decision_source") != "workbench_explicit_submit":
+        errors.append("decision_source must be workbench_explicit_submit")
+    if payload.get("identity_assurance") != "self_asserted_local_ui":
+        errors.append("identity_assurance must be self_asserted_local_ui")
+    subject = payload.get("subject")
+    if not isinstance(subject, dict):
+        errors.append("subject must be an object")
+    else:
+        if subject.get("binding_status") not in {"bound_exact_candidate", "bound_exact_timeline"}:
+            errors.append("subject binding_status must be exact")
+        if not SHA256_RE.fullmatch(str(subject.get("sha256") or "")):
+            errors.append("subject sha256 must be a lowercase SHA-256")
+    duration_policy = payload.get("duration_policy")
+    duration_mode = duration_policy.get("mode") if isinstance(duration_policy, dict) else None
+    if duration_mode not in DURATION_POLICIES:
+        errors.append("duration_policy mode is invalid")
+    notes = payload.get("review_notes")
+    if not isinstance(notes, list):
+        errors.append("review_notes must be a list")
+        notes = []
+    for index, note in enumerate(notes):
+        if not isinstance(note, dict):
+            errors.append(f"review_notes[{index}] must be an object")
+            continue
+        if note.get("category") not in DECISION_CATEGORIES:
+            errors.append(f"review_notes[{index}] category is invalid")
+        if not str(note.get("text") or "").strip():
+            errors.append(f"review_notes[{index}] text is required")
+    patch_bindings = payload.get("patch_bindings")
+    if not isinstance(patch_bindings, dict):
+        errors.append("patch_bindings must be an object")
+        patch_bindings = {}
+    for key, detail in patch_bindings.items():
+        if key not in PATCH_ARTIFACTS:
+            errors.append(f"unknown patch binding: {key}")
+            continue
+        if not isinstance(detail, dict) or detail.get("path") != PATCH_ARTIFACTS[key]:
+            errors.append(f"{key} patch path is invalid")
+        elif not SHA256_RE.fullmatch(str(detail.get("sha256") or "")):
+            errors.append(f"{key} patch sha256 is invalid")
+    if not notes and not patch_bindings and duration_mode == "flexible":
+        errors.append("decision must contain a review note, patch binding, or explicit duration constraint")
+    if payload.get("human_creative_approval") is not False:
+        errors.append("human_creative_approval must remain false")
+    if payload.get("final_delivery_claimed") is not False:
+        errors.append("final_delivery_claimed must remain false")
+
+    signature = payload.get("signature")
+    assertion = {
+        "subject": payload.get("subject"),
+        "decision_source": payload.get("decision_source"),
+        "identity_assurance": payload.get("identity_assurance"),
+        "duration_policy": payload.get("duration_policy"),
+        "review_notes": payload.get("review_notes"),
+        "patch_bindings": payload.get("patch_bindings"),
+    }
+    if not isinstance(signature, dict) or signature.get("algorithm") != "sha256_canonical_json_v1":
+        errors.append("signature algorithm is invalid")
+    elif signature.get("digest") != _canonical_sha256(assertion):
+        errors.append("signature digest mismatch")
+    return errors
+
+
 def _count_ops(patch: Optional[Dict[str, Any]], op_filter: Optional[str] = None) -> int:
     if not isinstance(patch, dict):
         return 0
@@ -81,8 +294,17 @@ def _add_route_back(items: List[Dict[str, Any]], *, owner: str, artifact: str, r
 def _route_back(timeline_patch: Optional[Dict[str, Any]],
                 subtitle_patch: Optional[Dict[str, Any]],
                 audio_cue_patch: Optional[Dict[str, Any]],
-                effect_patch: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                effect_patch: Optional[Dict[str, Any]],
+                human_decision: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
+    if isinstance(human_decision, dict):
+        _add_route_back(
+            items,
+            owner="brownfield-edit",
+            artifact="workbench_human_decision",
+            reason="explicit Workbench decisions must compile through the existing bounded Brownfield route",
+            next_action="review_human_decision_and_compile_bounded_patch",
+        )
     if isinstance(timeline_patch, dict):
         ops = [op for op in timeline_patch.get("patches") or [] if isinstance(op, dict)]
         if any(op.get("op") in {"replace_clip", "insert_clip"} for op in ops):
@@ -131,26 +353,45 @@ def _route_back(timeline_patch: Optional[Dict[str, Any]],
 def build_handoff(artifact_root: str) -> Dict[str, Any]:
     """Scan the root for draft artifacts and produce the handoff index."""
     root = Path(artifact_root)
+    human_decision = _load_json(root / DRAFT_ARTIFACTS["workbench_human_decision"])
+    active_patch_keys = None
+    if isinstance(human_decision, dict) and isinstance(human_decision.get("patch_bindings"), dict):
+        active_patch_keys = set(human_decision["patch_bindings"])
+
     present: Dict[str, str] = {}
     details: Dict[str, Dict[str, Any]] = {}
     for key, name in DRAFT_ARTIFACTS.items():
+        if key in PATCH_ARTIFACTS and active_patch_keys is not None and key not in active_patch_keys:
+            continue
         path = root / name
         if path.is_file():
             present[key] = name
             details[key] = _artifact_detail(path)
 
-    timeline_patch = _load_json(root / DRAFT_ARTIFACTS["timeline_patch"])
-    subtitle_patch = _load_json(root / DRAFT_ARTIFACTS["subtitle_patch"])
-    audio_cue_patch = _load_json(root / DRAFT_ARTIFACTS["audio_cue_patch"])
-    effect_patch = _load_json(root / DRAFT_ARTIFACTS["effect_patch"])
+    def active_patch(key: str) -> Optional[Dict[str, Any]]:
+        if active_patch_keys is not None and key not in active_patch_keys:
+            return None
+        return _load_json(root / DRAFT_ARTIFACTS[key])
+
+    timeline_patch = active_patch("timeline_patch")
+    subtitle_patch = active_patch("subtitle_patch")
+    audio_cue_patch = active_patch("audio_cue_patch")
+    effect_patch = active_patch("effect_patch")
 
     summary = {
         "timeline_edits": _count_ops(timeline_patch),
         "subtitle_edits": _count_ops(subtitle_patch),
         "audio_cues": _count_ops(audio_cue_patch, "add_cue"),
         "effect_intents": _count_ops(effect_patch, "add_effect"),
+        "review_notes": len(human_decision.get("review_notes") or []) if isinstance(human_decision, dict) else 0,
     }
-    route_back = _route_back(timeline_patch, subtitle_patch, audio_cue_patch, effect_patch)
+    route_back = _route_back(
+        timeline_patch,
+        subtitle_patch,
+        audio_cue_patch,
+        effect_patch,
+        human_decision,
+    )
 
     return {
         "artifact_role": ARTIFACT_ROLE,
@@ -187,6 +428,7 @@ def _json_role_for(key: str) -> Optional[str]:
         "workbench_contract_patch": "workbench_contract_patch",
         "preview_timeline": "preview_timeline",
         "workbench_revision_request": "workbench_revision_request",
+        "workbench_human_decision": HUMAN_DECISION_ROLE,
         "workbench_review_report": "workbench_review_report",
     }
     return roles.get(key)

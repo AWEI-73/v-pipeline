@@ -8,7 +8,12 @@ from contextlib import redirect_stdout
 from io import StringIO
 
 import video_tools
-from tools.workbench_handoff import build_handoff, validate_handoff
+from tools.workbench_handoff import (
+    build_handoff,
+    build_human_decision,
+    validate_handoff,
+    validate_human_decision,
+)
 
 
 def _write(path: Path, payload) -> None:
@@ -16,6 +21,76 @@ def _write(path: Path, payload) -> None:
 
 
 class WorkbenchHandoffTest(unittest.TestCase):
+    def test_human_decision_binds_subject_and_current_patch_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            timeline = root / "timeline.json"
+            _write(timeline, {"plan": []})
+            patch = {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [{"op": "set_duration"}],
+            }
+            decision = build_human_decision(
+                str(root),
+                preview={"source_artifact": str(timeline), "duration_sec": 12.0},
+                decision_context={
+                    "duration_policy": "flexible",
+                    "review_notes": [{
+                        "category": "timing",
+                        "scope": "segment",
+                        "slot_index": 0,
+                        "timeline_window": {"start_sec": 0, "end_sec": 2},
+                        "text": "這段再短一點。",
+                    }],
+                },
+                provided_patches={"timeline_patch": patch},
+            )
+
+        self.assertEqual(validate_human_decision(decision), [])
+        self.assertEqual(decision["subject"]["binding_status"], "bound_exact_timeline")
+        self.assertEqual(set(decision["patch_bindings"]), {"timeline_patch"})
+        self.assertFalse(decision["human_creative_approval"])
+
+        decision["review_notes"][0]["text"] = "tampered"
+        self.assertIn("signature digest mismatch", validate_human_decision(decision))
+
+    def test_handoff_routes_only_patch_bindings_from_latest_human_decision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            timeline = root / "timeline.json"
+            _write(timeline, {"plan": []})
+            timeline_patch = {
+                "artifact_role": "timeline_patch",
+                "version": 1,
+                "patches": [{"op": "set_duration"}],
+            }
+            stale_effect = {
+                "artifact_role": "effect_patch",
+                "version": 1,
+                "patches": [{"op": "add_effect"}],
+            }
+            _write(root / "timeline_patch.json", timeline_patch)
+            _write(root / "effect_patch.json", stale_effect)
+            decision = build_human_decision(
+                str(root),
+                preview={"source_artifact": str(timeline), "duration_sec": 12.0},
+                decision_context={"duration_policy": "fixed"},
+                provided_patches={"timeline_patch": timeline_patch},
+            )
+            _write(root / "workbench_human_decision.json", decision)
+
+            handoff = build_handoff(str(root))
+
+        owners = {item["owner"] for item in handoff["route_back"]}
+        self.assertEqual(decision["duration_policy"]["tolerance_sec"], 0.0)
+        self.assertIn("brownfield-edit", owners)
+        self.assertIn("build-planning", owners)
+        self.assertNotIn("effect-factory", owners)
+        self.assertNotIn("effect_patch", handoff["artifacts"])
+        self.assertNotIn("effect_patch", handoff["artifact_details"])
+        self.assertEqual(handoff["summary"]["effect_intents"], 0)
+
     def test_handoff_records_draft_artifact_hashes_and_sizes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

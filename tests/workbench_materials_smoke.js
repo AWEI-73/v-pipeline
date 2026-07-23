@@ -47,5 +47,27 @@ assert.deepStrictEqual(
   Materials.replacementCandidates(assets, { need_id: "closing" }).map(c => `${c.asset_id}:${c.scene_index}:${c.match_status}`),
   ["b0:0:accepted", "a0:0:other", "c0:2:other"]
 );
+assert.strictEqual(
+  Materials.matchSceneToClip(
+    { visual_family: "fog_sensory_encounter", caption: "touch fog" },
+    {},
+    { story_role: "sensory encounter" }
+  ),
+  "related"
+);
+assert.deepStrictEqual(
+  Materials.recommendedClipsForAsset(
+    {
+      asset_id: "fog-1",
+      scenes: [{ scene_index: 0, visual_family: "fog_sensory_encounter", caption: "touch fog" }],
+    },
+    [
+      { slot_index: 2, timeline_start_sec: 8, story_role: "sensory encounter" },
+      { slot_index: 1, timeline_start_sec: 2, visual_family: "fog_sensory_encounter" },
+      { slot_index: 3, timeline_start_sec: 12, story_role: "closing group" },
+    ]
+  ).map(item => `${item.slot_index}:${item.match_status}`),
+  ["1:family", "2:related"]
+);
 
-console.log("workbench_materials smoke: 7 checks passed");
+console.log("workbench_materials smoke: 9 checks passed");

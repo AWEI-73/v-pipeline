@@ -250,7 +250,9 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
 
     html = _read_text_url(f"{base_url}/workbench")
     required_markers = (
-        "Hermes 影片剪輯工作檯",
+        "影片剪輯室",
+        "這一段想怎麼改？",
+        'data-quick-action="replace"',
         'class="wb-monitor"',
         'id="monitor"',
         'class="wb-transport"',
@@ -258,15 +260,22 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
         'id="btn-rewind"',
         'id="scrubber"',
         'id="time-label"',
+        'id="segment-navigator"',
+        'id="review-note"',
+        'id="duration-policy"',
         "btn-save-all",
         'id="lane-video"',
         'id="lane-subtitle"',
-        'id="lane-audio"',
+        'id="lane-dialogue"',
+        'id="lane-music"',
+        'id="lane-sfx"',
         'id="lane-effect"',
-        '<span class="track-label">影片</span>',
+        '<span class="track-label">畫面</span>',
         '<span class="track-label">字幕</span>',
-        '<span class="track-label">音訊</span>',
-        '<span class="track-label">特效</span>',
+        '<span class="track-label">原聲／人聲</span>',
+        '<span class="track-label">配樂</span>',
+        '<span class="track-label">音效</span>',
+        '<span class="track-label">畫面效果</span>',
     )
     missing = [m for m in required_markers if m not in html]
     if missing:
@@ -288,6 +297,7 @@ def run_smoke(artifact_root: str | Path, base_url: str, *, exercise_replace: boo
     expected = {
         "timeline_patch.json",
         "patched_draft_timeline.json",
+        "workbench_human_decision.json",
         "workbench_handoff.json",
         "workbench_review_report.json",
         "workbench_review_report.md",

@@ -44,6 +44,18 @@ check("getVideoPlaybackTime maps to source_start + offset", function () {
   assert.strictEqual(Core.getVideoPlaybackTime(v, 3.0), 2.5); // 1.5 + (3.0-2.0)
 });
 
+check("planReplacementDuration shortens only in flexible mode", function () {
+  const flexible = Core.planReplacementDuration(44, 32, "flexible");
+  assert.strictEqual(flexible.ok, true);
+  assert.strictEqual(flexible.duration_sec, 32);
+  assert.strictEqual(flexible.shortened, true);
+  assert.strictEqual(flexible.shortage_sec, 12);
+
+  const fixed = Core.planReplacementDuration(44, 32, "fixed");
+  assert.strictEqual(fixed.ok, false);
+  assert.strictEqual(fixed.duration_sec, 44);
+});
+
 check("applyLocalPatch set_duration updates and recomputes", function () {
   const state = { clips: Core.computeTimeline(clips) };
   const next = Core.applyLocalPatch(state, { op: "set_duration", slot_index: 0, after: { duration_sec: 4.0 } });
@@ -132,6 +144,27 @@ check("replaceClipWithAsset swaps selected clip with material asset scene", func
   assert.ok(op, "expected replace_clip op");
   assert.strictEqual(op.after.asset_id, "b-roll");
   assert.strictEqual(op.after.scene_index, 1);
+});
+
+check("replaceClipWithAsset accepts a shorter flexible replacement duration", function () {
+  const state = { clips: Core.computeTimeline([
+    { id: "slot-0", slot_index: 0, type: "video", duration_sec: 44, source_start_sec: 0, source_duration_sec: 44 },
+  ]) };
+  const asset = {
+    asset_id: "short-b",
+    asset_type: "video",
+    source_path: "short.mp4",
+    scenes: [{ start_sec: 10, end_sec: 42 }],
+  };
+  const next = Core.replaceClipWithAsset(state, {
+    slot_index: 0,
+    asset: asset,
+    scene_index: 0,
+    duration_sec: 32,
+  });
+  assert.strictEqual(next.clips[0].duration_sec, 32);
+  assert.strictEqual(next.duration_sec, 32);
+  assert.strictEqual(state.clips[0].duration_sec, 44);
 });
 
 check("insertClipFromAsset inserts material asset as draft clip", function () {
@@ -235,11 +268,13 @@ check("buildSavePayload is deterministic and layer-selective", function () {
     subsAfter: [{ id: "sub-1", text: "A2", start_sec: 0, duration_sec: 3 }],
     cues: [{ cue_id: "c1", time_sec: 1, cue_type: "impact", strength: 3 }],
     effects: [{ effect_id: "e1", preset: "flash", target_slot_index: 0, start_sec: 0, duration_sec: 0.5, intensity: 3 }],
+    decision_context: { duration_policy: "flexible", review_notes: [{ text: "Keep this." }] },
   };
   const a = Core.buildSavePayload(input);
   const b = Core.buildSavePayload(input);
   assert.deepStrictEqual(a, b); // deterministic
   assert.ok(a.timeline_patch && a.subtitle_patch && a.audio_cue_patch && a.effect_patch);
+  assert.strictEqual(a.decision_context.review_notes[0].text, "Keep this.");
   assert.strictEqual(a.audio_cue_patch.patches[0].op, "add_cue");
   assert.strictEqual(a.effect_patch.patches[0].after.preset, "flash");
 });

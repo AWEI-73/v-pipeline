@@ -97,6 +97,29 @@ This is the operator entry skill for the full Hermes Video Pipeline.
       "capability_role": "adapter",
       "loops": [],
       "maturity": "experimental"
+    },
+    {
+      "tool": "tools/workbench_project.py",
+      "when": "candidate、其時間軸與素材地圖已存在，將跨 Stage 產物以 hash-bound 引用接到 GUI Workbench",
+      "inputs": [
+        "canonical timeline or rough-cut plan",
+        "project material map",
+        "candidate video",
+        "optional subtitles, audio mix report, and effect evidence"
+      ],
+      "outputs": [
+        "workbench_project.json"
+      ],
+      "stop_if": [
+        "required artifact is missing",
+        "referenced artifact hash drifts",
+        "landing would copy or mutate canonical media"
+      ],
+      "capability_id": "cap.video-pipeline-route.workbench-project.v1",
+      "execution_class": "deterministic",
+      "capability_role": "adapter",
+      "loops": [],
+      "maturity": "experimental"
     }
   ],
   "supporting_tools": [
@@ -546,6 +569,15 @@ write it in `required_followup_questions` and stop before branch work.
 | "review this video", "find problems only", "do not edit" | Editorial Reviewer | bind the exact subject and build/read timeline review evidence without mutation | subject hash/evidence is missing or stale |
 | "export final video", "render final.mp4" | Delivery gate | inspect `pipeline_home.py`, then only render if gates are green | any repair cursor, missing verification, or stale material |
 
+Workbench is a Human decision surface, not a second pipeline. Its explicit
+submit writes `workbench_human_decision.json` plus the existing draft patch
+artifacts and `workbench_handoff.json`. The decision binds the exact candidate
+or draft timeline, records a self-asserted local-UI signature, and identifies
+only the patch files in that submission. Route it first to `brownfield-edit`;
+Brownfield may delegate picture/material, subtitle, audio, and effect deltas to
+their existing owners, then return to render and Verify. The signature does not
+prove human identity, creative approval, canonical mutation, or final delivery.
+
 Do not turn a semantic trigger into a direct command. Translate the request into
 the entry, artifacts, allowed tools, and stop condition first. `RUNBOOK.md` is
 the operator manual, `docs/pipeline-decision-tree.md` is the branch decision
@@ -883,6 +915,20 @@ Workbench draft patch
 -> Brownfield edit if needed
 -> rerender / verify
 ```
+
+### Pipeline Candidate Landing In Workbench
+
+When a current V Pipeline run has a candidate plus its exact timeline and
+Material Map, create a separate `workbench_project.json` landing with
+`tools/workbench_project.py create`. The landing references canonical artifacts
+by absolute path, SHA-256, and byte size; it does not copy media. Workbench may
+write draft patches only beside this manifest. Those patches still return
+through `workbench_handoff.json` and Brownfield ownership; they never overwrite
+the referenced Stage artifacts.
+
+Do not point the GUI at a final-video-only folder or a test fixture and call it
+connected. A valid landing must pass `tools/workbench_project.py validate`, and
+the GUI health endpoint must report `can_preview=true` for that exact root.
 
 If the edit changes material truth, return to Material Truth and rerun delta.
 

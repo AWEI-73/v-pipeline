@@ -128,6 +128,23 @@ class DashboardServerTest(unittest.TestCase):
         self.assertTrue(all(project["usable"] for project in projects))
         self.assertIn("material_map_reviewed", projects[0]["signals"])
 
+    def test_project_scan_includes_pipeline_workbench_landing(self):
+        landing = self.artifact_root / "current_pipeline_landing"
+        landing.mkdir()
+        (landing / "workbench_project.json").write_text(json.dumps({
+            "artifact_role": "workbench_project",
+            "version": 1,
+            "project_id": "landing",
+            "display_name": "Current landing",
+            "artifacts": {},
+        }), encoding="utf-8")
+
+        projects = scan_project_runs([self.artifact_root])
+        project = next(item for item in projects if item["name"] == "Current landing")
+
+        self.assertIn("workbench_project", project["signals"])
+        self.assertIn("V Pipeline", project["reason"])
+
     def test_project_scan_can_limit_to_top_level_run_folders(self):
         top_level = self.artifact_root / "top_level_story_run"
         top_level.mkdir()
@@ -162,6 +179,36 @@ class DashboardServerTest(unittest.TestCase):
             for child in workspace_run.glob("*"):
                 child.unlink()
             workspace_run.rmdir()
+
+    def test_scan_available_projects_only_indexes_curated_tmp_landings(self):
+        from tools.dashboard_server import scan_available_projects
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            landing = base / ".tmp" / "workbench_projects" / "current"
+            landing.mkdir(parents=True)
+            (landing / "workbench_project.json").write_text(json.dumps({
+                "artifact_role": "workbench_project",
+                "version": 1,
+                "project_id": "current",
+                "display_name": "Current project",
+                "artifacts": {},
+            }), encoding="utf-8")
+            historical_fixture = base / ".tmp" / "negative_fixture"
+            historical_fixture.mkdir(parents=True)
+            (historical_fixture / "video_intent.json").write_text("{}", encoding="utf-8")
+            (historical_fixture / "reviewed_project_material_map.json").write_text("{}", encoding="utf-8")
+
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(base)
+                projects = scan_available_projects()
+            finally:
+                os.chdir(old_cwd)
+
+        paths = {project["path"] for project in projects}
+        self.assertIn(str(landing.resolve()), paths)
+        self.assertNotIn(str(historical_fixture.resolve()), paths)
 
     def test_project_run_last_modified_uses_signal_files_only(self):
         run = self.artifact_root / "run_with_media"
@@ -432,15 +479,25 @@ class DashboardServerTest(unittest.TestCase):
         self.assertIn('state.activeView === "workbench"', main_js)
 
         for text in (
-            "Hermes 影片剪輯工作檯",
-            "可用素材",
+            "影片剪輯室",
+            "這支影片的素材",
             "字幕",
-            "音訊",
-            "鏡頭契約",
-            "套用",
-            "儲存全部並交接",
+            "音樂",
+            "這一段想怎麼改？",
+            "換個畫面",
+            "送出修改",
         ):
             self.assertIn(text, native_html)
+        for jargon in (
+            "SPEC契約",
+            "source_duration_sec",
+            "管線現況",
+            "鏡頭契約",
+            "Brownfield",
+            "Human decision",
+            "V Pipeline",
+        ):
+            self.assertNotIn(jargon, native_html)
 
     def test_static_routes_and_security(self):
         self.start_test_server()

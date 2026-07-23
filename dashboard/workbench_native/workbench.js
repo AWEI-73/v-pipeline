@@ -28,18 +28,79 @@
     selectedAssetId: null,
     selectedSceneIndex: 0,
     currentDomain: null,
+    reviewNotes: [],
+    durationPolicy: "flexible",
     whiteboxView: null,
     projects: [],
     trackSel: null,  // {type:'subtitle'|'cue'|'effect', id}
     trimDrag: null,
+    history: [],
+    historyIndex: -1,
+    savedHistoryIndex: 0,
+    historyRestoring: false,
+    aspectRatio: "16:9",
     seq: 0,
     thumbs: {},      // slot_index -> thumbnail url (NPE5 filmstrip)
     proxies: {},     // slot_index -> trimmed preview mp4 (NPE6 proxy cache)
   };
 
   var PRESETS = ["title_reveal", "zoom_punch", "flash", "speed_ramp_hint",
-                 "freeze_frame_hint", "shake_light", "caption_emphasis"];
+                  "freeze_frame_hint", "shake_light", "caption_emphasis"];
   var CUE_TYPES = ["hit", "whoosh", "riser", "impact", "bell", "transition", "title_pop"];
+  var PRESET_LABELS = {
+    title_reveal: "標題出現", zoom_punch: "快速推近", flash: "閃白",
+    speed_ramp_hint: "速度變化", freeze_frame_hint: "畫面定格",
+    shake_light: "輕微震動", caption_emphasis: "文字強調",
+  };
+  var CUE_LABELS = {
+    hit: "節拍點", whoosh: "轉場聲", riser: "情緒上升", impact: "重點撞擊",
+    bell: "提示鈴聲", transition: "段落轉場", title_pop: "標題出現",
+  };
+  var FAMILY_LABELS = {
+    arrival: "抵達與開場",
+    group_activity: "團體活動",
+    hands_on: "動手體驗",
+    interaction: "互動觀察",
+    exhibition: "展項探索",
+    learning: "學習過程",
+    portrait: "人物",
+    group_photo: "合照",
+    closing: "結尾",
+    transition: "過場",
+    dialogue: "人物原聲",
+    speech: "人物原聲",
+    b_roll: "補充畫面",
+    "container handling": "容器操作",
+    "curiosity threshold": "入館探索",
+    "digital projection": "數位投影互動",
+    "foam apparatus observation": "泡沫裝置觀察",
+    "foam result handling": "泡沫成果操作",
+    "foam station repeat": "泡沫體驗",
+    "fog sensory encounter": "霧氣感官體驗",
+    "group activity wide": "團體活動全景",
+    "illuminated column touch": "發光裝置互動",
+    "illuminated installation memory": "發光裝置回憶",
+    "light table drawing": "光桌創作",
+    "light table drawing alternate": "光桌創作側拍",
+    "light table drawing close": "光桌創作特寫",
+    "model city operation": "模型城市操作",
+    "model train controls": "模型列車操作",
+    "rope mechanism challenge": "繩索機構挑戰",
+    "sorting result detail": "分類成果特寫",
+    "sorting station": "分類裝置體驗",
+    "tabletop model exploration": "桌上模型探索",
+    "white installation presence": "白色裝置觀察",
+    "threshold first look": "初次進入展場",
+    "sensory encounter": "感官體驗",
+    "illuminated touch": "光影互動",
+    "system operation": "操作展項",
+    "result resolution": "看見操作成果",
+    "group context": "一起探索",
+    "mechanism task": "機構挑戰",
+    "exhibit system bridge": "展項串連",
+    "quiet making": "安靜創作",
+    "memory callback": "回看這趟旅程",
+  };
 
   var els = {};
   var rafId = null;
@@ -64,25 +125,29 @@
   function cacheEls() {
     [
       "monitor", "stage-image", "stage-video", "preview-audio", "stage-empty",
-      "material-map-summary", "asset-search", "asset-family-filter", "material-assets-list",
+      "material-map-summary", "asset-search", "asset-family-filter", "asset-placement-suggestions", "material-assets-list",
       "effect-overlay", "effect-label", "subtitle-overlay",
       "stage-meta", "btn-play", "btn-pause", "btn-rewind", "scrubber",
       "time-label", "frame-label", "audio-status", "inspector-empty", "inspector-body",
       "inspector-meta", "in-duration", "in-source-start", "in-source-duration",
       "field-source-start", "field-source-duration", "btn-apply-clip", "btn-replace-clip",
       "btn-move-left", "btn-move-right", "lane-video", "lane-subtitle",
-      "lane-audio", "lane-effect", "playhead", "diagnostics", "dirty-flag",
+      "lane-dialogue", "lane-music", "lane-sfx", "lane-effect", "playhead", "diagnostics", "dirty-flag",
       "timeline-scroll", "timeline-canvas", "timeline-ruler",
       "btn-download-patch", "btn-save-patch", "btn-sync-contract", "btn-export",
-      "btn-save-all", "btn-add-cue", "effect-asset-select", "btn-add-fx", "track-inspector",
+      "btn-save-all", "btn-save-all-footer", "btn-add-cue", "effect-asset-select", "btn-add-fx", "track-inspector",
       "track-insp-title", "t-text", "t-preset", "t-cuetype", "t-start",
       "t-duration", "t-time", "t-strength", "tf-text", "tf-preset", "tf-cuetype",
       "tf-start", "tf-duration", "tf-time", "tf-strength",
-      "btn-apply-track", "btn-delete-track", "drawer-media", "btn-drawer", "fit-only",
+      "btn-apply-track", "btn-delete-track", "track-insertions", "drawer-media", "btn-drawer", "fit-only",
       "dico-material", "dico-music", "dico-subtitle", "dico-effect",
       "dot-material", "dot-music", "dot-subtitle", "dot-effect", "domain-inspector",
       "btn-pipestrip", "pipestrip", "btn-gap", "gap-form", "in-gap-desc", "btn-copy-gap-req",
-      "run-selector", "whitebox-panel", "whitebox-title", "whitebox-body", "btn-whitebox-close",
+      "run-selector", "aspect-ratio", "btn-undo", "btn-redo",
+      "whitebox-panel", "whitebox-title", "whitebox-body", "btn-whitebox-close",
+      "interaction-context", "interaction-hint",
+      "segment-navigator", "review-category", "review-note", "btn-add-review-note",
+      "review-note-list", "duration-policy", "decision-summary",
     ].forEach(function (id) {
       els[id.replace(/-/g, "_")] = $(id);
     });
@@ -112,9 +177,16 @@
         state.materialAssets = (data.material_assets || []).map(function (a) { return Object.assign({}, a); });
         state.selectedAssetId = null;
         state.selectedSceneIndex = 0;
+        state.reviewNotes = [];
+        state.durationPolicy = "flexible";
+        if (els.duration_policy) els.duration_policy.value = state.durationPolicy;
         state.trackSel = null;
         state.dirty = false;
         state.currentTime = 0;
+        state.aspectRatio = localStorage.getItem("workbench_aspect_ratio") || "16:9";
+        if (els.aspect_ratio) els.aspect_ratio.value = state.aspectRatio;
+        applyAspectRatio(state.aspectRatio);
+        resetHistory();
         renderAll();
         loadThumbnails();
         loadProxies();
@@ -154,6 +226,10 @@
     renderDiagnostics();
     renderMonitor();
     renderTransport();
+    renderInteractionPanel();
+    renderSegmentNavigator();
+    renderReviewNotes();
+    renderDecisionSummary();
     updateDirty();
   }
 
@@ -172,16 +248,45 @@
     return Materials.families(state.materialAssets);
   }
 
+  function compactHumanLabel(value, limit) {
+    var text = String(value || "")
+      .replace(/^N_/i, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    var max = limit || 32;
+    return text.length > max ? text.slice(0, max - 1) + "…" : text;
+  }
+
+  function humanFamilyLabel(value) {
+    var raw = String(value || "").trim();
+    var normalized = raw.toLowerCase()
+      .replace(/^n_/i, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return FAMILY_LABELS[raw.toLowerCase()] ||
+      FAMILY_LABELS[normalized] ||
+      compactHumanLabel(raw, 28);
+  }
+
+  function clipDisplayLabel(clip) {
+    clip = clip || {};
+    var raw = clip.display_label || clip.segment_title || clip.story_role ||
+      clip.visual_family || clip.need_id || clip.caption || clip.scene_id || clip.type;
+    return humanFamilyLabel(raw);
+  }
+
   function renderMaterialBrowser() {
     if (!els.material_assets_list) return;
     var families = materialFamilies();
     var current = els.asset_family_filter ? els.asset_family_filter.value : "";
     if (els.asset_family_filter) {
-      els.asset_family_filter.innerHTML = '<option value="">全部類型</option>';
+      els.asset_family_filter.innerHTML = '<option value="">所有分類</option>';
       families.forEach(function (fam) {
         var opt = document.createElement("option");
         opt.value = fam;
-        opt.textContent = fam;
+        opt.textContent = humanFamilyLabel(fam);
         els.asset_family_filter.appendChild(opt);
       });
       els.asset_family_filter.value = families.indexOf(current) >= 0 ? current : "";
@@ -200,7 +305,7 @@
     if (els.drawer_media) {
       var titleH2 = els.drawer_media.querySelector(".materials-head h2");
       if (titleH2) {
-        titleH2.textContent = selectedClip ? "適合這段的素材" : "可用素材";
+        titleH2.textContent = selectedClip ? "適合這一段的畫面" : "這支影片的素材";
       }
     }
 
@@ -216,15 +321,19 @@
 
     if (selectedClip && els.fit_only && els.fit_only.checked) {
       cards = cards.filter(function (c) {
-        return c.match_status === "accepted" || c.match_status === "candidate";
+        return ["accepted", "candidate", "family", "related"].indexOf(c.match_status) >= 0;
       });
     }
 
     if (els.material_map_summary) {
+      var strongCount = cards.filter(function (item) {
+        return ["accepted", "candidate", "family"].indexOf(item.match_status) >= 0;
+      }).length;
       els.material_map_summary.textContent = selectedClip
-        ? cards.length + " 個可替換場景 / need " + (selectedClip.need_id || "未標")
+        ? strongCount + " 個優先建議，另有 " + Math.max(0, cards.length - strongCount) + " 個相近畫面"
         : assets.length + "/" + state.materialAssets.length + " 個素材";
     }
+    renderPlacementSuggestions();
     els.material_assets_list.innerHTML = "";
     cards.forEach(function (a) {
       var card = document.createElement("div");
@@ -244,7 +353,12 @@
       var body = document.createElement("div");
       var title = document.createElement("div");
       title.className = "material-title";
-      title.textContent = a.asset_id;
+      var sceneLabel = (a.scene && (a.scene.display_label || a.scene.visual_family || a.scene.caption)) || "";
+      title.textContent = compactHumanLabel(
+        humanFamilyLabel(a.display_label || sceneLabel || a.visual_family || a.caption) || a.asset_id,
+        25
+      );
+      title.title = a.asset_id;
 
       var badge = document.createElement("span");
       if (a.match_status === "accepted") {
@@ -253,6 +367,12 @@
       } else if (a.match_status === "candidate") {
         badge.className = "fit fit-mid";
         badge.textContent = "候選";
+      } else if (a.match_status === "family") {
+        badge.className = "fit fit-family";
+        badge.textContent = "同類畫面";
+      } else if (a.match_status === "related") {
+        badge.className = "fit fit-related";
+        badge.textContent = "語意相近";
       } else {
         badge.className = "fit fit-low";
         badge.textContent = "其他";
@@ -261,7 +381,10 @@
 
       var meta = document.createElement("div");
       meta.className = "material-meta";
-      meta.textContent = (a.duration_sec ? a.duration_sec.toFixed(1) + "s" : "0.0s");
+      var familyLabel = (a.scene && a.scene.visual_family) || a.visual_family || "";
+      var durationLabel = a.duration_sec ? a.duration_sec.toFixed(1) + "s" : "照片";
+      meta.textContent = durationLabel +
+        (familyLabel ? " · " + humanFamilyLabel(familyLabel) : "");
       body.appendChild(title);
       body.appendChild(meta);
       card.appendChild(thumb);
@@ -295,6 +418,52 @@
       };
       els.material_assets_list.appendChild(card);
     });
+  }
+
+  function renderPlacementSuggestions() {
+    var host = els.asset_placement_suggestions;
+    if (!host) return;
+    host.innerHTML = "";
+    var asset = state.materialAssets.find(function (item) {
+      return item.asset_id === state.selectedAssetId;
+    });
+    if (!asset || !state.work) {
+      host.hidden = true;
+      return;
+    }
+    var suggestions = Materials.recommendedClipsForAsset(asset, state.work.clips);
+    if (!suggestions.length) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    var heading = document.createElement("div");
+    heading.className = "placement-heading";
+    heading.textContent = "這個素材適合放在";
+    host.appendChild(heading);
+    var list = document.createElement("div");
+    list.className = "placement-list";
+    suggestions.slice(0, 6).forEach(function (item) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "placement-chip";
+      if (item.is_current_asset) button.className += " current";
+      var start = formatInteractionTime(item.clip.timeline_start_sec || 0);
+      button.textContent = start + " · " + (clipDisplayLabel(item.clip) || "片段 #" + item.slot_index);
+      button.title = item.is_current_asset
+        ? "目前已放在這一段"
+        : "跳到這一段，準備用目前素材替換";
+      button.onclick = function () {
+        state.selectedAssetId = asset.asset_id;
+        state.selectedSceneIndex = item.scene_index || 0;
+        selectClip(item.slot_index);
+        setInteractionHint(item.is_current_asset
+          ? "這個素材目前就在此段。"
+          : "已跳到建議段落；確認畫面後可按「換成左側素材」。");
+      };
+      list.appendChild(button);
+    });
+    host.appendChild(list);
   }
 
   function timelineMetrics() {
@@ -356,7 +525,7 @@
     if (els.timeline_canvas) {
       els.timeline_canvas.style.width = metrics.canvasWidth + "px";
     }
-    [els.lane_video, els.lane_subtitle, els.lane_audio, els.lane_effect].forEach(function (l) {
+    [els.lane_video, els.lane_subtitle, els.lane_dialogue, els.lane_music, els.lane_sfx, els.lane_effect].forEach(function (l) {
       if (l) l.style.width = metrics.timelineWidth + "px";
     });
     renderTimelineRuler(metrics);
@@ -372,7 +541,7 @@
         b.classList.add("has-thumb");
         b.style.backgroundImage = "url('" + thumb + "')";
       }
-      var label = "#" + c.slot_index + " " + (c.caption || c.scene_id || c.type);
+      var label = "#" + c.slot_index + " " + clipDisplayLabel(c);
       var orig = state.raw && state.raw.clips ? state.raw.clips.find(function (rc) { return rc.slot_index === c.slot_index; }) : null;
       var isReplaced = orig && (orig.asset_id !== c.asset_id || orig.scene_id !== c.scene_id);
       if (isReplaced) {
@@ -412,16 +581,32 @@
       sub.appendChild(b);
     });
 
-    // audio lane = user cue markers (NPE4); music marker shown faintly behind
-    var audio = els.lane_audio;
-    audio.innerHTML = "";
+    // Audio evidence is split by editorial role.  Existing candidates usually
+    // bind every placement to one composite master, so these blocks expose
+    // structure without pretending that Workbench can independently remix it.
+    var audioLanes = {
+      dialogue: els.lane_dialogue,
+      music: els.lane_music,
+      sfx: els.lane_sfx,
+      mixed: els.lane_dialogue,
+    };
+    Object.keys(audioLanes).forEach(function (key) {
+      if (audioLanes[key]) audioLanes[key].innerHTML = "";
+    });
     (state.work.audio || []).forEach(function (a) {
+      var laneName = a.lane || "mixed";
+      var audio = audioLanes[laneName] || audioLanes.dialogue;
       var bg = document.createElement("div");
-      bg.className = "clip-block clip-audio";
-      bg.style.left = "0px";
-      bg.style.opacity = "0.25";
+      bg.className = "clip-block clip-audio audio-" + laneName;
+      bg.style.left = ((a.start_sec || 0) * scale) + "px";
+      bg.style.opacity = a.independent_mix_editable ? "0.78" : "0.46";
       bg.style.width = (Math.max(0.5, a.duration_sec) * scale - 2) + "px";
-      bg.textContent = "♪ " + a.label;
+      var icon = laneName === "music" ? "♪" : (laneName === "sfx" ? "✦" : "◉");
+      bg.textContent = icon + " " + (a.label || a.role || "聲音");
+      var volume = a.applied_volume == null ? "" : " · 音量 " + a.applied_volume;
+      bg.title = (a.role || laneName) + volume +
+        (a.independent_mix_editable ? "" : " · 目前為混音完成檔，調整會交給 Audio Director");
+      bg.onclick = function () { selectAudioTrack(a.id); };
       audio.appendChild(bg);
     });
     state.cues.forEach(function (c) {
@@ -432,12 +617,27 @@
       m.textContent = c.cue_type.slice(0, 2);
       m.title = c.cue_type + " @" + c.time_sec.toFixed(2) + "s ×" + c.strength;
       m.onclick = function () { selectCue(c.cue_id); };
-      audio.appendChild(m);
+      els.lane_sfx.appendChild(m);
     });
 
-    // effect lane = user effect intent markers (NPE4)
+    // Existing pipeline effects are evidence, not editable Workbench
+    // proposals.  Keep them visible as a read-only background so the editor
+    // does not mistake an already-finished section for an empty effect lane.
     var fx = els.lane_effect;
     fx.innerHTML = "";
+    (state.work.effects || []).filter(function (e) { return e.marker_only; }).forEach(function (e) {
+      var bg = document.createElement("div");
+      bg.className = "fx-marker fx-marker-readonly";
+      bg.style.left = ((e.start_sec || 0) * scale) + "px";
+      bg.style.width = Math.max(10, (e.duration_sec || 0.2) * scale) + "px";
+      bg.style.opacity = "0.32";
+      bg.style.pointerEvents = "none";
+      bg.textContent = e.label || "既有效果";
+      bg.title = (e.label || "既有效果") + "（既有製作結果，唯讀）";
+      fx.appendChild(bg);
+    });
+
+    // Workbench-created effect intent markers remain editable (NPE4).
     state.effects.forEach(function (e) {
       var m = document.createElement("div");
       m.className = "fx-marker";
@@ -461,6 +661,86 @@
       effects: (work.effects || []).map(function (e) { return Object.assign({}, e); }),
       duration_sec: work.duration_sec,
     };
+  }
+
+  function historySnapshot() {
+    return JSON.stringify({
+      work: cloneWorkState(state.work),
+      cues: (state.cues || []).map(function (cue) { return Object.assign({}, cue); }),
+      effects: (state.effects || []).map(function (effect) { return Object.assign({}, effect); }),
+      reviewNotes: (state.reviewNotes || []).map(function (note) { return Object.assign({}, note); }),
+      durationPolicy: state.durationPolicy,
+    });
+  }
+
+  function updateHistoryButtons() {
+    if (els.btn_undo) els.btn_undo.disabled = state.historyIndex <= 0;
+    if (els.btn_redo) els.btn_redo.disabled = state.historyIndex >= state.history.length - 1;
+  }
+
+  function resetHistory() {
+    state.history = [historySnapshot()];
+    state.historyIndex = 0;
+    state.savedHistoryIndex = 0;
+    state.dirty = false;
+    updateHistoryButtons();
+    updateDirty();
+  }
+
+  function commitHistory() {
+    if (state.historyRestoring || !state.work) return;
+    var snapshot = historySnapshot();
+    if (state.history[state.historyIndex] === snapshot) return;
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push(snapshot);
+    if (state.history.length > 50) {
+      state.history.shift();
+      state.savedHistoryIndex = Math.max(-1, state.savedHistoryIndex - 1);
+    }
+    state.historyIndex = state.history.length - 1;
+    state.dirty = state.historyIndex !== state.savedHistoryIndex;
+    updateHistoryButtons();
+    updateDirty();
+  }
+
+  function restoreHistory(index) {
+    if (index < 0 || index >= state.history.length) return;
+    var snapshot = JSON.parse(state.history[index]);
+    state.historyRestoring = true;
+    state.work = cloneWorkState(snapshot.work);
+    state.cues = (snapshot.cues || []).map(function (cue) { return Object.assign({}, cue); });
+    state.effects = (snapshot.effects || []).map(function (effect) { return Object.assign({}, effect); });
+    state.reviewNotes = (snapshot.reviewNotes || []).map(function (note) { return Object.assign({}, note); });
+    state.durationPolicy = snapshot.durationPolicy || "flexible";
+    if (els.duration_policy) els.duration_policy.value = state.durationPolicy;
+    state.historyIndex = index;
+    state.dirty = state.historyIndex !== state.savedHistoryIndex;
+    state.trackSel = null;
+    state.historyRestoring = false;
+    renderAll();
+    if (state.selectedSlot != null && state.work.clips.some(function (clip) {
+      return clip.slot_index === state.selectedSlot;
+    })) {
+      selectClip(state.selectedSlot);
+    }
+    updateHistoryButtons();
+    updateDirty();
+  }
+
+  function undo() {
+    if (state.historyIndex > 0) restoreHistory(state.historyIndex - 1);
+  }
+
+  function redo() {
+    if (state.historyIndex < state.history.length - 1) restoreHistory(state.historyIndex + 1);
+  }
+
+  function applyAspectRatio(value) {
+    var supported = ["16:9", "9:16", "1:1"];
+    state.aspectRatio = supported.indexOf(value) >= 0 ? value : "16:9";
+    if (els.monitor) els.monitor.setAttribute("data-aspect", state.aspectRatio);
+    if (els.aspect_ratio) els.aspect_ratio.value = state.aspectRatio;
+    localStorage.setItem("workbench_aspect_ratio", state.aspectRatio);
   }
 
   function attachTrimHandles(block, clip) {
@@ -526,7 +806,7 @@
     document.removeEventListener("pointerup", onTrimDragEnd);
     if (changed) {
       state.dirty = true;
-      updateDirty();
+      commitHistory();
     }
     selectClip(slotIndex);
   }
@@ -690,9 +970,250 @@
     els.btn_pause.hidden = !state.playing;
   }
 
+  function renderSegmentNavigator() {
+    if (!els.segment_navigator || !state.work) return;
+    els.segment_navigator.innerHTML = "";
+    (state.work.clips || []).forEach(function (clip) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "segment-chip" + (clip.slot_index === state.selectedSlot ? " selected" : "");
+      var title = document.createElement("strong");
+      title.textContent = clipDisplayLabel(clip) || "片段 " + (clip.slot_index + 1);
+      var meta = document.createElement("span");
+      meta.textContent = formatInteractionTime(clip.timeline_start_sec || 0) +
+        " · " + Number(clip.duration_sec || 0).toFixed(1) + " 秒";
+      button.appendChild(title);
+      button.appendChild(meta);
+      button.onclick = function () { selectClip(clip.slot_index); };
+      els.segment_navigator.appendChild(button);
+    });
+  }
+
+  function reviewCategoryLabel(category) {
+    return {
+      picture: "畫面", timing: "節奏", subtitle: "字幕", audio: "聲音",
+      effect: "效果", story: "故事", overall: "整體",
+    }[category] || "整體";
+  }
+
+  function renderReviewNotes() {
+    if (!els.review_note_list) return;
+    els.review_note_list.innerHTML = "";
+    (state.reviewNotes || []).forEach(function (note) {
+      var item = document.createElement("div");
+      item.className = "review-note-item";
+      var label = document.createElement("b");
+      label.textContent = reviewCategoryLabel(note.category);
+      var text = document.createElement("span");
+      text.textContent = note.text;
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.title = "移除這條回饋";
+      remove.onclick = function () {
+        state.reviewNotes = state.reviewNotes.filter(function (candidate) {
+          return candidate.note_id !== note.note_id;
+        });
+        commitHistory();
+        renderReviewNotes();
+        renderDecisionSummary();
+      };
+      item.appendChild(label);
+      item.appendChild(text);
+      item.appendChild(remove);
+      els.review_note_list.appendChild(item);
+    });
+  }
+
+  function addReviewNote() {
+    var clip = selectedClip();
+    var text = ((els.review_note && els.review_note.value) || "").trim();
+    if (!clip) {
+      setInteractionHint("請先選一個片段，再加入這段的回饋。");
+      return;
+    }
+    if (!text) {
+      setInteractionHint("先寫下希望 Agent 怎麼調整。");
+      if (els.review_note) els.review_note.focus();
+      return;
+    }
+    state.reviewNotes.push({
+      note_id: "note-" + (++state.seq),
+      scope: "segment",
+      category: (els.review_category && els.review_category.value) || "overall",
+      segment_id: clip.segment || clip.scene_id || null,
+      slot_index: clip.slot_index,
+      timeline_window: {
+        start_sec: Core.round6(clip.timeline_start_sec || 0),
+        end_sec: Core.round6((clip.timeline_start_sec || 0) + (clip.duration_sec || 0)),
+      },
+      text: text,
+    });
+    if (els.review_note) els.review_note.value = "";
+    commitHistory();
+    renderReviewNotes();
+    renderDecisionSummary();
+    setInteractionHint("已加入本段回饋；送出後會依照這些內容處理下一版。");
+  }
+
+  function changeCounts() {
+    if (!state.raw || !state.work) return { total: 0, timeline: 0, subtitle: 0 };
+    var timeline = Core.buildTimelinePatch(
+      { clips: state.raw.clips },
+      { clips: state.work.clips },
+      { base_timeline_ref: state.raw.source_artifact || "timeline.json" }
+    ).patches.length;
+    var subtitle = Core.buildSubtitlePatch(
+      state.rawSubs,
+      state.work.subtitles,
+      {}
+    ).patches.length;
+    return {
+      timeline: timeline,
+      subtitle: subtitle,
+      audio: (state.cues || []).length,
+      effect: (state.effects || []).length,
+      notes: (state.reviewNotes || []).length,
+      total: timeline + subtitle + (state.cues || []).length +
+        (state.effects || []).length + (state.reviewNotes || []).length,
+    };
+  }
+
+  function renderDecisionSummary() {
+    if (!els.decision_summary || !state.work || !state.raw) return;
+    var counts = changeCounts();
+    var before = Core.totalDuration(state.raw.clips || []);
+    var after = Core.totalDuration(state.work.clips || []);
+    var delta = after - before;
+    if (!counts.total) {
+      els.decision_summary.textContent = "尚未加入回饋或調整";
+      els.decision_summary.className = "decision-summary";
+      return;
+    }
+    var parts = [];
+    if (counts.notes) parts.push(counts.notes + " 條回饋");
+    if (counts.timeline) parts.push(counts.timeline + " 個畫面／時間調整");
+    if (counts.subtitle) parts.push(counts.subtitle + " 個字幕調整");
+    if (counts.audio) parts.push(counts.audio + " 個聲音提示");
+    if (counts.effect) parts.push(counts.effect + " 個效果意圖");
+    var duration = Math.abs(delta) < 0.001
+      ? "片長不變"
+      : "片長 " + (delta > 0 ? "+" : "") + delta.toFixed(1) + " 秒";
+    els.decision_summary.textContent = parts.join("、") + "；" + duration +
+      "。送出後會依照這些內容修改並檢查下一版。";
+    els.decision_summary.className = "decision-summary has-changes";
+  }
+
   function updateDirty() {
-    els.dirty_flag.textContent = state.dirty ? "有尚未儲存的本機修改" : "目前沒有本機修改";
+    els.dirty_flag.textContent = state.dirty ? "有尚未送出的調整" : "目前沒有調整";
     els.dirty_flag.className = state.dirty ? "dirty" : "muted";
+    renderDecisionSummary();
+  }
+
+  function selectedClip() {
+    if (!state.work || state.selectedSlot == null) return null;
+    return state.work.clips.find(function (clip) {
+      return clip.slot_index === state.selectedSlot;
+    }) || null;
+  }
+
+  function setInteractionHint(message) {
+    if (els.interaction_hint) els.interaction_hint.textContent = message;
+  }
+
+  function renderInteractionPanel() {
+    var clip = selectedClip();
+    var buttons = document.querySelectorAll("[data-quick-action]");
+    buttons.forEach(function (button) { button.disabled = !clip; });
+    if (!els.interaction_context || !els.interaction_hint) return;
+    if (!clip) {
+      els.interaction_context.textContent = "先從「逐段檢視」選一段";
+      els.interaction_hint.textContent = "選取後可立即換畫面、調整長短，或處理字幕與音樂。";
+      return;
+    }
+    var start = formatInteractionTime(clip.timeline_start_sec || 0);
+    var end = formatInteractionTime((clip.timeline_start_sec || 0) + (clip.duration_sec || 0));
+    els.interaction_context.textContent = "正在調整 " + start + "–" + end + " 的畫面";
+    els.interaction_hint.textContent = clipDisplayLabel(clip) || "選一個動作，畫面會立即更新。";
+  }
+
+  function formatInteractionTime(sec) {
+    var safe = Math.max(0, Number(sec) || 0);
+    var minutes = Math.floor(safe / 60);
+    var seconds = (safe - minutes * 60).toFixed(1).padStart(4, "0");
+    return minutes + ":" + seconds;
+  }
+
+  function openDomain(domain) {
+    var button = els["dico_" + domain];
+    if (!button) return;
+    state.currentDomain = domain;
+    ["material", "music", "subtitle", "effect"].forEach(function (name) {
+      if (els["dico_" + name]) els["dico_" + name].classList.toggle("on", name === domain);
+    });
+    renderInspector();
+  }
+
+  function adjustSelectedDuration(delta) {
+    var clip = selectedClip();
+    if (!clip) return;
+    var next = Math.max(0.5, Core.round6(clip.duration_sec + delta));
+    applyOp("set_duration", { duration_sec: next });
+    selectClip(clip.slot_index);
+    setInteractionHint(delta > 0 ? "已延長 0.5 秒，可直接播放確認。" : "已縮短 0.5 秒，可直接播放確認。");
+  }
+
+  function focusReplacementBrowser() {
+    var clip = selectedClip();
+    if (!clip) return;
+    if (els.drawer_media) els.drawer_media.classList.remove("collapsed");
+    if (els.fit_only) els.fit_only.checked = true;
+    renderMaterialBrowser();
+    if (els.asset_search) {
+      els.asset_search.focus();
+      els.asset_search.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    setInteractionHint("左側已列出適合這一段的畫面；雙擊素材即可替換。");
+  }
+
+  function focusSubtitleAtSelection() {
+    var clip = selectedClip();
+    if (!clip) return;
+    var start = clip.timeline_start_sec || 0;
+    var end = start + (clip.duration_sec || 0);
+    var subtitle = (state.work.subtitles || []).find(function (item) {
+      return item.start_sec < end && item.start_sec + item.duration_sec > start;
+    });
+    if (subtitle) {
+      selectSubtitle(subtitle.id);
+      setInteractionHint("已找到這一段的字幕，可直接修改內容或停留時間。");
+    } else {
+      if (els.review_category) els.review_category.value = "subtitle";
+      if (els.review_note) {
+        els.review_note.placeholder = "例：這裡補一張說明字卡，文字為……";
+        els.review_note.focus();
+      }
+      setInteractionHint("這一段沒有核准字幕；請把希望的文字或用途寫成回饋交給字幕流程。");
+    }
+  }
+
+  function runQuickAction(action) {
+    if (!selectedClip()) return;
+    if (action === "replace") focusReplacementBrowser();
+    else if (action === "longer") adjustSelectedDuration(0.5);
+    else if (action === "shorter") adjustSelectedDuration(-0.5);
+    else if (action === "subtitle") focusSubtitleAtSelection();
+    else if (action === "music") {
+      openDomain("music");
+      setInteractionHint("已打開這支影片的音樂狀態；音量修訂會交給音訊流程處理。 ");
+    } else if (action === "effect") {
+      if (els.review_category) els.review_category.value = "effect";
+      if (els.review_note) {
+        els.review_note.placeholder = "例：這裡用淡入轉場；不要再出現復古膠片效果。";
+        els.review_note.focus();
+      }
+      setInteractionHint("先選適合的效果，或把想要的感覺寫成回饋；不會自動亂套預設。");
+    }
   }
 
   // -- playback --------------------------------------------------------- //
@@ -749,7 +1270,8 @@
     state.trackSel = { type: "subtitle", id: id };
     var s = state.work.subtitles.find(function (x) { return x.id === id; });
     if (!s) return;
-    els.track_insp_title.textContent = "字幕 " + id;
+    els.track_insp_title.textContent = "調整這句字幕";
+    els.btn_apply_track.style.display = "";
     els.t_text.value = s.text;
     els.t_start.value = s.start_sec;
     els.t_duration.value = s.duration_sec;
@@ -758,13 +1280,15 @@
     seekTo(s.start_sec + 0.001);
     renderTimelineLanes();
     renderInspector();
+    renderTrackInsertions("subtitle");
   }
 
   function selectCue(id) {
     state.trackSel = { type: "cue", id: id };
     var c = state.cues.find(function (x) { return x.cue_id === id; });
     if (!c) return;
-    els.track_insp_title.textContent = "音效提示 " + id;
+    els.track_insp_title.textContent = "調整這個音效";
+    els.btn_apply_track.style.display = "";
     els.t_cuetype.value = c.cue_type;
     els.t_time.value = c.time_sec;
     els.t_strength.value = c.strength;
@@ -773,13 +1297,16 @@
     seekTo(c.time_sec);
     renderTimelineLanes();
     renderInspector();
+    renderTrackInsertions("cue");
   }
 
   function selectEffect(id) {
     state.trackSel = { type: "effect", id: id };
     var e = state.effects.find(function (x) { return x.effect_id === id; });
     if (!e) return;
-    els.track_insp_title.textContent = "特效 " + id + "（意圖）";
+    if (e.target_slot_index != null) state.selectedSlot = e.target_slot_index;
+    els.track_insp_title.textContent = "調整這個畫面效果";
+    els.btn_apply_track.style.display = "";
     els.t_preset.value = e.preset;
     els.t_start.value = e.start_sec;
     els.t_duration.value = e.duration_sec;
@@ -789,16 +1316,140 @@
     seekTo(e.start_sec + 0.001);
     renderTimelineLanes();
     renderInspector();
+    renderTrackInsertions("effect");
   }
 
-  function addCue() {
+  function audioLaneLabel(lane) {
+    if (lane === "music") return "配樂";
+    if (lane === "sfx") return "音效";
+    return "原聲／人聲";
+  }
+
+  function selectAudioTrack(id) {
+    state.trackSel = { type: "audio", id: id };
+    var track = (state.work.audio || []).find(function (x) { return x.id === id; });
+    if (!track) return;
+    els.track_insp_title.textContent = audioLaneLabel(track.lane);
+    els.btn_delete_track.style.display = "none";
+    els.btn_apply_track.style.display = "none";
+    showTrackFields([]);
+    seekTo(track.start_sec || 0);
+    renderTimelineLanes();
+    renderInspector();
+    renderTrackInsertions("audio");
+  }
+
+  function addInsertionOption(host, title, meta, onClick) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "insert-option";
+    var strong = document.createElement("strong");
+    strong.textContent = title;
+    var span = document.createElement("span");
+    span.textContent = meta;
+    button.appendChild(strong);
+    button.appendChild(span);
+    button.onclick = onClick;
+    host.appendChild(button);
+  }
+
+  function renderTrackInsertions(kind) {
+    var host = els.track_insertions;
+    if (!host) return;
+    host.hidden = false;
+    host.innerHTML = "";
+    var title = document.createElement("h3");
+    var hint = document.createElement("p");
+    var options = document.createElement("div");
+    options.className = "insert-options";
+    host.appendChild(title);
+    host.appendChild(hint);
+    host.appendChild(options);
+
+    if (kind === "effect") {
+      title.textContent = "這段可以套用的效果";
+      hint.textContent = "先用少量預設確認方向；套用後可立即播放，細節仍可在上方調整。";
+      var effects = state.effectAssets || [];
+      if (!effects.length) {
+        var empty = document.createElement("div");
+        empty.className = "insert-empty";
+        empty.textContent = "目前沒有可直接套用的效果素材；可使用預設推近效果。";
+        options.appendChild(empty);
+      } else {
+        effects.slice(0, 8).forEach(function (asset) {
+          addInsertionOption(options, asset.label || asset.asset_id || "效果素材", asset.asset_type || "預設效果", function () {
+            if (els.effect_asset_select) els.effect_asset_select.value = asset.asset_id || "";
+            addFx();
+            setInteractionHint("已套用「" + (asset.label || asset.asset_id || "效果") + "」，可播放確認。");
+          });
+        });
+      }
+    } else if (kind === "cue") {
+      title.textContent = "可以插入的音效提示";
+      hint.textContent = "音效提示只留下 draft 標記，真正混音仍由音訊流程處理。";
+      (CUE_TYPES || []).slice(0, 6).forEach(function (cueType) {
+        addInsertionOption(options, CUE_LABELS[cueType] || cueType, "插入目前時間", function () {
+          addCue(cueType);
+          setInteractionHint("已插入「" + (CUE_LABELS[cueType] || cueType) + "」提示。");
+        });
+      });
+    } else if (kind === "audio") {
+      var selectedAudio = state.trackSel && state.trackSel.type === "audio"
+        ? (state.work.audio || []).find(function (track) { return track.id === state.trackSel.id; })
+        : null;
+      title.textContent = selectedAudio
+        ? "這段的" + audioLaneLabel(selectedAudio.lane)
+        : "這支影片的聲音";
+      hint.textContent = selectedAudio && selectedAudio.independent_mix_editable
+        ? "這是可獨立調整的聲音來源。"
+        : "目前綁定的是混音完成檔；這裡負責定位與留下需求，音量或 ducking 由 Audio Director 處理。";
+      var tracks = state.work.audio || [];
+      if (!tracks.length) {
+        var noAudio = document.createElement("div");
+        noAudio.className = "insert-empty";
+        noAudio.textContent = "目前沒有可安全插入的音樂素材。先完成音樂來源與授權，再回到這裡檢視。";
+        options.appendChild(noAudio);
+      } else {
+        tracks.slice(0, 6).forEach(function (track) {
+          var volume = track.applied_volume == null ? "" : " · 音量 " + track.applied_volume;
+          addInsertionOption(options, audioLaneLabel(track.lane) + "｜" + (track.label || track.role || "聲音"),
+            Number(track.duration_sec || 0).toFixed(1) + " 秒" + volume, function () {
+            seekTo(track.start_sec || 0);
+            setInteractionHint("已定位到「" + (track.label || track.role || "聲音") + "」。音量與 ducking 交由音訊流程處理。");
+          });
+        });
+        addInsertionOption(options, "在此加音效提示", "不改變音樂來源", function () {
+          addCue();
+          setInteractionHint("已加入音效提示，可在這段時間軸上調整。");
+        });
+      }
+    } else {
+      title.textContent = "這段的字幕";
+      hint.textContent = "字幕先以核准文字為準；已有字幕可直接點選修改。";
+      var subtitle = state.trackSel && state.trackSel.type === "subtitle" ? state.work.subtitles.find(function (x) { return x.id === state.trackSel.id; }) : null;
+      if (subtitle) {
+        addInsertionOption(options, "編輯這句字幕", subtitle.text || "（空白）", function () {
+          els.t_text.focus();
+          setInteractionHint("已聚焦字幕內容，可以直接修改後確認。");
+        });
+      } else {
+        var noSubtitle = document.createElement("div");
+        noSubtitle.className = "insert-empty";
+        noSubtitle.textContent = "這裡沒有現成字幕；請先提供或核准字幕稿，不在工作台猜寫內容。";
+        options.appendChild(noSubtitle);
+      }
+    }
+  }
+
+  function addCue(cueType) {
     var active = Core.getActiveClip(state.work.clips, state.currentTime);
     var id = "cue-" + (++state.seq);
     state.cues.push({
-      cue_id: id, time_sec: Core.round6(state.currentTime), cue_type: "impact",
+      cue_id: id, time_sec: Core.round6(state.currentTime), cue_type: cueType || "impact",
       strength: 3, anchor_clip_slot_index: active ? active.slot_index : null,
     });
-    state.dirty = true; updateDirty();
+    state.dirty = true;
+    commitHistory();
     updateDomainDots();
     if (state.currentDomain) renderDomainInspector();
     selectCue(id);
@@ -820,7 +1471,8 @@
     var assetId = els.effect_asset_select ? els.effect_asset_select.value : "";
     if (assetId) fx.asset_id = assetId;
     state.effects.push(fx);
-    state.dirty = true; updateDirty();
+    state.dirty = true;
+    commitHistory();
     updateDomainDots();
     if (state.currentDomain) renderDomainInspector();
     selectEffect(id);
@@ -848,7 +1500,7 @@
     navigator.clipboard.writeText(text)
       .then(function () {
         els.diagnostics.textContent = "已複製補素材請求到剪貼簿！";
-        alert("已複製補素材請求到剪貼簿！請將它貼給 agent 以進行補素材任務。");
+        alert("已複製需求，請貼到任務對話中繼續處理。");
       })
       .catch(function (err) {
         console.error("Failed to copy text: ", err);
@@ -871,7 +1523,8 @@
       var e = state.effects.find(function (x) { return x.effect_id === t.id; });
       if (e) { e.preset = els.t_preset.value; e.start_sec = Core.round6(parseFloat(els.t_start.value)); e.duration_sec = Core.round6(parseFloat(els.t_duration.value)); e.intensity = parseInt(els.t_strength.value, 10); }
     }
-    state.dirty = true; updateDirty();
+    state.dirty = true;
+    commitHistory();
     renderTimelineLanes();
     renderMonitor();
     updateDomainDots();
@@ -886,36 +1539,52 @@
     else return; // subtitles are not deletable from the workbench
     state.trackSel = null;
     els.track_inspector.hidden = true;
-    state.dirty = true; updateDirty();
+    state.dirty = true;
+    commitHistory();
     renderTimelineLanes();
     updateDomainDots();
     if (state.currentDomain) renderDomainInspector();
   }
 
   function saveAll() {
+    var counts = changeCounts();
+    var hasDurationDecision = state.durationPolicy !== "flexible";
+    if (!counts.total && !hasDurationDecision) {
+      els.diagnostics.textContent = "目前沒有需要送出的回饋或調整。";
+      return;
+    }
+    var decisionContext = {
+      decision_mode: "explicit_submit",
+      review_notes: (state.reviewNotes || []).map(function (note) { return Object.assign({}, note); }),
+      duration_policy: state.durationPolicy,
+      target_duration_sec: Core.round6(state.work.duration_sec || 0),
+      duration_tolerance_sec: 2.0,
+      selected_slot_index: state.selectedSlot,
+    };
     var payload = Core.buildSavePayload({
       timelineBefore: state.raw.clips, timelineAfter: state.work.clips,
       subsBefore: state.rawSubs, subsAfter: state.work.subtitles,
       cues: state.cues, effects: state.effects,
       base_timeline_ref: (state.raw && state.raw.source_artifact) || "timeline.json",
+      decision_context: decisionContext,
     });
-    if (!Object.keys(payload).length) {
-      els.diagnostics.textContent = "目前沒有跨軌修改可儲存。";
-      return;
-    }
-    els.diagnostics.textContent = "正在儲存全部軌道...";
+    els.diagnostics.textContent = "正在整理並送出這次的回饋與調整...";
     Api.saveAll(payload)
       .then(function (res) {
         if (res.ok && res.j.ok) {
           var numPatches = (res.j.written || []).filter(function (x) { return x.indexOf("_patch.json") >= 0; }).length;
-          els.diagnostics.textContent = "已儲存 " + numPatches + " 個 patch + workbench_handoff.json,agent 將依你調整後的契約執行";
-          state.dirty = false; updateDirty();
+          els.diagnostics.textContent = "已簽出 " + (state.reviewNotes || []).length +
+            " 條回饋與 " + numPatches + " 類調整；系統會依同一批決定接續處理。";
+          state.savedHistoryIndex = state.historyIndex;
+          state.dirty = false;
+          updateHistoryButtons();
+          updateDirty();
           fetchArtifactsAndUpdateDots();
         } else {
-          els.diagnostics.textContent = "儲存全部被拒絕，未寫入任何檔案：" + JSON.stringify(res.j.errors || res.j);
+          els.diagnostics.textContent = "這些調整暫時無法保存：" + JSON.stringify(res.j.errors || res.j);
         }
       })
-      .catch(function (err) { els.diagnostics.textContent = "儲存全部失敗：" + err; });
+      .catch(function (err) { els.diagnostics.textContent = "保存調整失敗：" + err; });
   }
 
   // -- domain contract inspector views ---------------------------------- //
@@ -986,7 +1655,7 @@
     var summary = (state.artifacts && state.artifacts.workbench && state.artifacts.workbench.draft_summary) || {};
 
     if (d === "material") {
-      title = "素材契約";
+      title = "畫面狀態";
       patchFile = "timeline_patch.json";
       active = true;
       changed = JSON.stringify(state.work.clips) !== JSON.stringify(state.raw.clips);
@@ -997,13 +1666,19 @@
       ];
       patchObj = buildPatch();
     } else if (d === "music") {
-      title = "音樂契約";
+      title = "聲音狀態";
       patchFile = "audio_cue_patch.json";
       active = state.raw && state.raw.audio && state.raw.audio.length > 0;
       changed = state.cues && state.cues.length > 0;
+      var audioTracks = (state.work && state.work.audio) || [];
       rows = [
-        ["主軌", (state.raw && state.raw.audio && state.raw.audio[0] ? state.raw.audio[0].label : "無")],
-        ["音效提示", (state.cues || []).length + " 個標記"]
+        ["原聲／人聲", audioTracks.filter(function (track) { return track.lane === "dialogue"; }).length + " 段"],
+        ["配樂", audioTracks.filter(function (track) { return track.lane === "music"; }).length + " 段"],
+        ["音效", audioTracks.filter(function (track) { return track.lane === "sfx"; }).length + " 段"],
+        ["音效提示", (state.cues || []).length + " 個標記"],
+        ["調整方式", audioTracks.some(function (track) { return track.independent_mix_editable; })
+          ? "可獨立調整"
+          : "目前是混音完成檔，交 Audio Director"]
       ];
       patchObj = {
         artifact_role: "audio_cue_patch",
@@ -1011,7 +1686,7 @@
         cues: state.cues
       };
     } else if (d === "subtitle") {
-      title = "字幕口白契約";
+      title = "字幕狀態";
       patchFile = "subtitle_patch.json";
       active = state.raw && state.raw.subtitles && state.raw.subtitles.length > 0;
       changed = JSON.stringify(state.work.subtitles) !== JSON.stringify(state.rawSubs);
@@ -1025,7 +1700,7 @@
         subtitles: state.work.subtitles
       };
     } else if (d === "effect") {
-      title = "特效契約";
+      title = "效果狀態";
       patchFile = "effect_patch.json";
       active = (state.raw && state.raw.effects && state.raw.effects.length > 0) || (state.effectAssets && state.effectAssets.length > 0);
       changed = JSON.stringify(state.effects) !== JSON.stringify(state.raw.effects || []);
@@ -1060,7 +1735,7 @@
       rows.map(function(r){
         return '<div class="row"><span>' + r[0] + '</span><span>' + r[1] + '</span></div>';
       }).join('') +
-      '<p style="font-size:12px;color:var(--muted);margin:10px 0 6px;">人工修改寫入: <code>' + patchFile + '</code></p>' +
+      '<p style="font-size:12px;color:var(--muted);margin:10px 0 6px;">這裡的調整會先存成草稿</p>' +
       '<details style="margin-top:8px;"><summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none;">檢視原始 JSON</summary>' +
       '<div class="jsonbox" style="margin-top:4px;max-height:220px;overflow-y:auto;background:var(--panel-2);padding:8px;border-radius:6px;font-family:monospace;font-size:11px;white-space:pre;">' + JSON.stringify(patchObj, null, 2) + '</div></details>' +
       '<button id="btn-expand-whitebox" style="width:100%;margin-top:14px;padding:8px;border-radius:6px;background:none;border:1px solid var(--accent);color:var(--accent);font-weight:600;cursor:pointer;" type="button">展開完整數據 (白盒)</button>';
@@ -1244,7 +1919,7 @@
     var selectedRoot = currentRoot();
     Api._fetchJson("/api/projects")
       .then(function (res) {
-        var projects = (res && res.projects) || [];
+        var projects = Array.isArray(res) ? res : ((res && res.projects) || []);
         state.projects = projects;
         els.run_selector.innerHTML = "";
         var fallback = document.createElement("option");
@@ -1267,6 +1942,8 @@
   // -- inspector / edits ------------------------------------------------ //
   function selectClip(slot) {
     state.selectedSlot = slot;
+    state.trackSel = null;
+    if (state.currentDomain) resetDomainInspector();
     var clip = state.work.clips.find(function (c) { return c.slot_index === slot; });
     if (!clip) return;
     els.inspector_empty.hidden = true;
@@ -1274,10 +1951,10 @@
 
     var meta = els.inspector_meta;
     meta.innerHTML = "";
-    [["id", clip.id], ["type", clip.type], ["segment", clip.segment],
-     ["scene_id", clip.scene_id], ["need_id", clip.need_id],
-     ["visual_family", clip.visual_family], ["status", clip.status],
-     ["timeline_start", clip.timeline_start_sec.toFixed(2) + "s"]].forEach(function (kv) {
+    [["片段", clip.id], ["類型", clip.type], ["單元", clip.segment],
+     ["場景", clip.scene_id], ["用途", clip.need_id],
+     ["畫面分類", clip.visual_family], ["狀態", clip.status],
+     ["開始時間", clip.timeline_start_sec.toFixed(2) + "s"]].forEach(function (kv) {
       var dt = document.createElement("dt"); dt.textContent = kv[0];
       var dd = document.createElement("dd"); dd.textContent = (kv[1] == null ? "—" : kv[1]);
       meta.appendChild(dt); meta.appendChild(dd);
@@ -1296,15 +1973,18 @@
       els.fit_only.checked = true;
     }
     renderTimelineLanes();
+    renderSegmentNavigator();
     renderMaterialBrowser();
     renderInspector();
+    renderInteractionPanel();
   }
 
-  function applyOp(op, after) {
-    var before = state.work;
+  function applyOp(op, after, skipHistory) {
     state.work = Core.applyLocalPatch(state.work, { op: op, slot_index: state.selectedSlot, after: after });
     state.dirty = true;
+    if (!skipHistory) commitHistory();
     renderTimelineLanes();
+    renderSegmentNavigator();
     renderMonitor();
     updateDirty();
     updateDomainDots();
@@ -1315,13 +1995,14 @@
     if (state.selectedSlot == null) return;
     var clip = state.work.clips.find(function (c) { return c.slot_index === state.selectedSlot; });
     if (!clip) return;
-    applyOp("set_duration", { duration_sec: parseFloat(els.in_duration.value) });
+    applyOp("set_duration", { duration_sec: parseFloat(els.in_duration.value) }, true);
     if (clip.type === "video") {
       applyOp("set_source_window", {
         source_start_sec: parseFloat(els.in_source_start.value),
         source_duration_sec: parseFloat(els.in_source_duration.value),
-      });
+      }, true);
     }
+    commitHistory();
     selectClip(state.selectedSlot);
   }
 
@@ -1344,7 +2025,9 @@
       var scene = scenes[sIdx] || (scenes.length > 0 ? scenes[0] : null);
       var matchStatus = "other";
       if (scene) {
-        matchStatus = Materials.matchStatusForNeed ? Materials.matchStatusForNeed(scene, clip.need_id) : "other";
+        matchStatus = Materials.matchSceneToClip
+          ? Materials.matchSceneToClip(scene, asset, clip)
+          : (Materials.matchStatusForNeed ? Materials.matchStatusForNeed(scene, clip.need_id) : "other");
       }
       cand = Object.assign({}, asset, {
         scene_index: sIdx,
@@ -1355,15 +2038,17 @@
 
     var assetType = String(cand.asset_type || "").toLowerCase();
     var isImage = assetType === "photo" || assetType === "image";
+    var replacementPlan = null;
     if (!isImage) {
       var sceneObj = cand.scene || {};
       var start = parseFloat(sceneObj.start_sec) || 0;
       var end = parseFloat(sceneObj.end_sec) || 0;
       var sourceDur = Math.max(0.1, end - start);
       var clipDur = parseFloat(clip.duration_sec) || 0;
-      if (sourceDur < clipDur) {
-        var diff = (clipDur - sourceDur).toFixed(2);
-        var msg = "素材長度不足(還差 " + diff + " 秒)";
+      replacementPlan = Core.planReplacementDuration(clipDur, sourceDur, state.durationPolicy);
+      if (!replacementPlan.ok) {
+        var msg = "這段素材少了 " + replacementPlan.shortage_sec.toFixed(2) +
+          " 秒。若要使用，請將片長處理改為「內容優先」。";
         els.diagnostics.textContent = "替換失敗：" + msg;
         alert(msg);
         return;
@@ -1380,6 +2065,9 @@
       slot_index: slotIndex,
       asset: asset,
       scene_index: Number.isInteger(sceneIndex) ? sceneIndex : 0,
+      duration_sec: replacementPlan && replacementPlan.shortened
+        ? replacementPlan.duration_sec
+        : undefined,
     });
     if (next === before) {
       els.diagnostics.textContent = "替換失敗：素材沒有可用的場景或來源。";
@@ -1390,8 +2078,12 @@
     state.selectedAssetId = asset.asset_id;
     state.selectedSceneIndex = Number.isInteger(sceneIndex) ? sceneIndex : 0;
     state.dirty = true;
-    els.diagnostics.textContent = "已用素材 " + asset.asset_id + " / scene " + state.selectedSceneIndex + " 替換片段 #" + slotIndex + "（草稿 patch）。";
+    commitHistory();
+    els.diagnostics.textContent = replacementPlan && replacementPlan.shortened
+      ? "已換成所選畫面，這一段依內容縮短 " + replacementPlan.shortage_sec.toFixed(2) + " 秒。"
+      : "已用所選畫面替換這一段。";
     renderTimelineLanes();
+    renderSegmentNavigator();
     renderMaterialBrowser();
     renderMonitor();
     renderTransport();
@@ -1536,10 +2228,19 @@
     els.btn_sync_contract.onclick = syncContract;
     els.btn_export.onclick = exportFfmpeg;
     els.btn_save_all.onclick = saveAll;
+    if (els.btn_save_all_footer) els.btn_save_all_footer.onclick = saveAll;
     els.btn_add_cue.onclick = addCue;
     els.btn_add_fx.onclick = addFx;
     els.btn_apply_track.onclick = applyTrack;
     els.btn_delete_track.onclick = deleteTrack;
+    if (els.btn_undo) els.btn_undo.onclick = undo;
+    if (els.btn_redo) els.btn_redo.onclick = redo;
+    if (els.aspect_ratio) {
+      els.aspect_ratio.onchange = function () {
+        applyAspectRatio(els.aspect_ratio.value);
+        setInteractionHint("已切換預覽構圖；這不會改變正式輸出規格。");
+      };
+    }
 
     ["material", "music", "subtitle", "effect"].forEach(function (d) {
       var btn = els["dico_" + d];
@@ -1591,6 +2292,25 @@
     if (els.btn_copy_gap_req) {
       els.btn_copy_gap_req.onclick = copyGapRequest;
     }
+    document.querySelectorAll("[data-quick-action]").forEach(function (button) {
+      button.onclick = function () { runQuickAction(button.getAttribute("data-quick-action")); };
+    });
+    if (els.btn_add_review_note) els.btn_add_review_note.onclick = addReviewNote;
+    if (els.review_note) {
+      els.review_note.onkeydown = function (ev) {
+        if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter") {
+          ev.preventDefault();
+          addReviewNote();
+        }
+      };
+    }
+    if (els.duration_policy) {
+      els.duration_policy.onchange = function () {
+        state.durationPolicy = els.duration_policy.value || "flexible";
+        commitHistory();
+        renderDecisionSummary();
+      };
+    }
     if (els.run_selector) {
       els.run_selector.onchange = function () {
         var root = els.run_selector.value;
@@ -1627,9 +2347,19 @@
     });
     document.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape" && state.whiteboxView) closeWhitebox();
+      var target = ev.target && ev.target.tagName ? ev.target.tagName.toLowerCase() : "";
+      var editingText = target === "input" || target === "textarea" || target === "select";
+      if (!editingText && (ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") {
+        ev.preventDefault();
+        if (ev.shiftKey) redo();
+        else undo();
+      } else if (!editingText && (ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") {
+        ev.preventDefault();
+        redo();
+      }
     });
-    PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = p; els.t_preset.appendChild(o); });
-    CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; els.t_cuetype.appendChild(o); });
+    PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p; o.textContent = PRESET_LABELS[p] || p; els.t_preset.appendChild(o); });
+    CUE_TYPES.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = CUE_LABELS[c] || c; els.t_cuetype.appendChild(o); });
     window.addEventListener("resize", function () { renderTimelineLanes(); renderMonitor(); });
   }
 

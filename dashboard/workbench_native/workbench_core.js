@@ -95,6 +95,24 @@
   }
 
   /**
+   * Decide whether a material scene can replace a timeline slot.
+   * Flexible mode preserves the chosen content and allows the total timeline
+   * to become shorter. Constrained modes preserve the requested slot length.
+   */
+  function planReplacementDuration(clipDuration, sourceDuration, durationPolicy) {
+    const clip = round6(Math.max(0.1, Number(clipDuration) || 0));
+    const source = round6(Math.max(0.1, Number(sourceDuration) || 0));
+    if (source >= clip) {
+      return { ok: true, duration_sec: clip, shortened: false, shortage_sec: 0 };
+    }
+    const shortage = round6(clip - source);
+    if (durationPolicy === "flexible") {
+      return { ok: true, duration_sec: source, shortened: true, shortage_sec: shortage };
+    }
+    return { ok: false, duration_sec: clip, shortened: false, shortage_sec: shortage };
+  }
+
+  /**
    * Apply a single local edit op to a preview state, returning a NEW state with
    * the timeline recomputed. Supported ops mirror the timeline_patch contract:
    *   - set_duration       { slot_index, after:{duration_sec} }
@@ -242,7 +260,12 @@
     const sourceDur = isImage
       ? round6(Number(old.duration_sec) || 0)
       : round6(Math.max(0.1, end - start));
-    const duration = round6(Number(old.duration_sec) || sourceDur || 1);
+    const requestedDuration = Number(edit.duration_sec);
+    const duration = round6(
+      requestedDuration > 0
+        ? (isImage ? requestedDuration : Math.min(requestedDuration, sourceDur))
+        : (Number(old.duration_sec) || sourceDur || 1)
+    );
 
     clips[idx] = Object.assign({}, old, {
       type: isImage ? "image" : "video",
@@ -517,6 +540,9 @@
     if (subtitle.patches.length) payload.subtitle_patch = subtitle;
     if (cues.length) payload.audio_cue_patch = { artifact_role: "audio_cue_patch", version: 1, patches: cues, diagnostics: [] };
     if (effects.length) payload.effect_patch = { artifact_role: "effect_patch", version: 1, patches: effects, diagnostics: [] };
+    if (input.decision_context && typeof input.decision_context === "object") {
+      payload.decision_context = input.decision_context;
+    }
     return payload;
   }
 
@@ -675,6 +701,7 @@
     getActiveClip: getActiveClip,
     getVideoPlaybackTime: getVideoPlaybackTime,
     getActiveSubtitle: getActiveSubtitle,
+    planReplacementDuration: planReplacementDuration,
     applyLocalPatch: applyLocalPatch,
     trimClipEdge: trimClipEdge,
     replaceClipWithAsset: replaceClipWithAsset,

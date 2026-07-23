@@ -15,10 +15,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 try:
-    from tools.workbench_server import WorkbenchHandler, WORKBENCH_DIR
+    from tools.workbench_server import WorkbenchHandler, WORKBENCH_DIR, _can_preview
 except ImportError:  # pragma: no cover - direct-script fallback
-    from workbench_server import WorkbenchHandler, WORKBENCH_DIR
+    from workbench_server import WorkbenchHandler, WORKBENCH_DIR, _can_preview
+
+from video_pipeline_core import workbench_project as wbp
 
 # Files for Profile A (review_demo)
 PROFILE_A_FILES = {
@@ -47,6 +53,29 @@ def resolve_artifact_path(root_dir: Path, filename: str) -> Path:
     direct_path = root_dir / filename
     if direct_path.exists():
         return direct_path
+
+    project_manifest = root_dir / wbp.MANIFEST_NAME
+    if project_manifest.is_file():
+        try:
+            _manifest, refs = wbp.resolve_workbench_project(root_dir)
+        except ValueError:
+            return direct_path
+        artifact_key = {
+            "final.mp4": "candidate_video",
+            "timeline.json": "timeline",
+            "timeline_build.json": "timeline",
+            "rough_cut_plan.json": "timeline",
+            "project_material_map.json": "material_map",
+            "reviewed_project_material_map.json": "material_map",
+            "review_subtitles.srt": "subtitles",
+            "subtitles.srt": "subtitles",
+            "audio_mix_report.json": "audio_mix_report",
+            "effect_intent_plan.json": "effect_intent_plan",
+            "effect_render_verification.json": "effect_render_verification",
+            "verify_evidence_bundle.json": "verify_bundle",
+        }.get(filename)
+        if artifact_key and artifact_key in refs:
+            return refs[artifact_key]
     
     subdirs = ["verify", "m5_verify_evidence", "verify_evidence"]
     for sd in subdirs:
@@ -73,6 +102,7 @@ def detect_profile(root_dir: Path) -> str:
 
 
 PROJECT_RUN_SIGNAL_FILES = {
+    "workbench_project": ("workbench_project.json",),
     "final_video": ("final.mp4",),
     "workbench_handoff": ("workbench_handoff.json",),
     "workbench_review": ("workbench_review_report.json",),
@@ -86,6 +116,7 @@ PROJECT_RUN_SIGNAL_FILES = {
 }
 
 PROJECT_RUN_SIGNAL_SCORES = {
+    "workbench_project": 600,
     "final_video": 500,
     "workbench_handoff": 120,
     "workbench_review": 80,
@@ -99,6 +130,7 @@ PROJECT_RUN_SIGNAL_SCORES = {
 }
 
 CURRENT_ROUTE_SIGNALS = {
+    "workbench_project",
     "workbench_handoff",
     "workbench_review",
     "video_intent",
@@ -162,7 +194,8 @@ def classify_project_run(run_path: Path) -> dict[str, Any]:
 
     has_material_map = bool(signal_set & {"material_map_reviewed", "material_delta", "material_map_raw"})
     usable = (
-        "final_video" in signal_set
+        "workbench_project" in signal_set
+        or "final_video" in signal_set
         or "workbench_handoff" in signal_set
         or "verify_bundle" in signal_set
         or ("timeline" in signal_set and has_material_map)
@@ -170,7 +203,9 @@ def classify_project_run(run_path: Path) -> dict[str, Any]:
         or ("video_intent" in signal_set and bool(signal_set & {"material_map_reviewed", "material_delta"}))
     )
 
-    if "final_video" in signal_set:
+    if "workbench_project" in signal_set:
+        reason = "V Pipeline 已連接剪輯工作台，可檢視並建立有界草稿修改"
+    elif "final_video" in signal_set:
         reason = "已有成片，可檢視交付結果"
     elif "workbench_handoff" in signal_set:
         reason = "已有剪輯工作台交接檔，可繼續剪輯"
@@ -187,8 +222,17 @@ def classify_project_run(run_path: Path) -> dict[str, Any]:
 
     last_modified = _run_signal_mtime(resolved)
 
+    display_name = resolved.name
+    if "workbench_project" in signal_set:
+        try:
+            manifest = json.loads((resolved / wbp.MANIFEST_NAME).read_text(encoding="utf-8"))
+            if isinstance(manifest.get("display_name"), str) and manifest["display_name"].strip():
+                display_name = manifest["display_name"].strip()
+        except (OSError, ValueError):
+            pass
+
     return {
-        "name": resolved.name,
+        "name": display_name,
         "path": str(resolved),
         "profile": detect_profile(resolved),
         "usable": usable,
@@ -271,6 +315,7 @@ WORKBENCH_DRAFT_ARTIFACTS = {
     "subtitle_patch": "subtitle_patch.json",
     "audio_cue_patch": "audio_cue_patch.json",
     "effect_patch": "effect_patch.json",
+    "workbench_human_decision": "workbench_human_decision.json",
     "workbench_review_report": "workbench_review_report.json",
     "workbench_review_report_md": "workbench_review_report.md",
 }
@@ -327,10 +372,14 @@ def collect_workbench_draft_status(root_dir: Path):
         "subtitle_edits": _json_patch_op_count(root_dir / "subtitle_patch.json"),
         "audio_cues": _json_patch_op_count(root_dir / "audio_cue_patch.json"),
         "effect_intents": _json_patch_op_count(root_dir / "effect_patch.json"),
+        "review_notes": 0,
         "revision_next_action": _workbench_revision_next_action(
             root_dir / "workbench_revision_request.json"
         ),
     }
+    human_decision = load_json_file(root_dir / "workbench_human_decision.json")
+    if isinstance(human_decision, dict):
+        summary["review_notes"] = len(human_decision.get("review_notes") or [])
     summary["has_handoff"] = artifacts["workbench_handoff"]["exists"]
     summary["has_review_report"] = artifacts["workbench_review_report"]["exists"]
     if summary["has_handoff"]:
@@ -447,9 +496,16 @@ def scan_available_projects():
 
 
 def scan_available_projects():
-    """Scan known workspace roots and list usable pipeline run folders."""
+    """List current Workbench landings and durable run projects.
+
+    ``.tmp`` contains thousands of historical fixtures and negative evidence.
+    Recursively presenting that tree made the GUI slow and invited operators to
+    open non-project artifacts.  Current V Pipeline candidates opt in through
+    ``.tmp/workbench_projects/<id>/workbench_project.json``; durable projects
+    may continue to live under ``runs``.
+    """
     return scan_project_runs([
-        Path(".tmp"),
+        Path(".tmp") / "workbench_projects",
         Path("runs"),
     ], max_depth=5)
 
@@ -1126,7 +1182,7 @@ class DashboardHandler(WorkbenchHandler):
                     "version": 1,
                     "status": "ok",
                     "artifact_root": str(active_root.resolve()),
-                    "can_preview": any((active_root / name).is_file() for name in ("draft_timeline.json", "timeline.json", "timeline.plan")),
+                    "can_preview": _can_preview(active_root),
                     "write_limited": True,
                 },
             }
@@ -1150,8 +1206,16 @@ class DashboardHandler(WorkbenchHandler):
             # 1. Resolve Media URLs
             final_mp4_resolved = resolve_artifact_path(active_root, "final.mp4")
             if final_mp4_resolved.exists():
-                rel_path = final_mp4_resolved.relative_to(active_root).as_posix()
-                final_video_url = f"/static/{rel_path}?root={urllib.parse.quote(str(active_root))}"
+                try:
+                    rel_path = final_mp4_resolved.relative_to(active_root).as_posix()
+                    final_video_url = f"/static/{rel_path}?root={urllib.parse.quote(str(active_root))}"
+                except ValueError:
+                    final_video_url = (
+                        "/media?src="
+                        + urllib.parse.quote(str(final_mp4_resolved), safe="")
+                        + "&root="
+                        + urllib.parse.quote(str(active_root), safe="")
+                    )
             else:
                 final_video_url = None
 
